@@ -10,6 +10,8 @@
 #include <random.h>
 
 #include <deque>
+#include <execution>
+#include <boost/lockfree/queue.hpp>
 
 namespace levelgen::toast {
 
@@ -24,7 +26,7 @@ typedef struct Pairing {
 	int dist, a, b;
 } Pairing;
 
-using PositionQueue = std::deque<Position>;
+using PositionQueue = boost::lockfree::queue<Position>;
 	
 #ifdef _TESTING
 static void level_draw_ascii(Level *lvl) {
@@ -156,55 +158,76 @@ static void set_outside(Level *lvl, char val) {
 	for (i = 1; i < size.y-1; i++) lvl->VoxelRaw({ size.x - 1, i }) = val;
 }
 
-static void expand_init(Level *lvl, PositionQueue& q) {
-	for(int y = 1; y<lvl->GetSize().y-1; y++)
+static void expand_init(Level *lvl, PositionQueue& q, std::atomic<int>& queue_size) {
+
+	std::vector<int> ys;
+	ys.reserve(lvl->GetSize().y - 2);
+	for (int y = 1; y < lvl->GetSize().y - 1; y++)
+		ys.emplace_back(y);
+	
+	std::for_each(std::execution::par, ys.begin(), ys.end(), [&](int y) {
 		for (int x = 1; x < lvl->GetSize().x - 1; x++) {
 			int offset = x + y * lvl->GetSize().x;
 			if (lvl->GetVoxelRaw(offset) && has_neighbor(lvl, x, y)) {
 				lvl->SetVoxelRaw(offset, 2);
-				q.emplace_back(x, y);
+				bool ok = q.push({ x, y }); assert(ok);
+				queue_size.fetch_add(1, std::memory_order_relaxed);
 			}
 		}
+	});
 }
 
 #define MIN2(a,b)   ((a<b) ? a : b)
 #define MIN3(a,b,c) ((a<b) ? a : (b<c) ? b : c)
-static int expand_once(Level *lvl, PositionQueue& q) {
+static int expand_once(Level *lvl, PositionQueue& q, std::atomic<int>& queue_size) {
 	Position temp;
-	int j, count = 0;
+	int j;
+	std::atomic<int> count = 0;
 	
-	size_t total = q.size();
-	for(size_t i=0; i<total; i++) {
-		int xodds, yodds, odds;
-		
-		temp = q.front();
-		q.pop_front();
+	size_t total = queue_size.load(std::memory_order_consume);
+	std::vector<int> ys;
+	ys.reserve(total);
+	for (int y = 0; y < total; ++y)
+		ys.emplace_back(y);
 
-		xodds = ODDS * MIN2(lvl->GetSize().x - temp.x, temp.x) / FILTER;
-		yodds = ODDS * MIN2(lvl->GetSize().y - temp.y, temp.y) / FILTER;
-		odds  = MIN3(xodds, yodds, ODDS);
-		
-		if(Random::Bool(odds)) {
-			lvl->SetVoxelRaw(temp, 0);
-			count++;
-			
-			/* Now, queue up any neighbors that qualify: */
-			for(j=0; j<9; j++) {
-				char *c;
-				int tx, ty;
-				
-				if(j==4) continue;
-				
-				tx = temp.x + (j%3) - 1; ty = temp.y + (j/3) - 1;
-				c = &lvl->VoxelRaw({ tx, ty });
-				if(*c == 1) {
-					*c = 2;
-					q.emplace_back(Position{ tx, ty });
+	std::for_each(std::execution::par, ys.begin(), ys.end(), [&](int i) {
+		 {
+			int xodds, yodds, odds;
+
+			bool ok = q.pop(temp); assert(ok);
+			queue_size.fetch_sub(1, std::memory_order_relaxed);
+
+			xodds = ODDS * MIN2(lvl->GetSize().x - temp.x, temp.x) / FILTER;
+			yodds = ODDS * MIN2(lvl->GetSize().y - temp.y, temp.y) / FILTER;
+			odds = MIN3(xodds, yodds, ODDS);
+
+			if (Random::Bool(odds)) {
+				lvl->SetVoxelRaw(temp, 0);
+				count++;
+
+				/* Now, queue up any neighbors that qualify: */
+				for (j = 0; j < 9; j++) {
+					char* c;
+					int tx, ty;
+
+					if (j == 4) continue;
+
+					tx = temp.x + (j % 3) - 1; ty = temp.y + (j / 3) - 1;
+					c = &lvl->VoxelRaw({ tx, ty });
+					if (*c == 1) {
+						*c = 2;
+						q.push(Position{ tx, ty });
+						queue_size.fetch_add(1, std::memory_order_relaxed);
+					}
 				}
 			}
-		} else
-			q.emplace_back(temp);
-	}
+			else
+			{
+				q.push(temp);
+				queue_size.fetch_add(1, std::memory_order_relaxed);
+			}
+		}
+	});
 	return count;
 }
 
@@ -218,11 +241,10 @@ static void randomly_expand(Level *lvl) {
 	
 	/* Experimentally, the queue never grew to larger than 3/50ths of the level
 	 * size, so we can use that to save quite a bit of memory: */
-	auto queue = PositionQueue();
-	//queue.resize(lvl->GetSize().x * lvl->GetSize().y * 3 / 50);
-	
-	expand_init(lvl, queue);
-	while( (cur += expand_once(lvl, queue)) < goal );
+	auto queue = PositionQueue(lvl->GetSize().x * lvl->GetSize().y * 1 / 50);
+	std::atomic<int> queue_size = 0;
+	expand_init(lvl, queue, queue_size);
+	while( (cur += expand_once(lvl, queue, queue_size)) < goal );
 	expand_cleanup(lvl);
 }
 
