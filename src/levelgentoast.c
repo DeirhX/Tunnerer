@@ -14,6 +14,8 @@
 #include <atomic>
 #include <thread>
 #include <future>
+#include <queue>
+#include <concurrent_queue.h>
 
 namespace levelgen::toast {
 
@@ -160,55 +162,100 @@ static void set_outside(Level *lvl, char val) {
 	for (i = 1; i < size.y-1; i++) lvl->VoxelRaw({ size.x - 1, i }) = val;
 }
 
+	/*
+	 * If any non-zero pixel has at least one neighbor, mark with [2] and enqueue for further processing
+	 */
 static void expand_init(Level *lvl, PositionQueue& q) {
 	for(int y = 1; y<lvl->GetSize().y-1; y++)
 		for (int x = 1; x < lvl->GetSize().x - 1; x++) {
 			int offset = x + y * lvl->GetSize().x;
 			if (lvl->GetVoxelRaw(offset) && has_neighbor(lvl, x, y)) {
-				lvl->SetVoxelRaw(offset, 2);
+				lvl->SetVoxelRaw(offset, LevelMark);
 				q.push_back({ x, y });
 			}
 		}
 }
 
-#define MIN2(a,b)   ((a<b) ? a : b)
-#define MIN3(a,b,c) ((a<b) ? a : (b<c) ? b : c)
 static int expand_once(Level *lvl, PositionQueue& q) {
-	Position temp;
-	int j, count = 0;
 	
-	size_t total = q.size();
-	for(size_t i=0; i<total; i++) {
-		int xodds, yodds, odds;
-		
-		temp = q.front();
-		q.pop_front();
+	std::atomic<int> count = 0;
+	int worker_count = 8;
+	auto policy = std::launch::async;
+	auto jobs = blocking_queue<Position>(worker_count * 8 + 500000);
+	auto results = blocking_queue<Position>(std::numeric_limits<int>::max());
 
-		xodds = ODDS * std::min(lvl->GetSize().x - temp.x, temp.x) / FILTER;
-		yodds = ODDS * std::min(lvl->GetSize().y - temp.y, temp.y) / FILTER;
-		odds  = std::min(std::min(xodds, yodds), ODDS);
-		
-		if(Random::Bool(odds)) {
-			lvl->SetVoxelRaw(temp, 0);
-			count++;
-			
-			/* Now, queue up any neighbors that qualify: */
-			for(j=0; j<9; j++) {
-				char *c;
-				int tx, ty;
-				
-				if(j==4) continue;
-				
-				tx = temp.x + (j%3) - 1; ty = temp.y + (j/3) - 1;
-				c = &lvl->VoxelRaw({ tx, ty });
-				if(*c == 1) {
-					*c = 2;
-					q.push_back({ tx, ty });
+	/* Queue processor, dishing results to [results]  */
+	auto processor = [&jobs, &results, &count, lvl]()
+	{
+		Position pos;
+		while (jobs.take(pos))
+		{
+			/* Odds based on distances from edges  */
+			int xodds = ODDS * std::min(lvl->GetSize().x - pos.x, pos.x) / FILTER;
+			int yodds = ODDS * std::min(lvl->GetSize().y - pos.y, pos.y) / FILTER;
+			int odds = std::min(std::min(xodds, yodds), ODDS);
+
+			if (Random::Bool(odds)) {
+				/* EnROCKen */
+				lvl->SetVoxelRaw(pos, LevelRock);
+				count.fetch_add(1, std::memory_order_relaxed);
+
+				/* Now, queue up any neighbors that qualify: */
+				for (int j = 0; j < 9; j++) {
+					char* c;
+					int tx, ty;
+
+					if (j == 4) continue;
+
+					tx = pos.x + (j % 3) - 1; ty = pos.y + (j / 3) - 1;
+					c = &lvl->VoxelRaw({ tx, ty });
+					if (*c == LevelDirt) {
+						*c = LevelMark;
+						results.put({ tx, ty });
+					}
 				}
 			}
-		} else
-			q.push_back(temp);
+			else
+				results.put(pos);
+		}
+	};
+
+	/* Parallelize the process using workers processing a blocking queue */
+	auto workers = std::vector<std::future<void>>();
+	workers.reserve(worker_count);
+	for (int i = 0; i < worker_count; ++i) {
+		workers.emplace_back(std::async(policy, processor));
 	}
+	
+	/* Start processing incoming queue and passing it to waiting workers */
+	size_t total = q.size();
+	for(size_t i=0; i<total; i++)
+	{
+		auto pos = q.front();
+		q.pop_front();
+		jobs.put(pos);
+	}
+	/* Expect no more work and gradually finish */
+	jobs.finish();
+
+	/* Start copying back before waiting for all workers. Just one thread, q is unsafe. */
+	auto fetcher = std::async(policy, [&results, &q](){
+		Position result;
+		while (results.take(result))
+		{
+			q.push_back(result);
+		};
+	});
+
+	/* Wait for all workers to finish */
+	for (auto& worker : workers) 	{
+		worker.get();
+	}
+	/* All workers are done, result queue adding is now closed */
+	results.finish();
+	/* Fetcher can finish now, aborting current [take] */
+	fetcher.get();
+	/* [q] contains newly added elements now */
 	return count;
 }
 
@@ -222,8 +269,7 @@ static void randomly_expand(Level *lvl) {
 	
 	/* Experimentally, the queue never grew to larger than 3/50ths of the level
 	 * size, so we can use that to save quite a bit of memory: */
-	auto queue = PositionQueue(50000);
-	//queue.resize(lvl->GetSize().x * lvl->GetSize().y * 3 / 50);
+	auto queue = PositionQueue(lvl->GetSize().x * lvl->GetSize().y * 5 / 50);
 	
 	expand_init(lvl, queue);
 	while( (cur += expand_once(lvl, queue)) < goal );

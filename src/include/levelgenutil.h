@@ -2,6 +2,10 @@
 #include <level.h>
 #include <types.h>
 
+constexpr char LevelRock = 0;
+constexpr char LevelDirt = 1;
+constexpr char LevelMark = 2;
+
 void     fill_all  (Level *lvl, char c) ;
 void     rough_up(Level *lvl) ;
 Position  pt_rand   (Size size, int border) ;

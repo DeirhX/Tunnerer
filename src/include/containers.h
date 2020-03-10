@@ -5,6 +5,10 @@
 #include <assert.h>
 #include <debugapi.h>
 #include <vector>
+#include <condition_variable>
+#include <queue>
+#include <atomic>
+#include "../exceptions.h"
 
 // Effective container for storing in-place, cache-local objects - deleting does not shift, dead objects can be reused later
 //  and references to live objects are valid forever.
@@ -136,5 +140,67 @@ public:
 	void emplace_back(TArgs&&... args)
 	{
 		cont.emplace_back(std::forward<TArgs>(args)...);
+	}
+};
+
+/*
+ * blockingqueue.h
+ *
+ *  Created on: May 20, 2016
+ *      Author: bravegag
+ */
+
+template<class Job>
+class blocking_queue {
+private:
+	std::queue<Job> queue_;
+	mutable std::mutex mutex_;
+	std::condition_variable not_empty_cond_;
+	std::condition_variable not_full_cond_;
+	int capacity_ = 0;
+	std::atomic<bool> finished = false;
+public:
+	blocking_queue(int capacity) : capacity_(capacity) {
+
+	}
+
+	void put(const Job& job) {
+		std::unique_lock<std::mutex> lock(mutex_);
+		assert(!finished);
+		if (finished)
+			throw GameException("Use after finished");
+		while (queue_.size() >= capacity_) {
+			not_full_cond_.wait(lock, [&]() { return (queue_.size() < capacity_); });
+		}
+		queue_.push(job);
+		not_empty_cond_.notify_one();
+		assert(!queue_.empty());
+	}
+
+	bool take(Job& job) {
+		std::unique_lock<std::mutex> lock(mutex_);
+		while (queue_.empty() && !finished) {
+			not_empty_cond_.wait(lock, [&]() { return !queue_.empty() || finished; });
+		}
+		if (finished && queue_.empty())
+			return false;
+		
+		job = queue_.front();
+		queue_.pop();
+		not_full_cond_.notify_one();
+		assert(queue_.size() < capacity_);
+		return true;
+	}
+
+	void finish() {
+		std::unique_lock<std::mutex> lock(mutex_);
+		assert(!finished);
+		finished = true;
+		not_empty_cond_.notify_all();
+	}
+
+	int size() const {
+		std::unique_lock<std::mutex> lock(mutex_);
+		return queue_.size();
 	}
 };
