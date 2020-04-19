@@ -20,9 +20,19 @@ enum class LinkPointType
 
 struct NeighborLinkPoint
 {
-    class LinkPoint * point;
-    float distance;
-    //class Link * active_link = nullptr;
+    class LinkPoint * point = nullptr;
+    float distance = 0;
+    class Link * active_link = nullptr;
+
+    NeighborLinkPoint() = default;
+    NeighborLinkPoint(LinkPoint * point_, float distance_) : point(point_), distance(distance_) {}
+    NeighborLinkPoint(const NeighborLinkPoint &) = delete;
+    NeighborLinkPoint & operator=(const NeighborLinkPoint &) = delete;
+    NeighborLinkPoint(NeighborLinkPoint && movable) noexcept { *this = std::move(movable); }
+    NeighborLinkPoint & operator=(NeighborLinkPoint && movable) noexcept;
+    ~NeighborLinkPoint() { DestroyLink(); }
+
+    void DestroyLink();
 };
 
 /* LinkPoint: Linkable point to others */
@@ -34,14 +44,13 @@ class LinkPoint
     class LinkMap * owner;
 
     std::vector<NeighborLinkPoint> possible_links;
-    int connected_links = 0;
+    int active_links = 0;
 
     bool is_alive = true; /* Once false, object is dead forever */
     bool is_enabled = true;
     bool is_part_of_graph = false;
   public:
     LinkPoint(Position position, LinkPointType type_, LinkMap * owner_ = nullptr);
-    //LinkPoint(LinkPoint && movable) noexcept;
     ~LinkPoint() { Invalidate(); }
 
     [[nodiscard]] bool IsInvalid() const { return !is_alive; }
@@ -52,16 +61,16 @@ class LinkPoint
     [[nodiscard]] LinkMap * GetLinkMap() const { return this->owner; }
     [[nodiscard]] bool IsOrphaned() const { return !this->is_part_of_graph; } /* Used by link solver.*/
     [[nodiscard]] const std::vector<NeighborLinkPoint> & GetNeighbors() const { return this->possible_links; }
-    [[nodiscard]] std::optional<NeighborLinkPoint> GetClosestOrphanedPoint() const;
+    [[nodiscard]] const NeighborLinkPoint * GetClosestOrphanedPoint() const;
     [[nodiscard]] bool IsInRange(LinkPoint * other_link) const;
     [[nodiscard]] bool IsEnabled() const { return this->is_enabled; }
 
     void SetPosition(Position position_);
 
     void SetIsPartOfGraph(bool value) { this->is_part_of_graph = value; }
-    //void ConnectWith(class Link * link);
-    //void DisconnectWith(class Link * link);
-    //void DisconnectAll();
+    void ConnectWith(class Link * link, LinkPoint * other);
+    void DisconnectWith(class Link * link);
+    void DisconnectAll();
 
     void RemovePossibleLink(LinkPoint * possible_link);
     void UpdateLink(LinkPoint * possible_link); 
@@ -104,24 +113,46 @@ enum class LinkType
     Theoretical, /* Too far from source */
 };
 
+/* Move correctness of reference to link-point so we don't have to micromanage it in Link */
+class LinkPointConnector
+{
+    Link * owner = nullptr;
+    LinkPoint * link_point = nullptr;
+public:
+    LinkPointConnector(LinkPoint * point, Link * link, LinkPoint * target) : owner(link), link_point(point)
+    {
+        point->ConnectWith(link, target);
+        point->SetIsPartOfGraph(true);
+    }
+    ~LinkPointConnector() { if (link_point) link_point->DisconnectWith(owner); }
+    LinkPointConnector(LinkPointConnector && movable) noexcept { *this = std::move(movable); }
+    LinkPointConnector & operator=(LinkPointConnector && movable) noexcept
+    {
+        this->owner = movable.owner;
+        std::swap(this->link_point, movable.link_point);
+        return *this;
+    }
+
+    void Disconnect() { this->link_point = nullptr; }
+    [[nodiscard]] LinkPoint * GetPoint() const { return this->link_point; }
+};
+
 /* Link: A connected link between two points */
 class Link : public Invalidable
 {
-    LinkPoint * from = {};
-    LinkPoint * to = {};
+    /* Will register to LinkPoint and disconnect on destruction */
+    LinkPointConnector from; 
+    LinkPointConnector to;
 
     LinkType type;
-    bool is_alive = true;
   public:
     Link(LinkPoint * from_, LinkPoint * to_);
-    ~Link();
-    Link(Link && movable) = default;
-    Link & operator=(Link && movable) noexcept = default;
 
     [[nodiscard]] LinkType GetType() const { return this->type; }
-    [[nodiscard]] LinkPoint * GetSource() const { return this->from; }
-    [[nodiscard]] LinkPoint * GetTarget() const { return this->to; }
+    [[nodiscard]] LinkPoint * GetSource() const { return this->from.GetPoint(); }
+    [[nodiscard]] LinkPoint * GetTarget() const { return this->to.GetPoint(); }
     void Draw(Surface * surface) const;
+    void Disconnect(LinkPoint * point);
 };
 
 /* LinkMap: Manages all link point updates and links */
@@ -129,7 +160,7 @@ class LinkMap
 {
     Level * level;
     ValueContainer<LinkPoint> link_points = {};
-    std::vector<Link> links = {};
+    ValueContainer<Link> links = {};
 
     RepetitiveTimer relink_timer = {tweak::world::LinkReactorsInterval};
     bool is_collection_modified = false;
