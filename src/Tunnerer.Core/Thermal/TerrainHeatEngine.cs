@@ -178,7 +178,7 @@ public sealed class TerrainHeatEngine
             ThermalMaterial m = Pixel.GetThermalMaterial(pixels[i]);
             float cTerrain = GetHeatCapacity(m);
             sum += terrainTemperature[i] * cTerrain;
-            sum += airTemperature[i] * Tweaks.World.ThermalCapacityAir;
+            sum += airTemperature[i] * _settings.ThermalCapacityAir;
         }
 
         return sum;
@@ -283,7 +283,7 @@ public sealed class TerrainHeatEngine
         return sum;
     }
 
-    private static void ExchangeTerrainPair(
+    private void ExchangeTerrainPair(
         int idxA,
         int idxB,
         ThermalMaterial mA,
@@ -310,14 +310,14 @@ public sealed class TerrainHeatEngine
         terrainDelta[idxB] += dQ / cB;
     }
 
-    private static void ExchangeAirPair(int idxA, int idxB, float aA, float aB, float[] airDelta)
+    private void ExchangeAirPair(int idxA, int idxB, float aA, float aB, float[] airDelta)
     {
         float delta = aA - aB;
         if (MathF.Abs(delta) < 0.0001f)
             return;
 
-        float c = Tweaks.World.ThermalCapacityAir;
-        float dQ = StablePairHeatFlow(delta, c, c, Tweaks.World.ThermalKAirAir * 0.5f + Tweaks.World.ThermalAirNeighborCoupling);
+        float c = _settings.ThermalCapacityAir;
+        float dQ = StablePairHeatFlow(delta, c, c, _settings.ThermalKAirAir * 0.5f + _settings.ThermalAirNeighborCoupling);
         if (MathF.Abs(dQ) < 0.0001f)
             return;
 
@@ -332,9 +332,9 @@ public sealed class TerrainHeatEngine
             return;
 
         float cTerrain = material == ThermalMaterial.Air
-            ? Tweaks.World.ThermalCapacityAir
+            ? _settings.ThermalCapacityAir
             : GetHeatCapacity(material);
-        float cAir = Tweaks.World.ThermalCapacityAir;
+        float cAir = _settings.ThermalCapacityAir;
         float k = material == ThermalMaterial.Air
             ? _settings.ThermalAirCellCoupling
             : GetConductance(material, ThermalMaterial.Air) + 0.5f * _settings.ThermalAirCellCoupling;
@@ -346,9 +346,9 @@ public sealed class TerrainHeatEngine
         airDelta[idx] += dQ / cAir;
     }
 
-    private static float StablePairHeatFlow(float deltaT, float cA, float cB, float k)
+    private float StablePairHeatFlow(float deltaT, float cA, float cB, float k)
     {
-        float dQ = k * deltaT * Tweaks.World.ThermalDt;
+        float dQ = k * deltaT * _settings.ThermalDt;
         float maxStableDQ = MathF.Min(cA, cB) * MathF.Abs(deltaT) * 0.125f;
         if (dQ > maxStableDQ) dQ = maxStableDQ;
         else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
@@ -365,7 +365,7 @@ public sealed class TerrainHeatEngine
         float cA = GetHeatCapacity(mA);
         float cB = GetHeatCapacity(mB);
         float k = GetConductance(mA, mB);
-        float dQ = k * delta * Tweaks.World.ThermalDt;
+        float dQ = k * delta * _settings.ThermalDt;
 
         // Keep explicit pair exchange numerically stable under large deltas.
         // Pairwise cap is conservative because each cell can exchange with multiple
@@ -380,7 +380,7 @@ public sealed class TerrainHeatEngine
         _delta[idxB] += dQ / cB;
     }
 
-    private static void ExchangePairRegion(
+    private void ExchangePairRegion(
         int idxA,
         int idxB,
         int localA,
@@ -400,7 +400,7 @@ public sealed class TerrainHeatEngine
         float cA = GetHeatCapacity(mA);
         float cB = GetHeatCapacity(mB);
         float k = GetConductance(mA, mB);
-        float dQ = k * delta * Tweaks.World.ThermalDt;
+        float dQ = k * delta * _settings.ThermalDt;
         float maxStableDQ = MathF.Min(cA, cB) * MathF.Abs(delta) * 0.125f;
         if (dQ > maxStableDQ) dQ = maxStableDQ;
         else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
@@ -413,12 +413,12 @@ public sealed class TerrainHeatEngine
 
     private void ExchangeAmbient(int idx, ThermalMaterial material, float temperature)
     {
-        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        float ambient = _settings.ThermalAmbientTemperature;
         if (temperature <= ambient)
             return;
 
         float k = GetAmbientConductance(material);
-        float dQ = k * (ambient - temperature) * Tweaks.World.ThermalDt;
+        float dQ = k * (ambient - temperature) * _settings.ThermalDt;
         if (MathF.Abs(dQ) < 0.0001f) return;
 
         float capacity = GetHeatCapacity(material);
@@ -427,12 +427,12 @@ public sealed class TerrainHeatEngine
 
     private void ExchangeAmbientRegion(int localIdx, ThermalMaterial material, float temperature, float[] regionDelta)
     {
-        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        float ambient = _settings.ThermalAmbientTemperature;
         if (temperature <= ambient)
             return;
 
         float k = GetAmbientConductance(material);
-        float dQ = k * (ambient - temperature) * Tweaks.World.ThermalDt;
+        float dQ = k * (ambient - temperature) * _settings.ThermalDt;
         if (MathF.Abs(dQ) < 0.0001f)
             return;
 
@@ -452,55 +452,55 @@ public sealed class TerrainHeatEngine
         }
     }
 
-    private static float GetHeatCapacity(ThermalMaterial material) => material switch
+    private float GetHeatCapacity(ThermalMaterial material) => material switch
     {
-        ThermalMaterial.Air => Tweaks.World.ThermalCapacityAir,
-        ThermalMaterial.Dirt => Tweaks.World.ThermalCapacityDirt,
-        ThermalMaterial.Stone => Tweaks.World.ThermalCapacityStone,
-        ThermalMaterial.ConstantEnergy => Tweaks.World.ThermalCapacityConstantEnergy,
-        _ => Tweaks.World.ThermalCapacityBase,
+        ThermalMaterial.Air => _settings.ThermalCapacityAir,
+        ThermalMaterial.Dirt => _settings.ThermalCapacityDirt,
+        ThermalMaterial.Stone => _settings.ThermalCapacityStone,
+        ThermalMaterial.ConstantEnergy => _settings.ThermalCapacityConstantEnergy,
+        _ => _settings.ThermalCapacityBase,
     };
 
-    private static float GetConductance(ThermalMaterial a, ThermalMaterial b)
+    private float GetConductance(ThermalMaterial a, ThermalMaterial b)
     {
         if (a > b) (a, b) = (b, a);
         return (a, b) switch
         {
-            (ThermalMaterial.Air, ThermalMaterial.Air) => Tweaks.World.ThermalKAirAir,
-            (ThermalMaterial.Air, ThermalMaterial.Dirt) => Tweaks.World.ThermalKAirDirt,
-            (ThermalMaterial.Air, ThermalMaterial.Stone) => Tweaks.World.ThermalKAirStone,
-            (ThermalMaterial.Air, ThermalMaterial.Base) => Tweaks.World.ThermalKAirBase,
-            (ThermalMaterial.Dirt, ThermalMaterial.Dirt) => Tweaks.World.ThermalKDirtDirt,
-            (ThermalMaterial.Dirt, ThermalMaterial.Stone) => Tweaks.World.ThermalKDirtStone,
-            (ThermalMaterial.Dirt, ThermalMaterial.Base) => Tweaks.World.ThermalKDirtBase,
-            (ThermalMaterial.Stone, ThermalMaterial.Stone) => Tweaks.World.ThermalKStoneStone,
-            (ThermalMaterial.Stone, ThermalMaterial.Base) => Tweaks.World.ThermalKStoneBase,
-            (ThermalMaterial.Air, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKAirConstantEnergy,
-            (ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKDirtConstantEnergy,
-            (ThermalMaterial.Stone, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKStoneConstantEnergy,
-            (ThermalMaterial.Base, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKBaseConstantEnergy,
-            (ThermalMaterial.ConstantEnergy, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKConstantEnergyConstantEnergy,
-            _ => Tweaks.World.ThermalKBaseBase,
+            (ThermalMaterial.Air, ThermalMaterial.Air) => _settings.ThermalKAirAir,
+            (ThermalMaterial.Air, ThermalMaterial.Dirt) => _settings.ThermalKAirDirt,
+            (ThermalMaterial.Air, ThermalMaterial.Stone) => _settings.ThermalKAirStone,
+            (ThermalMaterial.Air, ThermalMaterial.Base) => _settings.ThermalKAirBase,
+            (ThermalMaterial.Dirt, ThermalMaterial.Dirt) => _settings.ThermalKDirtDirt,
+            (ThermalMaterial.Dirt, ThermalMaterial.Stone) => _settings.ThermalKDirtStone,
+            (ThermalMaterial.Dirt, ThermalMaterial.Base) => _settings.ThermalKDirtBase,
+            (ThermalMaterial.Stone, ThermalMaterial.Stone) => _settings.ThermalKStoneStone,
+            (ThermalMaterial.Stone, ThermalMaterial.Base) => _settings.ThermalKStoneBase,
+            (ThermalMaterial.Air, ThermalMaterial.ConstantEnergy) => _settings.ThermalKAirConstantEnergy,
+            (ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy) => _settings.ThermalKDirtConstantEnergy,
+            (ThermalMaterial.Stone, ThermalMaterial.ConstantEnergy) => _settings.ThermalKStoneConstantEnergy,
+            (ThermalMaterial.Base, ThermalMaterial.ConstantEnergy) => _settings.ThermalKBaseConstantEnergy,
+            (ThermalMaterial.ConstantEnergy, ThermalMaterial.ConstantEnergy) => _settings.ThermalKConstantEnergyConstantEnergy,
+            _ => _settings.ThermalKBaseBase,
         };
     }
 
     private float GetAmbientConductance(ThermalMaterial material) => material switch
     {
-        ThermalMaterial.Air => Tweaks.World.ThermalKAmbientAir,
-        ThermalMaterial.Dirt => Tweaks.World.ThermalKAmbientDirt,
-        ThermalMaterial.Stone => _settings.EnableStoneAmbientExchange ? Tweaks.World.ThermalKAmbientStone : 0f,
-        ThermalMaterial.ConstantEnergy => Tweaks.World.ThermalKAmbientConstantEnergy,
-        _ => Tweaks.World.ThermalKAmbientBase,
+        ThermalMaterial.Air => _settings.ThermalKAmbientAir,
+        ThermalMaterial.Dirt => _settings.ThermalKAmbientDirt,
+        ThermalMaterial.Stone => _settings.EnableStoneAmbientExchange ? _settings.ThermalKAmbientStone : 0f,
+        ThermalMaterial.ConstantEnergy => _settings.ThermalKAmbientConstantEnergy,
+        _ => _settings.ThermalKAmbientBase,
     };
 
     private static bool IsFixedTemperatureMaterial(ThermalMaterial material)
         => material == ThermalMaterial.Base || material == ThermalMaterial.ConstantEnergy;
 
-    private static float GetFixedTemperature(ThermalMaterial material)
+    private float GetFixedTemperature(ThermalMaterial material)
         => material switch
         {
-            ThermalMaterial.Base => Tweaks.World.ThermalFixedBaseTemperature,
-            ThermalMaterial.ConstantEnergy => Tweaks.World.ThermalFixedConstantEnergyTemperature,
+            ThermalMaterial.Base => _settings.ThermalFixedBaseTemperature,
+            ThermalMaterial.ConstantEnergy => _settings.ThermalFixedConstantEnergyTemperature,
             _ => 0f,
         };
 }

@@ -34,7 +34,8 @@ public class TankHeatBehaviorTests
         var (world, tank) = CreateWorldWithPrimaryTank(seed: 7777);
         SetTankHeat(tank, 0f);
 
-        tank.Advance(world, new ControllerOutput
+        var ctx = CreateContext(world);
+        tank.Advance(in ctx, new ControllerOutput
         {
             ShootPrimary = true,
             AimDirection = new DirectionF(1f, 0f),
@@ -130,10 +131,12 @@ public class TankHeatBehaviorTests
         visualCool.Capture(worldCoolTank, "start");
         visualWarm.Capture(worldWarmTank, "start");
 
+        var ctxCool = CreateContext(worldCoolTank);
+        var ctxWarm = CreateContext(worldWarmTank);
         for (int i = 0; i < 30; i++)
         {
-            coolTank.Advance(worldCoolTank, default);
-            warmTank.Advance(worldWarmTank, default);
+            coolTank.Advance(in ctxCool, default);
+            warmTank.Advance(in ctxWarm, default);
             if ((i % 6) == 0)
             {
                 visualCool.Capture(worldCoolTank, $"advance_{i:D3}");
@@ -162,7 +165,8 @@ public class TankHeatBehaviorTests
         int healthBefore = tank.Reactor.Health;
         visual.Capture(world, "start");
 
-        tank.Advance(world, default);
+        var ctx = CreateContext(world);
+        tank.Advance(in ctx, default);
         visual.Capture(world, "after_advance");
 
         Assert.True(tank.Heat > 100f, $"Expected heat to remain above 100, got {tank.Heat:0.00}");
@@ -182,11 +186,12 @@ public class TankHeatBehaviorTests
         SetTankHeat(tank, 20f);
         visual.Capture(world, "start");
 
+        var ctx = CreateContext(world);
         float peakHeat = tank.Heat;
         for (int i = 0; i < 45; i++)
         {
             world.Terrain.AddHeatRadius(zonePos, Tweaks.Explosion.BulletHeatAmount, Tweaks.Explosion.BulletHeatRadius);
-            tank.Advance(world, default);
+            tank.Advance(in ctx, default);
             if ((i % 6) == 0) visual.Capture(world, $"advance_{i:D3}");
             if (tank.Heat > peakHeat)
                 peakHeat = tank.Heat;

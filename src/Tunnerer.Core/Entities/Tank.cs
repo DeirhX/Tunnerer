@@ -12,7 +12,7 @@ using Tunnerer.Core.Thermal;
 
 public class Tank
 {
-    private static readonly TankHeatEngine HeatEngine = new();
+    private readonly TankHeatEngine _heatEngine;
 
     public Position Position { get; set; }
     public int Color { get; }
@@ -31,8 +31,9 @@ public class Tank
     private bool _frameShotFired;
     private FastRandom _rng;
 
-    public Tank(int color, TankBase tankBase, int rngSeed = 0)
+    public Tank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null)
     {
+        _heatEngine = new TankHeatEngine(settings ?? SimulationSettings.FromTweaks());
         Color = color;
         Base = tankBase;
         Position = tankBase.Position;
@@ -50,28 +51,28 @@ public class Tank
         Heat = Tweaks.Tank.InitialHeat;
     }
 
-    public void Advance(World world, ControllerOutput input)
+    public void Advance(in SimulationContext ctx, ControllerOutput input)
     {
         if (IsDead)
         {
-            AdvanceDeath(world);
+            AdvanceDeath(ctx.Projectiles);
             return;
         }
 
         Heat += Tweaks.Tank.IdleHeatGain;
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
-        AdvanceBaseInteraction(world);
+        AdvanceBaseInteraction(in ctx);
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
-        HandleMove(world.Terrain, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
-        AdvanceShooting(input, world);
-        CollectItems(world.Terrain);
-        AdvanceHeat(world);
+        HandleMove(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
+        AdvanceShooting(input, ctx.Projectiles);
+        CollectItems(ctx.Terrain);
+        AdvanceHeat(ctx.Heat);
     }
 
-    private void AdvanceBaseInteraction(World world)
+    private void AdvanceBaseInteraction(in SimulationContext ctx)
     {
-        var baseColl = world.TankBases.CheckBaseCollision(Position);
+        var baseColl = ctx.CheckBaseCollision(Position);
         if (baseColl == null) return;
 
         baseColl.RechargeTank(Reactor, Color);
@@ -79,7 +80,6 @@ public class Tank
         int baseCooldown = atOwnBase ? Tweaks.Base.HomeCooldownHeat : Tweaks.Base.ForeignCooldownHeat;
         if (baseCooldown > 0)
         {
-            // Cool only the local environment; tank follows naturally via thermal exchange in AdvanceHeat.
             int half = Math.Max(1, Tweaks.Base.BaseSize / 2);
             int dist2 = global::Tunnerer.Core.Types.Position.DistanceSquared(Position, baseColl.Position);
             float radial = 1f - MathF.Sqrt(dist2) / half;
@@ -92,9 +92,9 @@ public class Tank
                 int airShare = sinkAmount - terrainShare;
                 int radius = Math.Max(1, Tweaks.Tank.DigRadius);
                 if (terrainShare > 0)
-                    world.Terrain.AddHeatTotalInRadiusArea(Position, radius, -terrainShare);
+                    ctx.Heat.AddHeatTotalInRadiusArea(Position, radius, -terrainShare);
                 if (airShare > 0)
-                    world.Terrain.AddAirHeatTotalInRadiusArea(Position, radius, -airShare);
+                    ctx.Heat.AddAirHeatTotalInRadiusArea(Position, radius, -airShare);
             }
         }
 
@@ -116,27 +116,27 @@ public class Tank
         }
     }
 
-    private void AdvanceShooting(ControllerOutput input, World world)
+    private void AdvanceShooting(ControllerOutput input, ProjectileList projectiles)
     {
         if (!input.ShootPrimary) return;
-        var bullet = Turret.TryShoot(Position, world.Projectiles);
+        var bullet = Turret.TryShoot(Position, projectiles);
         if (bullet != null)
         {
             _frameShotFired = true;
         }
     }
 
-    private void HandleMove(TerrainGrid terrain, Offset speed, DirectionF torchHeading, bool torchUse)
+    private void HandleMove(in SimulationContext ctx, Offset speed, DirectionF torchHeading, bool torchUse)
     {
         if (speed.X == 0 && speed.Y == 0) return;
 
         int dir = OffsetToDirection(speed);
         var newPos = Position + speed;
 
-        var collision = TestCollision(terrain, newPos, dir);
+        var collision = TestCollision(ctx.Terrain, newPos, dir);
         if (collision != CollisionType.None)
         {
-            DigTunnel(terrain, newPos, torchUse);
+            DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse);
 
             int torchDir = OffsetToDirection(new Offset(
                 (int)MathF.Round(torchHeading.X),
@@ -145,7 +145,7 @@ public class Tank
             if (!(torchUse && torchDir == dir))
                 return;
 
-            collision = TestCollision(terrain, newPos, dir);
+            collision = TestCollision(ctx.Terrain, newPos, dir);
             if (collision != CollisionType.None)
                 return;
         }
@@ -155,7 +155,7 @@ public class Tank
         Heat += Tweaks.Tank.MoveHeatGain;
     }
 
-    private CollisionType TestCollision(TerrainGrid terrain, Position pos, int dir)
+    private CollisionType TestCollision(ITerrainPixelReader terrain, Position pos, int dir)
     {
         var result = CollisionType.None;
         ForEachSpritePixel(dir, pos, (_, worldPos) =>
@@ -168,7 +168,7 @@ public class Tank
         return result;
     }
 
-    private void DigTunnel(TerrainGrid terrain, Position center, bool torchUse)
+    private void DigTunnel(ITerrainPixelReader terrain, ITerrainHeatSource heat, Position center, bool torchUse)
     {
         int r = Tweaks.Tank.DigRadius;
         for (int ty = center.Y - r; ty <= center.Y + r; ty++)
@@ -188,7 +188,7 @@ public class Tank
                     if (torchUse)
                     {
                         _frameDugPixels++;
-                        terrain.AddHeat(worldPos, Tweaks.Tank.TorchTerrainHeatAmount);
+                        heat.AddHeat(worldPos, Tweaks.Tank.TorchTerrainHeatAmount);
                     }
                     if (Pixel.IsDirt(pix))
                         Resources.Add(new MaterialAmount(1, 0));
@@ -198,14 +198,14 @@ public class Tank
                 {
                     terrain.SetPixel(worldPos, TerrainPixel.Blank);
                     _frameDugPixels += 2;
-                    terrain.AddHeatRadius(worldPos, Tweaks.Tank.TorchRockHeatAmount, Tweaks.Tank.TorchRockHeatRadius);
+                    heat.AddHeatRadius(worldPos, Tweaks.Tank.TorchRockHeatAmount, Tweaks.Tank.TorchRockHeatRadius);
                     if (Pixel.IsMineral(pix))
                         Resources.Add(new MaterialAmount(0, 1));
                 }
             }
     }
 
-    private void CollectItems(TerrainGrid terrain)
+    private void CollectItems(ITerrainPixelReader terrain)
     {
         ForEachSpritePixel(Direction, Position, (_, worldPos) =>
         {
@@ -227,13 +227,13 @@ public class Tank
         });
     }
 
-    private void AdvanceHeat(World world)
+    private void AdvanceHeat(ITerrainHeatSource heat)
     {
-        float terrainHeatNorm = world.Terrain.SampleAverageHeat(Position, Tweaks.Tank.DigRadius);
+        float terrainHeatNorm = heat.SampleAverageHeat(Position, Tweaks.Tank.DigRadius);
         float sampledTerrainTemperature = terrainHeatNorm * 255f;
-        float sampledAirTemperature = world.Terrain.SampleAverageAirTemperature(Position, Tweaks.Tank.DigRadius);
-        int sampleCells = world.Terrain.CountCellsInRadiusArea(Position, Tweaks.Tank.DigRadius);
-        float nextHeat = HeatEngine.Advance(
+        float sampledAirTemperature = heat.SampleAverageAirTemperature(Position, Tweaks.Tank.DigRadius);
+        int sampleCells = heat.CountCellsInRadiusArea(Position, Tweaks.Tank.DigRadius);
+        float nextHeat = _heatEngine.Advance(
             currentHeat: Heat,
             frameDugPixels: _frameDugPixels,
             frameShotFired: _frameShotFired,
@@ -241,9 +241,9 @@ public class Tank
             sampledAirTemperature: sampledAirTemperature,
             sampleCells: sampleCells,
             applyTerrainTotalDelta: desiredTotal =>
-                world.Terrain.AddHeatTotalInRadiusArea(Position, Tweaks.Tank.DigRadius, desiredTotal),
+                heat.AddHeatTotalInRadiusArea(Position, Tweaks.Tank.DigRadius, desiredTotal),
             applyAirTotalDelta: desiredTotal =>
-                world.Terrain.AddAirHeatTotalInRadiusArea(Position, Tweaks.Tank.DigRadius, desiredTotal),
+                heat.AddAirHeatTotalInRadiusArea(Position, Tweaks.Tank.DigRadius, desiredTotal),
             out int damage);
 
         if (damage > 0)
@@ -279,10 +279,10 @@ public class Tank
         projectiles?.AddExplosion(Position, Tweaks.Explosion.Death, Tweaks.Explosion.DeathHeatScale);
     }
 
-    private void AdvanceDeath(World world)
+    private void AdvanceDeath(ProjectileList projectiles)
     {
         if (!_respawning)
-            Die(world.Projectiles);
+            Die(projectiles);
 
         if (LivesLeft <= 0)
             return;

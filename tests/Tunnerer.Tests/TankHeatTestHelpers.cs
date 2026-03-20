@@ -1,6 +1,7 @@
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
+using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
@@ -11,6 +12,15 @@ internal static class TankHeatTestHelpers
 {
     internal static readonly object StoneAmbientToggleGate = new();
     internal static readonly ControllerOutput IdleInput = default;
+
+    internal static SimulationContext CreateContext(World world) => new()
+    {
+        Terrain = world.Terrain,
+        Heat = world.Terrain,
+        Projectiles = world.Projectiles,
+        CheckBaseCollision = world.TankBases.CheckBaseCollision,
+        Settings = world.Settings,
+    };
 
     internal static (World world, Tank tank) CreateWorldWithPrimaryTank()
     {
@@ -66,10 +76,11 @@ internal static class TankHeatTestHelpers
         Action<int>? beforeStep = null,
         Action<int>? afterStep = null)
     {
+        var ctx = CreateContext(world);
         for (int i = 0; i < frames; i++)
         {
             beforeStep?.Invoke(i);
-            tank.Advance(world, IdleInput);
+            tank.Advance(in ctx, IdleInput);
             if (captureEvery > 0 && (i % captureEvery) == 0)
                 visual?.Capture(world, $"{phase}_{i:D3}");
             afterStep?.Invoke(i);

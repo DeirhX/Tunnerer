@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Entities;
 
+using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Rendering;
@@ -11,17 +12,17 @@ public class TankList
     public IReadOnlyList<Tank> Tanks => _tanks;
     public int Count => _tanks.Count;
 
-    public Tank AddTank(int color, TankBase tankBase, int rngSeed = 0)
+    public Tank AddTank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null)
     {
-        var tank = new Tank(color, tankBase, rngSeed);
+        var tank = new Tank(color, tankBase, rngSeed, settings);
         _tanks.Add(tank);
         return tank;
     }
 
-    public void Advance(World world, Func<int, ControllerOutput> getInput)
+    public void Advance(in SimulationContext ctx, Func<int, ControllerOutput> getInput)
     {
         for (int i = 0; i < _tanks.Count; i++)
-            _tanks[i].Advance(world, getInput(i));
+            _tanks[i].Advance(in ctx, getInput(i));
     }
 
     public void Draw(Surface surface)

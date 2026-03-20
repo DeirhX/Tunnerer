@@ -4,49 +4,49 @@ using Tunnerer.Core.Config;
 
 internal static class TankHeatModel
 {
-    public static float ComputeActionHeat(int frameDugPixels, bool frameShotFired)
+    public static float ComputeActionHeat(in SimulationSettings s, int frameDugPixels, bool frameShotFired)
     {
-        float heat = frameDugPixels * Tweaks.Tank.HeatDigPerPixel;
+        float heat = frameDugPixels * s.TankHeatDigPerPixel;
         if (frameShotFired)
-            heat += Tweaks.Tank.HeatShootPerShot;
+            heat += s.TankHeatShootPerShot;
         return heat;
     }
 
-    public static float ComputeTankTerrainHeatFlow(float tankTemperature, float terrainTemperature)
+    public static float ComputeTankTerrainHeatFlow(in SimulationSettings s, float tankTemperature, float terrainTemperature)
     {
         float deltaT = terrainTemperature - tankTemperature;
-        float dQ = Tweaks.Tank.TankTerrainConductance * deltaT;
-        float maxStableDQ = Tweaks.Tank.TankHeatCapacity * MathF.Abs(deltaT) * 0.01f;
+        float dQ = s.TankTerrainConductance * deltaT;
+        float maxStableDQ = s.TankHeatCapacity * MathF.Abs(deltaT) * 0.01f;
         if (dQ > maxStableDQ) dQ = maxStableDQ;
         else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
         return dQ;
     }
 
-    public static float ComputeTankDeltaFromHeatFlow(float dQ)
+    public static float ComputeTankDeltaFromHeatFlow(in SimulationSettings s, float dQ)
     {
-        return Tweaks.Tank.TankHeatCapacity > 0f ? dQ / Tweaks.Tank.TankHeatCapacity : 0f;
+        return s.TankHeatCapacity > 0f ? dQ / s.TankHeatCapacity : 0f;
     }
 
-    public static float ComputeTerrainDeltaFromHeatFlow(float dQ)
+    public static float ComputeTerrainDeltaFromHeatFlow(in SimulationSettings s, float dQ)
     {
-        return Tweaks.Tank.TerrainHeatCapacity > 0f ? -dQ / Tweaks.Tank.TerrainHeatCapacity : 0f;
+        return s.TerrainHeatCapacity > 0f ? -dQ / s.TerrainHeatCapacity : 0f;
     }
 
-    public static float ComputeTankAirHeatFlow(float tankTemperature, float airTemperature)
+    public static float ComputeTankAirHeatFlow(in SimulationSettings s, float tankTemperature, float airTemperature)
     {
         float deltaT = airTemperature - tankTemperature;
-        float dQ = Tweaks.Tank.TankAmbientConductance * deltaT;
-        float maxStableDQ = Tweaks.Tank.TankHeatCapacity * MathF.Abs(deltaT) * 0.01f;
+        float dQ = s.TankAmbientConductance * deltaT;
+        float maxStableDQ = s.TankHeatCapacity * MathF.Abs(deltaT) * 0.01f;
         if (dQ > maxStableDQ) dQ = maxStableDQ;
         else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
         return dQ;
     }
 
-    public static int ComputeOverheatDamage(float heat)
+    public static int ComputeOverheatDamage(in SimulationSettings s, float heat)
     {
-        if (heat <= Tweaks.Tank.HeatSafeMax) return 0;
-        float excess = heat - Tweaks.Tank.HeatSafeMax;
-        return (int)(excess * Tweaks.Tank.OverheatDamagePerDegree);
+        if (heat <= s.TankHeatSafeMax) return 0;
+        float excess = heat - s.TankHeatSafeMax;
+        return (int)(excess * s.TankOverheatDamagePerDegree);
     }
 
     public static float ClampHeat(float heat)
