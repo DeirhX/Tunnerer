@@ -4,6 +4,7 @@ using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities;
+using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Rendering;
 
 public class GameHud
