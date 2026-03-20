@@ -28,7 +28,7 @@ public class TankBase
 
     public bool IsInside(Position tested) => BoundingBox.IsInside(tested, Position);
 
-    public void Advance(TerrainGrid terrain)
+    public void Advance(ITerrainHeatSource terrain)
     {
         int outerRadius = Half;
         int midRadius = Math.Max(1, (outerRadius * 2) / 3);
@@ -120,7 +120,7 @@ public class TankBase
         });
     }
 
-    public void CreateInTerrain(TerrainGrid terrain, int color)
+    public void CreateInTerrain(ITerrainPixelReader terrain, int color)
     {
         int half = Half;
 

@@ -102,7 +102,7 @@ public class BotTankAI
 
     public BotTankAI(int? seed = null) { _rng = seed.HasValue ? new Random(seed.Value) : new Random(); }
 
-    public ControllerOutput GetInput(Tank tank, Tank? enemy, TerrainGrid terrain)
+    public ControllerOutput GetInput(Tank tank, Tank? enemy, ITerrainPixelReader terrain)
     {
         AdvanceProfileCycle();
         UpdateStuckState(tank.Position);
@@ -129,7 +129,7 @@ public class BotTankAI
         return default;
     }
 
-    private ControllerOutput DoExitUp(Tank tank, TerrainGrid terrain, int relY)
+    private ControllerOutput DoExitUp(Tank tank, ITerrainPixelReader terrain, int relY)
     {
         if (relY < -OutsideBase) { _timeToChange = 0; _mode = TwitchMode.Twitch; return default; }
         if (_stuckFrames >= ExitStuckThresholdFrames)
@@ -147,7 +147,7 @@ public class BotTankAI
         };
     }
 
-    private ControllerOutput DoExitDown(Tank tank, TerrainGrid terrain, int relY)
+    private ControllerOutput DoExitDown(Tank tank, ITerrainPixelReader terrain, int relY)
     {
         if (relY > OutsideBase) { _timeToChange = 0; _mode = TwitchMode.Twitch; return default; }
         if (_stuckFrames >= ExitStuckThresholdFrames)
@@ -165,7 +165,7 @@ public class BotTankAI
         };
     }
 
-    private ControllerOutput DoTwitch(Tank tank, Tank? enemy, TerrainGrid terrain, int relX, int relY)
+    private ControllerOutput DoTwitch(Tank tank, Tank? enemy, ITerrainPixelReader terrain, int relX, int relY)
     {
         var profile = ActiveProfile;
         if (tank.Reactor.Health < 500 || tank.Reactor.Heat > 70 ||
@@ -266,7 +266,7 @@ public class BotTankAI
         return lowHealth || highHeat || outgunned;
     }
 
-    private Offset ChooseCombatMove(Position self, Position enemy, TerrainGrid terrain, bool retreat)
+    private Offset ChooseCombatMove(Position self, Position enemy, ITerrainPixelReader terrain, bool retreat)
     {
         if (retreat)
             return ChooseRetreatEvasiveMove(self, enemy, terrain);
@@ -277,12 +277,12 @@ public class BotTankAI
         return ChooseBestMove(self, target, terrain);
     }
 
-    private Offset ChooseTunnelMove(Position self, Position? target, TerrainGrid terrain)
+    private Offset ChooseTunnelMove(Position self, Position? target, ITerrainPixelReader terrain)
     {
         return ChooseBestMove(self, target, terrain);
     }
 
-    private Offset ChooseBestMove(Position self, Position? target, TerrainGrid terrain)
+    private Offset ChooseBestMove(Position self, Position? target, ITerrainPixelReader terrain)
     {
         var previous = new Offset(_dx, _dy);
         float bestScore = float.NegativeInfinity;
@@ -301,7 +301,7 @@ public class BotTankAI
         return best;
     }
 
-    private float ScoreMove(Position self, Offset move, Position? target, TerrainGrid terrain, Offset previous)
+    private float ScoreMove(Position self, Offset move, Position? target, ITerrainPixelReader terrain, Offset previous)
     {
         var profile = ActiveProfile;
         var next = self + move;
@@ -355,7 +355,7 @@ public class BotTankAI
         return score;
     }
 
-    private bool NeedsDigging(Position self, Offset move, TerrainGrid terrain)
+    private bool NeedsDigging(Position self, Offset move, ITerrainPixelReader terrain)
     {
         var next = self + move;
         if (!terrain.IsInside(next))
@@ -363,7 +363,7 @@ public class BotTankAI
         return Pixel.IsAnyCollision(terrain.GetPixelRaw(next));
     }
 
-    private bool HasLineOfSight(Position from, Position to, TerrainGrid terrain)
+    private bool HasLineOfSight(Position from, Position to, ITerrainPixelReader terrain)
     {
         bool blocked = Raycaster.BresenhamLineAny(from, to, pos =>
         {
@@ -414,7 +414,7 @@ public class BotTankAI
         _lastPosition = current;
     }
 
-    private ControllerOutput BuildUnstuckOutput(Position self, TerrainGrid terrain, int preferY)
+    private ControllerOutput BuildUnstuckOutput(Position self, ITerrainPixelReader terrain, int preferY)
     {
         var move = ChooseUnstuckMove(self, terrain, preferY);
         return new ControllerOutput
@@ -425,7 +425,7 @@ public class BotTankAI
         };
     }
 
-    private Offset ChooseUnstuckMove(Position self, TerrainGrid terrain, int preferredYDirection = 0)
+    private Offset ChooseUnstuckMove(Position self, ITerrainPixelReader terrain, int preferredYDirection = 0)
     {
         float bestScore = float.NegativeInfinity;
         Offset best = MoveCandidates[_rng.Next(MoveCandidates.Length)];
@@ -457,7 +457,7 @@ public class BotTankAI
         return best;
     }
 
-    private Offset ChooseRetreatEvasiveMove(Position self, Position enemy, TerrainGrid terrain)
+    private Offset ChooseRetreatEvasiveMove(Position self, Position enemy, ITerrainPixelReader terrain)
     {
         int awayX = Math.Sign(self.X - enemy.X);
         int awayY = Math.Sign(self.Y - enemy.Y);

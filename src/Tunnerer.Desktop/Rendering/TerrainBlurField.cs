@@ -31,7 +31,7 @@ public sealed class TerrainBlurField
     public int Width => _width;
     public int Height => _height;
 
-    public void Rebuild(TerrainGrid terrain)
+    public void Rebuild(ITerrainPixelReader terrain)
     {
         int w = terrain.Width, h = terrain.Height;
         if (_field == null || _width != w || _height != h)
@@ -46,7 +46,7 @@ public sealed class TerrainBlurField
                 _field[cy * w + cx] = ComputeCell(terrain, cx, cy, w, h);
     }
 
-    public void UpdateDirty(TerrainGrid terrain, IReadOnlyList<Position> dirtyCells)
+    public void UpdateDirty(ITerrainPixelReader terrain, IReadOnlyList<Position> dirtyCells)
     {
         if (_field == null) { Rebuild(terrain); return; }
 
@@ -68,7 +68,7 @@ public sealed class TerrainBlurField
         }
     }
 
-    public void UpdateRect(TerrainGrid terrain, int minX, int minY, int maxX, int maxY)
+    public void UpdateRect(ITerrainPixelReader terrain, int minX, int minY, int maxX, int maxY)
     {
         if (_field == null) { Rebuild(terrain); return; }
 
@@ -112,7 +112,7 @@ public sealed class TerrainBlurField
         return (byte)(b < 0 ? 0 : b > 255 ? 255 : b);
     }
 
-    private static float ComputeCell(TerrainGrid terrain, int cx, int cy, int w, int h)
+    private static float ComputeCell(ITerrainPixelReader terrain, int cx, int cy, int w, int h)
     {
         float sum = 0f, wSum = 0f;
         for (int ky = -KernelRadius; ky <= KernelRadius; ky++)

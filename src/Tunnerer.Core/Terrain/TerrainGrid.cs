@@ -4,7 +4,7 @@ using System.Diagnostics;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 
-public partial class TerrainGrid
+public partial class TerrainGrid : ITerrainPixelReader, ITerrainHeatSource, ITerrainChangeTracker
 {
     private readonly TerrainPixel[] _data;
     private readonly float[] _airTemperature;
