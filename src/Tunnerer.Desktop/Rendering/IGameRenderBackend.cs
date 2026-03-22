@@ -22,7 +22,12 @@ public readonly record struct GamePixelsUpload(
 public readonly record struct PostProcessUploadOptions(
     HiResRenderQuality Quality,
     bool HeatDebugOverlayEnabled,
-    PostProcessPassFlags PassFlags);
+    PostProcessPassFlags PassFlags,
+    ThermalRegionOverlayUpload ThermalRegions);
+
+public readonly record struct ThermalRegionOverlayUpload(
+    int TileSizeCells,
+    float ActiveThresholdHeat01);
 
 public readonly record struct TankGlowUpload(
     float[]? Data,

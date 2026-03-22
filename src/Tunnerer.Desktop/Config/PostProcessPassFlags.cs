@@ -11,5 +11,6 @@ public enum PostProcessPassFlags : byte
     NativeTerrainSmoothing = 1 << 4,
     TerrainHeat = 1 << 5,
     NativeEdgeCurving = 1 << 6,
-    All = Vignette | TerrainCurve | TerrainAux | TankGlow | NativeTerrainSmoothing | TerrainHeat | NativeEdgeCurving,
+    ThermalRegions = 1 << 7,
+    All = Vignette | TerrainCurve | TerrainAux | TankGlow | NativeTerrainSmoothing | TerrainHeat | NativeEdgeCurving | ThermalRegions,
 }
