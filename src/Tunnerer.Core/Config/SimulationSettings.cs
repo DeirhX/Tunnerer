@@ -18,6 +18,7 @@ public readonly record struct SimulationSettings
     public float ThermalSparseFallbackCoverage { get; init; }
     public int ThermalParallelRegionThreshold { get; init; }
     public int ThermalMaxWorkers { get; init; }
+    public float ThermalMaxDeltaSleepThreshold { get; init; }
     public float ThermalActiveTemperatureThreshold { get; init; }
 
     // --- Thermal engine constants ---
@@ -84,6 +85,7 @@ public readonly record struct SimulationSettings
         ThermalSparseFallbackCoverage = Tweaks.World.ThermalSparseFallbackCoverage,
         ThermalParallelRegionThreshold = Tweaks.World.ThermalParallelRegionThreshold,
         ThermalMaxWorkers = Tweaks.World.ThermalMaxWorkers,
+        ThermalMaxDeltaSleepThreshold = Tweaks.World.ThermalMaxDeltaSleepThreshold,
         ThermalActiveTemperatureThreshold = Tweaks.World.ThermalActiveTemperatureThreshold,
         ThermalDt = Tweaks.World.ThermalDt,
         ThermalAmbientTemperature = Tweaks.World.ThermalAmbientTemperature,
