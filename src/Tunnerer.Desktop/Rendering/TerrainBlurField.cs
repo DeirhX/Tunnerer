@@ -10,9 +10,9 @@ using Tunnerer.Core.Types;
 /// </summary>
 public sealed class TerrainBlurField
 {
-    private const int KernelRadius = 7;
+    private const int KernelRadius = 5;
     private const int KernelSize = KernelRadius * 2 + 1;
-    private const float GaussianSigma = 5.0f;
+    private const float GaussianSigma = 2.0f;
     private static readonly float[] GaussKernel;
 
     static TerrainBlurField()

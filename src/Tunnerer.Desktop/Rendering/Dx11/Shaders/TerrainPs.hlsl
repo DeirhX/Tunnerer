@@ -76,23 +76,21 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
               - auxTex.Sample(s0, sdfUv - float2(0, gradStep.y)).g;
 
     // ---- Tangent-aligned SDF smoothing ------------------------------------
-    // Average the SDF at 6 points along the boundary tangent (±1.25, ±2.5,
-    // ±3.5 cells). This merges consecutive staircase steps, shifting the
-    // 0.5 isoline from axis-aligned zigzag toward the true diagonal.
+    // Average the SDF at 6 points along the boundary tangent (±0.75, ±1.5,
+    // ±2.0 cells). Merges staircase steps without over-rounding corners.
     float gradLen = length(sdfGrad);
     if (!sharpMode && nativeCurvingEnabled && gradLen > 0.001)
     {
         float2 tangent = float2(-sdfGrad.y, sdfGrad.x) / gradLen;
-        float2 t1 = tangent * cellPx * 3.5;
-        float2 t2 = tangent * cellPx * 2.5;
-        float2 t3 = tangent * cellPx * 1.25;
+        float2 t1 = tangent * cellPx * 2.0;
+        float2 t2 = tangent * cellPx * 1.5;
+        float2 t3 = tangent * cellPx * 0.75;
         float st1 = auxTex.Sample(s0, sdfUv + t1).g;
         float st2 = auxTex.Sample(s0, sdfUv - t1).g;
         float st3 = auxTex.Sample(s0, sdfUv + t2).g;
         float st4 = auxTex.Sample(s0, sdfUv - t2).g;
         float st5 = auxTex.Sample(s0, sdfUv + t3).g;
         float st6 = auxTex.Sample(s0, sdfUv - t3).g;
-        // Weights: center 3.0, ±1.25 each 1.0, ±2.5 each 1.0, ±3.5 each 0.5
         sdf = (sdf * 3.0 + st5 + st6 + st3 + st4 + (st1 + st2) * 0.5) / 8.0;
     }
 
@@ -114,7 +112,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
     {
         float fw = fwidth(sdf);
         float baseSoftness = max(0.10, NativeContinuousParams.x);
-        float edgeSoftness = baseSoftness + fw * 6.0;
+        float edgeSoftness = baseSoftness + fw * 3.0;
         alpha = smoothstep(0.5 - edgeSoftness, 0.5 + edgeSoftness, sdf);
     }
 
