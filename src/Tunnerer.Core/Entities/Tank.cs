@@ -203,8 +203,6 @@ public class Tank
                         Resources.Add(new MaterialAmount(0, 1));
                 }
             }
-
-        TerrainOrphanCleanup.CleanupArea(terrain, center, r + 2);
     }
 
     private void CollectItems(ITerrainPixelReader terrain)

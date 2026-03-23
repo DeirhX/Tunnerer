@@ -140,17 +140,13 @@ public class ProjectileList
         var pix = terrain.GetPixelRaw(ipos);
         if (Pixel.IsBlockingCollision(pix))
         {
-            bool destroyed = false;
             if ((Pixel.IsConcrete(pix) && self._rng.Chance1000(Tweaks.Explosion.ChanceToDestroyConcrete)) ||
                 (Pixel.IsRock(pix) && self._rng.Chance1000(Tweaks.Explosion.ChanceToDestroyRock)))
             {
                 terrain.SetPixel(ipos, TerrainPixel.DecalHigh);
-                destroyed = true;
             }
             int hitHeat = Math.Max(0, (int)MathF.Round(Tweaks.Explosion.ShrapnelHitHeat * p.HeatScale));
             terrain.AddHeat(ipos, hitHeat);
-            if (destroyed)
-                TerrainOrphanCleanup.CleanupArea(terrain, ipos, 2);
             p.IsAlive = false;
             return;
         }
