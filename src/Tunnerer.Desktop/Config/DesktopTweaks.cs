@@ -29,6 +29,7 @@ public static class DesktopScreenTweaks
     public static float NativeContinuousBudgetUnderThreshold => Tweaks.Screen.NativeContinuousBudgetUnderThreshold;
     public static int NativeContinuousRecoveryFramesMultiplier => Tweaks.Screen.NativeContinuousRecoveryFramesMultiplier;
     public const int HeatAuxUpdateIntervalFrames = 2;
+    public static float SolidAlphaFloor => Tweaks.Screen.SolidAlphaFloor;
 
     public static float PostVignetteStrength => Tweaks.Screen.PostVignetteStrength;
     public static float PostVignetteInnerRadius => Tweaks.Screen.PostVignetteInnerRadius;

@@ -34,6 +34,7 @@ public sealed unsafe partial class Backend
         cbData.PostThermalRegionsEnabled = BoolToFloat(HasPass(upload.PostProcess.PassFlags, PostProcessPassFlags.ThermalRegions));
         cbData.ThermalTileSizeCells = upload.PostProcess.ThermalRegions.TileSizeCells;
         cbData.ThermalTileHeatThreshold01 = upload.PostProcess.ThermalRegions.ActiveThresholdHeat01;
+        cbData.SolidAlphaFloor = DesktopScreenTweaks.SolidAlphaFloor;
         cbData.VignetteStrength = DesktopScreenTweaks.PostVignetteStrength;
         cbData.VignetteInnerRadius = DesktopScreenTweaks.PostVignetteInnerRadius;
         cbData.VignetteOuterRadius = DesktopScreenTweaks.PostVignetteOuterRadius;
@@ -136,7 +137,7 @@ public sealed unsafe partial class Backend
         public float ViewSizeX, ViewSizeY, UseTerrainAux, PostParamsLayoutVersion;
         public float HeatDebugOverlay, PostVignetteEnabled, PostTerrainCurveEnabled, PostTerrainAuxEnabled;
         public float PostTankGlowEnabled, PostTerrainHeatEnabled, PostThermalRegionsEnabled, ThermalTileSizeCells;
-        public float ThermalTileHeatThreshold01, _padOverlay0, VignetteStrength, VignetteInnerRadius;
+        public float ThermalTileHeatThreshold01, SolidAlphaFloor, VignetteStrength, VignetteInnerRadius;
         public float VignetteOuterRadius, TerrainMaskEdgeStrength, TerrainMaskCaveDarken, TerrainMaskSolidLift;
         public float TerrainMaskOutlineDarken, TerrainMaskRimLift, TerrainMaskBoundaryScale, Quality;
         public float _padQuality0, MaterialEnergyR, MaterialEnergyG, MaterialEnergyB;

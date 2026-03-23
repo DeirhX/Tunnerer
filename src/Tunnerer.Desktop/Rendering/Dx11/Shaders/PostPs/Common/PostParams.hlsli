@@ -30,7 +30,7 @@ cbuffer PostParams : register(b0)
     float PostThermalRegionsEnabled;// > 0.5 to draw thermal tile debug overlay
     float ThermalTileSizeCells;     // Thermal active-tile size in world cells
     float ThermalTileHeatThreshold01; // Thermal activation threshold mapped to [0..1] heat byte
-    float _PadThermalOverlay0;
+    float SolidAlphaFloor;          // Min alpha for solid terrain cells (0 = disabled)
 
     // ---- Vignette ---------------------------------------------------------
     float VignetteStrength;         // Darkening intensity at screen edges

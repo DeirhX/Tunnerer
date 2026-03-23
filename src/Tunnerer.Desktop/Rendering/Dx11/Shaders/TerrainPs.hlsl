@@ -118,6 +118,14 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
         alpha = smoothstep(0.5 - edgeSoftness, 0.5 + edgeSoftness, sdf);
     }
 
+    // ---- Solid-cell alpha floor --------------------------------------------
+    // The Gaussian SDF can push small isolated clumps below the visibility
+    // threshold, making them invisible while still colliding. Guarantee a
+    // minimum alpha for any cell that has a material assignment (auxTex.b > 0).
+    float cellMaterial = auxTex.Load(int3(cell, 0)).b;
+    if (cellMaterial > 0.01 && SolidAlphaFloor > 0.0)
+        alpha = max(alpha, SolidAlphaFloor);
+
     // ---- Bilinear / nearest blending weight -------------------------------
     // Near the SDF boundary: prefer bilinear (smooth color transitions).
     // Deep inside solid terrain: prefer nearest (sharp cell textures).

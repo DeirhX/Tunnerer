@@ -36,6 +36,8 @@ public static class Tweaks
         public const float NativeContinuousBudgetUnderThreshold = 0.65f;
         public const int NativeContinuousRecoveryFramesMultiplier = 20;
 
+        public const float SolidAlphaFloor = 0.20f;
+
         // GPU post-processing / lighting tuning
         public const float PostVignetteStrength = 0.18f;
         public const float PostVignetteInnerRadius = 0.35f;
