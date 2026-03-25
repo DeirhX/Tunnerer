@@ -67,6 +67,9 @@ cbuffer PostParams : register(b0)
     // ---- Terrain heat / scorch glow ---------------------------------------
     float4 TerrainHeatGlowColorAndThreshold; // .rgb = glow tint, .a = onset threshold
 
+    // ---- Scorch tint overlay -----------------------------------------------
+    float4 ScorchTint;              // .y = darken factor, .z = tint strength (.x/.w reserved)
+
     // ---- Per-tank glow positions ------------------------------------------
     float TankGlowCount;            // Number of active entries in TankGlow[]
     float4 TankGlow[8];             // .xy = screen UV, .z = radius, .w = heat [0..1]

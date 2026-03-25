@@ -36,7 +36,10 @@ public static class Tweaks
         public const float NativeContinuousBudgetUnderThreshold = 0.65f;
         public const int NativeContinuousRecoveryFramesMultiplier = 20;
 
-        public const float SolidAlphaFloor = 0.20f;
+        public const float SolidAlphaFloor = 0.40f;
+
+        public const float ScorchTintDarken = 0.35f;
+        public const float ScorchTintStrength = 0.50f;
 
         // GPU post-processing / lighting tuning
         public const float PostVignetteStrength = 0.18f;
@@ -98,6 +101,7 @@ public static class Tweaks
         public const int DirtRegrowBlankModifier = 4;
         public const int DirtRegrowScorchedModifier = 1;
         public const int DecalDecaySpeed = 40;
+        public const int DecalIntensityDecay = 3;
         public const int DigThroughRockChance = 250;
         public static readonly TimeSpan RefreshLinkMapInterval = TimeSpan.FromMilliseconds(200);
         public const float MaximumLiveLinkDistance = 100f;

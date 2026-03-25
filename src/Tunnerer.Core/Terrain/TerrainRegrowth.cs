@@ -63,18 +63,20 @@ public sealed class TerrainRegrowth
                     }
                     else if (Pixel.IsScorched(pix))
                     {
+                        int offset = x + y * w;
                         int neighbors = terrain.CountDirtNeighbors(pos);
                         if (TryQueueDirtRegrow(advanceCount, x, y, neighbors, Tweaks.World.DirtRegrowScorchedModifier, 1))
                         {
-                            writes.Add((x + y * w, TerrainPixel.DirtGrow));
+                            writes.Add((offset, TerrainPixel.DirtGrow));
+                            terrain.SetScorchIntensity(offset, 0);
                         }
-                        else if (pix == TerrainPixel.DecalHigh && Roll1000(advanceCount, x, y, 2) < Tweaks.World.DecalDecaySpeed)
+                        else
                         {
-                            writes.Add((x + y * w, TerrainPixel.DecalLow));
-                        }
-                        else if (pix == TerrainPixel.DecalLow && Roll1000(advanceCount, x, y, 3) < Tweaks.World.DecalDecaySpeed)
-                        {
-                            writes.Add((x + y * w, TerrainPixel.Blank));
+                            int cur = terrain.GetScorchIntensity(offset);
+                            int next = Math.Max(0, cur - Tweaks.World.DecalIntensityDecay);
+                            terrain.SetScorchIntensity(offset, (byte)next);
+                            if (next <= 0)
+                                writes.Add((offset, TerrainPixel.Blank));
                         }
                     }
                     else if (pix == TerrainPixel.DirtGrow)
@@ -117,18 +119,20 @@ public sealed class TerrainRegrowth
                 }
                 else if (Pixel.IsScorched(pix))
                 {
+                    int offset = x + y * w;
                     int neighbors = terrain.CountDirtNeighbors(pos);
                     if (TryQueueDirtRegrow(random, neighbors, Tweaks.World.DirtRegrowScorchedModifier))
                     {
-                        writes.Add((x + y * w, TerrainPixel.DirtGrow));
+                        writes.Add((offset, TerrainPixel.DirtGrow));
+                        terrain.SetScorchIntensity(offset, 0);
                     }
-                    else if (pix == TerrainPixel.DecalHigh && random.Next(1000) < Tweaks.World.DecalDecaySpeed)
+                    else
                     {
-                        writes.Add((x + y * w, TerrainPixel.DecalLow));
-                    }
-                    else if (pix == TerrainPixel.DecalLow && random.Next(1000) < Tweaks.World.DecalDecaySpeed)
-                    {
-                        writes.Add((x + y * w, TerrainPixel.Blank));
+                        int cur = terrain.GetScorchIntensity(offset);
+                        int next = Math.Max(0, cur - Tweaks.World.DecalIntensityDecay);
+                        terrain.SetScorchIntensity(offset, (byte)next);
+                        if (next <= 0)
+                            writes.Add((offset, TerrainPixel.Blank));
                     }
                 }
                 else if (pix == TerrainPixel.DirtGrow)

@@ -41,32 +41,53 @@ void ApplyTerrainHeatAndScorch(
     if (heatMask <= 0.001)
         return;
 
-    // ---- Multi-scale heat blur --------------------------------------------
+    // ---- Multi-scale heat + scorch blur ------------------------------------
     // Local: 3x3 weighted average (center-heavy).
     float heatLocal = a0.r * 0.30
         + (ax1.r + ax2.r + ay1.r + ay2.r) * 0.10
         + (ad1.r + ad2.r + ad3.r + ad4.r) * 0.05;
 
-    // Wide: 2-cell axis samples for smoother falloff.
-    float2 mTexel2 = mTexel * 2.0;
-    float heatWide =
-        auxTex.Sample(s0, auxUv + float2(mTexel2.x, 0.0)).r * 0.25 +
-        auxTex.Sample(s0, auxUv - float2(mTexel2.x, 0.0)).r * 0.25 +
-        auxTex.Sample(s0, auxUv + float2(0.0, mTexel2.y)).r * 0.25 +
-        auxTex.Sample(s0, auxUv - float2(0.0, mTexel2.y)).r * 0.25;
+    float scorchLocal = a0.a * 0.50
+        + (ax1.a + ax2.a + ay1.a + ay2.a) * 0.10
+        + (ad1.a + ad2.a + ad3.a + ad4.a) * 0.025;
 
-    // Blend toward the wider kernel where heat gradients are steep.
+    // Wide: 2-cell axis samples for smoother falloff (shared fetches).
+    float2 mTexel2 = mTexel * 2.0;
+    float4 wide0 = auxTex.Sample(s0, auxUv + float2(mTexel2.x, 0.0));
+    float4 wide1 = auxTex.Sample(s0, auxUv - float2(mTexel2.x, 0.0));
+    float4 wide2 = auxTex.Sample(s0, auxUv + float2(0.0, mTexel2.y));
+    float4 wide3 = auxTex.Sample(s0, auxUv - float2(0.0, mTexel2.y));
+
+    float heatWide = (wide0.r + wide1.r + wide2.r + wide3.r) * 0.25;
+    float scorchWide = (wide0.a + wide1.a + wide2.a + wide3.a) * 0.25;
+
+    // Blend toward the wider kernel where gradients are steep.
     float heatGrad = abs(ax1.r - ax2.r) + abs(ay1.r - ay2.r);
     float heatEdge = saturate(heatGrad * 1.80);
     float heatBlend = lerp(0.35, 0.75, heatEdge);
     float heat = lerp(heatLocal, heatWide, heatBlend);
 
-    // ---- Anti-aliased onset -----------------------------------------------
+    float scorchGrad = abs(ax1.a - ax2.a) + abs(ay1.a - ay2.a);
+    float scorchEdge = saturate(scorchGrad * 1.80);
+    float scorchBlend = lerp(0.50, 0.80, scorchEdge);
+    float scorchSmooth = lerp(scorchLocal, scorchWide, scorchBlend);
+
+    // ---- Scorch tint overlay (under heat) ----------------------------------
+    // Darken and char the scene where scorch is present, using the wider blur
+    // for a smooth connected stain. Applied before heat glow so hot areas
+    // shine through the charred base. ScorchTint.y = darken, .z = tint strength.
+    static const float3 kScorchTintColor = float3(0.12, 0.06, 0.03);
+    float scorchVis = smoothstep(0.01, 0.12, scorchSmooth);
+    float scorchMask = scorchVis * heatMask;
+    color *= lerp(1.0, ScorchTint.y, scorchMask);
+    color = lerp(color, kScorchTintColor, scorchMask * ScorchTint.z);
+
+    // ---- Anti-aliased heat onset -------------------------------------------
     float edgeSoft = max(0.008, fwidth(heat) * (4.0 + 4.0 * heatEdge));
     float fadeIn = smoothstep(0.002 - edgeSoft, 0.09 + edgeSoft, heat);
     float heatNorm = heat * fadeIn;
 
-    // ---- Color ramp and intensity -----------------------------------------
+    // ---- Heat color ramp and intensity ------------------------------------
     float t = pow(saturate(heatNorm), lerp(0.62, 0.86, heatEdge));
     float3 glow = HeatRamp(t);
     float heatGain = lerp(2.00, 2.35, t) * lerp(1.0, 0.92, heatEdge);
@@ -76,8 +97,7 @@ void ApplyTerrainHeatAndScorch(
     // ---- Scorch emissive with per-cell pulse animation --------------------
     float phase = frac(sin(dot(floor(worldCell), float2(12.9898, 78.233))) * 43758.5453) * 6.2831853;
     float pulse = MaterialEmissivePulse.y + MaterialEmissivePulse.z * (0.5 + 0.5 * sin(Time * MaterialEmissivePulse.x + phase));
-    float scorch = a0.a * 0.50 + (ax1.a + ax2.a + ay1.a + ay2.a) * 0.10 + (ad1.a + ad2.a + ad3.a + ad4.a) * 0.025;
-    color += MaterialEmissiveScorched.rgb * (scorch * MaterialEmissiveScorched.a * pulse * heatMask);
+    color += MaterialEmissiveScorched.rgb * (scorchLocal * MaterialEmissiveScorched.a * pulse * heatMask);
 }
 
 // ============================================================================

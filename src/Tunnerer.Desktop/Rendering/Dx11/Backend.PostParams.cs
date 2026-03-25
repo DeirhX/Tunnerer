@@ -89,6 +89,8 @@ public sealed unsafe partial class Backend
         cbData.LightDiffuseWeight = DesktopScreenTweaks.LightDiffuseWeight;
         cbData.LightShininess = DesktopScreenTweaks.LightShininess;
         cbData.LightSpecularIntensity = DesktopScreenTweaks.LightSpecularIntensity;
+        cbData.ScorchTintDarken = DesktopScreenTweaks.ScorchTintDarken;
+        cbData.ScorchTintStrength = DesktopScreenTweaks.ScorchTintStrength;
 
         int glowCount = Math.Clamp(upload.TankGlow.Count, 0, 8);
         cbData.TankGlowCount = glowCount;
@@ -149,7 +151,8 @@ public sealed unsafe partial class Backend
         public float LightMicroNormalStrength, LightAmbient, LightDiffuseWeight, LightShininess;
         public float LightSpecularIntensity, TankHeatGlowR, TankHeatGlowG, TankHeatGlowB;
         public float TankHeatGlowA, TerrainHeatGlowR, TerrainHeatGlowG, TerrainHeatGlowB;
-        public float TerrainHeatThreshold, TankGlowCount, _pad0, _pad1;
+        public float TerrainHeatThreshold, ScorchTintDarken, ScorchTintStrength, _padScorch;
+        public float TankGlowCount, _padTankGlow0, _padTankGlow1, _padTankGlow2;
         public fixed float TankGlow[32];
     }
     #pragma warning restore CS0649

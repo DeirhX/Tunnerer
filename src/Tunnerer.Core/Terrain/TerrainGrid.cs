@@ -7,6 +7,7 @@ using Tunnerer.Core.Types;
 public partial class TerrainGrid : ITerrainPixelReader, ITerrainHeatSource, ITerrainChangeTracker
 {
     private readonly TerrainPixel[] _data;
+    private readonly byte[] _scorchIntensity;
     private readonly float[] _airTemperature;
     private readonly int[] _neighborOffsets;
     private readonly List<Position> _changeList = new();
@@ -25,6 +26,7 @@ public partial class TerrainGrid : ITerrainPixelReader, ITerrainHeatSource, ITer
         _simulationSettings = simulationSettings;
         Size = size;
         _data = new TerrainPixel[size.Area];
+        _scorchIntensity = new byte[size.Area];
         _heatTemperature = new float[size.Area];
         _airTemperature = new float[size.Area];
         _heatEngine = new TerrainHeatEngine(simulationSettings);
@@ -54,11 +56,22 @@ public partial class TerrainGrid : ITerrainPixelReader, ITerrainHeatSource, ITer
     public TerrainPixel GetPixelRaw(Position pos) => _data[pos.X + pos.Y * Width];
     public TerrainPixel GetPixelRaw(int offset) => _data[offset];
 
+    public const byte ScorchIntensityMax = 64;
+
     public void SetPixel(Position pos, TerrainPixel value)
     {
-        _data[pos.X + pos.Y * Width] = value;
+        int offset = pos.X + pos.Y * Width;
+        _data[offset] = value;
+        if (value == TerrainPixel.DecalHigh)
+            _scorchIntensity[offset] = ScorchIntensityMax;
+        else if (!Pixel.IsScorched(value))
+            _scorchIntensity[offset] = 0;
         CommitPixel(pos);
     }
+
+    public byte GetScorchIntensity(int offset) => _scorchIntensity[offset];
+
+    public void SetScorchIntensity(int offset, byte value) => _scorchIntensity[offset] = value;
 
     public void CommitPixel(Position pos) => _changeList.Add(pos);
 

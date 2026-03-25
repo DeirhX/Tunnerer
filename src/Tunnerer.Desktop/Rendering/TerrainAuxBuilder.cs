@@ -150,16 +150,7 @@ public sealed class TerrainAuxBuilder
                  Pixel.IsMineral(pixel) || Pixel.IsBlockingCollision(pixel))
             material = materialStone;
 
-        byte scorch = 0;
-        switch (pixel)
-        {
-            case TerrainPixel.DecalHigh:
-                scorch = DesktopScreenTweaks.PostEmissiveScorchedHigh;
-                break;
-            case TerrainPixel.DecalLow:
-                scorch = DesktopScreenTweaks.PostEmissiveScorchedLow;
-                break;
-        }
+        byte scorch = terrain.GetScorchIntensity(idx);
 
         float heat = terrain.GetHeatTemperature(idx);
         target[writeIndex] = (byte)Math.Clamp((int)MathF.Round(heat / TerrainGrid.HeatByteScale), 0, 255);
