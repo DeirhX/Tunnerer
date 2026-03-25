@@ -155,7 +155,7 @@ public class Tank
         Heat += Tweaks.Tank.MoveHeatGain;
     }
 
-    private CollisionType TestCollision(ITerrainPixelReader terrain, Position pos, int dir)
+    private CollisionType TestCollision(ITerrainPixelAccessor terrain, Position pos, int dir)
     {
         var result = CollisionType.None;
         ForEachSpritePixel(dir, pos, (_, worldPos) =>
@@ -168,7 +168,7 @@ public class Tank
         return result;
     }
 
-    private void DigTunnel(ITerrainPixelReader terrain, ITerrainHeatSource heat, Position center, bool torchUse)
+    private void DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse)
     {
         int r = Tweaks.Tank.DigRadius;
         for (int ty = center.Y - r; ty <= center.Y + r; ty++)
@@ -205,7 +205,7 @@ public class Tank
             }
     }
 
-    private void CollectItems(ITerrainPixelReader terrain)
+    private void CollectItems(ITerrainPixelAccessor terrain)
     {
         ForEachSpritePixel(Direction, Position, (_, worldPos) =>
         {

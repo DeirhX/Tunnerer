@@ -120,7 +120,7 @@ public class TankBase
         });
     }
 
-    public void CreateInTerrain(ITerrainPixelReader terrain, int color)
+    public void CreateInTerrain(ITerrainPixelAccessor terrain, int color)
     {
         int half = Half;
 

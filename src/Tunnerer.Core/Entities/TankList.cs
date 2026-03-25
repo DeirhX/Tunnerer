@@ -52,8 +52,8 @@ public class TankList
         foreach (var tank in _tanks)
         {
             if (tank.IsDead || tank.Color == excludeColor) continue;
-            int cx = TankSprites.SpriteWidth / 2;
-            int cy = TankSprites.SpriteHeight / 2;
+            int cx = TankCollisionMask.Width / 2;
+            int cy = TankCollisionMask.Height / 2;
             if (Math.Abs(position.X - tank.Position.X) <= cx &&
                 Math.Abs(position.Y - tank.Position.Y) <= cy)
                 return tank;

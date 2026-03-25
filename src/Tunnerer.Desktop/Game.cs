@@ -84,6 +84,7 @@ public partial class Game : IDisposable
             _terrainSize,
             deterministicSimulation: deterministicSimulation,
             simulationSeed: deterministicSimulation ? DefaultSeed : 0);
+        _world.Profile.ReportSink = static line => Console.WriteLine(line);
         int? matSeed = deterministicSimulation ? DefaultSeed + 1 : null;
         _world.Initialize(terrain, spawns, materializeSeed: matSeed, parallelMaterialize: parallel);
         _p2AI = new BotTankAI(seed: deterministicSimulation ? DefaultSeed + 2 : null);
@@ -143,7 +144,11 @@ public partial class Game : IDisposable
                 requestStop: () => _isRunning = false,
                 pollEvents: () => _renderer.PollEvents(HandleEvent),
                 isGameOver: () => _world.IsGameOver,
-                onBeforeSimulationBatch: () => _terrainDirtyCells.Clear(),
+                onBeforeSimulationBatch: () =>
+                {
+                    _terrainDirtyCells.Clear();
+                    UpdateViewStateForInput(tanks);
+                },
                 captureFrameInput: CaptureFrameInput,
                 advanceOneSimulationStep: frameInput => AdvanceOneSimulationStep(tanks, frameInput),
                 composeFrame: () =>
@@ -173,6 +178,16 @@ public partial class Game : IDisposable
             FlushInputRecordingOnExit();
             DisposeResources();
         }
+    }
+
+    private void UpdateViewStateForInput(IReadOnlyList<Core.Entities.Tank> tanks)
+    {
+        var (winW, winH) = _renderer.GetWindowSize();
+        int scale = DesktopScreenTweaks.PixelScale;
+        var viewSize = _renderViewState.ComputeViewSize(winW, winH, _renderBackend.SupportsUi);
+        _renderViewState.EnsureHiResBuffer(viewSize);
+        var player = tanks.Count > 0 ? tanks[0] : null;
+        _renderViewState.UpdateCamera(player, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
     private void AdvanceOneSimulationStep(IReadOnlyList<Core.Entities.Tank> tanks, FrameInputSnapshot frameInput)

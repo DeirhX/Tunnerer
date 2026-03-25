@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Gui;
+namespace Tunnerer.Presentation.Gui;
 
 using Tunnerer.Core.Types;
 

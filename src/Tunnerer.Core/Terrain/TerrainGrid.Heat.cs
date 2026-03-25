@@ -249,13 +249,6 @@ public partial class TerrainGrid
             ClearNextActiveTiles();
             for (int i = 0; i < len; i++)
             {
-                if (Pixel.GetThermalMaterial(_data[i]) != ThermalMaterial.Dirt)
-                {
-                    if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
-                        ActivateNextTileByCell(i % w, i / w);
-                    continue;
-                }
-
                 float old = _heatTemperature[i];
                 float next = MathF.Max(0f, old - artificialCoolingPerFrame);
                 if (next != old)

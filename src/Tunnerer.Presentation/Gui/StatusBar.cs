@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Gui;
+namespace Tunnerer.Presentation.Gui;
 
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Entities;
@@ -62,28 +62,20 @@ public class StatusBar
                 int sy = ScreenRect.Y + y;
                 if (sx < 0 || sy < 0 || sx >= surface.Width) continue;
 
-                // Rounded outer corners
                 if ((x == 0 || x == w - 1) && (y == 0 || y == h - 1))
                     continue;
 
                 uint c;
-
-                // Outer border
                 if (y < Border || y >= h - Border || x < Border || x >= w - Border)
                     c = bgColor;
-                // Rounded inner corners
                 else if ((x == Border || x == w - Border - 1) && (y == Border || y == h - Border - 1))
                     c = bgColor;
-                // Middle separator
                 else if (y >= midY && y < midY + midH)
                     c = bgColor;
-                // Heat bar (top half)
                 else if (y < midY && ((_decreasesToLeft && x < heatFilled) || (!_decreasesToLeft && x >= heatFilled)))
                     c = heatColor;
-                // Health bar (bottom half)
                 else if (y > midY && ((_decreasesToLeft && x < healthFilled) || (!_decreasesToLeft && x >= healthFilled)))
                     c = healthColor;
-                // Empty bar portion
                 else
                     c = blankColor;
 

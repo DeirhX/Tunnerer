@@ -1,7 +1,6 @@
-namespace Tunnerer.Core.Gui;
+namespace Tunnerer.Presentation.Gui;
 
 using Tunnerer.Core.Types;
-using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 
 public class Screen
@@ -29,43 +28,42 @@ public class Screen
     public void SetupSinglePlayer(Tank player)
     {
         ClearAll();
-        int W = _renderSize.X, H = _renderSize.Y;
+        int w = _renderSize.X, h = _renderSize.Y;
 
-        var viewRect = new Rect(2, 2, W - 4, H - 4 - 2 - 11);
+        var viewRect = new Rect(2, 2, w - 4, h - 4 - 2 - 11);
         _views.Add(new TankView(viewRect, player));
 
-        var statusRect = new Rect(9, H - 2 - 11, W - 16, 11);
+        var statusRect = new Rect(9, h - 2 - 11, w - 16, 11);
         _statusBars.Add(new StatusBar(statusRect, player, BarDirection.DecreasesToLeft));
 
         _letterBitmaps.Add(new LetterBitmap(3, statusRect.Y, 'T', GuiColors.StatusHeat));
         _letterBitmaps.Add(new LetterBitmap(3, statusRect.Y + 6, 'H', GuiColors.StatusHealth));
 
         _livesDots.Add(new LivesDots(statusRect.Right + 3, statusRect.Y + 1, player));
-
         _resourceOverlays.Add(new ResourceOverlay(new Rect(2, 2, 20, 20), player, HorizontalAlign.Left));
     }
 
     public void SetupTwoPlayers(Tank player1, Tank player2)
     {
         ClearAll();
-        int W = _renderSize.X, H = _renderSize.Y;
+        int w = _renderSize.X, h = _renderSize.Y;
 
-        int viewW = (W - 4) / 2 - 1; // 157
-        int viewH = H - 4 - 2 - 11;  // 183
+        int viewW = (w - 4) / 2 - 1;
+        int viewH = h - 4 - 2 - 11;
 
         var view1 = new Rect(2, 2, viewW, viewH);
         var view2 = new Rect(view1.Right + 3, 2, viewW, viewH);
         _views.Add(new TankView(view1, player1));
         _views.Add(new TankView(view2, player2));
 
-        int statusY = H - 2 - 11;
-        int statusW = viewW - 2 - 2 - 2 - 1; // 150
+        int statusY = h - 2 - 11;
+        int statusW = viewW - 2 - 2 - 2 - 1;
         var status1 = new Rect(2, statusY, statusW, 11);
         var status2 = new Rect(status1.Right + 1 + 4 + 4 + 3 + 2 + 3, statusY, statusW, 11);
         _statusBars.Add(new StatusBar(status1, player1, BarDirection.DecreasesToRight));
         _statusBars.Add(new StatusBar(status2, player2, BarDirection.DecreasesToLeft));
 
-        int centerX = W / 2 - 2;
+        int centerX = w / 2 - 2;
         _letterBitmaps.Add(new LetterBitmap(centerX, statusY, 'T', GuiColors.StatusHeat));
         _letterBitmaps.Add(new LetterBitmap(centerX, statusY + 6, 'H', GuiColors.StatusHealth));
 
@@ -86,11 +84,6 @@ public class Screen
                 surface.Pixels[x + y * surface.Width] = dot;
     }
 
-    /// <summary>
-    /// Sets the crosshair screen position and returns the aim direction
-    /// from the player's tank to the crosshair in world space.
-    /// Returns null if the position isn't inside any view.
-    /// </summary>
     public DirectionF? SetCrosshairScreenPos(int screenX, int screenY, int playerViewIndex = 0)
     {
         if (playerViewIndex < 0 || playerViewIndex >= _views.Count)
@@ -139,9 +132,8 @@ public class Screen
         if (_crosshairScreenPos == null) return;
         int cx = _crosshairScreenPos.Value.X;
         int cy = _crosshairScreenPos.Value.Y;
-        uint color = 0xFFFFFFFF; // white
+        uint color = 0xFFFFFFFF;
 
-        // 3x3 cross pattern: top, left, right, bottom (no center)
         SetPxSafe(surface, cx, cy - 1, color);
         SetPxSafe(surface, cx - 1, cy, color);
         SetPxSafe(surface, cx + 1, cy, color);
@@ -188,7 +180,7 @@ public class LivesDots
                     if (surface.IsInside(px, py))
                         surface.Pixels[px + py * surface.Width] = color;
                 }
-            yPos += 3; // 2px dot + 1px spacing
+            yPos += 3;
         }
     }
 }
@@ -243,7 +235,6 @@ public class ResourceOverlay
         uint bgColor = new Color(0, 0, 0, 0x80).ToArgb();
         uint outlineColor = new Color(0xFF, 0xFF, 0xFF, 0xA0).ToArgb();
 
-        // Draw outline
         for (int x = _rect.X; x < _rect.Right; x++)
         {
             SetPx(surface, x, _rect.Y, outlineColor);
@@ -254,7 +245,6 @@ public class ResourceOverlay
             SetPx(surface, _rect.X, y, outlineColor);
             SetPx(surface, _rect.Right - 1, y, outlineColor);
         }
-        // Fill interior
         for (int y = _rect.Y + 1; y < _rect.Bottom - 1; y++)
             for (int x = _rect.X + 1; x < _rect.Right - 1; x++)
                 SetPx(surface, x, y, bgColor);

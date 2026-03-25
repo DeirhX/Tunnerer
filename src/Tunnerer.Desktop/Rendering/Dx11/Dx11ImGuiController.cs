@@ -59,49 +59,46 @@ public sealed unsafe class ImGuiController : IDisposable
         CreateDeviceObjects();
     }
 
-    public void ProcessEvent(Event ev)
+    public void ProcessEvent(in RenderInputEvent ev)
     {
         var io = ImGui.GetIO();
-        switch ((EventType)ev.Type)
+        switch (ev.Type)
         {
-            case EventType.Mousemotion:
-                io.AddMousePosEvent(ev.Motion.X, ev.Motion.Y);
+            case RenderInputEventType.MouseMove:
+                io.AddMousePosEvent(ev.MouseX, ev.MouseY);
                 break;
-            case EventType.Mousebuttondown:
-            case EventType.Mousebuttonup:
+            case RenderInputEventType.MouseButton:
             {
-                int button = ev.Button.Button switch
+                int button = ev.MouseButton switch
                 {
-                    1 => 0,
-                    2 => 2,
-                    3 => 1,
+                    RenderMouseButton.Left => 0,
+                    RenderMouseButton.Middle => 2,
+                    RenderMouseButton.Right => 1,
                     _ => -1
                 };
                 if (button >= 0)
-                    io.AddMouseButtonEvent(button, ev.Type == (uint)EventType.Mousebuttondown);
+                    io.AddMouseButtonEvent(button, ev.IsPressed);
                 break;
             }
-            case EventType.Mousewheel:
-                io.AddMouseWheelEvent(ev.Wheel.X, ev.Wheel.Y);
+            case RenderInputEventType.MouseWheel:
+                io.AddMouseWheelEvent(ev.WheelX, ev.WheelY);
                 break;
-            case EventType.Textinput:
+            case RenderInputEventType.TextInput:
             {
-                string text = Marshal.PtrToStringUTF8((nint)ev.Text.Text) ?? "";
+                string text = ev.Text ?? string.Empty;
                 foreach (char c in text)
                     io.AddInputCharacter(c);
                 break;
             }
-            case EventType.Keydown:
-            case EventType.Keyup:
+            case RenderInputEventType.Key:
             {
-                bool down = ev.Type == (uint)EventType.Keydown;
-                var key = SdlScancodeToImGuiKey((Scancode)ev.Key.Keysym.Scancode);
+                var key = ToImGuiKey(ev.Key);
                 if (key != ImGuiKey.None)
-                    io.AddKeyEvent(key, down);
+                    io.AddKeyEvent(key, ev.IsPressed);
 
-                io.AddKeyEvent(ImGuiKey.ModCtrl, (ev.Key.Keysym.Mod & (ushort)Keymod.Ctrl) != 0);
-                io.AddKeyEvent(ImGuiKey.ModShift, (ev.Key.Keysym.Mod & (ushort)Keymod.Shift) != 0);
-                io.AddKeyEvent(ImGuiKey.ModAlt, (ev.Key.Keysym.Mod & (ushort)Keymod.Alt) != 0);
+                io.AddKeyEvent(ImGuiKey.ModCtrl, (ev.Modifiers & RenderKeyModifiers.Ctrl) != 0);
+                io.AddKeyEvent(ImGuiKey.ModShift, (ev.Modifiers & RenderKeyModifiers.Shift) != 0);
+                io.AddKeyEvent(ImGuiKey.ModAlt, (ev.Modifiers & RenderKeyModifiers.Alt) != 0);
                 break;
             }
         }
@@ -548,29 +545,29 @@ float4 main(PS_INPUT input) : SV_Target
         if (_depthStencilState != null) { _depthStencilState->Release(); _depthStencilState = null; }
     }
 
-    private static ImGuiKey SdlScancodeToImGuiKey(Scancode sc) => sc switch
+    private static ImGuiKey ToImGuiKey(RenderKey key) => key switch
     {
-        Scancode.ScancodeTab => ImGuiKey.Tab,
-        Scancode.ScancodeLeft => ImGuiKey.LeftArrow,
-        Scancode.ScancodeRight => ImGuiKey.RightArrow,
-        Scancode.ScancodeUp => ImGuiKey.UpArrow,
-        Scancode.ScancodeDown => ImGuiKey.DownArrow,
-        Scancode.ScancodePageup => ImGuiKey.PageUp,
-        Scancode.ScancodePagedown => ImGuiKey.PageDown,
-        Scancode.ScancodeHome => ImGuiKey.Home,
-        Scancode.ScancodeEnd => ImGuiKey.End,
-        Scancode.ScancodeInsert => ImGuiKey.Insert,
-        Scancode.ScancodeDelete => ImGuiKey.Delete,
-        Scancode.ScancodeBackspace => ImGuiKey.Backspace,
-        Scancode.ScancodeSpace => ImGuiKey.Space,
-        Scancode.ScancodeReturn => ImGuiKey.Enter,
-        Scancode.ScancodeEscape => ImGuiKey.Escape,
-        Scancode.ScancodeA => ImGuiKey.A,
-        Scancode.ScancodeC => ImGuiKey.C,
-        Scancode.ScancodeV => ImGuiKey.V,
-        Scancode.ScancodeX => ImGuiKey.X,
-        Scancode.ScancodeY => ImGuiKey.Y,
-        Scancode.ScancodeZ => ImGuiKey.Z,
+        RenderKey.Tab => ImGuiKey.Tab,
+        RenderKey.LeftArrow => ImGuiKey.LeftArrow,
+        RenderKey.RightArrow => ImGuiKey.RightArrow,
+        RenderKey.UpArrow => ImGuiKey.UpArrow,
+        RenderKey.DownArrow => ImGuiKey.DownArrow,
+        RenderKey.PageUp => ImGuiKey.PageUp,
+        RenderKey.PageDown => ImGuiKey.PageDown,
+        RenderKey.Home => ImGuiKey.Home,
+        RenderKey.End => ImGuiKey.End,
+        RenderKey.Insert => ImGuiKey.Insert,
+        RenderKey.Delete => ImGuiKey.Delete,
+        RenderKey.Backspace => ImGuiKey.Backspace,
+        RenderKey.Space => ImGuiKey.Space,
+        RenderKey.Enter => ImGuiKey.Enter,
+        RenderKey.Escape => ImGuiKey.Escape,
+        RenderKey.A => ImGuiKey.A,
+        RenderKey.C => ImGuiKey.C,
+        RenderKey.V => ImGuiKey.V,
+        RenderKey.X => ImGuiKey.X,
+        RenderKey.Y => ImGuiKey.Y,
+        RenderKey.Z => ImGuiKey.Z,
         _ => ImGuiKey.None
     };
 

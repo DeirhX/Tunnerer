@@ -109,7 +109,7 @@ public static class Tweaks
 
         // Physically-inspired material heat exchange model.
         public static bool EnableMaterialHeatExchange => true;
-        // Legacy sink toggle; conservative mode keeps this off.
+        // Ambient sink toggle; conservative mode keeps this off.
         public static bool EnableThermalAmbientExchange => false;
         public static bool EnableStoneAmbientExchange { get; set; } = true;
         public static bool EnableConservativeAirField => true;

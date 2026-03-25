@@ -1,7 +1,6 @@
 namespace Tunnerer.Desktop.Rendering;
 
 using System;
-using Silk.NET.SDL;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
 
@@ -48,7 +47,7 @@ public interface IGameRenderBackend : IDisposable
     Size GameTextureSize { get; }
     bool SupportsUi { get; }
 
-    void ProcessEvent(Event ev);
+    void ProcessEvent(in RenderInputEvent ev);
 
     void UploadGamePixels(in GamePixelsUpload upload);
 

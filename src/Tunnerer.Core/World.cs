@@ -98,10 +98,10 @@ public class World
         var frameWatch = Stopwatch.StartNew();
 
         _advanceCount++;
-        _elapsed += Tweaks.World.AdvanceStep;
+        _elapsed += _simulationSettings.AdvanceStep;
 
         ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
-        ProfileSection(ref Profile.Cooldown, () => _terrain.CoolDown(Tweaks.World.ThermalArtificialCoolingPerFrame));
+        ProfileSection(ref Profile.Cooldown, () => _terrain.CoolDown(_simulationSettings.ThermalArtificialCoolingPerFrame));
         Profile.CooldownPrep += _terrain.LastCoolDownProfile.Prep;
         Profile.CooldownSim += _terrain.LastCoolDownProfile.Simulate;
         Profile.CooldownMark += _terrain.LastCoolDownProfile.MarkDirty;
@@ -131,10 +131,10 @@ public class World
             Settings = _simulationSettings,
         };
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
-        ProfileSection(ref Profile.Harvesters, () => _machines.Advance(_terrain, Tweaks.World.AdvanceStep));
-        ProfileSection(ref Profile.Sprites, () => _sprites.Advance(Tweaks.World.AdvanceStep));
+        ProfileSection(ref Profile.Harvesters, () => _machines.Advance(_terrain, _simulationSettings.AdvanceStep));
+        ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
-        ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, Tweaks.World.AdvanceStep));
+        ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
 
         Profile.Total += frameWatch.Elapsed;
         Profile.FrameCount++;
@@ -158,6 +158,8 @@ public class World
 
 public class SimulationProfile
 {
+    public Action<string>? ReportSink { get; set; }
+
     public TimeSpan Collision;
     public TimeSpan Cooldown;
     public TimeSpan CooldownPrep;
@@ -184,15 +186,21 @@ public class SimulationProfile
     public void Report()
     {
         if (FrameCount == 0) return;
-        Console.WriteLine($"[Profile] coll={Avg(Collision):F3} cool={Avg(Cooldown):F3} regrow={Avg(Regrow):F3} " +
+        if (ReportSink is null)
+        {
+            Reset();
+            return;
+        }
+
+        ReportSink($"[Profile] coll={Avg(Collision):F3} cool={Avg(Cooldown):F3} regrow={Avg(Regrow):F3} " +
             $"bases={Avg(Bases):F3} proj={Avg(Projectiles):F3} tanks={Avg(Tanks):F3} harv={Avg(Harvesters):F3} " +
             $"spr={Avg(Sprites):F3} links={Avg(Links):F3} " +
             $"| total={Avg(Total):F3} ms (avg over {FrameCount} frames)");
-        Console.WriteLine($"[Profile+] coolPrep={Avg(CooldownPrep):F3} coolSim={Avg(CooldownSim):F3} " +
+        ReportSink($"[Profile+] coolPrep={Avg(CooldownPrep):F3} coolSim={Avg(CooldownSim):F3} " +
             $"coolMark={Avg(CooldownMark):F3} coolCopy={Avg(CooldownWriteBack):F3} ms");
-        Console.WriteLine($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
+        ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
             $"sparseFrames={CooldownSparseFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
-        Console.WriteLine($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} driftSigned={AvgValue(ThermalEnergyDriftSigned):F5} " +
+        ReportSink($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} driftSigned={AvgValue(ThermalEnergyDriftSigned):F5} " +
             $"driftAbs={AvgValue(ThermalEnergyDriftAbs):F5}");
         Reset();
     }

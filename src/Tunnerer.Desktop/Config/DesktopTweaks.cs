@@ -6,7 +6,6 @@ using Tunnerer.Core.Types;
 public enum RenderBackendKind
 {
     Dx11 = 0,
-    Dx12 = 1,
 }
 
 public static class DesktopTweaks

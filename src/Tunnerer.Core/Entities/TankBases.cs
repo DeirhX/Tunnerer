@@ -27,7 +27,7 @@ public class TankBases
         return null;
     }
 
-    public void CreateBasesInTerrain(ITerrainPixelReader terrain)
+    public void CreateBasesInTerrain(ITerrainPixelAccessor terrain)
     {
         for (int i = 0; i < _bases.Count; i++)
             _bases[i].CreateInTerrain(terrain, i);

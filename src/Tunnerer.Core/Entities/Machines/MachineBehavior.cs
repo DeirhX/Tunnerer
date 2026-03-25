@@ -11,7 +11,7 @@ using Tunnerer.Core.Terrain;
 /// </summary>
 public record MachineBehavior(
     TimeSpan ActionInterval,
-    Action<Machine, ITerrainPixelReader>? PerformAction,
+    Action<Machine, ITerrainPixelAccessor>? PerformAction,
     Color ActiveColor,
     MaterialAmount BuildCost);
 
@@ -36,7 +36,7 @@ public static class MachineBehaviors
         _ => throw new ArgumentOutOfRangeException(nameof(type)),
     };
 
-    private static void HarvestNearby(Machine machine, ITerrainPixelReader terrain)
+    private static void HarvestNearby(Machine machine, ITerrainPixelAccessor terrain)
     {
         int range = Tweaks.Machine.HarvestRange;
         var center = machine.Position;

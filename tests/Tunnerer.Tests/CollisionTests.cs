@@ -8,13 +8,58 @@ namespace Tunnerer.Tests;
 
 public class CollisionTests
 {
+    private static CollisionType ClassifyPoint(CollisionSolver solver, Position pos)
+    {
+        if (pos.X < 0 || pos.Y < 0 || pos.X >= solver.Terrain.Width || pos.Y >= solver.Terrain.Height)
+            return CollisionType.Blocked;
+
+        CollisionType result = CollisionType.None;
+        _ = solver.TestPoint(pos, onTerrain: pix =>
+        {
+            if (Pixel.IsBlockingCollision(pix))
+            {
+                result = CollisionType.Blocked;
+                return true;
+            }
+
+            if (Pixel.IsSoftCollision(pix))
+                result = CollisionType.Dirt;
+            return false;
+        });
+        return result;
+    }
+
+    private static CollisionType ClassifyShape(CollisionSolver solver, Position center, byte[] shape, int shapeW, int shapeH)
+    {
+        CollisionType result = CollisionType.None;
+        int cx = shapeW / 2;
+        int cy = shapeH / 2;
+        for (int sy = 0; sy < shapeH; sy++)
+        {
+            for (int sx = 0; sx < shapeW; sx++)
+            {
+                if (shape[sx + sy * shapeW] == 0)
+                    continue;
+
+                var worldPos = new Position(center.X - cx + sx, center.Y - cy + sy);
+                CollisionType pointType = ClassifyPoint(solver, worldPos);
+                if (pointType == CollisionType.Blocked)
+                    return CollisionType.Blocked;
+                if (pointType == CollisionType.Dirt)
+                    result = CollisionType.Dirt;
+            }
+        }
+
+        return result;
+    }
+
     [Fact]
     public void TestPixel_Rock_IsBlocked()
     {
         var t = new TerrainGrid(new Size(10, 10));
         t.SetPixelRaw(new Position(5, 5), TerrainPixel.Rock);
         var solver = new CollisionSolver(t);
-        Assert.Equal(CollisionType.Blocked, solver.TestPixel(new Position(5, 5)));
+        Assert.Equal(CollisionType.Blocked, ClassifyPoint(solver, new Position(5, 5)));
     }
 
     [Fact]
@@ -23,7 +68,7 @@ public class CollisionTests
         var t = new TerrainGrid(new Size(10, 10));
         t.SetPixelRaw(new Position(5, 5), TerrainPixel.DirtHigh);
         var solver = new CollisionSolver(t);
-        Assert.Equal(CollisionType.Dirt, solver.TestPixel(new Position(5, 5)));
+        Assert.Equal(CollisionType.Dirt, ClassifyPoint(solver, new Position(5, 5)));
     }
 
     [Fact]
@@ -32,7 +77,7 @@ public class CollisionTests
         var t = new TerrainGrid(new Size(10, 10));
         t.SetPixelRaw(new Position(5, 5), TerrainPixel.Blank);
         var solver = new CollisionSolver(t);
-        Assert.Equal(CollisionType.None, solver.TestPixel(new Position(5, 5)));
+        Assert.Equal(CollisionType.None, ClassifyPoint(solver, new Position(5, 5)));
     }
 
     [Fact]
@@ -40,7 +85,7 @@ public class CollisionTests
     {
         var t = new TerrainGrid(new Size(10, 10));
         var solver = new CollisionSolver(t);
-        Assert.Equal(CollisionType.Blocked, solver.TestPixel(new Position(-1, 5)));
+        Assert.Equal(CollisionType.Blocked, ClassifyPoint(solver, new Position(-1, 5)));
     }
 
     [Fact]
@@ -51,7 +96,7 @@ public class CollisionTests
         var solver = new CollisionSolver(t);
 
         byte[] shape = [1, 1, 1, 1, 1, 1, 1, 1, 1]; // 3x3 filled
-        Assert.Equal(CollisionType.None, solver.TestShape(new Position(10, 10), shape, 3, 3));
+        Assert.Equal(CollisionType.None, ClassifyShape(solver, new Position(10, 10), shape, 3, 3));
     }
 
     [Fact]
@@ -63,7 +108,7 @@ public class CollisionTests
         var solver = new CollisionSolver(t);
 
         byte[] shape = [1, 1, 1, 1, 1, 1, 1, 1, 1]; // 3x3 filled
-        Assert.Equal(CollisionType.Blocked, solver.TestShape(new Position(10, 10), shape, 3, 3));
+        Assert.Equal(CollisionType.Blocked, ClassifyShape(solver, new Position(10, 10), shape, 3, 3));
     }
 
     [Fact]
@@ -75,7 +120,7 @@ public class CollisionTests
         var solver = new CollisionSolver(t);
 
         byte[] shape = [1, 1, 1, 1, 1, 1, 1, 1, 1];
-        Assert.Equal(CollisionType.Dirt, solver.TestShape(new Position(10, 10), shape, 3, 3));
+        Assert.Equal(CollisionType.Dirt, ClassifyShape(solver, new Position(10, 10), shape, 3, 3));
     }
 
     [Fact]
@@ -87,7 +132,7 @@ public class CollisionTests
         var solver = new CollisionSolver(t);
 
         byte[] shape = [0, 1, 1, 1, 1, 1, 1, 1, 1]; // top-left pixel masked out
-        Assert.Equal(CollisionType.None, solver.TestShape(new Position(10, 10), shape, 3, 3));
+        Assert.Equal(CollisionType.None, ClassifyShape(solver, new Position(10, 10), shape, 3, 3));
     }
     [Fact]
     public void TestPoint_TerrainOnly_HitsRock()

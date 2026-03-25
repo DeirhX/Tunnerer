@@ -35,7 +35,7 @@ public class Machine
     public bool IsBlockingCollision => State == MachineState.Planted;
     public bool TestCollide(Position pos) => BoundingBox.IsInside(pos, Position);
 
-    public void Advance(ITerrainPixelReader terrain, TimeSpan dt)
+    public void Advance(ITerrainPixelAccessor terrain, TimeSpan dt)
     {
         if (!IsAlive || State != MachineState.Planted) return;
         if (Reactor.Health <= 0) { IsAlive = false; return; }

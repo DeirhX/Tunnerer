@@ -12,7 +12,7 @@ using Tunnerer.Core.Types;
 /// </summary>
 public readonly record struct SimulationContext
 {
-    public required ITerrainPixelReader Terrain { get; init; }
+    public required ITerrainPixelAccessor Terrain { get; init; }
     public required ITerrainHeatSource Heat { get; init; }
     public required ProjectileList Projectiles { get; init; }
     public required Func<Position, TankBase?> CheckBaseCollision { get; init; }

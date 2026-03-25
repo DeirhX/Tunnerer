@@ -17,7 +17,7 @@ public class MachineList
         return machine;
     }
 
-    public void Advance(ITerrainPixelReader terrain, TimeSpan dt)
+    public void Advance(ITerrainPixelAccessor terrain, TimeSpan dt)
     {
         for (int i = _machines.Count - 1; i >= 0; i--)
         {

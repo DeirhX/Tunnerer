@@ -46,7 +46,7 @@ public class LinkMap
         _nextRelink = TimeSpan.Zero;
     }
 
-    public void Advance(ITerrainPixelReader terrain, TimeSpan dt)
+    public void Advance(ITerrainPixelReadOnly terrain, TimeSpan dt)
     {
         _elapsed += dt;
         if (_elapsed < _nextRelink) return;
@@ -61,7 +61,7 @@ public class LinkMap
         return unchecked((int)FastRandom.Hash32(mixed));
     }
 
-    private void RebuildLinks(ITerrainPixelReader terrain)
+    private void RebuildLinks(ITerrainPixelReadOnly terrain)
     {
         _links.Clear();
 

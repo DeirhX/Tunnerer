@@ -131,10 +131,11 @@ public partial class Game
 
             if (player != null)
             {
-                var vp = _hud.ViewportRect;
-                if (vp.w > 0 && vp.h > 0 &&
-                    frameInput.MouseX >= vp.x && frameInput.MouseY >= vp.y &&
-                    frameInput.MouseX < vp.x + vp.w && frameInput.MouseY < vp.y + vp.h)
+                float vpW = _renderViewState.HiResSize.X;
+                float vpH = _renderViewState.HiResSize.Y;
+                if (vpW > 0 && vpH > 0 &&
+                    frameInput.MouseX >= 0 && frameInput.MouseY >= 0 &&
+                    frameInput.MouseX < vpW && frameInput.MouseY < vpH)
                 {
                     _hud.CrosshairScreenPos = (frameInput.MouseX, frameInput.MouseY);
                 }

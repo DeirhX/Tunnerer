@@ -35,10 +35,8 @@ foreach (var arg in args)
         var backendRaw = arg[10..].Trim();
         if (backendRaw.Equals("dx11", StringComparison.OrdinalIgnoreCase))
             renderBackend = RenderBackendKind.Dx11;
-        else if (backendRaw.Equals("dx12", StringComparison.OrdinalIgnoreCase))
-            renderBackend = RenderBackendKind.Dx12;
         else
-            Console.WriteLine($"[Args] Unknown backend '{backendRaw}', expected dx11|dx12. Using default.");
+            Console.WriteLine($"[Args] Unknown backend '{backendRaw}', expected dx11. Using default.");
     }
     else if (arg == "--no-ai" || arg == "--disable-ai")
     {

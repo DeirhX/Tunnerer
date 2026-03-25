@@ -44,12 +44,7 @@ Tunnerer.Core/
 ├── Input/
 │   ├── Controller.cs           # ControllerOutput struct
 │   └── BotTankAI.cs             # AI state machine
-├── Gui/
-│   ├── Screen.cs               # Screen layout, viewports, GUI widgets, crosshair
-│   ├── TankView.cs             # Tank-centered world viewport
-│   ├── StatusBar.cs            # Energy/health bar
-│   ├── FontRenderer.cs         # 4×5 bitmap font
-│   └── GuiColors.cs            # GUI color constants
+├── (Presentation moved)        # GUI/layout moved to Tunnerer.Presentation
 ├── Rendering/
 │   └── TankSprites.cs          # 9-direction tank bitmaps and color palettes
 ├── Resources/
@@ -126,7 +121,7 @@ LinkMap            Solve power graph via Bresenham visibility
 
 ### Profiling
 
-`SimulationProfile` accumulates `Stopwatch` readings per subsystem and prints every 100 frames:
+`SimulationProfile` accumulates `Stopwatch` readings per subsystem and reports periodically when a sink is configured:
 ```
 [Profile] regrow=X.XXX proj=X.XXX tanks=X.XXX harv=X.XXX spr=X.XXX bases=X.XXX links=X.XXX | total=X.XXX ms
 ```
