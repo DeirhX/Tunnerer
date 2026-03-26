@@ -16,6 +16,7 @@ public readonly record struct TankRenderState(
 
 public readonly record struct ProjectileRenderState(
     Position Position,
+    VectorF Velocity,
     ProjectileType Type,
     bool IsAlive);
 

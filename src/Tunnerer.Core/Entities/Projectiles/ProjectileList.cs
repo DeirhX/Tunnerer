@@ -218,6 +218,7 @@ public class ProjectileList
             var p = _projectiles[i];
             destination[i] = new ProjectileRenderState(
                 Position: (Position)p.Position,
+                Velocity: p.Speed,
                 Type: p.Type,
                 IsAlive: p.IsAlive);
         }
