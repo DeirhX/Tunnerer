@@ -113,9 +113,7 @@ public partial class TerrainGrid
                 int offset = vx + vy * w;
                 if (_data[offset] == TerrainPixel.Rock)
                 {
-                    _data[offset] = step < veinLen / 3 ? TerrainPixel.GoldLow
-                        : step < veinLen * 2 / 3 ? TerrainPixel.GoldMedium
-                        : TerrainPixel.GoldHigh;
+                    _data[offset] = TerrainPixel.Gold;
                 }
                 else if (!Pixel.IsGold(_data[offset]))
                     break;

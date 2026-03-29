@@ -63,9 +63,7 @@ public static class DesktopScreenTweaks
     public static float PostTerrainHeatGlowR => Tweaks.Screen.PostTerrainHeatGlowR;
     public static float PostTerrainHeatGlowG => Tweaks.Screen.PostTerrainHeatGlowG;
     public static float PostTerrainHeatGlowB => Tweaks.Screen.PostTerrainHeatGlowB;
-    public static byte PostEmissiveGoldLow => Tweaks.Screen.PostEmissiveGoldLow;
-    public static byte PostEmissiveGoldMedium => Tweaks.Screen.PostEmissiveGoldMedium;
-    public static byte PostEmissiveGoldHigh => Tweaks.Screen.PostEmissiveGoldHigh;
+    public static byte PostEmissiveGold => Tweaks.Screen.PostEmissiveGold;
     public static byte PostEmissiveScorchedHigh => Tweaks.Screen.PostEmissiveScorchedHigh;
     public static byte PostEmissiveScorchedLow => Tweaks.Screen.PostEmissiveScorchedLow;
     public static float LightDirX => Tweaks.Screen.LightDirX;

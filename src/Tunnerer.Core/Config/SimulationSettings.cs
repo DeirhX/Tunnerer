@@ -93,9 +93,7 @@ public readonly record struct SimulationSettings
     public int TankTorchTerrainHeatAmount { get; init; }
     public int TankTorchRockHeatAmount { get; init; }
     public int TankTorchRockHeatRadius { get; init; }
-    public int TankCoolingPickupLow { get; init; }
-    public int TankCoolingPickupMedium { get; init; }
-    public int TankCoolingPickupHigh { get; init; }
+    public int TankCoolingPickupGold { get; init; }
     public TimeSpan TankRespawnDelay { get; init; }
 
     // --- Base interaction ---
@@ -175,9 +173,7 @@ public readonly record struct SimulationSettings
         TankTorchTerrainHeatAmount = Tweaks.Tank.TorchTerrainHeatAmount,
         TankTorchRockHeatAmount = Tweaks.Tank.TorchRockHeatAmount,
         TankTorchRockHeatRadius = Tweaks.Tank.TorchRockHeatRadius,
-        TankCoolingPickupLow = Tweaks.Tank.CoolingPickupLow,
-        TankCoolingPickupMedium = Tweaks.Tank.CoolingPickupMedium,
-        TankCoolingPickupHigh = Tweaks.Tank.CoolingPickupHigh,
+        TankCoolingPickupGold = Tweaks.Tank.CoolingPickupGold,
         TankRespawnDelay = Tweaks.Tank.RespawnDelay,
         BaseHomeCooldownHeat = Tweaks.Base.HomeCooldownHeat,
         BaseForeignCooldownHeat = Tweaks.Base.ForeignCooldownHeat,

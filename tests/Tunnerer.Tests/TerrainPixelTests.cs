@@ -77,7 +77,7 @@ public class TerrainPixelTests
             TerrainPixel.Blank, TerrainPixel.DirtHigh,
             TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.DecalHigh,
             TerrainPixel.DecalLow, TerrainPixel.ConcreteLow, TerrainPixel.ConcreteHigh,
-            TerrainPixel.GoldLow, TerrainPixel.GoldMedium, TerrainPixel.GoldHigh,
+            TerrainPixel.Gold,
             TerrainPixel.BaseMin, TerrainPixel.BaseBarrier, TerrainPixel.BaseCore
         ];
 

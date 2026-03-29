@@ -49,7 +49,7 @@ public static class TerrainTestPatternGenerator
         FillRect(grid, margin, y, w, stripH, TerrainPixel.Rock);
         y += stripH + gutter;
 
-        FillRect(grid, margin, y, w, stripH, TerrainPixel.GoldMedium);
+        FillRect(grid, margin, y, w, stripH, TerrainPixel.Gold);
         y += stripH + gutter;
 
         FillRect(grid, margin, y, w, stripH, TerrainPixel.ConcreteHigh);
@@ -143,12 +143,12 @@ public static class TerrainTestPatternGenerator
 
         // Vertical split: dirt | energy
         FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.DirtHigh);
-        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.GoldMedium);
+        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Gold);
         x += blockW + gutter;
 
         // Vertical split: stone | energy
         FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Rock);
-        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.GoldMedium);
+        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Gold);
         x += blockW + gutter;
 
         // Vertical split: concrete | dirt
@@ -165,11 +165,11 @@ public static class TerrainTestPatternGenerator
         x += blockW + gutter;
 
         // Diagonal stone/energy
-        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Rock, TerrainPixel.GoldMedium);
+        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Rock, TerrainPixel.Gold);
         x += blockW + gutter;
 
         // Diagonal dirt/energy
-        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.DirtHigh, TerrainPixel.GoldMedium);
+        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.DirtHigh, TerrainPixel.Gold);
         x += blockW + gutter;
 
         // Horizontal split: dirt over stone
@@ -329,7 +329,7 @@ public static class TerrainTestPatternGenerator
         int x = 6;
 
         // Isolated single pixels (various materials)
-        TerrainPixel[] singles = [TerrainPixel.DirtHigh, TerrainPixel.Rock, TerrainPixel.GoldMedium, TerrainPixel.ConcreteHigh];
+        TerrainPixel[] singles = [TerrainPixel.DirtHigh, TerrainPixel.Rock, TerrainPixel.Gold, TerrainPixel.ConcreteHigh];
         foreach (var mat in singles)
         {
             SetSafe(grid, x, y + 2, mat);

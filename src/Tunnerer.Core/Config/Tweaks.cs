@@ -73,9 +73,7 @@ public static class Tweaks
         public const float PostTerrainHeatGlowR = 1.0000f;
         public const float PostTerrainHeatGlowG = 0.4500f;
         public const float PostTerrainHeatGlowB = 0.0500f;
-        public const byte PostEmissiveGoldLow = 150;
-        public const byte PostEmissiveGoldMedium = 190;
-        public const byte PostEmissiveGoldHigh = 230;
+        public const byte PostEmissiveGold = 190;
         public const byte PostEmissiveScorchedHigh = 64;
         public const byte PostEmissiveScorchedLow = 32;
 
@@ -207,9 +205,7 @@ public static class Tweaks
         public const int IdleHeatGain = 0;
         public const int MoveHeatGain = 0;
         public const float ShootHeatGain = 2.0f;
-        public const int CoolingPickupLow = 8;
-        public const int CoolingPickupMedium = 14;
-        public const int CoolingPickupHigh = 20;
+        public const int CoolingPickupGold = 14;
 
         public const float HeatMax = 100f;
         public const float HeatDigPerPixel = 0.008f;

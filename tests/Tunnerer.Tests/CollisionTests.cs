@@ -547,7 +547,7 @@ public class TerrainBehaviorTests
             TerrainPixel.Blank, TerrainPixel.DirtHigh,
             TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.DecalHigh,
             TerrainPixel.DecalLow, TerrainPixel.ConcreteLow, TerrainPixel.ConcreteHigh,
-            TerrainPixel.GoldLow, TerrainPixel.GoldMedium, TerrainPixel.GoldHigh,
+            TerrainPixel.Gold,
             TerrainPixel.BaseBarrier, TerrainPixel.BaseCore, TerrainPixel.BaseMin, TerrainPixel.BaseMax,
         ];
 
@@ -564,9 +564,7 @@ public class TerrainBehaviorTests
     }
 
     [Theory]
-    [InlineData(TerrainPixel.GoldLow)]
-    [InlineData(TerrainPixel.GoldMedium)]
-    [InlineData(TerrainPixel.GoldHigh)]
+    [InlineData(TerrainPixel.Gold)]
     public void Gold_IsCollectible(TerrainPixel pix)
     {
         Assert.True(Pixel.IsGold(pix));
@@ -649,7 +647,7 @@ public class TerrainBehaviorTests
     [Theory]
     [InlineData(TerrainPixel.Blank)]
     [InlineData(TerrainPixel.DecalHigh)]
-    [InlineData(TerrainPixel.GoldLow)]
+    [InlineData(TerrainPixel.Gold)]
     [InlineData(TerrainPixel.BaseBarrier)]
     public void NotTorchable_PixelTypes(TerrainPixel pix)
     {

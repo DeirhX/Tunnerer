@@ -20,9 +20,7 @@ public enum TerrainPixel : byte
     BaseCore = (byte)'9',
     ConcreteLow = (byte)'c',
     ConcreteHigh = (byte)'C',
-    GoldLow = (byte)'e',
-    GoldMedium = (byte)'E',
-    GoldHigh = (byte)'F',
+    Gold = (byte)'E',
 }
 
 public enum ThermalMaterial : byte
@@ -100,18 +98,10 @@ public static class Pixel
             BlocksMovement: true, SoftCollision: false, Diggable: false,
             Concrete: true, Mineral: true, Gold: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x80, 0x80, 0x85)));
-        Set(TerrainPixel.GoldLow, new(
-            BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: true, Base: false, Scorched: false,
-            DisplayColor: new Color(0x9B, 0x7A, 0x1E)));
-        Set(TerrainPixel.GoldMedium, new(
+        Set(TerrainPixel.Gold, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Gold: true, Base: false, Scorched: false,
             DisplayColor: new Color(0xC9, 0xA8, 0x37)));
-        Set(TerrainPixel.GoldHigh, new(
-            BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: true, Base: false, Scorched: false,
-            DisplayColor: new Color(0xFF, 0xD7, 0x00)));
         Set(TerrainPixel.BaseBarrier, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
