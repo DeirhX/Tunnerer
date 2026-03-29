@@ -49,7 +49,7 @@ cbuffer PostParams : register(b0)
     float Quality;                  // 0 = minimal, higher = enable extra shading detail
 
     // ---- Material emissive ------------------------------------------------
-    float4 MaterialEmissiveEnergy;  // .rgb = energy vein glow, .a = intensity
+    float4 MaterialEmissiveGold;    // .rgb = gold vein glow, .a = intensity
     float4 MaterialEmissiveScorched;// .rgb = scorch glow color, .a = intensity
     float4 MaterialEmissivePulse;   // .x = speed, .y = base, .z = amplitude, .w = unused
 

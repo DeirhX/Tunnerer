@@ -52,13 +52,13 @@ public static class Tweaks
         public const float PostTerrainMaskOutlineDarken = 0.26f;
         public const float PostTerrainMaskRimLift = 0.07f;
         public const float PostTerrainMaskBoundaryScale = 2.4f;
-        public const float PostMaterialEmissiveEnergyR = 0.7843f;
-        public const float PostMaterialEmissiveEnergyG = 0.8627f;
-        public const float PostMaterialEmissiveEnergyB = 0.2353f;
+        public const float PostMaterialEmissiveGoldR = 0.95f;
+        public const float PostMaterialEmissiveGoldG = 0.75f;
+        public const float PostMaterialEmissiveGoldB = 0.20f;
         public const float PostMaterialEmissiveScorchedR = 0.7059f;
         public const float PostMaterialEmissiveScorchedG = 0.3137f;
         public const float PostMaterialEmissiveScorchedB = 0.1176f;
-        public const float PostMaterialEmissiveEnergyStrength = 0.95f;
+        public const float PostMaterialEmissiveGoldStrength = 0.95f;
         public const float PostMaterialEmissiveScorchedStrength = 0.32f;
         public const float PostMaterialEmissivePulseFreq = 3.0f;
         public const float PostMaterialEmissivePulseMin = 0.8f;
@@ -73,9 +73,9 @@ public static class Tweaks
         public const float PostTerrainHeatGlowR = 1.0000f;
         public const float PostTerrainHeatGlowG = 0.4500f;
         public const float PostTerrainHeatGlowB = 0.0500f;
-        public const byte PostEmissiveEnergyLow = 150;
-        public const byte PostEmissiveEnergyMedium = 190;
-        public const byte PostEmissiveEnergyHigh = 230;
+        public const byte PostEmissiveGoldLow = 150;
+        public const byte PostEmissiveGoldMedium = 190;
+        public const byte PostEmissiveGoldHigh = 230;
         public const byte PostEmissiveScorchedHigh = 64;
         public const byte PostEmissiveScorchedLow = 32;
 
@@ -300,9 +300,9 @@ public static class Tweaks
         public const int SmoothingSteps = -1; // -1 = smooth until convergence (matches C++)
         public static int TargetDirtAmount(Size size) => size.X * size.Y * DirtTargetPercent / 100;
 
-        public const int EnergyVeinCountDivisor = 40;
-        public const int EnergyVeinMinLength = 5;
-        public const int EnergyVeinMaxLength = 16;
+        public const int GoldVeinCountDivisor = 40;
+        public const int GoldVeinMinLength = 5;
+        public const int GoldVeinMaxLength = 16;
         public const int RuinAreaPerRuin = 16000;
         public const int RuinWallMinLength = 2;
         public const int RuinWallMaxLength = 5;

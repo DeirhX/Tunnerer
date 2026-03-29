@@ -133,20 +133,21 @@ public sealed class TerrainAuxBuilder
         // R = heat, G = smoothed SDF, B = material class, A = scorch damage level.
         const byte materialNone = 0;
         const byte materialDirt = 85;
+        const byte materialConcrete = 128;
         const byte materialStone = 170;
-        const byte materialEnergy = 212;
-        const byte materialBase = 255;
+        const byte materialGold = 212;
 
         byte material = materialNone;
         if (pixel == TerrainPixel.DirtGrow || Pixel.IsDirt(pixel))
             material = materialDirt;
-        else if (Pixel.IsEnergy(pixel))
-            material = materialEnergy;
-        else if (pixel == TerrainPixel.BaseBarrier ||
+        else if (Pixel.IsGold(pixel))
+            material = materialGold;
+        else if (Pixel.IsConcrete(pixel) ||
+                 pixel == TerrainPixel.BaseBarrier ||
                  pixel == TerrainPixel.BaseCore ||
                  Pixel.IsBase(pixel))
-            material = materialBase;
-        else if (Pixel.IsRock(pixel) || Pixel.IsConcrete(pixel) ||
+            material = materialConcrete;
+        else if (Pixel.IsRock(pixel) ||
                  Pixel.IsMineral(pixel) || Pixel.IsBlockingCollision(pixel))
             material = materialStone;
 

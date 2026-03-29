@@ -18,6 +18,11 @@ public unsafe class KeyboardController
         _keys = keys;
     }
 
+    public bool IsLeftHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Left] != 0; } }
+    public bool IsRightHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Right] != 0; } }
+    public bool IsUpHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Up] != 0; } }
+    public bool IsDownHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Down] != 0; } }
+
     public ControllerOutput Poll()
     {
         byte* keys = _sdl.GetKeyboardState(null);

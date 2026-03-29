@@ -5,6 +5,7 @@ using Tunnerer.Desktop.Config;
 Size? terrainSize = null;
 bool fastGen = false;
 bool perfMode = false;
+bool terrainTestMode = false;
 int perfWarmupFrames = 180;
 int perfMeasureFrames = 900;
 string? perfCsvPath = null;
@@ -18,6 +19,8 @@ foreach (var arg in args)
         fastGen = true;
     else if (arg == "--perf")
         perfMode = true;
+    else if (arg == "--terrain-test")
+        terrainTestMode = true;
     else if (arg.StartsWith("--perf-warmup=") && int.TryParse(arg[14..], out int warmup))
         perfWarmupFrames = Math.Max(0, warmup);
     else if (arg.StartsWith("--perf-frames=") && int.TryParse(arg[14..], out int frames))
@@ -48,7 +51,8 @@ var mode = fastGen ? LevelGenMode.Optimized : LevelGenMode.Deterministic;
 Tunnerer.Desktop.PerfCaptureOptions? perfOptions = perfMode
     ? new Tunnerer.Desktop.PerfCaptureOptions(perfWarmupFrames, perfMeasureFrames, perfCsvPath)
     : null;
-var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, renderBackend, enableAiTanks);
+var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, renderBackend, enableAiTanks,
+    terrainTestMode: terrainTestMode);
 game.Run();
 
 

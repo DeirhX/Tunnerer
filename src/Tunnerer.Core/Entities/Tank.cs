@@ -212,13 +212,13 @@ public class Tank
             if (!terrain.IsInside(worldPos)) return true;
 
             var pix = terrain.GetPixelRaw(worldPos);
-            if (Pixel.IsEnergy(pix))
+            if (Pixel.IsGold(pix))
             {
                 terrain.SetPixel(worldPos, TerrainPixel.Blank);
                 int cooling = pix switch
                 {
-                    TerrainPixel.EnergyMedium => Tweaks.Tank.CoolingPickupMedium,
-                    TerrainPixel.EnergyHigh => Tweaks.Tank.CoolingPickupHigh,
+                    TerrainPixel.GoldMedium => Tweaks.Tank.CoolingPickupMedium,
+                    TerrainPixel.GoldHigh => Tweaks.Tank.CoolingPickupHigh,
                     _ => Tweaks.Tank.CoolingPickupLow,
                 };
                 Heat = TankHeatModel.ClampHeat(Heat - cooling);

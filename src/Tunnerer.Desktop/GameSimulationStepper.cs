@@ -72,6 +72,13 @@ public sealed class GameSimulationStepper
         return new SimulationStepResult(IsGameOver: _world.IsGameOver);
     }
 
+    public void ProcessScriptedCommands(int frame)
+    {
+        ApplyScriptCommandsForFrame(frame);
+        if (_scriptedInput.ShouldCaptureScreenshot(frame))
+            _requestScreenshot($"script_frame_{frame:D4}");
+    }
+
     private void ApplyScriptCommandsForFrame(int frame)
     {
         if (!_scriptedInput.TryGetCommandsForFrame(frame, out IReadOnlyList<GameCommand> commands))

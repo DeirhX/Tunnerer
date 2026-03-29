@@ -29,11 +29,11 @@ float2 TexelOffsetY()
 // CPU writes material IDs as normalized [0..1]; decode by multiplying by 255.
 static const float kMaterialCodeScale = 255.0;
 static const float kMaterialCodeDirt = 85.0;
+static const float kMaterialCodeConcrete = 128.0;
 static const float kMaterialCodeStone = 170.0;
-static const float kMaterialCodeEnergy = 212.0;
-static const float kMaterialCodeBase = 255.0;
-static const float kMaterialMaskWidthWide = 40.0;    // smoothstep width for stone/dirt
-static const float kMaterialMaskWidthNarrow = 28.0;  // smoothstep width for energy/base
+static const float kMaterialCodeGold = 212.0;
+static const float kMaterialMaskWidthWide = 40.0;    // smoothstep width for stone/dirt/concrete
+static const float kMaterialMaskWidthNarrow = 28.0;  // smoothstep width for gold
 
 // ---- Heat debug overlay ---------------------------------------------------
 static const float kHeatDebugTemperatureScale = 255.0 * 4.0;

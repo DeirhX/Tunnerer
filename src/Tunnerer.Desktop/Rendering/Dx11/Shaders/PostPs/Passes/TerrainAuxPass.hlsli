@@ -11,7 +11,7 @@
 //      and boundary proximity. Solid terrain gets a brightness lift and rim
 //      highlight near the cave/solid boundary.
 //   2. Material classification — auxTex.b encodes material ID (dirt, stone,
-//      energy, base). Each material gets its own procedural overlay function.
+//      gold, base). Each material gets its own procedural overlay function.
 //   3. Neighborhood AA — 8-tap average blended in at edges to soften
 //      remaining aliasing after material overlays.
 //   4. Heat & scorch glow — auxTex.r (heat) and auxTex.a (scorch) drive
@@ -229,15 +229,8 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     float solidCoreSoft = smoothstep(0.52, 0.66, a0.g);
     float solidCore = solidCoreHard * solidCoreSoft;
     float materialCodeNearest = aNearest.b * kMaterialCodeScale;
-    float baseCenter = 1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(materialCodeNearest - kMaterialCodeBase));
-    float baseNeighbor = max(
-        max(
-            1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(ax1.b * kMaterialCodeScale - kMaterialCodeBase)),
-            1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(ax2.b * kMaterialCodeScale - kMaterialCodeBase))),
-        max(
-            1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(ay1.b * kMaterialCodeScale - kMaterialCodeBase)),
-            1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(ay2.b * kMaterialCodeScale - kMaterialCodeBase))));
-    float baseInfluence = saturate(max(baseCenter, baseNeighbor));
+    // Base pixels now use the concrete material code; no more special base masking.
+    float baseInfluence = 0.0;
     // When scorch remnants are present around edges, prefer smoothing and avoid
     // hard contour accents that make the boundary look jagged.
     float scorchNeighbor = max(
@@ -304,18 +297,20 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         float materialBlend = smoothstep(0.01, 0.08, materialBoundary);
         float materialCode = lerp(materialCodeNearest, materialCodeSmooth, materialBlend);
 
-        float contentMask = (1.0 - baseInfluence) * terrainFactor * solidSide * solidCore;
-        float dirtMask   = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeDirt)))   * contentMask;
-        float stoneMask  = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeStone)))  * contentMask;
-        float energyMask = (1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(materialCode - kMaterialCodeEnergy))) * contentMask;
+        float contentMask = terrainFactor * solidSide * solidCore;
+        float dirtMask     = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeDirt)))     * contentMask;
+        float concreteMask = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeConcrete))) * contentMask;
+        float stoneMask    = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeStone)))    * contentMask;
+        float goldMask     = (1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(materialCode - kMaterialCodeGold)))     * contentMask;
 
-        dirtMask = saturate(dirtMask * (1.0 - stoneMask * 0.6) * (1.0 - energyMask));
+        dirtMask = saturate(dirtMask * (1.0 - stoneMask * 0.6) * (1.0 - goldMask) * (1.0 - concreteMask));
 
         // ---- Procedural material overlays ---------------------------------
         float3 lightDir = normalize(float3(LightDir.xy, max(0.35, LightDir.z)));
         ApplyStoneMaterial(color, worldCell, stoneMask, lightDir);
+        ApplyConcreteMaterial(color, worldCell, concreteMask, lightDir);
         ApplyDirtMaterial(color, worldCell, dirtMask, lightDir);
-        ApplyEnergyMaterial(color, worldCell, energyMask, lightDir);
+        ApplyGoldMaterial(color, worldCell, goldMask, lightDir);
 
         // ---- Neighborhood AA ----------------------------------------------
         // Blend a lightweight 8-tap average at terrain edges to soften residual
@@ -363,7 +358,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             float aaBase = nativeSmoothingOff ? 0.62 : 0.30;
             if (terrainAuxOnlyMode)
                 aaBase *= 0.55;
-            float terrainContent = saturate(dirtMask + stoneMask + energyMask);
+            float terrainContent = saturate(dirtMask + stoneMask + concreteMask + goldMask);
             float aaContentBoost = smoothstep(0.25, 0.90, terrainContent) * 0.10;
             float aaEdgeSignal = max(edgeProfile, materialBlend * 0.9) * (1.0 - baseInfluence);
             float aaMix = saturate(aaEdgeSignal * (aaBase + aaContentBoost)) * terrainFactor * contourSupport;

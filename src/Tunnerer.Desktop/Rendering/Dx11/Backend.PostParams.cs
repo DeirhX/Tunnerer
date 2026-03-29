@@ -53,10 +53,10 @@ public sealed unsafe partial class Backend
         cbData.TerrainMaskRimLift = DesktopScreenTweaks.PostTerrainMaskRimLift;
         cbData.TerrainMaskBoundaryScale = DesktopScreenTweaks.PostTerrainMaskBoundaryScale;
         cbData.Quality = (float)upload.PostProcess.Quality;
-        cbData.MaterialEnergyR = DesktopScreenTweaks.PostMaterialEmissiveEnergyR;
-        cbData.MaterialEnergyG = DesktopScreenTweaks.PostMaterialEmissiveEnergyG;
-        cbData.MaterialEnergyB = DesktopScreenTweaks.PostMaterialEmissiveEnergyB;
-        cbData.MaterialEnergyStrength = DesktopScreenTweaks.PostMaterialEmissiveEnergyStrength;
+        cbData.MaterialGoldR = DesktopScreenTweaks.PostMaterialEmissiveGoldR;
+        cbData.MaterialGoldG = DesktopScreenTweaks.PostMaterialEmissiveGoldG;
+        cbData.MaterialGoldB = DesktopScreenTweaks.PostMaterialEmissiveGoldB;
+        cbData.MaterialGoldStrength = DesktopScreenTweaks.PostMaterialEmissiveGoldStrength;
         cbData.MaterialScorchedR = DesktopScreenTweaks.PostMaterialEmissiveScorchedR;
         cbData.MaterialScorchedG = DesktopScreenTweaks.PostMaterialEmissiveScorchedG;
         cbData.MaterialScorchedB = DesktopScreenTweaks.PostMaterialEmissiveScorchedB;
@@ -142,8 +142,8 @@ public sealed unsafe partial class Backend
         public float ThermalTileHeatThreshold01, SolidAlphaFloor, VignetteStrength, VignetteInnerRadius;
         public float VignetteOuterRadius, TerrainMaskEdgeStrength, TerrainMaskCaveDarken, TerrainMaskSolidLift;
         public float TerrainMaskOutlineDarken, TerrainMaskRimLift, TerrainMaskBoundaryScale, Quality;
-        public float _padQuality0, MaterialEnergyR, MaterialEnergyG, MaterialEnergyB;
-        public float MaterialEnergyStrength, MaterialScorchedR, MaterialScorchedG, MaterialScorchedB;
+        public float _padQuality0, MaterialGoldR, MaterialGoldG, MaterialGoldB;
+        public float MaterialGoldStrength, MaterialScorchedR, MaterialScorchedG, MaterialScorchedB;
         public float MaterialScorchedStrength, MaterialPulseFreq, MaterialPulseMin, MaterialPulseRange;
         public float MaterialPulsePad, NativeEdgeSoftness, NativeBoundaryBlend, NativeSampleFactor;
         public float NativeCurvingEnabled, LightDirX, LightDirY, LightDirZ;

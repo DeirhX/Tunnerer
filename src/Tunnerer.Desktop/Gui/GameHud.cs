@@ -5,6 +5,7 @@ using ImGuiNET;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
 
 public class GameHud
@@ -157,6 +158,107 @@ public class GameHud
             }
             x += DigitCellW + DigitSpacing;
         }
+    }
+
+    public void DrawTerrainTest(
+        nint gameTextureId,
+        int texW,
+        int texH,
+        bool heatDebugOverlayEnabled,
+        PostProcessPassFlags passFlags,
+        Action<string?> requestScreenshot,
+        Action<GameCommand> executeCommand)
+    {
+        DrawGameViewportFullscreen(gameTextureId, texW, texH);
+        DrawTerrainTestPanel(heatDebugOverlayEnabled, passFlags, requestScreenshot, executeCommand);
+    }
+
+    private void DrawGameViewportFullscreen(nint gameTextureId, int texW, int texH)
+    {
+        var displaySize = ImGui.GetIO().DisplaySize;
+
+        ImGui.SetNextWindowPos(Vector2.Zero, ImGuiCond.Always);
+        ImGui.SetNextWindowSize(new Vector2(displaySize.X, displaySize.Y), ImGuiCond.Always);
+
+        var flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize |
+                    ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollbar |
+                    ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoCollapse |
+                    ImGuiWindowFlags.NoBringToFrontOnFocus | ImGuiWindowFlags.NoBackground;
+
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0f);
+
+        if (ImGui.Begin("##Viewport", flags))
+        {
+            var cursorPos = ImGui.GetCursorScreenPos();
+            ImGui.SetCursorPos(Vector2.Zero);
+            ImGui.Image(gameTextureId, new Vector2(texW, texH));
+            ViewportRect = (cursorPos.X, cursorPos.Y, texW, texH);
+        }
+        ImGui.End();
+        ImGui.PopStyleVar(2);
+    }
+
+    private void DrawTerrainTestPanel(
+        bool heatDebugOverlayEnabled,
+        PostProcessPassFlags passFlags,
+        Action<string?> requestScreenshot,
+        Action<GameCommand> executeCommand)
+    {
+        var vp = ViewportRect;
+        if (vp.w <= 0 || vp.h <= 0)
+            return;
+
+        ImGui.SetNextWindowPos(new Vector2(vp.x + 10f, vp.y + 10f), ImGuiCond.Once);
+        ImGui.SetNextWindowBgAlpha(0.78f);
+        ImGui.SetNextWindowSize(new Vector2(280f, 0f), ImGuiCond.Once);
+
+        if (ImGui.Begin("Terrain Test", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings))
+        {
+            ImGui.TextUnformatted("Shader Passes");
+            ImGui.Separator();
+
+            DrawToggleCheckbox("Native Smoothing", passFlags, PostProcessPassFlags.NativeTerrainSmoothing,
+                GameCommand.TogglePostNativeTerrainSmoothing, executeCommand);
+            DrawToggleCheckbox("Edge Curving", passFlags, PostProcessPassFlags.NativeEdgeCurving,
+                GameCommand.TogglePostNativeEdgeCurving, executeCommand);
+            DrawToggleCheckbox("Terrain Curve (Post)", passFlags, PostProcessPassFlags.TerrainCurve,
+                GameCommand.TogglePostTerrainCurve, executeCommand);
+            DrawToggleCheckbox("Material Textures", passFlags, PostProcessPassFlags.TerrainAux,
+                GameCommand.TogglePostTerrainAux, executeCommand);
+            DrawToggleCheckbox("Vignette", passFlags, PostProcessPassFlags.Vignette,
+                GameCommand.TogglePostVignette, executeCommand);
+            DrawToggleCheckbox("Terrain Heat", passFlags, PostProcessPassFlags.TerrainHeat,
+                GameCommand.TogglePostTerrainHeat, executeCommand);
+            DrawToggleCheckbox("Tank Glow", passFlags, PostProcessPassFlags.TankGlow,
+                GameCommand.TogglePostTankGlow, executeCommand);
+
+            ImGui.Separator();
+            bool heatDebug = heatDebugOverlayEnabled;
+            if (ImGui.Checkbox("Heat Debug Colormap", ref heatDebug))
+                executeCommand(GameCommand.ToggleHeatOverlay);
+
+            ImGui.Separator();
+            if (ImGui.Button("Screenshot (F10)"))
+                requestScreenshot("terrain-test");
+
+            ImGui.Separator();
+            ImGui.TextDisabled("WASD to pan camera");
+            ImGui.TextDisabled("1-7 hotkeys toggle passes");
+        }
+        ImGui.End();
+    }
+
+    private static void DrawToggleCheckbox(
+        string label,
+        PostProcessPassFlags currentFlags,
+        PostProcessPassFlags targetFlag,
+        GameCommand toggleCommand,
+        Action<GameCommand> executeCommand)
+    {
+        bool enabled = (currentFlags & targetFlag) != 0;
+        if (ImGui.Checkbox(label, ref enabled))
+            executeCommand(toggleCommand);
     }
 
     private void DrawPostPassOverlay(bool heatDebugOverlayEnabled, PostProcessPassFlags passFlags)
