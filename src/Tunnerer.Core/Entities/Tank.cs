@@ -35,6 +35,81 @@ public class Tank
     /// <summary>Fraction of the coolant charge left (1 = fully pre-cooled, 0 = at ambient or warmer).</summary>
     public float CoolantFraction => Math.Clamp(-Heat / Tweaks.Tank.CoolantCapacity, 0f, 1f);
 
+    /// <summary>Ticks a hit flash lasts after the tank is struck by enemy fire.</summary>
+    public const int HitFlashDuration = 18;
+
+    /// <summary>Cause of the most recent armor loss.</summary>
+    public DamageCause LastDamageCause { get; private set; }
+
+    /// <summary>What destroyed the tank; <see cref="DamageCause.None"/> while it is alive.</summary>
+    public DamageCause DeathCause { get; private set; }
+
+    /// <summary>Counts down from <see cref="HitFlashDuration"/> after a hit by enemy fire.</summary>
+    public int HitFlashTicks { get; private set; }
+
+    /// <summary>Velocity of the last projectile that hit the tank (zero if it was never hit).</summary>
+    public VectorF LastHitVelocity { get; private set; }
+
+    /// <summary>True on ticks where the tank took overheat damage.</summary>
+    public bool IsOverheating { get; private set; }
+
+    /// <summary>Time left until the tank respawns; zero while alive or when no lives remain.</summary>
+    public TimeSpan RespawnRemaining => _respawning && LivesLeft > 0 ? _respawnTimer : TimeSpan.Zero;
+
+    /// <summary>Ticks of protection from enemy fire after a respawned tank leaves its base.</summary>
+    public const int SpawnProtectionDuration = 48;
+
+    /// <summary>Longest a respawn shield can last, even if the tank stays in its base.</summary>
+    public const int SpawnProtectionCap = 10 * Tweaks.Perf.TargetFps;
+
+    private bool _protectedUntilExit;
+
+    /// <summary>Counts down after a respawn; while positive, enemy fire does no damage.</summary>
+    public int SpawnProtectionTicks { get; private set; }
+
+    /// <summary>Counts down after the tank refused to plant a relay that would not link.</summary>
+    public int PlantRefusedTicks { get; private set; }
+
+    /// <summary>
+    /// The respawn shield holds while the tank is in its own base, then lasts <see cref="SpawnProtectionDuration"/>
+    /// more ticks after it leaves; it never exceeds <see cref="SpawnProtectionCap"/> and firing ends it at once.
+    /// </summary>
+    private void UpdateSpawnProtection(bool inOwnBase, bool firing)
+    {
+        if (SpawnProtectionTicks <= 0)
+            return;
+        if (firing)
+        {
+            SpawnProtectionTicks = 0;
+            _protectedUntilExit = false;
+            return;
+        }
+        if (_protectedUntilExit && !inOwnBase)
+        {
+            _protectedUntilExit = false;
+            SpawnProtectionTicks = Math.Min(SpawnProtectionTicks, SpawnProtectionDuration);
+        }
+        SpawnProtectionTicks--;
+    }
+
+    /// <summary>Takes armor off the tank and records why, so the cause can be shown to the player.</summary>
+    public void TakeDamage(int amount, DamageCause cause, VectorF hitVelocity = default)
+    {
+        if (amount <= 0 || IsDead)
+            return;
+        if (cause == DamageCause.EnemyFire && SpawnProtectionTicks > 0)
+            return;
+        Reactor.Exhaust(new ReactorState(0, amount));
+        LastDamageCause = cause;
+        if (cause == DamageCause.EnemyFire)
+        {
+            HitFlashTicks = HitFlashDuration;
+            LastHitVelocity = hitVelocity;
+        }
+        if (IsDead)
+            DeathCause = cause;
+    }
+
     private TimeSpan _respawnTimer;
     private bool _respawning;
     private int _frameDugPixels;
@@ -69,6 +144,12 @@ public class Tank
 
     public void Advance(in SimulationContext ctx, ControllerOutput input)
     {
+        if (HitFlashTicks > 0)
+            HitFlashTicks--;
+        if (PlantRefusedTicks > 0)
+            PlantRefusedTicks--;
+        IsOverheating = false;
+
         if (IsDead)
         {
             AdvanceDeath(ctx.Projectiles, ctx.Heat.Ledger);
@@ -82,6 +163,7 @@ public class Tank
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
         HandleMove(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
+        UpdateSpawnProtection(ctx.CheckBaseCollision(Position) == Base, input.ShootPrimary);
         AdvanceShooting(input, ctx.Projectiles);
         CollectItems(ctx.Terrain, ctx.Heat, ctx.Settings);
         AdvanceBuilding(in ctx, input);
@@ -101,7 +183,11 @@ public class Tank
         {
             if (_machineMaterializer.IsCarrying)
             {
-                if (ctx.CheckBaseCollision(Position) == null)
+                if (ctx.CheckBaseCollision(Position) == null && ctx.CanPlantRelayAt?.Invoke(Position) == false)
+                {
+                    PlantRefusedTicks = 48;
+                }
+                else if (ctx.CheckBaseCollision(Position) == null)
                 {
                     var machine = _machineMaterializer.ReleaseCarried();
                     if (machine != null)
@@ -110,7 +196,14 @@ public class Tank
             }
             else
             {
-                _machineMaterializer.TryBuild(MachineType.Relay, Position, Resources, ctx.Machines);
+                // Docked at its own base, a tank that is short of dirt builds from the base store, since
+                // docking deposits the tank's dirt there.
+                var cost = MachineBehaviors.Get(MachineType.Relay).BuildCost;
+                var payer = !Resources.CanPay(cost) && Base != null && ctx.CheckBaseCollision(Position) == Base &&
+                            Base.Materials.CanPay(cost)
+                    ? Base.Materials
+                    : Resources;
+                _machineMaterializer.TryBuild(MachineType.Relay, Position, payer, ctx.Machines);
             }
         }
 
@@ -319,7 +412,10 @@ public class Tank
         heat.Ledger.RecordSunkTank((nextHeatAfterExchange - nextHeat) * Tweaks.Tank.TankHeatCapacity);
 
         if (step.OverheatDamage > 0)
-            Reactor.Exhaust(new ReactorState(0, step.OverheatDamage));
+        {
+            IsOverheating = true;
+            TakeDamage(step.OverheatDamage, DamageCause.Overheat);
+        }
 
         Heat = nextHeat;
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
@@ -361,6 +457,11 @@ public class Tank
         Heat = 0f;
         Reactor.Current.Heat = new Heat(0);
         _respawning = false;
+        DeathCause = DamageCause.None;
+        LastDamageCause = DamageCause.None;
+        HitFlashTicks = 0;
+        SpawnProtectionTicks = SpawnProtectionCap;
+        _protectedUntilExit = true;
     }
 
     public void Die(ProjectileList? projectiles = null)

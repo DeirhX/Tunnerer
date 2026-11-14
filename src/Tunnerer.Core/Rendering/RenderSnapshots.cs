@@ -12,7 +12,9 @@ public readonly record struct TankRenderState(
     int Color,
     int Direction,
     bool IsDead,
-    DirectionF TurretDirection);
+    DirectionF TurretDirection,
+    int HitFlashTicks = 0,
+    bool IsProtected = false);
 
 public readonly record struct ProjectileRenderState(
     Position Position,
@@ -25,7 +27,8 @@ public readonly record struct MachineRenderState(
     MachineType Type,
     MachineState State,
     bool IsAlive,
-    bool IsPowered);
+    bool IsPowered,
+    bool IsPumping = false);
 
 public readonly record struct LinkRenderState(
     Position From,

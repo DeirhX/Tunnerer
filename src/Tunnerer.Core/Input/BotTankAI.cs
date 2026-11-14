@@ -76,6 +76,18 @@ public class BotTankAI
             HardTileBonus: 10f),
     };
     private const int ProfileSwitchSeconds = 4;
+
+    // Fairness for a human opponent: no aimed fire during the opening, a short reaction delay after first
+    // seeing the enemy, and a little aim spread. Counted in ticks so the simulation stays deterministic.
+    private const int OpeningGraceFrames = 30 * Tweaks.Perf.TargetFps;
+    private const int ReactionFrames = 12;
+    private const double AimSpreadRadians = 0.10;
+    // Aimed fire comes in bursts with pauses between them, so a human has time to react or escape.
+    private const int BurstFrames = 9;
+    private const int BurstPauseFrames = 20;
+    // After its target respawns the bot holds aimed fire for a while, and after a kill it goes home instead of
+    // waiting at the enemy's base exit.
+    private const int RespawnHoldFireFrames = 6 * Tweaks.Perf.TargetFps;
     private const int ExitStuckThresholdFrames = 10;
     private const int GeneralStuckThresholdFrames = 7;
     private const int EvasiveSwitchMinFrames = 5;
@@ -99,6 +111,12 @@ public class BotTankAI
     private int _stuckFrames;
     private int _evasiveDir = 1;
     private int _evasiveFramesRemaining;
+    private int _frame;
+    private int _losStreak;
+    private int _burstFramesLeft = BurstFrames;
+    private int _burstPauseLeft;
+    private int _holdFireUntilFrame;
+    private bool _enemyWasDead;
 
     public BotTankAI(int? seed = null) { _rng = seed.HasValue ? new Random(seed.Value) : new Random(); }
 
@@ -106,6 +124,18 @@ public class BotTankAI
     {
         AdvanceProfileCycle();
         UpdateStuckState(tank.Position);
+        _frame++;
+        if (enemy != null)
+        {
+            if (enemy.IsDead && !_enemyWasDead && _mode == TwitchMode.Twitch)
+                _mode = TwitchMode.Return;
+            if (!enemy.IsDead && _enemyWasDead)
+                _holdFireUntilFrame = _frame + RespawnHoldFireFrames;
+            _enemyWasDead = enemy.IsDead;
+        }
+        _losStreak = enemy is { IsDead: false } && HasLineOfSight(tank.Position, enemy.Position, terrain)
+            ? _losStreak + 1
+            : 0;
 
         var basePos = tank.Base?.Position ?? tank.Position;
         var relX = tank.Position.X - basePos.X;
@@ -117,7 +147,7 @@ public class BotTankAI
             TwitchMode.ExitBaseUp => DoExitUp(tank, terrain, relY),
             TwitchMode.ExitBaseDown => DoExitDown(tank, terrain, relY),
             TwitchMode.Twitch => DoTwitch(tank, enemy, terrain, relX, relY),
-            TwitchMode.Return => DoReturn(relX, relY),
+            TwitchMode.Return => DoReturn(tank, terrain, relX, relY),
             TwitchMode.Recharge => DoRecharge(tank, relX, relY),
             _ => default,
         };
@@ -201,6 +231,17 @@ public class BotTankAI
                     ? _rng.Next(1000) < profile.ShootChanceLosPermille
                     : shouldDig && _rng.Next(1000) < profile.ShootChanceDigPermille;
             _aimDirection = hasTarget ? AimTowards(tank.Position, enemy!.Position) : AimTowardsOffset(new Offset(_dx, _dy));
+            bool mayFire = _frame >= OpeningGraceFrames && _frame >= _holdFireUntilFrame && _losStreak >= ReactionFrames;
+            if (hasLos && !mayFire)
+            {
+                // Hold fire: only dig, aiming along the move so stray digging shots do not hit the enemy.
+                _shoot = shouldDig;
+                _aimDirection = AimTowardsOffset(new Offset(_dx, _dy));
+            }
+            else if (hasLos && _shoot)
+            {
+                _aimDirection = Rotate(_aimDirection, (_rng.NextDouble() * 2.0 - 1.0) * AimSpreadRadians);
+            }
             _timeToChange = hasLos
                 ? _rng.Next(profile.ReplanLosMin, profile.ReplanLosMax)
                 : _rng.Next(profile.ReplanTunnelMin, profile.ReplanTunnelMax);
@@ -217,15 +258,54 @@ public class BotTankAI
         }
 
         _timeToChange--;
+
+        // Burst limiter for aimed fire (fire at the enemy while it is in sight).
+        bool aimedFire = _shoot && _losStreak > 0;
+        bool shootNow = _shoot;
+        if (_burstPauseLeft > 0)
+        {
+            _burstPauseLeft--;
+            if (aimedFire)
+                shootNow = false;
+        }
+        else if (aimedFire && --_burstFramesLeft <= 0)
+        {
+            _burstFramesLeft = BurstFrames;
+            _burstPauseLeft = BurstPauseFrames;
+        }
+
         return new ControllerOutput
         {
             MoveSpeed = new Offset(_dx, _dy),
-            ShootPrimary = _shoot,
+            ShootPrimary = shootNow,
             AimDirection = _aimDirection,
         };
     }
 
-    private ControllerOutput DoReturn(int relX, int relY)
+    private ControllerOutput DoReturn(Tank tank, ITerrainPixelReadOnly terrain, int relX, int relY)
+    {
+        // Stuck on the way home (a wall, an enemy base): dig through, and give up after a while instead of
+        // waiting forever.
+        if (_stuckFrames >= 3 * Tweaks.Perf.TargetFps)
+        {
+            _mode = TwitchMode.Twitch;
+            _timeToChange = 0;
+            return default;
+        }
+        var home = DoReturnMove(relX, relY);
+        if (_mode != TwitchMode.Return)
+            return home;
+        if (_stuckFrames >= GeneralStuckThresholdFrames)
+            return BuildUnstuckOutput(tank.Position, terrain, preferY: Math.Sign(home.MoveSpeed.Y));
+        return new ControllerOutput
+        {
+            MoveSpeed = home.MoveSpeed,
+            ShootPrimary = NeedsDigging(tank.Position, home.MoveSpeed, terrain),
+            AimDirection = AimTowardsOffset(home.MoveSpeed),
+        };
+    }
+
+    private ControllerOutput DoReturnMove(int relX, int relY)
     {
         int targetY = relY < 0 ? -OutsideBase : OutsideBase;
 
@@ -374,6 +454,12 @@ public class BotTankAI
             return Pixel.IsBlockingCollision(terrain.GetPixelRaw(pos));
         });
         return !blocked;
+    }
+
+    private static DirectionF Rotate(DirectionF d, double radians)
+    {
+        float c = (float)Math.Cos(radians), s = (float)Math.Sin(radians);
+        return new DirectionF(d.X * c - d.Y * s, d.X * s + d.Y * c);
     }
 
     private static DirectionF AimTowards(Position from, Position to)

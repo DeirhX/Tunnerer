@@ -286,7 +286,7 @@ public static class Tweaks
         public static readonly ExplosionParams Normal = new(ShrapnelCount: 14, Speed: 0.56f, Frames: 13);
         public static readonly ExplosionParams Death = new(ShrapnelCount: 100, Speed: 0.25f, Frames: 72);
         public const float BulletExplosionHeatScale = 1.5f;
-        public const float DeathHeatScale = 2.0f;
+        public const float DeathHeatScale = 1.0f;
 
         public const int BulletHeatAmount = 3;
         public const int BulletHeatRadius = 7;

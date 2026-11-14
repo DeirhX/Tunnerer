@@ -22,8 +22,30 @@ public partial class Game
 
         Scancode scancode = (Scancode)ev.Key.Keysym.Scancode;
         bool shiftHeld = (ev.Key.Keysym.Mod & (ushort)Keymod.Shift) != 0;
-        if (GameCommandController.TryTranslateHotkey(scancode, shiftHeld, out GameCommand command))
+
+        // After a match ends, Enter starts a new one.
+        if (scancode == Scancode.ScancodeReturn && !_terrainTestMode && IsMatchOver())
+        {
+            ExecuteGameCommand(GameCommand.RestartMatch, InputCommandSources.Input);
+            return;
+        }
+
+        if (GameCommandController.TryTranslateHotkey(scancode, shiftHeld, _commandController.ShowPostPassOverlay, out GameCommand command))
             ExecuteGameCommand(command, InputCommandSources.Input);
+    }
+
+    /// <summary>True when the player asked for a new match (Enter after a match ended).</summary>
+    public bool RestartRequested { get; private set; }
+
+    /// <summary>A match is over once any tank has died with no lives left.</summary>
+    private bool IsMatchOver()
+    {
+        foreach (var tank in _world.TankList.Tanks)
+        {
+            if (tank.IsDead && tank.LivesLeft <= 0)
+                return true;
+        }
+        return false;
     }
 
     private static unsafe bool TryMapRenderInputEvent(Event ev, out RenderInputEvent renderEvent)
@@ -115,6 +137,17 @@ public partial class Game
 
     private void ExecuteGameCommand(GameCommand command, string source)
     {
+        if (command == GameCommand.RestartMatch)
+        {
+            if (!_terrainTestMode && IsMatchOver())
+            {
+                Console.WriteLine($"[Game] Restarting match [source={source}]");
+                RestartRequested = true;
+                _isRunning = false;
+            }
+            return;
+        }
+
         RecordInputCommandForReplay(command, source);
         _commandController.Execute(
             command,

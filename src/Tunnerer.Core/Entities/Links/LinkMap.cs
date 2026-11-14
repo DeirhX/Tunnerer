@@ -117,6 +117,47 @@ public class LinkMap
         }
     }
 
+    /// <summary>
+    /// Predicts whether a relay planted at <paramref name="at"/> would join a powered network: the nearest powered
+    /// point in live range with a clear line of sight wins; otherwise the nearest powered point in range is
+    /// reported with the first terrain pixel that blocks it; otherwise the nearest powered point at any range.
+    /// </summary>
+    public LinkPreview PreviewLink(Position at, ITerrainPixelReadOnly terrain)
+    {
+        LinkPoint? bestLive = null, bestBlocked = null, nearest = null;
+        float bestLiveDist = float.MaxValue, bestBlockedDist = float.MaxValue, nearestDist = float.MaxValue;
+        Position blockedAt = default;
+
+        foreach (var point in _points)
+        {
+            if (!point.IsEnabled || !point.IsPowered)
+                continue;
+            float dist = VectorF.FromPositions(at, point.Position).Length;
+            if (dist < nearestDist) { nearestDist = dist; nearest = point; }
+            if (dist > Tweaks.World.MaximumLiveLinkDistance)
+                continue;
+
+            Position firstBlock = default;
+            bool blocked = Raycaster.BresenhamLineAny(at, point.Position, pos =>
+            {
+                if (!Pixel.BlocksLink(terrain.GetPixel(pos)))
+                    return false;
+                firstBlock = pos;
+                return true;
+            });
+            if (!blocked && dist < bestLiveDist) { bestLiveDist = dist; bestLive = point; }
+            else if (blocked && dist < bestBlockedDist) { bestBlockedDist = dist; bestBlocked = point; blockedAt = firstBlock; }
+        }
+
+        if (bestLive != null)
+            return new LinkPreview(LinkPreviewStatus.Live, bestLive.Position, default);
+        if (bestBlocked != null)
+            return new LinkPreview(LinkPreviewStatus.Blocked, bestBlocked.Position, blockedAt);
+        if (nearest != null)
+            return new LinkPreview(LinkPreviewStatus.TooFar, nearest.Position, default);
+        return new LinkPreview(LinkPreviewStatus.NoNetwork, default, default);
+    }
+
     public int CopyRenderStates(Span<LinkRenderState> destination)
     {
         int count = Math.Min(destination.Length, _links.Count);
@@ -132,3 +173,8 @@ public class LinkMap
         return count;
     }
 }
+
+public enum LinkPreviewStatus { NoNetwork, TooFar, Blocked, Live }
+
+/// <summary>Result of <see cref="LinkMap.PreviewLink"/>: where a new relay would connect, or what stops it.</summary>
+public readonly record struct LinkPreview(LinkPreviewStatus Status, Position Target, Position BlockedAt);

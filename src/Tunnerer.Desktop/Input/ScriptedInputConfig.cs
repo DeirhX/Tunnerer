@@ -10,6 +10,9 @@ public sealed class ScriptedInputConfig
     public ScriptedController? Controller { get; private init; }
     public string? RecordPath { get; private init; }
     public bool RecordAutoStart { get; private init; }
+
+    /// <summary>Keep the AI opponent active during a scripted run (TUNNERER_SCRIPT_KEEP_AI), for playtests.</summary>
+    public bool KeepAi { get; private init; }
     public int ScreenshotFrameCount => _screenshotFrames.Count;
     public int CommandFrameCount => _commandsByFrame.Count;
 
@@ -20,6 +23,7 @@ public sealed class ScriptedInputConfig
             Controller = ScriptedController.TryParse(Environment.GetEnvironmentVariable("TUNNERER_SCRIPTED_INPUT")),
             RecordPath = NormalizeRecordPath(Environment.GetEnvironmentVariable("TUNNERER_RECORD_INPUT_PATH")),
             RecordAutoStart = IsTruthy(Environment.GetEnvironmentVariable("TUNNERER_RECORD_INPUT_AUTOSTART")),
+            KeepAi = IsTruthy(Environment.GetEnvironmentVariable("TUNNERER_SCRIPT_KEEP_AI")),
         };
 
         int singleScreenshotFrame = ParseNonNegativeInt(

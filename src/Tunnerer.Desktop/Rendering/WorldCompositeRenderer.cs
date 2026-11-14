@@ -18,13 +18,15 @@ public sealed class WorldCompositeRenderer
     private LinkRenderState[] _linkStates = [];
     private SpriteRenderState[] _spriteStates = [];
 
-    public void Compose(World world, uint[] terrainPixels, uint[] compositePixels)
+    public void Compose(World world, uint[] terrainPixels, uint[] compositePixels, Tank? player = null)
     {
         Array.Copy(terrainPixels, compositePixels, terrainPixels.Length);
         var surface = new Surface(compositePixels, world.Terrain.Width, world.Terrain.Height);
 
         int linkCount = world.LinkMap.CopyRenderStates(EnsureCapacity(ref _linkStates, world.LinkMap.LinkCount));
         DrawLinks(surface, _linkStates, linkCount);
+        if (player is { IsDead: false, IsCarryingMachine: true })
+            DrawLinkPreview(surface, world.LinkMap.PreviewLink(player.Position, world.Terrain), player.Position);
 
         int machineCount = world.Machines.CopyRenderStates(EnsureCapacity(ref _machineStates, world.Machines.Count));
         DrawMachines(surface, _machineStates, machineCount);
@@ -66,6 +68,54 @@ public sealed class WorldCompositeRenderer
         }
     }
 
+    /// <summary>
+    /// Shows where a carried relay would connect: a dashed line to the network point, bright where the line of
+    /// sight is clear and red past the first blocking pixel, with a cross on that pixel.
+    /// </summary>
+    private static void DrawLinkPreview(Surface surface, LinkPreview preview, Position from)
+    {
+        // Corners of the square the relay would cool (half-width RelayCoolingRadius).
+        uint areaColor = new Color(110, 200, 255).ToArgb();
+        int r = Tweaks.Machine.RelayCoolingRadius;
+        for (int sx = -1; sx <= 1; sx += 2)
+        {
+            for (int sy = -1; sy <= 1; sy += 2)
+            {
+                int cx = from.X + sx * r, cy = from.Y + sy * r;
+                for (int k = 0; k < 4; k++)
+                {
+                    SetPixel(surface, cx - sx * k, cy, areaColor);
+                    SetPixel(surface, cx, cy - sy * k, areaColor);
+                }
+            }
+        }
+
+        if (preview.Status is not (LinkPreviewStatus.Live or LinkPreviewStatus.Blocked))
+            return;
+
+        uint clearColor = new Color(120, 255, 140).ToArgb();
+        uint blockedColor = new Color(255, 70, 60).ToArgb();
+        bool pastBlock = false;
+        int step = 0;
+        Raycaster.BresenhamLine(from, preview.Target, pos =>
+        {
+            if (preview.Status == LinkPreviewStatus.Blocked && pos == preview.BlockedAt)
+                pastBlock = true;
+            if ((step++ & 3) < 2)
+                SetPixel(surface, pos.X, pos.Y, pastBlock ? blockedColor : clearColor);
+        });
+
+        if (preview.Status == LinkPreviewStatus.Blocked)
+        {
+            var b = preview.BlockedAt;
+            for (int d = -2; d <= 2; d++)
+            {
+                SetPixel(surface, b.X + d, b.Y + d, blockedColor);
+                SetPixel(surface, b.X + d, b.Y - d, blockedColor);
+            }
+        }
+    }
+
     private static void DrawMachines(Surface surface, MachineRenderState[] states, int count)
     {
         int half = Tweaks.Machine.BoundingBoxHalfSize;
@@ -74,6 +124,7 @@ public sealed class WorldCompositeRenderer
         uint chargerColor = Tweaks.Colors.Charger.ToArgb();
         uint relayColor = Tweaks.Colors.Relay.ToArgb();
         uint relayIdleColor = Tweaks.Colors.RelayIdle.ToArgb();
+        uint pumpingColor = new Color(255, 255, 255).ToArgb();
 
         for (int i = 0; i < count; i++)
         {
@@ -87,7 +138,10 @@ public sealed class WorldCompositeRenderer
                 : machine.Type switch
                 {
                     MachineType.Harvester => harvesterColor,
-                    MachineType.Relay => machine.IsPowered ? relayColor : relayIdleColor,
+                    // A pumping relay pulses; a linked but idle one is steady.
+                    MachineType.Relay => !machine.IsPowered ? relayIdleColor
+                        : machine.IsPumping && (Environment.TickCount / 200) % 2 == 0 ? pumpingColor
+                        : relayColor,
                     _ => chargerColor,
                 };
 
@@ -166,18 +220,36 @@ public sealed class WorldCompositeRenderer
 
     private static void DrawTanks(Surface surface, TankRenderState[] states, int count)
     {
+        uint outlineColor = new Color(12, 10, 8).ToArgb();
+        uint flashColor = Color.White.ToArgb();
+        uint protectedColor = new Color(90, 230, 255).ToArgb();
+
         for (int i = 0; i < count; i++)
         {
             var tank = states[i];
             if (tank.IsDead)
                 continue;
 
+            // A dark one-pixel outline keeps the tank readable against the textured terrain; it blinks cyan while
+            // the tank is protected after a respawn.
+            uint outline = tank.IsProtected && (tank.HitFlashTicks + Environment.TickCount / 120) % 2 == 0
+                ? protectedColor
+                : outlineColor;
+            ForEachSpritePixel(tank.Direction, tank.Position, (_, worldPos) =>
+            {
+                for (int oy = -1; oy <= 1; oy++)
+                    for (int ox = -1; ox <= 1; ox++)
+                        SetPixel(surface, worldPos.X + ox, worldPos.Y + oy, outline);
+            });
+
+            // Blink white while the tank is flashing from a hit.
+            bool flash = tank.HitFlashTicks > 0 && (tank.HitFlashTicks / 3) % 2 == 1;
             ForEachSpritePixel(tank.Direction, tank.Position, (spriteValue, worldPos) =>
             {
                 if (!surface.IsInside(worldPos.X, worldPos.Y))
                     return;
                 surface.Pixels[worldPos.X + worldPos.Y * surface.Width] =
-                    TankSprites.GetPixelColor(spriteValue, tank.Color).ToArgb();
+                    flash ? flashColor : TankSprites.GetPixelColor(spriteValue, tank.Color).ToArgb();
             });
 
             var tip = new PositionF(

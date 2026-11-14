@@ -54,3 +54,9 @@ Desktop.ini
 *.swp
 *~
 .idea/
+
+# Local Claude Code state and scratch output
+.claude/settings.local.json
+.claude/worktrees/
+.claude/play/
+.claude/*.png
