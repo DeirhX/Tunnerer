@@ -40,7 +40,7 @@ Upload payload (`GamePixelsUpload`) includes:
 - camera/view metadata (`RenderView`)
 - quality level
 - tank glow array
-- terrain auxiliary mask texture data + dirty rect
+- terrain auxiliary mask texture data + dirty rect, and the material coverage texture data + dirty rect
 
 ## Per-Frame Flow (Game.cs)
 
@@ -71,11 +71,13 @@ DX11 backend now has:
 - scene texture + SRV (uploaded from CPU frame buffer)
 - post-process texture + RTV + SRV
 - native-source texture + SRV for native continuous terrain mode
-- terrain aux texture + SRV with dirty-rect uploads
+- terrain aux texture (t1) and material coverage texture (t2) + SRVs with dirty-rect uploads
 - fullscreen VS + three PS variants:
   - native continuous terrain PS
   - post-process PS
   - final blit PS
+- entity layer: `EntityVs` / `EntityPs`, a dynamic vertex buffer and a premultiplied-alpha blend state
+  (`Backend.Entities.cs`)
 - DX11 ImGui renderer/controller (`ImGuiController`)
 - DX11 texture manager for HUD sprites (returns `ID3D11ShaderResourceView*` encoded as `nint`)
 
@@ -98,6 +100,9 @@ DX11 implementation is split by responsibility:
 2. upload scene texture (`UpdateSubresource`) or native-source texture (native continuous mode)
 3. optional native continuous terrain pass into scene RTV
 4. run post-process pass into post RTV
+5. draw the entity layer into the post target: one quad per tank hull, turret and projectile, shaped by
+   signed-distance functions in `EntityPs.hlsl`. `EntityLayerBuilder` supplies the vertices, already interpolated
+   between the last two simulation steps.
 
 `Render`:
 
@@ -112,8 +117,8 @@ DX11 implementation is split by responsibility:
 3. Entities are composited into that same hi-res pixel buffer.
 4. Terrain auxiliary payload and tank glow metadata are built.
 5. `Game` sends `GamePixelsUpload` to `IGameRenderBackend.UploadGamePixels`.
-6. `Backend.UploadGamePixels` uploads scene pixels to `_sceneTexture`, updates `_terrainAuxTexture` (full/dirty rect), then runs the post pass.
-7. `RunPostProcessPass` binds `_postRtv`, scene/aux SRVs, updates `PostParamsCBuffer`, and draws the fullscreen triangle into `_postTexture`.
+6. `Backend.UploadGamePixels` uploads scene pixels to `_sceneTexture`, updates `_terrainAux` and `_materialCoverage` (full/dirty rect), then runs the post pass.
+7. `RunPostProcessPass` binds `_postRtv`, scene/aux/coverage SRVs, updates `PostParamsCBuffer`, and draws the fullscreen triangle into `_postTexture`.
 8. `Game` clears the frame, starts backend UI frame (`NewFrame`), and records HUD draw calls (`GameHud.Draw`).
 9. `Backend.Render` blits `_displaySrv` (or `_sceneSrv`) to backbuffer using a viewport matched to scene texture size, then renders ImGui.
 10. Swapchain present displays the final composed frame.

@@ -16,7 +16,8 @@ public sealed unsafe partial class Backend
     {
         EnsureSceneTexture(w, h);
         long t0 = Stopwatch.GetTimestamp();
-        UpdateTerrainAuxTexture(upload.TerrainAux.Data, upload.View.WorldSize, upload.TerrainAux.DirtyRect);
+        UpdateWorldDataTexture(_terrainAux, upload.TerrainAux.Data, upload.View.WorldSize, upload.TerrainAux.DirtyRect);
+        UpdateWorldDataTexture(_materialCoverage, upload.TerrainAux.MaterialCoverage, upload.View.WorldSize, upload.TerrainAux.MaterialCoverageDirtyRect);
         _profileAuxUploadTicks += Stopwatch.GetTimestamp() - t0;
         t0 = Stopwatch.GetTimestamp();
         bool useNativeContinuous = upload.NativeContinuous.Enabled &&
@@ -25,12 +26,15 @@ public sealed unsafe partial class Backend
                                    upload.View.WorldSize.Y > 0;
         if (useNativeContinuous)
         {
-            EnsureNativeSourceTexture(upload.View.WorldSize.X, upload.View.WorldSize.Y);
-            fixed (uint* ptr = upload.NativeContinuous.SourcePixels)
+            bool created = EnsureNativeSourceTexture(upload.View.WorldSize.X, upload.View.WorldSize.Y);
+            if (created || upload.NativeContinuous.SourceChanged)
             {
-                _context->UpdateSubresource(
-                    (ID3D11Resource*)_nativeSourceTexture, 0, null, ptr,
-                    (uint)(upload.View.WorldSize.X * sizeof(uint)), 0);
+                fixed (uint* ptr = upload.NativeContinuous.SourcePixels)
+                {
+                    _context->UpdateSubresource(
+                        (ID3D11Resource*)_nativeSourceTexture, 0, null, ptr,
+                        (uint)(upload.View.WorldSize.X * sizeof(uint)), 0);
+                }
             }
             RunNativeContinuousTerrainPass(upload);
             _profileNativeTerrainPassTicks += Stopwatch.GetTimestamp() - t0;
@@ -47,6 +51,7 @@ public sealed unsafe partial class Backend
         EnsurePostTarget(w, h);
         t0 = Stopwatch.GetTimestamp();
         RunPostProcessPass(upload);
+        RunEntityPass(upload.Entities);
         _profilePostPassTicks += Stopwatch.GetTimestamp() - t0;
         _profileFrameCount++;
         if (_detailedProfileEnabled && _profileFrameCount >= 240)
@@ -81,10 +86,11 @@ public sealed unsafe partial class Backend
         _sceneTexH = h;
     }
 
-    private void EnsureNativeSourceTexture(int w, int h)
+    /// <summary>Returns true when the texture was (re)created and so holds no image yet.</summary>
+    private bool EnsureNativeSourceTexture(int w, int h)
     {
         if (_nativeSourceTexture != null && _nativeSourceW == w && _nativeSourceH == h)
-            return;
+            return false;
         if (_nativeSourceSrv != null) { _nativeSourceSrv->Release(); _nativeSourceSrv = null; }
         if (_nativeSourceTexture != null) { _nativeSourceTexture->Release(); _nativeSourceTexture = null; }
 
@@ -94,13 +100,14 @@ public sealed unsafe partial class Backend
 
         ID3D11Texture2D* tex = null;
         if (_device->CreateTexture2D(&desc, null, &tex) < 0 || tex == null)
-            return;
+            return false;
         _nativeSourceTexture = tex;
         ID3D11ShaderResourceView* srv = null;
         _device->CreateShaderResourceView((ID3D11Resource*)tex, null, &srv);
         _nativeSourceSrv = srv;
         _nativeSourceW = w;
         _nativeSourceH = h;
+        return true;
     }
 
     private void RunNativeContinuousTerrainPass(in GamePixelsUpload upload)
@@ -110,15 +117,14 @@ public sealed unsafe partial class Backend
         PrepareFullscreenPass(_sceneRtv, _sceneTexW, _sceneTexH, _terrainPs);
         ID3D11ShaderResourceView* sourceSrv = _nativeSourceSrv;
         _context->PSSetShaderResources(0, 1, &sourceSrv);
-        ID3D11ShaderResourceView* auxSrv = _terrainAuxSrv;
-        _context->PSSetShaderResources(1, 1, &auxSrv);
+        BindTerrainDataTextures();
         UpdatePostParamsBuffer(upload);
         ID3D11Buffer* cb = _postParamsBuffer;
         _context->PSSetConstantBuffers(0, 1, &cb);
         _context->Draw(3, 0);
         ID3D11ShaderResourceView* nullSrv = null;
         _context->PSSetShaderResources(0, 1, &nullSrv);
-        _context->PSSetShaderResources(1, 1, &nullSrv);
+        UnbindTerrainDataTextures();
         _displaySrv = _sceneSrv;
         TryDumpDebugTexture(_sceneTexture, "scene");
     }
@@ -161,8 +167,7 @@ public sealed unsafe partial class Backend
 
         ID3D11ShaderResourceView* sceneSrv = _sceneSrv;
         _context->PSSetShaderResources(0, 1, &sceneSrv);
-        ID3D11ShaderResourceView* auxSrv = _terrainAuxSrv;
-        _context->PSSetShaderResources(1, 1, &auxSrv);
+        BindTerrainDataTextures();
 
         t0 = Stopwatch.GetTimestamp();
         UpdatePostParamsBuffer(upload);
@@ -175,7 +180,7 @@ public sealed unsafe partial class Backend
 
         ID3D11ShaderResourceView* nullSrv = null;
         _context->PSSetShaderResources(0, 1, &nullSrv);
-        _context->PSSetShaderResources(1, 1, &nullSrv);
+        UnbindTerrainDataTextures();
         _displaySrv = _postSrv != null ? _postSrv : _sceneSrv;
         TryDumpDebugTexture(_postTexture, "post");
     }

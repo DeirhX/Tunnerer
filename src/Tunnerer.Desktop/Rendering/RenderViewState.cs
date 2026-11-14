@@ -1,6 +1,5 @@
 namespace Tunnerer.Desktop.Rendering;
 
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
@@ -32,15 +31,16 @@ public sealed class RenderViewState
         HiResSize = size;
     }
 
-    public void UpdateCamera(Tank? player, Size terrainSize, int viewW, int viewH, int scale)
+    /// <summary>Centres the view on <paramref name="center"/> (cell coordinates), or keeps it when there is none.</summary>
+    public void UpdateCamera(PositionF? center, Size terrainSize, int viewW, int viewH, int scale)
     {
         int worldPixelW = terrainSize.X * scale;
         int worldPixelH = terrainSize.Y * scale;
 
-        if (player != null)
+        if (center is PositionF c)
         {
-            int centerPx = (int)MathF.Round(player.Position.X * scale);
-            int centerPy = (int)MathF.Round(player.Position.Y * scale);
+            int centerPx = (int)MathF.Round(c.X * scale);
+            int centerPy = (int)MathF.Round(c.Y * scale);
             CamPixelX = centerPx - viewW / 2;
             CamPixelY = centerPy - viewH / 2;
         }

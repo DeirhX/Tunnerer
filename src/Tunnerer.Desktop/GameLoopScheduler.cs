@@ -17,6 +17,12 @@ public sealed class GameLoopScheduler
     /// <summary>Time left until the next simulation step is due (zero or negative when one is ready).</summary>
     public TimeSpan TimeUntilNextStep => _step - _accumulator;
 
+    /// <summary>
+    /// How far the time since the last consumed step has run towards the next one: 0 right after a step, 1 when
+    /// the next is due. Displayed frames use it to place moving things between the two.
+    /// </summary>
+    public float StepProgress => (float)Math.Clamp(_accumulator.Ticks / (double)_step.Ticks, 0.0, 1.0);
+
     /// <summary>Drops the steps that are due without running them, so a paused game does not catch up on resume.</summary>
     public void DiscardReadySteps()
     {

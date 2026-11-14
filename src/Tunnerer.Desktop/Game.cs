@@ -21,6 +21,7 @@ public partial class Game : IDisposable
     private readonly ITextureLoader _textures;
     private readonly GameHud _hud;
     private readonly WorldCompositeRenderer _compositeRenderer = new();
+    private readonly EntityLayerBuilder _entityLayer = new();
 
     private readonly Size _terrainSize;
     private readonly World _world;
@@ -37,8 +38,13 @@ public partial class Game : IDisposable
     private readonly List<Position> _terrainDirtyCells = new();
     private readonly float[] _gpuTankHeatGlow = new float[Tweaks.World.MaxPlayers * 4];
     private readonly byte[] _gpuTerrainAux;
+    private readonly byte[] _gpuMaterialCoverage;
     private bool _gpuAuxFullUploadPending = true;
     private int _heatAuxFrameCounter;
+    private bool _compositeChanged = true;
+    private bool _steppedSinceRender = true;
+    private readonly Stopwatch _renderClock = Stopwatch.StartNew();
+    private readonly bool _interpolateFrames;
     private readonly Stopwatch _gameTimer = Stopwatch.StartNew();
 
     public const int DefaultSeed = 42;
@@ -60,6 +66,10 @@ public partial class Game : IDisposable
     {
         _terrainTestMode = terrainTestMode;
         _automatedRun = IsAutomatedRun(perfCapture);
+        // Automated runs display exactly one frame per simulation step so their screenshots and timings are
+        // reproducible; TUNNERER_INTERPOLATE=1 turns the in-between frames back on for them.
+        _interpolateFrames = !_automatedRun ||
+            string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
         Seed = ResolveSeed(_automatedRun, terrainTestMode);
         var windowSize = DesktopScreenTweaks.WindowSize;
         RenderBackendKind selectedBackend = renderBackendOverride ?? DesktopTweaks.DefaultRenderBackend;
@@ -120,10 +130,12 @@ public partial class Game : IDisposable
         }
 
         _p2AI = new BotTankAI(seed: deterministicSimulation ? Seed + 2 : null);
+        _entityLayer.CaptureStep(_world);
 
         _worldPixels = new uint[_terrainSize.Area];
         _compositePixels = new uint[_terrainSize.Area];
         _gpuTerrainAux = new byte[_terrainSize.Area * 4];
+        _gpuMaterialCoverage = new byte[_terrainSize.Area * 4];
         if (parallel)
             _world.Terrain.DrawAllToSurfaceParallel(_worldPixels);
         else
@@ -175,7 +187,11 @@ public partial class Game : IDisposable
         try
         {
             var targetFrameTime = Tweaks.World.AdvanceStep;
-            var frameCoordinator = new GameFrameCoordinator(targetFrameTime, MaxCatchUpSimulationSteps);
+            var frameCoordinator = new GameFrameCoordinator(
+                targetFrameTime,
+                MaxCatchUpSimulationSteps,
+                renderBetweenSteps: _interpolateFrames,
+                minRenderInterval: TimeSpan.FromSeconds(1.0 / DesktopScreenTweaks.MaxRenderFps));
             var tanks = _world.TankList.Tanks;
 
             frameCoordinator.Run(
@@ -210,9 +226,10 @@ public partial class Game : IDisposable
                     {
                         _compositeRenderer.Compose(_world, _worldPixels, _compositePixels, tanks.Count > 0 ? tanks[0] : null);
                         MarkEntityPixels(_worldPixels, _compositePixels);
+                        _compositeChanged = true;
                     });
                 },
-                renderFrame: frameInput => RenderImGuiFrame(tanks, frameInput),
+                renderFrame: (frameInput, stepProgress) => RenderImGuiFrame(tanks, frameInput, stepProgress),
                 onFrameMeasured: elapsed =>
                 {
                     _drawProfile.TotalFrame += elapsed;
@@ -239,7 +256,7 @@ public partial class Game : IDisposable
         int scale = DesktopScreenTweaks.PixelScale;
         var viewSize = _renderViewState.ComputeViewSize(winW, winH, _renderBackend.SupportsUi);
         _renderViewState.EnsureHiResBuffer(viewSize);
-        var player = tanks.Count > 0 ? tanks[0] : null;
+        PositionF? player = tanks.Count > 0 ? new PositionF(tanks[0].Position.X, tanks[0].Position.Y) : null;
         _renderViewState.UpdateCamera(player, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
@@ -270,6 +287,8 @@ public partial class Game : IDisposable
             aimDirection: aimDir,
             mouseShoot: mouseShoot);
         _simFrameCounter++;
+        _steppedSinceRender = true;
+        _entityLayer.CaptureStep(_world);
 
         var changedCells = _world.Terrain.GetChangeList();
         if (changedCells.Count > 0)

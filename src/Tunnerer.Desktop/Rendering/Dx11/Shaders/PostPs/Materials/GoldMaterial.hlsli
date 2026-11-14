@@ -1,35 +1,46 @@
 // ============================================================================
-// Materials/GoldMaterial.hlsli — Procedural gold crystal overlay
+// Materials/GoldMaterial.hlsli — Gold vein overlay
 // ============================================================================
 //
-// Applies a warm metallic body tint and pulsing emissive veins to pixels
-// classified as gold terrain. Simpler than stone/dirt since the gold
-// material is meant to look uniform and glowing.
+// Draws a gold vein from the vein field (see GoldVeinField in TerrainAuxPass):
+// kGoldVeinIso is the edge of the band, higher values are closer to its spine.
 //
 // Layers:
-//   1. Crystalline body — diffuse-lit golden tint from normal-mapped noise
-//   2. Emissive veins   — ridged noise pattern with time-animated pulse
+//   1. Seat shadow   — darkens the rock just outside the band so it reads as
+//                      set into the stone
+//   2. Faceted body  — amber at the edge, bright gold along the spine, broken
+//                      into small lit / shaded crystal facets
+//   3. Emissive      — a slow pulse along the spine
 // ============================================================================
 
-void ApplyGoldMaterial(inout float3 color, float2 worldCell, float goldMask, float3 lightDir)
+void ApplyGoldVein(inout float3 color, float2 worldCell, float field, float mask, float3 lightDir)
 {
-    if (goldMask <= 0.0)
+    float aa = max(fwidth(field), 0.02);
+    if (mask <= 0.0 || field <= kGoldVeinIso - 0.35)
         return;
 
-    // ---- 1. Crystalline body diffuse --------------------------------------
-    float2 eP = worldCell * 0.060;
-    float e0 = fbmNoise(eP + float2(7.0, 241.0), 4);
-    float enx = fbmNoise(eP + float2(9.0, 241.0), 4);
-    float eny = fbmNoise(eP + float2(7.0, 243.0), 4);
-    float2 eGrad = float2(enx - e0, eny - e0);
-    float3 eNormal = normalize(float3(-eGrad * 6.0, 1.0));
-    float eDiffuse = dot(eNormal, lightDir) * 0.5 + 0.5;
+    float body = smoothstep(kGoldVeinIso - aa, kGoldVeinIso + aa, field);
+    float spine = smoothstep(kGoldVeinIso + 0.03, kGoldVeinIso + 0.45, field);
 
-    // ---- 2. Emissive veins with animated pulse ----------------------------
-    float veins = smoothstep(0.76, 0.95, 1.0 - abs(e0 * 2.0 - 1.0));
-    float pulseE = MaterialEmissiveGold.y + MaterialEmissiveGold.z * (0.5 + 0.5 * sin(Time * MaterialEmissiveGold.x + e0 * 9.0));
-    float3 goldTint = lerp(float3(0.85, 0.68, 0.30), float3(1.00, 0.88, 0.45), eDiffuse);
+    // ---- 1. Seat shadow ----------------------------------------------------
+    float seat = smoothstep(kGoldVeinIso - 0.32, kGoldVeinIso, field) * (1.0 - body);
+    color *= 1.0 - 0.55 * seat * mask;
 
-    color = lerp(color, color * goldTint * (0.94 + 0.14 * eDiffuse), goldMask * 0.85);
-    color += MaterialEmissiveGold.rgb * (veins * MaterialEmissiveGold.a * pulseE * goldMask);
+    // ---- 2. Faceted body ---------------------------------------------------
+    float2 facetCell = floor(worldCell * 2.2);
+    float facetTilt = hash21(facetCell + float2(31.0, 157.0)) * 6.2831853;
+    float3 facetNormal = normalize(float3(cos(facetTilt) * 0.55, sin(facetTilt) * 0.55, 1.0));
+    float facetLight = saturate(dot(facetNormal, lightDir));
+
+    float3 amber = float3(0.66, 0.36, 0.05);
+    float3 gold = float3(1.00, 0.76, 0.20);
+    float3 vein = lerp(amber, gold, spine) * (0.72 + 0.50 * facetLight);
+    vein += float3(1.0, 0.95, 0.70) * pow(facetLight, 6.0) * 0.35 * spine;
+
+    // ---- 3. Emissive pulse -------------------------------------------------
+    float pulse = MaterialEmissivePulse.y + MaterialEmissivePulse.z *
+        (0.5 + 0.5 * sin(Time * MaterialEmissivePulse.x + (worldCell.x + worldCell.y) * 0.35));
+    vein += MaterialEmissiveGold.rgb * (spine * MaterialEmissiveGold.a * pulse * 0.35);
+
+    color = lerp(color, vein, body * mask);
 }

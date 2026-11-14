@@ -38,6 +38,7 @@ public class GameHud
     private float _budgetTrend;
     private float _shownEnergyFill = -1f;
     private float _shownShieldFill = -1f;
+    private float _shownMaterialsFill = -1f;
 
     // Gauge shapes inside the HUD art (texture pixels = ImGui units from each panel's top-left corner).
     private static readonly Vector2 EnergyOrbCenter = new(168f, 72f);
@@ -46,6 +47,13 @@ public class GameHud
     [
         new(44f, 44f), new(60f, 40f), new(82f, 37f), new(104f, 40f), new(121f, 44f), new(121f, 80f),
         new(114f, 100f), new(100f, 116f), new(82f, 128f), new(64f, 116f), new(50f, 100f), new(44f, 80f),
+    ];
+
+    // The open top of the materials chest, where its contents show.
+    private static readonly Vector2[] ChestOutline =
+    [
+        new(52f, 40f), new(193f, 40f), new(206f, 52f), new(206f, 86f),
+        new(185f, 98f), new(60f, 98f), new(40f, 86f), new(40f, 52f),
     ];
 
     // Layout of the bottom strip (ImGui units): the four art panels drawn side by side.
@@ -160,7 +168,7 @@ public class GameHud
         float buildX = x;
         dl.AddImage(_buildPanelTex, new Vector2(x, drawY), new Vector2(x + BuildPanelW, drawY + h));
 
-        DrawLiquidGauges(dl, player, startX, startX + EnergyPanelW, drawY);
+        DrawLiquidGauges(dl, player, startX, startX + EnergyPanelW, materialsX, drawY);
 
         // ENERGY: the work (digging, shooting) the tank can still do before it overheats. A docked tank is
         // pre-cooled with coolant, which lifts the value above 100.
@@ -183,8 +191,12 @@ public class GameHud
         DrawBar(dl, sPlateX + 8f, drawY + 191f, sPlateW - 16f, 5f, shieldFill,
             shieldFill > 0.5f ? 0xFFFFC040u : shieldFill > 0.25f ? 0xFF30C0FFu : 0xFF3040FFu);
 
-        // MATERIALS: dirt carried, which is what structures are built from.
-        DrawNumberCentered(dl, player.Resources.Current.Dirt, materialsX + 15f, drawY + 166f, MaterialsPanelW - 30f);
+        // MATERIALS: how full the tank's hold is with dirt, which is what structures are built from (percent).
+        float materialsFill = MaterialsFill(player);
+        float mPlateX = materialsX + 15f;
+        float mPlateW = MaterialsPanelW - 30f;
+        DrawNumberCentered(dl, (int)MathF.Round(materialsFill * 100f), mPlateX, drawY + 166f, mPlateW);
+        DrawBar(dl, mPlateX + 40f, drawY + 191f, mPlateW - 80f, 5f, materialsFill, 0xFF40B8F0u);
 
         DrawBuildSlots(dl, player, AvailableRelayDirt(player, _dockedAtOwnBase), buildX, drawY);
 
@@ -213,11 +225,12 @@ public class GameHud
     }
 
     /// <summary>
-    /// Diablo-style liquid gauges in the art: the energy orb and the shield crystal are full of "liquid" up to
-    /// their level and dark above it, with a softly waving bright surface. The coolant charge shows as a cyan
-    /// band at the top of the orb; a low level pulses red, and the shield flashes when hit.
+    /// Diablo-style liquid gauges in the art: the energy orb, the shield crystal and the materials chest are full
+    /// up to their level and dark above it, with a softly waving bright surface. The coolant charge shows as a
+    /// cyan band at the top of the orb; a low level pulses red, and the shield flashes when hit.
     /// </summary>
-    private void DrawLiquidGauges(ImDrawListPtr dl, Tank player, float energyPanelX, float shieldPanelX, float panelY)
+    private void DrawLiquidGauges(
+        ImDrawListPtr dl, Tank player, float energyPanelX, float shieldPanelX, float materialsPanelX, float panelY)
     {
         float capacity = Tank.HeatBudgetCapacity;
         float energyFill = player.IsDead ? 0f : Math.Clamp(player.HeatBudget / capacity, 0f, 1f);
@@ -260,7 +273,30 @@ public class GameHud
         var (sx0, sx1) = PolygonSpanAtY(poly, sLevel);
         if (sx1 > sx0)
             DrawSurface(dl, sLevel, (sx1 - sx0) * 0.5f, (sx0 + sx1) * 0.5f, shieldFill > 0f ? 0xFFFFE0A0u : 0u);
+
+        // Materials chest.
+        float materialsFill = MaterialsFill(player);
+        _shownMaterialsFill = _shownMaterialsFill < 0f
+            ? materialsFill
+            : _shownMaterialsFill + (materialsFill - _shownMaterialsFill) * 0.15f;
+        var chest = new Vector2[ChestOutline.Length];
+        float cTop = float.MaxValue, cBottom = float.MinValue;
+        for (int i = 0; i < chest.Length; i++)
+        {
+            chest[i] = new Vector2(materialsPanelX, panelY) + ChestOutline[i];
+            cTop = MathF.Min(cTop, chest[i].Y);
+            cBottom = MathF.Max(cBottom, chest[i].Y);
+        }
+        float cLevel = cBottom - (cBottom - cTop) * _shownMaterialsFill;
+        FillPolygonBand(dl, chest, cTop, cLevel, 0xD8080808u);               // empty part
+        var (cx0, cx1) = PolygonSpanAtY(chest, cLevel);
+        if (cx1 > cx0)
+            DrawSurface(dl, cLevel, (cx1 - cx0) * 0.5f, (cx0 + cx1) * 0.5f, materialsFill > 0f ? 0xFF80D8FFu : 0u);
     }
+
+    /// <summary>How full the tank's dirt hold is, 0 to 1.</summary>
+    private static float MaterialsFill(Tank player) =>
+        Math.Clamp(player.Resources.Dirt / (float)Math.Max(1, player.Resources.DirtCapacity), 0f, 1f);
 
     private static float CircleHalfWidth(Vector2 c, float r, float y)
     {

@@ -17,7 +17,7 @@ public readonly record struct TankRenderState(
     bool IsProtected = false);
 
 public readonly record struct ProjectileRenderState(
-    Position Position,
+    PositionF Position,
     VectorF Velocity,
     ProjectileType Type,
     bool IsAlive);

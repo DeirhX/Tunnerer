@@ -103,6 +103,12 @@ public static class DesktopScreenTweaks
     public static float NativeContinuousBudgetUnderThreshold => Tweaks.Screen.NativeContinuousBudgetUnderThreshold;
     public static int NativeContinuousRecoveryFramesMultiplier => Tweaks.Screen.NativeContinuousRecoveryFramesMultiplier;
     public const int HeatAuxUpdateIntervalFrames = 2;
+
+    /// <summary>
+    /// Upper bound on displayed frames per second. The display's refresh rate normally paces rendering; this only
+    /// matters where presenting does not wait for it.
+    /// </summary>
+    public const int MaxRenderFps = 240;
     public static float SolidAlphaFloor => Tweaks.Screen.SolidAlphaFloor;
     public static float ScorchTintDarken => Tweaks.Screen.ScorchTintDarken;
     public static float ScorchTintStrength => Tweaks.Screen.ScorchTintStrength;

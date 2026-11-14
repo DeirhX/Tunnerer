@@ -8,16 +8,24 @@
 // Two sampling strategies are blended:
 //   • Nearest-neighbor — preserves sharp per-cell texture detail deep inside
 //     solid terrain.
-//   • Bilinear — smooths color transitions near cave/solid and material
-//     boundaries so the 6-pixel cell grid is less visible.
+//   • Bilinear — smooths color transitions near the cave/solid boundary so
+//     the 6-pixel cell grid is less visible.
 //
 // A Gaussian-blurred SDF (stored in auxTex.g) drives alpha-blending between
 // "cave" (dark empty space) and "solid" (dirt / stone / energy) terrain.
 // The SDF's 0.5 isoline is further smoothed along its tangent direction to
 // reduce the axis-aligned staircase inherent in cell-grid boundaries.
 //
+// Material boundaries between solid materials (dirt / stone / ...) are NOT
+// smoothed here: this pass keeps each cell's exact colour. The post pass
+// (TerrainAuxPass) re-draws every natural material from the blurred coverage
+// texture (t2) and owns those edges.
+//
 // Entity pixels (tanks, bases, projectiles) are passed through unmodified;
 // they are identified by alpha < 1.0 in the source texture.
+//
+// Bindings: t0 = world colours, t1 = aux (.g SDF used here). t2 (material
+// coverage) is bound for both passes but only the post pass reads it.
 // ============================================================================
 
 Texture2D sourceTex : register(t0);
@@ -133,37 +141,6 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
         float boundaryProximity = 1.0 - abs(sdf * 2.0 - 1.0);
         bilinearWeight = smoothstep(0.0, 0.6, boundaryProximity) * NativeContinuousParams.y;
     }
-
-    // ---- Material-boundary widening ---------------------------------------
-    // At stone-dirt / dirt-energy boundaries (both solid in the SDF), the
-    // color contrast between nearest and bilinear reveals a cell edge.
-    // Widen the gradient with a 9-tap cross (±1.5 and ±2.5 cells) so the
-    // transition spans ~5 cells instead of ~1, reducing the staircase.
-    float materialEdgeFactor = 0.0;
-    if (!sharpMode)
-    {
-        float cellEdge = length(nearestColor - bilinearColor);
-        materialEdgeFactor = smoothstep(0.04, 0.15, cellEdge);
-        if (materialEdgeFactor > 0.01)
-        {
-            float3 wider = (
-                bilinearColor * 2.0 +
-                sourceTex.Sample(s0, texUv + float2(cellPx.x * 1.5, 0)).rgb +
-                sourceTex.Sample(s0, texUv - float2(cellPx.x * 1.5, 0)).rgb +
-                sourceTex.Sample(s0, texUv + float2(0, cellPx.y * 1.5)).rgb +
-                sourceTex.Sample(s0, texUv - float2(0, cellPx.y * 1.5)).rgb +
-                sourceTex.Sample(s0, texUv + float2(cellPx.x * 2.5, 0)).rgb * 0.5 +
-                sourceTex.Sample(s0, texUv - float2(cellPx.x * 2.5, 0)).rgb * 0.5 +
-                sourceTex.Sample(s0, texUv + float2(0, cellPx.y * 2.5)).rgb * 0.5 +
-                sourceTex.Sample(s0, texUv - float2(0, cellPx.y * 2.5)).rgb * 0.5
-            ) / 8.0;
-            bilinearColor = lerp(bilinearColor, wider, materialEdgeFactor);
-        }
-    }
-
-    // Force high bilinear weight at detected material edges.
-    float materialEdgeBilinear = materialEdgeFactor * 0.95;
-    bilinearWeight = max(bilinearWeight, materialEdgeBilinear);
 
     float3 solidColor = lerp(nearestColor, bilinearColor, saturate(bilinearWeight));
 

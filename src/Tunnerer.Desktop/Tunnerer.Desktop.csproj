@@ -36,6 +36,14 @@
       <Profile>ps_5_0</Profile>
       <OutputFile>$(IntermediateOutputPath)Shaders\TerrainPs.cso</OutputFile>
     </Dx11Shader>
+    <Dx11Shader Include="Rendering\Dx11\Shaders\EntityVs.hlsl">
+      <Profile>vs_5_0</Profile>
+      <OutputFile>$(IntermediateOutputPath)Shaders\EntityVs.cso</OutputFile>
+    </Dx11Shader>
+    <Dx11Shader Include="Rendering\Dx11\Shaders\EntityPs.hlsl">
+      <Profile>ps_5_0</Profile>
+      <OutputFile>$(IntermediateOutputPath)Shaders\EntityPs.cso</OutputFile>
+    </Dx11Shader>
     <Dx11ShaderInclude Include="Rendering\Dx11\Shaders\**\*.hlsli" />
   </ItemGroup>
 

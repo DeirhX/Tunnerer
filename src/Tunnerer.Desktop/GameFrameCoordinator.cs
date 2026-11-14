@@ -3,20 +3,40 @@ namespace Tunnerer.Desktop;
 using System.Diagnostics;
 using Tunnerer.Desktop.Input;
 
+/// <summary>
+/// Owns the main loop. The simulation advances in fixed steps; frames are displayed either once per step
+/// (step-locked, for automated runs) or as often as the display allows, with each frame told how far it is
+/// between the last two steps so moving things can be drawn in between.
+/// </summary>
 public sealed class GameFrameCoordinator
 {
     private readonly GameLoopScheduler _loopScheduler;
+    private readonly bool _renderBetweenSteps;
+    private readonly TimeSpan _minRenderInterval;
     private readonly Stopwatch _frameTimer = Stopwatch.StartNew();
+    private readonly Stopwatch _sinceRender = Stopwatch.StartNew();
 
     // How long a Thread.Sleep(1) really takes on this machine (up to a full 15.6 ms timer tick on Windows). Starts
     // pessimistic and is measured as the loop runs.
     private double _sleepCostMs = 16.0;
 
-    public GameFrameCoordinator(TimeSpan targetFrameTime, int maxCatchUpSteps)
+    /// <param name="renderBetweenSteps">
+    /// Display frames between simulation steps, at most one per <paramref name="minRenderInterval"/>. When false a
+    /// frame is displayed only after a step, showing exactly that step.
+    /// </param>
+    public GameFrameCoordinator(
+        TimeSpan targetFrameTime, int maxCatchUpSteps, bool renderBetweenSteps, TimeSpan minRenderInterval)
     {
         _loopScheduler = new GameLoopScheduler(targetFrameTime, maxCatchUpSteps);
+        _renderBetweenSteps = renderBetweenSteps;
+        _minRenderInterval = minRenderInterval;
     }
 
+    /// <param name="composeFrame">Called after the simulation batch of an iteration in which a step was due.</param>
+    /// <param name="renderFrame">
+    /// Displays a frame. The float is the step progress: 1 shows the latest step, lower values lie between the
+    /// previous step (0) and the latest.
+    /// </param>
     public void Run(
         Func<bool> isRunning,
         Action requestStop,
@@ -26,7 +46,7 @@ public sealed class GameFrameCoordinator
         Func<FrameInputSnapshot> captureFrameInput,
         Action<FrameInputSnapshot> advanceOneSimulationStep,
         Action composeFrame,
-        Action<FrameInputSnapshot> renderFrame,
+        Action<FrameInputSnapshot, float> renderFrame,
         Action<TimeSpan> onFrameMeasured,
         Func<bool>? isPaused = null,
         Action? onPausedFrame = null)
@@ -48,40 +68,56 @@ public sealed class GameFrameCoordinator
                 break;
             }
 
-            if (!_loopScheduler.HasReadyStep)
+            bool stepReady = _loopScheduler.HasReadyStep;
+            if (!stepReady)
             {
-                WaitForNextStep();
-                continue;
+                double untilStepMs =
+                    _loopScheduler.TimeUntilNextStep.TotalMilliseconds - _frameTimer.Elapsed.TotalMilliseconds;
+                double untilRenderMs = _renderBetweenSteps
+                    ? (_minRenderInterval - _sinceRender.Elapsed).TotalMilliseconds
+                    : double.MaxValue;
+                if (untilRenderMs > 0)
+                {
+                    Wait(Math.Min(untilStepMs, untilRenderMs));
+                    continue;
+                }
             }
 
             var totalFrameWatch = Stopwatch.StartNew();
             onBeforeSimulationBatch();
             FrameInputSnapshot frameInput = captureFrameInput();
-            if (isPaused?.Invoke() == true)
+            bool paused = isPaused?.Invoke() == true;
+            if (stepReady)
             {
-                // Keep drawing (the pause menu needs frames) but leave the simulation where it is.
-                _loopScheduler.DiscardReadySteps();
-                onPausedFrame?.Invoke();
+                if (paused)
+                {
+                    // Keep drawing (the pause menu needs frames) but leave the simulation where it is.
+                    _loopScheduler.DiscardReadySteps();
+                    onPausedFrame?.Invoke();
+                }
+                else
+                {
+                    _loopScheduler.ConsumeReadySteps(
+                        onStep: () => advanceOneSimulationStep(frameInput),
+                        canContinue: isRunning);
+                }
+                composeFrame();
             }
-            else
-            {
-                _loopScheduler.ConsumeReadySteps(
-                    onStep: () => advanceOneSimulationStep(frameInput),
-                    canContinue: isRunning);
-            }
-            composeFrame();
-            renderFrame(frameInput);
+
+            // While paused nothing moves, so show the latest step rather than a point drifting towards it.
+            float stepProgress = _renderBetweenSteps && !paused ? _loopScheduler.StepProgress : 1f;
+            _sinceRender.Restart();
+            renderFrame(frameInput, stepProgress);
             onFrameMeasured(totalFrameWatch.Elapsed);
         }
     }
 
     /// <summary>
-    /// Gives the CPU back while no simulation step is due, instead of spinning a core at 100%. It only sleeps when
-    /// the measured cost of a sleep fits in the time left, so frame pacing is not disturbed.
+    /// Gives the CPU back while nothing is due, instead of spinning a core at 100%. It only sleeps when the measured
+    /// cost of a sleep fits in the time left, so frame pacing is not disturbed.
     /// </summary>
-    private void WaitForNextStep()
+    private void Wait(double remainingMs)
     {
-        double remainingMs = _loopScheduler.TimeUntilNextStep.TotalMilliseconds - _frameTimer.Elapsed.TotalMilliseconds;
         if (remainingMs <= _sleepCostMs + 1.0)
         {
             Thread.Yield();

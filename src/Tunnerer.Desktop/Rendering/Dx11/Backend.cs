@@ -33,9 +33,8 @@ public sealed unsafe partial class Backend : IGameRenderBackend
     private ID3D11Texture2D* _nativeSourceTexture;
     private ID3D11ShaderResourceView* _nativeSourceSrv;
     private int _nativeSourceW, _nativeSourceH;
-    private ID3D11Texture2D* _terrainAuxTexture;
-    private ID3D11ShaderResourceView* _terrainAuxSrv;
-    private byte[]? _terrainAuxUploadScratch;
+    private readonly WorldDataTexture _terrainAux = new();
+    private readonly WorldDataTexture _materialCoverage = new();
     private ID3D11VertexShader* _fullscreenVs;
     private ID3D11PixelShader* _blitPs;
     private ID3D11PixelShader* _postPs;
@@ -60,7 +59,6 @@ public sealed unsafe partial class Backend : IGameRenderBackend
     private long _profileUiRenderTicks;
     private int _profileFrameCount;
     private int _sceneTexW, _sceneTexH;
-    private int _terrainAuxW, _terrainAuxH;
     private int _swapChainW, _swapChainH;
     private string? _pendingScreenshotPath;
     private bool _disposed;
@@ -201,8 +199,9 @@ public sealed unsafe partial class Backend : IGameRenderBackend
         if (_postRtv != null) { _postRtv->Release(); _postRtv = null; }
         if (_nativeSourceTexture != null) { _nativeSourceTexture->Release(); _nativeSourceTexture = null; }
         if (_nativeSourceSrv != null) { _nativeSourceSrv->Release(); _nativeSourceSrv = null; }
-        if (_terrainAuxTexture != null) { _terrainAuxTexture->Release(); _terrainAuxTexture = null; }
-        if (_terrainAuxSrv != null) { _terrainAuxSrv->Release(); _terrainAuxSrv = null; }
+        _terrainAux.Release();
+        _materialCoverage.Release();
+        ReleaseEntityPipeline();
         if (_fullscreenVs != null) { _fullscreenVs->Release(); _fullscreenVs = null; }
         if (_blitPs != null) { _blitPs->Release(); _blitPs = null; }
         if (_postPs != null) { _postPs->Release(); _postPs = null; }
