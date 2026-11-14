@@ -113,23 +113,36 @@ public sealed class GameAudio : IDisposable
 
     public void SetPaused(bool paused) => _mixer?.SetPaused(paused);
 
-    public void ToggleMute()
+    public void ToggleMute() => SetMuted(!AudioOptions.Muted);
+
+    public void SetMuted(bool muted)
     {
-        if (_mixer is null) return;
-        AudioOptions.Muted = !AudioOptions.Muted;
-        _mixer.SetMaster(AudioOptions.Volume, AudioOptions.Muted);
-        Console.WriteLine($"[Audio] {(AudioOptions.Muted ? "Muted" : $"Unmuted, volume {VolumePercent}%")}.");
+        if (_mixer is null || muted == AudioOptions.Muted) return;
+        AudioOptions.Muted = muted;
+        _mixer.SetMaster(AudioOptions.Volume, muted);
+        Console.WriteLine($"[Audio] {(muted ? "Muted" : $"Unmuted, volume {VolumePercent}%")}.");
+        PlayVolumeSample();
     }
 
     /// <summary>Changes the master volume by <paramref name="delta"/> (a fraction of full volume) and unmutes.</summary>
-    public void AdjustVolume(float delta)
+    public void AdjustVolume(float delta) => SetVolume(AudioOptions.Volume + delta);
+
+    /// <summary>Sets the master volume (0 to 1, kept to steps of 5%) and unmutes.</summary>
+    public void SetVolume(float volume)
     {
         if (_mixer is null) return;
-        AudioOptions.Volume = Math.Clamp(MathF.Round((AudioOptions.Volume + delta) * 20f) / 20f, 0f, 1f);
+        volume = Math.Clamp(MathF.Round(volume * 20f) / 20f, 0f, 1f);
+        if (volume == AudioOptions.Volume && !AudioOptions.Muted) return;
+        AudioOptions.Volume = volume;
         AudioOptions.Muted = false;
-        _mixer.SetMaster(AudioOptions.Volume, muted: false);
+        _mixer.SetMaster(volume, muted: false);
         Console.WriteLine($"[Audio] Volume {VolumePercent}%.");
+        PlayVolumeSample();
     }
+
+    /// <summary>A short chime at the new level, so a change of volume can be heard, in the pause menu too.</summary>
+    private void PlayVolumeSample() =>
+        _mixer!.Play(SoundEffect.Pickup, _bank![SoundEffect.Pickup], AudioTweaks.PickupGain, menuSound: true);
 
     /// <summary>
     /// Call before a simulation step. Remembers the gold lying near each tank, because once the step has run a

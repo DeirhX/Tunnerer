@@ -14,6 +14,12 @@ public enum SessionOverlayAction
 }
 
 /// <summary>
+/// Sound settings as the pause menu shows them. The menu changes <see cref="Volume"/> and <see cref="Muted"/>
+/// when the player uses its controls; the caller applies the change.
+/// </summary>
+public record struct SoundMenuState(bool Available, float Volume, bool Muted);
+
+/// <summary>
 /// The pause menu and the controls screen, plus a short reminder of the two keys that open them at the start of a
 /// match. Drawn on the foreground draw list so it sits above every other HUD element.
 /// </summary>
@@ -62,6 +68,7 @@ public sealed class SessionOverlay
     private bool _wasOpen;
     private bool _wasShowingControls;
     private bool _pressArmed;
+    private bool _draggingVolume;
 
     public SessionOverlayAction Draw(
         (float x, float y, float w, float h) viewport,
@@ -69,6 +76,7 @@ public sealed class SessionOverlay
         bool showControls,
         int seed,
         float deltaTime,
+        ref SoundMenuState sound,
         bool showKeyReminder = true)
     {
         if (viewport.w <= 0 || viewport.h <= 0)
@@ -82,6 +90,9 @@ public sealed class SessionOverlay
         _wasOpen = paused;
         _wasShowingControls = showControls;
 
+        if (!paused || showControls)
+            _draggingVolume = false;
+
         if (!paused)
         {
             _playTime += MathF.Max(0f, deltaTime);
@@ -93,12 +104,13 @@ public sealed class SessionOverlay
 
         var displaySize = ImGui.GetIO().DisplaySize;
         dl.AddRectFilled(Vector2.Zero, displaySize, Dim);
-        return showControls ? DrawControls(dl, viewport) : DrawPauseMenu(dl, viewport, seed);
+        return showControls ? DrawControls(dl, viewport) : DrawPauseMenu(dl, viewport, seed, ref sound);
     }
 
-    private SessionOverlayAction DrawPauseMenu(ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed)
+    private SessionOverlayAction DrawPauseMenu(
+        ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed, ref SoundMenuState sound)
     {
-        const float panelW = 380f, panelH = 318f, buttonW = 300f, buttonH = 46f, gap = 12f;
+        const float panelW = 380f, panelH = 434f, buttonW = 300f, buttonH = 46f, gap = 12f;
         Vector2 min = PanelOrigin(vp, panelW, panelH);
         DrawPanel(dl, min, new Vector2(panelW, panelH));
 
@@ -113,6 +125,13 @@ public sealed class SessionOverlay
         by += buttonH + gap;
         if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), "Controls", "F1"))
             action = SessionOverlayAction.ShowControls;
+        by += buttonH + gap;
+        string soundLabel = !sound.Available ? "Sound: not available" : sound.Muted ? "Sound: off" : "Sound: on";
+        if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), soundLabel, sound.Available ? "M" : "",
+                enabled: sound.Available))
+            sound.Muted = !sound.Muted;
+        by += buttonH + gap;
+        VolumeSlider(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), ref sound);
         by += buttonH + gap;
         if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), "Quit game", "Q"))
             action = SessionOverlayAction.Quit;
@@ -172,18 +191,20 @@ public sealed class SessionOverlay
     /// A button that reports a click when the left mouse button is released over it, provided the press also
     /// started on it while this screen was open.
     /// </summary>
-    private bool Button(ImDrawListPtr dl, Vector2 min, Vector2 size, string label, string key)
+    private bool Button(ImDrawListPtr dl, Vector2 min, Vector2 size, string label, string key, bool enabled = true)
     {
         Vector2 max = min + size;
         Vector2 mouse = ImGui.GetIO().MousePos;
-        bool hovered = mouse.X >= min.X && mouse.Y >= min.Y && mouse.X < max.X && mouse.Y < max.Y;
+        // While the volume knob is being dragged the pointer may wander over a button; it must not react.
+        bool hovered = enabled && !_draggingVolume &&
+            mouse.X >= min.X && mouse.Y >= min.Y && mouse.X < max.X && mouse.Y < max.Y;
 
         dl.AddRectFilled(min, max, hovered ? ButtonHover : ButtonFill, 6f);
         dl.AddRect(min, max, PanelBorder, 6f, ImDrawFlags.None, 1.5f);
 
         const float textSize = 20f;
         float textY = min.Y + (size.Y - textSize) * 0.5f;
-        DrawText(dl, textSize, new Vector2(min.X + 18f, textY), label, TitleColor);
+        DrawText(dl, textSize, new Vector2(min.X + 18f, textY), label, enabled ? TitleColor : DimTextColor);
         float keyW = Measure(textSize, key);
         DrawText(dl, textSize, new Vector2(max.X - 18f - keyW, textY), key, KeyColor);
 
@@ -191,6 +212,58 @@ public sealed class SessionOverlay
             return false;
         Vector2 pressedAt = ImGui.GetIO().MouseClickedPos[0];
         return pressedAt.X >= min.X && pressedAt.Y >= min.Y && pressedAt.X < max.X && pressedAt.Y < max.Y;
+    }
+
+    /// <summary>
+    /// The volume row: a track with a knob, the level in percent beside it. Clicking anywhere on the row moves
+    /// the knob there and it then follows the pointer until the button is let go, even off the row. Levels are
+    /// whole steps of 5%, the same as the - and = keys. Moving the knob turns the sound back on if it was muted.
+    /// </summary>
+    private void VolumeSlider(ImDrawListPtr dl, Vector2 min, Vector2 size, ref SoundMenuState sound)
+    {
+        Vector2 max = min + size;
+        Vector2 mouse = ImGui.GetIO().MousePos;
+        bool active = sound.Available;
+        bool hovered = active && mouse.X >= min.X && mouse.Y >= min.Y && mouse.X < max.X && mouse.Y < max.Y;
+
+        const float textSize = 20f, knobRadius = 9f;
+        float trackLeft = min.X + 104f, trackRight = max.X - 74f;
+        float trackY = MathF.Floor(min.Y + size.Y * 0.5f);
+
+        // Like a button, the row only takes a press that began on it after the menu opened.
+        if (hovered && _wasOpen && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            _draggingVolume = true;
+        if (!ImGui.IsMouseDown(ImGuiMouseButton.Left) || !active)
+            _draggingVolume = false;
+        if (_draggingVolume)
+        {
+            float fraction = Math.Clamp((mouse.X - trackLeft) / (trackRight - trackLeft), 0f, 1f);
+            float volume = MathF.Round(fraction * 20f) / 20f;
+            if (volume != sound.Volume || sound.Muted)
+            {
+                sound.Volume = volume;
+                sound.Muted = false;
+            }
+        }
+
+        dl.AddRectFilled(min, max, hovered || _draggingVolume ? ButtonHover : ButtonFill, 6f);
+        dl.AddRect(min, max, PanelBorder, 6f, ImDrawFlags.None, 1.5f);
+
+        float textY = min.Y + (size.Y - textSize) * 0.5f;
+        DrawText(dl, textSize, new Vector2(min.X + 18f, textY), "Volume", active ? TitleColor : DimTextColor);
+
+        bool audible = active && !sound.Muted;
+        float knobX = MathF.Floor(trackLeft + (trackRight - trackLeft) * Math.Clamp(sound.Volume, 0f, 1f));
+        dl.AddRectFilled(new Vector2(trackLeft, trackY - 3f), new Vector2(trackRight, trackY + 3f), 0xFF18120Eu, 3f);
+        if (knobX > trackLeft)
+            dl.AddRectFilled(new Vector2(trackLeft, trackY - 3f), new Vector2(knobX, trackY + 3f),
+                audible ? KeyColor : DimTextColor, 3f);
+        dl.AddCircleFilled(new Vector2(knobX, trackY), knobRadius, audible ? TitleColor : DimTextColor);
+        dl.AddCircle(new Vector2(knobX, trackY), knobRadius, 0xFF000000u, 0, 1.5f);
+
+        string level = !active ? "-" : sound.Muted ? "off" : $"{(int)MathF.Round(sound.Volume * 100f)}%";
+        float levelW = Measure(textSize, level);
+        DrawText(dl, textSize, new Vector2(max.X - 18f - levelW, textY), level, audible ? KeyColor : DimTextColor);
     }
 
     private static float Measure(float size, string text) =>

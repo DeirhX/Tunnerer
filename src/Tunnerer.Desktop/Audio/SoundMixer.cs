@@ -27,6 +27,7 @@ public sealed class SoundMixer
         public float GainLeft, GainRight;
         public int FadeOutLeft;
         public long Started;
+        public bool IsMenuSound;
     }
 
     private sealed class Loop
@@ -59,7 +60,10 @@ public sealed class SoundMixer
             _masterTarget = muted ? 0f : Math.Clamp(volume, 0f, 1f);
     }
 
-    /// <summary>While paused the mix fades to silence and every sound holds its place.</summary>
+    /// <summary>
+    /// While paused the game's sounds fade to silence and hold their place. Menu sounds (see <see cref="Play"/>)
+    /// still play, so the pause menu's volume control can be heard.
+    /// </summary>
     public void SetPaused(bool paused)
     {
         lock (_lock)
@@ -68,9 +72,9 @@ public sealed class SoundMixer
 
     /// <summary>
     /// Starts a one-shot. <paramref name="pan"/> runs from -1 (left) to 1 (right); <paramref name="rate"/> is the
-    /// playback speed, which also shifts the pitch.
+    /// playback speed, which also shifts the pitch. A <paramref name="menuSound"/> is not silenced by pausing.
     /// </summary>
-    public void Play(SoundEffect effect, float[] data, float gain, float pan = 0f, float rate = 1f)
+    public void Play(SoundEffect effect, float[] data, float gain, float pan = 0f, float rate = 1f, bool menuSound = false)
     {
         if (gain <= 0f || data.Length == 0)
             return;
@@ -108,6 +112,7 @@ public sealed class SoundMixer
                 GainLeft = gain * left,
                 GainRight = gain * right,
                 Started = _startCounter++,
+                IsMenuSound = menuSound,
             };
         }
     }
@@ -157,25 +162,37 @@ public sealed class SoundMixer
 
         lock (_lock)
         {
+            // The game's own sounds first; they are scaled by the pause fade before menu sounds are added.
             if (_paused && _pauseGain <= 0.0005f)
             {
                 _pauseGain = 0f;
-                return;
+            }
+            else
+            {
+                for (int v = 0; v < _voices.Length; v++)
+                    if (!_voices[v].IsMenuSound)
+                        MixVoice(ref _voices[v], output, frames);
+                foreach (Loop loop in _loops)
+                    MixLoop(loop, output, frames);
+
+                float pauseTarget = _paused ? 0f : 1f;
+                for (int i = 0; i < frames; i++)
+                {
+                    _pauseGain += (pauseTarget - _pauseGain) * Smoothing * 4f;
+                    output[2 * i] *= _pauseGain;
+                    output[2 * i + 1] *= _pauseGain;
+                }
             }
 
             for (int v = 0; v < _voices.Length; v++)
-                MixVoice(ref _voices[v], output, frames);
-            foreach (Loop loop in _loops)
-                MixLoop(loop, output, frames);
+                if (_voices[v].IsMenuSound)
+                    MixVoice(ref _voices[v], output, frames);
 
-            float pauseTarget = _paused ? 0f : 1f;
             for (int i = 0; i < frames; i++)
             {
                 _master += (_masterTarget - _master) * Smoothing;
-                _pauseGain += (pauseTarget - _pauseGain) * Smoothing * 4f;
-                float gain = _master * _pauseGain;
-                output[2 * i] = Limit(output[2 * i] * gain);
-                output[2 * i + 1] = Limit(output[2 * i + 1] * gain);
+                output[2 * i] = Limit(output[2 * i] * _master);
+                output[2 * i + 1] = Limit(output[2 * i + 1] * _master);
             }
         }
     }

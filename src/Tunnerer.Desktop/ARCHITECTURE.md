@@ -226,8 +226,14 @@ fades out the oldest. The mixer's limiter bends peaks above 0.75 towards full sc
 
 `AudioOptions` and `AudioTweaks` in `Config/DesktopTweaks.cs` hold the volume, mute and capture settings and the
 per-effect levels, intervals and distances. Volume and mute come from `--volume=N` / `TUNNERER_VOLUME` and
-`--mute` / `TUNNERER_MUTE`; in game M toggles mute and - / = change the volume. Pausing fades the mix out and
-holds every sound in place.
+`--mute` / `TUNNERER_MUTE`; in game M toggles mute and - / = change the volume. Pausing fades the game's
+sounds out and holds each in place.
+
+The pause menu (`Gui/SessionOverlay.cs`) has a sound on/off button and a volume slider in steps of 5%. The
+overlay is handed a `SoundMenuState`, changes it when the player clicks or drags, and `Game` passes the change
+to `GameAudio`, which owns the setting. Every change of volume or mute, from the menu or the keys, plays a short
+chime at the new level; it is a *menu sound*, which the mixer adds after the pause fade so it is heard while
+the game is paused. When no sound device is open (automated runs) the two rows are drawn dimmed and do nothing.
 
 ### Automated runs and checking sound
 

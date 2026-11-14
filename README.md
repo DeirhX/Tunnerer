@@ -37,7 +37,7 @@ The tests cover `Tunnerer.Core` only and need neither a GPU nor the shader compi
 | M | Mute / unmute the sound |
 | - / = | Volume down / up |
 | F9 | Thermal view |
-| Esc / P | Pause menu |
+| Esc / P | Pause menu (resume, controls, sound on/off, volume slider, quit) |
 | F1 | Controls screen |
 | F10 | Screenshot (`screenshots/` next to the executable) |
 | F11 | Renderer debug overlay; 1-7 then toggle shader passes |
