@@ -148,7 +148,11 @@ public static class Tweaks
         // Hot rock pockets: indestructible rock pinned at a fixed high temperature. They are permanent heat sources
         // that push heat into any tunnel they touch. Pocket placement is opt-in per world (World ctor).
         public const float ThermalFixedHotRockTemperature = 100f;
-        public const int HotRockPocketCount = 4;
+        public const int HotRockPocketCount = 8;
+        // Gradient toward the centre: a large placeholder core at the map centre, and the other pockets biased toward
+        // it (uniform sample ^ bias; 1 = uniform scatter) and bigger there. Starting values for the spike.
+        public const int HotRockCoreRadius = 8;
+        public const double HotRockCentreBias = 1.6;
         public const int HotRockMinRadius = 3;
         public const int HotRockMaxRadius = 5;
         public const int HotRockMinDistanceFromBase = 60;

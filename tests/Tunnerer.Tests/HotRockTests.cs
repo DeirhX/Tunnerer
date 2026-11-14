@@ -245,3 +245,41 @@ public class HotRockTests
         Assert.True(maxResidual < 0.5, $"pockets must be fully accounted for in the ledger. residual={maxResidual:0.0000}");
     }
 }
+
+public class HotRockGradientTests
+{
+    [Fact]
+    public void Pockets_FormAGradient_CoreAtTheCentre_AndPocketsClusterNearIt()
+    {
+        double sumFraction = 0;
+        int pockets = 0, coresExpected = 0;
+        for (int seed = 9000; seed < 9008; seed++)
+        {
+            var world = TestHelpers.CreateSeededWorld(seed: seed, hotRockPocketCount: Tweaks.World.HotRockPocketCount);
+            var middle = new Position(world.Terrain.Width / 2, world.Terrain.Height / 2);
+
+            // The core sits at the centre unless a base is too close to it (a base never gets a hot neighbour).
+            int minSq = Tweaks.World.HotRockMinDistanceFromBase * Tweaks.World.HotRockMinDistanceFromBase;
+            bool coreAllowed = world.TankBases.Bases.All(b => Position.DistanceSquared(middle, b.Position) >= minSq);
+            if (coreAllowed)
+            {
+                coresExpected++;
+                Assert.Contains(middle, world.HotRockPockets);
+                Assert.Equal(TerrainPixel.HotRock, world.Terrain.GetPixelRaw(middle));
+            }
+
+            foreach (var pocket in world.HotRockPockets.Where(p => p != middle))
+            {
+                double fx = (pocket.X - middle.X) / (double)(world.Terrain.Width / 2);
+                double fy = (pocket.Y - middle.Y) / (double)(world.Terrain.Height / 2);
+                sumFraction += Math.Sqrt(fx * fx + fy * fy);
+                pockets++;
+            }
+        }
+
+        Assert.True(coresExpected > 0, "the seeds should include worlds where the core fits");
+        Assert.True(pockets > 0);
+        double mean = sumFraction / pockets;
+        Assert.True(mean < 0.55, $"pockets should cluster toward the centre. meanDistanceFraction={mean:0.00}");
+    }
+}
