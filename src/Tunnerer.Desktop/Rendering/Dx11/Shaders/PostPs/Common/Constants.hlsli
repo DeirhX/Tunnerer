@@ -27,12 +27,15 @@ float2 TexelOffsetY()
 
 // ---- Terrain material ID encoding (auxTex.b channel) ----------------------
 // CPU writes material IDs as normalized [0..1]; decode by multiplying by 255.
+// Codes must match TerrainAuxBuilder (0 = none). Spacing (~42) exceeds the wide
+// mask width so adjacent materials never overlap at their exact codes.
 static const float kMaterialCodeScale = 255.0;
+static const float kMaterialCodeBase = 42.0;
 static const float kMaterialCodeDirt = 85.0;
 static const float kMaterialCodeConcrete = 128.0;
 static const float kMaterialCodeStone = 170.0;
 static const float kMaterialCodeGold = 212.0;
-static const float kMaterialMaskWidthWide = 40.0;    // smoothstep width for stone/dirt/concrete
+static const float kMaterialMaskWidthWide = 40.0;    // smoothstep width for base/dirt/concrete/stone
 static const float kMaterialMaskWidthNarrow = 28.0;  // smoothstep width for gold
 
 // ---- Heat debug overlay ---------------------------------------------------

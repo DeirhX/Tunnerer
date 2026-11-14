@@ -62,7 +62,7 @@ public partial class TerrainGrid : ITerrainPixelAccessor, ITerrainHeatSource, IT
     {
         int offset = pos.X + pos.Y * Width;
         _data[offset] = value;
-        if (value == TerrainPixel.DecalHigh)
+        if (value == TerrainPixel.Decal)
             _scorchIntensity[offset] = ScorchIntensityMax;
         else if (!Pixel.IsScorched(value))
             _scorchIntensity[offset] = 0;

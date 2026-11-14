@@ -23,7 +23,7 @@ internal static class TestHelpers
             deterministicSimulation: true,
             simulationSeed: seed,
             enableTerrainRegrowth: enableTerrainRegrowth);
-        world.Initialize(terrain, spawns, materializeSeed: seed + 1);
+        world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;
     }
 

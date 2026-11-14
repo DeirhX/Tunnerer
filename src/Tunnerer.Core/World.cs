@@ -64,13 +64,13 @@ public class World
     }
 
     public void Initialize(TerrainGrid generatedTerrain, Position[] spawns,
-        int? materializeSeed = null, bool parallelMaterialize = false)
+        int? decorationSeed = null, bool parallelMaterialize = false)
     {
         for (int i = 0; i < generatedTerrain.Size.Area; i++)
             _terrain[i] = generatedTerrain[i];
 
-        _terrain.MaterializeTerrain(materializeSeed, parallel: parallelMaterialize);
-        _terrain.DecorateTerrain(materializeSeed.HasValue ? materializeSeed.Value + 100 : null);
+        _terrain.MaterializeTerrain(parallel: parallelMaterialize);
+        _terrain.DecorateTerrain(decorationSeed.HasValue ? decorationSeed.Value + 100 : null);
 
         for (int i = 0; i < spawns.Length; i++)
             _tankBases.AddBase(spawns[i], i);

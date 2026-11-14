@@ -120,10 +120,10 @@ public class LevelGenTests
     public void Fill_SetsEveryPixel()
     {
         var terrain = new TerrainGrid(new Size(16, 16));
-        terrain.Fill(TerrainPixel.DirtHigh);
+        terrain.Fill(TerrainPixel.Dirt);
 
         for (int i = 0; i < 256; i++)
-            Assert.Equal(TerrainPixel.DirtHigh, terrain[i]);
+            Assert.Equal(TerrainPixel.Dirt, terrain[i]);
     }
 
     [Fact]

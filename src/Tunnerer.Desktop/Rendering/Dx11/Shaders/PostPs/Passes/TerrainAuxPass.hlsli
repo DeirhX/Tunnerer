@@ -229,8 +229,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     float solidCoreSoft = smoothstep(0.52, 0.66, a0.g);
     float solidCore = solidCoreHard * solidCoreSoft;
     float materialCodeNearest = aNearest.b * kMaterialCodeScale;
-    // Base pixels now use the concrete material code; no more special base masking.
-    float baseInfluence = 0.0;
+    float baseInfluence = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide, abs(materialCodeNearest - kMaterialCodeBase)));
     // When scorch remnants are present around edges, prefer smoothing and avoid
     // hard contour accents that make the boundary look jagged.
     float scorchNeighbor = max(
@@ -299,6 +298,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
 
         float contentMask = terrainFactor * solidSide * solidCore;
         float dirtMask     = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeDirt)))     * contentMask;
+        float baseMask     = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeBase)))     * contentMask;
         float concreteMask = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeConcrete))) * contentMask;
         float stoneMask    = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeStone)))    * contentMask;
         float goldMask     = (1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(materialCode - kMaterialCodeGold)))     * contentMask;
@@ -309,6 +309,9 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         float3 lightDir = normalize(float3(LightDir.xy, max(0.35, LightDir.z)));
         ApplyStoneMaterial(color, worldCell, stoneMask, lightDir);
         ApplyConcreteMaterial(color, worldCell, concreteMask, lightDir);
+        // Base uses the concrete texture but darkened for a bunker-floor look.
+        ApplyConcreteMaterial(color, worldCell, baseMask, lightDir);
+        color = lerp(color, color * 0.35, baseMask);
         ApplyDirtMaterial(color, worldCell, dirtMask, lightDir);
         ApplyGoldMaterial(color, worldCell, goldMask, lightDir);
 
@@ -358,7 +361,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             float aaBase = nativeSmoothingOff ? 0.62 : 0.30;
             if (terrainAuxOnlyMode)
                 aaBase *= 0.55;
-            float terrainContent = saturate(dirtMask + stoneMask + concreteMask + goldMask);
+            float terrainContent = saturate(dirtMask + stoneMask + concreteMask + baseMask + goldMask);
             float aaContentBoost = smoothstep(0.25, 0.90, terrainContent) * 0.10;
             float aaEdgeSignal = max(edgeProfile, materialBlend * 0.9) * (1.0 - baseInfluence);
             float aaMix = saturate(aaEdgeSignal * (aaBase + aaContentBoost)) * terrainFactor * contourSupport;

@@ -120,7 +120,7 @@ public class DeterminismTests
         var gen = new ToastGenerator();
         var (terrain, spawns) = gen.Generate(mapSize, seed: seed);
         var world = new World(mapSize, deterministicSimulation: true, simulationSeed: seed);
-        world.Initialize(terrain, spawns, materializeSeed: seed + 1, parallelMaterialize: parallelMaterialize);
+        world.Initialize(terrain, spawns, decorationSeed: seed + 1, parallelMaterialize: parallelMaterialize);
         return world;
     }
 

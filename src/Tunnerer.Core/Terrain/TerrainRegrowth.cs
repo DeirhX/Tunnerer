@@ -83,7 +83,7 @@ public sealed class TerrainRegrowth
                     {
                         if (Roll1000(advanceCount, x, y, 4) < Tweaks.World.DirtRecoverSpeed)
                         {
-                            writes.Add((x + y * w, TerrainPixel.DirtHigh));
+                            writes.Add((x + y * w, TerrainPixel.Dirt));
                         }
                     }
                 }
@@ -139,7 +139,7 @@ public sealed class TerrainRegrowth
                 {
                     if (random.Next(1000) < Tweaks.World.DirtRecoverSpeed)
                     {
-                        writes.Add((x + y * w, TerrainPixel.DirtHigh));
+                        writes.Add((x + y * w, TerrainPixel.Dirt));
                     }
                 }
             }

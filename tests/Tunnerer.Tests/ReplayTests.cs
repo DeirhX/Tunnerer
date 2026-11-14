@@ -40,8 +40,8 @@ public class ReplayTests
         int seed = TestHelpers.DefaultSeed;
         var (t1, _) = gen.Generate(size, seed: seed);
         var (t2, _) = gen.Generate(size, seed: seed);
-        t1.MaterializeTerrain(seed: seed + 1);
-        t2.MaterializeTerrain(seed: seed + 1);
+        t1.MaterializeTerrain();
+        t2.MaterializeTerrain();
 
         for (int i = 0; i < size.Area; i++)
             Assert.Equal(t1[i], t2[i]);

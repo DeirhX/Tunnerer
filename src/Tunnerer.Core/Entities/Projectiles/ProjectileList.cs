@@ -40,11 +40,11 @@ public class ProjectileList
         behaviors[(int)ProjectileType.Shrapnel] = new(AdvanceShrapnel, Tweaks.Colors.FireHot);
         behaviors[(int)ProjectileType.ConcreteFoam] = new(
             (p, solver, self) => AdvanceFoam(p, solver.Terrain, self,
-                TerrainPixel.ConcreteHigh, TerrainPixel.ConcreteLow, skipConcrete: true),
+                TerrainPixel.Concrete, skipConcrete: true),
             Tweaks.Colors.Concrete);
         behaviors[(int)ProjectileType.DirtFoam] = new(
             (p, solver, self) => AdvanceFoam(p, solver.Terrain, self,
-                TerrainPixel.DirtHigh, TerrainPixel.DirtHigh, skipConcrete: false),
+                TerrainPixel.Dirt, skipConcrete: false),
             Tweaks.Colors.DirtProjectile);
         return behaviors;
     }
@@ -143,7 +143,7 @@ public class ProjectileList
             if ((Pixel.IsConcrete(pix) && self._rng.Chance1000(Tweaks.Explosion.ChanceToDestroyConcrete)) ||
                 (Pixel.IsRock(pix) && self._rng.Chance1000(Tweaks.Explosion.ChanceToDestroyRock)))
             {
-                terrain.SetPixel(ipos, TerrainPixel.DecalHigh);
+                terrain.SetPixel(ipos, TerrainPixel.Decal);
             }
             int hitHeat = Math.Max(0, (int)MathF.Round(Tweaks.Explosion.ShrapnelHitHeat * p.HeatScale));
             terrain.AddHeat(ipos, hitHeat);
@@ -151,13 +151,13 @@ public class ProjectileList
             return;
         }
 
-        terrain.SetPixel(ipos, TerrainPixel.DecalHigh);
+        terrain.SetPixel(ipos, TerrainPixel.Decal);
         int digHeat = Math.Max(0, (int)MathF.Round(Tweaks.Explosion.ShrapnelDigHeatAmount * p.HeatScale));
         terrain.AddHeatRadius(ipos, digHeat, Tweaks.Explosion.ShrapnelDigHeatRadius);
     }
 
     private static void AdvanceFoam(Projectile p, TerrainGrid terrain, ProjectileList self,
-        TerrainPixel highPixel, TerrainPixel lowPixel, bool skipConcrete)
+        TerrainPixel foamPixel, bool skipConcrete)
     {
         if (p.Life-- <= 0) { p.IsAlive = false; return; }
 
@@ -169,7 +169,7 @@ public class ProjectileList
         if (Pixel.IsAnyCollision(pix) && !(skipConcrete && Pixel.IsConcrete(pix)))
         {
             if (terrain.IsInside(prevPos))
-                terrain.SetPixel(prevPos, self._rng.NextInt(2) == 0 ? highPixel : lowPixel);
+                terrain.SetPixel(prevPos, foamPixel);
             p.IsAlive = false;
         }
     }

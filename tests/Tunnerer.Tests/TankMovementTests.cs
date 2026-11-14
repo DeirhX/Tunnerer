@@ -29,9 +29,9 @@ public class TankMovementTests
         // Horizontal dirt wall at y=70 spanning x=10..130
         for (int x = 10; x < 130; x++)
         {
-            terrain[x + 70 * size.X] = TerrainPixel.DirtHigh;
-            terrain[x + 71 * size.X] = TerrainPixel.DirtHigh;
-            terrain[x + 72 * size.X] = TerrainPixel.DirtHigh;
+            terrain[x + 70 * size.X] = TerrainPixel.Dirt;
+            terrain[x + 71 * size.X] = TerrainPixel.Dirt;
+            terrain[x + 72 * size.X] = TerrainPixel.Dirt;
         }
 
         // Vertical blank corridor of width 5 around x=50, from y=75 to y=110
@@ -43,9 +43,9 @@ public class TankMovementTests
         for (int y = 75; y < 110; y++)
         {
             for (int x = 44; x < 48; x++)
-                terrain[x + y * size.X] = TerrainPixel.DirtHigh;
+                terrain[x + y * size.X] = TerrainPixel.Dirt;
             for (int x = 53; x < 57; x++)
-                terrain[x + y * size.X] = TerrainPixel.DirtHigh;
+                terrain[x + y * size.X] = TerrainPixel.Dirt;
         }
 
         // Base centered at (50,30) keeps its 35x35 footprint inside y=13..47,
@@ -153,7 +153,7 @@ public class TankMovementTests
         // Create a solid dirt wall at y=30..36 across x=90..110
         for (int y = 30; y <= 36; y++)
             for (int x = 90; x <= 110; x++)
-                terrain[x + y * size.X] = TerrainPixel.DirtHigh;
+                terrain[x + y * size.X] = TerrainPixel.Dirt;
 
         var world = new World(size);
         for (int i = 0; i < size.Area; i++)

@@ -24,7 +24,7 @@ tunnerer/
 - **Core has no platform dependencies**: `Tunnerer.Core` operates on `uint[]` pixel buffers and `ControllerOutput` structs. It knows nothing about SDL, windows, or real input devices.
 - **Desktop is a thin shell**: `Tunnerer.Desktop` creates the SDL window, polls events, maps keyboard/mouse to `ControllerOutput`, and uploads the final pixel buffer to a texture.
 - **Faithful C++ port**: Subsystem execution order, terrain pixel types, movement mechanics, dig shapes, torch logic, color palette, and profiling categories all match the C++ original.
-- **Deterministic seeds**: `ToastGenerator`, `Terrain.MaterializeTerrain`, and `TwitchAI` accept optional `int? seed` parameters for reproducible maps and AI behavior.
+- **Deterministic seeds**: `ToastGenerator`, `TerrainGrid.DecorateTerrain`, and `TwitchAI` accept optional `int? seed` parameters for reproducible maps and AI behavior.
 
 ## Frame loop (`Game.Run`)
 

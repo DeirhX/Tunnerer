@@ -109,8 +109,8 @@ public partial class Game : IDisposable
                 deterministicSimulation: deterministicSimulation,
                 simulationSeed: deterministicSimulation ? DefaultSeed : 0);
             _world.Profile.ReportSink = static line => Console.WriteLine(line);
-            int? matSeed = deterministicSimulation ? DefaultSeed + 1 : null;
-            _world.Initialize(terrain, spawns, materializeSeed: matSeed, parallelMaterialize: parallel);
+            int? decorationSeed = deterministicSimulation ? DefaultSeed + 1 : null;
+            _world.Initialize(terrain, spawns, decorationSeed: decorationSeed, parallelMaterialize: parallel);
         }
 
         _p2AI = new BotTankAI(seed: deterministicSimulation ? DefaultSeed + 2 : null);

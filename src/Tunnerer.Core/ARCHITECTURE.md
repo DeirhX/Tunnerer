@@ -110,7 +110,7 @@ public bool TestPoint(Position pos,
 
 ```
 CollisionSolver    Rebuild sector indices for broad-phase queries
-RegrowPass         Cellular automata: Blank→DirtGrow→DirtHigh/Low
+RegrowPass         Cellular automata: Blank→DirtGrow→Dirt
 Projectiles        Movement, terrain impact, explosions, spawn shrapnel
 Tanks              Input → turret → HandleMove → DigTunnel → shoot
 Machines           Harvest energy, charge reactor, link-powered
@@ -156,8 +156,8 @@ All `Pixel.Is*()` methods are single-lookup into the behavior table (256-element
 
 ### Materialization
 
-`MaterializeTerrain(int? seed)` converts generator markers to final values:
-- `LevelGenDirt` → `DirtHigh`
+`MaterializeTerrain()` converts generator markers to final values:
+- `LevelGenDirt` → `Dirt`
 - `LevelGenRock` → `Rock`
 - `LevelGenMark` → `Blank`
 

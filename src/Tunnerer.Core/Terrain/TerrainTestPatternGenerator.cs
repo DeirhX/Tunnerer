@@ -9,7 +9,7 @@ using Tunnerer.Core.Types;
 /// </summary>
 public static class TerrainTestPatternGenerator
 {
-    public static readonly Size DefaultSize = new(320, 200);
+    public static readonly Size DefaultSize = new(640, 480);
 
     public static TerrainGrid Generate(Size? sizeOverride = null)
     {
@@ -37,13 +37,13 @@ public static class TerrainTestPatternGenerator
 
     static int DrawMaterialStrips(TerrainGrid grid, int startY)
     {
-        const int stripH = 8;
-        const int gutter = 3;
-        int margin = 4;
+        const int stripH = 30;
+        const int gutter = 4;
+        int margin = 6;
         int w = grid.Width - margin * 2;
         int y = startY;
 
-        FillRect(grid, margin, y, w, stripH, TerrainPixel.DirtHigh);
+        FillRect(grid, margin, y, w, stripH, TerrainPixel.Dirt);
         y += stripH + gutter;
 
         FillRect(grid, margin, y, w, stripH, TerrainPixel.Rock);
@@ -52,7 +52,7 @@ public static class TerrainTestPatternGenerator
         FillRect(grid, margin, y, w, stripH, TerrainPixel.Gold);
         y += stripH + gutter;
 
-        FillRect(grid, margin, y, w, stripH, TerrainPixel.ConcreteHigh);
+        FillRect(grid, margin, y, w, stripH, TerrainPixel.Concrete);
         y += stripH + gutter;
 
         // Base strip: use BaseMin for interior, BaseBarrier for edges, BaseCore center
@@ -75,13 +75,13 @@ public static class TerrainTestPatternGenerator
         int x = 6;
 
         // Circles of increasing radii in dirt
-        int[] radii = [2, 4, 7, 10, 15];
+        int[] radii = [4, 8, 14, 22, 35];
         foreach (int r in radii)
         {
             int cx = x + r;
-            int cy = y + 16;
-            FillCircle(grid, cx, cy, r, TerrainPixel.DirtHigh);
-            x += r * 2 + 5;
+            int cy = y + 40;
+            FillCircle(grid, cx, cy, r, TerrainPixel.Dirt);
+            x += r * 2 + 8;
         }
 
         // Circles of increasing radii in stone
@@ -89,41 +89,41 @@ public static class TerrainTestPatternGenerator
         foreach (int r in radii)
         {
             int cx = x + r;
-            int cy = y + 50;
+            int cy = y + 120;
             FillCircle(grid, cx, cy, r, TerrainPixel.Rock);
-            x += r * 2 + 5;
+            x += r * 2 + 8;
         }
 
         // Diagonal lines at various angles in stone (right side of the grid)
-        int diagX = grid.Width / 2 + 10;
-        int diagY = y + 4;
+        int diagX = grid.Width / 2 + 20;
+        int diagY = y + 6;
         double[] angles = [15, 30, 45, 60, 75];
         foreach (double angleDeg in angles)
         {
-            DrawDiagonalStrip(grid, diagX, diagY, angleDeg, 30, 3, TerrainPixel.Rock);
-            diagX += 12;
+            DrawDiagonalStrip(grid, diagX, diagY, angleDeg, 60, 5, TerrainPixel.Rock);
+            diagX += 20;
         }
 
         // Concave and convex corner shapes (stone)
-        int shapeX = grid.Width / 2 + 10;
-        int shapeY = y + 30;
+        int shapeX = grid.Width / 2 + 20;
+        int shapeY = y + 70;
 
         // L-shape (convex outer corner)
-        FillRect(grid, shapeX, shapeY, 10, 5, TerrainPixel.Rock);
-        FillRect(grid, shapeX, shapeY + 5, 5, 10, TerrainPixel.Rock);
+        FillRect(grid, shapeX, shapeY, 20, 10, TerrainPixel.Rock);
+        FillRect(grid, shapeX, shapeY + 10, 10, 20, TerrainPixel.Rock);
 
         // Notched block (concave inner corner)
-        shapeX += 18;
-        FillRect(grid, shapeX, shapeY, 12, 12, TerrainPixel.DirtHigh);
-        FillRect(grid, shapeX + 6, shapeY, 6, 6, TerrainPixel.Blank);
+        shapeX += 36;
+        FillRect(grid, shapeX, shapeY, 24, 24, TerrainPixel.Dirt);
+        FillRect(grid, shapeX + 12, shapeY, 12, 12, TerrainPixel.Blank);
 
         // U-shape (two concave corners)
-        shapeX += 18;
-        FillRect(grid, shapeX, shapeY, 4, 12, TerrainPixel.Rock);
-        FillRect(grid, shapeX + 8, shapeY, 4, 12, TerrainPixel.Rock);
-        FillRect(grid, shapeX, shapeY + 8, 12, 4, TerrainPixel.Rock);
+        shapeX += 36;
+        FillRect(grid, shapeX, shapeY, 8, 24, TerrainPixel.Rock);
+        FillRect(grid, shapeX + 16, shapeY, 8, 24, TerrainPixel.Rock);
+        FillRect(grid, shapeX, shapeY + 16, 24, 8, TerrainPixel.Rock);
 
-        return y + 62;
+        return y + 160;
     }
 
     // ---- Material-to-material transitions ----
@@ -131,29 +131,29 @@ public static class TerrainTestPatternGenerator
     static int DrawMaterialTransitions(TerrainGrid grid, int startY)
     {
         int y = startY;
-        int blockW = 20;
-        int blockH = 14;
-        int gutter = 4;
+        int blockW = 40;
+        int blockH = 30;
+        int gutter = 6;
         int x = 6;
 
         // Vertical split: dirt | stone
-        FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.DirtHigh);
+        FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Dirt);
         FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Rock);
         x += blockW + gutter;
 
-        // Vertical split: dirt | energy
-        FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.DirtHigh);
+        // Vertical split: dirt | gold
+        FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Dirt);
         FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Gold);
         x += blockW + gutter;
 
-        // Vertical split: stone | energy
+        // Vertical split: stone | gold
         FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Rock);
         FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Gold);
         x += blockW + gutter;
 
         // Vertical split: concrete | dirt
-        FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.ConcreteHigh);
-        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.DirtHigh);
+        FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Concrete);
+        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Dirt);
         x += blockW + gutter;
 
         // Diagonal splits (second row)
@@ -161,19 +161,19 @@ public static class TerrainTestPatternGenerator
         int y2 = y + blockH + gutter;
 
         // Diagonal dirt/stone
-        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.DirtHigh, TerrainPixel.Rock);
+        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Dirt, TerrainPixel.Rock);
         x += blockW + gutter;
 
-        // Diagonal stone/energy
+        // Diagonal stone/gold
         DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Rock, TerrainPixel.Gold);
         x += blockW + gutter;
 
-        // Diagonal dirt/energy
-        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.DirtHigh, TerrainPixel.Gold);
+        // Diagonal dirt/gold
+        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Dirt, TerrainPixel.Gold);
         x += blockW + gutter;
 
         // Horizontal split: dirt over stone
-        FillRect(grid, x, y2, blockW, blockH / 2, TerrainPixel.DirtHigh);
+        FillRect(grid, x, y2, blockW, blockH / 2, TerrainPixel.Dirt);
         FillRect(grid, x, y2 + blockH / 2, blockW, blockH / 2, TerrainPixel.Rock);
         x += blockW + gutter;
 
@@ -182,7 +182,7 @@ public static class TerrainTestPatternGenerator
         for (int cy = 0; cy < blockH; cy++)
             for (int cx = 0; cx < blockW; cx++)
             {
-                var mat = ((cx / 4) + (cy / 4)) % 2 == 0 ? TerrainPixel.DirtHigh : TerrainPixel.Rock;
+                var mat = ((cx / 4) + (cy / 4)) % 2 == 0 ? TerrainPixel.Dirt : TerrainPixel.Rock;
                 SetSafe(grid, cbX + cx, y2 + cy, mat);
             }
 
@@ -196,74 +196,59 @@ public static class TerrainTestPatternGenerator
         int y = startY;
         int x = 6;
 
-        // Crater on dirt: circle of DecalHigh surrounded by DecalLow ring
-        FillRect(grid, x, y, 30, 20, TerrainPixel.DirtHigh);
-        FillCircle(grid, x + 15, y + 10, 6, TerrainPixel.DecalLow);
-        FillCircle(grid, x + 15, y + 10, 3, TerrainPixel.DecalHigh);
-        // Set scorch intensity for decal pixels
-        SetScorchInCircle(grid, x + 15, y + 10, 6, 40);
-        SetScorchInCircle(grid, x + 15, y + 10, 3, 64);
-        x += 36;
+        // Crater on dirt
+        FillRect(grid, x, y, 50, 40, TerrainPixel.Dirt);
+        FillCircle(grid, x + 25, y + 20, 12, TerrainPixel.Decal);
+        SetScorchInCircle(grid, x + 25, y + 20, 12, 40);
+        SetScorchInCircle(grid, x + 25, y + 20, 6, 64);
+        x += 58;
 
         // Crater on stone
-        FillRect(grid, x, y, 30, 20, TerrainPixel.Rock);
-        FillCircle(grid, x + 15, y + 10, 6, TerrainPixel.DecalLow);
-        FillCircle(grid, x + 15, y + 10, 3, TerrainPixel.DecalHigh);
-        SetScorchInCircle(grid, x + 15, y + 10, 6, 40);
-        SetScorchInCircle(grid, x + 15, y + 10, 3, 64);
-        x += 36;
+        FillRect(grid, x, y, 50, 40, TerrainPixel.Rock);
+        FillCircle(grid, x + 25, y + 20, 12, TerrainPixel.Decal);
+        SetScorchInCircle(grid, x + 25, y + 20, 12, 40);
+        SetScorchInCircle(grid, x + 25, y + 20, 6, 64);
+        x += 58;
 
         // Scattered small decal hits on dirt
-        FillRect(grid, x, y, 30, 20, TerrainPixel.DirtHigh);
-        int[] hitOffsetsX = [3, 8, 14, 20, 25, 6, 18, 12];
-        int[] hitOffsetsY = [3, 7, 4, 9, 5, 14, 15, 11];
+        FillRect(grid, x, y, 50, 40, TerrainPixel.Dirt);
+        int[] hitOffsetsX = [5, 14, 24, 35, 44, 10, 30, 20];
+        int[] hitOffsetsY = [5, 12, 7, 16, 9, 28, 30, 22];
         for (int i = 0; i < hitOffsetsX.Length; i++)
         {
             int hx = x + hitOffsetsX[i];
             int hy = y + hitOffsetsY[i];
-            SetSafe(grid, hx, hy, TerrainPixel.DecalHigh);
-            SetScorchSafe(grid, hx, hy, 64);
-            // Small ring of DecalLow around each hit
-            for (int dy = -1; dy <= 1; dy++)
-                for (int dx = -1; dx <= 1; dx++)
-                    if (dx != 0 || dy != 0)
-                    {
-                        if (grid.IsInside(new Position(hx + dx, hy + dy)) &&
-                            grid.GetPixelRaw(new Position(hx + dx, hy + dy)) == TerrainPixel.DirtHigh)
-                        {
-                            SetSafe(grid, hx + dx, hy + dy, TerrainPixel.DecalLow);
-                            SetScorchSafe(grid, hx + dx, hy + dy, 30);
-                        }
-                    }
+            FillCircle(grid, hx, hy, 2, TerrainPixel.Decal);
+            SetScorchInCircle(grid, hx, hy, 2, 64);
+            SetScorchInCircle(grid, hx, hy, 4, 30);
         }
-        x += 36;
+        x += 58;
 
-        // DecalHigh/DecalLow strip next to cave boundary (test how decals render at edges)
-        FillRect(grid, x, y, 20, 20, TerrainPixel.DirtHigh);
-        FillRect(grid, x, y + 8, 20, 4, TerrainPixel.DecalHigh);
-        for (int px = x; px < x + 20; px++)
-            for (int py = y + 8; py < y + 12; py++)
+        // Decal strip next to cave boundary
+        FillRect(grid, x, y, 40, 40, TerrainPixel.Dirt);
+        FillRect(grid, x, y + 14, 40, 8, TerrainPixel.Decal);
+        for (int px = x; px < x + 40; px++)
+            for (int py = y + 14; py < y + 22; py++)
                 SetScorchSafe(grid, px, py, 64);
-        // Carve cave into the bottom half to see decal-at-edge behavior
-        FillRect(grid, x + 5, y + 12, 10, 8, TerrainPixel.Blank);
-        x += 26;
+        FillRect(grid, x + 10, y + 22, 20, 18, TerrainPixel.Blank);
+        x += 48;
 
-        // Gradient of scorch intensities on dirt (low to max)
-        FillRect(grid, x, y, 40, 10, TerrainPixel.DirtHigh);
-        for (int col = 0; col < 40; col++)
+        // Gradient of scorch intensities on dirt
+        FillRect(grid, x, y, 60, 20, TerrainPixel.Dirt);
+        for (int col = 0; col < 60; col++)
         {
-            byte intensity = (byte)Math.Clamp(col * 64 / 40, 0, 64);
-            for (int row = 0; row < 10; row++)
+            byte intensity = (byte)Math.Clamp(col * 64 / 60, 0, 64);
+            for (int row = 0; row < 20; row++)
             {
                 if (intensity > 10)
                 {
-                    SetSafe(grid, x + col, y + row, TerrainPixel.DecalHigh);
+                    SetSafe(grid, x + col, y + row, TerrainPixel.Decal);
                     SetScorchSafe(grid, x + col, y + row, intensity);
                 }
             }
         }
 
-        return y + 20;
+        return y + 42;
     }
 
     // ---- Corner gallery ----
@@ -272,8 +257,8 @@ public static class TerrainTestPatternGenerator
     {
         int y = startY;
         int x = 6;
-        const int cellSize = 14;
-        const int gap = 4;
+        const int cellSize = 24;
+        const int gap = 6;
 
         // 90-degree sharp corners (all 4 orientations)
         for (int orient = 0; orient < 4; orient++)
@@ -284,13 +269,13 @@ public static class TerrainTestPatternGenerator
         x += 4 * (cellSize + gap) + gap;
 
         // Single-step staircases (2 orientations)
-        DrawStaircase(grid, x, y, 12, 12, true, TerrainPixel.DirtHigh);
-        x += 16;
-        DrawStaircase(grid, x, y, 12, 12, false, TerrainPixel.DirtHigh);
-        x += 16;
+        DrawStaircase(grid, x, y, 20, 20, true, TerrainPixel.Dirt);
+        x += 26;
+        DrawStaircase(grid, x, y, 20, 20, false, TerrainPixel.Dirt);
+        x += 26;
 
         // Quarter-circle arcs at different radii
-        int[] arcRadii = [3, 6, 10];
+        int[] arcRadii = [5, 10, 18];
         foreach (int r in arcRadii)
         {
             FillQuarterCircle(grid, x, y + cellSize, r, TerrainPixel.Rock);
@@ -302,21 +287,21 @@ public static class TerrainTestPatternGenerator
         int y2 = y + cellSize + gap;
         for (int thickness = 1; thickness <= 3; thickness++)
         {
-            DrawDiagonalStrip(grid, x, y2, 45.0, 16, thickness, TerrainPixel.DirtHigh);
-            x += 14;
+            DrawDiagonalStrip(grid, x, y2, 45.0, 30, thickness, TerrainPixel.Dirt);
+            x += 24;
         }
 
         // Thin horizontal and vertical walls
-        FillRect(grid, x, y2, 20, 1, TerrainPixel.Rock);
-        FillRect(grid, x, y2 + 3, 20, 2, TerrainPixel.Rock);
-        FillRect(grid, x, y2 + 7, 20, 3, TerrainPixel.Rock);
-        x += 24;
+        FillRect(grid, x, y2, 30, 1, TerrainPixel.Rock);
+        FillRect(grid, x, y2 + 4, 30, 2, TerrainPixel.Rock);
+        FillRect(grid, x, y2 + 10, 30, 3, TerrainPixel.Rock);
+        x += 36;
 
-        FillRect(grid, x, y2, 1, 14, TerrainPixel.Rock);
-        FillRect(grid, x + 3, y2, 2, 14, TerrainPixel.Rock);
-        FillRect(grid, x + 7, y2, 3, 14, TerrainPixel.Rock);
+        FillRect(grid, x, y2, 1, 24, TerrainPixel.Rock);
+        FillRect(grid, x + 4, y2, 2, 24, TerrainPixel.Rock);
+        FillRect(grid, x + 10, y2, 3, 24, TerrainPixel.Rock);
 
-        return y2 + 16;
+        return y2 + 28;
     }
 
     // ---- Stress patterns ----
@@ -329,7 +314,7 @@ public static class TerrainTestPatternGenerator
         int x = 6;
 
         // Isolated single pixels (various materials)
-        TerrainPixel[] singles = [TerrainPixel.DirtHigh, TerrainPixel.Rock, TerrainPixel.Gold, TerrainPixel.ConcreteHigh];
+        TerrainPixel[] singles = [TerrainPixel.Dirt, TerrainPixel.Rock, TerrainPixel.Gold, TerrainPixel.Concrete];
         foreach (var mat in singles)
         {
             SetSafe(grid, x, y + 2, mat);
@@ -349,11 +334,11 @@ public static class TerrainTestPatternGenerator
         for (int cy = 0; cy < 10; cy++)
             for (int cx = 0; cx < 10; cx++)
                 if ((cx + cy) % 2 == 0)
-                    SetSafe(grid, x + cx, y + cy, TerrainPixel.DirtHigh);
+                    SetSafe(grid, x + cx, y + cy, TerrainPixel.Dirt);
         x += 14;
 
         // Thin cave tunnel through dirt (1px, 2px, 3px wide)
-        FillRect(grid, x, y, 20, 14, TerrainPixel.DirtHigh);
+        FillRect(grid, x, y, 20, 14, TerrainPixel.Dirt);
         FillRect(grid, x, y + 3, 20, 1, TerrainPixel.Blank);  // 1px tunnel
         FillRect(grid, x, y + 6, 20, 2, TerrainPixel.Blank);  // 2px tunnel
         FillRect(grid, x, y + 10, 20, 3, TerrainPixel.Blank); // 3px tunnel
@@ -374,10 +359,10 @@ public static class TerrainTestPatternGenerator
         x = 6;
         int y3 = y + 16;
         if (y3 + 10 > grid.Height) return;
-        FillRect(grid, x, y3, 30, 5, TerrainPixel.DirtHigh);
+        FillRect(grid, x, y3, 30, 5, TerrainPixel.Dirt);
         for (int col = 0; col < 30; col++)
             if (col % 2 == 0)
-                SetSafe(grid, x + col, y3 + 5, TerrainPixel.DirtHigh);
+                SetSafe(grid, x + col, y3 + 5, TerrainPixel.Dirt);
     }
 
     // ---- Drawing primitives ----
@@ -435,8 +420,6 @@ public static class TerrainTestPatternGenerator
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
             {
-                bool upperLeft = (x * h) < ((w - y) * w * h / (w + h));
-                // Simple diagonal: above the line from top-right to bottom-left
                 bool above = x * h + y * w < w * h;
                 SetSafe(grid, left + x, top + y, above ? matA : matB);
             }
