@@ -770,10 +770,16 @@ public class GameHud
         }
         else if (player.IsCarryingMachine)
         {
+            bool carryingHarvester = player.CarriedMachineType == MachineType.Harvester;
             if (world.TankBases.CheckBaseCollision(player.Position) != null)
             {
-                hint = "Carrying relay - leave the base to plant it";
+                hint = carryingHarvester ? "Carrying harvester - leave the base to plant it" : "Carrying relay - leave the base to plant it";
                 hintColor = TextInfo;
+            }
+            else if (carryingHarvester)
+            {
+                hint = "R: plant harvester here - it digs nearby dirt and heats the ground";
+                hintColor = TextGood;
             }
             else
             {
@@ -797,6 +803,8 @@ public class GameHud
             hint = fromBaseStore
                 ? $"E: build relay from the base store ({Tweaks.Machine.RelayDirtCost} dirt)"
                 : $"E: build relay ({Tweaks.Machine.RelayDirtCost} dirt)";
+            if (dirt >= Tweaks.Machine.HarvesterDirtCost)
+                hint += $"   R: build harvester ({Tweaks.Machine.HarvesterDirtCost} dirt)";
             hintColor = TextGood;
         }
         else if (_dockedAtOwnBase && _hasLeftBase && player.HeatBudget < Tank.HeatBudgetCapacity - 1f)

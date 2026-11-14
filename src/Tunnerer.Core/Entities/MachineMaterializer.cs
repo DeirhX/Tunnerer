@@ -16,6 +16,9 @@ public class MachineMaterializer
 
     public bool IsCarrying => _carrying != null;
 
+    /// <summary>Type of the machine in hand, or null when nothing is carried.</summary>
+    public MachineType? CarriedType => _carrying?.Type;
+
     public void TryBuild(MachineType type, Position position, MaterialContainer resources, MachineList machineList)
     {
         if (_carrying != null) return;

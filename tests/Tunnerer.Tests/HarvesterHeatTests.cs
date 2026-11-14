@@ -129,4 +129,29 @@ public class HarvesterHeatTests
         Assert.True(harvester.IsStalled, "a harvester on very hot ground should be stalled");
         Assert.Contains(states.Take(count), m => m.Type == MachineType.Harvester && m.IsStalled);
     }
+
+    [Fact]
+    public void SecondaryBuildKey_BuildsCarriesAndPlantsAHarvester()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        s.Tank.Resources.Add(new Tunnerer.Core.Resources.MaterialAmount(Tweaks.Machine.HarvesterDirtCost + 50, 0));
+        s.Tank.Position = s.RelayPos;
+        var world = s.World;
+        int dirtBefore = s.Tank.Resources.Current.Dirt;
+
+        void Press(bool down) => world.Advance(i => i == 0 ? new Tunnerer.Core.Input.ControllerOutput { BuildSecondary = down } : default);
+
+        Press(true);
+        Assert.True(s.Tank.IsCarryingMachine);
+        Assert.Equal(MachineType.Harvester, s.Tank.CarriedMachineType);
+        Assert.Equal(dirtBefore - Tweaks.Machine.HarvesterDirtCost, s.Tank.Resources.Current.Dirt);
+
+        Press(false);
+        Press(true); // a fresh press plants it where the tank stands
+
+        Assert.False(s.Tank.IsCarryingMachine);
+        var harvester = world.Machines.Machines.Single(m => m.Type == MachineType.Harvester);
+        Assert.Equal(MachineState.Planted, harvester.State);
+        Assert.Same(s.Base, harvester.OwnerBase);
+    }
 }
