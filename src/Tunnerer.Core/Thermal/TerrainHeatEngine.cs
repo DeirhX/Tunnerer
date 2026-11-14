@@ -464,8 +464,35 @@ public sealed class TerrainHeatEngine
         }
     }
 
+    private const int MaterialCount = 5; // Air, Dirt, Stone, Base, ConstantEnergy
+
+    private static readonly float[] s_heatCapacity = BuildHeatCapacityTable();
+    private static readonly float[] s_conductance = BuildConductanceTable();
+
+    private static float[] BuildHeatCapacityTable()
+    {
+        var table = new float[MaterialCount];
+        for (int m = 0; m < MaterialCount; m++)
+            table[m] = ComputeHeatCapacity((ThermalMaterial)m);
+        return table;
+    }
+
+    private static float[] BuildConductanceTable()
+    {
+        var table = new float[MaterialCount * MaterialCount];
+        for (int a = 0; a < MaterialCount; a++)
+            for (int b = 0; b < MaterialCount; b++)
+                table[a * MaterialCount + b] = ComputeConductance((ThermalMaterial)a, (ThermalMaterial)b);
+        return table;
+    }
+
     /// <summary>Heat capacity of the terrain field of a cell made of <paramref name="material"/>.</summary>
-    public static float GetHeatCapacity(ThermalMaterial material) => material switch
+    public static float GetHeatCapacity(ThermalMaterial material) => s_heatCapacity[(int)material];
+
+    private static float GetConductance(ThermalMaterial a, ThermalMaterial b)
+        => s_conductance[(int)a * MaterialCount + (int)b];
+
+    private static float ComputeHeatCapacity(ThermalMaterial material) => material switch
     {
         ThermalMaterial.Air => Tweaks.World.ThermalCapacityAir,
         ThermalMaterial.Dirt => Tweaks.World.ThermalCapacityDirt,
@@ -474,7 +501,7 @@ public sealed class TerrainHeatEngine
         _ => Tweaks.World.ThermalCapacityBase,
     };
 
-    private static float GetConductance(ThermalMaterial a, ThermalMaterial b)
+    private static float ComputeConductance(ThermalMaterial a, ThermalMaterial b)
     {
         if (a > b) (a, b) = (b, a);
         return (a, b) switch

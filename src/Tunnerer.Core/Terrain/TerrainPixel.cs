@@ -59,6 +59,7 @@ public readonly record struct TerrainBehavior(
 public static class Pixel
 {
     private static readonly TerrainBehavior[] _behaviors = BuildBehaviorTable();
+    private static readonly ThermalMaterial[] _thermalMaterials = BuildThermalMaterialTable();
 
     private static readonly Color MagentaFallback = new(0xff, 0x00, 0xff);
 
@@ -147,7 +148,18 @@ public static class Pixel
     public static bool IsEnergy(TerrainPixel p) => _behaviors[(int)p].Energy;
     public static bool IsEmpty(TerrainPixel p) => p == TerrainPixel.Blank;
 
-    public static ThermalMaterial GetThermalMaterial(TerrainPixel p)
+    /// <summary>Hot path of the thermal solver: a plain array lookup instead of re-deriving the material.</summary>
+    public static ThermalMaterial GetThermalMaterial(TerrainPixel p) => _thermalMaterials[(int)p];
+
+    private static ThermalMaterial[] BuildThermalMaterialTable()
+    {
+        var table = new ThermalMaterial[256];
+        for (int i = 0; i < table.Length; i++)
+            table[i] = DeriveThermalMaterial((TerrainPixel)i);
+        return table;
+    }
+
+    private static ThermalMaterial DeriveThermalMaterial(TerrainPixel p)
     {
         var b = _behaviors[(int)p];
         if (p == TerrainPixel.BaseBarrier) return ThermalMaterial.Base;
