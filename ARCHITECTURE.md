@@ -13,10 +13,12 @@ Tunnerer.slnx
 src/
   Tunnerer.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
     ARCHITECTURE.md        Detailed design
-  Tunnerer.Desktop/        SDL2 window, input and sound, DX11 renderer, ImGui HUD, game loop.
+  Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
 tests/
-  Tunnerer.Tests/          xUnit tests for Core
+  Tunnerer.Tests/          xUnit tests for Core, plus source rules for the renderers
+tools/
+  Tunnerer.ShaderCompiler/ Build step: compiles the HLSL to DXIL, SPIR-V and MSL for SDL_GPU
 ```
 
 ## Design principles
@@ -90,11 +92,11 @@ compositePixels[w*h]                  terrain aux data (heat, SDF, material, sco
    |                                     |
    +------------- IGameRenderBackend.UploadGamePixels -------------+
                          |
-              DX11 terrain + post-process shaders  ->  game texture
+              terrain + post-process shaders (SDL_GPU)  ->  game texture
                          |
               entity layer: tank and projectile quads (EntityLayerBuilder -> EntityPs)
                          |
-              ImGui: viewport image, HUD, overlays  ->  swap chain
+              ImGui: viewport image, HUD, overlays  ->  window
 ```
 
 The composite buffer keeps entity drawing from corrupting the terrain surface. It holds only the cell-resolution

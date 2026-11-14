@@ -1,6 +1,6 @@
 namespace Tunnerer.Desktop;
 
-using Silk.NET.SDL;
+using static SDL3.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Input;
@@ -12,6 +12,7 @@ using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Desktop.Rendering.SdlGpu;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -62,7 +63,6 @@ public partial class Game : IDisposable
         Size? terrainSizeOverride = null,
         LevelGenMode genMode = LevelGenMode.Deterministic,
         PerfCaptureOptions? perfCapture = null,
-        RenderBackendKind? renderBackendOverride = null,
         bool enableAiTanks = true,
         bool terrainTestMode = false)
     {
@@ -74,22 +74,19 @@ public partial class Game : IDisposable
             string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
         Seed = ResolveSeed(_automatedRun, terrainTestMode);
         var windowSize = DesktopScreenTweaks.WindowSize;
-        RenderBackendKind selectedBackend = renderBackendOverride ?? DesktopTweaks.DefaultRenderBackend;
         bool deterministicSimulation = genMode == LevelGenMode.Deterministic;
         bool parallel = genMode == LevelGenMode.Optimized;
         _perfSession = PerfCaptureSession.Create(perfCapture);
 
         _renderer = new SdlRenderer(Tweaks.System.WindowTitle + (terrainTestMode ? " [Terrain Test]" : ""), windowSize);
 
-        var renderServices = RenderBackendFactory.CreateServices(
-            selectedBackend, _renderer.Sdl, _renderer.NativeWindow);
-        _renderBackend = renderServices.Backend;
-        _textures = renderServices.Textures;
-        Console.WriteLine($"[Render] Backend={selectedBackend}");
+        var sdlGpuBackend = new SdlGpuBackend(_renderer.NativeWindow);
+        _renderBackend = sdlGpuBackend;
+        _textures = new SdlGpuTextureLoader(sdlGpuBackend);
         _hud = new GameHud();
         LoadHudSprites();
         // Automated runs (and the terrain test, which has no match) make no sound.
-        _audio = GameAudio.Create(_renderer.Sdl, _automatedRun || terrainTestMode);
+        _audio = GameAudio.Create(_automatedRun || terrainTestMode);
 
         if (terrainTestMode)
         {
@@ -145,12 +142,12 @@ public partial class Game : IDisposable
         else
             _world.Terrain.DrawAllToSurface(_worldPixels);
 
-        _p1Controller = new KeyboardController(_renderer.Sdl, new KeyBindings(
-            Left: Scancode.ScancodeA, Right: Scancode.ScancodeD,
-            Up: Scancode.ScancodeW, Down: Scancode.ScancodeS,
-            Shoot: Scancode.ScancodeSpace,
-            Build: Scancode.ScancodeE,
-            BuildHarvester: Scancode.ScancodeR));
+        _p1Controller = new KeyboardController(new KeyBindings(
+            Left: Scancode.A, Right: Scancode.D,
+            Up: Scancode.W, Down: Scancode.S,
+            Shoot: Scancode.Space,
+            Build: Scancode.E,
+            BuildHarvester: Scancode.R));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         if (!terrainTestMode)
         {

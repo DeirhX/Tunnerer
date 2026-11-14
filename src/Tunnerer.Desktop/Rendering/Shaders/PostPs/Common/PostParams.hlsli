@@ -6,9 +6,11 @@
 // Included by both PostPs and TerrainPs shaders to prevent layout drift.
 // ============================================================================
 
+#include "Registers.hlsli"
+
 static const float kPostParamsLayoutVersion = 3.0;
 
-cbuffer PostParams : register(b0)
+cbuffer PostParams : FRAGMENT_UNIFORMS(0)
 {
     // ---- Screen / world geometry ------------------------------------------
     float2 TexelSize;               // 1 / render-target resolution (in UV)

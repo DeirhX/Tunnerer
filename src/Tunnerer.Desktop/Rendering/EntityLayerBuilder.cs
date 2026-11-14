@@ -7,7 +7,7 @@ using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Types;
 
-/// <summary>One corner of an entity quad. Layout must match VSIn in EntityVs.hlsl and the DX11 input layout.</summary>
+/// <summary>One corner of an entity quad. Layout must match VSIn in EntityVs.hlsl and the SDL_GPU vertex attributes in SdlGpuBackend.</summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct EntityVertex
 {

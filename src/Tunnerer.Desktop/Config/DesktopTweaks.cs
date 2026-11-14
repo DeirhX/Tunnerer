@@ -3,16 +3,6 @@ namespace Tunnerer.Desktop.Config;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 
-public enum RenderBackendKind
-{
-    Dx11 = 0,
-}
-
-public static class DesktopTweaks
-{
-    public const RenderBackendKind DefaultRenderBackend = RenderBackendKind.Dx11;
-}
-
 /// <summary>Launch options for a match that come from the command line.</summary>
 public static class GameLaunchOptions
 {

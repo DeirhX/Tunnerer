@@ -1,6 +1,5 @@
 namespace Tunnerer.Desktop.Audio;
 
-using Silk.NET.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
@@ -72,7 +71,7 @@ public sealed class GameAudio : IDisposable
     /// <summary>False when this run makes no sound at all (automated runs, or no sound device).</summary>
     public bool Enabled => _mixer is not null;
 
-    private GameAudio(Sdl sdl, bool automatedRun)
+    private GameAudio(bool automatedRun)
     {
         _capturePath = AudioOptions.CapturePath;
         if (_capturePath is null && automatedRun)
@@ -84,7 +83,7 @@ public sealed class GameAudio : IDisposable
         var mixer = new SoundMixer(AudioOptions.Volume, AudioOptions.Muted);
         if (_capturePath is null)
         {
-            _device = SdlAudioOutput.TryOpen(sdl, mixer);
+            _device = SdlAudioOutput.TryOpen(mixer);
             if (_device is null)
                 return;
             Console.WriteLine($"[Audio] On, volume {VolumePercent}%{(AudioOptions.Muted ? " (muted)" : "")}.");
@@ -107,7 +106,7 @@ public sealed class GameAudio : IDisposable
         _rechargeLoop = mixer.AddLoop(_bank[SoundEffect.RechargeLoop]);
     }
 
-    public static GameAudio Create(Sdl sdl, bool automatedRun) => new(sdl, automatedRun);
+    public static GameAudio Create(bool automatedRun) => new(automatedRun);
 
     private static int VolumePercent => (int)MathF.Round(AudioOptions.Volume * 100f);
 

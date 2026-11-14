@@ -33,7 +33,6 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
           --dump-sounds=DIR   Write every sound effect to a WAV file in DIR, print its levels, and exit.
           --terrain-test      Static terrain test patterns instead of a match.
           --perf              Capture frame times and exit (--perf-warmup=N --perf-frames=N --perf-csv=PATH).
-          --backend=dx11      Render backend.
 
         In game: W A S D drive and dig, mouse aims, left click or Space fires, E builds a relay,
         M mutes the sound, F1 shows the controls, Esc pauses.
@@ -48,7 +47,6 @@ bool terrainTestMode = false;
 int perfWarmupFrames = 180;
 int perfMeasureFrames = 900;
 string? perfCsvPath = null;
-RenderBackendKind? renderBackend = null;
 bool enableAiTanks = true;
 int? displayIndex = DesktopDisplayOptions.Parse(Environment.GetEnvironmentVariable("TUNNERER_DISPLAY"));
 Size? windowedSize = DesktopDisplayOptions.ParseWindowed(Environment.GetEnvironmentVariable("TUNNERER_WINDOWED"));
@@ -78,14 +76,6 @@ foreach (var arg in args)
         var parts = arg[7..].Split('x');
         if (parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h))
             terrainSize = new Size(w, h);
-    }
-    else if (arg.StartsWith("--backend="))
-    {
-        var backendRaw = arg[10..].Trim();
-        if (backendRaw.Equals("dx11", StringComparison.OrdinalIgnoreCase))
-            renderBackend = RenderBackendKind.Dx11;
-        else
-            Console.WriteLine($"[Args] Unknown backend '{backendRaw}', expected dx11. Using default.");
     }
     else if (arg == "--windowed" || arg.StartsWith("--windowed="))
     {
@@ -156,7 +146,7 @@ var mode = fastGen ? LevelGenMode.Optimized : LevelGenMode.Deterministic;
 Tunnerer.Desktop.PerfCaptureOptions? perfOptions = perfMode
     ? new Tunnerer.Desktop.PerfCaptureOptions(perfWarmupFrames, perfMeasureFrames, perfCsvPath)
     : null;
-var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, renderBackend, enableAiTanks,
+var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, enableAiTanks,
     terrainTestMode: terrainTestMode);
 game.Run();
 

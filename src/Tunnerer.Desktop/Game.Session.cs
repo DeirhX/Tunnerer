@@ -1,6 +1,6 @@
 namespace Tunnerer.Desktop;
 
-using Silk.NET.SDL;
+using static SDL3.SDL;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Input;
@@ -10,9 +10,6 @@ using Tunnerer.Desktop.Input;
 /// </summary>
 public partial class Game
 {
-    // SDL_WINDOWEVENT_FOCUS_LOST
-    private const byte SdlWindowEventFocusLost = 13;
-
     private readonly SessionOverlay _sessionOverlay = new();
     private bool _automatedRun;
     private bool _paused;
@@ -67,23 +64,23 @@ public partial class Game
     /// </summary>
     private bool HandleSessionEvent(Event ev)
     {
-        if (ev.Type == (uint)EventType.Windowevent)
+        if (ev.Type == (uint)EventType.WindowFocusLost)
         {
-            if (ev.Window.Event == SdlWindowEventFocusLost && IsInteractiveSession)
+            if (IsInteractiveSession)
                 _paused = true;
             return false;
         }
 
-        if (ev.Type != (uint)EventType.Keydown)
+        if (ev.Type != (uint)EventType.KeyDown)
             return false;
 
-        Scancode scancode = (Scancode)ev.Key.Keysym.Scancode;
-        bool isRepeat = ev.Key.Repeat != 0;
+        Scancode scancode = ev.Key.Scancode;
+        bool isRepeat = ev.Key.Repeat;
 
         if (!IsInteractiveSession)
         {
             // Automated and terrain-test runs keep the old behaviour: Escape closes the game at once.
-            if (scancode == Scancode.ScancodeEscape)
+            if (scancode == Scancode.Escape)
             {
                 _isRunning = false;
                 return true;
@@ -93,7 +90,7 @@ public partial class Game
 
         switch (scancode)
         {
-            case Scancode.ScancodeEscape:
+            case Scancode.Escape:
                 if (isRepeat)
                     return true;
                 if (_showControls)
@@ -101,25 +98,25 @@ public partial class Game
                 else
                     _paused = !_paused;
                 return true;
-            case Scancode.ScancodeP:
+            case Scancode.P:
                 if (!isRepeat)
                     HandleSessionCommand(GameCommand.TogglePause);
                 return true;
-            case Scancode.ScancodeF1:
+            case Scancode.F1:
                 if (!isRepeat)
                     HandleSessionCommand(GameCommand.ToggleControls);
                 return true;
-            case Scancode.ScancodeM:
+            case Scancode.M:
                 if (!isRepeat)
                     _audio.ToggleMute();
                 return true;
-            case Scancode.ScancodeMinus:
+            case Scancode.Minus:
                 _audio.AdjustVolume(-0.05f);
                 return true;
-            case Scancode.ScancodeEquals:
+            case Scancode.Equals:
                 _audio.AdjustVolume(0.05f);
                 return true;
-            case Scancode.ScancodeQ when _paused && !_showControls:
+            case Scancode.Q when _paused && !_showControls:
                 _isRunning = false;
                 return true;
             default:

@@ -4,15 +4,19 @@ A 2D tunnelling tank game. You dig through the ground, fight an enemy tank, and 
 heat your tank and the rock around it, your base is the heat sink, and relays pipe heat back to the base.
 
 Written in C# on .NET 10. The simulation (`Tunnerer.Core`) has no platform dependencies; the desktop client
-(`Tunnerer.Desktop`) uses SDL2 for the window, input and sound, Direct3D 11 for rendering and Dear ImGui for the
+(`Tunnerer.Desktop`) uses SDL3 for the window, input and sound, SDL_GPU for rendering and Dear ImGui for the
 HUD. The sound effects are synthesised in code when the game starts; there are no sound files.
 
 ## Requirements
 
-- Windows 10 or later with a Direct3D 11 GPU
 - .NET 10 SDK
-- `fxc.exe` from the Windows SDK, to compile the HLSL shaders at build time. The project looks for Windows SDK
-  10.0.26100.0 and otherwise for `fxc.exe` on `PATH`; pass `-p:Dx11ShaderCompiler=<path>` to point at another copy.
+- Windows 10 or later, or macOS (tested on Apple silicon). Linux should work but is untested.
+Everything comes from NuGet, including the shader compiler (SDL_shadercross).
+
+### Renderer
+
+Rendering goes through SDL_GPU: Metal on macOS, Direct3D 12 or Vulkan on Windows, Vulkan on Linux. The HLSL in
+`src/Tunnerer.Desktop/Rendering/Shaders` is compiled to DXIL, SPIR-V and MSL at build time.
 
 ## Build, run, test
 
@@ -77,6 +81,8 @@ frames keep counting while it is paused, so later commands and screenshots still
 | `TUNNERER_SCRIPT_SCREENSHOT_FRAMES` | Simulation frames at which to save a final-frame screenshot |
 | `TUNNERER_RECORD_INPUT_PATH`, `TUNNERER_RECORD_INPUT_AUTOSTART` | Where to save a recording, and whether to start recording at once |
 | `TUNNERER_DISPLAY`, `TUNNERER_WINDOWED`, `TUNNERER_HIDDEN` | Same as the command-line options |
+| `TUNNERER_SCREENSHOT_DIR` | Where screenshots go (default `screenshots/` next to the executable) |
+| `TUNNERER_GPU_DEBUG` | `1` turns on SDL_GPU's validation layer |
 | `TUNNERER_AUDIO_CAPTURE` | Path of a WAV file to write the game's sound to, one simulation step of sound per step, instead of playing it. Works in automated runs (which are otherwise silent), logs every effect as `[Audio] step N ...`, and rewrites the file every two seconds of game time, so a run that is killed still leaves it |
 | `TUNNERER_AUDIO_LOG` | `1` logs every effect as it starts in a normal game too |
 | `TUNNERER_INTERPOLATE` | `1` displays frames between simulation steps in an automated run too (a normal game always does); screenshots are then no longer tied to an exact step |
@@ -85,8 +91,9 @@ frames keep counting while it is paused, so later commands and screenshots still
 
 ```
 src/Tunnerer.Core          simulation: terrain, heat, tanks, projectiles, machines, links, level generation, bot AI
-src/Tunnerer.Desktop       window, input, DX11 renderer, HUD, sound, game loop
-tests/Tunnerer.Tests       xUnit tests for Core
+src/Tunnerer.Desktop       window, input, renderer (SDL_GPU), HUD, sound, game loop
+tests/Tunnerer.Tests       xUnit tests for Core, plus source rules for the renderers
+tools/Tunnerer.ShaderCompiler  build step: HLSL to DXIL, SPIR-V and MSL for SDL_GPU
 ```
 
 See `ARCHITECTURE.md` for how the pieces fit, and `src/*/ARCHITECTURE.md` for detail.
