@@ -55,9 +55,6 @@ public sealed class GameCommandController
             case Scancode.Alpha1:
                 command = GameCommand.TogglePostVignette;
                 return true;
-            case Scancode.Alpha2:
-                command = GameCommand.TogglePostTerrainCurve;
-                return true;
             case Scancode.Alpha3:
                 command = GameCommand.TogglePostTerrainAux;
                 return true;
@@ -104,9 +101,6 @@ public sealed class GameCommandController
                 return;
             case GameCommand.TogglePostVignette:
                 TogglePassWithLog(PostProcessPassFlags.Vignette, "Vignette", source);
-                return;
-            case GameCommand.TogglePostTerrainCurve:
-                TogglePassWithLog(PostProcessPassFlags.TerrainCurve, "Terrain curve", source);
                 return;
             case GameCommand.TogglePostTerrainAux:
                 TogglePassWithLog(PostProcessPassFlags.TerrainAux, "Terrain texture", source);

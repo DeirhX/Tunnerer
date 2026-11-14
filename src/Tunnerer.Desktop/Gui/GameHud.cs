@@ -822,8 +822,6 @@ public class GameHud
                 GameCommand.TogglePostNativeTerrainSmoothing, executeCommand);
             DrawToggleCheckbox("Edge Curving", passFlags, PostProcessPassFlags.NativeEdgeCurving,
                 GameCommand.TogglePostNativeEdgeCurving, executeCommand);
-            DrawToggleCheckbox("Terrain Curve (Post)", passFlags, PostProcessPassFlags.TerrainCurve,
-                GameCommand.TogglePostTerrainCurve, executeCommand);
             DrawToggleCheckbox("Material Textures", passFlags, PostProcessPassFlags.TerrainAux,
                 GameCommand.TogglePostTerrainAux, executeCommand);
             DrawToggleCheckbox("Vignette", passFlags, PostProcessPassFlags.Vignette,
@@ -1063,7 +1061,6 @@ public class GameHud
             ImGui.TextUnformatted("Post Passes");
             ImGui.Separator();
             DrawPassStatusLine(passFlags, PostProcessPassFlags.Vignette, "1 Vignette");
-            DrawPassStatusLine(passFlags, PostProcessPassFlags.TerrainCurve, "2 TerrainCurve");
             DrawPassStatusLine(passFlags, PostProcessPassFlags.TerrainAux, "3 TerrainTex");
             DrawPassStatusLine(passFlags, PostProcessPassFlags.TankGlow, "4 TankGlow");
             DrawPassStatusLine(passFlags, PostProcessPassFlags.NativeTerrainSmoothing, "5 NativeSmoothing");

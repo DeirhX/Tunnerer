@@ -15,8 +15,6 @@ public readonly record struct ScreenConfig
     public int NativeContinuousSampleLow { get; init; }
     public int NativeContinuousSampleMedium { get; init; }
     public int NativeContinuousSampleHigh { get; init; }
-    public float NativeContinuousEdgeSoftness { get; init; }
-    public float NativeContinuousBoundaryBlend { get; init; }
     public float NativeContinuousRenderBudgetMs { get; init; }
     public int NativeContinuousBudgetHysteresisFrames { get; init; }
     public float NativeContinuousBudgetUnderThreshold { get; init; }
@@ -30,8 +28,6 @@ public readonly record struct ScreenConfig
         NativeContinuousSampleLow = Tweaks.Screen.NativeContinuousSampleLow,
         NativeContinuousSampleMedium = Tweaks.Screen.NativeContinuousSampleMedium,
         NativeContinuousSampleHigh = Tweaks.Screen.NativeContinuousSampleHigh,
-        NativeContinuousEdgeSoftness = Tweaks.Screen.NativeContinuousEdgeSoftness,
-        NativeContinuousBoundaryBlend = Tweaks.Screen.NativeContinuousBoundaryBlend,
         NativeContinuousRenderBudgetMs = Tweaks.Screen.NativeContinuousRenderBudgetMs,
         NativeContinuousBudgetHysteresisFrames = Tweaks.Screen.NativeContinuousBudgetHysteresisFrames,
         NativeContinuousBudgetUnderThreshold = Tweaks.Screen.NativeContinuousBudgetUnderThreshold,

@@ -88,7 +88,7 @@ TerrainGrid
    | DrawChangesToSurface (change list)
 worldPixels[w*h]
    | copy + draw entities (WorldCompositeRenderer)
-compositePixels[w*h]                  terrain aux data (heat, SDF, material, scorch), material coverage
+compositePixels[w*h]                  terrain aux data (heat, solid field, material, scorch), material coverage
    |                                     |
    +------------- IGameRenderBackend.UploadGamePixels -------------+
                          |
