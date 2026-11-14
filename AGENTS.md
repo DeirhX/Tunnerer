@@ -9,7 +9,7 @@ Run from the repository root.
 
 - Build: `dotnet build Tunnerer.slnx`
 - Test: `dotnet test Tunnerer.slnx` (about 20 seconds; run it before every commit)
-- Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS; add `--backend=sdlgpu` to try SDL_GPU on Windows)
+- Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)
 
 ## Layout
 

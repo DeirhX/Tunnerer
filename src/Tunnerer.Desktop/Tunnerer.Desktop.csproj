@@ -20,7 +20,7 @@
     <Content Include="resources\hud\**\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- Shader sources live in Rendering\Shaders and are . -->
+  <!-- Shader sources live in Rendering\Shaders; includes are inputs of the shader build step. -->
   <ItemGroup>
     <ShaderInclude Include="Rendering\Shaders\**\*.hlsli" />
   </ItemGroup>

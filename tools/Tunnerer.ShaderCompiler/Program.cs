@@ -7,8 +7,8 @@ using Tunnerer.ShaderCompiler;
 // Usage: Tunnerer.ShaderCompiler --out <dir> <file.hlsl>=<vertex|fragment> [...]
 //
 // For each HLSL file writes <name>.spv (Vulkan), <name>.dxil (Direct3D 12), <name>.msl (Metal) and <name>.json (the
-// resource counts and entry points SDL_CreateGPUShader needs). The HLSL entry point is always "main"; the source is
-// compiled with TUNNERER_SDL_GPU defined so Common/Registers.hlsli picks SDL_GPU's register spaces.
+// resource counts and entry points SDL_CreateGPUShader needs). The HLSL entry point is always "main"; resources are
+// declared in SDL_GPU's register spaces through the macros in PostPs/Common/Registers.hlsli.
 
 string? outDir = null;
 var shaders = new List<(string Path, ShaderCross.ShaderStage Stage)>();
@@ -69,7 +69,6 @@ static int Fail(string message)
 internal static unsafe partial class Compiler
 {
     private const string Entrypoint = "main";
-    private const string SdlGpuDefine = "TUNNERER_SDL_GPU";
 
     public static bool CompileOne(string path, ShaderCross.ShaderStage stage, string outDir, out string error)
     {
@@ -189,7 +188,7 @@ internal static unsafe partial class Compiler
     /// <summary>Holds the native strings for one HLSL compile so they stay alive across both compiles.</summary>
     private sealed class HlslInput : IDisposable
     {
-        private readonly nint _source, _entry, _includeDir, _defineName, _defineValue, _defines;
+        private readonly nint _source, _entry, _includeDir;
         public ShaderCross.HlslInfo Info;
 
         public HlslInput(string source, string includeDir, ShaderCross.ShaderStage stage)
@@ -197,20 +196,13 @@ internal static unsafe partial class Compiler
             _source = Marshal.StringToCoTaskMemUTF8(source);
             _entry = Marshal.StringToCoTaskMemUTF8(Entrypoint);
             _includeDir = Marshal.StringToCoTaskMemUTF8(includeDir);
-            _defineName = Marshal.StringToCoTaskMemUTF8(SdlGpuDefine);
-            _defineValue = Marshal.StringToCoTaskMemUTF8("1");
-            // A define array ends with a fully null entry.
-            _defines = Marshal.AllocCoTaskMem(sizeof(ShaderCross.HlslDefine) * 2);
-            var defines = (ShaderCross.HlslDefine*)_defines;
-            defines[0] = new ShaderCross.HlslDefine { Name = (byte*)_defineName, Value = (byte*)_defineValue };
-            defines[1] = default;
 
             Info = new ShaderCross.HlslInfo
             {
                 Source = (byte*)_source,
                 Entrypoint = (byte*)_entry,
                 IncludeDir = (byte*)_includeDir,
-                Defines = defines,
+                Defines = null,
                 ShaderStage = stage,
                 Props = 0,
             };
@@ -221,9 +213,6 @@ internal static unsafe partial class Compiler
             Marshal.FreeCoTaskMem(_source);
             Marshal.FreeCoTaskMem(_entry);
             Marshal.FreeCoTaskMem(_includeDir);
-            Marshal.FreeCoTaskMem(_defineName);
-            Marshal.FreeCoTaskMem(_defineValue);
-            Marshal.FreeCoTaskMem(_defines);
         }
     }
 }
