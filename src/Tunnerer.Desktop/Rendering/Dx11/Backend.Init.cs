@@ -180,7 +180,7 @@ public sealed unsafe partial class Backend
             return false;
         _postParamsBuffer = cb;
 
-        return true;
+        return CreateEntityPipeline();
     }
 
     private bool EnsureSwapChainSize()

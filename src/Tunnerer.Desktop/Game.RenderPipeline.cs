@@ -11,22 +11,35 @@ using System.Diagnostics;
 
 public partial class Game
 {
-    private void RenderImGuiFrame(IReadOnlyList<Core.Entities.Tank> tanks, in FrameInputSnapshot frameInput)
+    /// <param name="stepProgress">
+    /// Where this frame lies between the previous simulation step (0) and the latest (1); moving entities and the
+    /// camera are drawn at that point.
+    /// </param>
+    private void RenderImGuiFrame(
+        IReadOnlyList<Core.Entities.Tank> tanks, in FrameInputSnapshot frameInput, float stepProgress)
     {
         var (winW, winH) = _renderer.GetWindowSize();
-        float dt = 1f / Tweaks.Perf.TargetFps;
+        float dt = _interpolateFrames
+            ? Math.Clamp((float)_renderClock.Elapsed.TotalSeconds, 0.001f, 0.1f)
+            : 1f / Tweaks.Perf.TargetFps;
+        _renderClock.Restart();
         int scale = DesktopScreenTweaks.PixelScale;
         bool uiViewport = _renderBackend.SupportsUi && !_terrainTestMode;
         var viewSize = _renderViewState.ComputeViewSize(winW, winH, uiViewport);
         _renderViewState.EnsureHiResBuffer(viewSize);
 
         var player = tanks.Count > 0 ? tanks[0] : null;
-        _renderViewState.UpdateCamera(player, _terrainSize, viewSize.X, viewSize.Y, scale);
+        ReadOnlySpan<PositionF> drawnTankPositions = _entityLayer.InterpolateTankPositions(stepProgress);
+        _renderViewState.UpdateCamera(
+            drawnTankPositions.Length > 0 ? drawnTankPositions[0] : null, _terrainSize, viewSize.X, viewSize.Y, scale);
         var renderView = new RenderView(
             ViewSize: _renderViewState.HiResSize,
             WorldSize: _terrainSize,
             CameraPixels: new Position(_renderViewState.CamPixelX, _renderViewState.CamPixelY),
             PixelScale: scale);
+        _entityLayer.Build(renderView, stepProgress, turnSeconds: _interpolateFrames ? dt : 0f);
+        bool steppedSinceRender = _steppedSinceRender;
+        _steppedSinceRender = false;
 
         ProfileSection(ref _drawProfile.ScreenDraw, () =>
         {
@@ -49,7 +62,9 @@ public partial class Game
             {
                 Rect? terrainDirtyRect = RenderViewState.ClampToViewport(
                     RenderViewState.TryGetDirtyCellBounds(_terrainDirtyCells), visibleRect);
-                bool includeHeatAux = (_heatAuxFrameCounter++ % DesktopScreenTweaks.HeatAuxUpdateIntervalFrames) == 0;
+                // Heat only changes on simulation steps; in-between frames have nothing new to pack.
+                bool includeHeatAux = steppedSinceRender &&
+                    (_heatAuxFrameCounter++ % DesktopScreenTweaks.HeatAuxUpdateIntervalFrames) == 0;
                 Rect? heatDirtyRect = includeHeatAux && _world.Terrain.TryGetHeatDirtyRect(out Rect dirtyRect)
                     ? RenderViewState.ClampToViewport(dirtyRect, visibleRect)
                     : null;
@@ -93,7 +108,7 @@ public partial class Game
             int tankHeatGlowCount = 0;
             ProfileSection(ref _drawProfile.ScreenTankGlowBuild, () =>
                 tankHeatGlowCount = _terrainAuxBuilder.BuildGpuTankHeatGlowData(
-                    _world.TankList.Tanks, renderView, _gpuTankHeatGlow));
+                    _world.TankList.Tanks, _entityLayer.InterpolateTankPositions(stepProgress), renderView, _gpuTankHeatGlow));
 
             _drawProfile.ScreenHiResEntities += hiResWatch.Elapsed;
 
@@ -117,9 +132,14 @@ public partial class Game
                 NativeContinuous: new NativeContinuousUpload(
                     Enabled: true,
                     SourcePixels: _compositePixels,
-                    SampleCount: _renderViewState.NativeContinuousSampleCount));
+                    SourceChanged: _compositeChanged,
+                    SampleCount: _renderViewState.NativeContinuousSampleCount),
+                Entities: new EntityLayerUpload(
+                    Vertices: _entityLayer.Vertices,
+                    VertexCount: _entityLayer.VertexCount));
             ProfileSection(ref _drawProfile.ScreenBackendUpload, () =>
                 _renderBackend.UploadGamePixels(upload));
+            _compositeChanged = false;
             if (consumeHeatDirty)
                 _world.Terrain.ClearHeatDirtyRect();
             _gpuAuxFullUploadPending = false;

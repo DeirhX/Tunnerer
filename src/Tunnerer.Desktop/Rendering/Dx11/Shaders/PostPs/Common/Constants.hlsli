@@ -28,10 +28,12 @@ float2 TexelOffsetY()
 // ---- Terrain material code (auxTex.b channel) -----------------------------
 // CPU writes the code as a byte in a normalized channel. Codes are categorical:
 // only ever read them with Load (nearest cell) and compare exactly; never
-// interpolate. Natural materials (dirt/stone/concrete/gold) are not told apart
+// interpolate. Natural materials (dirt/stone/concrete) are not told apart
 // here but by coverageTex; their code (100) just means "natural solid".
+// Gold has its own code so its veins can be drawn from the exact cells.
 // Must match TerrainAuxBuilder.
 static const float kMaterialCodeScale = 255.0;
+static const int kMaterialCodeGold = 110;
 static const int kMaterialCodeBaseFloor = 20;
 static const int kMaterialCodeBaseDoor = 30;
 static const int kMaterialCodeBaseWallMin = 40;   // wall code = 40 + owner colour index
@@ -50,6 +52,10 @@ bool IsBaseCode(int code)      { return IsBaseWallCode(code) || IsBaseFloorCode(
 // ---- Natural material selection from coverageTex ---------------------------
 static const float kMaterialMaskMinWidth = 0.01;      // minimum smoothstep half-width on coverage differences
 static const float kMaterialMaskFwidthScale = 0.75;   // anti-aliasing width relative to screen-space change
+
+// ---- Gold veins -------------------------------------------------------------
+static const float kGoldVeinFalloff = 1.39;           // 1 / (2 * 0.6^2): blob width around each gold cell centre
+static const float kGoldVeinIso = 0.75;               // field value at the edge of the band
 
 // ---- Stone / dirt boundary depth -------------------------------------------
 static const float kStoneContactShadowCells = 1.10;   // dirt-side shadow reach (cells; 6 screen px per cell)

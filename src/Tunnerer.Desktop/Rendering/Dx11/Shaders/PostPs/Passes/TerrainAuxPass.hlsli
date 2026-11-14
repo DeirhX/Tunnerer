@@ -10,7 +10,7 @@
 //   1. SDF edge shading — Sobel gradient of auxTex.g produces edge strength
 //      and boundary proximity. Solid terrain gets a brightness lift and rim
 //      highlight near the cave/solid boundary.
-//   2. Material classification — natural materials (stone, concrete, gold,
+//   2. Material classification — natural materials (stone, concrete,
 //      dirt) are chosen from the blurred coverage texture (coverageTex), never
 //      from interpolated material codes: each material wins where its coverage
 //      beats the best other one, with an anti-aliased edge. Stone/dirt edges
@@ -196,27 +196,46 @@ void ApplyTerrainHeatAndScorch(
 // ----------------------------------------------------------------------------
 // Natural material selection
 // ----------------------------------------------------------------------------
-// Coverage c (stone, concrete, gold, dirt). For each material the signed margin
-// d = c_i - max(other three) is positive where it dominates; a smoothstep of
+// Coverage c (stone, concrete, dirt). For each material the signed margin
+// d = c_i - max(other two) is positive where it dominates; a smoothstep of
 // d with a screen-space width gives an anti-aliased, smooth-curved boundary.
 // Masks are normalised to sum to 1.
 
-float4 CoverageMargins(float4 c)
+float3 CoverageMargins(float3 c)
 {
-    return float4(
-        c.x - max(c.y, max(c.z, c.w)),
-        c.y - max(c.x, max(c.z, c.w)),
-        c.z - max(c.x, max(c.y, c.w)),
-        c.w - max(c.x, max(c.y, c.z)));
+    return float3(
+        c.x - max(c.y, c.z),
+        c.y - max(c.x, c.z),
+        c.z - max(c.x, c.y));
 }
 
-float4 NaturalMaterialMasks(float4 coverage)
+float3 NaturalMaterialMasks(float3 coverage)
 {
-    float4 d = CoverageMargins(coverage);
-    float4 w = max(fwidth(d) * kMaterialMaskFwidthScale, kMaterialMaskMinWidth);
-    float4 m = smoothstep(-w, w, d);
-    float total = m.x + m.y + m.z + m.w;
-    return total > 1e-4 ? m / total : float4(0.0, 0.0, 0.0, 0.0);
+    float3 d = CoverageMargins(coverage);
+    float3 w = max(fwidth(d) * kMaterialMaskFwidthScale, kMaterialMaskMinWidth);
+    float3 m = smoothstep(-w, w, d);
+    float total = m.x + m.y + m.z;
+    return total > 1e-4 ? m / total : float3(0.0, 0.0, 0.0);
+}
+
+// Gold veins are one cell wide and wander diagonally, so they are drawn from
+// the exact gold cells rather than from a blurred field: a sum of Gaussian
+// blobs at the gold cell centres of the 3x3 neighbourhood. Its kGoldVeinIso
+// isoline is a band about one cell wide that stays connected across diagonal steps.
+float GoldVeinField(float2 worldCell, int2 cell, int2 cellMax)
+{
+    float field = 0.0;
+    for (int oy = -1; oy <= 1; oy++)
+    {
+        for (int ox = -1; ox <= 1; ox++)
+        {
+            int2 c = clamp(cell + int2(ox, oy), int2(0, 0), cellMax);
+            float isGold = DecodeMaterialCode(auxTex.Load(int3(c, 0)).b) == kMaterialCodeGold ? 1.0 : 0.0;
+            float2 d = worldCell - (float2(c) + 0.5);
+            field += isGold * exp(-dot(d, d) * kGoldVeinFalloff);
+        }
+    }
+    return field;
 }
 
 // Contact shadow on the dirt side and a bevel rim on the stone side of a
@@ -352,21 +371,21 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         // (nearest) code only decides where the base is. Base cells are drawn
         // with their own mask so the solid/cave gating cannot dim them.
         float contentMask = terrainFactor * solidSide * solidCore;
-        float4 coverage = coverageTex.Sample(s0, auxUv);
-        float4 margins = CoverageMargins(coverage);
-        float4 naturalMasks = NaturalMaterialMasks(coverage) * (contentMask * (1.0 - baseInfluence));
+        float3 coverage = coverageTex.Sample(s0, auxUv).rgb;
+        float3 margins = CoverageMargins(coverage);
+        float3 naturalMasks = NaturalMaterialMasks(coverage) * (contentMask * (1.0 - baseInfluence));
         float stoneMask = naturalMasks.x;
         float concreteMask = naturalMasks.y;
-        float goldMask = naturalMasks.z;
-        float dirtMask = naturalMasks.w;
-        float naturalTotal = stoneMask + concreteMask + goldMask + dirtMask;
+        float dirtMask = naturalMasks.z;
+        float naturalTotal = stoneMask + concreteMask + dirtMask;
+        float goldField = GoldVeinField(worldCell, auxCell, auxMax);
         float baseMask = terrainFactor * baseInfluence;
         // Stone margin gradient (per cell) for the stone/dirt depth cue.
         float2 stoneMarginGrad = 0.5 * float2(
-            CoverageMargins(coverageTex.Sample(s0, auxUv + float2(mTexel.x, 0.0))).x -
-            CoverageMargins(coverageTex.Sample(s0, auxUv - float2(mTexel.x, 0.0))).x,
-            CoverageMargins(coverageTex.Sample(s0, auxUv + float2(0.0, mTexel.y))).x -
-            CoverageMargins(coverageTex.Sample(s0, auxUv - float2(0.0, mTexel.y))).x);
+            CoverageMargins(coverageTex.Sample(s0, auxUv + float2(mTexel.x, 0.0)).rgb).x -
+            CoverageMargins(coverageTex.Sample(s0, auxUv - float2(mTexel.x, 0.0)).rgb).x,
+            CoverageMargins(coverageTex.Sample(s0, auxUv + float2(0.0, mTexel.y)).rgb).x -
+            CoverageMargins(coverageTex.Sample(s0, auxUv - float2(0.0, mTexel.y)).rgb).x);
 
         // ---- Procedural material overlays ---------------------------------
         // Each material is evaluated on the scene colour and the results are
@@ -387,12 +406,6 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
                 ApplyConcreteMaterial(c, worldCell, 1.0, lightDir);
                 blended += c * concreteMask;
             }
-            if (goldMask > 0.001)
-            {
-                float3 c = color;
-                ApplyGoldMaterial(c, worldCell, 1.0, lightDir);
-                blended += c * goldMask;
-            }
             if (dirtMask > 0.001)
             {
                 float3 c = color;
@@ -404,6 +417,10 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             // Depth at the stone/dirt boundary.
             ApplyStoneDirtDepth(color, stoneMarginGrad, margins.x, naturalTotal);
         }
+
+        // Gold is a pickup the tank drives through, so it stays visible whatever
+        // the cave/solid field says around it.
+        ApplyGoldVein(color, worldCell, goldField, terrainFactor * (1.0 - baseInfluence), lightDir);
 
         ApplyBaseMaterial(color, worldCell, auxCell, auxMax, materialCodeNearest, baseMask);
 

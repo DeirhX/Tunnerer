@@ -39,18 +39,27 @@ tests/
 ```
 while running:
   1. SdlRenderer.PollEvents            -> Game.HandleEvent (session keys, ImGui, debug hotkeys)
-  2. wait until a simulation step is due (sleeps instead of spinning)
+  2. wait until a simulation step or a display frame is due (sleeps instead of spinning)
   3. update camera / view state
   4. capture mouse state
   5. for each due step (at most 4 to catch up; none while paused):
        GameSimulationStepper.AdvanceOneStep
          scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
+       EntityLayerBuilder.CaptureStep    (tank and projectile snapshot for the entity layer)
        TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
-  6. WorldCompositeRenderer.Compose    links, machines, projectiles, sprites and tanks over a copy of the terrain
-  7. Game.RenderImGuiFrame             terrain aux data + pixels to the GPU, HUD and session overlay via ImGui
+  6. if a step was due: WorldCompositeRenderer.Compose   links, machines and marker sprites over a copy of the terrain
+  7. Game.RenderImGuiFrame             terrain data + entity quads to the GPU, HUD and session overlay via ImGui
 ```
 
-Rendering happens once per loop iteration that ran a step, so the frame rate equals the simulation rate.
+The simulation always advances in fixed steps. Display frames are not tied to them: the loop draws as often as
+the display allows (vsync, capped by `DesktopScreenTweaks.MaxRenderFps`) and passes each frame its *step
+progress*, the fraction of a step elapsed since the last one. `EntityLayerBuilder` draws tanks and projectiles
+at that point between the previous and the latest step, and the camera follows the interpolated player, so
+motion is smooth at the display rate while the terrain only changes on steps. The cost is that what is shown
+trails the simulation by up to one step.
+
+Automated runs are step-locked instead: one frame per step, showing exactly that step, so screenshots and timings
+are reproducible. `TUNNERER_INTERPOLATE=1` turns the in-between frames on for them.
 
 Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
 A run counts as *automated* when it is scripted, hidden, a perf capture or the terrain test; automated runs keep a
@@ -75,16 +84,19 @@ TerrainGrid
    | DrawChangesToSurface (change list)
 worldPixels[w*h]
    | copy + draw entities (WorldCompositeRenderer)
-compositePixels[w*h]                  terrain aux data (heat, SDF, material, scorch)
+compositePixels[w*h]                  terrain aux data (heat, SDF, material, scorch), material coverage
    |                                     |
    +------------- IGameRenderBackend.UploadGamePixels -------------+
                          |
               DX11 terrain + post-process shaders  ->  game texture
                          |
+              entity layer: tank and projectile quads (EntityLayerBuilder -> EntityPs)
+                         |
               ImGui: viewport image, HUD, overlays  ->  swap chain
 ```
 
-The composite buffer keeps entity drawing from corrupting the terrain surface. Shader passes and backend detail are
+The composite buffer keeps entity drawing from corrupting the terrain surface. It holds only the cell-resolution
+entities; tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
 in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 ## Tests

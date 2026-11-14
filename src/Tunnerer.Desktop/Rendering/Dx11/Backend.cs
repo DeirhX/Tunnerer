@@ -201,6 +201,7 @@ public sealed unsafe partial class Backend : IGameRenderBackend
         if (_nativeSourceSrv != null) { _nativeSourceSrv->Release(); _nativeSourceSrv = null; }
         _terrainAux.Release();
         _materialCoverage.Release();
+        ReleaseEntityPipeline();
         if (_fullscreenVs != null) { _fullscreenVs->Release(); _fullscreenVs = null; }
         if (_blitPs != null) { _blitPs->Release(); _blitPs = null; }
         if (_postPs != null) { _postPs->Release(); _postPs = null; }

@@ -16,7 +16,8 @@ public readonly record struct GamePixelsUpload(
     PostProcessUploadOptions PostProcess,
     TankGlowUpload TankGlow,
     TerrainAuxUpload TerrainAux,
-    NativeContinuousUpload NativeContinuous);
+    NativeContinuousUpload NativeContinuous,
+    EntityLayerUpload Entities);
 
 public readonly record struct PostProcessUploadOptions(
     HiResRenderQuality Quality,
@@ -38,10 +39,17 @@ public readonly record struct TerrainAuxUpload(
     byte[]? MaterialCoverage,
     Rect? MaterialCoverageDirtyRect);
 
+/// <param name="SourceChanged">False when <paramref name="SourcePixels"/> is the same image as the last upload.</param>
 public readonly record struct NativeContinuousUpload(
     bool Enabled,
     uint[]? SourcePixels,
+    bool SourceChanged,
     int SampleCount);
+
+/// <summary>Quads for the entity layer (tanks, projectiles), drawn over the finished terrain frame.</summary>
+public readonly record struct EntityLayerUpload(
+    EntityVertex[]? Vertices,
+    int VertexCount);
 
 public interface IGameRenderBackend : IDisposable
 {

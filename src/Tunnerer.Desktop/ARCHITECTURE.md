@@ -76,6 +76,8 @@ DX11 backend now has:
   - native continuous terrain PS
   - post-process PS
   - final blit PS
+- entity layer: `EntityVs` / `EntityPs`, a dynamic vertex buffer and a premultiplied-alpha blend state
+  (`Backend.Entities.cs`)
 - DX11 ImGui renderer/controller (`ImGuiController`)
 - DX11 texture manager for HUD sprites (returns `ID3D11ShaderResourceView*` encoded as `nint`)
 
@@ -98,6 +100,9 @@ DX11 implementation is split by responsibility:
 2. upload scene texture (`UpdateSubresource`) or native-source texture (native continuous mode)
 3. optional native continuous terrain pass into scene RTV
 4. run post-process pass into post RTV
+5. draw the entity layer into the post target: one quad per tank hull, turret and projectile, shaped by
+   signed-distance functions in `EntityPs.hlsl`. `EntityLayerBuilder` supplies the vertices, already interpolated
+   between the last two simulation steps.
 
 `Render`:
 

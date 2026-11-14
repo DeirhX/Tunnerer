@@ -15,7 +15,7 @@
 // Inputs:
 //   sceneTex (t0) — composited scene (terrain + entities)
 //   auxTex   (t1) — per-cell terrain data (.r = heat, .g = SDF, .b = exact material code, .a = scorch)
-//   coverageTex (t2) — per-cell blurred natural-material coverage (.r stone, .g concrete, .b gold, .a dirt)
+//   coverageTex (t2) — per-cell blurred natural-material coverage (.r stone, .g concrete, .b dirt)
 //
 // Terrain vs entity discrimination:
 //   sceneSample.a >= 1.0 → terrain pixel   (terrainFactor = 1)

@@ -4,8 +4,9 @@ using Tunnerer.Core.Terrain;
 
 /// <summary>
 /// Per-cell Gaussian-blurred material coverage for the GPU "material coverage" texture.
-/// Channels: R = stone (Rock, HotRock), G = concrete, B = gold, A = dirt (Dirt, DirtGrow).
-/// Each channel is sum(w * [cell is that material]) / sum(w * [cell is any of the four]) over non-base solid
+/// Channels: R = stone (Rock, HotRock, and Gold, which is a vein drawn over the rock it was cut from),
+/// G = concrete, B = dirt (Dirt, DirtGrow), A = unused.
+/// Each channel is sum(w * [cell is that material]) / sum(w * [cell is any of the three]) over non-base solid
 /// cells only, so the channels sum to 1 and caves, scorch and the base never bend a material boundary.
 /// The shader picks materials from these smooth fields instead of interpolating material ids.
 /// </summary>
@@ -22,7 +23,7 @@ public static class TerrainMaterialCoverage
     private const float ThinFeatureTarget = 0.56f;
 
     private const int GroupNone = -1;
-    private const int GroupCount = 4;
+    private const int GroupCount = 3;
 
     private static readonly float[] GaussKernel = BuildKernel();
     private static readonly sbyte[] GroupOf = BuildGroupTable();
@@ -44,13 +45,13 @@ public static class TerrainMaterialCoverage
         table[(int)TerrainPixel.Rock] = 0;
         table[(int)TerrainPixel.HotRock] = 0;
         table[(int)TerrainPixel.Concrete] = 1;
-        table[(int)TerrainPixel.Gold] = 2;
-        table[(int)TerrainPixel.Dirt] = 3;
-        table[(int)TerrainPixel.DirtGrow] = 3;
+        table[(int)TerrainPixel.Gold] = 0;
+        table[(int)TerrainPixel.Dirt] = 2;
+        table[(int)TerrainPixel.DirtGrow] = 2;
         return table;
     }
 
-    /// <summary>Writes the four coverage bytes for cell (cx, cy) at <paramref name="writeIndex"/>.</summary>
+    /// <summary>Writes the coverage bytes for cell (cx, cy) at <paramref name="writeIndex"/>.</summary>
     public static void WriteCell(ITerrainPixelReadOnly terrain, int cx, int cy, byte[] target, int writeIndex)
     {
         int w = terrain.Width, h = terrain.Height;
@@ -83,24 +84,23 @@ public static class TerrainMaterialCoverage
         }
 
         float inv = 1f / denom;
-        float c0 = sums[0] * inv, c1 = sums[1] * inv, c2 = sums[2] * inv, c3 = sums[3] * inv;
+        float c0 = sums[0] * inv, c1 = sums[1] * inv, c2 = sums[2] * inv;
 
         int ownGroup = GroupOf[(int)terrain.GetPixelRaw(cx + cy * w)];
         if (ownGroup >= 0)
         {
-            float own = ownGroup switch { 0 => c0, 1 => c1, 2 => c2, _ => c3 };
+            float own = ownGroup switch { 0 => c0, 1 => c1, _ => c2 };
             float lift = Math.Clamp((ThinFeatureStart - own) / ThinFeatureRange, 0f, 1f);
             if (lift > 0f)
             {
                 float lifted = own + (ThinFeatureTarget - own) * lift;
                 float scale = (1f - lifted) / (1f - own);
-                c0 *= scale; c1 *= scale; c2 *= scale; c3 *= scale;
+                c0 *= scale; c1 *= scale; c2 *= scale;
                 switch (ownGroup)
                 {
                     case 0: c0 = lifted; break;
                     case 1: c1 = lifted; break;
-                    case 2: c2 = lifted; break;
-                    default: c3 = lifted; break;
+                    default: c2 = lifted; break;
                 }
             }
         }
@@ -108,7 +108,7 @@ public static class TerrainMaterialCoverage
         target[writeIndex] = ToByte(c0);
         target[writeIndex + 1] = ToByte(c1);
         target[writeIndex + 2] = ToByte(c2);
-        target[writeIndex + 3] = ToByte(c3);
+        target[writeIndex + 3] = 0;
     }
 
     private static byte ToByte(float v) => (byte)Math.Clamp((int)(v * 255f + 0.5f), 0, 255);

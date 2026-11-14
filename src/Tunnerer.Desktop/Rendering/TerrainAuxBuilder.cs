@@ -10,8 +10,10 @@ public sealed class TerrainAuxBuilder
 {
     private readonly TerrainBlurField _gpuBlurField = new();
 
+    /// <param name="tankPositions">Where each tank is drawn this frame (cell coordinates), indexed like <paramref name="tanks"/>.</param>
     public int BuildGpuTankHeatGlowData(
         IReadOnlyList<Tank> tanks,
+        ReadOnlySpan<PositionF> tankPositions,
         in RenderView view,
         float[] target)
     {
@@ -21,7 +23,7 @@ public sealed class TerrainAuxBuilder
         int targetW = view.ViewSize.X;
         int targetH = view.ViewSize.Y;
         int count = 0;
-        for (int i = 0; i < tanks.Count && count < Tweaks.World.MaxPlayers; i++)
+        for (int i = 0; i < tanks.Count && i < tankPositions.Length && count < Tweaks.World.MaxPlayers; i++)
         {
             Tank tank = tanks[i];
             if (tank.IsDead) continue;
@@ -45,8 +47,8 @@ public sealed class TerrainAuxBuilder
 
             float radiusFactor = (0.55f + 0.45f * MathF.Sqrt(visibleT)) * 1.35f;
             float glowRadiusPx = pixelScale * (DesktopScreenTweaks.PostTankHeatGlowBaseRadius + DesktopScreenTweaks.PostTankHeatGlowScaleRadius * radiusFactor);
-            float cx = (tank.Position.X + 0.5f) * pixelScale - camPixelX;
-            float cy = (tank.Position.Y + 0.5f) * pixelScale - camPixelY;
+            float cx = (tankPositions[i].X + 0.5f) * pixelScale - camPixelX;
+            float cy = (tankPositions[i].Y + 0.5f) * pixelScale - camPixelY;
 
             if (cx + glowRadiusPx < 0 || cy + glowRadiusPx < 0 || cx - glowRadiusPx >= targetW || cy - glowRadiusPx >= targetH)
                 continue;
@@ -144,18 +146,21 @@ public sealed class TerrainAuxBuilder
         // Aux channel layout:
         // R = heat, G = smoothed SDF, B = material class, A = scorch damage level.
         // B is read by nearest-cell Load only (never interpolated). Natural materials are told apart by the
-        // material coverage texture; B just marks them solid. Base cells keep their exact code:
+        // material coverage texture; B just marks them solid. Gold has its own code so the shader can draw the vein
+        // from the exact cells. Base cells keep their exact code:
         // floor, door, and wall = BaseWallBase + owner colour index (0..7). Keep in sync with Constants.hlsli.
         const byte materialNone = 0;
         const byte materialNatural = 100;
+        const byte materialGold = 110;
         const byte materialBaseFloor = 20;
         const byte materialBaseDoor = 30;
         const byte materialBaseWallBase = 40;
 
         byte material = pixel switch
         {
-            TerrainPixel.Dirt or TerrainPixel.DirtGrow or TerrainPixel.Gold or TerrainPixel.Rock
+            TerrainPixel.Dirt or TerrainPixel.DirtGrow or TerrainPixel.Rock
                 or TerrainPixel.HotRock or TerrainPixel.Concrete => materialNatural,
+            TerrainPixel.Gold => materialGold,
             TerrainPixel.BaseCore => materialBaseFloor,
             TerrainPixel.BaseBarrier => materialBaseDoor,
             >= TerrainPixel.BaseMin and <= TerrainPixel.BaseMax =>
