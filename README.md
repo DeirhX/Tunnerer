@@ -60,12 +60,13 @@ Run `Tunnerer.Desktop --help` for the full list. The common ones:
 
 These environment variables drive the game without a person, for replays and screenshots. Any of them (and
 `--perf`, `--hidden`, `--terrain-test`) makes the run *automated*: the map seed is fixed at 42 unless `--seed` is
-given, Escape quits at once, and the game never pauses on its own.
+given, Escape quits at once, and the game never pauses on its own. If a command script pauses the game, script
+frames keep counting while it is paused, so later commands and screenshots still run.
 
 | Variable | Meaning |
 |----------|---------|
 | `TUNNERER_SCRIPTED_INPUT` | Player input per simulation frame (record one with F12) |
-| `TUNNERER_COMMAND_SCRIPT` | `frame:Command` pairs, e.g. `30:TogglePause,60:RequestScreenshot`; names are the `GameCommand` enum |
+| `TUNNERER_COMMAND_SCRIPT` | `frame:Command` pairs, e.g. `30:TogglePause,60:RequestScreenshot,90:TogglePause`; names are the `GameCommand` enum |
 | `TUNNERER_SCRIPT_SCREENSHOT_FRAMES` | Simulation frames at which to save a final-frame screenshot |
 | `TUNNERER_RECORD_INPUT_PATH`, `TUNNERER_RECORD_INPUT_AUTOSTART` | Where to save a recording, and whether to start recording at once |
 | `TUNNERER_DISPLAY`, `TUNNERER_WINDOWED`, `TUNNERER_HIDDEN` | Same as the command-line options |

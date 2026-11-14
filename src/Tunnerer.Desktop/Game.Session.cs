@@ -139,6 +139,21 @@ public partial class Game
         }
     }
 
+    /// <summary>
+    /// Runs once per drawn frame while paused. In an automated run the script clock keeps ticking, so a command
+    /// script that pauses can still take its screenshots and resume (for example
+    /// <c>30:TogglePause,60:RequestScreenshot,90:TogglePause</c>); scripted player input for the paused frames is
+    /// skipped. When a person pauses, the frame counter stands still, so an input recording stays aligned.
+    /// </summary>
+    private void AdvancePausedFrame()
+    {
+        if (!_automatedRun)
+            return;
+
+        _simulationStepper.ProcessScriptedCommands(_simFrameCounter);
+        _simFrameCounter++;
+    }
+
     private void DrawSessionOverlay(float deltaTime)
     {
         if (!IsInteractiveSession && !_paused)

@@ -28,7 +28,8 @@ public sealed class GameFrameCoordinator
         Action composeFrame,
         Action<FrameInputSnapshot> renderFrame,
         Action<TimeSpan> onFrameMeasured,
-        Func<bool>? isPaused = null)
+        Func<bool>? isPaused = null,
+        Action? onPausedFrame = null)
     {
         while (isRunning())
         {
@@ -60,6 +61,7 @@ public sealed class GameFrameCoordinator
             {
                 // Keep drawing (the pause menu needs frames) but leave the simulation where it is.
                 _loopScheduler.DiscardReadySteps();
+                onPausedFrame?.Invoke();
             }
             else
             {
