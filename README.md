@@ -4,8 +4,8 @@ A 2D tunnelling tank game. You dig through the ground, fight an enemy tank, and 
 heat your tank and the rock around it, your base is the heat sink, and relays pipe heat back to the base.
 
 Written in C# on .NET 10. The simulation (`Tunnerer.Core`) has no platform dependencies; the desktop client
-(`Tunnerer.Desktop`) uses SDL3 for the window and input, SDL_GPU for rendering and Dear ImGui for the
-HUD.
+(`Tunnerer.Desktop`) uses SDL3 for the window, input and sound, SDL_GPU for rendering and Dear ImGui for the
+HUD. The sound effects are synthesised in code when the game starts; there are no sound files.
 
 ## Requirements
 
@@ -37,8 +37,11 @@ The tests cover `Tunnerer.Core` only and need neither a GPU nor the shader compi
 | Mouse | Aim the turret |
 | Left click / Space | Fire |
 | E | Build a relay (150 dirt); press again to plant it |
+| R | Build a harvester; press again to plant it |
+| M | Mute / unmute the sound |
+| - / = | Volume down / up |
 | F9 | Thermal view |
-| Esc / P | Pause menu |
+| Esc / P | Pause menu (resume, controls, sound on/off, volume slider, quit) |
 | F1 | Controls screen |
 | F10 | Screenshot (`screenshots/` next to the executable) |
 | F11 | Renderer debug overlay; 1-7 then toggle shader passes |
@@ -57,15 +60,18 @@ Run `Tunnerer.Desktop --help` for the full list. The common ones:
 | `--display=N` | Open on display N (or `secondary`) |
 | `--size=WxH`, `--large` | Terrain size |
 | `--no-ai` | No enemy tank |
+| `--volume=N` | Master volume, 0 to 100 (default 70); `TUNNERER_VOLUME` does the same |
+| `--mute` | Start with the sound off; `TUNNERER_MUTE=1` does the same |
 | `--hidden` | Never show the window (automated runs) |
 | `--terrain-test` | Static terrain patterns for renderer work |
 | `--perf` | Capture frame times and exit |
+| `--dump-sounds=DIR` | Write every sound effect to a WAV file in DIR, print its length and levels, and exit |
 
 ## Automated runs
 
 These environment variables drive the game without a person, for replays and screenshots. Any of them (and
 `--perf`, `--hidden`, `--terrain-test`) makes the run *automated*: the map seed is fixed at 42 unless `--seed` is
-given, Escape quits at once, and the game never pauses on its own. If a command script pauses the game, script
+given, Escape quits at once, the game never pauses on its own, and it makes no sound. If a command script pauses the game, script
 frames keep counting while it is paused, so later commands and screenshots still run.
 
 | Variable | Meaning |
@@ -77,13 +83,15 @@ frames keep counting while it is paused, so later commands and screenshots still
 | `TUNNERER_DISPLAY`, `TUNNERER_WINDOWED`, `TUNNERER_HIDDEN` | Same as the command-line options |
 | `TUNNERER_SCREENSHOT_DIR` | Where screenshots go (default `screenshots/` next to the executable) |
 | `TUNNERER_GPU_DEBUG` | `1` turns on SDL_GPU's validation layer |
+| `TUNNERER_AUDIO_CAPTURE` | Path of a WAV file to write the game's sound to, one simulation step of sound per step, instead of playing it. Works in automated runs (which are otherwise silent), logs every effect as `[Audio] step N ...`, and rewrites the file every two seconds of game time, so a run that is killed still leaves it |
+| `TUNNERER_AUDIO_LOG` | `1` logs every effect as it starts in a normal game too |
 | `TUNNERER_INTERPOLATE` | `1` displays frames between simulation steps in an automated run too (a normal game always does); screenshots are then no longer tied to an exact step |
 
 ## Layout
 
 ```
 src/Tunnerer.Core          simulation: terrain, heat, tanks, projectiles, machines, links, level generation, bot AI
-src/Tunnerer.Desktop       window, input, renderer (SDL_GPU), HUD, game loop
+src/Tunnerer.Desktop       window, input, renderer (SDL_GPU), HUD, sound, game loop
 tests/Tunnerer.Tests       xUnit tests for Core, plus source rules for the renderers
 tools/Tunnerer.ShaderCompiler  build step: HLSL to DXIL, SPIR-V and MSL for SDL_GPU
 ```

@@ -53,6 +53,12 @@ public class Tank
     /// <summary>True on ticks where the tank took overheat damage.</summary>
     public bool IsOverheating { get; private set; }
 
+    /// <summary>
+    /// Shots this tank has fired since the match began. Nothing in the simulation reads it; presentation code
+    /// compares it between ticks to learn that a shot was fired.
+    /// </summary>
+    public int ShotsFired { get; private set; }
+
     /// <summary>Time left until the tank respawns; zero while alive or when no lives remain.</summary>
     public TimeSpan RespawnRemaining => _respawning && LivesLeft > 0 ? _respawnTimer : TimeSpan.Zero;
 
@@ -293,6 +299,7 @@ public class Tank
         if (bullet != null)
         {
             _frameShotFired = true;
+            ShotsFired++;
         }
     }
 
