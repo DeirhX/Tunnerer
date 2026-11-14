@@ -1,6 +1,6 @@
 namespace Tunnerer.Desktop;
 
-using Silk.NET.SDL;
+using static SDL3.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Input;
@@ -79,8 +79,7 @@ public partial class Game : IDisposable
 
         _renderer = new SdlRenderer(Tweaks.System.WindowTitle + (terrainTestMode ? " [Terrain Test]" : ""), windowSize);
 
-        var renderServices = RenderBackendFactory.CreateServices(
-            selectedBackend, _renderer.Sdl, _renderer.NativeWindow);
+        var renderServices = RenderBackendFactory.CreateServices(selectedBackend, _renderer.NativeWindow);
         _renderBackend = renderServices.Backend;
         _textures = renderServices.Textures;
         Console.WriteLine($"[Render] Backend={selectedBackend}");
@@ -141,12 +140,12 @@ public partial class Game : IDisposable
         else
             _world.Terrain.DrawAllToSurface(_worldPixels);
 
-        _p1Controller = new KeyboardController(_renderer.Sdl, new KeyBindings(
-            Left: Scancode.ScancodeA, Right: Scancode.ScancodeD,
-            Up: Scancode.ScancodeW, Down: Scancode.ScancodeS,
-            Shoot: Scancode.ScancodeSpace,
-            Build: Scancode.ScancodeE,
-            BuildHarvester: Scancode.ScancodeR));
+        _p1Controller = new KeyboardController(new KeyBindings(
+            Left: Scancode.A, Right: Scancode.D,
+            Up: Scancode.W, Down: Scancode.S,
+            Shoot: Scancode.Space,
+            Build: Scancode.E,
+            BuildHarvester: Scancode.R));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         if (!terrainTestMode)
         {

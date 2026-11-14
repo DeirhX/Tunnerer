@@ -44,7 +44,7 @@ void ApplyTerrainCurvePass(float2 uv, float terrainFactor, inout float3 color)
 
     // ---- SDF boundary proximity -------------------------------------------
     // sdfBoundary is 0 deep inside cave or solid, peaks at 1 on the 0.5 isoline.
-    float sdf = auxTex.Sample(s0, auxUv).g;
+    float sdf = auxTex.Sample(s1, auxUv).g;
     float sdfBoundary = 1.0 - abs(sdf * 2.0 - 1.0);
 
     // ---- Color-edge detection ---------------------------------------------
@@ -72,10 +72,10 @@ void ApplyTerrainCurvePass(float2 uv, float terrainFactor, inout float3 color)
     if (sdfBoundary > 0.10)
     {
         // SDF gradient via 3-cell central difference.
-        grad.x = auxTex.Sample(s0, auxUv + float2(mTexel.x * 1.5, 0)).g
-               - auxTex.Sample(s0, auxUv - float2(mTexel.x * 1.5, 0)).g;
-        grad.y = auxTex.Sample(s0, auxUv + float2(0, mTexel.y * 1.5)).g
-               - auxTex.Sample(s0, auxUv - float2(0, mTexel.y * 1.5)).g;
+        grad.x = auxTex.Sample(s1, auxUv + float2(mTexel.x * 1.5, 0)).g
+               - auxTex.Sample(s1, auxUv - float2(mTexel.x * 1.5, 0)).g;
+        grad.y = auxTex.Sample(s1, auxUv + float2(0, mTexel.y * 1.5)).g
+               - auxTex.Sample(s1, auxUv - float2(0, mTexel.y * 1.5)).g;
     }
     else
     {

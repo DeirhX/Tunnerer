@@ -5,12 +5,17 @@ using Tunnerer.Core.Types;
 
 public enum RenderBackendKind
 {
+    /// <summary>Direct3D 11, Windows only. To be removed once SdlGpu is checked on Windows.</summary>
     Dx11 = 0,
+    /// <summary>SDL_GPU: Direct3D 12 or Vulkan on Windows, Metal on macOS, Vulkan on Linux.</summary>
+    SdlGpu = 1,
 }
 
 public static class DesktopTweaks
 {
-    public const RenderBackendKind DefaultRenderBackend = RenderBackendKind.Dx11;
+    /// <summary>DX11 stays the Windows default until the SDL_GPU backend has been compared against it there.</summary>
+    public static RenderBackendKind DefaultRenderBackend =>
+        OperatingSystem.IsWindows() ? RenderBackendKind.Dx11 : RenderBackendKind.SdlGpu;
 }
 
 /// <summary>Launch options for a match that come from the command line.</summary>

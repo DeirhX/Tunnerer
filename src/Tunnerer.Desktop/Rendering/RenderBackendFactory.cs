@@ -1,36 +1,34 @@
 namespace Tunnerer.Desktop.Rendering;
 
-using Silk.NET.SDL;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Rendering.Dx11;
+using Tunnerer.Desktop.Rendering.SdlGpu;
 
-public static unsafe class RenderBackendFactory
+public static class RenderBackendFactory
 {
     public readonly record struct RenderBackendServices(
         IGameRenderBackend Backend,
         ITextureLoader Textures);
 
-    public static RenderBackendServices CreateServices(RenderBackendKind kind, Sdl sdl, Window* window)
+    /// <param name="window">The SDL3 window (SDL_Window*) the backend draws into.</param>
+    public static RenderBackendServices CreateServices(RenderBackendKind kind, nint window)
     {
-        EnsureBackendSupported(kind);
-        return kind switch
+        switch (kind)
         {
-            RenderBackendKind.Dx11 => CreateDx11Services(sdl, window),
-            _ => throw new NotSupportedException($"Unknown render backend '{kind}'."),
-        };
-    }
-
-    private static void EnsureBackendSupported(RenderBackendKind kind)
-    {
-        if (kind == RenderBackendKind.Dx11 && !OperatingSystem.IsWindows())
-            throw new PlatformNotSupportedException($"{kind} backend requires Windows.");
-    }
-
-    private static RenderBackendServices CreateDx11Services(Sdl sdl, Window* window)
-    {
-        var backend = new Backend(sdl, window);
-        return new RenderBackendServices(
-            Backend: backend,
-            Textures: new TextureManager(backend));
+            case RenderBackendKind.Dx11:
+            {
+                if (!OperatingSystem.IsWindows())
+                    throw new PlatformNotSupportedException($"{kind} backend requires Windows. Use --backend=sdlgpu.");
+                var backend = new Backend(window);
+                return new RenderBackendServices(backend, new TextureManager(backend));
+            }
+            case RenderBackendKind.SdlGpu:
+            {
+                var backend = new SdlGpuBackend(window);
+                return new RenderBackendServices(backend, new SdlGpuTextureLoader(backend));
+            }
+            default:
+                throw new NotSupportedException($"Unknown render backend '{kind}'.");
+        }
     }
 }

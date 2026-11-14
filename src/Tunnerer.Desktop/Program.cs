@@ -28,7 +28,7 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
         Development
           --terrain-test      Static terrain test patterns instead of a match.
           --perf              Capture frame times and exit (--perf-warmup=N --perf-frames=N --perf-csv=PATH).
-          --backend=dx11      Render backend.
+          --backend=NAME      Render backend: sdlgpu, or dx11 (Windows; the Windows default for now).
 
         In game: W A S D drive and dig, mouse aims, left click or Space fires, E builds a relay,
         F1 shows the controls, Esc pauses.
@@ -75,8 +75,10 @@ foreach (var arg in args)
         var backendRaw = arg[10..].Trim();
         if (backendRaw.Equals("dx11", StringComparison.OrdinalIgnoreCase))
             renderBackend = RenderBackendKind.Dx11;
+        else if (backendRaw.Equals("sdlgpu", StringComparison.OrdinalIgnoreCase))
+            renderBackend = RenderBackendKind.SdlGpu;
         else
-            Console.WriteLine($"[Args] Unknown backend '{backendRaw}', expected dx11. Using default.");
+            Console.WriteLine($"[Args] Unknown backend '{backendRaw}', expected sdlgpu or dx11. Using default.");
     }
     else if (arg == "--windowed" || arg.StartsWith("--windowed="))
     {

@@ -1,11 +1,12 @@
 namespace Tunnerer.Desktop;
 
-using Silk.NET.SDL;
+using SDL3;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
 using System.Runtime.InteropServices;
+using static SDL3.SDL;
 
 public partial class Game
 {
@@ -16,18 +17,18 @@ public partial class Game
 
         if (TryMapRenderInputEvent(ev, out var renderEvent))
             _renderBackend.ProcessEvent(renderEvent);
-        if (ev.Type != (uint)EventType.Keydown)
+        if (ev.Type != (uint)EventType.KeyDown)
             return;
 
         // Ignore key-repeat so toggles flip once per physical press.
-        if (ev.Key.Repeat != 0)
+        if (ev.Key.Repeat)
             return;
 
-        Scancode scancode = (Scancode)ev.Key.Keysym.Scancode;
-        bool shiftHeld = (ev.Key.Keysym.Mod & (ushort)Keymod.Shift) != 0;
+        Scancode scancode = ev.Key.Scancode;
+        bool shiftHeld = (ev.Key.Mod & Keymod.Shift) != 0;
 
         // After a match ends, Enter starts a new one.
-        if (scancode == Scancode.ScancodeReturn && !_terrainTestMode && IsMatchOver())
+        if (scancode == Scancode.Return && !_terrainTestMode && IsMatchOver())
         {
             ExecuteGameCommand(GameCommand.RestartMatch, InputCommandSources.Input);
             return;
@@ -56,14 +57,14 @@ public partial class Game
         renderEvent = default;
         switch ((EventType)ev.Type)
         {
-            case EventType.Mousemotion:
+            case EventType.MouseMotion:
                 renderEvent = new RenderInputEvent(
                     Type: RenderInputEventType.MouseMove,
-                    MouseX: ev.Motion.X,
-                    MouseY: ev.Motion.Y);
+                    MouseX: (int)ev.Motion.X,
+                    MouseY: (int)ev.Motion.Y);
                 return true;
-            case EventType.Mousebuttondown:
-            case EventType.Mousebuttonup:
+            case EventType.MouseButtonDown:
+            case EventType.MouseButtonUp:
                 renderEvent = new RenderInputEvent(
                     Type: RenderInputEventType.MouseButton,
                     MouseButton: ev.Button.Button switch
@@ -73,27 +74,27 @@ public partial class Game
                         3 => RenderMouseButton.Right,
                         _ => RenderMouseButton.Unknown,
                     },
-                    IsPressed: ev.Type == (uint)EventType.Mousebuttondown);
+                    IsPressed: ev.Type == (uint)EventType.MouseButtonDown);
                 return true;
-            case EventType.Mousewheel:
+            case EventType.MouseWheel:
                 renderEvent = new RenderInputEvent(
                     Type: RenderInputEventType.MouseWheel,
                     WheelX: ev.Wheel.X,
                     WheelY: ev.Wheel.Y);
                 return true;
-            case EventType.Textinput:
+            case EventType.TextInput:
                 renderEvent = new RenderInputEvent(
                     Type: RenderInputEventType.TextInput,
-                    Text: Marshal.PtrToStringUTF8((nint)ev.Text.Text));
+                    Text: Marshal.PtrToStringUTF8(ev.Text.Text));
                 return true;
-            case EventType.Keydown:
-            case EventType.Keyup:
+            case EventType.KeyDown:
+            case EventType.KeyUp:
                 renderEvent = new RenderInputEvent(
                     Type: RenderInputEventType.Key,
-                    Key: ToRenderKey((Scancode)ev.Key.Keysym.Scancode),
-                    Modifiers: ToRenderModifiers(ev.Key.Keysym.Mod),
-                    IsPressed: ev.Type == (uint)EventType.Keydown,
-                    IsRepeat: ev.Key.Repeat != 0);
+                    Key: ToRenderKey(ev.Key.Scancode),
+                    Modifiers: ToRenderModifiers(ev.Key.Mod),
+                    IsPressed: ev.Type == (uint)EventType.KeyDown,
+                    IsRepeat: ev.Key.Repeat);
                 return true;
             default:
                 return false;
@@ -102,38 +103,38 @@ public partial class Game
 
     private static RenderKey ToRenderKey(Scancode scancode) => scancode switch
     {
-        Scancode.ScancodeTab => RenderKey.Tab,
-        Scancode.ScancodeLeft => RenderKey.LeftArrow,
-        Scancode.ScancodeRight => RenderKey.RightArrow,
-        Scancode.ScancodeUp => RenderKey.UpArrow,
-        Scancode.ScancodeDown => RenderKey.DownArrow,
-        Scancode.ScancodePageup => RenderKey.PageUp,
-        Scancode.ScancodePagedown => RenderKey.PageDown,
-        Scancode.ScancodeHome => RenderKey.Home,
-        Scancode.ScancodeEnd => RenderKey.End,
-        Scancode.ScancodeInsert => RenderKey.Insert,
-        Scancode.ScancodeDelete => RenderKey.Delete,
-        Scancode.ScancodeBackspace => RenderKey.Backspace,
-        Scancode.ScancodeSpace => RenderKey.Space,
-        Scancode.ScancodeReturn => RenderKey.Enter,
-        Scancode.ScancodeEscape => RenderKey.Escape,
-        Scancode.ScancodeA => RenderKey.A,
-        Scancode.ScancodeC => RenderKey.C,
-        Scancode.ScancodeV => RenderKey.V,
-        Scancode.ScancodeX => RenderKey.X,
-        Scancode.ScancodeY => RenderKey.Y,
-        Scancode.ScancodeZ => RenderKey.Z,
+        Scancode.Tab => RenderKey.Tab,
+        Scancode.Left => RenderKey.LeftArrow,
+        Scancode.Right => RenderKey.RightArrow,
+        Scancode.Up => RenderKey.UpArrow,
+        Scancode.Down => RenderKey.DownArrow,
+        Scancode.Pageup => RenderKey.PageUp,
+        Scancode.Pagedown => RenderKey.PageDown,
+        Scancode.Home => RenderKey.Home,
+        Scancode.End => RenderKey.End,
+        Scancode.Insert => RenderKey.Insert,
+        Scancode.Delete => RenderKey.Delete,
+        Scancode.Backspace => RenderKey.Backspace,
+        Scancode.Space => RenderKey.Space,
+        Scancode.Return => RenderKey.Enter,
+        Scancode.Escape => RenderKey.Escape,
+        Scancode.A => RenderKey.A,
+        Scancode.C => RenderKey.C,
+        Scancode.V => RenderKey.V,
+        Scancode.X => RenderKey.X,
+        Scancode.Y => RenderKey.Y,
+        Scancode.Z => RenderKey.Z,
         _ => RenderKey.None,
     };
 
-    private static RenderKeyModifiers ToRenderModifiers(ushort modifiers)
+    private static RenderKeyModifiers ToRenderModifiers(Keymod modifiers)
     {
         RenderKeyModifiers mapped = RenderKeyModifiers.None;
-        if ((modifiers & (ushort)Keymod.Ctrl) != 0)
+        if ((modifiers & Keymod.Ctrl) != 0)
             mapped |= RenderKeyModifiers.Ctrl;
-        if ((modifiers & (ushort)Keymod.Shift) != 0)
+        if ((modifiers & Keymod.Shift) != 0)
             mapped |= RenderKeyModifiers.Shift;
-        if ((modifiers & (ushort)Keymod.Alt) != 0)
+        if ((modifiers & Keymod.Alt) != 0)
             mapped |= RenderKeyModifiers.Alt;
         return mapped;
     }

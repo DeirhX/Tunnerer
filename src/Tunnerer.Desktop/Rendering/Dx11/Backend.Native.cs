@@ -242,30 +242,7 @@ public sealed unsafe partial class Backend
 
             try
             {
-                string? parent = Path.GetDirectoryName(outPath);
-                if (!string.IsNullOrEmpty(parent))
-                    Directory.CreateDirectory(parent);
-                using var fs = new FileStream(outPath, FileMode.Create, FileAccess.Write, FileShare.Read);
-                string header = $"P6\n{width} {height}\n255\n";
-                byte[] headerBytes = global::System.Text.Encoding.ASCII.GetBytes(header);
-                fs.Write(headerBytes, 0, headerBytes.Length);
-
-                byte* srcBase = (byte*)mapped.PData;
-                int rowPitch = (int)mapped.RowPitch;
-                byte[] rgb = new byte[width * 3];
-                for (int y = 0; y < height; y++)
-                {
-                    byte* row = srcBase + y * rowPitch;
-                    int dst = 0;
-                    for (int x = 0; x < width; x++)
-                    {
-                        int si = x * 4; // BGRA
-                        rgb[dst++] = row[si + 2];
-                        rgb[dst++] = row[si + 1];
-                        rgb[dst++] = row[si + 0];
-                    }
-                    fs.Write(rgb, 0, rgb.Length);
-                }
+                ScreenshotFiles.WriteBgraAsPpm(outPath, (byte*)mapped.PData, width, height, (int)mapped.RowPitch);
                 return true;
             }
             finally
@@ -292,8 +269,10 @@ public sealed unsafe partial class Backend
         _context->IASetPrimitiveTopology(D3DPrimitiveTopology.D3DPrimitiveTopologyTrianglelist);
         _context->VSSetShader(_fullscreenVs, null, 0);
         _context->PSSetShader(pixelShader, null, 0);
-        ID3D11SamplerState* sampler = _fullscreenSampler;
-        _context->PSSetSamplers(0, 1, &sampler);
+        // The shaders take one sampler per texture (s0-s2, see PostPs/Common/Bindings.hlsli); all are the same here.
+        ID3D11SamplerState** samplers = stackalloc ID3D11SamplerState*[3];
+        samplers[0] = samplers[1] = samplers[2] = _fullscreenSampler;
+        _context->PSSetSamplers(0, 3, samplers);
     }
 
     private static Texture2DDesc CreateTextureDesc(

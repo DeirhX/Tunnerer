@@ -4,23 +4,56 @@ This document describes the current rendering model used by the desktop client, 
 
 ## High-Level Layout
 
-`Tunnerer.Desktop` has a backend-agnostic render contract and one active implementation:
+`Tunnerer.Desktop` has a backend-agnostic render contract and two implementations:
 
-- `Tunnerer.Desktop.Rendering.Dx11.Backend`
+- `Tunnerer.Desktop.Rendering.SdlGpu.SdlGpuBackend`: SDL_GPU (Metal, Direct3D 12, Vulkan). Default on macOS and
+  Linux.
+- `Tunnerer.Desktop.Rendering.Dx11.Backend`: Direct3D 11. Default on Windows until SDL_GPU has been compared against
+  it there; then it is deleted.
 
-Core orchestration lives in `Game.cs`; platform/windowing lives in `Rendering/SdlRenderer.cs`.
+Core orchestration lives in `Game.cs`; the SDL3 window, events and mouse state live in `Rendering/SdlRenderer.cs`.
+Code both backends use sits directly in `Rendering/`: the HLSL (`Rendering/Shaders`), the `PostParams` constant
+block (`PostParamsBlock.cs`), ImGui context and input (`ImGuiPlatform.cs`) and screenshot files
+(`ScreenshotFiles.cs`). `RenderingSourceGuardTests` keeps each graphics API inside its own backend folder.
 
 ## Backend Selection
 
-Selection path:
+1. CLI argument `--backend=sdlgpu` or `--backend=dx11` is parsed in `Program.cs`; without it,
+   `DesktopTweaks.DefaultRenderBackend` picks DX11 on Windows and SDL_GPU elsewhere.
+2. `Game` creates the SDL3 window (`SdlRenderer`).
+3. `RenderBackendFactory` creates the backend (`IGameRenderBackend`) and its texture loader (`ITextureLoader`) for
+   that window. DX11 refuses to start off Windows.
 
-1. CLI argument `--backend=dx11` is parsed in `Program.cs`.
-2. `Game` creates an SDL native window for DX backends.
-3. `RenderBackendFactory` creates:
-   - backend instance (`IGameRenderBackend`)
-   - texture loader (`ITextureLoader`)
+## Shaders
 
-Only `Dx11` is currently exposed and supported.
+One HLSL source in `Rendering/Shaders`, compiled twice:
+
+- **SDL_GPU:** `tools/Tunnerer.ShaderCompiler` runs before every build that touches a shader (target
+  `CompileSdlGpuShaders` in `Tunnerer.Desktop.csproj`). It uses SDL_shadercross (DXC and SPIRV-Cross, from NuGet) to
+  write `<name>.dxil`, `.spv` and `.msl` plus a `.json` with the resource counts `SDL_CreateGPUShader` needs, into
+  `Shaders/` next to the executable. It compiles all three formats on every OS, so a shader one API cannot take
+  fails the build where it is edited. It also fails when a texture has no sampler at its index.
+- **DX11:** `fxc.exe` (target `CompileDx11Shaders`, Windows only) writes `<name>.cso`.
+
+Register spaces differ (SDL_GPU wants fragment textures and samplers in space2, fragment uniforms in space3, vertex
+uniforms in space1; fxc has no spaces), so every resource is declared through the macros in
+`PostPs/Common/Registers.hlsli`. Each texture has its own sampler at the same index (`s0`-`s2`); on the CPU all are
+the same linear-clamp sampler.
+
+## SDL_GPU Backend
+
+One command buffer per frame:
+
+1. `UploadGamePixels`: stages the aux and material coverage dirty rects, the native source texture and the entity
+   vertices in transfer buffers, copies them in one copy pass, then records the terrain pass (`TerrainPs` into
+   `scene`), the post pass (`PostPs` into `post`) and the entity layer (premultiplied alpha onto `post`).
+2. `Render`: uploads ImGui's vertices, then composes the frame into the offscreen `final` texture (clear, blit of
+   the game texture sized to the scene, ImGui), downloads it if a screenshot is pending, blits it to the swapchain
+   and submits. Composing offscreen keeps screenshots working in hidden windows, where the swapchain may hand out
+   no texture.
+
+`GameTextureId` and ImGui texture IDs are `SDL_GPUTexture` pointers. `TUNNERER_GPU_DEBUG=1` turns on SDL_GPU's
+validation layer.
 
 ## Backend Interface
 
@@ -46,7 +79,7 @@ Upload payload (`GamePixelsUpload`) includes:
 
 Simplified frame pipeline:
 
-1. Poll SDL input/events (`SdlRenderer.PollEvents`)
+1. Poll SDL3 input/events (`SdlRenderer.PollEvents`)
 2. Advance simulation (`World.Advance`)
 3. Build high-res terrain buffer:
    - full render, or
@@ -61,7 +94,6 @@ Simplified frame pipeline:
    - `NewFrame`
    - `GameHud.Draw` (`ImGui.Image` + overlays/panels)
 10. `Render` backend output
-11. `SdlRenderer.SwapWindow()` (no-op for DX backends; DX11 presents via swap chain)
 
 ## DX11 Backend
 
@@ -86,11 +118,7 @@ DX11 backend now has:
 DX11 implementation is split by responsibility:
 
 - `Backend` partials (`Backend.*.cs`) for lifecycle, init, native pass, CPU fallback, SDL fallback, profiling, and shader compiler interop
-- shader sources are grouped under `Rendering/Dx11/Shaders/`:
-  - `FullscreenVs.cs`
-  - `BlitPs.cs`
-  - `PostPs.cs`
-  - `TerrainPs.cs`
+- shader sources are shared with SDL_GPU, under `Rendering/Shaders/` (see Shaders above)
 
 ### DX11 Render Stages
 
@@ -104,7 +132,7 @@ DX11 implementation is split by responsibility:
    signed-distance functions in `EntityPs.hlsl`. `EntityLayerBuilder` supplies the vertices, already interpolated
    between the last two simulation steps.
 
-`Render`:
+DX11 `Render`:
 
 1. fullscreen blit of display SRV to backbuffer RTV
 2. ImGui draw on top (HUD + overlays)
@@ -165,9 +193,6 @@ DX11 backend detailed profile (`TUNNERER_DX11_PROFILE=1`) includes:
 
 - Performance spikes observed in recent traces are usually terrain-side (`dirtyTerrain`, `fullTerrain`, `exposedStrips`) rather than DX11 post/blit.
 - Remaining visual parity work is focused on fine-tuning look consistency (e.g. heat/emissive tint) and stability edge cases.
-## Notes
-
-The older appended "Platform Layer" section has been removed because it described a previous SDL texture-presentation path that no longer matches the current DX11-first architecture.
 
 ## Display options (CLI)
 

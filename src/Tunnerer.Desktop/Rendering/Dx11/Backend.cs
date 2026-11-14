@@ -4,7 +4,6 @@ using ImGuiNET;
 using Silk.NET.Core.Native;
 using Silk.NET.Direct3D11;
 using Silk.NET.DXGI;
-using Silk.NET.SDL;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 using System.Diagnostics;
@@ -14,8 +13,7 @@ using Tunnerer.Desktop.Rendering;
 
 public sealed unsafe partial class Backend : IGameRenderBackend
 {
-    private readonly Sdl _sdl;
-    private readonly Window* _window;
+    private readonly nint _window;
     private readonly D3D11 _d3d11;
 
     // Native DX11 pipeline
@@ -68,9 +66,9 @@ public sealed unsafe partial class Backend : IGameRenderBackend
     public Size GameTextureSize => new(Math.Max(1, _sceneTexW), Math.Max(1, _sceneTexH));
     public bool SupportsUi => _imgui != null;
 
-    public Backend(Sdl sdl, Window* window)
+    /// <param name="window">The SDL3 window (SDL_Window*).</param>
+    public Backend(nint window)
     {
-        _sdl = sdl;
         _window = window;
 #pragma warning disable CS0618
         _d3d11 = D3D11.GetApi();
@@ -147,37 +145,8 @@ public sealed unsafe partial class Backend : IGameRenderBackend
 
     public void RequestScreenshot(string? label = null)
     {
-        string stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff");
-        string cleanLabel = string.IsNullOrWhiteSpace(label) ? "frame" : SanitizeFilePart(label);
-        string dir = Environment.GetEnvironmentVariable("TUNNERER_SCREENSHOT_DIR") is { Length: > 0 } custom
-            ? custom
-            : Path.Combine(AppContext.BaseDirectory, "screenshots");
-        Directory.CreateDirectory(dir);
-        _pendingScreenshotPath = Path.Combine(dir, $"{stamp}_{cleanLabel}.ppm");
+        _pendingScreenshotPath = ScreenshotFiles.NewPath(label);
         Console.WriteLine($"[Render] Queued final-frame screenshot capture: {_pendingScreenshotPath}");
-    }
-
-    private static string SanitizeFilePart(string value)
-    {
-        char[] invalid = Path.GetInvalidFileNameChars();
-        Span<char> buffer = stackalloc char[value.Length];
-        int j = 0;
-        for (int i = 0; i < value.Length; i++)
-        {
-            char c = value[i];
-            bool bad = false;
-            for (int k = 0; k < invalid.Length; k++)
-            {
-                if (c == invalid[k])
-                {
-                    bad = true;
-                    break;
-                }
-            }
-
-            buffer[j++] = bad || char.IsWhiteSpace(c) ? '_' : c;
-        }
-        return new string(buffer[..j]);
     }
 
     public void Dispose()

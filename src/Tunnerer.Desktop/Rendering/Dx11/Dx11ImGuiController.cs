@@ -9,15 +9,12 @@ using Silk.NET.Core.Native;
 using Silk.NET.Direct3D11;
 using Silk.NET.DXGI;
 using Silk.NET.Maths;
-using Silk.NET.SDL;
 
 /// <summary>
-/// SDL2 + DX11 Dear ImGui bridge (input + UI draw only).
+/// Draws Dear ImGui with DX11. Context and input handling are in <see cref="ImGuiPlatform"/>.
 /// </summary>
 public sealed unsafe class ImGuiController : IDisposable
 {
-    private readonly Sdl _sdl;
-    private readonly Window* _window;
     private readonly ID3D11Device* _device;
     private readonly ID3D11DeviceContext* _context;
 
@@ -38,80 +35,18 @@ public sealed unsafe class ImGuiController : IDisposable
 
     private bool _disposed;
 
-    public ImGuiController(Sdl sdl, Window* window, ID3D11Device* device, ID3D11DeviceContext* context, int windowW, int windowH)
+    public ImGuiController(ID3D11Device* device, ID3D11DeviceContext* context, int windowW, int windowH)
     {
-        _sdl = sdl;
-        _window = window;
         _device = device;
         _context = context;
 
-        var imguiContext = ImGui.CreateContext();
-        ImGui.SetCurrentContext(imguiContext);
-
-        var io = ImGui.GetIO();
-        io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard;
-        io.BackendFlags |= ImGuiBackendFlags.HasMouseCursors;
-        io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
-        io.DisplaySize = new Vector2(windowW, windowH);
-        io.DisplayFramebufferScale = Vector2.One;
-
-        ImGui.StyleColorsDark();
+        ImGuiPlatform.CreateContext(windowW, windowH);
         CreateDeviceObjects();
     }
 
-    public void ProcessEvent(in RenderInputEvent ev)
-    {
-        var io = ImGui.GetIO();
-        switch (ev.Type)
-        {
-            case RenderInputEventType.MouseMove:
-                io.AddMousePosEvent(ev.MouseX, ev.MouseY);
-                break;
-            case RenderInputEventType.MouseButton:
-            {
-                int button = ev.MouseButton switch
-                {
-                    RenderMouseButton.Left => 0,
-                    RenderMouseButton.Middle => 2,
-                    RenderMouseButton.Right => 1,
-                    _ => -1
-                };
-                if (button >= 0)
-                    io.AddMouseButtonEvent(button, ev.IsPressed);
-                break;
-            }
-            case RenderInputEventType.MouseWheel:
-                io.AddMouseWheelEvent(ev.WheelX, ev.WheelY);
-                break;
-            case RenderInputEventType.TextInput:
-            {
-                string text = ev.Text ?? string.Empty;
-                foreach (char c in text)
-                    io.AddInputCharacter(c);
-                break;
-            }
-            case RenderInputEventType.Key:
-            {
-                var key = ToImGuiKey(ev.Key);
-                if (key != ImGuiKey.None)
-                    io.AddKeyEvent(key, ev.IsPressed);
+    public void ProcessEvent(in RenderInputEvent ev) => ImGuiPlatform.ProcessEvent(ev);
 
-                io.AddKeyEvent(ImGuiKey.ModCtrl, (ev.Modifiers & RenderKeyModifiers.Ctrl) != 0);
-                io.AddKeyEvent(ImGuiKey.ModShift, (ev.Modifiers & RenderKeyModifiers.Shift) != 0);
-                io.AddKeyEvent(ImGuiKey.ModAlt, (ev.Modifiers & RenderKeyModifiers.Alt) != 0);
-                break;
-            }
-        }
-    }
-
-    public void NewFrame(int windowW, int windowH, float deltaTime)
-    {
-        var io = ImGui.GetIO();
-        io.DisplaySize = new Vector2(windowW, windowH);
-        io.DisplayFramebufferScale = Vector2.One;
-        io.DeltaTime = deltaTime > 0 ? deltaTime : 1f / 60f;
-        ImGui.NewFrame();
-    }
+    public void NewFrame(int windowW, int windowH, float deltaTime) => ImGuiPlatform.NewFrame(windowW, windowH, deltaTime);
 
     public void Render(ID3D11RenderTargetView* backbufferRtv, int fbWidth, int fbHeight)
     {
@@ -530,7 +465,7 @@ float4 main(PS_INPUT input) : SV_Target
     {
         if (_disposed) return;
         _disposed = true;
-        ImGui.DestroyContext();
+        ImGuiPlatform.DestroyContext();
 
         if (_vertexBuffer != null) { _vertexBuffer->Release(); _vertexBuffer = null; }
         if (_indexBuffer != null) { _indexBuffer->Release(); _indexBuffer = null; }
@@ -544,32 +479,6 @@ float4 main(PS_INPUT input) : SV_Target
         if (_blendState != null) { _blendState->Release(); _blendState = null; }
         if (_depthStencilState != null) { _depthStencilState->Release(); _depthStencilState = null; }
     }
-
-    private static ImGuiKey ToImGuiKey(RenderKey key) => key switch
-    {
-        RenderKey.Tab => ImGuiKey.Tab,
-        RenderKey.LeftArrow => ImGuiKey.LeftArrow,
-        RenderKey.RightArrow => ImGuiKey.RightArrow,
-        RenderKey.UpArrow => ImGuiKey.UpArrow,
-        RenderKey.DownArrow => ImGuiKey.DownArrow,
-        RenderKey.PageUp => ImGuiKey.PageUp,
-        RenderKey.PageDown => ImGuiKey.PageDown,
-        RenderKey.Home => ImGuiKey.Home,
-        RenderKey.End => ImGuiKey.End,
-        RenderKey.Insert => ImGuiKey.Insert,
-        RenderKey.Delete => ImGuiKey.Delete,
-        RenderKey.Backspace => ImGuiKey.Backspace,
-        RenderKey.Space => ImGuiKey.Space,
-        RenderKey.Enter => ImGuiKey.Enter,
-        RenderKey.Escape => ImGuiKey.Escape,
-        RenderKey.A => ImGuiKey.A,
-        RenderKey.C => ImGuiKey.C,
-        RenderKey.V => ImGuiKey.V,
-        RenderKey.X => ImGuiKey.X,
-        RenderKey.Y => ImGuiKey.Y,
-        RenderKey.Z => ImGuiKey.Z,
-        _ => ImGuiKey.None
-    };
 
     private ID3DBlob* CompileShader(string source, string entryPoint, string target)
     {

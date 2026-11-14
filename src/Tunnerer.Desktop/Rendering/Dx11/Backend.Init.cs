@@ -3,7 +3,7 @@ namespace Tunnerer.Desktop.Rendering.Dx11;
 using Silk.NET.Core.Native;
 using Silk.NET.Direct3D11;
 using Silk.NET.DXGI;
-using Silk.NET.SDL;
+using SDL3;
 
 public sealed unsafe partial class Backend
 {
@@ -16,8 +16,7 @@ public sealed unsafe partial class Backend
             return false;
         }
 
-        int winW, winH;
-        _sdl.GetWindowSize(_window, &winW, &winH);
+        SDL.GetWindowSize(_window, out int winW, out int winH);
         if (winW <= 0 || winH <= 0) return false;
 
         var featureLevel = D3DFeatureLevel.Level110;
@@ -86,7 +85,7 @@ public sealed unsafe partial class Backend
 
         _swapChainW = winW;
         _swapChainH = winH;
-        _imgui = new ImGuiController(_sdl, _window, _device, _context, winW, winH);
+        _imgui = new ImGuiController(_device, _context, winW, winH);
         Console.WriteLine($"[Render] DX11 native pipeline ready ({winW}x{winH}, feature={created}).");
         return true;
     }
@@ -167,7 +166,7 @@ public sealed unsafe partial class Backend
 
         var cbDesc = new BufferDesc
         {
-            ByteWidth = (uint)sizeof(PostParamsCBuffer),
+            ByteWidth = (uint)sizeof(PostParamsBlock),
             Usage = Usage.Dynamic,
             BindFlags = (uint)BindFlag.ConstantBuffer,
             CPUAccessFlags = (uint)CpuAccessFlag.Write,
@@ -185,8 +184,7 @@ public sealed unsafe partial class Backend
 
     private bool EnsureSwapChainSize()
     {
-        int winW, winH;
-        _sdl.GetWindowSize(_window, &winW, &winH);
+        SDL.GetWindowSize(_window, out int winW, out int winH);
         if (winW <= 0 || winH <= 0)
             return false;
         if (winW == _swapChainW && winH == _swapChainH)
@@ -209,14 +207,6 @@ public sealed unsafe partial class Backend
         return true;
     }
 
-    private nint GetHwnd()
-    {
-        SysWMInfo wmInfo = default;
-        _sdl.GetVersion(&wmInfo.Version);
-        if (!_sdl.GetWindowWMInfo(_window, &wmInfo))
-            return nint.Zero;
-        if (wmInfo.Subsystem != SysWMType.Windows)
-            return nint.Zero;
-        return wmInfo.Info.Win.Hwnd;
-    }
+    private nint GetHwnd() =>
+        SDL.GetPointerProperty(SDL.GetWindowProperties(_window), SDL.Props.WindowWin32HWNDPointer, nint.Zero);
 }
