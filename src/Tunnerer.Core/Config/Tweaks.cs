@@ -151,7 +151,7 @@ public static class Tweaks
         public const int ThermalMaxWorkers = 0; // 0 => default scheduler/CPU count
         public const float ThermalActiveTemperatureThreshold = 2.5f;
         public const float ThermalArtificialCoolingPerFrame = 0.02f;
-        public const float ThermalMaxDeltaSleepThreshold = 0.05f;
+        public const float ThermalMaxDeltaSleepThreshold = 0.005f;
         public const int ThermalNoActiveSleepFrames = 120;
         public const float ThermalSaturationCoverageThreshold = 0.90f;
         public const int ThermalSaturationFramesBeforeThrottle = 90;
@@ -171,6 +171,10 @@ public static class Tweaks
         public const int MaterialMineralsCapacity = 20000;
         public const int HeatCooldown = 2;
         public const int HealthRegen = 10;
+        // Energy stored by one unit of base reactor heat (same material as the base cells).
+        public const float ReactorEnergyPerHeatUnit = Tweaks.World.ThermalCapacityBase;
+        // Per-tick energy caps for the base's area cooling (the "HeatTotal"/"AirTotal" names are legacy:
+        // these are energy, pulled only from cells that are warmer than ambient).
         public const int AreaCoolingInnerHeatTotal = 6;
         public const int AreaCoolingMidHeatTotal = 3;
         public const int AreaCoolingOuterHeatTotal = 1;
@@ -217,7 +221,6 @@ public static class Tweaks
         public const int TorchRockHeatRadius = 3;
         public const float HeatAmbientOutsideBase = 0f;
         public const float TankHeatCapacity = 20f;
-        public const float TerrainHeatCapacity = 80f;
         public const float TankTerrainConductance = 2.0f;
         public const float TankAmbientConductance = 0.2f;
         public const float TankBaseConductance = 0.4f;

@@ -186,6 +186,11 @@ public class WorldThermalSimulationTests
 
             for (int i = 0; i < tanks.Count; i++)
             {
+                // A destroyed tank no longer exchanges heat; whatever it held when it died stays frozen
+                // (the bot can kill the idle player in this scenario), so only sample living tanks.
+                if (tanks[i].IsDead)
+                    continue;
+
                 var q = tailByTank[i];
                 if (q.Count == tailWindow)
                     q.Dequeue();
@@ -197,12 +202,16 @@ public class WorldThermalSimulationTests
         }
         visual.Capture(world, "end");
 
+        Assert.NotEmpty(tailByTank[0]);
         float playerTailAverage = tailByTank[0].Average();
         Assert.True(playerTailAverage < 45f,
             $"Expected idle player tank to remain cool. tailAvg={playerTailAverage:0.00}");
 
         for (int i = 0; i < tanks.Count; i++)
         {
+            if (tailByTank[i].Count == 0)
+                continue; // never alive long enough to sample
+
             float mean = tailByTank[i].Average();
             float stdDev = StdDev(tailByTank[i], mean);
             float min = tailByTank[i].Min();

@@ -147,7 +147,7 @@ internal static class TankHeatTestHelpers
         foreach (var tank in world.TankList.Tanks)
             total += tank.Heat * Tweaks.Tank.TankHeatCapacity;
         foreach (var tankBase in world.TankBases.Bases)
-            total += (int)tankBase.Reactor.Heat * Tweaks.World.ThermalCapacityBase;
+            total += tankBase.ReactorHeatEnergy;
         return total;
     }
 

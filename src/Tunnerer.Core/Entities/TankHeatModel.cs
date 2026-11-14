@@ -27,11 +27,6 @@ internal static class TankHeatModel
         return Tweaks.Tank.TankHeatCapacity > 0f ? dQ / Tweaks.Tank.TankHeatCapacity : 0f;
     }
 
-    public static float ComputeTerrainDeltaFromHeatFlow(float dQ)
-    {
-        return Tweaks.Tank.TerrainHeatCapacity > 0f ? -dQ / Tweaks.Tank.TerrainHeatCapacity : 0f;
-    }
-
     public static float ComputeTankAirHeatFlow(float tankTemperature, float airTemperature)
     {
         float deltaT = airTemperature - tankTemperature;

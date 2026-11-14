@@ -59,6 +59,8 @@ public class Tank
         }
 
         Heat += Tweaks.Tank.IdleHeatGain;
+        if (Tweaks.Tank.IdleHeatGain != 0)
+            world.Terrain.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * Tweaks.Tank.TankHeatCapacity);
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
         AdvanceBaseInteraction(world);
         AdvanceTurretAim(input);
@@ -88,13 +90,15 @@ public class Tank
             int sinkAmount = (int)MathF.Round(Math.Max(0f, baseCooldown * centerBonus));
             if (sinkAmount > 0)
             {
-                int terrainShare = (int)MathF.Round(sinkAmount * 0.40f);
-                int airShare = sinkAmount - terrainShare;
+                // The base destroys this energy (it is a sink, not a transfer), so it goes to the ledger.
+                // Only heat that is actually present can be removed.
+                double terrainShare = Math.Round(sinkAmount * 0.40);
+                double airShare = sinkAmount - terrainShare;
                 int radius = Math.Max(1, Tweaks.Tank.DigRadius);
-                if (terrainShare > 0)
-                    world.Terrain.AddHeatTotalInRadiusArea(Position, radius, -terrainShare);
-                if (airShare > 0)
-                    world.Terrain.AddAirHeatTotalInRadiusArea(Position, radius, -airShare);
+                double removed =
+                    world.Terrain.ExtractEnergyInRadiusArea(Position, radius, terrainShare, TerrainGrid.ThermalField.Terrain) +
+                    world.Terrain.ExtractEnergyInRadiusArea(Position, radius, airShare, TerrainGrid.ThermalField.Air);
+                world.Terrain.Ledger.RecordSunkBase(removed);
             }
         }
 
@@ -153,6 +157,8 @@ public class Tank
         Direction = dir;
         Position = newPos;
         Heat += Tweaks.Tank.MoveHeatGain;
+        if (Tweaks.Tank.MoveHeatGain != 0)
+            terrain.Ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * Tweaks.Tank.TankHeatCapacity);
     }
 
     private CollisionType TestCollision(TerrainGrid terrain, Position pos, int dir)
@@ -221,7 +227,9 @@ public class Tank
                     TerrainPixel.EnergyHigh => Tweaks.Tank.CoolingPickupHigh,
                     _ => Tweaks.Tank.CoolingPickupLow,
                 };
-                Heat = TankHeatModel.ClampHeat(Heat - cooling);
+                float cooledHeat = TankHeatModel.ClampHeat(Heat - cooling);
+                terrain.Ledger.RecordSunkTank((Heat - cooledHeat) * Tweaks.Tank.TankHeatCapacity);
+                Heat = cooledHeat;
             }
             return true;
         });
@@ -229,25 +237,30 @@ public class Tank
 
     private void AdvanceHeat(World world)
     {
-        float terrainHeatNorm = world.Terrain.SampleAverageHeat(Position, Tweaks.Tank.DigRadius);
-        float sampledTerrainTemperature = terrainHeatNorm * 255f;
-        float sampledAirTemperature = world.Terrain.SampleAverageAirTemperature(Position, Tweaks.Tank.DigRadius);
-        int sampleCells = world.Terrain.CountCellsInRadiusArea(Position, Tweaks.Tank.DigRadius);
-        float nextHeat = HeatEngine.Advance(
+        var terrain = world.Terrain;
+        int radius = Tweaks.Tank.DigRadius;
+        float sampledTerrainTemperature = terrain.SampleAverageHeat(Position, radius) * 255f;
+        float sampledAirTemperature = terrain.SampleAverageAirTemperature(Position, radius);
+        var step = HeatEngine.Advance(
             currentHeat: Heat,
             frameDugPixels: _frameDugPixels,
             frameShotFired: _frameShotFired,
             sampledTerrainTemperature: sampledTerrainTemperature,
             sampledAirTemperature: sampledAirTemperature,
-            sampleCells: sampleCells,
-            applyTerrainTotalDelta: desiredTotal =>
-                world.Terrain.AddHeatTotalInRadiusArea(Position, Tweaks.Tank.DigRadius, desiredTotal),
-            applyAirTotalDelta: desiredTotal =>
-                world.Terrain.AddAirHeatTotalInRadiusArea(Position, Tweaks.Tank.DigRadius, desiredTotal),
-            out int damage);
+            terrainCapacity: terrain.SumHeatCapacityInRadiusArea(Position, radius, TerrainGrid.ThermalField.Terrain),
+            airCapacity: terrain.SumHeatCapacityInRadiusArea(Position, radius, TerrainGrid.ThermalField.Air));
 
-        if (damage > 0)
-            Reactor.Exhaust(new ReactorState(0, damage));
+        // Exchange with the grid is an exact transfer: whatever the tank lost, the cells under it gained.
+        terrain.AddEnergyInRadiusArea(Position, radius, step.EnergyToTerrain, TerrainGrid.ThermalField.Terrain);
+        terrain.AddEnergyInRadiusArea(Position, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
+
+        // Digging and shooting create heat from nothing; the heat floor can also create a little.
+        terrain.Ledger.RecordInjected(step.ActionHeat * Tweaks.Tank.TankHeatCapacity);
+        float nextHeat = TankHeatModel.ClampHeat(step.NextHeat);
+        terrain.Ledger.RecordSunkTank((step.NextHeat - nextHeat) * Tweaks.Tank.TankHeatCapacity);
+
+        if (step.OverheatDamage > 0)
+            Reactor.Exhaust(new ReactorState(0, step.OverheatDamage));
 
         Heat = nextHeat;
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
@@ -256,11 +269,13 @@ public class Tank
         _frameShotFired = false;
     }
 
-    public void Spawn()
+    public void Spawn(ThermalLedger? ledger = null)
     {
         if (Base == null) return;
         Reactor.Add(new ReactorState(0, Reactor.HealthCapacity));
         Position = Base.Position;
+        // A fresh tank starts cold: whatever heat the wreck still held is removed from the system.
+        ledger?.RecordSunkTank(Heat * Tweaks.Tank.TankHeatCapacity);
         Heat = 0f;
         Reactor.Current.Heat = new Heat(0);
         _respawning = false;
@@ -291,7 +306,7 @@ public class Tank
         if (_respawnTimer > TimeSpan.Zero)
             return;
 
-        Spawn();
+        Spawn(world.Terrain.Ledger);
     }
 
     public void Draw(Surface surface)

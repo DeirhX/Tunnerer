@@ -213,8 +213,7 @@ public class World
 
             foreach (var (offset, value) in writes)
             {
-                _terrain.SetPixelRaw(offset, value);
-                _terrain.CommitPixel(new Position(offset % w, offset / w));
+                _terrain.SetPixel(new Position(offset % w, offset / w), value);
             }
             return;
         }
@@ -269,8 +268,7 @@ public class World
         {
             foreach (var (offset, value) in writes)
             {
-                _terrain.SetPixelRaw(offset, value);
-                _terrain.CommitPixel(new Position(offset % w, offset / w));
+                _terrain.SetPixel(new Position(offset % w, offset / w), value);
             }
         }
 

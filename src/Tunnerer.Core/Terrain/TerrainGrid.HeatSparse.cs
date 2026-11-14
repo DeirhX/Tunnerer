@@ -2,6 +2,7 @@ namespace Tunnerer.Core.Terrain;
 
 using System.Diagnostics;
 using Tunnerer.Core.Config;
+using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 
 public partial class TerrainGrid
@@ -262,6 +263,8 @@ public partial class TerrainGrid
         long markStart = Stopwatch.GetTimestamp();
         workers.Sort(static (a, b) => a.Id.CompareTo(b.Id));
         ClearNextActiveTiles();
+        double sunkMirror = 0.0;
+        double sunkFixed = 0.0;
         for (int i = 0; i < workers.Count; i++)
         {
             var work = workers[i];
@@ -280,14 +283,17 @@ public partial class TerrainGrid
                     ThermalMaterial material = Pixel.GetThermalMaterial(_data[offset]);
                     if (material == ThermalMaterial.Air)
                     {
+                        sunkMirror += TerrainHeatEngine.MirrorOverwriteEnergy(next, nextAir);
                         next = nextAir;
                     }
                     else if (material == ThermalMaterial.Base)
                     {
+                        sunkFixed += TerrainHeatEngine.FixedCellEnergySunk(material, next, Tweaks.World.ThermalFixedBaseTemperature);
                         next = Tweaks.World.ThermalFixedBaseTemperature;
                     }
                     else if (material == ThermalMaterial.ConstantEnergy)
                     {
+                        sunkFixed += TerrainHeatEngine.FixedCellEnergySunk(material, next, Tweaks.World.ThermalFixedConstantEnergyTemperature);
                         next = Tweaks.World.ThermalFixedConstantEnergyTemperature;
                     }
                     _heatTemperature[offset] = next;
@@ -304,6 +310,8 @@ public partial class TerrainGrid
                 }
             }
         }
+        Ledger.RecordSunkAirMirror(sunkMirror);
+        Ledger.RecordSunkFixedTemperature(sunkFixed);
         markDirty = Stopwatch.GetElapsedTime(markStart);
         SwapActiveTiles();
     }

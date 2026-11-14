@@ -172,6 +172,40 @@ All `Pixel.Is*()` methods are single-lookup into the behavior table (256-element
 - `DrawChangesToSurface(uint[] surface)` — only changed positions (via `_changeList`)
 - Color mapping: `Pixel.GetColor(TerrainPixel)` returns exact C++ hex values
 
+## Thermal energy model
+
+Heat lives in two float fields on `TerrainGrid`: a **terrain** field and an **air** field. Energy is always
+`temperature × heat capacity`; capacities come from `TerrainHeatEngine.GetHeatCapacity` (per `ThermalMaterial`)
+and `Tweaks.World.ThermalCapacityAir`. The grid solver (`StepConservative` / sparse regions) moves energy between
+neighbouring cells in exact pairs, so it conserves energy by itself.
+
+**Rule: entities never write temperatures directly.** They exchange *energy*:
+
+| Operation | API | Ledger |
+|-----------|-----|--------|
+| Entity gives heat to the grid | `AddEnergyInRadiusArea` (uniform ΔT = energy / Σcapacity) | none (the entity was already debited) |
+| Entity takes heat from the grid | `ExtractEnergyInRadiusArea` (only from cells above ambient, never below) | none (caller credits a reactor or records a sink) |
+| External source (explosion, torch, tank action heat, tests) | `AddHeat`, `AddHeatRadius`, `Add*HeatTotalInRadiusArea` | `Injected` |
+| Material change (dig, blast, regrowth) | `SetPixel` | `Injected` (± capacity change) |
+
+`TerrainGrid.Ledger` (`ThermalLedger`) records every place where energy is created or destroyed:
+`Injected`, `SunkFixedTemperature` (base cells pinned to a fixed temperature), `SunkAirMirror` (an air cell's
+terrain field is overwritten with its air temperature), `SunkArtificialCooling`, `SunkBase` (tank cooling at a base,
+base-centre sink) and `SunkTank` (cooling pickups, heat floor, respawn). The invariant, checked every tick by
+`ThermalLedgerTests`:
+
+```
+SumTotalThermalEnergy() + tank heat × TankHeatCapacity + TankBase.ReactorHeatEnergy
+    == start + Ledger.Injected − Ledger.TotalSunk
+```
+
+Tank ↔ grid exchange is `TankHeatEngine.Advance` (returns the energy to hand to each field);
+base ↔ grid exchange is `TankBase.Advance`. The base reactor is a *finite* sink: it absorbs at most its remaining
+heat capacity (`Tweaks.Base.ReactorEnergyPerHeatUnit` per unit) and only heat that is actually present.
+
+Known residuals: `SetPixelRaw` writes (level generation) are not metered, and heat injected into an air cell's
+terrain field is mostly erased by the air-mirror overwrite on the next step (metered in `SunkAirMirror`).
+
 ## Level generation (Toast algorithm)
 
 `ToastGenerator.Generate(Size, int? seed)` → `(TerrainGrid, Position[] spawns)`:

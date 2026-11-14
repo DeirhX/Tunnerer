@@ -47,7 +47,7 @@ public sealed class TerrainHeatEngine
         return temperature[index];
     }
 
-    public void StepConservative(float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels, int width, int height)
+    public void StepConservative(float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels, int width, int height, ThermalLedger? ledger = null)
     {
         int len = width * height;
         if (terrainTemperature.Length < len || airTemperature.Length < len)
@@ -94,20 +94,43 @@ public sealed class TerrainHeatEngine
             }
         }
 
+        double sunkMirror = 0.0;
+        double sunkFixed = 0.0;
         for (int i = 0; i < len; i++)
         {
             terrainTemperature[i] += _delta[i];
             airTemperature[i] += _airDelta[i];
-            if (Pixel.GetThermalMaterial(pixels[i]) == ThermalMaterial.Air)
-                terrainTemperature[i] = airTemperature[i];
-            else
+            ThermalMaterial material = Pixel.GetThermalMaterial(pixels[i]);
+            if (material == ThermalMaterial.Air)
             {
-                ThermalMaterial material = Pixel.GetThermalMaterial(pixels[i]);
-                if (IsFixedTemperatureMaterial(material))
-                    terrainTemperature[i] = GetFixedTemperature(material);
+                sunkMirror += MirrorOverwriteEnergy(terrainTemperature[i], airTemperature[i]);
+                terrainTemperature[i] = airTemperature[i];
+            }
+            else if (IsFixedTemperatureMaterial(material))
+            {
+                float fixedTemperature = GetFixedTemperature(material);
+                sunkFixed += FixedCellEnergySunk(material, terrainTemperature[i], fixedTemperature);
+                terrainTemperature[i] = fixedTemperature;
             }
         }
+
+        if (ledger != null)
+        {
+            ledger.RecordSunkAirMirror(sunkMirror);
+            ledger.RecordSunkFixedTemperature(sunkFixed);
+        }
     }
+
+    /// <summary>
+    /// Energy removed when an air cell's terrain field (<paramref name="terrainTemperature"/>) is forced to
+    /// equal its air temperature. Negative when the terrain field was colder than the air.
+    /// </summary>
+    public static double MirrorOverwriteEnergy(float terrainTemperature, float airTemperature)
+        => (double)(terrainTemperature - airTemperature) * Tweaks.World.ThermalCapacityAir;
+
+    /// <summary>Energy removed when a fixed-temperature cell is pinned back to <paramref name="fixedTemperature"/>.</summary>
+    public static double FixedCellEnergySunk(ThermalMaterial material, float terrainTemperature, float fixedTemperature)
+        => (double)(terrainTemperature - fixedTemperature) * GetHeatCapacity(material);
 
     public void ComputeRegionDeltaConservative(
         float[] terrainTemperature,
@@ -452,7 +475,8 @@ public sealed class TerrainHeatEngine
         }
     }
 
-    private static float GetHeatCapacity(ThermalMaterial material) => material switch
+    /// <summary>Heat capacity of the terrain field of a cell made of <paramref name="material"/>.</summary>
+    public static float GetHeatCapacity(ThermalMaterial material) => material switch
     {
         ThermalMaterial.Air => Tweaks.World.ThermalCapacityAir,
         ThermalMaterial.Dirt => Tweaks.World.ThermalCapacityDirt,

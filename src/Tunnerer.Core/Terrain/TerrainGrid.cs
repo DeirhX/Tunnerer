@@ -56,8 +56,26 @@ public partial class TerrainGrid
 
     public void SetPixel(Position pos, TerrainPixel value)
     {
-        _data[pos.X + pos.Y * Width] = value;
+        int offset = pos.X + pos.Y * Width;
+        RecordMaterialChangeEnergy(offset, _data[offset], value);
+        _data[offset] = value;
         CommitPixel(pos);
+    }
+
+    /// <summary>
+    /// A cell that changes thermal material (dirt dug out to air, rock blasted, regrowth) keeps its
+    /// temperature but gets a different heat capacity, which creates or destroys energy.
+    /// The difference is recorded in <see cref="Ledger"/> so the energy balance stays auditable.
+    /// </summary>
+    private void RecordMaterialChangeEnergy(int offset, TerrainPixel oldPixel, TerrainPixel newPixel)
+    {
+        var oldMaterial = Pixel.GetThermalMaterial(oldPixel);
+        var newMaterial = Pixel.GetThermalMaterial(newPixel);
+        if (oldMaterial == newMaterial)
+            return;
+
+        double capacityDelta = Thermal.TerrainHeatEngine.GetHeatCapacity(newMaterial) - Thermal.TerrainHeatEngine.GetHeatCapacity(oldMaterial);
+        Ledger.RecordInjected(_heatTemperature[offset] * capacityDelta);
     }
 
     public void CommitPixel(Position pos) => _changeList.Add(pos);
