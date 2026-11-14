@@ -269,6 +269,11 @@ public static class Tweaks
         // Starting guess for the first-prototype spike; tune in play.
         public const float HarvesterHeatPerHarvest = 1000f;
         public const int HarvesterHeatRadius = 2;
+        // A harvester stalls while the ground around it is hotter than this (average over the sense radius), so the
+        // heat it makes can never run away: it keeps itself bounded, and a relay that pumps the heat out is what
+        // lets it work at full speed. Starting guess for the spike; tune in play.
+        public const float HarvesterStallTemperature = 30f;
+        public const int HarvesterHeatSenseRadius = 4;
         public const int HarvesterDirtCost = 1000;
         public const int ChargerDirtCost = 500;
         public const int BoundingBoxHalfSize = 2;

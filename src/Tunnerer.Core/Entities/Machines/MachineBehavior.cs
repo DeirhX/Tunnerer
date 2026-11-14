@@ -59,8 +59,14 @@ public static class MachineBehaviors
 
     private static void HarvestNearby(Machine machine, ITerrainAccess terrain)
     {
-        int range = Tweaks.Machine.HarvestRange;
         var center = machine.Position;
+
+        // Too hot to work: wait for the ground to cool (a linked relay nearby speeds that up a lot).
+        // SampleAverageHeat is normalised (temperature / 255).
+        if (terrain.SampleAverageHeat(center, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f >= Tweaks.Machine.HarvesterStallTemperature)
+            return;
+
+        int range = Tweaks.Machine.HarvestRange;
         for (int dy = -range; dy <= range; dy++)
             for (int dx = -range; dx <= range; dx++)
             {
