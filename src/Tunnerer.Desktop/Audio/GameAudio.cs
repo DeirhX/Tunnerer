@@ -64,7 +64,7 @@ public sealed class GameAudio : IDisposable
     private Position _listener;
     private int _step;
     private int _lastDebrisStep = -1000;
-    private bool _lowEnergy, _lowShield;
+    private bool _runningHot, _lowShield;
     private int _nextWarningStep, _lastWarningStep = -1000, _lastWarningRank;
     private bool _disposed;
 
@@ -402,23 +402,23 @@ public sealed class GameAudio : IDisposable
 
     /// <summary>
     /// Warning tones for the player's own tank, repeating while the condition lasts. Like the HUD banner, only
-    /// the most urgent one sounds: overheating, then low shield, then low energy.
+    /// the most urgent one sounds: overheating, then low shield, then running hot.
     /// </summary>
     private void ObserveWarnings(Tank player)
     {
         if (player.IsDead)
         {
-            _lowEnergy = _lowShield = false;
+            _runningHot = _lowShield = false;
             return;
         }
 
-        _lowEnergy = PlayerWarnings.LowEnergy(_lowEnergy, player);
+        _runningHot = PlayerWarnings.RunningHot(_runningHot, player);
         _lowShield = PlayerWarnings.LowShield(_lowShield, player);
 
         (SoundEffect effect, int rank, int interval) = player.IsOverheating
             ? (SoundEffect.WarnOverheat, 3, AudioTweaks.OverheatWarningIntervalSteps)
             : _lowShield ? (SoundEffect.WarnShield, 2, AudioTweaks.ShieldWarningIntervalSteps)
-            : _lowEnergy ? (SoundEffect.WarnEnergy, 1, AudioTweaks.EnergyWarningIntervalSteps)
+            : _runningHot ? (SoundEffect.WarnEnergy, 1, AudioTweaks.EnergyWarningIntervalSteps)
             : (default, 0, 0);
 
         if (_step >= _nextWarningStep)

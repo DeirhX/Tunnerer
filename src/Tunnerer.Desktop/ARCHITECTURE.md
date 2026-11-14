@@ -148,7 +148,7 @@ rather than displayed frames is what keeps an effect from repeating on the frame
 | Plant refused | `PlantRefusedTicks` rose (player only) |
 | Pickup | A cell that held gold before the step (`BeforeStep` records those near each tank) is empty and under the tank, or the tank's mineral store grew. At most every 3 steps; a run of pickups climbs in pitch. |
 | Dock | The player's tank entered its own base |
-| Warnings | Player only, most urgent first like the HUD banner: overheating, low shield, low energy. The low thresholds are shared with the HUD through `PlayerWarnings`. Each repeats at its own interval while it lasts. |
+| Warnings | Player only, most urgent first like the HUD banner: overheating, low shield, running hot. The thresholds are shared with the HUD through `PlayerWarnings`. Each repeats at its own interval while it lasts. |
 | Engine loop | Per tank, while alive: idle, or louder and higher while its position changes |
 | Dig loop | Per tank: its dirt store grew, or cells next to it were emptied while it was driving or torching |
 | Torch loop | Per tank: digging while the turret is firing |

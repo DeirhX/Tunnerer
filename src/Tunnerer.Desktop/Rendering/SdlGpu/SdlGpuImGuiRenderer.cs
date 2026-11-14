@@ -14,6 +14,8 @@ internal sealed unsafe class SdlGpuImGuiRenderer : IDisposable
     private readonly SdlGpuBackend _backend;
     private readonly nint _device;
     private readonly nint _pipeline;
+    private readonly nint _heatOrbPipeline;
+    private HeatOrbUniforms _heatOrb;
     private readonly nint _sampler;
     private readonly nint _fontTexture;
     private readonly GpuBuffer _vertices = new("imgui vertices", SDL.GPUBufferUsageFlags.Vertex);
@@ -25,6 +27,13 @@ internal sealed unsafe class SdlGpuImGuiRenderer : IDisposable
     {
         public Vector2 Scale;
         public Vector2 Translate;
+    }
+
+    // Must match the HeatOrbParams cbuffer in HeatOrbPs.hlsl.
+    private struct HeatOrbUniforms
+    {
+        public Vector4 LiquidColor;
+        public Vector4 State;
     }
 
     public SdlGpuImGuiRenderer(SdlGpuBackend backend, SDL.GPUTextureFormat targetFormat, int windowW, int windowH)
@@ -55,6 +64,7 @@ internal sealed unsafe class SdlGpuImGuiRenderer : IDisposable
             AlphaBlendOp = SDL.GPUBlendOp.Add,
         };
         _pipeline = backend.CreatePipeline("ImGuiVs", "ImGuiPs", buffers, attributes, blend, targetFormat);
+        _heatOrbPipeline = backend.CreatePipeline("ImGuiVs", "HeatOrbPs", buffers, attributes, blend, targetFormat);
 
         var samplerInfo = new SDL.GPUSamplerCreateInfo
         {
@@ -73,6 +83,15 @@ internal sealed unsafe class SdlGpuImGuiRenderer : IDisposable
         io.Fonts.GetTexDataAsRGBA32(out byte* pixels, out int width, out int height, out _);
         _fontTexture = backend.CreateTextureFromRgba(pixels, width, height, "imgui font");
         io.Fonts.SetTexID(_fontTexture);
+    }
+
+    public void SetHeatOrb(in HeatOrbState state)
+    {
+        _heatOrb = new HeatOrbUniforms
+        {
+            LiquidColor = new Vector4(state.LiquidColor, 1f),
+            State = new Vector4(state.Frozen, state.Boil, state.Burning, state.Time),
+        };
     }
 
     /// <summary>Copies this frame's vertices and indices to the GPU. Must run outside any render pass.</summary>
@@ -158,6 +177,24 @@ internal sealed unsafe class SdlGpuImGuiRenderer : IDisposable
 
                 var scissor = new SDL.Rect { X = (int)x0, Y = (int)y0, W = (int)(x1 - x0), H = (int)(y1 - y0) };
                 SDL.SetGPUScissor(pass, in scissor);
+
+                if (pcmd.TextureId == HeatOrbEffect.TextureId)
+                {
+                    // The temperature orb is a shader, not a texture: swap pipelines for this draw.
+                    SDL.BindGPUGraphicsPipeline(pass, _heatOrbPipeline);
+                    SDL.PushGPUVertexUniformData(cmd, 0, (nint)(&transform), (uint)sizeof(Transform));
+                    HeatOrbUniforms orb = _heatOrb;
+                    SDL.PushGPUFragmentUniformData(cmd, 0, (nint)(&orb), (uint)sizeof(HeatOrbUniforms));
+                    SDL.DrawGPUIndexedPrimitives(
+                        pass, pcmd.ElemCount, 1,
+                        (uint)(pcmd.IdxOffset + globalIdxOffset),
+                        (int)(pcmd.VtxOffset + globalVtxOffset),
+                        0);
+                    SDL.BindGPUGraphicsPipeline(pass, _pipeline);
+                    SDL.PushGPUVertexUniformData(cmd, 0, (nint)(&transform), (uint)sizeof(Transform));
+                    continue;
+                }
+
                 textureBinding[0] = new SDL.GPUTextureSamplerBinding { Texture = pcmd.TextureId, Sampler = _sampler };
                 SDL.BindGPUFragmentSamplers(pass, 0, textureBinding, 1);
                 SDL.DrawGPUIndexedPrimitives(
@@ -182,5 +219,6 @@ internal sealed unsafe class SdlGpuImGuiRenderer : IDisposable
         _backend.ReleaseTexture(_fontTexture);
         SDL.ReleaseGPUSampler(_device, _sampler);
         SDL.ReleaseGPUGraphicsPipeline(_device, _pipeline);
+        SDL.ReleaseGPUGraphicsPipeline(_device, _heatOrbPipeline);
     }
 }
