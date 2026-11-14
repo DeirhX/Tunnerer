@@ -99,7 +99,8 @@ public partial class Game : IDisposable
         _p1Controller = new KeyboardController(_renderer.Sdl, new KeyBindings(
             Left: Scancode.ScancodeA, Right: Scancode.ScancodeD,
             Up: Scancode.ScancodeW, Down: Scancode.ScancodeS,
-            Shoot: Scancode.ScancodeSpace));
+            Shoot: Scancode.ScancodeSpace,
+            Build: Scancode.ScancodeE));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         if (_scriptedInput.HasScriptedController())
             Console.WriteLine("[Input] Scripted controller enabled via TUNNERER_SCRIPTED_INPUT.");

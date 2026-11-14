@@ -271,6 +271,9 @@ Reads `SDL_GetKeyboardState` each frame and maps:
 | W / Up | MoveSpeed.Y = -1 |
 | S / Down | MoveSpeed.Y = +1 |
 | Space | ShootPrimary = true |
+| E | BuildPrimary = true (edge triggered in `Tank`: builds a relay from the tank's dirt, press again outside a base to plant it) |
+
+The top-right "Heat network" overlay (`GameHud`) shows the base reservoir fill, connected relays and the next build action. `TUNNERER_SCRIPTED_INPUT` segments accept an optional fourth field `build` (`dx,dy,shoot,build:frames`) so scripted runs can build and plant relays.
 
 Returns a `ControllerOutput` with `AimDirection = default` (aim comes from mouse via `Screen.SetCrosshairScreenPos`).
 

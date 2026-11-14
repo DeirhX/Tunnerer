@@ -33,7 +33,8 @@ public sealed class ScriptedController
 
             string[] move = pair[0].Split(',', StringSplitOptions.TrimEntries);
             bool shoot = false;
-            if (move.Length != 2 && move.Length != 3 ||
+            bool build = false;
+            if (move.Length < 2 || move.Length > 4 ||
                 !int.TryParse(move[0], out int mx) ||
                 !int.TryParse(move[1], out int my) ||
                 !int.TryParse(pair[1], out int frames) ||
@@ -41,15 +42,21 @@ public sealed class ScriptedController
             {
                 return null;
             }
-            if (move.Length == 3)
+            if (move.Length >= 3)
             {
                 if (!int.TryParse(move[2], out int shootRaw))
                     return null;
                 shoot = shootRaw != 0;
             }
+            if (move.Length == 4)
+            {
+                if (!int.TryParse(move[3], out int buildRaw))
+                    return null;
+                build = buildRaw != 0;
+            }
 
             end += frames;
-            segments.Add(new Segment(end, new Offset(mx, my), shoot));
+            segments.Add(new Segment(end, new Offset(mx, my), shoot, build));
         }
 
         return new ScriptedController(segments.ToArray());
@@ -82,11 +89,12 @@ public sealed class ScriptedController
             {
                 MoveSpeed = segment.Move,
                 ShootPrimary = segment.Shoot,
+                BuildPrimary = segment.Build,
             };
         }
 
         return default;
     }
 
-    private readonly record struct Segment(int EndFrameExclusive, Offset Move, bool Shoot);
+    private readonly record struct Segment(int EndFrameExclusive, Offset Move, bool Shoot, bool Build);
 }

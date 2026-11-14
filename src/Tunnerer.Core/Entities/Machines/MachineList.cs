@@ -56,7 +56,8 @@ public class MachineList
                 Position: m.Position,
                 Type: m.Type,
                 State: m.State,
-                IsAlive: m.IsAlive);
+                IsAlive: m.IsAlive,
+                IsPowered: m.LinkPoint?.IsPowered ?? false);
         }
         return count;
     }

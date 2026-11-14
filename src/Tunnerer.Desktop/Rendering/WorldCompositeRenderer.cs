@@ -72,6 +72,8 @@ public sealed class WorldCompositeRenderer
         uint templateColor = Tweaks.Colors.MachineTemplate.ToArgb();
         uint harvesterColor = Tweaks.Colors.Harvester.ToArgb();
         uint chargerColor = Tweaks.Colors.Charger.ToArgb();
+        uint relayColor = Tweaks.Colors.Relay.ToArgb();
+        uint relayIdleColor = Tweaks.Colors.RelayIdle.ToArgb();
 
         for (int i = 0; i < count; i++)
         {
@@ -79,9 +81,15 @@ public sealed class WorldCompositeRenderer
             if (!machine.IsAlive)
                 continue;
 
-            uint color = machine.State == MachineState.Template
+            // A relay being carried looks like a template; a planted one is bright when it is connected to a base.
+            uint color = machine.State != MachineState.Planted
                 ? templateColor
-                : machine.Type == MachineType.Harvester ? harvesterColor : chargerColor;
+                : machine.Type switch
+                {
+                    MachineType.Harvester => harvesterColor,
+                    MachineType.Relay => machine.IsPowered ? relayColor : relayIdleColor,
+                    _ => chargerColor,
+                };
 
             for (int dy = -half; dy <= half; dy++)
             {

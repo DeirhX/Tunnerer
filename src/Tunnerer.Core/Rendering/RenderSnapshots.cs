@@ -23,7 +23,8 @@ public readonly record struct MachineRenderState(
     Position Position,
     MachineType Type,
     MachineState State,
-    bool IsAlive);
+    bool IsAlive,
+    bool IsPowered);
 
 public readonly record struct LinkRenderState(
     Position From,
