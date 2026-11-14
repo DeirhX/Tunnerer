@@ -464,7 +464,7 @@ public sealed class TerrainHeatEngine
         }
     }
 
-    private const int MaterialCount = 5; // Air, Dirt, Stone, Base, ConstantEnergy
+    private const int MaterialCount = 6; // Air, Dirt, Stone, Base, ConstantEnergy, HotRock
 
     private static readonly float[] s_heatCapacity = BuildHeatCapacityTable();
     private static readonly float[] s_conductance = BuildConductanceTable();
@@ -497,12 +497,16 @@ public sealed class TerrainHeatEngine
         ThermalMaterial.Air => Tweaks.World.ThermalCapacityAir,
         ThermalMaterial.Dirt => Tweaks.World.ThermalCapacityDirt,
         ThermalMaterial.Stone => Tweaks.World.ThermalCapacityStone,
+        ThermalMaterial.HotRock => Tweaks.World.ThermalCapacityStone,
         ThermalMaterial.ConstantEnergy => Tweaks.World.ThermalCapacityConstantEnergy,
         _ => Tweaks.World.ThermalCapacityBase,
     };
 
     private static float ComputeConductance(ThermalMaterial a, ThermalMaterial b)
     {
+        // Hot rock conducts like stone.
+        if (a == ThermalMaterial.HotRock) a = ThermalMaterial.Stone;
+        if (b == ThermalMaterial.HotRock) b = ThermalMaterial.Stone;
         if (a > b) (a, b) = (b, a);
         return (a, b) switch
         {
@@ -533,14 +537,19 @@ public sealed class TerrainHeatEngine
         _ => Tweaks.World.ThermalKAmbientBase,
     };
 
-    private static bool IsFixedTemperatureMaterial(ThermalMaterial material)
-        => material == ThermalMaterial.Base || material == ThermalMaterial.ConstantEnergy;
+    /// <summary>
+    /// Fixed-temperature materials hold their temperature whatever flows in or out: base cells are heat sinks
+    /// (pinned at ambient) and hot rock is a heat source. They are not storage, so sinks and relays never draw from them.
+    /// </summary>
+    public static bool IsFixedTemperatureMaterial(ThermalMaterial material)
+        => material == ThermalMaterial.Base || material == ThermalMaterial.ConstantEnergy || material == ThermalMaterial.HotRock;
 
-    private static float GetFixedTemperature(ThermalMaterial material)
+    public static float GetFixedTemperature(ThermalMaterial material)
         => material switch
         {
             ThermalMaterial.Base => Tweaks.World.ThermalFixedBaseTemperature,
             ThermalMaterial.ConstantEnergy => Tweaks.World.ThermalFixedConstantEnergyTemperature,
+            ThermalMaterial.HotRock => Tweaks.World.ThermalFixedHotRockTemperature,
             _ => 0f,
         };
 }

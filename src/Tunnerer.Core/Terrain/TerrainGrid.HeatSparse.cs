@@ -285,15 +285,11 @@ public partial class TerrainGrid
                         // Mirror of the air field; holds no energy of its own.
                         next = nextAir;
                     }
-                    else if (material == ThermalMaterial.Base)
+                    else if (TerrainHeatEngine.IsFixedTemperatureMaterial(material))
                     {
-                        sunkFixed += TerrainHeatEngine.FixedCellEnergySunk(material, next, Tweaks.World.ThermalFixedBaseTemperature);
-                        next = Tweaks.World.ThermalFixedBaseTemperature;
-                    }
-                    else if (material == ThermalMaterial.ConstantEnergy)
-                    {
-                        sunkFixed += TerrainHeatEngine.FixedCellEnergySunk(material, next, Tweaks.World.ThermalFixedConstantEnergyTemperature);
-                        next = Tweaks.World.ThermalFixedConstantEnergyTemperature;
+                        float fixedTemperature = TerrainHeatEngine.GetFixedTemperature(material);
+                        sunkFixed += TerrainHeatEngine.FixedCellEnergySunk(material, next, fixedTemperature);
+                        next = fixedTemperature;
                     }
                     _heatTemperature[offset] = next;
                     _airTemperature[offset] = nextAir;

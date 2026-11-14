@@ -431,6 +431,14 @@ public partial class TerrainGrid
         => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.Air;
 
     /// <summary>
+    /// Sinks and relays only take heat that is stored in the cells. Hot rock is a source: it is pinned hot and refills
+    /// itself (and the air in it) from nothing, so drawing from it would be an unlimited supply that cools the source
+    /// instead of the tunnel. Everything else, including the air and pinned cells of a base, can be drawn from.
+    /// </summary>
+    private bool CannotExtractFrom(int offset, ThermalField field)
+        => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.HotRock;
+
+    /// <summary>
     /// Adds a temperature delta to the terrain field of a cell. In an air cell the terrain field is only a
     /// mirror of the air field and holds no energy of its own, so the delta lands in the air field (where the
     /// energy lives) and the mirror follows. Without this the heat would be erased on the next solver step.
@@ -530,6 +538,8 @@ public partial class TerrainGrid
         ForEachInRadius(center, radius, (nx, ny, _, _) =>
         {
             int offset = nx + ny * Width;
+            if (CannotExtractFrom(offset, field))
+                return; // a heat source or sink, not storage: nothing to take
             float excess = temperatures[offset] - ambient;
             if (excess > 0f)
                 available += excess * FieldCapacityAt(field, offset);
@@ -542,6 +552,8 @@ public partial class TerrainGrid
         ForEachInRadius(center, radius, (nx, ny, _, _) =>
         {
             int offset = nx + ny * Width;
+            if (CannotExtractFrom(offset, field))
+                return;
             float excess = temperatures[offset] - ambient;
             if (excess > 0f)
                 ApplyFieldDelta(nx, ny, field, -excess * fraction);

@@ -140,6 +140,16 @@ public static class Tweaks
 
         public const float ThermalFixedBaseTemperature = 0f;
         public const float ThermalFixedConstantEnergyTemperature = 0f;
+
+        // Hot rock pockets: indestructible rock pinned at a fixed high temperature. They are permanent heat sources
+        // that push heat into any tunnel they touch. Pocket placement is opt-in per world (World ctor).
+        public const float ThermalFixedHotRockTemperature = 100f;
+        public const int HotRockPocketCount = 4;
+        public const int HotRockMinRadius = 3;
+        public const int HotRockMaxRadius = 5;
+        public const int HotRockMinDistanceFromBase = 60;
+        public const int HotRockMinDistanceBetween = 50;
+        public const int HotRockPrewarmTicks = 240;
         public const float ThermalKAmbientAir = 0.0120f;
         public const float ThermalKAmbientDirt = 0.0120f;
         public const float ThermalKAmbientStone = 0.0100f;

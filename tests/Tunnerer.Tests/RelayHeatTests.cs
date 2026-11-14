@@ -17,13 +17,13 @@ namespace Tunnerer.Tests;
 /// </summary>
 public class RelayHeatTests
 {
-    private sealed record Scenario(World World, Tank Tank, TankBase Base, Position RelayPos, int DirY);
+    internal sealed record Scenario(World World, Tank Tank, TankBase Base, Position RelayPos, int DirY);
 
     /// <summary>
     /// A base with a straight 5-wide tunnel leaving through its door toward the farther map edge. The relay
     /// position is 30 cells beyond the door, well inside the live link range.
     /// </summary>
-    private static Scenario CreateScenario(int seed = 4242, bool blockLineOfSight = false)
+    internal static Scenario CreateScenario(int seed = 4242, bool blockLineOfSight = false)
     {
         var world = TestHelpers.CreateSeededWorld(seed: seed, enableTerrainRegrowth: false);
         var tank = world.TankList.Tanks[0];
@@ -45,7 +45,7 @@ public class RelayHeatTests
         return new Scenario(world, tank, tankBase, relayPos, dirY);
     }
 
-    private static Machine PlantRelay(Scenario s, Position? at = null)
+    internal static Machine PlantRelay(Scenario s, Position? at = null)
     {
         var relay = new Machine(at ?? s.RelayPos, MachineType.Relay, s.Tank.Color);
         s.World.Machines.Add(relay);

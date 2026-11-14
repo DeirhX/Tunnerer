@@ -250,6 +250,25 @@ charge. Overheat damage still starts above `Tank.HeatSafeMax`, so a fully pre-co
   air therefore neither warms a cold tank nor is chilled by it; the charge is spent only by absorbing real heat.
 - **Respawn:** a new tank starts at ambient and is pre-cooled again while it sits at its base.
 
+### Hot rock pockets
+
+`TerrainPixel.HotRock` / `ThermalMaterial.HotRock` is solid, undiggable and indestructible rock that is **pinned at
+`World.ThermalFixedHotRockTemperature`** by the solver, like a base cell is pinned at ambient but hot instead of cold. It
+conducts like stone, so any tunnel or air it touches is heated for as long as the pocket exists: a permanent heat source
+that has to be managed (relays, pre-cooled tanks) or avoided.
+
+- **Ledger:** the pin re-creates the heat that flowed out of the pocket, so `SunkFixedTemperature` goes *negative* (a source),
+  and the energy balance still holds exactly.
+- **Never drained:** `ExtractEnergyInRadiusArea` refuses to draw from hot rock cells (terrain or air), so relays and bases cool
+  the tunnel, not the source.
+- **Placement:** `TerrainGrid.PlaceHotRockPocket(center, radius)` converts dirt and rock (not air, bases or concrete) inside a
+  circle. `HotRockPockets.Place` scatters pockets deterministically in solid ground, `HotRockMinDistanceFromBase` from the bases
+  and `HotRockMinDistanceBetween` from each other. It is opt-in per world: `new World(..., hotRockPocketCount: n)`
+  (the desktop game passes `World.HotRockPocketCount`; tests default to none). `World.Initialize` then pre-warms the grid for
+  `HotRockPrewarmTicks` so the ground around a pocket is already warm when play starts.
+- **Cost:** pockets keep their thermal tiles permanently active; four pockets added roughly 0.3 ms per tick in a stress run.
+- **Rendering:** no special case: the existing heat glow shows a pocket as a hot spot.
+
 ## Level generation (Toast algorithm)
 
 `ToastGenerator.Generate(Size, int? seed)` → `(TerrainGrid, Position[] spawns)`:

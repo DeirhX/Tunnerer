@@ -24,6 +24,8 @@ public class World
     private readonly CollisionSolver _collisionSolver;
     private readonly bool _deterministicSimulation;
     private readonly bool _enableTerrainRegrowth;
+    private readonly int _hotRockPocketCount;
+    private readonly List<Position> _hotRockPockets = new();
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
 
@@ -64,6 +66,9 @@ public class World
 
     public SimulationProfile Profile { get; } = new();
 
+    /// <summary>Centres of the hot rock pockets placed at initialisation (empty unless the world was created with some).</summary>
+    public IReadOnlyList<Position> HotRockPockets => _hotRockPockets;
+
     /// <summary>
     /// Plants a carried machine where it stands: it becomes solid, joins the link network and belongs to
     /// <paramref name="owner"/> (the base it delivers to).
@@ -80,10 +85,12 @@ public class World
         bool deterministicSimulation = false,
         int simulationSeed = 0,
         bool enableTerrainRegrowth = true,
+        int hotRockPocketCount = 0,
         SimulationSettings? simulationSettings = null)
     {
         _deterministicSimulation = deterministicSimulation;
         _enableTerrainRegrowth = enableTerrainRegrowth;
+        _hotRockPocketCount = hotRockPocketCount;
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
@@ -108,6 +115,16 @@ public class World
         _tankBases.CreateBasesInTerrain(_terrain);
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
+
+        if (_hotRockPocketCount > 0)
+        {
+            int pocketSeed = materializeSeed.HasValue ? materializeSeed.Value + 200 : Environment.TickCount;
+            _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, pocketSeed));
+
+            // Let the heat spread a little before play starts so the pockets do not begin as isolated hot dots.
+            for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
+                _terrain.CoolDown(Tweaks.World.ThermalArtificialCoolingPerFrame);
+        }
 
         for (int i = 0; i < spawns.Length; i++)
         {

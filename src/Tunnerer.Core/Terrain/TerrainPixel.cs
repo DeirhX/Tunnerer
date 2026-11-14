@@ -18,6 +18,7 @@ public enum TerrainPixel : byte
     BaseMax = (byte)'7',
     BaseBarrier = (byte)'8',
     BaseCore = (byte)'9',
+    HotRock = (byte)'h',
     ConcreteLow = (byte)'c',
     ConcreteHigh = (byte)'C',
     EnergyLow = (byte)'e',
@@ -32,6 +33,7 @@ public enum ThermalMaterial : byte
     Stone = 2,
     Base = 3,
     ConstantEnergy = 4,
+    HotRock = 5,
 }
 
 /// <summary>
@@ -117,6 +119,10 @@ public static class Pixel
             BlocksMovement: false, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x40, 0x40, 0x40)));
+        Set(TerrainPixel.HotRock, new(
+            BlocksMovement: true, SoftCollision: false, Diggable: false,
+            Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0xd0, 0x40, 0x10)));
         Set(TerrainPixel.BaseCore, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: false,
@@ -162,6 +168,7 @@ public static class Pixel
     private static ThermalMaterial DeriveThermalMaterial(TerrainPixel p)
     {
         var b = _behaviors[(int)p];
+        if (p == TerrainPixel.HotRock) return ThermalMaterial.HotRock;
         if (p == TerrainPixel.BaseBarrier) return ThermalMaterial.Base;
         if (p == TerrainPixel.BaseCore) return ThermalMaterial.ConstantEnergy;
         if (b.Base) return ThermalMaterial.Base;
