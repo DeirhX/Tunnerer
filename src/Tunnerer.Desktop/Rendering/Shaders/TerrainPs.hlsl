@@ -28,9 +28,13 @@
 // coverage) is bound for both passes but only the post pass reads it.
 // ============================================================================
 
-Texture2D sourceTex : register(t0);
-Texture2D auxTex : register(t1);
-SamplerState s0 : register(s0);
+#include "PostPs/Common/Registers.hlsli"
+
+Texture2D sourceTex : FRAGMENT_TEXTURE(0);
+Texture2D auxTex : FRAGMENT_TEXTURE(1);
+// One bilinear-clamp sampler per texture, at the texture's index (see PostPs/Common/Bindings.hlsli).
+SamplerState s0 : FRAGMENT_SAMPLER(0);
+SamplerState s1 : FRAGMENT_SAMPLER(1);
 
 #include "PostPs/Common/PostParams.hlsli"
 
@@ -72,16 +76,16 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
     // auxTex.g holds a Gaussian-blurred signed-distance field:
     //   0.0 = deep cave, 0.5 = boundary, 1.0 = deep solid.
     float2 sdfUv = texUv;
-    float sdf = nativeCurvingEnabled ? auxTex.Sample(s0, sdfUv).g : sdfNearest;
+    float sdf = nativeCurvingEnabled ? auxTex.Sample(s1, sdfUv).g : sdfNearest;
     float2 cellPx = 1.0 / WorldSize;
 
     // 3-cell central difference for a stable SDF gradient.
     float2 gradStep = cellPx * 1.5;
     float2 sdfGrad;
-    sdfGrad.x = auxTex.Sample(s0, sdfUv + float2(gradStep.x, 0)).g
-              - auxTex.Sample(s0, sdfUv - float2(gradStep.x, 0)).g;
-    sdfGrad.y = auxTex.Sample(s0, sdfUv + float2(0, gradStep.y)).g
-              - auxTex.Sample(s0, sdfUv - float2(0, gradStep.y)).g;
+    sdfGrad.x = auxTex.Sample(s1, sdfUv + float2(gradStep.x, 0)).g
+              - auxTex.Sample(s1, sdfUv - float2(gradStep.x, 0)).g;
+    sdfGrad.y = auxTex.Sample(s1, sdfUv + float2(0, gradStep.y)).g
+              - auxTex.Sample(s1, sdfUv - float2(0, gradStep.y)).g;
 
     // ---- Tangent-aligned SDF smoothing ------------------------------------
     // Average the SDF at 6 points along the boundary tangent (±0.75, ±1.5,
@@ -93,12 +97,12 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
         float2 t1 = tangent * cellPx * 2.0;
         float2 t2 = tangent * cellPx * 1.5;
         float2 t3 = tangent * cellPx * 0.75;
-        float st1 = auxTex.Sample(s0, sdfUv + t1).g;
-        float st2 = auxTex.Sample(s0, sdfUv - t1).g;
-        float st3 = auxTex.Sample(s0, sdfUv + t2).g;
-        float st4 = auxTex.Sample(s0, sdfUv - t2).g;
-        float st5 = auxTex.Sample(s0, sdfUv + t3).g;
-        float st6 = auxTex.Sample(s0, sdfUv - t3).g;
+        float st1 = auxTex.Sample(s1, sdfUv + t1).g;
+        float st2 = auxTex.Sample(s1, sdfUv - t1).g;
+        float st3 = auxTex.Sample(s1, sdfUv + t2).g;
+        float st4 = auxTex.Sample(s1, sdfUv - t2).g;
+        float st5 = auxTex.Sample(s1, sdfUv + t3).g;
+        float st6 = auxTex.Sample(s1, sdfUv - t3).g;
         sdf = (sdf * 3.0 + st5 + st6 + st3 + st4 + (st1 + st2) * 0.5) / 8.0;
     }
 

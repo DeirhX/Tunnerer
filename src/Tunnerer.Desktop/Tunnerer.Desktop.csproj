@@ -7,75 +7,65 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
-    <Dx11ShaderCompiler Condition="'$(Dx11ShaderCompiler)' == '' and Exists('C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\fxc.exe')">C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\fxc.exe</Dx11ShaderCompiler>
-    <Dx11ShaderCompiler Condition="'$(Dx11ShaderCompiler)' == ''">fxc.exe</Dx11ShaderCompiler>
-    <!-- fxc.exe exists only on Windows, and the DX11 backend only runs there, so other platforms build the client
-         without compiled shaders. Pass -p:CompileDx11Shaders=true or false to override. -->
-    <CompileDx11Shaders Condition="'$(CompileDx11Shaders)' == ''">$([MSBuild]::IsOSPlatform('Windows'))</CompileDx11Shaders>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Tunnerer.Core\Tunnerer.Core.csproj" />
+    <!-- Built first so CompileSdlGpuShaders can run it; nothing from it is referenced or copied. -->
+    <ProjectReference Include="..\..\tools\Tunnerer.ShaderCompiler\Tunnerer.ShaderCompiler.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="resources\hud\**\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Shader sources live in Rendering\Shaders; includes are inputs of the shader build step. -->
   <ItemGroup>
-    <Dx11Shader Include="Rendering\Dx11\Shaders\FullscreenVs.hlsl">
-      <Profile>vs_5_0</Profile>
-      <OutputFile>$(IntermediateOutputPath)Shaders\FullscreenVs.cso</OutputFile>
-    </Dx11Shader>
-    <Dx11Shader Include="Rendering\Dx11\Shaders\BlitPs.hlsl">
-      <Profile>ps_5_0</Profile>
-      <OutputFile>$(IntermediateOutputPath)Shaders\BlitPs.cso</OutputFile>
-    </Dx11Shader>
-    <Dx11Shader Include="Rendering\Dx11\Shaders\PostPs.hlsl">
-      <Profile>ps_5_0</Profile>
-      <OutputFile>$(IntermediateOutputPath)Shaders\PostPs.cso</OutputFile>
-    </Dx11Shader>
-    <Dx11Shader Include="Rendering\Dx11\Shaders\TerrainPs.hlsl">
-      <Profile>ps_5_0</Profile>
-      <OutputFile>$(IntermediateOutputPath)Shaders\TerrainPs.cso</OutputFile>
-    </Dx11Shader>
-    <Dx11Shader Include="Rendering\Dx11\Shaders\EntityVs.hlsl">
-      <Profile>vs_5_0</Profile>
-      <OutputFile>$(IntermediateOutputPath)Shaders\EntityVs.cso</OutputFile>
-    </Dx11Shader>
-    <Dx11Shader Include="Rendering\Dx11\Shaders\EntityPs.hlsl">
-      <Profile>ps_5_0</Profile>
-      <OutputFile>$(IntermediateOutputPath)Shaders\EntityPs.cso</OutputFile>
-    </Dx11Shader>
-    <Dx11ShaderInclude Include="Rendering\Dx11\Shaders\**\*.hlsli" />
+    <ShaderInclude Include="Rendering\Shaders\**\*.hlsli" />
   </ItemGroup>
 
-  <Target Name="CompileDx11Shaders"
-          BeforeTargets="BeforeBuild"
-          Condition="'$(CompileDx11Shaders)' == 'true'"
-          Inputs="@(Dx11Shader);@(Dx11ShaderInclude)"
-          Outputs="@(Dx11Shader->'%(OutputFile)')">
-    <Error Condition="'$(Dx11ShaderCompiler)' == ''" Text="No DX11 shader compiler configured. Set Dx11ShaderCompiler to fxc.exe path." />
-    <MakeDir Directories="$(IntermediateOutputPath)Shaders" />
-    <Exec Command="&quot;$(Dx11ShaderCompiler)&quot; /nologo /E main /T %(Dx11Shader.Profile) /Fo &quot;%(Dx11Shader.OutputFile)&quot; &quot;%(Dx11Shader.FullPath)&quot;" />
+  <!-- ===== SDL_GPU backend: every shader compiled to DXIL, SPIR-V and MSL on every OS ===================== -->
+  <ItemGroup>
+    <SdlGpuShader Include="Rendering\Shaders\FullscreenVs.hlsl" Stage="vertex" />
+    <SdlGpuShader Include="Rendering\Shaders\BlitPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\PostPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\TerrainPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\EntityVs.hlsl" Stage="vertex" />
+    <SdlGpuShader Include="Rendering\Shaders\EntityPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\ImGuiVs.hlsl" Stage="vertex" />
+    <SdlGpuShader Include="Rendering\Shaders\ImGuiPs.hlsl" Stage="fragment" />
+  </ItemGroup>
+
+  <Target Name="ResolveShaderCompiler" AfterTargets="ResolveProjectReferences">
+    <MSBuild Projects="..\..\tools\Tunnerer.ShaderCompiler\Tunnerer.ShaderCompiler.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" PropertyName="ShaderCompilerPath" />
+    </MSBuild>
+  </Target>
+
+  <Target Name="CompileSdlGpuShaders"
+          AfterTargets="ResolveShaderCompiler"
+          Inputs="@(SdlGpuShader);@(ShaderInclude);$(ShaderCompilerPath)"
+          Outputs="@(SdlGpuShader->'$(IntermediateOutputPath)SdlGpuShaders\%(Filename).json')">
+    <Exec Command="dotnet &quot;$(ShaderCompilerPath)&quot; --out &quot;$(IntermediateOutputPath)SdlGpuShaders&quot; @(SdlGpuShader->'&quot;%(FullPath)=%(Stage)&quot;', ' ')" />
+  </Target>
+
+  <Target Name="CopySdlGpuShaders" AfterTargets="CompileSdlGpuShaders">
+    <ItemGroup>
+      <_SdlGpuShaderOutput Include="$(IntermediateOutputPath)SdlGpuShaders\*.spv;$(IntermediateOutputPath)SdlGpuShaders\*.dxil;$(IntermediateOutputPath)SdlGpuShaders\*.msl;$(IntermediateOutputPath)SdlGpuShaders\*.json" />
+    </ItemGroup>
     <MakeDir Directories="$(OutDir)Shaders" />
-    <Copy SourceFiles="@(Dx11Shader->'%(OutputFile)')"
-          DestinationFolder="$(OutDir)Shaders"
-          SkipUnchangedFiles="true" />
-    <Copy Condition="'$(Configuration)' == 'Debug'"
-          SourceFiles="@(Dx11Shader)"
-          DestinationFolder="$(OutDir)Shaders"
-          SkipUnchangedFiles="true" />
-    <Copy Condition="'$(Configuration)' == 'Debug'"
-          SourceFiles="@(Dx11ShaderInclude)"
-          DestinationFolder="$(OutDir)Shaders\%(RecursiveDir)"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_SdlGpuShaderOutput)" DestinationFolder="$(OutDir)Shaders" SkipUnchangedFiles="true" />
   </Target>
 
   <ItemGroup>
     <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
-    <PackageReference Include="Silk.NET.Direct3D11" Version="2.23.0" />
-    <PackageReference Include="Silk.NET.SDL" Version="2.23.0" />
+    <PackageReference Include="SDL3-CS" Version="3.4.20" />
+    <PackageReference Include="SDL3-CS.Windows" Version="3.4.20" />
+    <PackageReference Include="SDL3-CS.MacOS" Version="3.4.20" />
+    <PackageReference Include="SDL3-CS.Linux" Version="3.4.20" />
     <PackageReference Include="StbImageSharp" Version="2.30.15" />
   </ItemGroup>
 
