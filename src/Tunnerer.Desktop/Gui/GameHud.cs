@@ -15,7 +15,7 @@ public class GameHud
 {
     public const float BottomPanelHeight = 223f;
 
-    private nint _energyIconTex, _shieldIconTex;
+    private nint _heatIconTex, _shieldIconTex;
     private nint _panelFrameTex, _buildPanelTex;
     private nint _digitStripTex;
 
@@ -26,7 +26,7 @@ public class GameHud
     private const float DigitSpacing = 1f;
 
     private float _time;
-    private bool _lowEnergyLatched;
+    private bool _runningHotLatched;
     private bool _shieldLowLatched;
     private bool _hasLeftBase;
     private float _thermalHintUntil = -1f;
@@ -34,15 +34,22 @@ public class GameHud
     private bool _dockedAtOwnBase;
     private int _lastPoweredRelays;
     private float _relayLinkedUntil = -1f;
-    private float _lastBudget = float.NaN;
-    private float _budgetTrend;
-    private float _shownEnergyFill = -1f;
+    private float _lastHeat = float.NaN;
+    private float _heatTrend;
+    private float _shownHeat = float.NaN;
     private float _shownShieldFill = -1f;
     private float _shownMaterialsFill = -1f;
 
     // Gauge shapes inside the HUD art (texture pixels = ImGui units from each panel's top-left corner).
-    private static readonly Vector2 EnergyOrbCenter = new(168f, 72f);
-    private const float EnergyOrbRadius = 47f;
+    private static readonly Vector2 HeatOrbCenter = new(168f, 72f);
+    private const float HeatOrbRadius = 47f;
+
+    // Temperature scale of the heat orb and bar, in tank heat units (0 = ambient): from a full coolant charge at
+    // the cold end, through the safe range, to a margin past the point where overheating starts burning the shield.
+    private static float HeatScaleMin => -Tweaks.Tank.CoolantCapacity;
+    private static float HeatScaleMax => Tweaks.Tank.HeatSafeMax * 1.25f;
+    private const float HeatDialStartAngle = MathF.PI * 150f / 180f; // lower left, sweeping clockwise over the top
+    private const float HeatDialSweep = MathF.PI * 240f / 180f;
     private static readonly Vector2[] ShieldOutline =
     [
         new(44f, 44f), new(60f, 40f), new(82f, 37f), new(104f, 40f), new(121f, 44f), new(121f, 80f),
@@ -57,8 +64,8 @@ public class GameHud
     ];
 
     // Layout of the bottom strip (ImGui units): the four art panels drawn side by side.
-    private const float EnergyPanelW = 245f, ShieldPanelW = 145f, MaterialsPanelW = 230f, BuildPanelW = 404f;
-    private const float StripW = EnergyPanelW + ShieldPanelW + MaterialsPanelW + BuildPanelW; // 1024
+    private const float HeatPanelW = 245f, ShieldPanelW = 145f, MaterialsPanelW = 230f, BuildPanelW = 404f;
+    private const float StripW = HeatPanelW +ShieldPanelW + MaterialsPanelW + BuildPanelW; // 1024
 
     // Build slots inside build_panel.png (offsets from the panel's top-left), 3 columns x 2 rows.
     private static readonly float[] BuildSlotX = [25f, 117f, 209f];
@@ -74,9 +81,9 @@ public class GameHud
     public (float x, float y, float w, float h) ViewportRect { get; private set; }
     public (float x, float y)? CrosshairScreenPos { get; set; }
 
-    public void Init(nint energyIcon, nint shieldIcon, nint panelFrame, nint buildPanel, nint digitStrip)
+    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel, nint digitStrip)
     {
-        _energyIconTex = energyIcon;
+        _heatIconTex = heatIcon;
         _shieldIconTex = shieldIcon;
         _panelFrameTex = panelFrame;
         _buildPanelTex = buildPanel;
@@ -158,8 +165,8 @@ public class GameHud
         float drawY = displaySize.Y - h;
 
         float x = startX;
-        dl.AddImage(_energyIconTex, new Vector2(x, drawY), new Vector2(x + EnergyPanelW, drawY + h));
-        x += EnergyPanelW;
+        dl.AddImage(_heatIconTex, new Vector2(x, drawY), new Vector2(x + HeatPanelW, drawY + h));
+        x += HeatPanelW;
         dl.AddImage(_shieldIconTex, new Vector2(x, drawY), new Vector2(x + ShieldPanelW, drawY + h));
         x += ShieldPanelW;
         float materialsX = x;
@@ -168,22 +175,23 @@ public class GameHud
         float buildX = x;
         dl.AddImage(_buildPanelTex, new Vector2(x, drawY), new Vector2(x + BuildPanelW, drawY + h));
 
-        DrawLiquidGauges(dl, player, startX, startX + EnergyPanelW, materialsX, drawY);
+        DrawHeatOrb(dl, player, new Vector2(startX, drawY) + HeatOrbCenter, HeatOrbRadius);
+        DrawLiquidGauges(dl, player, startX + HeatPanelW, materialsX, drawY);
 
-        // ENERGY: the work (digging, shooting) the tank can still do before it overheats. A docked tank is
-        // pre-cooled with coolant, which lifts the value above 100.
-        int energy = player.IsDead ? 0 : (int)MathF.Max(0f, MathF.Round(player.HeatBudget));
+        // TEMP: the tank's temperature in degrees above ambient. Digging and firing heat it; past the safe maximum
+        // the heat burns the shield. A tank docked at its own base is pre-cooled below ambient (negative degrees).
         float plateX = startX + 105f;
         float plateW = 130f;
         float plateY = drawY + 168f;
-        DrawNumberCentered(dl, energy, plateX, plateY, plateW);
-        DrawEnergyTrend(dl, player, plateX + plateW - 18f, plateY + 10f);
+        int degrees = player.IsDead ? 0 : (int)MathF.Round(player.Heat);
+        DrawNumberCentered(dl, degrees, plateX, plateY, plateW, degreeSign: true);
+        DrawHeatTrend(dl, player, plateX + plateW - 14f, plateY + 10f);
         if (!player.IsDead)
-            DrawEnergyBar(dl, player, plateX + 8f, drawY + 192f, plateW - 16f);
+            DrawHeatBar(dl, player.Heat, plateX + 8f, drawY + 192f, plateW - 16f);
 
         // SHIELD: the tank's armor.
         int health = Math.Max(0, player.Reactor.Health);
-        float sPlateX = startX + EnergyPanelW + 10f;
+        float sPlateX = startX + HeatPanelW + 10f;
         float sPlateW = 125f;
         float sPlateY = drawY + 166f;
         DrawNumberCentered(dl, health, sPlateX, sPlateY, sPlateW);
@@ -205,54 +213,275 @@ public class GameHud
     }
 
     /// <summary>
-    /// Small arrow beside the energy number: down (red) while digging or firing drains it, up (green) while it
-    /// recovers. The rate is smoothed so the arrow does not flicker.
+    /// Small arrow beside the temperature: up (red) while digging or firing heats the tank, down (blue) while it
+    /// cools. The rate is smoothed so the arrow does not flicker.
     /// </summary>
-    private void DrawEnergyTrend(ImDrawListPtr dl, Tank player, float x, float y)
+    private void DrawHeatTrend(ImDrawListPtr dl, Tank player, float x, float y)
     {
-        float budget = player.HeatBudget;
-        if (!float.IsNaN(_lastBudget) && !player.IsDead)
-            _budgetTrend = _budgetTrend * 0.9f + (budget - _lastBudget) * 0.1f;
-        _lastBudget = budget;
-        if (player.IsDead || MathF.Abs(_budgetTrend) < 0.02f)
+        float heat = player.Heat;
+        if (!float.IsNaN(_lastHeat) && !player.IsDead)
+            _heatTrend = _heatTrend * 0.9f + (heat - _lastHeat) * 0.1f;
+        _lastHeat = heat;
+        if (player.IsDead || MathF.Abs(_heatTrend) < 0.02f)
             return;
 
         const float s = 6f;
-        if (_budgetTrend < 0f)
-            dl.AddTriangleFilled(new Vector2(x - s, y - s * 0.6f), new Vector2(x + s, y - s * 0.6f), new Vector2(x, y + s * 0.8f), 0xFF4050FFu);
+        if (_heatTrend > 0f)
+            dl.AddTriangleFilled(new Vector2(x - s, y + s * 0.6f), new Vector2(x + s, y + s * 0.6f), new Vector2(x, y - s * 0.8f), 0xFF4050FFu);
         else
-            dl.AddTriangleFilled(new Vector2(x - s, y + s * 0.6f), new Vector2(x + s, y + s * 0.6f), new Vector2(x, y - s * 0.8f), 0xFF50E060u);
+            dl.AddTriangleFilled(new Vector2(x - s, y - s * 0.6f), new Vector2(x + s, y - s * 0.6f), new Vector2(x, y + s * 0.8f), 0xFFFFC050u);
+    }
+
+    /// <summary>Where a temperature lies on the heat scale, 0 (full coolant charge) to 1 (well past overheating).</summary>
+    private static float HeatScaleFraction(float heat) =>
+        Math.Clamp((heat - HeatScaleMin) / (HeatScaleMax - HeatScaleMin), 0f, 1f);
+
+    /// <summary>
+    /// Colour for a temperature: icy blue with coolant, green around ambient, then amber, orange and red as the
+    /// tank approaches and passes the safe maximum.
+    /// </summary>
+    private static uint HeatColor(float heat)
+    {
+        float safe = Tweaks.Tank.HeatSafeMax;
+        ReadOnlySpan<float> at = [HeatScaleMin, 0f, 0.55f * safe, 0.85f * safe, safe];
+        ReadOnlySpan<Vector3> rgb =
+        [
+            new(0.35f, 0.75f, 1.00f), new(0.40f, 0.90f, 0.40f), new(1.00f, 0.80f, 0.20f),
+            new(1.00f, 0.45f, 0.10f), new(1.00f, 0.15f, 0.10f),
+        ];
+        Vector3 c = rgb[^1];
+        if (heat <= at[0])
+            c = rgb[0];
+        else
+        {
+            for (int i = 1; i < at.Length; i++)
+            {
+                if (heat <= at[i])
+                {
+                    c = Vector3.Lerp(rgb[i - 1], rgb[i], (heat - at[i - 1]) / (at[i] - at[i - 1]));
+                    break;
+                }
+            }
+        }
+        return PackColor(c, 1f);
+    }
+
+    private static uint PackColor(Vector3 rgb, float alpha) =>
+        (uint)(Math.Clamp(alpha, 0f, 1f) * 255f) << 24 |
+        (uint)(Math.Clamp(rgb.Z, 0f, 1f) * 255f) << 16 |
+        (uint)(Math.Clamp(rgb.Y, 0f, 1f) * 255f) << 8 |
+        (uint)(Math.Clamp(rgb.X, 0f, 1f) * 255f);
+
+    private static void StrokeArc(ImDrawListPtr dl, Vector2 c, float r, float a0, float a1, uint color, float thickness)
+    {
+        if (a1 <= a0)
+            return;
+        int segments = Math.Max(2, (int)((a1 - a0) / (MathF.PI * 2f) * 64f));
+        dl.PathArcTo(c, r, a0, a1, segments);
+        dl.PathStroke(color, ImDrawFlags.None, thickness);
+    }
+
+    private static float CircleHalfWidth(Vector2 c, float r, float y)
+    {
+        float dy = y - c.Y;
+        return dy * dy >= r * r ? 0f : MathF.Sqrt(r * r - dy * dy);
+    }
+
+    /// <summary>Fills the part of a disc between two heights (clip to the band, then draw the disc).</summary>
+    private static void FillCircleBand(ImDrawListPtr dl, Vector2 c, float r, float y0, float y1, uint color)
+    {
+        if (y1 <= y0)
+            return;
+        dl.PushClipRect(new Vector2(c.X - r - 1f, y0), new Vector2(c.X + r + 1f, y1), true);
+        dl.AddCircleFilled(c, r, color, 48);
+        dl.PopClipRect();
+    }
+
+    private static float HeatDialAngle(float heat) => HeatDialStartAngle + HeatDialSweep * HeatScaleFraction(heat);
+
+    /// <summary>
+    /// The temperature orb. A dial runs round the rim, coloured from cold (blue, the coolant charge) over green and
+    /// amber to red past the safe maximum, lit up to the current temperature with a needle at its tip. Inside, the
+    /// liquid rises with the temperature and takes its colour, and its state follows it: frozen still with frost
+    /// when the tank is pre-cooled, calm around ambient, bubbling as it heats and boiling with steam once
+    /// overheating burns the shield.
+    /// </summary>
+    private void DrawHeatOrb(ImDrawListPtr dl, Tank player, Vector2 c, float r)
+    {
+        float heat = player.IsDead ? HeatScaleMin : player.Heat;
+        // Ease the shown temperature toward the real one so the liquid and needle move rather than jump.
+        _shownHeat = float.IsNaN(_shownHeat) ? heat : _shownHeat + (heat - _shownHeat) * 0.15f;
+        float shown = _shownHeat;
+        float safe = Tweaks.Tank.HeatSafeMax;
+        bool alive = !player.IsDead;
+        bool burning = alive && (player.IsOverheating || heat > safe);
+        float pulse = 0.5f + 0.5f * MathF.Sin(_time * 10f);
+        float lit = HeatScaleFraction(shown);
+
+        // Dark glass (hides the energy bolt baked into the art).
+        dl.AddCircleFilled(c, r - 1f, 0xFF0A0C0Eu, 64);
+
+        // Liquid. Even a fully pre-cooled tank shows a little frozen liquid at the bottom.
+        float inner = r - 12f;
+        float bottom = c.Y + inner;
+        float level = bottom - 2f * inner * (0.08f + 0.92f * lit);
+        uint liquid = HeatColor(shown);
+        float frozen = Math.Clamp(-shown / (0.5f * Tweaks.Tank.CoolantCapacity), 0f, 1f); // 0 at ambient, 1 deep cold
+        float boil = Math.Clamp((shown - 0.45f * safe) / (0.55f * safe), 0f, 1f);          // 0 calm, 1 at the safe max
+        if (alive)
+        {
+            FillCircleBand(dl, c, inner, level, bottom, (liquid & 0x00FFFFFFu) | 0xE0000000u);
+            FillCircleBand(dl, c, inner, MathF.Max(level, c.Y + inner * 0.25f), bottom, 0x50000000u);
+            FillCircleBand(dl, c, inner, MathF.Max(level, c.Y + inner * 0.65f), bottom, 0x40000000u);
+            if (burning)
+                FillCircleBand(dl, c, inner, level, bottom, PackColor(new Vector3(1f, 0.9f, 0.6f), 0.30f * pulse));
+            if (frozen > 0f)
+                DrawFrost(dl, c, inner, level, bottom, frozen);
+            if (boil > 0f || burning)
+                DrawBubbles(dl, c, inner, level, bottom, burning ? 1.4f : boil);
+            float amplitude = (1f - frozen) * (1.2f + 2.3f * boil + (burning ? 1.5f : 0f));
+            float speed = 5f + 9f * boil;
+            uint surface = frozen > 0.5f ? 0xFFFFF0E0u : 0xFFFFFFFFu;
+            DrawSurface(dl, level, CircleHalfWidth(c, inner, level) - 1f, c.X, surface, amplitude, speed);
+            if (burning)
+                DrawSteam(dl, c, inner, level);
+        }
+
+        // Dial round the rim: dim track in the zone colours, lit up to the shown temperature.
+        float arcR = r - 6f;
+        const float arcW = 5f;
+        const int bands = 48;
+        for (int i = 0; i < bands; i++)
+        {
+            float f0 = i / (float)bands, f1 = (i + 1) / (float)bands;
+            float mid = HeatScaleMin + (HeatScaleMax - HeatScaleMin) * (f0 + f1) * 0.5f;
+            float a0 = HeatDialStartAngle + HeatDialSweep * f0;
+            float a1 = HeatDialStartAngle + HeatDialSweep * f1 + 0.01f;
+            bool on = alive && f0 < lit;
+            if (on && f1 > lit)
+                a1 = HeatDialStartAngle + HeatDialSweep * lit;
+            StrokeArc(dl, c, arcR, a0, a1, (HeatColor(mid) & 0x00FFFFFFu) | (on ? 0xFF000000u : 0x48000000u), arcW);
+        }
+        if (burning)
+            StrokeArc(dl, c, arcR, HeatDialAngle(safe), HeatDialStartAngle + HeatDialSweep,
+                PackColor(new Vector3(1f, 0.3f, 0.2f), 0.35f + 0.5f * pulse), arcW + 3f);
+
+        // Ticks at ambient (0) and at the safe maximum, where overheating starts.
+        foreach (float t in stackalloc float[] { 0f, safe })
+        {
+            float a = HeatDialAngle(t);
+            var dir = new Vector2(MathF.Cos(a), MathF.Sin(a));
+            uint tickCol = t == 0f ? 0xC0FFFFFFu : 0xFF4060FFu;
+            dl.AddLine(c + dir * (arcR - arcW * 0.5f - 3f), c + dir * (arcR + arcW * 0.5f + 1f), 0xFF000000u, 4f);
+            dl.AddLine(c + dir * (arcR - arcW * 0.5f - 2f), c + dir * (arcR + arcW * 0.5f), tickCol, 2f);
+        }
+
+        // Needle at the tip of the lit arc.
+        if (alive)
+        {
+            float a = HeatDialAngle(shown);
+            var dir = new Vector2(MathF.Cos(a), MathF.Sin(a));
+            var tip = c + dir * (arcR + arcW * 0.5f + 1f);
+            var tail = c + dir * (arcR - arcW * 0.5f - 5f);
+            dl.AddLine(tail, tip, 0xFF000000u, 4.5f);
+            dl.AddLine(tail, tip, 0xFFFFFFFFu, 2f);
+        }
+
+        // Highlight on the glass.
+        StrokeArc(dl, c, inner - 3f, MathF.PI * 1.15f, MathF.PI * 1.55f, 0x30FFFFFFu, 3f);
+    }
+
+    /// <summary>Ice in the liquid: a pale sheen, frost along the glass and a few six-armed crystals.</summary>
+    private static void DrawFrost(ImDrawListPtr dl, Vector2 c, float r, float level, float bottom, float amount)
+    {
+        FillCircleBand(dl, c, r, level, bottom, PackColor(new Vector3(0.85f, 0.95f, 1f), 0.30f * amount));
+        dl.PushClipRect(new Vector2(c.X - r - 1f, level), new Vector2(c.X + r + 1f, bottom + 1f), true);
+        dl.AddCircle(c, r - 1.5f, PackColor(new Vector3(0.9f, 0.97f, 1f), 0.75f * amount), 48, 3f);
+        ReadOnlySpan<Vector2> spots = [new(-0.45f, 0.35f), new(0.35f, 0.55f), new(0.05f, 0.05f), new(-0.15f, 0.70f), new(0.55f, 0.15f)];
+        uint crystal = PackColor(new Vector3(0.92f, 0.98f, 1f), 0.85f * amount);
+        foreach (var spot in spots)
+        {
+            var p = c + spot * r;
+            if (p.Y < level + 3f)
+                continue;
+            for (int k = 0; k < 3; k++)
+            {
+                float a = k * MathF.PI / 3f + 0.3f;
+                var d = new Vector2(MathF.Cos(a), MathF.Sin(a)) * 3.5f;
+                dl.AddLine(p - d, p + d, crystal, 1.2f);
+            }
+        }
+        dl.PopClipRect();
+    }
+
+    /// <summary>Bubbles rising through the liquid; more, larger and faster as it nears boiling.</summary>
+    private void DrawBubbles(ImDrawListPtr dl, Vector2 c, float r, float level, float bottom, float boil)
+    {
+        int count = 3 + (int)(boil * 9f);
+        float depth = bottom - level;
+        if (depth < 4f)
+            return;
+        dl.PushClipRect(new Vector2(c.X - r - 1f, level), new Vector2(c.X + r + 1f, bottom + 1f), true);
+        for (int i = 0; i < count; i++)
+        {
+            float seed = (i * 0.6180339f) % 1f;
+            float speed = 0.35f + 0.6f * boil + 0.25f * seed;
+            float t = (_time * speed + seed) % 1f;
+            float y = bottom - 2f - t * depth;
+            float hw = CircleHalfWidth(c, r, y) - 3f;
+            if (hw <= 0f)
+                continue;
+            float x = c.X + hw * MathF.Sin(i * 2.399f) + MathF.Sin(_time * 6f + i) * 1.2f;
+            float size = 1.0f + 1.6f * boil * (0.5f + 0.5f * ((seed * 7f) % 1f)) + t * 0.8f;
+            dl.AddCircle(new Vector2(x, y), size, 0xB0FFFFFFu, 10, 1f);
+        }
+        dl.PopClipRect();
+    }
+
+    /// <summary>Wisps of steam rising off a boiling surface.</summary>
+    private void DrawSteam(ImDrawListPtr dl, Vector2 c, float r, float level)
+    {
+        float hw = CircleHalfWidth(c, r, level);
+        for (int i = 0; i < 4; i++)
+        {
+            float t = (_time * 0.9f + i * 0.25f) % 1f;
+            float x = c.X + (i - 1.5f) * hw * 0.4f + MathF.Sin(_time * 3f + i * 2f) * 2f;
+            float y = level - 2f - t * 14f;
+            if (y < c.Y - r + 2f)
+                continue;
+            dl.AddCircleFilled(new Vector2(x, y), 2f + t * 3f, PackColor(new Vector3(1f, 1f, 1f), 0.35f * (1f - t)), 12);
+        }
     }
 
     /// <summary>
-    /// Diablo-style liquid gauges in the art: the energy orb, the shield crystal and the materials chest are full
-    /// up to their level and dark above it, with a softly waving bright surface. The coolant charge shows as a
-    /// cyan band at the top of the orb; a low level pulses red, and the shield flashes when hit.
+    /// Temperature bar under the readout, on the same scale as the orb: a blue coolant zone left of the ambient
+    /// mark, green to amber up to the safe-maximum mark, and red beyond it.
     /// </summary>
-    private void DrawLiquidGauges(
-        ImDrawListPtr dl, Tank player, float energyPanelX, float shieldPanelX, float materialsPanelX, float panelY)
+    private void DrawHeatBar(ImDrawListPtr dl, float heat, float x, float y, float w)
     {
-        float capacity = Tank.HeatBudgetCapacity;
-        float energyFill = player.IsDead ? 0f : Math.Clamp(player.HeatBudget / capacity, 0f, 1f);
+        const float barH = 5f;
+        float X(float t) => x + w * HeatScaleFraction(t);
+        dl.AddRectFilled(new Vector2(x - 1f, y - 1f), new Vector2(x + w + 1f, y + barH + 1f), 0xC0000000u);
+        dl.AddRectFilled(new Vector2(X(Tweaks.Tank.HeatSafeMax), y), new Vector2(x + w, y + barH), 0x503040FFu); // danger zone
+        uint col = HeatColor(heat);
+        if (heat > Tweaks.Tank.HeatSafeMax && (int)(_time * 4f) % 2 == 0)
+            col = 0xFF8080FFu;
+        dl.AddRectFilled(new Vector2(x, y), new Vector2(X(heat), y + barH), col);
+        dl.AddLine(new Vector2(X(0f), y - 1f), new Vector2(X(0f), y + barH + 1f), 0x80FFFFFFu);
+        dl.AddLine(new Vector2(X(Tweaks.Tank.HeatSafeMax), y - 2f), new Vector2(X(Tweaks.Tank.HeatSafeMax), y + barH + 2f), 0xFF4060FFu);
+    }
+
+    /// <summary>
+    /// Diablo-style liquid gauges in the art: the shield crystal and the materials chest are full up to their level
+    /// and dark above it, with a softly waving bright surface. A low shield pulses red and flashes when hit.
+    /// </summary>
+    private void DrawLiquidGauges(ImDrawListPtr dl, Tank player, float shieldPanelX, float materialsPanelX, float panelY)
+    {
         float shieldFill = Math.Clamp(Math.Max(0, player.Reactor.Health) / (float)Math.Max(1, player.Reactor.HealthCapacity), 0f, 1f);
         // Ease the shown levels toward the real ones so the liquid moves rather than jumps.
-        _shownEnergyFill = _shownEnergyFill < 0f ? energyFill : _shownEnergyFill + (energyFill - _shownEnergyFill) * 0.15f;
         _shownShieldFill = _shownShieldFill < 0f ? shieldFill : _shownShieldFill + (shieldFill - _shownShieldFill) * 0.20f;
 
         bool pulse = (int)(_time * 4f) % 2 == 0;
-
-        // Energy orb.
-        var c = new Vector2(energyPanelX, panelY) + EnergyOrbCenter;
-        float r = EnergyOrbRadius;
-        float top = c.Y - r, bottom = c.Y + r;
-        float level = bottom - 2f * r * _shownEnergyFill;
-        float normalLevel = bottom - 2f * r * (Tweaks.Tank.HeatSafeMax / capacity);
-        if (_shownEnergyFill > Tweaks.Tank.HeatSafeMax / capacity)
-            FillCircleBand(dl, c, r, level, normalLevel, 0x70FFD040u);       // coolant charge (cyan)
-        if (energyFill < 0.2f * Tweaks.Tank.HeatSafeMax / capacity && energyFill > 0f && pulse)
-            FillCircleBand(dl, c, r, level, bottom, 0x603030FFu);            // low energy (red pulse)
-        FillCircleBand(dl, c, r, top, level, 0xC8080808u);                   // empty part
-        DrawSurface(dl, level, CircleHalfWidth(c, r, level), c.X, energyFill > 0f ? 0xFFB0FFB0u : 0u);
 
         // Shield crystal.
         var o = new Vector2(shieldPanelX, panelY);
@@ -298,22 +527,6 @@ public class GameHud
     private static float MaterialsFill(Tank player) =>
         Math.Clamp(player.Resources.Dirt / (float)Math.Max(1, player.Resources.DirtCapacity), 0f, 1f);
 
-    private static float CircleHalfWidth(Vector2 c, float r, float y)
-    {
-        float dy = y - c.Y;
-        return dy * dy >= r * r ? 0f : MathF.Sqrt(r * r - dy * dy);
-    }
-
-    /// <summary>Fills the part of a disc between two heights (clip to the band, then draw the disc).</summary>
-    private static void FillCircleBand(ImDrawListPtr dl, Vector2 c, float r, float y0, float y1, uint color)
-    {
-        if (y1 <= y0)
-            return;
-        dl.PushClipRect(new Vector2(c.X - r - 1f, y0), new Vector2(c.X + r + 1f, y1), true);
-        dl.AddCircleFilled(c, r, color, 48);
-        dl.PopClipRect();
-    }
-
     /// <summary>Fills the part of a convex polygon between two heights.</summary>
     private static void FillPolygonBand(ImDrawListPtr dl, Vector2[] poly, float y0, float y1, uint color)
     {
@@ -348,7 +561,8 @@ public class GameHud
     }
 
     /// <summary>A gently waving bright line where the liquid meets the empty part.</summary>
-    private void DrawSurface(ImDrawListPtr dl, float y, float halfWidth, float centerX, uint color)
+    private void DrawSurface(
+        ImDrawListPtr dl, float y, float halfWidth, float centerX, uint color, float amplitude = 1.2f, float speed = 5f)
     {
         if (color == 0u || halfWidth < 3f)
             return;
@@ -358,30 +572,10 @@ public class GameHud
         {
             float u = i / (float)segments;
             float x = centerX - halfWidth + 2f * halfWidth * u;
-            points[i] = new Vector2(x, y + MathF.Sin(u * 9f + _time * 5f) * 1.2f);
+            points[i] = new Vector2(x, y + MathF.Sin(u * 9f + _time * speed) * amplitude);
         }
         dl.AddPolyline(ref points[0], points.Length, color & 0x00FFFFFFu | 0x50000000u, ImDrawFlags.None, 4f);
         dl.AddPolyline(ref points[0], points.Length, color, ImDrawFlags.None, 1.5f);
-    }
-
-    /// <summary>Energy bar: green-to-red for the normal range, with the coolant charge as a cyan extension.</summary>
-    private void DrawEnergyBar(ImDrawListPtr dl, Tank player, float x, float y, float w)
-    {
-        const float barH = 5f;
-        float capacity = Tank.HeatBudgetCapacity;
-        float normalW = w * (Tweaks.Tank.HeatSafeMax / capacity);
-        float budget = MathF.Max(0f, player.HeatBudget);
-        float normalFill = MathF.Min(budget, Tweaks.Tank.HeatSafeMax) / Tweaks.Tank.HeatSafeMax;
-        float coolFill = MathF.Max(0f, budget - Tweaks.Tank.HeatSafeMax) / Tweaks.Tank.CoolantCapacity;
-
-        dl.AddRectFilled(new Vector2(x - 1f, y - 1f), new Vector2(x + w + 1f, y + barH + 1f), 0xC0000000u);
-        uint normalColor = normalFill > 0.5f ? 0xFF50E060u : normalFill > 0.2f ? 0xFF30C8FFu : 0xFF3040FFu;
-        if (normalFill < 0.2f && (int)(_time * 4f) % 2 == 0)
-            normalColor = 0xFF8080FFu;
-        dl.AddRectFilled(new Vector2(x, y), new Vector2(x + normalW * normalFill, y + barH), normalColor);
-        if (coolFill > 0f)
-            dl.AddRectFilled(new Vector2(x + normalW, y), new Vector2(x + normalW + (w - normalW) * coolFill, y + barH), 0xFFFFD040u);
-        dl.AddLine(new Vector2(x + normalW, y - 1f), new Vector2(x + normalW, y + barH + 1f), 0x80FFFFFFu);
     }
 
     private static void DrawBar(ImDrawListPtr dl, float x, float y, float w, float h, float fill, uint color)
@@ -508,20 +702,20 @@ public class GameHud
     }
 
     /// <summary>
-    /// One banner at a time, most urgent first: overheating, then low shield, then low energy. Low warnings latch
-    /// on below 20% and clear above 30% so they do not flicker around the threshold.
+    /// One banner at a time, most urgent first: overheating, then low shield, then running hot. Warnings latch on
+    /// at one threshold and clear at a lower one so they do not flicker around it.
     /// </summary>
     private void DrawWarnings(Tank player, bool heatDebugOverlayEnabled)
     {
         var vp = ViewportRect;
         if (vp.w <= 0 || player.IsDead)
         {
-            _lowEnergyLatched = _shieldLowLatched = false;
+            _runningHotLatched = _shieldLowLatched = false;
             return;
         }
 
-        float energy = player.HeatBudget / Tweaks.Tank.HeatSafeMax;
-        _lowEnergyLatched = _lowEnergyLatched ? energy < 0.30f : energy < 0.20f;
+        float heat = player.Heat / Tweaks.Tank.HeatSafeMax;
+        _runningHotLatched = _runningHotLatched ? heat > 0.70f : heat > 0.80f;
         float shield = player.Reactor.Health / (float)Math.Max(1, player.Reactor.HealthCapacity);
         _shieldLowLatched = _shieldLowLatched ? shield < 0.30f : shield < 0.25f;
 
@@ -547,9 +741,9 @@ public class GameHud
             DrawCenteredText(dl, 26f, cx, y, "SHIELD LOW", blink ? 0xFF3040FFu : 0xFF8080FFu);
             DrawCenteredText(dl, 18f, cx, y + 30f, "Your base repairs the shield", 0xFFFFFFFFu);
         }
-        else if (_lowEnergyLatched)
+        else if (_runningHotLatched)
         {
-            DrawCenteredText(dl, 26f, cx, y, "LOW ENERGY", blink ? 0xFF30C8FFu : 0xFF80E0FFu);
+            DrawCenteredText(dl, 26f, cx, y, "RUNNING HOT", blink ? 0xFF30A0FFu : 0xFF80D0FFu);
             DrawCenteredText(dl, 18f, cx, y + 30f, "Digging and firing heat the tank - return to base to cool down", 0xFFFFFFFFu);
         }
         else if (player.SpawnProtectionTicks > 0)
@@ -614,18 +808,29 @@ public class GameHud
             $"Respawning at base in {player.RespawnRemaining.TotalSeconds:0.0} s  -  {lives}", 0xFFC0E0FFu);
     }
 
-    private void DrawNumberCentered(ImDrawListPtr dl, int value, float areaX, float areaY, float areaW)
+    /// <param name="degreeSign">Draw a small degree ring after the number.</param>
+    private void DrawNumberCentered(ImDrawListPtr dl, int value, float areaX, float areaY, float areaW, bool degreeSign = false)
     {
-        string text = value.ToString();
+        string text = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        const float degreeW = 9f;
         float totalW = text.Length > 0
             ? text.Length * DigitCellW + (text.Length - 1) * DigitSpacing
             : 0f;
+        if (degreeSign)
+            totalW += degreeW;
         float x = MathF.Floor(areaX + (areaW - totalW) * 0.5f);
         float y = MathF.Floor(areaY);
 
         foreach (char c in text)
         {
-            if (c is >= '0' and <= '9')
+            if (c == '-')
+            {
+                // The digit strip has no minus: draw one in the digits' green, at their middle height.
+                float my = y + DigitCellH * 0.5f;
+                dl.AddRectFilled(new Vector2(x + 3f, my - 2.5f), new Vector2(x + DigitCellW - 3f, my + 2.5f), 0xFF000000u, 1f);
+                dl.AddRectFilled(new Vector2(x + 4f, my - 1.5f), new Vector2(x + DigitCellW - 4f, my + 1.5f), 0xFFAAFACDu);
+            }
+            else if (c is >= '0' and <= '9')
             {
                 int idx = c - '0';
                 // Half-texel inset prevents sampling bleed from neighbor digits.
@@ -639,6 +844,13 @@ public class GameHud
                     new Vector2(u1, 1f));
             }
             x += DigitCellW + DigitSpacing;
+        }
+
+        if (degreeSign)
+        {
+            var ring = new Vector2(x + 3f, y + 4.5f);
+            dl.AddCircle(ring, 3.2f, 0xFF000000u, 16, 3.5f);
+            dl.AddCircle(ring, 3.2f, 0xFFAAFACDu, 16, 1.6f);
         }
     }
 

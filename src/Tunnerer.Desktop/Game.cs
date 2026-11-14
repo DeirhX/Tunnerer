@@ -307,7 +307,7 @@ public partial class Game : IDisposable
         nint Load(string name) => _textures.LoadTexture(Path.Combine(baseDir, name));
 
         _hud.Init(
-            energyIcon: Load("energy_icon.png"),
+            heatIcon: Load("heat_icon.png"),
             shieldIcon: Load("shield_icon.png"),
             panelFrame: Load("panel_frame.png"),
             buildPanel: Load("build_panel.png"),
