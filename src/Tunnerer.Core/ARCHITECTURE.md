@@ -199,16 +199,20 @@ until it conducts away, instead of being erased on the next step.
 `ThermalLedgerTests`:
 
 ```
-SumTotalThermalEnergy() + tank heat × TankHeatCapacity + TankBase.ReactorHeatEnergy
+World.SumSystemThermalEnergy()   // grid + tank heat × TankHeatCapacity + TankBase.ReactorHeatEnergy
     == start + Ledger.Injected − Ledger.TotalSunk
 ```
+
+The game log's `[ProfileE]` line reports this residual per tick (`ledgerResidualSigned` / `ledgerResidualAbs`);
+anything much above float noise (~0.1) means energy is being created or destroyed somewhere unmetered.
 
 Tank ↔ grid exchange is `TankHeatEngine.Advance` (returns the energy to hand to each field);
 base ↔ grid exchange is `TankBase.Advance`. The base reactor is a *finite* sink: it absorbs at most its remaining
 heat capacity (`Tweaks.Base.ReactorEnergyPerHeatUnit` per unit) and only heat that is actually present.
 
-Known residual: `SetPixelRaw` writes (level generation) are not metered. Digging hot dirt out to air destroys the
-terrain-field heat of that cell (metered as a `SetPixel` material change); it does not move into the air.
+`SetPixelRaw` is not metered; it is only used by level generation, before any heat exists. Gameplay pixel writes
+use `SetPixel`. Digging hot dirt out to air destroys the terrain-field heat of that cell (metered as a `SetPixel`
+material change); it does not move into the air.
 
 ## Level generation (Toast algorithm)
 

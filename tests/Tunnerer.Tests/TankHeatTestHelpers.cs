@@ -140,16 +140,7 @@ internal static class TankHeatTestHelpers
         SetTankHeat(tank, initialHeat);
     }
 
-    internal static double SumSystemThermalEnergy(World world)
-    {
-        double total = 0.0;
-        total += world.Terrain.SumTotalThermalEnergy();
-        foreach (var tank in world.TankList.Tanks)
-            total += tank.Heat * Tweaks.Tank.TankHeatCapacity;
-        foreach (var tankBase in world.TankBases.Bases)
-            total += tankBase.ReactorHeatEnergy;
-        return total;
-    }
+    internal static double SumSystemThermalEnergy(World world) => world.SumSystemThermalEnergy();
 
     internal static void AdvanceUntil(World world, int maxFrames, Func<bool> done, TestVisualTrace? visual = null, string phase = "advance")
     {

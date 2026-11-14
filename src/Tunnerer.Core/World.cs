@@ -33,9 +33,25 @@ public class World
     private readonly Stopwatch _regrowTimer = new();
     private bool _gameOver;
     private double _lastThermalEnergy;
+    private double _lastNetExternalEnergy;
 
     public TerrainGrid Terrain => _terrain;
     public TankBases TankBases => _tankBases;
+
+    /// <summary>
+    /// Total thermal energy of the whole simulation: the terrain and air fields, the heat stored in every tank
+    /// and the heat stored in every base reactor. Together with <see cref="TerrainGrid.Ledger"/> this closes the
+    /// energy balance.
+    /// </summary>
+    public double SumSystemThermalEnergy()
+    {
+        double total = _terrain.SumTotalThermalEnergy();
+        foreach (var tank in _tankList.Tanks)
+            total += tank.Heat * Tweaks.Tank.TankHeatCapacity;
+        foreach (var tankBase in _tankBases.Bases)
+            total += tankBase.ReactorHeatEnergy;
+        return total;
+    }
     public TankList TankList => _tankList;
     public ProjectileList Projectiles => _projectiles;
     public MachineList Machines => _machines;
@@ -112,15 +128,19 @@ public class World
         Profile.CooldownRegionCount += _terrain.LastCoolDownProfile.RegionCount;
         if (_terrain.LastCoolDownProfile.UsedSparse) Profile.CooldownSparseFrames++;
         if (_terrain.LastCoolDownProfile.UsedParallel) Profile.CooldownParallelFrames++;
-        double thermalEnergy = _terrain.SumTotalThermalEnergy();
+        // Energy balance: whatever the system gained since the last tick must equal what the ledger says came
+        // in from outside. A non-zero residual means energy was created or destroyed somewhere unmetered.
+        double thermalEnergy = SumSystemThermalEnergy();
+        double netExternal = _terrain.Ledger.NetExternal;
         Profile.ThermalEnergy += thermalEnergy;
         if (_advanceCount > 1)
         {
-            double drift = thermalEnergy - _lastThermalEnergy;
-            Profile.ThermalEnergyDriftSigned += drift;
-            Profile.ThermalEnergyDriftAbs += Math.Abs(drift);
+            double residual = (thermalEnergy - _lastThermalEnergy) - (netExternal - _lastNetExternalEnergy);
+            Profile.ThermalLedgerResidualSigned += residual;
+            Profile.ThermalLedgerResidualAbs += Math.Abs(residual);
         }
         _lastThermalEnergy = thermalEnergy;
+        _lastNetExternalEnergy = netExternal;
 
         ProfileSection(ref Profile.Regrow, RegrowPass);
         ProfileSection(ref Profile.Projectiles, () => _projectiles.Advance(_collisionSolver));
@@ -314,8 +334,8 @@ public class SimulationProfile
     public int CooldownSparseFrames;
     public int CooldownParallelFrames;
     public double ThermalEnergy;
-    public double ThermalEnergyDriftSigned;
-    public double ThermalEnergyDriftAbs;
+    public double ThermalLedgerResidualSigned;
+    public double ThermalLedgerResidualAbs;
     public TimeSpan Regrow;
     public TimeSpan Projectiles;
     public TimeSpan Tanks;
@@ -337,8 +357,8 @@ public class SimulationProfile
             $"coolMark={Avg(CooldownMark):F3} coolCopy={Avg(CooldownWriteBack):F3} ms");
         Console.WriteLine($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
             $"sparseFrames={CooldownSparseFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
-        Console.WriteLine($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} driftSigned={AvgValue(ThermalEnergyDriftSigned):F5} " +
-            $"driftAbs={AvgValue(ThermalEnergyDriftAbs):F5}");
+        Console.WriteLine($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} ledgerResidualSigned={AvgValue(ThermalLedgerResidualSigned):F5} " +
+            $"ledgerResidualAbs={AvgValue(ThermalLedgerResidualAbs):F5}");
         Reset();
     }
 
@@ -355,8 +375,8 @@ public class SimulationProfile
         CooldownSparseFrames = 0;
         CooldownParallelFrames = 0;
         ThermalEnergy = 0;
-        ThermalEnergyDriftSigned = 0;
-        ThermalEnergyDriftAbs = 0;
+        ThermalLedgerResidualSigned = 0;
+        ThermalLedgerResidualAbs = 0;
         FrameCount = 0;
     }
 }

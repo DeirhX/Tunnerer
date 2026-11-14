@@ -59,8 +59,7 @@ public class Tank
         }
 
         Heat += Tweaks.Tank.IdleHeatGain;
-        if (Tweaks.Tank.IdleHeatGain != 0)
-            world.Terrain.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * Tweaks.Tank.TankHeatCapacity);
+        world.Terrain.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * Tweaks.Tank.TankHeatCapacity);
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
         AdvanceBaseInteraction(world);
         AdvanceTurretAim(input);
@@ -157,8 +156,7 @@ public class Tank
         Direction = dir;
         Position = newPos;
         Heat += Tweaks.Tank.MoveHeatGain;
-        if (Tweaks.Tank.MoveHeatGain != 0)
-            terrain.Ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * Tweaks.Tank.TankHeatCapacity);
+        terrain.Ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * Tweaks.Tank.TankHeatCapacity);
     }
 
     private CollisionType TestCollision(TerrainGrid terrain, Position pos, int dir)
