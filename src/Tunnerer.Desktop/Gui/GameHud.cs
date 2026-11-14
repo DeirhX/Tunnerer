@@ -81,6 +81,9 @@ public class GameHud
     public (float x, float y, float w, float h) ViewportRect { get; private set; }
     public (float x, float y)? CrosshairScreenPos { get; set; }
 
+    /// <summary>State of the temperature orb shader for the frame just drawn; the game passes it to the backend.</summary>
+    public HeatOrbState HeatOrb { get; private set; }
+
     public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel, nint digitStrip)
     {
         _heatIconTex = heatIcon;
@@ -240,7 +243,9 @@ public class GameHud
     /// Colour for a temperature: icy blue with coolant, green around ambient, then amber, orange and red as the
     /// tank approaches and passes the safe maximum.
     /// </summary>
-    private static uint HeatColor(float heat)
+    private static uint HeatColor(float heat) => PackColor(HeatColorRgb(heat), 1f);
+
+    private static Vector3 HeatColorRgb(float heat)
     {
         float safe = Tweaks.Tank.HeatSafeMax;
         ReadOnlySpan<float> at = [HeatScaleMin, 0f, 0.55f * safe, 0.85f * safe, safe];
@@ -263,7 +268,7 @@ public class GameHud
                 }
             }
         }
-        return PackColor(c, 1f);
+        return c;
     }
 
     private static uint PackColor(Vector3 rgb, float alpha) =>
@@ -281,30 +286,14 @@ public class GameHud
         dl.PathStroke(color, ImDrawFlags.None, thickness);
     }
 
-    private static float CircleHalfWidth(Vector2 c, float r, float y)
-    {
-        float dy = y - c.Y;
-        return dy * dy >= r * r ? 0f : MathF.Sqrt(r * r - dy * dy);
-    }
-
-    /// <summary>Fills the part of a disc between two heights (clip to the band, then draw the disc).</summary>
-    private static void FillCircleBand(ImDrawListPtr dl, Vector2 c, float r, float y0, float y1, uint color)
-    {
-        if (y1 <= y0)
-            return;
-        dl.PushClipRect(new Vector2(c.X - r - 1f, y0), new Vector2(c.X + r + 1f, y1), true);
-        dl.AddCircleFilled(c, r, color, 48);
-        dl.PopClipRect();
-    }
-
     private static float HeatDialAngle(float heat) => HeatDialStartAngle + HeatDialSweep * HeatScaleFraction(heat);
 
     /// <summary>
     /// The temperature orb. A dial runs round the rim, coloured from cold (blue, the coolant charge) over green and
-    /// amber to red past the safe maximum, lit up to the current temperature with a needle at its tip. Inside, the
-    /// liquid rises with the temperature and takes its colour, and its state follows it: frozen still with frost
-    /// when the tank is pre-cooled, calm around ambient, bubbling as it heats and boiling with steam once
-    /// overheating burns the shield.
+    /// amber to red past the safe maximum, lit up to the current temperature with a needle at its tip. Inside, a
+    /// glass sphere always full of liquid is drawn by a shader (HeatOrbPs, see <see cref="HeatOrbEffect"/>): the
+    /// liquid takes the temperature's colour and its state follows it, frozen to ice when pre-cooled, calm around
+    /// ambient, bubbling as it heats and boiling once overheating burns the shield.
     /// </summary>
     private void DrawHeatOrb(ImDrawListPtr dl, Tank player, Vector2 c, float r)
     {
@@ -318,34 +307,16 @@ public class GameHud
         float pulse = 0.5f + 0.5f * MathF.Sin(_time * 10f);
         float lit = HeatScaleFraction(shown);
 
-        // Dark glass (hides the energy bolt baked into the art).
+        // Dark glass behind everything (hides the energy bolt baked into the art), then the liquid sphere.
         dl.AddCircleFilled(c, r - 1f, 0xFF0A0C0Eu, 64);
-
-        // Liquid. Even a fully pre-cooled tank shows a little frozen liquid at the bottom.
-        float inner = r - 12f;
-        float bottom = c.Y + inner;
-        float level = bottom - 2f * inner * (0.08f + 0.92f * lit);
-        uint liquid = HeatColor(shown);
-        float frozen = Math.Clamp(-shown / (0.5f * Tweaks.Tank.CoolantCapacity), 0f, 1f); // 0 at ambient, 1 deep cold
-        float boil = Math.Clamp((shown - 0.45f * safe) / (0.55f * safe), 0f, 1f);          // 0 calm, 1 at the safe max
-        if (alive)
-        {
-            FillCircleBand(dl, c, inner, level, bottom, (liquid & 0x00FFFFFFu) | 0xE0000000u);
-            FillCircleBand(dl, c, inner, MathF.Max(level, c.Y + inner * 0.25f), bottom, 0x50000000u);
-            FillCircleBand(dl, c, inner, MathF.Max(level, c.Y + inner * 0.65f), bottom, 0x40000000u);
-            if (burning)
-                FillCircleBand(dl, c, inner, level, bottom, PackColor(new Vector3(1f, 0.9f, 0.6f), 0.30f * pulse));
-            if (frozen > 0f)
-                DrawFrost(dl, c, inner, level, bottom, frozen);
-            if (boil > 0f || burning)
-                DrawBubbles(dl, c, inner, level, bottom, burning ? 1.4f : boil);
-            float amplitude = (1f - frozen) * (1.2f + 2.3f * boil + (burning ? 1.5f : 0f));
-            float speed = 5f + 9f * boil;
-            uint surface = frozen > 0.5f ? 0xFFFFF0E0u : 0xFFFFFFFFu;
-            DrawSurface(dl, level, CircleHalfWidth(c, inner, level) - 1f, c.X, surface, amplitude, speed);
-            if (burning)
-                DrawSteam(dl, c, inner, level);
-        }
+        float inner = r - 9f;
+        HeatOrb = new HeatOrbState(
+            LiquidColor: alive ? HeatColorRgb(shown) : new Vector3(0.12f, 0.13f, 0.14f),
+            Frozen: alive ? Math.Clamp(-shown / (0.6f * Tweaks.Tank.CoolantCapacity), 0f, 1f) : 0f,
+            Boil: alive ? Math.Clamp((shown - 0.4f * safe) / (0.6f * safe), 0f, 1f) : 0f,
+            Burning: burning ? 0.6f + 0.4f * pulse : 0f,
+            Time: _time);
+        dl.AddImage(HeatOrbEffect.TextureId, c - new Vector2(inner), c + new Vector2(inner));
 
         // Dial round the rim: dim track in the zone colours, lit up to the shown temperature.
         float arcR = r - 6f;
@@ -389,68 +360,6 @@ public class GameHud
 
         // Highlight on the glass.
         StrokeArc(dl, c, inner - 3f, MathF.PI * 1.15f, MathF.PI * 1.55f, 0x30FFFFFFu, 3f);
-    }
-
-    /// <summary>Ice in the liquid: a pale sheen, frost along the glass and a few six-armed crystals.</summary>
-    private static void DrawFrost(ImDrawListPtr dl, Vector2 c, float r, float level, float bottom, float amount)
-    {
-        FillCircleBand(dl, c, r, level, bottom, PackColor(new Vector3(0.85f, 0.95f, 1f), 0.30f * amount));
-        dl.PushClipRect(new Vector2(c.X - r - 1f, level), new Vector2(c.X + r + 1f, bottom + 1f), true);
-        dl.AddCircle(c, r - 1.5f, PackColor(new Vector3(0.9f, 0.97f, 1f), 0.75f * amount), 48, 3f);
-        ReadOnlySpan<Vector2> spots = [new(-0.45f, 0.35f), new(0.35f, 0.55f), new(0.05f, 0.05f), new(-0.15f, 0.70f), new(0.55f, 0.15f)];
-        uint crystal = PackColor(new Vector3(0.92f, 0.98f, 1f), 0.85f * amount);
-        foreach (var spot in spots)
-        {
-            var p = c + spot * r;
-            if (p.Y < level + 3f)
-                continue;
-            for (int k = 0; k < 3; k++)
-            {
-                float a = k * MathF.PI / 3f + 0.3f;
-                var d = new Vector2(MathF.Cos(a), MathF.Sin(a)) * 3.5f;
-                dl.AddLine(p - d, p + d, crystal, 1.2f);
-            }
-        }
-        dl.PopClipRect();
-    }
-
-    /// <summary>Bubbles rising through the liquid; more, larger and faster as it nears boiling.</summary>
-    private void DrawBubbles(ImDrawListPtr dl, Vector2 c, float r, float level, float bottom, float boil)
-    {
-        int count = 3 + (int)(boil * 9f);
-        float depth = bottom - level;
-        if (depth < 4f)
-            return;
-        dl.PushClipRect(new Vector2(c.X - r - 1f, level), new Vector2(c.X + r + 1f, bottom + 1f), true);
-        for (int i = 0; i < count; i++)
-        {
-            float seed = (i * 0.6180339f) % 1f;
-            float speed = 0.35f + 0.6f * boil + 0.25f * seed;
-            float t = (_time * speed + seed) % 1f;
-            float y = bottom - 2f - t * depth;
-            float hw = CircleHalfWidth(c, r, y) - 3f;
-            if (hw <= 0f)
-                continue;
-            float x = c.X + hw * MathF.Sin(i * 2.399f) + MathF.Sin(_time * 6f + i) * 1.2f;
-            float size = 1.0f + 1.6f * boil * (0.5f + 0.5f * ((seed * 7f) % 1f)) + t * 0.8f;
-            dl.AddCircle(new Vector2(x, y), size, 0xB0FFFFFFu, 10, 1f);
-        }
-        dl.PopClipRect();
-    }
-
-    /// <summary>Wisps of steam rising off a boiling surface.</summary>
-    private void DrawSteam(ImDrawListPtr dl, Vector2 c, float r, float level)
-    {
-        float hw = CircleHalfWidth(c, r, level);
-        for (int i = 0; i < 4; i++)
-        {
-            float t = (_time * 0.9f + i * 0.25f) % 1f;
-            float x = c.X + (i - 1.5f) * hw * 0.4f + MathF.Sin(_time * 3f + i * 2f) * 2f;
-            float y = level - 2f - t * 14f;
-            if (y < c.Y - r + 2f)
-                continue;
-            dl.AddCircleFilled(new Vector2(x, y), 2f + t * 3f, PackColor(new Vector3(1f, 1f, 1f), 0.35f * (1f - t)), 12);
-        }
     }
 
     /// <summary>
@@ -561,8 +470,7 @@ public class GameHud
     }
 
     /// <summary>A gently waving bright line where the liquid meets the empty part.</summary>
-    private void DrawSurface(
-        ImDrawListPtr dl, float y, float halfWidth, float centerX, uint color, float amplitude = 1.2f, float speed = 5f)
+    private void DrawSurface(ImDrawListPtr dl, float y, float halfWidth, float centerX, uint color)
     {
         if (color == 0u || halfWidth < 3f)
             return;
@@ -572,7 +480,7 @@ public class GameHud
         {
             float u = i / (float)segments;
             float x = centerX - halfWidth + 2f * halfWidth * u;
-            points[i] = new Vector2(x, y + MathF.Sin(u * 9f + _time * speed) * amplitude);
+            points[i] = new Vector2(x, y + MathF.Sin(u * 9f + _time * 5f) * 1.2f);
         }
         dl.AddPolyline(ref points[0], points.Length, color & 0x00FFFFFFu | 0x50000000u, ImDrawFlags.None, 4f);
         dl.AddPolyline(ref points[0], points.Length, color, ImDrawFlags.None, 1.5f);

@@ -35,6 +35,7 @@
     <SdlGpuShader Include="Rendering\Shaders\EntityPs.hlsl" Stage="fragment" />
     <SdlGpuShader Include="Rendering\Shaders\ImGuiVs.hlsl" Stage="vertex" />
     <SdlGpuShader Include="Rendering\Shaders\ImGuiPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\HeatOrbPs.hlsl" Stage="fragment" />
   </ItemGroup>
 
   <Target Name="ResolveShaderCompiler" AfterTargets="ResolveProjectReferences">

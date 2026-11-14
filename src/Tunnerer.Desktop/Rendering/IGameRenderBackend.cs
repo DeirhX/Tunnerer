@@ -51,6 +51,28 @@ public readonly record struct EntityLayerUpload(
     EntityVertex[]? Vertices,
     int VertexCount);
 
+/// <summary>
+/// The HUD temperature orb, drawn by a shader (HeatOrbPs) instead of a texture: the HUD adds an ImGui image with
+/// <see cref="TextureId"/> and hands the backend the orb's state each frame.
+/// </summary>
+public static class HeatOrbEffect
+{
+    /// <summary>Reserved ImGui texture id the renderer swaps for the orb shader. Never a real texture.</summary>
+    public static readonly nint TextureId = 0x4E42524F; // "ORBN"
+}
+
+/// <param name="LiquidColor">Colour of the liquid for the temperature (rgb 0..1).</param>
+/// <param name="Frozen">0 at ambient, 1 deep in the coolant charge: the liquid turns to ice.</param>
+/// <param name="Boil">0 calm, 1 at the safe maximum: bubbles, churn and a glowing core.</param>
+/// <param name="Burning">0 normally; pulses up to 1 while overheating burns the shield.</param>
+/// <param name="Time">Seconds, for the animation.</param>
+public readonly record struct HeatOrbState(
+    System.Numerics.Vector3 LiquidColor,
+    float Frozen,
+    float Boil,
+    float Burning,
+    float Time);
+
 public interface IGameRenderBackend : IDisposable
 {
     nint GameTextureId { get; }
@@ -64,6 +86,9 @@ public interface IGameRenderBackend : IDisposable
     void ClearFrame(Size viewportSize, Tunnerer.Core.Types.Color clearColor);
 
     void NewFrame(int windowW, int windowH, float deltaTime);
+
+    /// <summary>State of the HUD temperature orb for the frame being drawn (see <see cref="HeatOrbEffect"/>).</summary>
+    void SetHeatOrb(in HeatOrbState state);
 
     void Render();
 
