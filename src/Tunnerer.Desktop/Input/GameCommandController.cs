@@ -6,7 +6,7 @@ using Tunnerer.Desktop.Config;
 public sealed class GameCommandController
 {
     private bool _showHeatDebugOverlay;
-    private bool _showPostPassOverlay = true;
+    private bool _showPostPassOverlay;
     private PostProcessPassFlags _enabledPostPasses = PostProcessPassFlags.All & ~PostProcessPassFlags.ThermalRegions;
 
     public bool ShowHeatDebugOverlay => _showHeatDebugOverlay;
@@ -14,7 +14,26 @@ public sealed class GameCommandController
     public PostProcessPassFlags EnabledPostPasses => _enabledPostPasses;
 
     public static bool TryTranslateHotkey(Scancode scancode, bool shiftHeld, out GameCommand command)
+        => TryTranslateHotkey(scancode, shiftHeld, debugKeysEnabled: true, out command);
+
+    /// <summary>
+    /// Maps a key to a command. The shader-pass toggles (1-7, Shift+1/2) only work while the debug overlay (F11) is
+    /// open, so a stray key press in normal play cannot switch off parts of the renderer; H toggles the thermal view.
+    /// </summary>
+    public static bool TryTranslateHotkey(Scancode scancode, bool shiftHeld, bool debugKeysEnabled, out GameCommand command)
     {
+        if (scancode == Scancode.ScancodeH)
+        {
+            command = GameCommand.ToggleHeatOverlay;
+            return true;
+        }
+
+        if (!debugKeysEnabled && scancode is >= Scancode.Scancode1 and <= Scancode.Scancode9)
+        {
+            command = default;
+            return false;
+        }
+
         if (shiftHeld)
         {
             switch (scancode)

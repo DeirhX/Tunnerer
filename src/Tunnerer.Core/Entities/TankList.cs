@@ -42,7 +42,9 @@ public class TankList
                 Color: tank.Color,
                 Direction: tank.Direction,
                 IsDead: tank.IsDead,
-                TurretDirection: tank.Turret.Direction);
+                TurretDirection: tank.Turret.Direction,
+                HitFlashTicks: tank.HitFlashTicks,
+                IsProtected: tank.SpawnProtectionTicks > 0);
         }
         return count;
     }

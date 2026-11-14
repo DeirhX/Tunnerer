@@ -37,11 +37,12 @@ public sealed class SessionOverlay
         ("Mouse", "Aim the turret"),
         ("Left click / Space", "Fire"),
         ("E", $"Build a relay ({Tweaks.Machine.RelayDirtCost} dirt); press again to plant it"),
-        ("F9", "Thermal view"),
+        ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("Esc / P", "Pause"),
         ("F1", "This screen"),
         ("F10", "Screenshot"),
-        ("F11", "Renderer debug overlay"),
+        ("F11", "Renderer debug overlay (then 1-7 toggle passes)"),
+        ("Enter", "New match, once a match is over"),
     ];
 
     private static readonly string[] HowToPlay =
@@ -49,6 +50,7 @@ public sealed class SessionOverlay
         "Digging and firing heat your tank. Past the limit the heat burns your shield.",
         "Park in your base to cool down and repair.",
         "A relay planted in sight of your base network pumps nearby heat back to the base.",
+        "Dirt you bring home goes into the base store; a docked tank can build relays from it.",
         $"Each tank has {Tweaks.Tank.MaxLives} lives. Destroy the enemy tank until it has none left.",
     ];
 

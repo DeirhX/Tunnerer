@@ -127,4 +127,14 @@ var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, renderBacke
     terrainTestMode: terrainTestMode);
 game.Run();
 
+// Enter after a match ends starts a new match. The renderer is not built to be created twice in one process,
+// so the new match runs in a fresh process with the same arguments (the old window has been closed by now).
+if (game.RestartRequested && Environment.ProcessPath is { } exePath)
+{
+    var start = new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = false };
+    foreach (var arg in args)
+        start.ArgumentList.Add(arg);
+    System.Diagnostics.Process.Start(start);
+}
+
 

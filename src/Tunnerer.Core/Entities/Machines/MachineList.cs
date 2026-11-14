@@ -57,7 +57,8 @@ public class MachineList
                 Type: m.Type,
                 State: m.State,
                 IsAlive: m.IsAlive,
-                IsPowered: m.LinkPoint?.IsPowered ?? false);
+                IsPowered: m.LinkPoint?.IsPowered ?? false,
+                IsPumping: m.LastPumpedEnergy > 1.0);
         }
         return count;
     }

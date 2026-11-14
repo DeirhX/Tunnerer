@@ -61,4 +61,6 @@ imgui.ini
 # Agent scratch space (playtest captures, worktrees)
 .claude/play/
 .claude/worktrees/
+.claude/settings.local.json
+.claude/*.png
 .claude/*.png

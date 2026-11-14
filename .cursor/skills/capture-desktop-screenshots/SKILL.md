@@ -68,6 +68,23 @@ dx,dy,shoot:frames
 $env:TUNNERER_SCRIPTED_INPUT = "1,0,0:26;0,1,1:120;0,1,0:90"
 ```
 
+## Playtests With the AI Opponent
+
+Scripted input normally turns the AI tank off. For gameplay playtests keep it on and write screenshots
+(final frame, HUD included) to a folder of your choice, in a hidden 1280x720 window:
+
+```powershell
+$env:TUNNERER_SCRIPTED_INPUT = "0,1:72;0,0:3600"          # dx,dy[,shoot[,build]]:frames ; 24 frames = 1 s
+$env:TUNNERER_SCRIPT_KEEP_AI = "1"                          # keep the AI opponent active
+$env:TUNNERER_SCREENSHOT_DIR = "E:\path\to\captures"      # default: out/bin/.../screenshots/
+$env:TUNNERER_SCRIPT_SCREENSHOT_FRAMES = "24,72,120,168"
+src\Tunnerer.Desktop\out\bin\Release\net10.0\Tunnerer.Desktop.exe --hidden --windowed=1280x720
+```
+
+- The 4th segment field is the build key (E): `0,0,0,1:2` presses it for two frames (edge-triggered).
+- `tools/playtest/scenario.ps1` wraps this for one scenario; `tools/playtest/regression.ps1` runs the relay,
+  respawn-exit and sitting-duck regression scenarios into `artifacts/playtest/`.
+
 ## Automated Pass Toggle A/B
 
 Use in-engine scripting (not OS key injection) for reliable ON/OFF comparisons:

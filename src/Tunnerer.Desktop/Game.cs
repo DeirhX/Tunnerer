@@ -151,7 +151,8 @@ public partial class Game : IDisposable
                 _inputRecorder.Start();
             }
         }
-        bool effectiveEnableAiTanks = !terrainTestMode && enableAiTanks && !_scriptedInput.HasScriptedController();
+        bool effectiveEnableAiTanks = !terrainTestMode && enableAiTanks &&
+            (!_scriptedInput.HasScriptedController() || _scriptedInput.KeepAi);
         if (enableAiTanks && !effectiveEnableAiTanks && !terrainTestMode)
             Console.WriteLine("[Input] AI tanks forced OFF during scripted replay.");
         _simulationStepper = new GameSimulationStepper(
@@ -206,7 +207,7 @@ public partial class Game : IDisposable
                 {
                     ProfileSection(ref _drawProfile.ObjectsDraw, () =>
                     {
-                        _compositeRenderer.Compose(_world, _worldPixels, _compositePixels);
+                        _compositeRenderer.Compose(_world, _worldPixels, _compositePixels, tanks.Count > 0 ? tanks[0] : null);
                         MarkEntityPixels(_worldPixels, _compositePixels);
                     });
                 },
