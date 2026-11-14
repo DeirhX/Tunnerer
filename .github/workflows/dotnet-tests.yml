@@ -7,7 +7,13 @@ on:
 
 jobs:
   test:
-    runs-on: windows-latest
+    # macOS builds the whole solution, Desktop included, so changes that break the Mac build fail CI. The DX11
+    # shaders are compiled on Windows only (see CompileDx11Shaders in Tunnerer.Desktop.csproj).
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4

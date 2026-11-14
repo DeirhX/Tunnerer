@@ -9,6 +9,9 @@
     <LangVersion>latest</LangVersion>
     <Dx11ShaderCompiler Condition="'$(Dx11ShaderCompiler)' == '' and Exists('C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\fxc.exe')">C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\fxc.exe</Dx11ShaderCompiler>
     <Dx11ShaderCompiler Condition="'$(Dx11ShaderCompiler)' == ''">fxc.exe</Dx11ShaderCompiler>
+    <!-- fxc.exe exists only on Windows, and the DX11 backend only runs there, so other platforms build the client
+         without compiled shaders. Pass -p:CompileDx11Shaders=true or false to override. -->
+    <CompileDx11Shaders Condition="'$(CompileDx11Shaders)' == ''">$([MSBuild]::IsOSPlatform('Windows'))</CompileDx11Shaders>
   </PropertyGroup>
 
   <ItemGroup>
@@ -49,6 +52,7 @@
 
   <Target Name="CompileDx11Shaders"
           BeforeTargets="BeforeBuild"
+          Condition="'$(CompileDx11Shaders)' == 'true'"
           Inputs="@(Dx11Shader);@(Dx11ShaderInclude)"
           Outputs="@(Dx11Shader->'%(OutputFile)')">
     <Error Condition="'$(Dx11ShaderCompiler)' == ''" Text="No DX11 shader compiler configured. Set Dx11ShaderCompiler to fxc.exe path." />

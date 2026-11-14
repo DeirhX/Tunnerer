@@ -13,6 +13,9 @@ Written in C# on .NET 10. The simulation (`Tunnerer.Core`) has no platform depen
 - `fxc.exe` from the Windows SDK, to compile the HLSL shaders at build time. The project looks for Windows SDK
   10.0.26100.0 and otherwise for `fxc.exe` on `PATH`; pass `-p:Dx11ShaderCompiler=<path>` to point at another copy.
 
+On macOS and Linux the whole solution builds and the tests run, but the shaders are not compiled
+(`CompileDx11Shaders` is false off Windows) and the game cannot start, because the renderer is Direct3D 11 only.
+
 ## Build, run, test
 
 ```
