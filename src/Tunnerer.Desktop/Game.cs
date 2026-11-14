@@ -182,6 +182,7 @@ public partial class Game : IDisposable
                 pollEvents: () => _renderer.PollEvents(HandleEvent),
                 isGameOver: () => _terrainTestMode ? false : _world.IsGameOver,
                 isPaused: () => _paused,
+                onPausedFrame: AdvancePausedFrame,
                 onBeforeSimulationBatch: () =>
                 {
                     _terrainDirtyCells.Clear();

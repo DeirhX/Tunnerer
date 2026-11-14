@@ -54,6 +54,12 @@ public sealed class SessionOverlay
 
     private float _playTime;
 
+    // A button only reacts to a click that began after its screen opened. Left click is also "fire", so without
+    // this, pausing while shooting and then letting go over a button would press it.
+    private bool _wasOpen;
+    private bool _wasShowingControls;
+    private bool _pressArmed;
+
     public SessionOverlayAction Draw(
         (float x, float y, float w, float h) viewport,
         bool paused,
@@ -66,6 +72,13 @@ public sealed class SessionOverlay
             return SessionOverlayAction.None;
 
         var dl = ImGui.GetForegroundDrawList();
+        if (!paused || !_wasOpen || showControls != _wasShowingControls)
+            _pressArmed = false;
+        else if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            _pressArmed = true;
+        _wasOpen = paused;
+        _wasShowingControls = showControls;
+
         if (!paused)
         {
             _playTime += MathF.Max(0f, deltaTime);
@@ -80,7 +93,7 @@ public sealed class SessionOverlay
         return showControls ? DrawControls(dl, viewport) : DrawPauseMenu(dl, viewport, seed);
     }
 
-    private static SessionOverlayAction DrawPauseMenu(ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed)
+    private SessionOverlayAction DrawPauseMenu(ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed)
     {
         const float panelW = 380f, panelH = 318f, buttonW = 300f, buttonH = 46f, gap = 12f;
         Vector2 min = PanelOrigin(vp, panelW, panelH);
@@ -105,7 +118,7 @@ public sealed class SessionOverlay
         return action;
     }
 
-    private static SessionOverlayAction DrawControls(ImDrawListPtr dl, (float x, float y, float w, float h) vp)
+    private SessionOverlayAction DrawControls(ImDrawListPtr dl, (float x, float y, float w, float h) vp)
     {
         const float panelW = 720f, rowH = 26f, buttonW = 220f, buttonH = 42f;
         float panelH = 78f + Controls.Length * rowH + 20f + HowToPlay.Length * 22f + 24f + buttonH + 20f;
@@ -152,8 +165,11 @@ public sealed class SessionOverlay
         dl.AddRect(min, min + size, PanelBorder, 10f, ImDrawFlags.None, 2f);
     }
 
-    /// <summary>A button that reports a click when the left mouse button is released over it.</summary>
-    private static bool Button(ImDrawListPtr dl, Vector2 min, Vector2 size, string label, string key)
+    /// <summary>
+    /// A button that reports a click when the left mouse button is released over it, provided the press also
+    /// started on it while this screen was open.
+    /// </summary>
+    private bool Button(ImDrawListPtr dl, Vector2 min, Vector2 size, string label, string key)
     {
         Vector2 max = min + size;
         Vector2 mouse = ImGui.GetIO().MousePos;
@@ -168,7 +184,10 @@ public sealed class SessionOverlay
         float keyW = Measure(textSize, key);
         DrawText(dl, textSize, new Vector2(max.X - 18f - keyW, textY), key, KeyColor);
 
-        return hovered && ImGui.IsMouseReleased(ImGuiMouseButton.Left);
+        if (!hovered || !_pressArmed || !ImGui.IsMouseReleased(ImGuiMouseButton.Left))
+            return false;
+        Vector2 pressedAt = ImGui.GetIO().MouseClickedPos[0];
+        return pressedAt.X >= min.X && pressedAt.Y >= min.Y && pressedAt.X < max.X && pressedAt.Y < max.Y;
     }
 
     private static float Measure(float size, string text) =>
