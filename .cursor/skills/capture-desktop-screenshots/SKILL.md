@@ -15,7 +15,7 @@ Use this workflow when the user wants screenshots of what is actually visible in
 
 ## Why This Skill Exists
 
-DX11 screenshot capture now reads the final backbuffer before `Present`, so it includes scene + ImGui/HUD and matches what users see in the game window.
+Screenshot capture reads the final frame before it is presented, so it includes scene + ImGui/HUD and matches what users see in the game window.
 
 ## Standard Workflow
 
@@ -29,7 +29,7 @@ Get-Process Tunnerer.Desktop -ErrorAction SilentlyContinue | Stop-Process -Force
 
 ```powershell
 $env:TUNNERER_SCRIPT_SCREENSHOT_FRAME = "20"
-dotnet run --configuration Debug --project "src/Tunnerer.Desktop" -- --backend=dx11 --perf --perf-warmup=0 --perf-frames=80
+dotnet run --configuration Debug --project "src/Tunnerer.Desktop" -- --perf --perf-warmup=0 --perf-frames=80
 Remove-Item Env:TUNNERER_SCRIPT_SCREENSHOT_FRAME -ErrorAction SilentlyContinue
 ```
 
@@ -92,7 +92,7 @@ Use in-engine scripting (not OS key injection) for reliable ON/OFF comparisons:
 ```powershell
 $env:TUNNERER_COMMAND_SCRIPT = "40:TogglePostTerrainCurve,80:TogglePostTerrainCurve,120:TogglePostTerrainAux,160:TogglePostTerrainAux,200:TogglePostTankGlow,240:TogglePostTankGlow"
 $env:TUNNERER_SCRIPT_SCREENSHOT_FRAMES = "41,81,121,161,201,241"
-dotnet run --configuration Debug --project "src/Tunnerer.Desktop" -- --backend=dx11 --perf --perf-warmup=0 --perf-frames=260
+dotnet run --configuration Debug --project "src/Tunnerer.Desktop" -- --perf --perf-warmup=0 --perf-frames=260
 Remove-Item Env:TUNNERER_COMMAND_SCRIPT -ErrorAction SilentlyContinue
 Remove-Item Env:TUNNERER_SCRIPT_SCREENSHOT_FRAMES -ErrorAction SilentlyContinue
 ```
@@ -107,7 +107,7 @@ Format details:
 Use this only if the in-engine capture fails unexpectedly:
 
 ```powershell
-python -c "import subprocess,time; from PIL import ImageGrab; cwd=r'E:/Projects/New/tunnerer'; out=r'E:/Projects/New/tunnerer/artifacts/debug/desktop_capture_fallback.png'; cmd=['dotnet','run','--configuration','Debug','--project','src/Tunnerer.Desktop','--','--backend=dx11','--perf','--perf-warmup=0','--perf-frames=240']; p=subprocess.Popen(cmd,cwd=cwd); time.sleep(2.8); ImageGrab.grab().save(out); print(out); p.wait(timeout=35)"
+python -c "import subprocess,time; from PIL import ImageGrab; cwd=r'E:/Projects/New/tunnerer'; out=r'E:/Projects/New/tunnerer/artifacts/debug/desktop_capture_fallback.png'; cmd=['dotnet','run','--configuration','Debug','--project','src/Tunnerer.Desktop','--','--perf','--perf-warmup=0','--perf-frames=240']; p=subprocess.Popen(cmd,cwd=cwd); time.sleep(2.8); ImageGrab.grab().save(out); print(out); p.wait(timeout=35)"
 ```
 
 ## Troubleshooting

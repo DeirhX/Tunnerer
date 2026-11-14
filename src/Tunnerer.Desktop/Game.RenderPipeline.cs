@@ -209,10 +209,6 @@ public partial class Game
         imguiWatch.Restart();
         _renderBackend.Render();
         _drawProfile.ScreenImGuiRender += imguiWatch.Elapsed;
-
-        imguiWatch.Restart();
-        _renderer.SwapWindow();
-        _drawProfile.ScreenSwap += imguiWatch.Elapsed;
     }
 
     private ThermalRegionOverlayUpload BuildThermalRegionOverlayUpload()

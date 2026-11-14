@@ -1,43 +1,47 @@
 namespace Tunnerer.Desktop.Input;
 
-using Silk.NET.SDL;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Types;
+using static SDL3.SDL;
 
 public readonly record struct KeyBindings(
     Scancode Left, Scancode Right, Scancode Up, Scancode Down, Scancode Shoot, Scancode Build, Scancode BuildHarvester);
 
-public unsafe class KeyboardController
+public class KeyboardController
 {
-    private readonly Sdl _sdl;
     private readonly KeyBindings _keys;
 
-    public KeyboardController(Sdl sdl, KeyBindings keys)
+    public KeyboardController(KeyBindings keys)
     {
-        _sdl = sdl;
         _keys = keys;
     }
 
-    public bool IsLeftHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Left] != 0; } }
-    public bool IsRightHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Right] != 0; } }
-    public bool IsUpHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Up] != 0; } }
-    public bool IsDownHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Down] != 0; } }
+    private static bool IsHeld(Scancode key)
+    {
+        ReadOnlySpan<bool> keys = GetKeyboardState(out int count);
+        int index = (int)key;
+        return index < count && keys[index];
+    }
+
+    public bool IsLeftHeld => IsHeld(_keys.Left);
+    public bool IsRightHeld => IsHeld(_keys.Right);
+    public bool IsUpHeld => IsHeld(_keys.Up);
+    public bool IsDownHeld => IsHeld(_keys.Down);
 
     public ControllerOutput Poll()
     {
-        byte* keys = _sdl.GetKeyboardState(null);
         int dx = 0, dy = 0;
-        if (keys[(int)_keys.Left] != 0) dx -= 1;
-        if (keys[(int)_keys.Right] != 0) dx += 1;
-        if (keys[(int)_keys.Up] != 0) dy -= 1;
-        if (keys[(int)_keys.Down] != 0) dy += 1;
+        if (IsHeld(_keys.Left)) dx -= 1;
+        if (IsHeld(_keys.Right)) dx += 1;
+        if (IsHeld(_keys.Up)) dy -= 1;
+        if (IsHeld(_keys.Down)) dy += 1;
 
         return new ControllerOutput
         {
             MoveSpeed = new Offset(dx, dy),
-            ShootPrimary = keys[(int)_keys.Shoot] != 0,
-            BuildPrimary = keys[(int)_keys.Build] != 0,
-            BuildSecondary = keys[(int)_keys.BuildHarvester] != 0,
+            ShootPrimary = IsHeld(_keys.Shoot),
+            BuildPrimary = IsHeld(_keys.Build),
+            BuildSecondary = IsHeld(_keys.BuildHarvester),
         };
     }
 }

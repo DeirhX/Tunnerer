@@ -14,8 +14,7 @@ repository any more. Run every command from the repository root.
 dotnet build Tunnerer.slnx
 ```
 
-`Tunnerer.Desktop` compiles its HLSL shaders with `fxc.exe` from the Windows SDK during the build. If the build
-fails on shader compilation, pass the compiler path: `-p:Dx11ShaderCompiler="C:\path\to\fxc.exe"`.
+`Tunnerer.Desktop` compiles its HLSL shaders to DXIL, SPIR-V and MSL during the build (SDL_shadercross from NuGet).
 
 ## Test
 
@@ -37,4 +36,4 @@ The tests cover `Tunnerer.Core` only and need no window.
 dotnet run --project src\Tunnerer.Desktop
 ```
 
-The desktop client is Windows only (SDL2 window, DirectX 11). `--hidden` runs it without showing a window.
+The desktop client runs on Windows and macOS (SDL3 window, SDL_GPU renderer). `--hidden` runs it without showing a window.
