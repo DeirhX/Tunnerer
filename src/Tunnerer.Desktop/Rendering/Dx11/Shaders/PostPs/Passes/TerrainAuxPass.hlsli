@@ -10,8 +10,12 @@
 //   1. SDF edge shading — Sobel gradient of auxTex.g produces edge strength
 //      and boundary proximity. Solid terrain gets a brightness lift and rim
 //      highlight near the cave/solid boundary.
-//   2. Material classification — auxTex.b encodes material ID (dirt, stone,
-//      gold, base). Each material gets its own procedural overlay function.
+//   2. Material classification — natural materials (stone, concrete, gold,
+//      dirt) are chosen from the blurred coverage texture (coverageTex), never
+//      from interpolated material codes: each material wins where its coverage
+//      beats the best other one, with an anti-aliased edge. Stone/dirt edges
+//      get a contact shadow and bevel for depth. The tank base (wall, floor,
+//      door) is drawn pixel-exact from the nearest cell's exact code.
 //   3. Neighborhood AA — 8-tap average blended in at edges to soften
 //      remaining aliasing after material overlays.
 //   4. Heat & scorch glow — auxTex.r (heat) and auxTex.a (scorch) drive
@@ -189,6 +193,61 @@ void ApplyTerrainHeatAndScorch(
     color += kEmberColorCore * (pow(saturate(ember), 1.35) * 0.62);
 }
 
+// ----------------------------------------------------------------------------
+// Natural material selection
+// ----------------------------------------------------------------------------
+// Coverage c (stone, concrete, gold, dirt). For each material the signed margin
+// d = c_i - max(other three) is positive where it dominates; a smoothstep of
+// d with a screen-space width gives an anti-aliased, smooth-curved boundary.
+// Masks are normalised to sum to 1.
+
+float4 CoverageMargins(float4 c)
+{
+    return float4(
+        c.x - max(c.y, max(c.z, c.w)),
+        c.y - max(c.x, max(c.z, c.w)),
+        c.z - max(c.x, max(c.y, c.w)),
+        c.w - max(c.x, max(c.y, c.z)));
+}
+
+float4 NaturalMaterialMasks(float4 coverage)
+{
+    float4 d = CoverageMargins(coverage);
+    float4 w = max(fwidth(d) * kMaterialMaskFwidthScale, kMaterialMaskMinWidth);
+    float4 m = smoothstep(-w, w, d);
+    float total = m.x + m.y + m.z + m.w;
+    return total > 1e-4 ? m / total : float4(0.0, 0.0, 0.0, 0.0);
+}
+
+// Contact shadow on the dirt side and a bevel rim on the stone side of a
+// stone/dirt boundary, so rock reads as sitting above the soil. The stone
+// margin's gradient (per cell, sampled by the caller outside flow control) gives
+// the boundary normal and a distance estimate (cells, positive inside stone).
+void ApplyStoneDirtDepth(inout float3 color, float2 marginGrad, float stoneMargin, float natural)
+{
+    float2 lightDir2 = normalize(LightDir.xy);
+    float gradLen = length(marginGrad);
+    if (gradLen < 0.02)
+        return;
+
+    float2 outward = -marginGrad / gradLen;              // stone -> dirt
+    float distCells = stoneMargin / gradLen;             // + stone side, - dirt side
+    float facing = dot(outward, lightDir2);              // + faces the light
+
+    // Dirt side: contact shadow, deeper where the dirt faces away from the light.
+    float shadowT = saturate(1.0 + distCells / kStoneContactShadowCells);
+    shadowT *= shadowT * (1.0 - smoothstep(0.0, 0.25, distCells));
+    float shadow = (kStoneContactShadowBase + kStoneContactShadowLit * saturate(-facing)) * shadowT;
+
+    // Stone side: narrow lit / shaded bevel.
+    float rim = (1.0 - smoothstep(0.0, kStoneBevelCells, distCells)) * smoothstep(-0.25, 0.0, distCells);
+    float3 rimColor = color * (1.0 + kStoneBevelLit * saturate(facing)) + float3(0.05, 0.05, 0.05) * saturate(facing);
+    rimColor *= 1.0 - kStoneBevelShade * saturate(-facing);
+
+    color *= 1.0 - shadow * natural;
+    color = lerp(color, rimColor, rim * natural);
+}
+
 // ============================================================================
 // Main terrain aux pass entry point
 // ============================================================================
@@ -228,8 +287,8 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     float solidCoreHard = step(0.52, sdfNearest);
     float solidCoreSoft = smoothstep(0.52, 0.66, a0.g);
     float solidCore = solidCoreHard * solidCoreSoft;
-    float materialCodeNearest = aNearest.b * kMaterialCodeScale;
-    float baseInfluence = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide, abs(materialCodeNearest - kMaterialCodeBase)));
+    int materialCodeNearest = DecodeMaterialCode(aNearest.b);
+    float baseInfluence = IsBaseCode(materialCodeNearest) ? 1.0 : 0.0;
     // When scorch remnants are present around edges, prefer smoothing and avoid
     // hard contour accents that make the boundary look jagged.
     float scorchNeighbor = max(
@@ -289,31 +348,64 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         color += maskSoft * edgeProfile * outline * rimLift * terrainFactor;
 
         // ---- Material classification --------------------------------------
-        // Use nearest IDs in stable interiors, but blend toward the bilinear
-        // material sample around boundaries to avoid re-introducing staircase.
-        float materialCodeSmooth = a0.b * kMaterialCodeScale;
-        float materialBoundary = abs(ax1.b - ax2.b) + abs(ay1.b - ay2.b);
-        float materialBlend = smoothstep(0.01, 0.08, materialBoundary);
-        float materialCode = lerp(materialCodeNearest, materialCodeSmooth, materialBlend);
-
+        // Natural materials come from the blurred coverage field; the exact
+        // (nearest) code only decides where the base is. Base cells are drawn
+        // with their own mask so the solid/cave gating cannot dim them.
         float contentMask = terrainFactor * solidSide * solidCore;
-        float dirtMask     = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeDirt)))     * contentMask;
-        float baseMask     = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeBase)))     * contentMask;
-        float concreteMask = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeConcrete))) * contentMask;
-        float stoneMask    = (1.0 - smoothstep(0.0, kMaterialMaskWidthWide,   abs(materialCode - kMaterialCodeStone)))    * contentMask;
-        float goldMask     = (1.0 - smoothstep(0.0, kMaterialMaskWidthNarrow, abs(materialCode - kMaterialCodeGold)))     * contentMask;
-
-        dirtMask = saturate(dirtMask * (1.0 - stoneMask * 0.6) * (1.0 - goldMask) * (1.0 - concreteMask));
+        float4 coverage = coverageTex.Sample(s0, auxUv);
+        float4 margins = CoverageMargins(coverage);
+        float4 naturalMasks = NaturalMaterialMasks(coverage) * (contentMask * (1.0 - baseInfluence));
+        float stoneMask = naturalMasks.x;
+        float concreteMask = naturalMasks.y;
+        float goldMask = naturalMasks.z;
+        float dirtMask = naturalMasks.w;
+        float naturalTotal = stoneMask + concreteMask + goldMask + dirtMask;
+        float baseMask = terrainFactor * baseInfluence;
+        // Stone margin gradient (per cell) for the stone/dirt depth cue.
+        float2 stoneMarginGrad = 0.5 * float2(
+            CoverageMargins(coverageTex.Sample(s0, auxUv + float2(mTexel.x, 0.0))).x -
+            CoverageMargins(coverageTex.Sample(s0, auxUv - float2(mTexel.x, 0.0))).x,
+            CoverageMargins(coverageTex.Sample(s0, auxUv + float2(0.0, mTexel.y))).x -
+            CoverageMargins(coverageTex.Sample(s0, auxUv - float2(0.0, mTexel.y))).x);
 
         // ---- Procedural material overlays ---------------------------------
+        // Each material is evaluated on the scene colour and the results are
+        // blended by mask weight, so no stale scene colour leaks into an edge.
         float3 lightDir = normalize(float3(LightDir.xy, max(0.35, LightDir.z)));
-        ApplyStoneMaterial(color, worldCell, stoneMask, lightDir);
-        ApplyConcreteMaterial(color, worldCell, concreteMask, lightDir);
-        // Base uses the concrete texture but darkened for a bunker-floor look.
-        ApplyConcreteMaterial(color, worldCell, baseMask, lightDir);
-        color = lerp(color, color * 0.35, baseMask);
-        ApplyDirtMaterial(color, worldCell, dirtMask, lightDir);
-        ApplyGoldMaterial(color, worldCell, goldMask, lightDir);
+        if (naturalTotal > 0.001)
+        {
+            float3 blended = float3(0.0, 0.0, 0.0);
+            if (stoneMask > 0.001)
+            {
+                float3 c = color;
+                ApplyStoneMaterial(c, worldCell, 1.0, lightDir);
+                blended += c * stoneMask;
+            }
+            if (concreteMask > 0.001)
+            {
+                float3 c = color;
+                ApplyConcreteMaterial(c, worldCell, 1.0, lightDir);
+                blended += c * concreteMask;
+            }
+            if (goldMask > 0.001)
+            {
+                float3 c = color;
+                ApplyGoldMaterial(c, worldCell, 1.0, lightDir);
+                blended += c * goldMask;
+            }
+            if (dirtMask > 0.001)
+            {
+                float3 c = color;
+                ApplyDirtMaterial(c, worldCell, 1.0, lightDir);
+                blended += c * dirtMask;
+            }
+            color = lerp(color, blended / naturalTotal, naturalTotal);
+
+            // Depth at the stone/dirt boundary.
+            ApplyStoneDirtDepth(color, stoneMarginGrad, margins.x, naturalTotal);
+        }
+
+        ApplyBaseMaterial(color, worldCell, auxCell, auxMax, materialCodeNearest, baseMask);
 
         // ---- Neighborhood AA ----------------------------------------------
         // Blend a lightweight 8-tap average at terrain edges to soften residual
@@ -361,9 +453,9 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             float aaBase = nativeSmoothingOff ? 0.62 : 0.30;
             if (terrainAuxOnlyMode)
                 aaBase *= 0.55;
-            float terrainContent = saturate(dirtMask + stoneMask + concreteMask + baseMask + goldMask);
+            float terrainContent = saturate(naturalTotal);
             float aaContentBoost = smoothstep(0.25, 0.90, terrainContent) * 0.10;
-            float aaEdgeSignal = max(edgeProfile, materialBlend * 0.9) * (1.0 - baseInfluence);
+            float aaEdgeSignal = edgeProfile * (1.0 - baseInfluence);
             float aaMix = saturate(aaEdgeSignal * (aaBase + aaContentBoost)) * terrainFactor * contourSupport;
             aaMix = saturate(aaMix + scorchEdgeSoften * 0.26 + caveTransitionSoften * 0.18);
             color = lerp(color, aaNeighborhood, aaMix);

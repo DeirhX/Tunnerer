@@ -37,6 +37,7 @@ public partial class Game : IDisposable
     private readonly List<Position> _terrainDirtyCells = new();
     private readonly float[] _gpuTankHeatGlow = new float[Tweaks.World.MaxPlayers * 4];
     private readonly byte[] _gpuTerrainAux;
+    private readonly byte[] _gpuMaterialCoverage;
     private bool _gpuAuxFullUploadPending = true;
     private int _heatAuxFrameCounter;
     private readonly Stopwatch _gameTimer = Stopwatch.StartNew();
@@ -124,6 +125,7 @@ public partial class Game : IDisposable
         _worldPixels = new uint[_terrainSize.Area];
         _compositePixels = new uint[_terrainSize.Area];
         _gpuTerrainAux = new byte[_terrainSize.Area * 4];
+        _gpuMaterialCoverage = new byte[_terrainSize.Area * 4];
         if (parallel)
             _world.Terrain.DrawAllToSurfaceParallel(_worldPixels);
         else

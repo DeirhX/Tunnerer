@@ -14,7 +14,8 @@
 //
 // Inputs:
 //   sceneTex (t0) — composited scene (terrain + entities)
-//   auxTex   (t1) — per-cell terrain data (.r = heat, .g = SDF, .b = material ID, .a = scorch)
+//   auxTex   (t1) — per-cell terrain data (.r = heat, .g = SDF, .b = exact material code, .a = scorch)
+//   coverageTex (t2) — per-cell blurred natural-material coverage (.r stone, .g concrete, .b gold, .a dirt)
 //
 // Terrain vs entity discrimination:
 //   sceneSample.a >= 1.0 → terrain pixel   (terrainFactor = 1)
@@ -33,6 +34,7 @@
 #include "Materials/ConcreteMaterial.hlsli"
 #include "Materials/DirtMaterial.hlsli"
 #include "Materials/GoldMaterial.hlsli"
+#include "Materials/BaseMaterial.hlsli"
 
 #include "Passes/DistortionPass.hlsli"
 #include "Passes/VignettePass.hlsli"

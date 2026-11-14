@@ -6,23 +6,40 @@ using Tunnerer.Core.Types;
 
 public sealed unsafe partial class Backend
 {
-    private void UpdateTerrainAuxTexture(byte[]? auxData, Size worldSize, Rect? dirtyRect)
+    /// <summary>
+    /// A world-sized RGBA8 texture (one texel per terrain cell) that is created from a full CPU array and then
+    /// patched with dirty rectangles. Used for the terrain aux texture (t1) and the material coverage texture (t2).
+    /// </summary>
+    private sealed class WorldDataTexture
+    {
+        public ID3D11Texture2D* Texture;
+        public ID3D11ShaderResourceView* Srv;
+        public byte[]? UploadScratch;
+        public int Width, Height;
+
+        public void Release()
+        {
+            if (Srv != null) { Srv->Release(); Srv = null; }
+            if (Texture != null) { Texture->Release(); Texture = null; }
+        }
+    }
+
+    private void UpdateWorldDataTexture(WorldDataTexture target, byte[]? data, Size worldSize, Rect? dirtyRect)
     {
         int worldW = worldSize.X;
         int worldH = worldSize.Y;
-        if (auxData == null || worldW <= 0 || worldH <= 0)
+        if (data == null || worldW <= 0 || worldH <= 0)
             return;
 
-        bool sizeChanged = _terrainAuxTexture == null || _terrainAuxW != worldW || _terrainAuxH != worldH;
+        bool sizeChanged = target.Texture == null || target.Width != worldW || target.Height != worldH;
         if (sizeChanged)
         {
-            if (_terrainAuxSrv != null) { _terrainAuxSrv->Release(); _terrainAuxSrv = null; }
-            if (_terrainAuxTexture != null) { _terrainAuxTexture->Release(); _terrainAuxTexture = null; }
+            target.Release();
 
             var desc = CreateTextureDesc(
                 worldW, worldH, Format.FormatR8G8B8A8Unorm, Usage.Default,
                 (uint)BindFlag.ShaderResource, 0);
-            fixed (byte* ptr = auxData)
+            fixed (byte* ptr = data)
             {
                 var sub = new SubresourceData
                 {
@@ -30,15 +47,15 @@ public sealed unsafe partial class Backend
                     SysMemPitch = (uint)(worldW * 4),
                     SysMemSlicePitch = 0,
                 };
-                ID3D11Texture2D* auxTex = null;
-                _device->CreateTexture2D(&desc, &sub, &auxTex);
-                _terrainAuxTexture = auxTex;
+                ID3D11Texture2D* tex = null;
+                _device->CreateTexture2D(&desc, &sub, &tex);
+                target.Texture = tex;
             }
-            ID3D11ShaderResourceView* auxSrv = null;
-            _device->CreateShaderResourceView((ID3D11Resource*)_terrainAuxTexture, null, &auxSrv);
-            _terrainAuxSrv = auxSrv;
-            _terrainAuxW = worldW;
-            _terrainAuxH = worldH;
+            ID3D11ShaderResourceView* srv = null;
+            _device->CreateShaderResourceView((ID3D11Resource*)target.Texture, null, &srv);
+            target.Srv = srv;
+            target.Width = worldW;
+            target.Height = worldH;
             return;
         }
 
@@ -50,18 +67,34 @@ public sealed unsafe partial class Backend
         if (rw <= 0 || rh <= 0) return;
         var box = new Box((uint)minX, (uint)minY, 0u, (uint)(maxX + 1), (uint)(maxY + 1), 1u);
         int required = rw * rh * 4;
-        if (_terrainAuxUploadScratch == null || _terrainAuxUploadScratch.Length < required)
-            _terrainAuxUploadScratch = new byte[required];
-        byte[] scratch = _terrainAuxUploadScratch;
+        if (target.UploadScratch == null || target.UploadScratch.Length < required)
+            target.UploadScratch = new byte[required];
+        byte[] scratch = target.UploadScratch;
         for (int y = 0; y < rh; y++)
         {
             int src = ((minY + y) * worldW + minX) * 4;
             int dst = y * rw * 4;
-            Array.Copy(auxData, src, scratch, dst, rw * 4);
+            Array.Copy(data, src, scratch, dst, rw * 4);
         }
         fixed (byte* ptr = scratch)
         {
-            _context->UpdateSubresource((ID3D11Resource*)_terrainAuxTexture, 0, &box, ptr, (uint)(rw * 4), 0);
+            _context->UpdateSubresource((ID3D11Resource*)target.Texture, 0, &box, ptr, (uint)(rw * 4), 0);
         }
+    }
+
+    /// <summary>Binds the terrain aux texture at t1 and the material coverage texture at t2.</summary>
+    private void BindTerrainDataTextures()
+    {
+        ID3D11ShaderResourceView* srvs0 = _terrainAux.Srv;
+        _context->PSSetShaderResources(1, 1, &srvs0);
+        ID3D11ShaderResourceView* srvs1 = _materialCoverage.Srv;
+        _context->PSSetShaderResources(2, 1, &srvs1);
+    }
+
+    private void UnbindTerrainDataTextures()
+    {
+        ID3D11ShaderResourceView* nullSrv = null;
+        _context->PSSetShaderResources(1, 1, &nullSrv);
+        _context->PSSetShaderResources(2, 1, &nullSrv);
     }
 }

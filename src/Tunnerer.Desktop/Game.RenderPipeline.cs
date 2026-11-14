@@ -35,12 +35,14 @@ public partial class Game
             var visibleRect = _renderViewState.ComputeVisibleWorldRect(_terrainSize, scale);
 
             Rect? auxDirtyRect;
+            Rect? coverageDirtyRect;
             bool consumeHeatDirty;
             if (_gpuAuxFullUploadPending)
             {
                 ProfileSection(ref _drawProfile.ScreenAuxBuild, () =>
-                    _terrainAuxBuilder.BuildGpuTerrainAuxData(_world.Terrain, _gpuTerrainAux));
+                    _terrainAuxBuilder.BuildGpuTerrainAuxData(_world.Terrain, _gpuTerrainAux, _gpuMaterialCoverage));
                 auxDirtyRect = new Rect(0, 0, _terrainSize.X, _terrainSize.Y);
+                coverageDirtyRect = auxDirtyRect;
                 consumeHeatDirty = true;
             }
             else
@@ -58,9 +60,16 @@ public partial class Game
                 // (R=heat, G=SDF, B=material class, A=scorch level).
                 Rect? fullAuxRect = RenderViewState.MergeDirtyRects(terrainDirtyRect, cameraRevealRect);
 
+                // The build pads the rect by the blur margin; upload exactly what it wrote.
                 if (fullAuxRect is Rect fullRect)
+                {
+                    Rect written = fullRect;
                     ProfileSection(ref _drawProfile.AuxTerrainPack, () =>
-                        _terrainAuxBuilder.BuildGpuTerrainAuxRect(_world.Terrain, _gpuTerrainAux, fullRect));
+                        written = _terrainAuxBuilder.BuildGpuTerrainAuxRect(
+                            _world.Terrain, _gpuTerrainAux, _gpuMaterialCoverage, fullRect));
+                    fullAuxRect = written;
+                }
+                coverageDirtyRect = fullAuxRect;
 
                 // Heat-only R-channel fast path for the remaining visible heat area
                 Rect? heatOnlyRect = heatDirtyRect;
@@ -102,7 +111,9 @@ public partial class Game
                     Count: tankHeatGlowCount),
                 TerrainAux: new TerrainAuxUpload(
                     Data: _gpuTerrainAux,
-                    DirtyRect: auxDirtyRect),
+                    DirtyRect: auxDirtyRect,
+                    MaterialCoverage: _gpuMaterialCoverage,
+                    MaterialCoverageDirtyRect: coverageDirtyRect),
                 NativeContinuous: new NativeContinuousUpload(
                     Enabled: true,
                     SourcePixels: _compositePixels,

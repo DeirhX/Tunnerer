@@ -16,7 +16,8 @@ public sealed unsafe partial class Backend
     {
         EnsureSceneTexture(w, h);
         long t0 = Stopwatch.GetTimestamp();
-        UpdateTerrainAuxTexture(upload.TerrainAux.Data, upload.View.WorldSize, upload.TerrainAux.DirtyRect);
+        UpdateWorldDataTexture(_terrainAux, upload.TerrainAux.Data, upload.View.WorldSize, upload.TerrainAux.DirtyRect);
+        UpdateWorldDataTexture(_materialCoverage, upload.TerrainAux.MaterialCoverage, upload.View.WorldSize, upload.TerrainAux.MaterialCoverageDirtyRect);
         _profileAuxUploadTicks += Stopwatch.GetTimestamp() - t0;
         t0 = Stopwatch.GetTimestamp();
         bool useNativeContinuous = upload.NativeContinuous.Enabled &&
@@ -110,15 +111,14 @@ public sealed unsafe partial class Backend
         PrepareFullscreenPass(_sceneRtv, _sceneTexW, _sceneTexH, _terrainPs);
         ID3D11ShaderResourceView* sourceSrv = _nativeSourceSrv;
         _context->PSSetShaderResources(0, 1, &sourceSrv);
-        ID3D11ShaderResourceView* auxSrv = _terrainAuxSrv;
-        _context->PSSetShaderResources(1, 1, &auxSrv);
+        BindTerrainDataTextures();
         UpdatePostParamsBuffer(upload);
         ID3D11Buffer* cb = _postParamsBuffer;
         _context->PSSetConstantBuffers(0, 1, &cb);
         _context->Draw(3, 0);
         ID3D11ShaderResourceView* nullSrv = null;
         _context->PSSetShaderResources(0, 1, &nullSrv);
-        _context->PSSetShaderResources(1, 1, &nullSrv);
+        UnbindTerrainDataTextures();
         _displaySrv = _sceneSrv;
         TryDumpDebugTexture(_sceneTexture, "scene");
     }
@@ -161,8 +161,7 @@ public sealed unsafe partial class Backend
 
         ID3D11ShaderResourceView* sceneSrv = _sceneSrv;
         _context->PSSetShaderResources(0, 1, &sceneSrv);
-        ID3D11ShaderResourceView* auxSrv = _terrainAuxSrv;
-        _context->PSSetShaderResources(1, 1, &auxSrv);
+        BindTerrainDataTextures();
 
         t0 = Stopwatch.GetTimestamp();
         UpdatePostParamsBuffer(upload);
@@ -175,7 +174,7 @@ public sealed unsafe partial class Backend
 
         ID3D11ShaderResourceView* nullSrv = null;
         _context->PSSetShaderResources(0, 1, &nullSrv);
-        _context->PSSetShaderResources(1, 1, &nullSrv);
+        UnbindTerrainDataTextures();
         _displaySrv = _postSrv != null ? _postSrv : _sceneSrv;
         TryDumpDebugTexture(_postTexture, "post");
     }

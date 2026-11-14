@@ -25,18 +25,39 @@ float2 TexelOffsetY()
     return float2(0.0, TexelSize.y);
 }
 
-// ---- Terrain material ID encoding (auxTex.b channel) ----------------------
-// CPU writes material IDs as normalized [0..1]; decode by multiplying by 255.
-// Codes must match TerrainAuxBuilder (0 = none). Spacing (~42) exceeds the wide
-// mask width so adjacent materials never overlap at their exact codes.
+// ---- Terrain material code (auxTex.b channel) -----------------------------
+// CPU writes the code as a byte in a normalized channel. Codes are categorical:
+// only ever read them with Load (nearest cell) and compare exactly; never
+// interpolate. Natural materials (dirt/stone/concrete/gold) are not told apart
+// here but by coverageTex; their code (100) just means "natural solid".
+// Must match TerrainAuxBuilder.
 static const float kMaterialCodeScale = 255.0;
-static const float kMaterialCodeBase = 42.0;
-static const float kMaterialCodeDirt = 85.0;
-static const float kMaterialCodeConcrete = 128.0;
-static const float kMaterialCodeStone = 170.0;
-static const float kMaterialCodeGold = 212.0;
-static const float kMaterialMaskWidthWide = 40.0;    // smoothstep width for base/dirt/concrete/stone
-static const float kMaterialMaskWidthNarrow = 28.0;  // smoothstep width for gold
+static const int kMaterialCodeBaseFloor = 20;
+static const int kMaterialCodeBaseDoor = 30;
+static const int kMaterialCodeBaseWallMin = 40;   // wall code = 40 + owner colour index
+static const int kMaterialCodeBaseWallMax = 47;
+
+int DecodeMaterialCode(float encoded)
+{
+    return (int)round(encoded * kMaterialCodeScale);
+}
+
+bool IsBaseWallCode(int code)  { return code >= kMaterialCodeBaseWallMin && code <= kMaterialCodeBaseWallMax; }
+bool IsBaseFloorCode(int code) { return code == kMaterialCodeBaseFloor; }
+bool IsBaseDoorCode(int code)  { return code == kMaterialCodeBaseDoor; }
+bool IsBaseCode(int code)      { return IsBaseWallCode(code) || IsBaseFloorCode(code) || IsBaseDoorCode(code); }
+
+// ---- Natural material selection from coverageTex ---------------------------
+static const float kMaterialMaskMinWidth = 0.01;      // minimum smoothstep half-width on coverage differences
+static const float kMaterialMaskFwidthScale = 0.75;   // anti-aliasing width relative to screen-space change
+
+// ---- Stone / dirt boundary depth -------------------------------------------
+static const float kStoneContactShadowCells = 1.10;   // dirt-side shadow reach (cells; 6 screen px per cell)
+static const float kStoneContactShadowBase = 0.26;    // darkening where the dirt faces the light
+static const float kStoneContactShadowLit = 0.12;     // extra darkening where it faces away
+static const float kStoneBevelCells = 0.55;           // stone-side bevel width (cells)
+static const float kStoneBevelLit = 0.30;             // brightening on the light-facing bevel
+static const float kStoneBevelShade = 0.28;           // darkening on the shaded bevel
 
 // ---- Heat debug overlay ---------------------------------------------------
 static const float kHeatDebugTemperatureScale = 255.0 * 4.0;

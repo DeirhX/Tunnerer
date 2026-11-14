@@ -63,32 +63,44 @@ public sealed class TerrainAuxBuilder
         return count;
     }
 
-    public void BuildGpuTerrainAuxData(TerrainGrid terrain, byte[] target)
+    public void BuildGpuTerrainAuxData(TerrainGrid terrain, byte[] auxTarget, byte[] coverageTarget)
     {
         _gpuBlurField.Rebuild(terrain);
         int w = terrain.Width;
-        int len = terrain.Size.Area;
-        for (int i = 0; i < len; i++)
-        {
-            int x = i % w;
-            int y = i / w;
-            WriteTerrainAux(terrain, i, terrain.GetPixelRaw(i), _gpuBlurField.SampleAsByte(x, y), target, i * 4);
-        }
+        int h = terrain.Height;
+        Parallel.For(0, h, y => WriteRow(terrain, y, 0, w - 1, auxTarget, coverageTarget));
     }
 
-    public void BuildGpuTerrainAuxRect(TerrainGrid terrain, byte[] target, in Rect dirtyRect)
+    /// <summary>
+    /// Rebuilds the aux and coverage data for <paramref name="dirtyRect"/> plus the blur margin: a changed cell
+    /// alters the blurred fields of every cell within the kernel radius. Returns the padded rect actually written,
+    /// which is the rect the caller must upload.
+    /// </summary>
+    public Rect BuildGpuTerrainAuxRect(TerrainGrid terrain, byte[] auxTarget, byte[] coverageTarget, in Rect dirtyRect)
     {
         RectMath.GetMinMaxInclusive(dirtyRect, out int minX, out int minY, out int maxX, out int maxY);
+        const int pad = TerrainBlurField.KernelRadius; // >= TerrainMaterialCoverage.KernelRadius
+        minX = Math.Max(0, minX - pad);
+        minY = Math.Max(0, minY - pad);
+        maxX = Math.Min(terrain.Width - 1, maxX + pad);
+        maxY = Math.Min(terrain.Height - 1, maxY + pad);
         _gpuBlurField.UpdateRect(terrain, minX, minY, maxX, maxY);
-        int w = terrain.Width;
-        for (int y = minY; y <= maxY; y++)
+        if (maxY - minY + 1 >= 32)
+            Parallel.For(minY, maxY + 1, y => WriteRow(terrain, y, minX, maxX, auxTarget, coverageTarget));
+        else
+            for (int y = minY; y <= maxY; y++)
+                WriteRow(terrain, y, minX, maxX, auxTarget, coverageTarget);
+        return RectMath.FromMinMaxInclusive(minX, minY, maxX, maxY);
+    }
+
+    private void WriteRow(TerrainGrid terrain, int y, int minX, int maxX, byte[] auxTarget, byte[] coverageTarget)
+    {
+        int row = y * terrain.Width;
+        for (int x = minX; x <= maxX; x++)
         {
-            int row = y * w;
-            for (int x = minX; x <= maxX; x++)
-            {
-                int idx = row + x;
-                WriteTerrainAux(terrain, idx, terrain.GetPixelRaw(idx), _gpuBlurField.SampleAsByte(x, y), target, idx * 4);
-            }
+            int idx = row + x;
+            WriteTerrainAux(terrain, idx, terrain.GetPixelRaw(idx), _gpuBlurField.SampleAsByte(x, y), auxTarget, idx * 4);
+            TerrainMaterialCoverage.WriteCell(terrain, x, y, coverageTarget, idx * 4);
         }
     }
 
@@ -131,20 +143,23 @@ public sealed class TerrainAuxBuilder
     {
         // Aux channel layout:
         // R = heat, G = smoothed SDF, B = material class, A = scorch damage level.
+        // B is read by nearest-cell Load only (never interpolated). Natural materials are told apart by the
+        // material coverage texture; B just marks them solid. Base cells keep their exact code:
+        // floor, door, and wall = BaseWallBase + owner colour index (0..7). Keep in sync with Constants.hlsli.
         const byte materialNone = 0;
-        const byte materialBase = 42;
-        const byte materialDirt = 85;
-        const byte materialConcrete = 128;
-        const byte materialStone = 170;
-        const byte materialGold = 212;
+        const byte materialNatural = 100;
+        const byte materialBaseFloor = 20;
+        const byte materialBaseDoor = 30;
+        const byte materialBaseWallBase = 40;
 
         byte material = pixel switch
         {
-            TerrainPixel.Dirt or TerrainPixel.DirtGrow => materialDirt,
-            TerrainPixel.Gold => materialGold,
-            TerrainPixel.Rock or TerrainPixel.HotRock => materialStone,
-            TerrainPixel.Concrete => materialConcrete,
-            >= TerrainPixel.BaseMin and <= TerrainPixel.BaseCore => materialBase,
+            TerrainPixel.Dirt or TerrainPixel.DirtGrow or TerrainPixel.Gold or TerrainPixel.Rock
+                or TerrainPixel.HotRock or TerrainPixel.Concrete => materialNatural,
+            TerrainPixel.BaseCore => materialBaseFloor,
+            TerrainPixel.BaseBarrier => materialBaseDoor,
+            >= TerrainPixel.BaseMin and <= TerrainPixel.BaseMax =>
+                (byte)(materialBaseWallBase + (pixel - TerrainPixel.BaseMin)),
             _ => materialNone,
         };
 

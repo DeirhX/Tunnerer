@@ -34,7 +34,9 @@ public readonly record struct TankGlowUpload(
 
 public readonly record struct TerrainAuxUpload(
     byte[]? Data,
-    Rect? DirtyRect);
+    Rect? DirtyRect,
+    byte[]? MaterialCoverage,
+    Rect? MaterialCoverageDirtyRect);
 
 public readonly record struct NativeContinuousUpload(
     bool Enabled,
