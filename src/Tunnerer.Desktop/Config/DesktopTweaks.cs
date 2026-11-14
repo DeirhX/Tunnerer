@@ -13,6 +13,13 @@ public static class DesktopTweaks
     public const RenderBackendKind DefaultRenderBackend = RenderBackendKind.Dx11;
 }
 
+/// <summary>Launch options for a match that come from the command line.</summary>
+public static class GameLaunchOptions
+{
+    /// <summary>Map and simulation seed requested with --seed=N; null lets the game choose.</summary>
+    public static int? Seed { get; set; }
+}
+
 /// <summary>
 /// Which monitor the game window opens on. The window is borderless fullscreen-desktop, so it fills that display.
 /// Unset (null) keeps the default: centered on the primary display.

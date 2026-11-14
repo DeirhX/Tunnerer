@@ -59,6 +59,8 @@ public partial class Game : IDisposable
         bool terrainTestMode = false)
     {
         _terrainTestMode = terrainTestMode;
+        _automatedRun = IsAutomatedRun(perfCapture);
+        Seed = ResolveSeed(_automatedRun, terrainTestMode);
         var windowSize = DesktopScreenTweaks.WindowSize;
         RenderBackendKind selectedBackend = renderBackendOverride ?? DesktopTweaks.DefaultRenderBackend;
         bool deterministicSimulation = genMode == LevelGenMode.Deterministic;
@@ -97,27 +99,27 @@ public partial class Game : IDisposable
         {
             _terrainSize = terrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize;
             var modeLabel = parallel ? "optimized" : "deterministic";
-            Console.WriteLine($"Generating terrain {_terrainSize.X}x{_terrainSize.Y} ({modeLabel}, seed={DefaultSeed})...");
+            Console.WriteLine($"Generating terrain {_terrainSize.X}x{_terrainSize.Y} ({modeLabel}, seed={(deterministicSimulation ? Seed.ToString() : "random")})...");
             var genWatch = Stopwatch.StartNew();
             var generator = new ToastGenerator();
-            int? seed = deterministicSimulation ? DefaultSeed : null;
+            int? seed = deterministicSimulation ? Seed : null;
             var (terrain, spawns) = generator.Generate(_terrainSize, seed, genMode);
             Console.WriteLine($"Level generated in {genWatch.Elapsed.TotalMilliseconds:F0} ms, {spawns.Length} spawns");
 
             _world = new World(
                 _terrainSize,
                 deterministicSimulation: deterministicSimulation,
-                simulationSeed: deterministicSimulation ? DefaultSeed : 0,
+                simulationSeed: deterministicSimulation ? Seed : 0,
                 hotRockPocketCount: Tweaks.World.HotRockPocketCount);
             _world.Profile.ReportSink = static line => Console.WriteLine(line);
-            int? decorationSeed = deterministicSimulation ? DefaultSeed + 1 : null;
+            int? decorationSeed = deterministicSimulation ? Seed + 1 : null;
             _world.Initialize(terrain, spawns, decorationSeed: decorationSeed, parallelMaterialize: parallel);
             if (_world.HotRockPockets.Count > 0)
                 Console.WriteLine($"[HotRock] {_world.HotRockPockets.Count} pocket(s) at " +
                     string.Join(", ", _world.HotRockPockets.Select(p => $"({p.X},{p.Y})")));
         }
 
-        _p2AI = new BotTankAI(seed: deterministicSimulation ? DefaultSeed + 2 : null);
+        _p2AI = new BotTankAI(seed: deterministicSimulation ? Seed + 2 : null);
 
         _worldPixels = new uint[_terrainSize.Area];
         _compositePixels = new uint[_terrainSize.Area];
@@ -179,6 +181,7 @@ public partial class Game : IDisposable
                 requestStop: () => _isRunning = false,
                 pollEvents: () => _renderer.PollEvents(HandleEvent),
                 isGameOver: () => _terrainTestMode ? false : _world.IsGameOver,
+                isPaused: () => _paused,
                 onBeforeSimulationBatch: () =>
                 {
                     _terrainDirtyCells.Clear();

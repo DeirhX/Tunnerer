@@ -14,4 +14,6 @@ public enum GameCommand
     RequestScreenshot,
     TogglePostPassOverlay,
     ToggleInputRecording,
+    TogglePause,
+    ToggleControls,
 }
