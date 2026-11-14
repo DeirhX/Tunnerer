@@ -93,9 +93,9 @@ public partial class TerrainGrid
         int offset = pos.X + pos.Y * Width;
         Debug.Assert((uint)offset < (uint)_heatTemperature.Length, "Validated position must map to a valid offset.");
         float old = _heatTemperature[offset];
-        _heatEngine.AddEnergyAt(_heatTemperature, offset, amount);
+        AddToTerrainField(offset, amount);
         float next = _heatTemperature[offset];
-        Ledger.RecordInjected((double)(next - old) * TerrainCapacityAt(offset));
+        Ledger.RecordInjected((double)amount * TerrainCapacityAt(offset));
         if (ShouldMarkHeatDirty(old, next))
             MarkHeatDirty(pos.X, pos.Y);
         if (amount != 0)
@@ -126,9 +126,9 @@ public partial class TerrainGrid
             if (scaled == 0) return;
             int offset = nx + ny * Width;
             float old = _heatTemperature[offset];
-            _heatEngine.AddEnergyAt(_heatTemperature, offset, scaled);
+            AddToTerrainField(offset, scaled);
             float next = _heatTemperature[offset];
-            Ledger.RecordInjected((double)(next - old) * TerrainCapacityAt(offset));
+            Ledger.RecordInjected((double)scaled * TerrainCapacityAt(offset));
             if (ShouldMarkHeatDirty(old, next))
                 MarkHeatDirty(nx, ny);
             ActivateTileByCell(nx, ny);
@@ -362,14 +362,14 @@ public partial class TerrainGrid
 
             int offset = nx + ny * Width;
             float old = _heatTemperature[offset];
-            _heatEngine.AddEnergyAt(_heatTemperature, offset, delta);
+            AddToTerrainField(offset, delta);
             float next = _heatTemperature[offset];
-            Ledger.RecordInjected((double)(next - old) * TerrainCapacityAt(offset));
+            Ledger.RecordInjected((double)delta * TerrainCapacityAt(offset));
             if (ShouldMarkHeatDirty(old, next))
                 MarkHeatDirty(nx, ny);
             ActivateTileByCell(nx, ny);
             RequestThermalWake();
-            applied += (int)MathF.Round(next - old);
+            applied += delta;
         });
 
         return applied;
@@ -405,6 +405,7 @@ public partial class TerrainGrid
             _heatEngine.AddEnergyAt(_airTemperature, offset, delta);
             float next = _airTemperature[offset];
             Ledger.RecordInjected((double)(next - old) * Tweaks.World.ThermalCapacityAir);
+            MirrorAirIntoTerrainFieldIfAirCell(nx, ny, offset, next);
             if (IsThermallyActive(_heatTemperature[offset], next))
                 ActivateTileByCell(nx, ny);
             RequestThermalWake();
@@ -426,10 +427,43 @@ public partial class TerrainGrid
     private float FieldCapacityAt(ThermalField field, int offset)
         => field == ThermalField.Terrain ? TerrainCapacityAt(offset) : Tweaks.World.ThermalCapacityAir;
 
+    private bool IsAirCell(int offset)
+        => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.Air;
+
+    /// <summary>
+    /// Adds a temperature delta to the terrain field of a cell. In an air cell the terrain field is only a
+    /// mirror of the air field and holds no energy of its own, so the delta lands in the air field (where the
+    /// energy lives) and the mirror follows. Without this the heat would be erased on the next solver step.
+    /// </summary>
+    private void AddToTerrainField(int offset, float deltaTemperature)
+    {
+        if (IsAirCell(offset))
+        {
+            float next = _airTemperature[offset] + deltaTemperature;
+            _airTemperature[offset] = next;
+            _heatTemperature[offset] = next;
+        }
+        else
+        {
+            _heatTemperature[offset] += deltaTemperature;
+        }
+    }
+
+    /// <summary>Keeps the terrain-field mirror of an air cell equal to its air temperature.</summary>
+    private void MirrorAirIntoTerrainFieldIfAirCell(int nx, int ny, int offset, float airTemperature)
+    {
+        if (!IsAirCell(offset))
+            return;
+        float oldMirror = _heatTemperature[offset];
+        _heatTemperature[offset] = airTemperature;
+        if (ShouldMarkHeatDirty(oldMirror, airTemperature))
+            MarkHeatDirty(nx, ny);
+    }
+
     private void ApplyFieldDelta(int nx, int ny, ThermalField field, float deltaTemperature)
     {
         int offset = nx + ny * Width;
-        if (field == ThermalField.Terrain)
+        if (field == ThermalField.Terrain && !IsAirCell(offset))
         {
             float old = _heatTemperature[offset];
             float next = old + deltaTemperature;
@@ -440,8 +474,10 @@ public partial class TerrainGrid
         }
         else
         {
+            // Air field, or the (mirrored) terrain field of an air cell: both are the same stored energy.
             float next = _airTemperature[offset] + deltaTemperature;
             _airTemperature[offset] = next;
+            MirrorAirIntoTerrainFieldIfAirCell(nx, ny, offset, next);
             if (IsThermallyActive(_heatTemperature[offset], next))
                 ActivateTileByCell(nx, ny);
         }

@@ -19,13 +19,6 @@ public sealed class ThermalLedger
     /// <summary>Energy deleted by cells pinned to a fixed temperature (base barrier and core cells).</summary>
     public double SunkFixedTemperature { get; private set; }
 
-    /// <summary>
-    /// Net energy removed when an air cell's terrain field is overwritten with its air temperature.
-    /// Air cells have no separate terrain state, so whatever the terrain field held beyond the air
-    /// temperature disappears (or appears, if it was colder).
-    /// </summary>
-    public double SunkAirMirror { get; private set; }
-
     /// <summary>Energy removed by the optional global dirt cooling.</summary>
     public double SunkArtificialCooling { get; private set; }
 
@@ -36,14 +29,13 @@ public sealed class ThermalLedger
     public double SunkTank { get; private set; }
 
     public double TotalSunk =>
-        SunkFixedTemperature + SunkAirMirror + SunkArtificialCooling + SunkBase + SunkTank;
+        SunkFixedTemperature + SunkArtificialCooling + SunkBase + SunkTank;
 
     /// <summary><c>Injected - TotalSunk</c>: the net energy the system should have gained since the last reset.</summary>
     public double NetExternal => Injected - TotalSunk;
 
     public void RecordInjected(double energy) => Injected += energy;
     public void RecordSunkFixedTemperature(double energy) => SunkFixedTemperature += energy;
-    public void RecordSunkAirMirror(double energy) => SunkAirMirror += energy;
     public void RecordSunkArtificialCooling(double energy) => SunkArtificialCooling += energy;
     public void RecordSunkBase(double energy) => SunkBase += energy;
     public void RecordSunkTank(double energy) => SunkTank += energy;
@@ -52,7 +44,6 @@ public sealed class ThermalLedger
     {
         Injected = 0;
         SunkFixedTemperature = 0;
-        SunkAirMirror = 0;
         SunkArtificialCooling = 0;
         SunkBase = 0;
         SunkTank = 0;

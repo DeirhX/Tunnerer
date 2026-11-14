@@ -108,6 +108,34 @@ public class ThermalLedgerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AirCell_InjectedHeat_IsKeptAndConserved()
+    {
+        // Open cave: no dirt, rock or base cells, so nothing may remove heat. Heat written into an air cell
+        // used to land in a mirror field that the next solver step overwrote, deleting ~90% of it.
+        var t = new TerrainGrid(new Size(40, 40));
+        for (int y = 0; y < 40; y++)
+            for (int x = 0; x < 40; x++)
+                t.SetPixelRaw(new Position(x, y), TerrainPixel.Blank);
+
+        var center = new Position(20, 20);
+        t.AddHeat(center, 100);
+        t.AddHeatRadius(new Position(10, 30), amount: 60, radius: 4);
+
+        double injected = t.Ledger.Injected;
+        Assert.Equal(injected, t.SumTotalThermalEnergy(), precision: 2);
+        Assert.Equal(100f, t.GetAirTemperature(center), precision: 3);
+        Assert.Equal(100f, t.GetHeatTemperature(center), precision: 3); // the terrain field mirrors the air
+
+        for (int i = 0; i < 60; i++)
+            t.CoolDown();
+
+        Assert.Equal(injected, t.SumTotalThermalEnergy(), precision: 1);
+        Assert.Equal(0.0, t.Ledger.TotalSunk, precision: 3);
+        Assert.True(t.GetAirTemperature(center) < 100f, "the heat should spread out");
+        Assert.True(t.GetAirTemperature(new Position(21, 20)) > 0f, "neighbours should warm up");
+    }
+
+    [Fact]
     public void Grid_WithFixedTemperatureCells_EnergyBalancesWithLedger()
     {
         // A hot spot next to pinned base cells: the pins delete energy, and the ledger must say how much.
@@ -131,7 +159,7 @@ public class ThermalLedgerTests(ITestOutputHelper output)
             maxResidual = Math.Max(maxResidual, Math.Abs(residual));
         }
 
-        output.WriteLine($"sunkFixed={t.Ledger.SunkFixedTemperature:0.0} sunkMirror={t.Ledger.SunkAirMirror:0.0} maxResidual={maxResidual:0.0000}");
+        output.WriteLine($"sunkFixed={t.Ledger.SunkFixedTemperature:0.0} maxResidual={maxResidual:0.0000}");
         Assert.True(t.Ledger.SunkFixedTemperature > 0.0, "the pinned cells should have absorbed heat");
         Assert.True(maxResidual < 0.5, $"Grid energy must balance with the ledger. maxResidual={maxResidual:0.0000}");
     }
@@ -185,7 +213,7 @@ public class ThermalLedgerTests(ITestOutputHelper output)
         var ledger = world.Terrain.Ledger;
         output.WriteLine(
             $"peakEnergy={maxEnergy:0.0} injected={ledger.Injected:0.0} sunkFixed={ledger.SunkFixedTemperature:0.0} " +
-            $"sunkMirror={ledger.SunkAirMirror:0.0} sunkBase={ledger.SunkBase:0.0} sunkTank={ledger.SunkTank:0.0} " +
+            $"sunkBase={ledger.SunkBase:0.0} sunkTank={ledger.SunkTank:0.0} " +
             $"sunkArtificial={ledger.SunkArtificialCooling:0.0} maxResidual={maxResidual:0.0000} at tick {worstTick}");
 
         Assert.True(ledger.Injected > 0.0, "the scenario should actually inject heat (shots, torch, explosions)");

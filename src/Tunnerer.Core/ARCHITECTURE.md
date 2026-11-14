@@ -179,6 +179,11 @@ Heat lives in two float fields on `TerrainGrid`: a **terrain** field and an **ai
 and `Tweaks.World.ThermalCapacityAir`. The grid solver (`StepConservative` / sparse regions) moves energy between
 neighbouring cells in exact pairs, so it conserves energy by itself.
 
+**Air cells have one store.** In a cell whose material is `Air` the terrain field is only a *mirror* of the air
+field: writes to either field land in the air field (`AddToTerrainField`, `ApplyFieldDelta`), the solver keeps
+the mirror equal, and the energy sum counts such a cell once. Heat injected into an open tunnel therefore stays
+until it conducts away, instead of being erased on the next step.
+
 **Rule: entities never write temperatures directly.** They exchange *energy*:
 
 | Operation | API | Ledger |
@@ -189,9 +194,8 @@ neighbouring cells in exact pairs, so it conserves energy by itself.
 | Material change (dig, blast, regrowth) | `SetPixel` | `Injected` (± capacity change) |
 
 `TerrainGrid.Ledger` (`ThermalLedger`) records every place where energy is created or destroyed:
-`Injected`, `SunkFixedTemperature` (base cells pinned to a fixed temperature), `SunkAirMirror` (an air cell's
-terrain field is overwritten with its air temperature), `SunkArtificialCooling`, `SunkBase` (tank cooling at a base,
-base-centre sink) and `SunkTank` (cooling pickups, heat floor, respawn). The invariant, checked every tick by
+`Injected`, `SunkFixedTemperature` (base cells pinned to a fixed temperature), `SunkArtificialCooling`,
+`SunkBase` (tank cooling at a base, base-centre sink) and `SunkTank` (cooling pickups, heat floor, respawn). The invariant, checked every tick by
 `ThermalLedgerTests`:
 
 ```
@@ -203,8 +207,8 @@ Tank ↔ grid exchange is `TankHeatEngine.Advance` (returns the energy to hand t
 base ↔ grid exchange is `TankBase.Advance`. The base reactor is a *finite* sink: it absorbs at most its remaining
 heat capacity (`Tweaks.Base.ReactorEnergyPerHeatUnit` per unit) and only heat that is actually present.
 
-Known residuals: `SetPixelRaw` writes (level generation) are not metered, and heat injected into an air cell's
-terrain field is mostly erased by the air-mirror overwrite on the next step (metered in `SunkAirMirror`).
+Known residual: `SetPixelRaw` writes (level generation) are not metered. Digging hot dirt out to air destroys the
+terrain-field heat of that cell (metered as a `SetPixel` material change); it does not move into the air.
 
 ## Level generation (Toast algorithm)
 

@@ -301,7 +301,9 @@ public class WorldThermalSimulationTests
         AdvanceWorld(world, frames: shootFrames, frameInputForTank0: _ => shootDown, visual: visual, phase: "shoot", captureEvery: 6);
         float hotspotAfterShooting = world.Terrain.SampleAverageHeat(impactPos, radius: 6) * 255f;
 
-        const int waitFrames = 24 * 12;
+        // Heat injected into a tunnel now stays in the air until it conducts away (it is no longer erased), so
+        // the hotspot needs ~16 s to drop below the safe level instead of ~9 s.
+        const int waitFrames = 24 * 20;
         AdvanceWorld(world, frames: waitFrames, visual: visual, phase: "wait", captureEvery: 24);
 
         float hotspotBeforeReturn = world.Terrain.SampleAverageHeat(impactPos, radius: 6) * 255f;

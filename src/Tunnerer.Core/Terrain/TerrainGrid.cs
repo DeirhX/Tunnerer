@@ -64,8 +64,8 @@ public partial class TerrainGrid
 
     /// <summary>
     /// A cell that changes thermal material (dirt dug out to air, rock blasted, regrowth) keeps its
-    /// temperature but gets a different heat capacity, which creates or destroys energy.
-    /// The difference is recorded in <see cref="Ledger"/> so the energy balance stays auditable.
+    /// terrain-field temperature, but only non-air cells store energy there, so energy appears or disappears
+    /// with the change. The difference is recorded in <see cref="Ledger"/> so the balance stays auditable.
     /// </summary>
     private void RecordMaterialChangeEnergy(int offset, TerrainPixel oldPixel, TerrainPixel newPixel)
     {
@@ -74,8 +74,10 @@ public partial class TerrainGrid
         if (oldMaterial == newMaterial)
             return;
 
-        double capacityDelta = Thermal.TerrainHeatEngine.GetHeatCapacity(newMaterial) - Thermal.TerrainHeatEngine.GetHeatCapacity(oldMaterial);
-        Ledger.RecordInjected(_heatTemperature[offset] * capacityDelta);
+        // Only non-air cells store energy in the terrain field (an air cell's terrain field mirrors its air),
+        // so the terrain-field energy that appears or disappears is T * (new stored capacity - old stored capacity).
+        double stored(ThermalMaterial m) => m == ThermalMaterial.Air ? 0.0 : Thermal.TerrainHeatEngine.GetHeatCapacity(m);
+        Ledger.RecordInjected(_heatTemperature[offset] * (stored(newMaterial) - stored(oldMaterial)));
     }
 
     public void CommitPixel(Position pos) => _changeList.Add(pos);

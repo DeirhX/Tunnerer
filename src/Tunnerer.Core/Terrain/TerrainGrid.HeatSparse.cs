@@ -263,7 +263,6 @@ public partial class TerrainGrid
         long markStart = Stopwatch.GetTimestamp();
         workers.Sort(static (a, b) => a.Id.CompareTo(b.Id));
         ClearNextActiveTiles();
-        double sunkMirror = 0.0;
         double sunkFixed = 0.0;
         for (int i = 0; i < workers.Count; i++)
         {
@@ -283,7 +282,7 @@ public partial class TerrainGrid
                     ThermalMaterial material = Pixel.GetThermalMaterial(_data[offset]);
                     if (material == ThermalMaterial.Air)
                     {
-                        sunkMirror += TerrainHeatEngine.MirrorOverwriteEnergy(next, nextAir);
+                        // Mirror of the air field; holds no energy of its own.
                         next = nextAir;
                     }
                     else if (material == ThermalMaterial.Base)
@@ -310,7 +309,6 @@ public partial class TerrainGrid
                 }
             }
         }
-        Ledger.RecordSunkAirMirror(sunkMirror);
         Ledger.RecordSunkFixedTemperature(sunkFixed);
         markDirty = Stopwatch.GetElapsedTime(markStart);
         SwapActiveTiles();

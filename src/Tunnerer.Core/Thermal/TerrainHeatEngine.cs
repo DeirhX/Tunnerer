@@ -94,7 +94,6 @@ public sealed class TerrainHeatEngine
             }
         }
 
-        double sunkMirror = 0.0;
         double sunkFixed = 0.0;
         for (int i = 0; i < len; i++)
         {
@@ -103,7 +102,7 @@ public sealed class TerrainHeatEngine
             ThermalMaterial material = Pixel.GetThermalMaterial(pixels[i]);
             if (material == ThermalMaterial.Air)
             {
-                sunkMirror += MirrorOverwriteEnergy(terrainTemperature[i], airTemperature[i]);
+                // The terrain field of an air cell is a mirror of its air field and holds no energy.
                 terrainTemperature[i] = airTemperature[i];
             }
             else if (IsFixedTemperatureMaterial(material))
@@ -114,19 +113,8 @@ public sealed class TerrainHeatEngine
             }
         }
 
-        if (ledger != null)
-        {
-            ledger.RecordSunkAirMirror(sunkMirror);
-            ledger.RecordSunkFixedTemperature(sunkFixed);
-        }
+        ledger?.RecordSunkFixedTemperature(sunkFixed);
     }
-
-    /// <summary>
-    /// Energy removed when an air cell's terrain field (<paramref name="terrainTemperature"/>) is forced to
-    /// equal its air temperature. Negative when the terrain field was colder than the air.
-    /// </summary>
-    public static double MirrorOverwriteEnergy(float terrainTemperature, float airTemperature)
-        => (double)(terrainTemperature - airTemperature) * Tweaks.World.ThermalCapacityAir;
 
     /// <summary>Energy removed when a fixed-temperature cell is pinned back to <paramref name="fixedTemperature"/>.</summary>
     public static double FixedCellEnergySunk(ThermalMaterial material, float terrainTemperature, float fixedTemperature)
@@ -198,9 +186,10 @@ public sealed class TerrainHeatEngine
         double sum = 0.0;
         for (int i = 0; i < terrainTemperature.Length; i++)
         {
+            // An air cell's terrain field only mirrors its air field, so its energy is counted once (air).
             ThermalMaterial m = Pixel.GetThermalMaterial(pixels[i]);
-            float cTerrain = GetHeatCapacity(m);
-            sum += terrainTemperature[i] * cTerrain;
+            if (m != ThermalMaterial.Air)
+                sum += terrainTemperature[i] * GetHeatCapacity(m);
             sum += airTemperature[i] * Tweaks.World.ThermalCapacityAir;
         }
 
@@ -350,17 +339,17 @@ public sealed class TerrainHeatEngine
 
     private void ExchangeTerrainAir(int idx, ThermalMaterial material, float terrainT, float airT, float[] terrainDelta, float[] airDelta)
     {
+        // An air cell has no separate terrain state to exchange with: its terrain field mirrors the air field.
+        if (material == ThermalMaterial.Air)
+            return;
+
         float delta = terrainT - airT;
         if (MathF.Abs(delta) < 0.0001f)
             return;
 
-        float cTerrain = material == ThermalMaterial.Air
-            ? Tweaks.World.ThermalCapacityAir
-            : GetHeatCapacity(material);
+        float cTerrain = GetHeatCapacity(material);
         float cAir = Tweaks.World.ThermalCapacityAir;
-        float k = material == ThermalMaterial.Air
-            ? _settings.ThermalAirCellCoupling
-            : GetConductance(material, ThermalMaterial.Air) + 0.5f * _settings.ThermalAirCellCoupling;
+        float k = GetConductance(material, ThermalMaterial.Air) + 0.5f * _settings.ThermalAirCellCoupling;
         float dQ = StablePairHeatFlow(delta, cTerrain, cAir, k);
         if (MathF.Abs(dQ) < 0.0001f)
             return;
