@@ -1,29 +1,14 @@
 namespace Tunnerer.Desktop.Rendering;
 
 using System;
-using Silk.NET.SDL;
 using Tunnerer.Core.Types;
+using Tunnerer.Desktop.Config;
 
 public readonly record struct RenderView(
     Size ViewSize,
     Size WorldSize,
     Position CameraPixels,
     int PixelScale);
-
-[Flags]
-public enum PostProcessPassFlags : byte
-{
-    None = 0,
-    Vignette = 1 << 0,
-    TerrainCurve = 1 << 1,
-    TerrainAux = 1 << 2,
-    TankGlow = 1 << 3,
-    NativeTerrainSmoothing = 1 << 4,
-    TerrainHeat = 1 << 5,
-    NativeEdgeCurving = 1 << 6,
-    ThermalRegions = 1 << 7,
-    All = Vignette | TerrainCurve | TerrainAux | TankGlow | NativeTerrainSmoothing | TerrainHeat | NativeEdgeCurving | ThermalRegions,
-}
 
 public readonly record struct GamePixelsUpload(
     uint[] Pixels,
@@ -62,7 +47,7 @@ public interface IGameRenderBackend : IDisposable
     Size GameTextureSize { get; }
     bool SupportsUi { get; }
 
-    void ProcessEvent(Event ev);
+    void ProcessEvent(in RenderInputEvent ev);
 
     void UploadGamePixels(in GamePixelsUpload upload);
 

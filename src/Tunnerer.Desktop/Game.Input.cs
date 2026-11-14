@@ -5,12 +5,17 @@ using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
+using System.Runtime.InteropServices;
 
 public partial class Game
 {
     private void HandleEvent(Event ev)
     {
-        _renderBackend.ProcessEvent(ev);
+        if (HandleSessionEvent(ev))
+            return;
+
+        if (TryMapRenderInputEvent(ev, out var renderEvent))
+            _renderBackend.ProcessEvent(renderEvent);
         if (ev.Type != (uint)EventType.Keydown)
             return;
 
@@ -24,8 +29,98 @@ public partial class Game
             ExecuteGameCommand(command, InputCommandSources.Input);
     }
 
+    private static unsafe bool TryMapRenderInputEvent(Event ev, out RenderInputEvent renderEvent)
+    {
+        renderEvent = default;
+        switch ((EventType)ev.Type)
+        {
+            case EventType.Mousemotion:
+                renderEvent = new RenderInputEvent(
+                    Type: RenderInputEventType.MouseMove,
+                    MouseX: ev.Motion.X,
+                    MouseY: ev.Motion.Y);
+                return true;
+            case EventType.Mousebuttondown:
+            case EventType.Mousebuttonup:
+                renderEvent = new RenderInputEvent(
+                    Type: RenderInputEventType.MouseButton,
+                    MouseButton: ev.Button.Button switch
+                    {
+                        1 => RenderMouseButton.Left,
+                        2 => RenderMouseButton.Middle,
+                        3 => RenderMouseButton.Right,
+                        _ => RenderMouseButton.Unknown,
+                    },
+                    IsPressed: ev.Type == (uint)EventType.Mousebuttondown);
+                return true;
+            case EventType.Mousewheel:
+                renderEvent = new RenderInputEvent(
+                    Type: RenderInputEventType.MouseWheel,
+                    WheelX: ev.Wheel.X,
+                    WheelY: ev.Wheel.Y);
+                return true;
+            case EventType.Textinput:
+                renderEvent = new RenderInputEvent(
+                    Type: RenderInputEventType.TextInput,
+                    Text: Marshal.PtrToStringUTF8((nint)ev.Text.Text));
+                return true;
+            case EventType.Keydown:
+            case EventType.Keyup:
+                renderEvent = new RenderInputEvent(
+                    Type: RenderInputEventType.Key,
+                    Key: ToRenderKey((Scancode)ev.Key.Keysym.Scancode),
+                    Modifiers: ToRenderModifiers(ev.Key.Keysym.Mod),
+                    IsPressed: ev.Type == (uint)EventType.Keydown,
+                    IsRepeat: ev.Key.Repeat != 0);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static RenderKey ToRenderKey(Scancode scancode) => scancode switch
+    {
+        Scancode.ScancodeTab => RenderKey.Tab,
+        Scancode.ScancodeLeft => RenderKey.LeftArrow,
+        Scancode.ScancodeRight => RenderKey.RightArrow,
+        Scancode.ScancodeUp => RenderKey.UpArrow,
+        Scancode.ScancodeDown => RenderKey.DownArrow,
+        Scancode.ScancodePageup => RenderKey.PageUp,
+        Scancode.ScancodePagedown => RenderKey.PageDown,
+        Scancode.ScancodeHome => RenderKey.Home,
+        Scancode.ScancodeEnd => RenderKey.End,
+        Scancode.ScancodeInsert => RenderKey.Insert,
+        Scancode.ScancodeDelete => RenderKey.Delete,
+        Scancode.ScancodeBackspace => RenderKey.Backspace,
+        Scancode.ScancodeSpace => RenderKey.Space,
+        Scancode.ScancodeReturn => RenderKey.Enter,
+        Scancode.ScancodeEscape => RenderKey.Escape,
+        Scancode.ScancodeA => RenderKey.A,
+        Scancode.ScancodeC => RenderKey.C,
+        Scancode.ScancodeV => RenderKey.V,
+        Scancode.ScancodeX => RenderKey.X,
+        Scancode.ScancodeY => RenderKey.Y,
+        Scancode.ScancodeZ => RenderKey.Z,
+        _ => RenderKey.None,
+    };
+
+    private static RenderKeyModifiers ToRenderModifiers(ushort modifiers)
+    {
+        RenderKeyModifiers mapped = RenderKeyModifiers.None;
+        if ((modifiers & (ushort)Keymod.Ctrl) != 0)
+            mapped |= RenderKeyModifiers.Ctrl;
+        if ((modifiers & (ushort)Keymod.Shift) != 0)
+            mapped |= RenderKeyModifiers.Shift;
+        if ((modifiers & (ushort)Keymod.Alt) != 0)
+            mapped |= RenderKeyModifiers.Alt;
+        return mapped;
+    }
+
     private void ExecuteGameCommand(GameCommand command, string source)
     {
+        if (HandleSessionCommand(command))
+            return;
+
         RecordInputCommandForReplay(command, source);
         _commandController.Execute(
             command,
@@ -61,25 +156,15 @@ public partial class Game
 
     private bool IsMouseInViewport(in FrameInputSnapshot frameInput, out float relX, out float relY)
     {
-        (float x, float y, float w, float h) vp = _renderBackend.SupportsUi
-            ? _hud.ViewportRect
-            : (0f, 0f, _renderViewState.HiResSize.X, _renderViewState.HiResSize.Y);
-
         relX = 0; relY = 0;
-        if (vp.w <= 0 || vp.h <= 0) return false;
+        float vpW = _renderViewState.HiResSize.X;
+        float vpH = _renderViewState.HiResSize.Y;
+        if (vpW <= 0 || vpH <= 0) return false;
 
-        relX = frameInput.MouseX - vp.x;
-        relY = frameInput.MouseY - vp.y;
-        if (relX < 0 || relY < 0 || relX >= vp.w || relY >= vp.h)
+        relX = frameInput.MouseX;
+        relY = frameInput.MouseY;
+        if (relX < 0 || relY < 0 || relX >= vpW || relY >= vpH)
             return false;
-
-        if (_renderBackend.SupportsUi)
-        {
-            float sx = _renderViewState.HiResSize.X / Math.Max(1f, vp.w);
-            float sy = _renderViewState.HiResSize.Y / Math.Max(1f, vp.h);
-            relX *= sx;
-            relY *= sy;
-        }
 
         return true;
     }

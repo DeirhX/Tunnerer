@@ -10,24 +10,22 @@ public class TerrainPixelTests
     [InlineData(TerrainPixel.LevelGenRock, 1)]
     [InlineData(TerrainPixel.LevelGenMark, 2)]
     [InlineData(TerrainPixel.Blank, (byte)' ')]
-    [InlineData(TerrainPixel.DirtHigh, (byte)'D')]
+    [InlineData(TerrainPixel.Dirt, (byte)'D')]
     [InlineData(TerrainPixel.DirtGrow, (byte)'g')]
     [InlineData(TerrainPixel.Rock, (byte)'r')]
-    [InlineData(TerrainPixel.DecalHigh, (byte)'.')]
-    [InlineData(TerrainPixel.DecalLow, (byte)',')]
+    [InlineData(TerrainPixel.Decal, (byte)'.')]
     [InlineData(TerrainPixel.BaseMin, (byte)'0')]
     [InlineData(TerrainPixel.BaseMax, (byte)'7')]
     [InlineData(TerrainPixel.BaseBarrier, (byte)'8')]
     [InlineData(TerrainPixel.BaseCore, (byte)'9')]
-    [InlineData(TerrainPixel.ConcreteLow, (byte)'c')]
-    [InlineData(TerrainPixel.ConcreteHigh, (byte)'C')]
+    [InlineData(TerrainPixel.Concrete, (byte)'C')]
     public void EnumValues_MatchCpp(TerrainPixel pixel, byte expected)
     {
         Assert.Equal(expected, (byte)pixel);
     }
 
     [Theory]
-    [InlineData(TerrainPixel.DirtHigh, true)]
+    [InlineData(TerrainPixel.Dirt, true)]
     [InlineData(TerrainPixel.DirtGrow, false)]
     [InlineData(TerrainPixel.Rock, false)]
     [InlineData(TerrainPixel.Blank, false)]
@@ -37,7 +35,7 @@ public class TerrainPixelTests
     }
 
     [Theory]
-    [InlineData(TerrainPixel.DirtHigh, true)]
+    [InlineData(TerrainPixel.Dirt, true)]
     [InlineData(TerrainPixel.DirtGrow, true)]
     [InlineData(TerrainPixel.Rock, false)]
     [InlineData(TerrainPixel.Blank, false)]
@@ -47,10 +45,9 @@ public class TerrainPixelTests
     }
 
     [Theory]
-    [InlineData(TerrainPixel.DecalHigh, true)]
-    [InlineData(TerrainPixel.DecalLow, true)]
+    [InlineData(TerrainPixel.Decal, true)]
     [InlineData(TerrainPixel.Blank, false)]
-    [InlineData(TerrainPixel.DirtHigh, false)]
+    [InlineData(TerrainPixel.Dirt, false)]
     public void IsScorched_MatchesCpp(TerrainPixel pixel, bool expected)
     {
         Assert.Equal(expected, Pixel.IsScorched(pixel));
@@ -58,10 +55,9 @@ public class TerrainPixelTests
 
     [Theory]
     [InlineData(TerrainPixel.Rock, true)]
-    [InlineData(TerrainPixel.ConcreteHigh, true)]
-    [InlineData(TerrainPixel.ConcreteLow, true)]
+    [InlineData(TerrainPixel.Concrete, true)]
     [InlineData(TerrainPixel.BaseMin, true)]
-    [InlineData(TerrainPixel.DirtHigh, false)]
+    [InlineData(TerrainPixel.Dirt, false)]
     [InlineData(TerrainPixel.Blank, false)]
     public void IsBlockingCollision_MatchesCpp(TerrainPixel pixel, bool expected)
     {
@@ -74,10 +70,9 @@ public class TerrainPixelTests
         var magenta = new Color(255, 0, 255);
         TerrainPixel[] knownPixels =
         [
-            TerrainPixel.Blank, TerrainPixel.DirtHigh,
-            TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.DecalHigh,
-            TerrainPixel.DecalLow, TerrainPixel.ConcreteLow, TerrainPixel.ConcreteHigh,
-            TerrainPixel.EnergyLow, TerrainPixel.EnergyMedium, TerrainPixel.EnergyHigh,
+            TerrainPixel.Blank, TerrainPixel.Dirt,
+            TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.Decal,
+            TerrainPixel.Concrete, TerrainPixel.Gold,
             TerrainPixel.BaseMin, TerrainPixel.BaseBarrier, TerrainPixel.BaseCore
         ];
 

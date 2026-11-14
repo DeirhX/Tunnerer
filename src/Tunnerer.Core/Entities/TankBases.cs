@@ -27,13 +27,13 @@ public class TankBases
         return null;
     }
 
-    public void CreateBasesInTerrain(TerrainGrid terrain)
+    public void CreateBasesInTerrain(ITerrainPixelAccessor terrain)
     {
         for (int i = 0; i < _bases.Count; i++)
             _bases[i].CreateInTerrain(terrain, i);
     }
 
-    public void Advance(TerrainGrid terrain)
+    public void Advance(ITerrainHeatSource terrain)
     {
         foreach (var b in _bases)
             b.Advance(terrain);

@@ -9,7 +9,7 @@ public partial class TerrainGrid
         var rng = seed.HasValue ? new Random(seed.Value) : Random.Shared;
         int w = Width, h = Height;
 
-        PlaceEnergyVeins(rng, w, h);
+        PlaceGoldVeins(rng, w, h);
         PlaceConcreteRuins(rng, w, h);
         CleanupIsolatedPixels(w, h);
     }
@@ -63,17 +63,13 @@ public partial class TerrainGrid
         }
     }
 
-    private static bool IsSolidForCleanup(TerrainPixel p)
-    {
-        if (p == TerrainPixel.Blank) return false;
-        if (p == TerrainPixel.DirtGrow) return false;
-        return true;
-    }
+    private static bool IsSolidForCleanup(TerrainPixel p) =>
+        p is not (TerrainPixel.Blank or TerrainPixel.DirtGrow);
 
     private static bool IsCaveFloor(TerrainPixel p) =>
-        p == TerrainPixel.Blank || Pixel.IsDirt(p) || p == TerrainPixel.DirtGrow;
+        p is TerrainPixel.Blank or TerrainPixel.Dirt or TerrainPixel.DirtGrow;
 
-    private void PlaceEnergyVeins(Random rng, int w, int h)
+    private void PlaceGoldVeins(Random rng, int w, int h)
     {
         var rockBoundary = new List<int>();
         for (int y = 3; y < h - 3; y++)
@@ -95,14 +91,14 @@ public partial class TerrainGrid
             }
         }
 
-        int veinCount = Math.Max(6, rockBoundary.Count / Tweaks.LevelGen.EnergyVeinCountDivisor);
+        int veinCount = Math.Max(6, rockBoundary.Count / Tweaks.LevelGen.GoldVeinCountDivisor);
         for (int v = 0; v < veinCount && rockBoundary.Count > 0; v++)
         {
             int pick = rng.Next(rockBoundary.Count);
             int co = rockBoundary[pick];
             int vx = co % w, vy = co / w;
 
-            int veinLen = rng.Next(Tweaks.LevelGen.EnergyVeinMinLength, Tweaks.LevelGen.EnergyVeinMaxLength);
+            int veinLen = rng.Next(Tweaks.LevelGen.GoldVeinMinLength, Tweaks.LevelGen.GoldVeinMaxLength);
             int dirX = rng.Next(-1, 2), dirY = rng.Next(-1, 2);
             if (dirX == 0 && dirY == 0) dirX = 1;
 
@@ -113,11 +109,9 @@ public partial class TerrainGrid
                 int offset = vx + vy * w;
                 if (_data[offset] == TerrainPixel.Rock)
                 {
-                    _data[offset] = step < veinLen / 3 ? TerrainPixel.EnergyLow
-                        : step < veinLen * 2 / 3 ? TerrainPixel.EnergyMedium
-                        : TerrainPixel.EnergyHigh;
+                    _data[offset] = TerrainPixel.Gold;
                 }
-                else if (!Pixel.IsEnergy(_data[offset]))
+                else if (!Pixel.IsGold(_data[offset]))
                     break;
 
                 vx += dirX;
@@ -149,7 +143,7 @@ public partial class TerrainGrid
                 if (nx < 1 || nx >= w - 1 || ny < 1 || ny >= h - 1) continue;
                 int offset = nx + ny * w;
                 if (IsCaveFloor(_data[offset]))
-                    _data[offset] = rng.Next(2) == 0 ? TerrainPixel.ConcreteHigh : TerrainPixel.ConcreteLow;
+                    _data[offset] = TerrainPixel.Concrete;
             }
         }
     }

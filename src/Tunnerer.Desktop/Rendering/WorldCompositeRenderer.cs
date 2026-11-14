@@ -72,6 +72,8 @@ public sealed class WorldCompositeRenderer
         uint templateColor = Tweaks.Colors.MachineTemplate.ToArgb();
         uint harvesterColor = Tweaks.Colors.Harvester.ToArgb();
         uint chargerColor = Tweaks.Colors.Charger.ToArgb();
+        uint relayColor = Tweaks.Colors.Relay.ToArgb();
+        uint relayIdleColor = Tweaks.Colors.RelayIdle.ToArgb();
 
         for (int i = 0; i < count; i++)
         {
@@ -79,9 +81,15 @@ public sealed class WorldCompositeRenderer
             if (!machine.IsAlive)
                 continue;
 
-            uint color = machine.State == MachineState.Template
+            // A relay being carried looks like a template; a planted one is bright when it is connected to a base.
+            uint color = machine.State != MachineState.Planted
                 ? templateColor
-                : machine.Type == MachineType.Harvester ? harvesterColor : chargerColor;
+                : machine.Type switch
+                {
+                    MachineType.Harvester => harvesterColor,
+                    MachineType.Relay => machine.IsPowered ? relayColor : relayIdleColor,
+                    _ => chargerColor,
+                };
 
             for (int dy = -half; dy <= half; dy++)
             {
@@ -101,13 +109,26 @@ public sealed class WorldCompositeRenderer
 
     private static void DrawProjectiles(Surface surface, ProjectileRenderState[] states, int count)
     {
+        uint hotTipColor = new Color(255, 242, 170).ToArgb();
+        uint hotCoreColor = new Color(255, 150, 52).ToArgb();
+
         for (int i = 0; i < count; i++)
         {
             ref readonly var projectile = ref states[i];
-            if (!projectile.IsAlive || !surface.IsInside(projectile.Position.X, projectile.Position.Y))
+            if (!projectile.IsAlive)
                 continue;
-            uint color = ProjectileList.Behaviors[(int)projectile.Type].DrawColor.ToArgb();
-            surface.Pixels[projectile.Position.X + projectile.Position.Y * surface.Width] = color;
+
+            uint bodyColor = ProjectileList.Behaviors[(int)projectile.Type].DrawColor.ToArgb();
+            switch (projectile.Type)
+            {
+                case ProjectileType.Bullet:
+                case ProjectileType.Shrapnel:
+                    DrawHotProjectile(surface, projectile.Position, projectile.Velocity, bodyColor, hotCoreColor, hotTipColor);
+                    break;
+                default:
+                    SetPixel(surface, projectile.Position.X, projectile.Position.Y, bodyColor);
+                    break;
+            }
         }
     }
 
@@ -195,5 +216,62 @@ public sealed class WorldCompositeRenderer
     {
         if (surface.IsInside(x, y))
             surface.Pixels[x + y * surface.Width] = color;
+    }
+
+    private static void DrawHotProjectile(
+        Surface surface,
+        Position pos,
+        VectorF velocity,
+        uint bodyColor,
+        uint hotCoreColor,
+        uint tipColor)
+    {
+        GetProjectileAxis(velocity, out int ax, out int ay);
+        int tx = pos.X + ax;
+        int ty = pos.Y + ay;
+        int bx = pos.X - ax;
+        int by = pos.Y - ay;
+
+        // Small directional 3-pixel body with a heated nose.
+        SetPixel(surface, bx, by, bodyColor);
+        SetPixel(surface, pos.X, pos.Y, hotCoreColor);
+        SetPixel(surface, tx, ty, tipColor);
+
+        // Subtle side glow around the tip to avoid "box" look.
+        if (ax != 0 && ay != 0)
+        {
+            SetPixel(surface, tx - ax, ty, hotCoreColor);
+            SetPixel(surface, tx, ty - ay, hotCoreColor);
+        }
+        else if (ax != 0)
+        {
+            SetPixel(surface, tx, ty + 1, hotCoreColor);
+            SetPixel(surface, tx, ty - 1, hotCoreColor);
+        }
+        else
+        {
+            SetPixel(surface, tx + 1, ty, hotCoreColor);
+            SetPixel(surface, tx - 1, ty, hotCoreColor);
+        }
+    }
+
+    private static void GetProjectileAxis(VectorF velocity, out int ax, out int ay)
+    {
+        float lenSq = velocity.LengthSquared;
+        if (lenSq < 1e-6f)
+        {
+            ax = 1;
+            ay = 0;
+            return;
+        }
+
+        float invLen = 1.0f / MathF.Sqrt(lenSq);
+        float nx = velocity.X * invLen;
+        float ny = velocity.Y * invLen;
+
+        ax = Math.Sign(nx);
+        ay = Math.Sign(ny);
+        if (ax == 0 && ay == 0)
+            ax = 1;
     }
 }

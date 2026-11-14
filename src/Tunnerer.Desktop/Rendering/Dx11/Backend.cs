@@ -84,7 +84,7 @@ public sealed unsafe partial class Backend : IGameRenderBackend
                 "Use a DX11-capable GPU/driver or switch render backend.");
     }
 
-    public void ProcessEvent(Event ev)
+    public void ProcessEvent(in RenderInputEvent ev)
     {
         if (SupportsUi)
             _imgui!.ProcessEvent(ev);

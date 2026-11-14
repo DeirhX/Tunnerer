@@ -4,9 +4,10 @@ using System.Diagnostics;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 
-public partial class TerrainGrid
+public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
 {
     private readonly TerrainPixel[] _data;
+    private readonly byte[] _scorchIntensity;
     private readonly float[] _airTemperature;
     private readonly int[] _neighborOffsets;
     private readonly List<Position> _changeList = new();
@@ -25,6 +26,7 @@ public partial class TerrainGrid
         _simulationSettings = simulationSettings;
         Size = size;
         _data = new TerrainPixel[size.Area];
+        _scorchIntensity = new byte[size.Area];
         _heatTemperature = new float[size.Area];
         _airTemperature = new float[size.Area];
         _heatEngine = new TerrainHeatEngine(simulationSettings);
@@ -54,10 +56,61 @@ public partial class TerrainGrid
     public TerrainPixel GetPixelRaw(Position pos) => _data[pos.X + pos.Y * Width];
     public TerrainPixel GetPixelRaw(int offset) => _data[offset];
 
+    public const byte ScorchIntensityMax = 64;
+
     public void SetPixel(Position pos, TerrainPixel value)
     {
-        _data[pos.X + pos.Y * Width] = value;
+        int offset = pos.X + pos.Y * Width;
+        TerrainPixel previous = _data[offset];
+        RecordMaterialChangeEnergy(offset, previous, value);
+        _data[offset] = value;
+        MirrorAirIfCellBecameAir(pos, offset, previous, value);
+        if (value == TerrainPixel.Decal)
+            _scorchIntensity[offset] = ScorchIntensityMax;
+        else if (!Pixel.IsScorched(value))
+            _scorchIntensity[offset] = 0;
         CommitPixel(pos);
+    }
+
+    public byte GetScorchIntensity(int offset) => _scorchIntensity[offset];
+
+    public void SetScorchIntensity(int offset, byte value) => _scorchIntensity[offset] = value;
+
+    /// <summary>
+    /// A cell that changes thermal material (dirt dug out to air, rock blasted, regrowth) keeps its
+    /// terrain-field temperature, but only non-air cells store energy there, so energy appears or disappears
+    /// with the change. The difference is recorded in <see cref="Ledger"/> so the balance stays auditable.
+    /// </summary>
+    private void RecordMaterialChangeEnergy(int offset, TerrainPixel oldPixel, TerrainPixel newPixel)
+    {
+        var oldMaterial = Pixel.GetThermalMaterial(oldPixel);
+        var newMaterial = Pixel.GetThermalMaterial(newPixel);
+        if (oldMaterial == newMaterial)
+            return;
+
+        // Only non-air cells store energy in the terrain field (an air cell's terrain field mirrors its air),
+        // so the terrain-field energy that appears or disappears is T * (new stored capacity - old stored capacity).
+        double stored(ThermalMaterial m) => m == ThermalMaterial.Air ? 0.0 : _heatEngine.GetHeatCapacity(m);
+        Ledger.RecordInjected(_heatTemperature[offset] * (stored(newMaterial) - stored(oldMaterial)));
+    }
+
+    /// <summary>
+    /// A solid cell that becomes air (dug out, blasted) stops storing energy in the terrain field: from then on that
+    /// field only mirrors the cell's air. The solid's energy has just been written off in the ledger, so its old
+    /// temperature must not stay behind in the mirror, where a sampler or a sink would read it as heat the air does
+    /// not hold and pull the air below ambient to pay for it.
+    /// </summary>
+    private void MirrorAirIfCellBecameAir(Position pos, int offset, TerrainPixel oldPixel, TerrainPixel newPixel)
+    {
+        if (Pixel.GetThermalMaterial(newPixel) != ThermalMaterial.Air ||
+            Pixel.GetThermalMaterial(oldPixel) == ThermalMaterial.Air)
+            return;
+
+        float stale = _heatTemperature[offset];
+        float air = _airTemperature[offset];
+        _heatTemperature[offset] = air;
+        if (ShouldMarkHeatDirty(stale, air))
+            MarkHeatDirty(pos.X, pos.Y);
     }
 
     public void CommitPixel(Position pos) => _changeList.Add(pos);

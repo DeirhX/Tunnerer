@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Gui;
+namespace Tunnerer.Presentation.Gui;
 
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Entities;
@@ -27,13 +27,11 @@ public class StatusBar
         int midY = (h - 1) / 2;
         int midH = (h % 2 != 0) ? 1 : 2;
 
-        int heatFilled = 0;
-        if (_tank.Reactor.HeatCapacity > 0)
-        {
-            int clampedHeat = Math.Clamp(_tank.Reactor.Heat, 0, _tank.Reactor.HeatCapacity);
-            int remainingHeatBudget = _tank.Reactor.HeatCapacity - clampedHeat;
-            heatFilled = remainingHeatBudget * (w - Border * 2) / _tank.Reactor.HeatCapacity;
-        }
+        // The bar shows the remaining heat budget: full when the tank carries a full coolant charge, shorter as
+        // heat builds up, empty at the overheating threshold.
+        float budgetCapacity = Tank.HeatBudgetCapacity;
+        float remainingHeatBudget = Math.Clamp(_tank.HeatBudget, 0f, budgetCapacity);
+        int heatFilled = (int)(remainingHeatBudget * (w - Border * 2) / budgetCapacity);
         int healthFilled = _tank.Reactor.HealthCapacity > 0
             ? _tank.Reactor.Health * (w - Border * 2) / _tank.Reactor.HealthCapacity
             : 0;
@@ -62,28 +60,20 @@ public class StatusBar
                 int sy = ScreenRect.Y + y;
                 if (sx < 0 || sy < 0 || sx >= surface.Width) continue;
 
-                // Rounded outer corners
                 if ((x == 0 || x == w - 1) && (y == 0 || y == h - 1))
                     continue;
 
                 uint c;
-
-                // Outer border
                 if (y < Border || y >= h - Border || x < Border || x >= w - Border)
                     c = bgColor;
-                // Rounded inner corners
                 else if ((x == Border || x == w - Border - 1) && (y == Border || y == h - Border - 1))
                     c = bgColor;
-                // Middle separator
                 else if (y >= midY && y < midY + midH)
                     c = bgColor;
-                // Heat bar (top half)
                 else if (y < midY && ((_decreasesToLeft && x < heatFilled) || (!_decreasesToLeft && x >= heatFilled)))
                     c = heatColor;
-                // Health bar (bottom half)
                 else if (y > midY && ((_decreasesToLeft && x < healthFilled) || (!_decreasesToLeft && x >= healthFilled)))
                     c = healthColor;
-                // Empty bar portion
                 else
                     c = blankColor;
 

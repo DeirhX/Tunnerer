@@ -14,47 +14,48 @@ public class TankMovementTests
 
     /// <summary>
     /// Creates a small world with a controlled terrain layout for precise testing.
-    /// The terrain has a horizontal dirt wall at a known position above the spawn.
+    /// Base is at (50,30); corridor geometry is placed well below the 35x35 base
+    /// region (which ends at y=47) so <c>CreateBasesInTerrain</c> does not
+    /// overwrite the manually placed dirt.
     /// </summary>
     private (World world, Position spawn) CreateControlledWorld()
     {
-        var size = new Size(100, 100);
+        var size = new Size(150, 150);
         var terrain = new TerrainGrid(size);
 
-        // Fill everything with blank (open)
         for (int i = 0; i < size.Area; i++)
             terrain[i] = TerrainPixel.Blank;
 
-        // Create a horizontal dirt wall at y=30 spanning x=10..90
-        for (int x = 10; x < 90; x++)
+        // Horizontal dirt wall at y=70 spanning x=10..130
+        for (int x = 10; x < 130; x++)
         {
-            terrain[x + 30 * size.X] = TerrainPixel.DirtHigh;
-            terrain[x + 31 * size.X] = TerrainPixel.DirtHigh;
-            terrain[x + 32 * size.X] = TerrainPixel.DirtHigh;
+            terrain[x + 70 * size.X] = TerrainPixel.Dirt;
+            terrain[x + 71 * size.X] = TerrainPixel.Dirt;
+            terrain[x + 72 * size.X] = TerrainPixel.Dirt;
         }
 
-        // Create a vertical dirt corridor of width 5 around x=50, from y=35 to y=60
-        for (int y = 35; y < 60; y++)
+        // Vertical blank corridor of width 5 around x=50, from y=75 to y=110
+        for (int y = 75; y < 110; y++)
             for (int x = 48; x <= 52; x++)
                 terrain[x + y * size.X] = TerrainPixel.Blank;
 
-        // Fill walls on either side of the corridor
-        for (int y = 35; y < 60; y++)
+        // Dirt walls on either side of the corridor
+        for (int y = 75; y < 110; y++)
         {
             for (int x = 44; x < 48; x++)
-                terrain[x + y * size.X] = TerrainPixel.DirtHigh;
+                terrain[x + y * size.X] = TerrainPixel.Dirt;
             for (int x = 53; x < 57; x++)
-                terrain[x + y * size.X] = TerrainPixel.DirtHigh;
+                terrain[x + y * size.X] = TerrainPixel.Dirt;
         }
 
-        var spawn = new Position(50, 50);
-        var world = new World(size);
+        // Base centered at (50,30) keeps its 35x35 footprint inside y=13..47,
+        // well above the corridor at y=75+.
+        var spawn = new Position(50, 30);
+        var world = new World(size, enableTerrainRegrowth: false);
 
-        // Manually set up terrain in world
         for (int i = 0; i < size.Area; i++)
             world.Terrain[i] = terrain[i];
 
-        // Add a base and tank at our chosen spawn
         world.TankBases.AddBase(spawn, 0);
         world.TankBases.CreateBasesInTerrain(world.Terrain);
         var tankBase = world.TankBases.GetSpawn(0);
@@ -152,7 +153,7 @@ public class TankMovementTests
         // Create a solid dirt wall at y=30..36 across x=90..110
         for (int y = 30; y <= 36; y++)
             for (int x = 90; x <= 110; x++)
-                terrain[x + y * size.X] = TerrainPixel.DirtHigh;
+                terrain[x + y * size.X] = TerrainPixel.Dirt;
 
         var world = new World(size);
         for (int i = 0; i < size.Area; i++)
@@ -208,27 +209,40 @@ public class TankMovementTests
     [Fact]
     public void DirectionChange_InCorridor_WorksAfterDigging()
     {
-        var (world, spawn) = CreateControlledWorld();
+        var (world, _) = CreateControlledWorld();
         var tank = world.TankList.Tanks[0];
+
+        // The base placed at the spawn is 35x35 and covers the whole corridor from
+        // CreateControlledWorld, so build a dirt block with a corridor clear of it
+        // (base spans x=33..67) and put the tank at the top of that corridor.
+        var terrain = world.Terrain;
+        for (int y = 40; y < 90; y++)
+            for (int x = 75; x < 98; x++)
+                terrain.SetPixel(new Position(x, y), TerrainPixel.Dirt);
+        for (int y = 40; y < 90; y++)
+            for (int x = 83; x <= 87; x++)
+                terrain.SetPixel(new Position(x, y), TerrainPixel.Blank);
+        tank.Position = new Position(85, 45);
 
         // Move tank down into the corridor
         var moveDown = TestSimulation.Move(0, 1);
         for (int i = 0; i < 5; i++)
             world.Advance(_ => moveDown);
-
         var posInCorridor = tank.Position;
 
-        // Now try to move right (into the corridor wall of dirt)
+        // Move right into the corridor dirt wall (x >= 53).
         var moveRight = TestSimulation.Move(1, 0);
         for (int i = 0; i < 5; i++)
             world.Advance(_ => moveRight);
 
         // The tank should have dug into the wall and potentially moved
         // At minimum it should have cleared some dirt to the right
+        // Only look at the dirt wall beyond the corridor (x >= 88); the corridor floor
+        // itself (x=83..87) is blank from the start and would make this check trivial.
         bool anyBlanked = false;
-        for (int dx = 1; dx <= 7; dx++)
+        for (int x = 88; x <= 95; x++)
         {
-            var checkPos = new Position(posInCorridor.X + dx, posInCorridor.Y);
+            var checkPos = new Position(x, posInCorridor.Y);
             if (world.Terrain.IsInside(checkPos) &&
                 world.Terrain.GetPixelRaw(checkPos) == TerrainPixel.Blank)
             { anyBlanked = true; break; }

@@ -132,39 +132,26 @@ public sealed class TerrainAuxBuilder
         // Aux channel layout:
         // R = heat, G = smoothed SDF, B = material class, A = scorch damage level.
         const byte materialNone = 0;
+        const byte materialBase = 42;
         const byte materialDirt = 85;
+        const byte materialConcrete = 128;
         const byte materialStone = 170;
-        const byte materialEnergy = 212;
-        const byte materialBase = 255;
+        const byte materialGold = 212;
 
-        byte material = materialNone;
-        if (pixel == TerrainPixel.DirtGrow || Pixel.IsDirt(pixel))
-            material = materialDirt;
-        else if (Pixel.IsEnergy(pixel))
-            material = materialEnergy;
-        else if (pixel == TerrainPixel.BaseBarrier ||
-                 pixel == TerrainPixel.BaseCore ||
-                 Pixel.IsBase(pixel))
-            material = materialBase;
-        else if (Pixel.IsRock(pixel) || Pixel.IsConcrete(pixel) ||
-                 Pixel.IsMineral(pixel) || Pixel.IsBlockingCollision(pixel))
-            material = materialStone;
-
-        byte scorch = 0;
-        switch (pixel)
+        byte material = pixel switch
         {
-            case TerrainPixel.DecalHigh:
-                scorch = DesktopScreenTweaks.PostEmissiveScorchedHigh;
-                break;
-            case TerrainPixel.DecalLow:
-                scorch = DesktopScreenTweaks.PostEmissiveScorchedLow;
-                break;
-        }
+            TerrainPixel.Dirt or TerrainPixel.DirtGrow => materialDirt,
+            TerrainPixel.Gold => materialGold,
+            TerrainPixel.Rock or TerrainPixel.HotRock => materialStone,
+            TerrainPixel.Concrete => materialConcrete,
+            >= TerrainPixel.BaseMin and <= TerrainPixel.BaseCore => materialBase,
+            _ => materialNone,
+        };
 
         float heat = terrain.GetHeatTemperature(idx);
         target[writeIndex] = (byte)Math.Clamp((int)MathF.Round(heat / TerrainGrid.HeatByteScale), 0, 255);
         target[writeIndex + 1] = sdfValue;
         target[writeIndex + 2] = material;
-        target[writeIndex + 3] = scorch;
+        target[writeIndex + 3] = terrain.GetScorchIntensity(idx);
     }
 }

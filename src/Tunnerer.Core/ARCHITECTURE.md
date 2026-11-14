@@ -44,12 +44,7 @@ Tunnerer.Core/
 ├── Input/
 │   ├── Controller.cs           # ControllerOutput struct
 │   └── BotTankAI.cs             # AI state machine
-├── Gui/
-│   ├── Screen.cs               # Screen layout, viewports, GUI widgets, crosshair
-│   ├── TankView.cs             # Tank-centered world viewport
-│   ├── StatusBar.cs            # Energy/health bar
-│   ├── FontRenderer.cs         # 4×5 bitmap font
-│   └── GuiColors.cs            # GUI color constants
+├── (Presentation moved)        # GUI/layout moved to Tunnerer.Presentation
 ├── Rendering/
 │   └── TankSprites.cs          # 9-direction tank bitmaps and color palettes
 ├── Resources/
@@ -115,7 +110,7 @@ public bool TestPoint(Position pos,
 
 ```
 CollisionSolver    Rebuild sector indices for broad-phase queries
-RegrowPass         Cellular automata: Blank→DirtGrow→DirtHigh/Low
+RegrowPass         Cellular automata: Blank→DirtGrow→Dirt
 Projectiles        Movement, terrain impact, explosions, spawn shrapnel
 Tanks              Input → turret → HandleMove → DigTunnel → shoot
 Machines           Harvest energy, charge reactor, link-powered
@@ -126,7 +121,7 @@ LinkMap            Solve power graph via Bresenham visibility
 
 ### Profiling
 
-`SimulationProfile` accumulates `Stopwatch` readings per subsystem and prints every 100 frames:
+`SimulationProfile` accumulates `Stopwatch` readings per subsystem and reports periodically when a sink is configured:
 ```
 [Profile] regrow=X.XXX proj=X.XXX tanks=X.XXX harv=X.XXX spr=X.XXX bases=X.XXX links=X.XXX | total=X.XXX ms
 ```
@@ -161,8 +156,8 @@ All `Pixel.Is*()` methods are single-lookup into the behavior table (256-element
 
 ### Materialization
 
-`MaterializeTerrain(int? seed)` converts generator markers to final values:
-- `LevelGenDirt` → `DirtHigh`
+`MaterializeTerrain()` converts generator markers to final values:
+- `LevelGenDirt` → `Dirt`
 - `LevelGenRock` → `Rock`
 - `LevelGenMark` → `Blank`
 
@@ -171,6 +166,103 @@ All `Pixel.Is*()` methods are single-lookup into the behavior table (256-element
 - `DrawAllToSurface(uint[] surface)` — full redraw, used at init
 - `DrawChangesToSurface(uint[] surface)` — only changed positions (via `_changeList`)
 - Color mapping: `Pixel.GetColor(TerrainPixel)` returns exact C++ hex values
+
+## Thermal energy model
+
+Heat lives in two float fields on `TerrainGrid`: a **terrain** field and an **air** field. Energy is always
+`temperature × heat capacity`; capacities come from `TerrainHeatEngine.GetHeatCapacity` (per `ThermalMaterial`)
+and `Tweaks.World.ThermalCapacityAir`. The grid solver (`StepConservative` / sparse regions) moves energy between
+neighbouring cells in exact pairs, so it conserves energy by itself.
+
+**Air cells have one store.** In a cell whose material is `Air` the terrain field is only a *mirror* of the air
+field: writes to either field land in the air field (`AddToTerrainField`, `ApplyFieldDelta`), the solver keeps
+the mirror equal, and the energy sum counts such a cell once. Heat injected into an open tunnel therefore stays
+until it conducts away, instead of being erased on the next step.
+
+**Rule: entities never write temperatures directly.** They exchange *energy*:
+
+| Operation | API | Ledger |
+|-----------|-----|--------|
+| Entity gives heat to the grid | `AddEnergyInRadiusArea` (uniform ΔT = energy / Σcapacity) | none (the entity was already debited) |
+| Entity takes heat from the grid | `ExtractEnergyInRadiusArea` (only from cells above ambient, never below) | none (caller credits a reactor or records a sink) |
+| External source (explosion, torch, tank action heat, tests) | `AddHeat`, `AddHeatRadius`, `Add*HeatTotalInRadiusArea` | `Injected` |
+| Material change (dig, blast, regrowth) | `SetPixel` | `Injected` (± capacity change) |
+
+`TerrainGrid.Ledger` (`ThermalLedger`) records every place where energy is created or destroyed:
+`Injected`, `SunkFixedTemperature` (base cells pinned to a fixed temperature), `SunkArtificialCooling`,
+`SunkBase` (tank cooling at a base, base-centre sink) and `SunkTank` (cooling pickups, heat floor, respawn). The invariant, checked every tick by
+`ThermalLedgerTests`:
+
+```
+World.SumSystemThermalEnergy()   // grid + tank heat × TankHeatCapacity + TankBase.ReactorHeatEnergy
+    == start + Ledger.Injected − Ledger.TotalSunk
+```
+
+The game log's `[ProfileE]` line reports this residual per tick (`ledgerResidualSigned` / `ledgerResidualAbs`);
+anything much above float noise (~0.1) means energy is being created or destroyed somewhere unmetered.
+
+Tank ↔ grid exchange is `TankHeatEngine.Advance` (returns the energy to hand to each field);
+base ↔ grid exchange is `TankBase.Advance`. The base reactor is a *finite* sink: it absorbs at most its remaining
+heat capacity (`Tweaks.Base.ReactorEnergyPerHeatUnit` per unit) and only heat that is actually present.
+
+`SetPixelRaw` is not metered; it is only used by level generation, before any heat exists. Gameplay pixel writes
+use `SetPixel`. Digging hot dirt out to air destroys the terrain-field heat of that cell (metered as a `SetPixel`
+material change); it does not move into the air.
+
+### Heat as a mechanic: base reservoir, radiator and relays
+
+The base is the heat sink of the game, and a finite one:
+
+- `TankBase.Reactor` heat is a **reservoir** (`Base.HeatCapacity` units of `Base.ReactorEnergyPerHeatUnit` energy).
+- Every tick the base **radiator** vents `Base.HeatCooldown` units out of the system (`Ledger.SunkBase`). Heat that
+  arrives faster than that fills the reservoir, and absorption stops until the radiator frees room.
+- Base cells (`BaseBarrier`, `BaseCore`) are still pinned to a fixed temperature, so heat that conducts into the base
+  interior vanishes (`SunkFixedTemperature`); the reservoir only limits what is *pumped* in.
+
+A **relay** (`MachineType.Relay`, cost `Machine.RelayDirtCost`) is a heat pipe. Once planted it is a `LinkPoint`;
+when `LinkMap` finds a live (line-of-sight, <= `MaximumLiveLinkDistance`) path to a base it is *powered*, and every
+tick `PumpHeat` calls `TankBase.AbsorbHeatFrom`: up to `Machine.RelayHeatPumpPerTick` energy is extracted from the
+square of half-width `Machine.RelayCoolingRadius` around the relay (terrain, then air; only heat above ambient) and
+stored in the owner base's reactor, limited by the reactor's free room. No power (wall in the way) or a full
+reservoir means no pumping. Several relays share the one radiator, so the sustained clearing rate is capped by it.
+
+Building: the build key is edge triggered (`ControllerOutput.BuildPrimary`). With nothing in hand `Tank` builds a relay
+from its own `Resources` and carries it (`MachineMaterializer`); pressed again outside a base it plants it
+(`World.PlantMachine` registers the link point). A tank that dies drops the carried relay.
+
+### Tank heat budget and pre-cooling
+
+`Tank.Heat` is measured from ambient and may go **negative**, down to `-Tank.CoolantCapacity`: that is the coolant
+charge. Overheat damage still starts above `Tank.HeatSafeMax`, so a fully pre-cooled tank has
+`HeatSafeMax + CoolantCapacity` of budget (`Tank.HeatBudget`, shown by the status bar, the ENERGY readout and the
+"Tank coolant" line of the heat overlay).
+
+- **Charging:** a tank docked at its *own* base is refrigerated by `Tank.DockCoolingPerTick` heat units per tick
+  toward the full charge. The energy goes into the base reservoir (`TankBase.AcceptTankHeat`), so it is an exact
+  transfer (tank colder, reservoir fuller) and a full reservoir blocks pre-cooling. A foreign base does not charge.
+- **Keeping the charge:** tank <-> grid flows are driven only by heat *above* ambient (`TankHeatEngine`), and a tank
+  can only take heat that is really in the cells (`TerrainGrid.ExtractEnergyInRadiusArea`, never below ambient). Ambient
+  air therefore neither warms a cold tank nor is chilled by it; the charge is spent only by absorbing real heat.
+- **Respawn:** a new tank starts at ambient and is pre-cooled again while it sits at its base.
+
+### Hot rock pockets
+
+`TerrainPixel.HotRock` / `ThermalMaterial.HotRock` is solid, undiggable and indestructible rock that is **pinned at
+`World.ThermalFixedHotRockTemperature`** by the solver, like a base cell is pinned at ambient but hot instead of cold. It
+conducts like stone, so any tunnel or air it touches is heated for as long as the pocket exists: a permanent heat source
+that has to be managed (relays, pre-cooled tanks) or avoided.
+
+- **Ledger:** the pin re-creates the heat that flowed out of the pocket, so `SunkFixedTemperature` goes *negative* (a source),
+  and the energy balance still holds exactly.
+- **Never drained:** `ExtractEnergyInRadiusArea` refuses to draw from hot rock cells (terrain or air), so relays and bases cool
+  the tunnel, not the source.
+- **Placement:** `TerrainGrid.PlaceHotRockPocket(center, radius)` converts dirt and rock (not air, bases or concrete) inside a
+  circle. `HotRockPockets.Place` scatters pockets deterministically in solid ground, `HotRockMinDistanceFromBase` from the bases
+  and `HotRockMinDistanceBetween` from each other. It is opt-in per world: `new World(..., hotRockPocketCount: n)`
+  (the desktop game passes `World.HotRockPocketCount`; tests default to none). `World.Initialize` then pre-warms the grid for
+  `HotRockPrewarmTicks` so the ground around a pocket is already warm when play starts.
+- **Cost:** pockets keep their thermal tiles permanently active; four pockets added roughly 0.3 ms per tick in a stress run.
+- **Rendering:** no special case: the existing heat glow shows a pocket as a hot spot.
 
 ## Level generation (Toast algorithm)
 

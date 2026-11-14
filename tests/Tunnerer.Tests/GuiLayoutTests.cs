@@ -1,6 +1,6 @@
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
-using Tunnerer.Core.Gui;
+using Tunnerer.Presentation.Gui;
 using Tunnerer.Core.Types;
 
 namespace Tunnerer.Tests;

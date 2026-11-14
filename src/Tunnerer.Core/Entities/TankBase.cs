@@ -28,56 +28,108 @@ public class TankBase
 
     public bool IsInside(Position tested) => BoundingBox.IsInside(tested, Position);
 
-    public void Advance(TerrainGrid terrain)
+    // Energy absorbed from the grid that does not yet add up to a whole reactor heat unit.
+    private double _reactorHeatRemainder;
+
+    /// <summary>
+    /// Thermal energy currently stored in the reactor, in grid units. Reactor heat is a whole number of
+    /// units of <see cref="Tweaks.Base.ReactorEnergyPerHeatUnit"/>; the sub-unit remainder is tracked here
+    /// so absorption is exact.
+    /// </summary>
+    public double ReactorHeatEnergy => (int)Reactor.Heat * (double)Tweaks.Base.ReactorEnergyPerHeatUnit + _reactorHeatRemainder;
+
+    /// <summary>Link-network node of this base; relays are powered through it.</summary>
+    public Links.LinkPoint? LinkPoint { get; set; }
+
+    /// <summary>Energy the reactor can still take before it is full.</summary>
+    public double ReactorRoomEnergy =>
+        Math.Max(0, (int)Reactor.HeatCapacity - (int)Reactor.Heat) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit - _reactorHeatRemainder;
+
+    /// <summary>
+    /// Pulls up to <paramref name="maxEnergy"/> out of the square area around <paramref name="center"/> (terrain and
+    /// air, only heat above ambient) and stores it in the reactor, limited by the reactor's free room. This is how
+    /// relays export heat; the reactor then vents it at the radiator rate in <see cref="Advance"/>.
+    /// Returns the energy moved.
+    /// </summary>
+    public double AbsorbHeatFrom(ITerrainHeatSource terrain, Position center, int radius, double maxEnergy)
+    {
+        double budget = Math.Min(maxEnergy, ReactorRoomEnergy);
+        if (budget <= 0.0)
+            return 0.0;
+
+        double absorbed = terrain.ExtractEnergyInRadiusArea(center, radius, budget, TerrainGrid.ThermalField.Terrain);
+        absorbed += terrain.ExtractEnergyInRadiusArea(center, radius, budget - absorbed, TerrainGrid.ThermalField.Air);
+        CreditReactor(absorbed);
+        return absorbed;
+    }
+
+    /// <summary>
+    /// Takes up to <paramref name="energy"/> from a docked tank into the reactor, limited by the reactor's free room.
+    /// Returns the energy accepted; the caller removes exactly that from the tank.
+    /// </summary>
+    public double AcceptTankHeat(double energy)
+    {
+        double accepted = Math.Min(energy, ReactorRoomEnergy);
+        if (accepted <= 0.0)
+            return 0.0;
+        CreditReactor(accepted);
+        return accepted;
+    }
+
+    private void CreditReactor(double energy)
+    {
+        if (energy <= 0.0)
+            return;
+
+        double energyPerUnit = Tweaks.Base.ReactorEnergyPerHeatUnit;
+        _reactorHeatRemainder += energy;
+        int wholeUnits = (int)Math.Floor(_reactorHeatRemainder / energyPerUnit);
+        if (wholeUnits > 0)
+        {
+            Reactor.Add(new ReactorState(wholeUnits, 0));
+            _reactorHeatRemainder -= wholeUnits * energyPerUnit;
+        }
+    }
+
+    public void Advance(ITerrainHeatSource terrain)
     {
         int outerRadius = Half;
         int midRadius = Math.Max(1, (outerRadius * 2) / 3);
         int innerRadius = Math.Max(1, outerRadius / 3);
+        double energyPerUnit = Tweaks.Base.ReactorEnergyPerHeatUnit;
 
-        int pulledFromTerrain = 0;
-        pulledFromTerrain -= terrain.AddHeatTotalInRadiusArea(Position, outerRadius, -Tweaks.Base.AreaCoolingOuterHeatTotal);
-        pulledFromTerrain -= terrain.AddHeatTotalInRadiusArea(Position, midRadius, -Tweaks.Base.AreaCoolingMidHeatTotal);
-        pulledFromTerrain -= terrain.AddHeatTotalInRadiusArea(Position, innerRadius, -Tweaks.Base.AreaCoolingInnerHeatTotal);
+        // The reactor is a finite sink: it can only absorb as much energy as it still has room for,
+        // and only heat that is actually present in the surroundings.
+        double room = Math.Max(0, (int)Reactor.HeatCapacity - (int)Reactor.Heat) * energyPerUnit - _reactorHeatRemainder;
+        double absorbed = 0.0;
+        double Pull(int radius, double cap, TerrainGrid.ThermalField field)
+        {
+            double taken = terrain.ExtractEnergyInRadiusArea(Position, radius, Math.Min(cap, room - absorbed), field);
+            absorbed += taken;
+            return taken;
+        }
 
-        int pulledFromAir = 0;
-        pulledFromAir -= terrain.AddAirHeatTotalInRadiusArea(Position, outerRadius, -Tweaks.Base.AreaCoolingOuterAirTotal);
-        pulledFromAir -= terrain.AddAirHeatTotalInRadiusArea(Position, midRadius, -Tweaks.Base.AreaCoolingMidAirTotal);
-        pulledFromAir -= terrain.AddAirHeatTotalInRadiusArea(Position, innerRadius, -Tweaks.Base.AreaCoolingInnerAirTotal);
+        Pull(outerRadius, Tweaks.Base.AreaCoolingOuterHeatTotal, TerrainGrid.ThermalField.Terrain);
+        Pull(midRadius, Tweaks.Base.AreaCoolingMidHeatTotal, TerrainGrid.ThermalField.Terrain);
+        Pull(innerRadius, Tweaks.Base.AreaCoolingInnerHeatTotal, TerrainGrid.ThermalField.Terrain);
+        Pull(outerRadius, Tweaks.Base.AreaCoolingOuterAirTotal, TerrainGrid.ThermalField.Air);
+        Pull(midRadius, Tweaks.Base.AreaCoolingMidAirTotal, TerrainGrid.ThermalField.Air);
+        Pull(innerRadius, Tweaks.Base.AreaCoolingInnerAirTotal, TerrainGrid.ThermalField.Air);
 
-        int absorbedHeat = Math.Max(0, pulledFromTerrain + pulledFromAir);
-        if (absorbedHeat > 0)
-            Reactor.Add(new ReactorState(absorbedHeat, 0));
+        CreditReactor(absorbed);
 
+        // Radiator: the reactor vents HeatCooldown units per tick out of the system. This is the base's finite
+        // sink rate; heat pumped in faster than this fills the reactor and the pumping stops.
         int beforeHeat = Reactor.Heat;
         Reactor.Exhaust(new ReactorState(Tweaks.Base.HeatCooldown, 0));
-        int releasedHeat = Math.Max(0, beforeHeat - (int)Reactor.Heat);
-        if (releasedHeat > 0)
-        {
-            int toAir = (int)MathF.Round(releasedHeat * 0.8f);
-            int toTerrain = releasedHeat - toAir;
-            if (toAir != 0)
-                terrain.AddAirHeatTotalInRadiusArea(Position, Half, toAir);
-            if (toTerrain != 0)
-                terrain.AddHeatTotalInRadiusArea(Position, Half, toTerrain);
-        }
+        int ventedUnits = Math.Max(0, beforeHeat - (int)Reactor.Heat);
+        if (ventedUnits > 0)
+            terrain.Ledger.RecordSunkBase(ventedUnits * energyPerUnit);
 
         // Keep base center as a hard thermal sink for gameplay/readability:
-        // its cell should not retain residual terrain/air energy.
-        float centerTerrainTemp = terrain.GetHeatTemperature(Position);
-        if (centerTerrainTemp != 0f)
-        {
-            int centerTerrainDelta = -(int)MathF.Round(centerTerrainTemp);
-            if (centerTerrainDelta != 0)
-                terrain.AddHeatTotalInRadiusArea(Position, 0, centerTerrainDelta);
-        }
-
-        float centerAirTemp = terrain.GetAirTemperature(Position);
-        if (centerAirTemp != 0f)
-        {
-            int centerAirDelta = -(int)MathF.Round(centerAirTemp);
-            if (centerAirDelta != 0)
-                terrain.AddAirHeatTotalInRadiusArea(Position, 0, centerAirDelta);
-        }
+        // its cell should not retain residual terrain/air energy. The removed energy is metered.
+        terrain.SinkCellToAmbient(Position, TerrainGrid.ThermalField.Terrain);
+        terrain.SinkCellToAmbient(Position, TerrainGrid.ThermalField.Air);
 
         Reactor.Add(new ReactorState(0, Tweaks.Base.HealthRegen));
     }
@@ -120,7 +172,7 @@ public class TankBase
         });
     }
 
-    public void CreateInTerrain(TerrainGrid terrain, int color)
+    public void CreateInTerrain(ITerrainPixelAccessor terrain, int color)
     {
         int half = Half;
 

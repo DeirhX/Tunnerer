@@ -16,14 +16,13 @@ public static unsafe class RenderBackendFactory
         return kind switch
         {
             RenderBackendKind.Dx11 => CreateDx11Services(sdl, window),
-            RenderBackendKind.Dx12 => throw new NotSupportedException("DX12 backend selection is wired, but implementation is still pending."),
             _ => throw new NotSupportedException($"Unknown render backend '{kind}'."),
         };
     }
 
     private static void EnsureBackendSupported(RenderBackendKind kind)
     {
-        if ((kind == RenderBackendKind.Dx11 || kind == RenderBackendKind.Dx12) && !OperatingSystem.IsWindows())
+        if (kind == RenderBackendKind.Dx11 && !OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException($"{kind} backend requires Windows.");
     }
 

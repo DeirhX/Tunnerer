@@ -45,6 +45,20 @@ public sealed class RenderViewState
             CamPixelY = centerPy - viewH / 2;
         }
 
+        ClampCamera(worldPixelW, worldPixelH, viewW, viewH);
+    }
+
+    public void PanCamera(int dx, int dy, Size terrainSize, int viewW, int viewH, int scale)
+    {
+        CamPixelX += dx;
+        CamPixelY += dy;
+        int worldPixelW = terrainSize.X * scale;
+        int worldPixelH = terrainSize.Y * scale;
+        ClampCamera(worldPixelW, worldPixelH, viewW, viewH);
+    }
+
+    private void ClampCamera(int worldPixelW, int worldPixelH, int viewW, int viewH)
+    {
         if (viewW >= worldPixelW)
             CamPixelX = -(viewW - worldPixelW) / 2;
         else

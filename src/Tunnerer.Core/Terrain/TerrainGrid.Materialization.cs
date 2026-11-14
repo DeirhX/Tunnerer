@@ -2,41 +2,32 @@ namespace Tunnerer.Core.Terrain;
 
 public partial class TerrainGrid
 {
-    public void MaterializeTerrain(int? seed = null, bool parallel = false)
+    public void MaterializeTerrain(bool parallel = false)
     {
         if (parallel)
         {
-            MaterializeTerrainParallel(seed);
+            const int chunkSize = 4096;
+            int length = _data.Length;
+            int chunks = (length + chunkSize - 1) / chunkSize;
+
+            Parallel.For(0, chunks, chunk =>
+            {
+                int from = chunk * chunkSize;
+                int to = Math.Min(from + chunkSize, length);
+                for (int i = from; i < to; i++)
+                    _data[i] = MaterializePixel(_data[i]);
+            });
             return;
         }
 
-        var rng = seed.HasValue ? new Random(seed.Value) : Random.Shared;
         for (int i = 0; i < _data.Length; i++)
-            _data[i] = MaterializePixel(_data[i], rng);
+            _data[i] = MaterializePixel(_data[i]);
     }
 
-    private void MaterializeTerrainParallel(int? seed)
+    private static TerrainPixel MaterializePixel(TerrainPixel p) => p switch
     {
-        const int chunkSize = 4096;
-        int length = _data.Length;
-        int chunks = (length + chunkSize - 1) / chunkSize;
-        int baseSeed = seed ?? Environment.TickCount;
-
-        Parallel.For(0, chunks, chunk =>
-        {
-            var rng = new Random(baseSeed + chunk);
-            int from = chunk * chunkSize;
-            int to = Math.Min(from + chunkSize, length);
-            for (int i = from; i < to; i++)
-                _data[i] = MaterializePixel(_data[i], rng);
-        });
-    }
-
-    private static TerrainPixel MaterializePixel(TerrainPixel p, Random rng) => p switch
-    {
-        TerrainPixel.LevelGenDirt => TerrainPixel.DirtHigh,
-        TerrainPixel.LevelGenRock => TerrainPixel.Rock,
-        TerrainPixel.LevelGenMark => TerrainPixel.Rock,
+        TerrainPixel.LevelGenDirt => TerrainPixel.Dirt,
+        TerrainPixel.LevelGenRock or TerrainPixel.LevelGenMark => TerrainPixel.Rock,
         _ => p,
     };
 }

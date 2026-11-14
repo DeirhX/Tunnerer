@@ -1,19 +1,19 @@
 // ============================================================================
-// Materials/EnergyMaterial.hlsli — Procedural energy crystal overlay
+// Materials/GoldMaterial.hlsli — Procedural gold crystal overlay
 // ============================================================================
 //
-// Applies a smooth crystalline body tint and pulsing emissive veins to pixels
-// classified as energy terrain. Simpler than stone/dirt since the energy
+// Applies a warm metallic body tint and pulsing emissive veins to pixels
+// classified as gold terrain. Simpler than stone/dirt since the gold
 // material is meant to look uniform and glowing.
 //
 // Layers:
-//   1. Crystalline body — diffuse-lit yellowish tint from normal-mapped noise
+//   1. Crystalline body — diffuse-lit golden tint from normal-mapped noise
 //   2. Emissive veins   — ridged noise pattern with time-animated pulse
 // ============================================================================
 
-void ApplyEnergyMaterial(inout float3 color, float2 worldCell, float energyMask, float3 lightDir)
+void ApplyGoldMaterial(inout float3 color, float2 worldCell, float goldMask, float3 lightDir)
 {
-    if (energyMask <= 0.0)
+    if (goldMask <= 0.0)
         return;
 
     // ---- 1. Crystalline body diffuse --------------------------------------
@@ -27,9 +27,9 @@ void ApplyEnergyMaterial(inout float3 color, float2 worldCell, float energyMask,
 
     // ---- 2. Emissive veins with animated pulse ----------------------------
     float veins = smoothstep(0.76, 0.95, 1.0 - abs(e0 * 2.0 - 1.0));
-    float pulseE = MaterialEmissivePulse.y + MaterialEmissivePulse.z * (0.5 + 0.5 * sin(Time * MaterialEmissivePulse.x + e0 * 9.0));
-    float3 energyTint = lerp(float3(0.88, 0.90, 0.66), float3(1.00, 1.00, 0.78), eDiffuse);
+    float pulseE = MaterialEmissiveGold.y + MaterialEmissiveGold.z * (0.5 + 0.5 * sin(Time * MaterialEmissiveGold.x + e0 * 9.0));
+    float3 goldTint = lerp(float3(0.85, 0.68, 0.30), float3(1.00, 0.88, 0.45), eDiffuse);
 
-    color = lerp(color, color * energyTint * (0.94 + 0.14 * eDiffuse), energyMask * 0.85);
-    color += MaterialEmissiveEnergy.rgb * (veins * MaterialEmissiveEnergy.a * pulseE * energyMask);
+    color = lerp(color, color * goldTint * (0.94 + 0.14 * eDiffuse), goldMask * 0.85);
+    color += MaterialEmissiveGold.rgb * (veins * MaterialEmissiveGold.a * pulseE * goldMask);
 }

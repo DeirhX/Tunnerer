@@ -21,6 +21,8 @@ public sealed class TerrainHeatEngine
     public TerrainHeatEngine(SimulationSettings settings)
     {
         _settings = settings;
+        _heatCapacity = BuildHeatCapacityTable();
+        _conductance = BuildConductanceTable();
     }
 
     public bool AddEnergyAt(float[] temperature, int width, int height, int x, int y, float amount)
@@ -47,7 +49,7 @@ public sealed class TerrainHeatEngine
         return temperature[index];
     }
 
-    public void StepConservative(float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels, int width, int height)
+    public void StepConservative(float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels, int width, int height, ThermalLedger? ledger = null)
     {
         int len = width * height;
         if (terrainTemperature.Length < len || airTemperature.Length < len)
@@ -94,20 +96,31 @@ public sealed class TerrainHeatEngine
             }
         }
 
+        double sunkFixed = 0.0;
         for (int i = 0; i < len; i++)
         {
             terrainTemperature[i] += _delta[i];
             airTemperature[i] += _airDelta[i];
-            if (Pixel.GetThermalMaterial(pixels[i]) == ThermalMaterial.Air)
-                terrainTemperature[i] = airTemperature[i];
-            else
+            ThermalMaterial material = Pixel.GetThermalMaterial(pixels[i]);
+            if (material == ThermalMaterial.Air)
             {
-                ThermalMaterial material = Pixel.GetThermalMaterial(pixels[i]);
-                if (IsFixedTemperatureMaterial(material))
-                    terrainTemperature[i] = GetFixedTemperature(material);
+                // The terrain field of an air cell is a mirror of its air field and holds no energy.
+                terrainTemperature[i] = airTemperature[i];
+            }
+            else if (IsFixedTemperatureMaterial(material))
+            {
+                float fixedTemperature = GetFixedTemperature(material);
+                sunkFixed += FixedCellEnergySunk(material, terrainTemperature[i], fixedTemperature);
+                terrainTemperature[i] = fixedTemperature;
             }
         }
+
+        ledger?.RecordSunkFixedTemperature(sunkFixed);
     }
+
+    /// <summary>Energy removed when a fixed-temperature cell is pinned back to <paramref name="fixedTemperature"/>.</summary>
+    public double FixedCellEnergySunk(ThermalMaterial material, float terrainTemperature, float fixedTemperature)
+        => (double)(terrainTemperature - fixedTemperature) * GetHeatCapacity(material);
 
     public void ComputeRegionDeltaConservative(
         float[] terrainTemperature,
@@ -175,10 +188,11 @@ public sealed class TerrainHeatEngine
         double sum = 0.0;
         for (int i = 0; i < terrainTemperature.Length; i++)
         {
+            // An air cell's terrain field only mirrors its air field, so its energy is counted once (air).
             ThermalMaterial m = Pixel.GetThermalMaterial(pixels[i]);
-            float cTerrain = GetHeatCapacity(m);
-            sum += terrainTemperature[i] * cTerrain;
-            sum += airTemperature[i] * Tweaks.World.ThermalCapacityAir;
+            if (m != ThermalMaterial.Air)
+                sum += terrainTemperature[i] * GetHeatCapacity(m);
+            sum += airTemperature[i] * _settings.ThermalCapacityAir;
         }
 
         return sum;
@@ -283,7 +297,7 @@ public sealed class TerrainHeatEngine
         return sum;
     }
 
-    private static void ExchangeTerrainPair(
+    private void ExchangeTerrainPair(
         int idxA,
         int idxB,
         ThermalMaterial mA,
@@ -310,14 +324,14 @@ public sealed class TerrainHeatEngine
         terrainDelta[idxB] += dQ / cB;
     }
 
-    private static void ExchangeAirPair(int idxA, int idxB, float aA, float aB, float[] airDelta)
+    private void ExchangeAirPair(int idxA, int idxB, float aA, float aB, float[] airDelta)
     {
         float delta = aA - aB;
         if (MathF.Abs(delta) < 0.0001f)
             return;
 
-        float c = Tweaks.World.ThermalCapacityAir;
-        float dQ = StablePairHeatFlow(delta, c, c, Tweaks.World.ThermalKAirAir * 0.5f + Tweaks.World.ThermalAirNeighborCoupling);
+        float c = _settings.ThermalCapacityAir;
+        float dQ = StablePairHeatFlow(delta, c, c, _settings.ThermalKAirAir * 0.5f + _settings.ThermalAirNeighborCoupling);
         if (MathF.Abs(dQ) < 0.0001f)
             return;
 
@@ -327,17 +341,17 @@ public sealed class TerrainHeatEngine
 
     private void ExchangeTerrainAir(int idx, ThermalMaterial material, float terrainT, float airT, float[] terrainDelta, float[] airDelta)
     {
+        // An air cell has no separate terrain state to exchange with: its terrain field mirrors the air field.
+        if (material == ThermalMaterial.Air)
+            return;
+
         float delta = terrainT - airT;
         if (MathF.Abs(delta) < 0.0001f)
             return;
 
-        float cTerrain = material == ThermalMaterial.Air
-            ? Tweaks.World.ThermalCapacityAir
-            : GetHeatCapacity(material);
-        float cAir = Tweaks.World.ThermalCapacityAir;
-        float k = material == ThermalMaterial.Air
-            ? _settings.ThermalAirCellCoupling
-            : GetConductance(material, ThermalMaterial.Air) + 0.5f * _settings.ThermalAirCellCoupling;
+        float cTerrain = GetHeatCapacity(material);
+        float cAir = _settings.ThermalCapacityAir;
+        float k = GetConductance(material, ThermalMaterial.Air) + 0.5f * _settings.ThermalAirCellCoupling;
         float dQ = StablePairHeatFlow(delta, cTerrain, cAir, k);
         if (MathF.Abs(dQ) < 0.0001f)
             return;
@@ -346,9 +360,9 @@ public sealed class TerrainHeatEngine
         airDelta[idx] += dQ / cAir;
     }
 
-    private static float StablePairHeatFlow(float deltaT, float cA, float cB, float k)
+    private float StablePairHeatFlow(float deltaT, float cA, float cB, float k)
     {
-        float dQ = k * deltaT * Tweaks.World.ThermalDt;
+        float dQ = k * deltaT * _settings.ThermalDt;
         float maxStableDQ = MathF.Min(cA, cB) * MathF.Abs(deltaT) * 0.125f;
         if (dQ > maxStableDQ) dQ = maxStableDQ;
         else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
@@ -365,7 +379,7 @@ public sealed class TerrainHeatEngine
         float cA = GetHeatCapacity(mA);
         float cB = GetHeatCapacity(mB);
         float k = GetConductance(mA, mB);
-        float dQ = k * delta * Tweaks.World.ThermalDt;
+        float dQ = k * delta * _settings.ThermalDt;
 
         // Keep explicit pair exchange numerically stable under large deltas.
         // Pairwise cap is conservative because each cell can exchange with multiple
@@ -380,7 +394,7 @@ public sealed class TerrainHeatEngine
         _delta[idxB] += dQ / cB;
     }
 
-    private static void ExchangePairRegion(
+    private void ExchangePairRegion(
         int idxA,
         int idxB,
         int localA,
@@ -400,7 +414,7 @@ public sealed class TerrainHeatEngine
         float cA = GetHeatCapacity(mA);
         float cB = GetHeatCapacity(mB);
         float k = GetConductance(mA, mB);
-        float dQ = k * delta * Tweaks.World.ThermalDt;
+        float dQ = k * delta * _settings.ThermalDt;
         float maxStableDQ = MathF.Min(cA, cB) * MathF.Abs(delta) * 0.125f;
         if (dQ > maxStableDQ) dQ = maxStableDQ;
         else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
@@ -413,12 +427,12 @@ public sealed class TerrainHeatEngine
 
     private void ExchangeAmbient(int idx, ThermalMaterial material, float temperature)
     {
-        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        float ambient = _settings.ThermalAmbientTemperature;
         if (temperature <= ambient)
             return;
 
         float k = GetAmbientConductance(material);
-        float dQ = k * (ambient - temperature) * Tweaks.World.ThermalDt;
+        float dQ = k * (ambient - temperature) * _settings.ThermalDt;
         if (MathF.Abs(dQ) < 0.0001f) return;
 
         float capacity = GetHeatCapacity(material);
@@ -427,12 +441,12 @@ public sealed class TerrainHeatEngine
 
     private void ExchangeAmbientRegion(int localIdx, ThermalMaterial material, float temperature, float[] regionDelta)
     {
-        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        float ambient = _settings.ThermalAmbientTemperature;
         if (temperature <= ambient)
             return;
 
         float k = GetAmbientConductance(material);
-        float dQ = k * (ambient - temperature) * Tweaks.World.ThermalDt;
+        float dQ = k * (ambient - temperature) * _settings.ThermalDt;
         if (MathF.Abs(dQ) < 0.0001f)
             return;
 
@@ -452,55 +466,93 @@ public sealed class TerrainHeatEngine
         }
     }
 
-    private static float GetHeatCapacity(ThermalMaterial material) => material switch
+    private const int MaterialCount = 6; // Air, Dirt, Stone, Base, ConstantEnergy, HotRock
+
+    // Per-instance lookup tables, built once from the injected settings so tests can run the engine with custom values.
+    private readonly float[] _heatCapacity;
+    private readonly float[] _conductance;
+
+    private float[] BuildHeatCapacityTable()
     {
-        ThermalMaterial.Air => Tweaks.World.ThermalCapacityAir,
-        ThermalMaterial.Dirt => Tweaks.World.ThermalCapacityDirt,
-        ThermalMaterial.Stone => Tweaks.World.ThermalCapacityStone,
-        ThermalMaterial.ConstantEnergy => Tweaks.World.ThermalCapacityConstantEnergy,
-        _ => Tweaks.World.ThermalCapacityBase,
+        var table = new float[MaterialCount];
+        for (int m = 0; m < MaterialCount; m++)
+            table[m] = ComputeHeatCapacity((ThermalMaterial)m);
+        return table;
+    }
+
+    private float[] BuildConductanceTable()
+    {
+        var table = new float[MaterialCount * MaterialCount];
+        for (int a = 0; a < MaterialCount; a++)
+            for (int b = 0; b < MaterialCount; b++)
+                table[a * MaterialCount + b] = ComputeConductance((ThermalMaterial)a, (ThermalMaterial)b);
+        return table;
+    }
+
+    /// <summary>Heat capacity of the terrain field of a cell made of <paramref name="material"/>.</summary>
+    public float GetHeatCapacity(ThermalMaterial material) => _heatCapacity[(int)material];
+
+    private float GetConductance(ThermalMaterial a, ThermalMaterial b)
+        => _conductance[(int)a * MaterialCount + (int)b];
+
+    private float ComputeHeatCapacity(ThermalMaterial material) => material switch
+    {
+        ThermalMaterial.Air => _settings.ThermalCapacityAir,
+        ThermalMaterial.Dirt => _settings.ThermalCapacityDirt,
+        ThermalMaterial.Stone => _settings.ThermalCapacityStone,
+        ThermalMaterial.HotRock => _settings.ThermalCapacityStone,
+        ThermalMaterial.ConstantEnergy => _settings.ThermalCapacityConstantEnergy,
+        _ => _settings.ThermalCapacityBase,
     };
 
-    private static float GetConductance(ThermalMaterial a, ThermalMaterial b)
+    private float ComputeConductance(ThermalMaterial a, ThermalMaterial b)
     {
+        // Hot rock conducts like stone.
+        if (a == ThermalMaterial.HotRock) a = ThermalMaterial.Stone;
+        if (b == ThermalMaterial.HotRock) b = ThermalMaterial.Stone;
         if (a > b) (a, b) = (b, a);
         return (a, b) switch
         {
-            (ThermalMaterial.Air, ThermalMaterial.Air) => Tweaks.World.ThermalKAirAir,
-            (ThermalMaterial.Air, ThermalMaterial.Dirt) => Tweaks.World.ThermalKAirDirt,
-            (ThermalMaterial.Air, ThermalMaterial.Stone) => Tweaks.World.ThermalKAirStone,
-            (ThermalMaterial.Air, ThermalMaterial.Base) => Tweaks.World.ThermalKAirBase,
-            (ThermalMaterial.Dirt, ThermalMaterial.Dirt) => Tweaks.World.ThermalKDirtDirt,
-            (ThermalMaterial.Dirt, ThermalMaterial.Stone) => Tweaks.World.ThermalKDirtStone,
-            (ThermalMaterial.Dirt, ThermalMaterial.Base) => Tweaks.World.ThermalKDirtBase,
-            (ThermalMaterial.Stone, ThermalMaterial.Stone) => Tweaks.World.ThermalKStoneStone,
-            (ThermalMaterial.Stone, ThermalMaterial.Base) => Tweaks.World.ThermalKStoneBase,
-            (ThermalMaterial.Air, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKAirConstantEnergy,
-            (ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKDirtConstantEnergy,
-            (ThermalMaterial.Stone, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKStoneConstantEnergy,
-            (ThermalMaterial.Base, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKBaseConstantEnergy,
-            (ThermalMaterial.ConstantEnergy, ThermalMaterial.ConstantEnergy) => Tweaks.World.ThermalKConstantEnergyConstantEnergy,
-            _ => Tweaks.World.ThermalKBaseBase,
+            (ThermalMaterial.Air, ThermalMaterial.Air) => _settings.ThermalKAirAir,
+            (ThermalMaterial.Air, ThermalMaterial.Dirt) => _settings.ThermalKAirDirt,
+            (ThermalMaterial.Air, ThermalMaterial.Stone) => _settings.ThermalKAirStone,
+            (ThermalMaterial.Air, ThermalMaterial.Base) => _settings.ThermalKAirBase,
+            (ThermalMaterial.Dirt, ThermalMaterial.Dirt) => _settings.ThermalKDirtDirt,
+            (ThermalMaterial.Dirt, ThermalMaterial.Stone) => _settings.ThermalKDirtStone,
+            (ThermalMaterial.Dirt, ThermalMaterial.Base) => _settings.ThermalKDirtBase,
+            (ThermalMaterial.Stone, ThermalMaterial.Stone) => _settings.ThermalKStoneStone,
+            (ThermalMaterial.Stone, ThermalMaterial.Base) => _settings.ThermalKStoneBase,
+            (ThermalMaterial.Air, ThermalMaterial.ConstantEnergy) => _settings.ThermalKAirConstantEnergy,
+            (ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy) => _settings.ThermalKDirtConstantEnergy,
+            (ThermalMaterial.Stone, ThermalMaterial.ConstantEnergy) => _settings.ThermalKStoneConstantEnergy,
+            (ThermalMaterial.Base, ThermalMaterial.ConstantEnergy) => _settings.ThermalKBaseConstantEnergy,
+            (ThermalMaterial.ConstantEnergy, ThermalMaterial.ConstantEnergy) => _settings.ThermalKConstantEnergyConstantEnergy,
+            _ => _settings.ThermalKBaseBase,
         };
     }
 
     private float GetAmbientConductance(ThermalMaterial material) => material switch
     {
-        ThermalMaterial.Air => Tweaks.World.ThermalKAmbientAir,
-        ThermalMaterial.Dirt => Tweaks.World.ThermalKAmbientDirt,
-        ThermalMaterial.Stone => _settings.EnableStoneAmbientExchange ? Tweaks.World.ThermalKAmbientStone : 0f,
-        ThermalMaterial.ConstantEnergy => Tweaks.World.ThermalKAmbientConstantEnergy,
-        _ => Tweaks.World.ThermalKAmbientBase,
+        ThermalMaterial.Air => _settings.ThermalKAmbientAir,
+        ThermalMaterial.Dirt => _settings.ThermalKAmbientDirt,
+        ThermalMaterial.Stone => _settings.EnableStoneAmbientExchange ? _settings.ThermalKAmbientStone : 0f,
+        ThermalMaterial.ConstantEnergy => _settings.ThermalKAmbientConstantEnergy,
+        _ => _settings.ThermalKAmbientBase,
     };
 
-    private static bool IsFixedTemperatureMaterial(ThermalMaterial material)
-        => material == ThermalMaterial.Base || material == ThermalMaterial.ConstantEnergy;
+    /// <summary>
+    /// Fixed-temperature materials hold their temperature whatever flows in or out: base cells are heat sinks
+    /// (pinned at ambient) and hot rock is a heat source. They are not storage, so sinks and relays never draw from them.
+    /// </summary>
+    public static bool IsFixedTemperatureMaterial(ThermalMaterial material)
+        => material == ThermalMaterial.Base || material == ThermalMaterial.ConstantEnergy || material == ThermalMaterial.HotRock;
 
-    private static float GetFixedTemperature(ThermalMaterial material)
+    public float GetFixedTemperature(ThermalMaterial material)
         => material switch
         {
-            ThermalMaterial.Base => Tweaks.World.ThermalFixedBaseTemperature,
-            ThermalMaterial.ConstantEnergy => Tweaks.World.ThermalFixedConstantEnergyTemperature,
+            ThermalMaterial.Base => _settings.ThermalFixedBaseTemperature,
+            ThermalMaterial.ConstantEnergy => _settings.ThermalFixedConstantEnergyTemperature,
+            ThermalMaterial.HotRock => _settings.ThermalFixedHotRockTemperature,
             _ => 0f,
         };
 }

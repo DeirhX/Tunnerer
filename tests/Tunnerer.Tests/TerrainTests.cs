@@ -14,8 +14,8 @@ public class TerrainTests
     {
         var t = MakeTerrain(10, 10);
         var pos = new Position(5, 5);
-        t.SetPixelRaw(pos, TerrainPixel.DirtHigh);
-        Assert.Equal(TerrainPixel.DirtHigh, t.GetPixelRaw(pos));
+        t.SetPixelRaw(pos, TerrainPixel.Dirt);
+        Assert.Equal(TerrainPixel.Dirt, t.GetPixelRaw(pos));
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class TerrainTests
         var t = MakeTerrain(10, 10);
         Assert.Empty(t.GetChangeList());
 
-        t.SetPixel(new Position(3, 3), TerrainPixel.DirtHigh);
+        t.SetPixel(new Position(3, 3), TerrainPixel.Dirt);
         Assert.Single(t.GetChangeList());
         Assert.Equal(new Position(3, 3), t.GetChangeList()[0]);
     }
@@ -42,7 +42,7 @@ public class TerrainTests
     public void ClearChangeList_EmptiesIt()
     {
         var t = MakeTerrain(10, 10);
-        t.SetPixel(new Position(3, 3), TerrainPixel.DirtHigh);
+        t.SetPixel(new Position(3, 3), TerrainPixel.Dirt);
         t.ClearChangeList();
         Assert.Empty(t.GetChangeList());
     }
@@ -87,10 +87,10 @@ public class TerrainTests
         for (int i = 0; i < 25; i++)
             t[i] = TerrainPixel.Blank;
 
-        t[1, 1] = TerrainPixel.DirtHigh;
-        t[2, 1] = TerrainPixel.DirtHigh;
+        t[1, 1] = TerrainPixel.Dirt;
+        t[2, 1] = TerrainPixel.Dirt;
         t[3, 1] = TerrainPixel.DirtGrow; // not counted as dirt
-        t[1, 2] = TerrainPixel.DirtHigh;
+        t[1, 2] = TerrainPixel.Dirt;
 
         Assert.Equal(3, t.CountDirtNeighbors(new Position(2, 2)));
     }
@@ -131,12 +131,12 @@ public class TerrainTests
     {
         var t = MakeTerrain(4, 4);
         for (int i = 0; i < 16; i++)
-            t[i] = TerrainPixel.DirtHigh;
+            t[i] = TerrainPixel.Dirt;
 
         var surface = new uint[16];
         t.DrawAllToSurface(surface);
 
-        uint expected = Pixel.GetColor(TerrainPixel.DirtHigh).ToArgb();
+        uint expected = Pixel.GetColor(TerrainPixel.Dirt).ToArgb();
         Assert.All(surface, px => Assert.Equal(expected, px));
     }
 
@@ -151,9 +151,9 @@ public class TerrainTests
         t.DrawAllToSurface(surface);
 
         uint blankColor = Pixel.GetColor(TerrainPixel.Blank).ToArgb();
-        uint dirtColor = Pixel.GetColor(TerrainPixel.DirtHigh).ToArgb();
+        uint dirtColor = Pixel.GetColor(TerrainPixel.Dirt).ToArgb();
 
-        t.SetPixel(new Position(1, 1), TerrainPixel.DirtHigh);
+        t.SetPixel(new Position(1, 1), TerrainPixel.Dirt);
         t.DrawChangesToSurface(surface);
 
         Assert.Equal(dirtColor, surface[1 + 1 * 4]);
@@ -240,9 +240,10 @@ public class TerrainTests
     [Fact]
     public void CoolDown_ArtificialCooling_AppliesGlobally_AndClampsAtZero()
     {
+        // Artificial cooling only applies to dirt cells (see TerrainGrid.CoolDown).
         var t = MakeTerrain(4, 4);
         for (int i = 0; i < 16; i++)
-            t[i] = TerrainPixel.Rock;
+            t[i] = TerrainPixel.Dirt;
 
         t.AddHeat(new Position(0, 0), 2);
         t.AddHeat(new Position(3, 3), 12);
@@ -251,6 +252,23 @@ public class TerrainTests
 
         Assert.Equal(0f, t.GetHeatTemperature(new Position(0, 0)));
         Assert.Equal(0f, t.GetHeatTemperature(new Position(3, 3)));
+    }
+
+    [Fact]
+    public void CoolDown_ArtificialCooling_DoesNotCoolNonDirtMaterial()
+    {
+        var t = MakeTerrain(4, 4);
+        for (int i = 0; i < 16; i++)
+            t[i] = TerrainPixel.Rock;
+
+        t.AddHeat(new Position(1, 1), 12);
+        float before = t.GetHeatTemperature(new Position(1, 1));
+
+        t.CoolDown(artificialCoolingPerFrame: 1000f);
+
+        // Rock still conducts normally, but the artificial sink must not zero it out.
+        Assert.True(t.GetHeatTemperature(new Position(1, 1)) > 0f,
+            $"Rock cell should not be zeroed by artificial cooling (before={before}).");
     }
 
     [Fact]

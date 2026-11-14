@@ -5,7 +5,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.Types;
 
 public readonly record struct KeyBindings(
-    Scancode Left, Scancode Right, Scancode Up, Scancode Down, Scancode Shoot);
+    Scancode Left, Scancode Right, Scancode Up, Scancode Down, Scancode Shoot, Scancode Build);
 
 public unsafe class KeyboardController
 {
@@ -17,6 +17,11 @@ public unsafe class KeyboardController
         _sdl = sdl;
         _keys = keys;
     }
+
+    public bool IsLeftHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Left] != 0; } }
+    public bool IsRightHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Right] != 0; } }
+    public bool IsUpHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Up] != 0; } }
+    public bool IsDownHeld { get { byte* k = _sdl.GetKeyboardState(null); return k[(int)_keys.Down] != 0; } }
 
     public ControllerOutput Poll()
     {
@@ -31,6 +36,7 @@ public unsafe class KeyboardController
         {
             MoveSpeed = new Offset(dx, dy),
             ShootPrimary = keys[(int)_keys.Shoot] != 0,
+            BuildPrimary = keys[(int)_keys.Build] != 0,
         };
     }
 }

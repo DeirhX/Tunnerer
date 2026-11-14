@@ -9,20 +9,17 @@ public enum TerrainPixel : byte
     LevelGenMark = 2,
 
     Blank = (byte)' ',
-    DirtHigh = (byte)'D',
+    Dirt = (byte)'D',
     DirtGrow = (byte)'g',
     Rock = (byte)'r',
-    DecalHigh = (byte)'.',
-    DecalLow = (byte)',',
+    Decal = (byte)'.',
     BaseMin = (byte)'0',
     BaseMax = (byte)'7',
     BaseBarrier = (byte)'8',
     BaseCore = (byte)'9',
-    ConcreteLow = (byte)'c',
-    ConcreteHigh = (byte)'C',
-    EnergyLow = (byte)'e',
-    EnergyMedium = (byte)'E',
-    EnergyHigh = (byte)'F',
+    HotRock = (byte)'h',
+    Concrete = (byte)'C',
+    Gold = (byte)'E',
 }
 
 public enum ThermalMaterial : byte
@@ -32,6 +29,7 @@ public enum ThermalMaterial : byte
     Stone = 2,
     Base = 3,
     ConstantEnergy = 4,
+    HotRock = 5,
 }
 
 /// <summary>
@@ -45,7 +43,7 @@ public readonly record struct TerrainBehavior(
     bool Diggable,
     bool Concrete,
     bool Mineral,
-    bool Energy,
+    bool Gold,
     bool Base,
     bool Scorched,
     Color DisplayColor)
@@ -59,6 +57,7 @@ public readonly record struct TerrainBehavior(
 public static class Pixel
 {
     private static readonly TerrainBehavior[] _behaviors = BuildBehaviorTable();
+    private static readonly ThermalMaterial[] _thermalMaterials = BuildThermalMaterialTable();
 
     private static readonly Color MagentaFallback = new(0xff, 0x00, 0xff);
 
@@ -70,62 +69,50 @@ public static class Pixel
 
         Set(TerrainPixel.Blank, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x00, 0x00, 0x00)));
-        Set(TerrainPixel.DirtHigh, new(
+        Set(TerrainPixel.Dirt, new(
             BlocksMovement: false, SoftCollision: true, Diggable: true,
-            Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
             DisplayColor: new Color(0xc3, 0x79, 0x30)));
         Set(TerrainPixel.DirtGrow, new(
             BlocksMovement: false, SoftCollision: false, Diggable: true,
-            Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x6a, 0x29, 0x02)));
         Set(TerrainPixel.Rock, new(
             BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: true, Energy: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: true, Gold: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x9a, 0x9a, 0x9a)));
-        Set(TerrainPixel.DecalHigh, new(
+        Set(TerrainPixel.Decal, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: true,
-            DisplayColor: new Color(0x48, 0x38, 0x2f)));
-        Set(TerrainPixel.DecalLow, new(
-            BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: true,
-            DisplayColor: new Color(0x28, 0x28, 0x28)));
-        Set(TerrainPixel.ConcreteLow, new(
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: true,
+            DisplayColor: new Color(0x38, 0x30, 0x28)));
+        Set(TerrainPixel.Concrete, new(
             BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: true, Mineral: true, Energy: false, Base: false, Scorched: false,
-            DisplayColor: new Color(0xa0, 0xa0, 0xa5)));
-        Set(TerrainPixel.ConcreteHigh, new(
-            BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: true, Mineral: true, Energy: false, Base: false, Scorched: false,
-            DisplayColor: new Color(0x80, 0x80, 0x85)));
-        Set(TerrainPixel.EnergyLow, new(
+            Concrete: true, Mineral: true, Gold: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0x90, 0x90, 0x95)));
+        Set(TerrainPixel.Gold, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Energy: true, Base: false, Scorched: false,
-            DisplayColor: new Color(0xa0, 0xa0, 0x19)));
-        Set(TerrainPixel.EnergyMedium, new(
-            BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Energy: true, Base: false, Scorched: false,
-            DisplayColor: new Color(0xd0, 0xd0, 0x30)));
-        Set(TerrainPixel.EnergyHigh, new(
-            BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Energy: true, Base: false, Scorched: false,
-            DisplayColor: new Color(0xff, 0xff, 0x4a)));
+            Concrete: false, Mineral: false, Gold: true, Base: false, Scorched: false,
+            DisplayColor: new Color(0xC9, 0xA8, 0x37)));
         Set(TerrainPixel.BaseBarrier, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: false,
-            DisplayColor: new Color(0x40, 0x40, 0x40)));
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0x50, 0x54, 0x5C)));
+        Set(TerrainPixel.HotRock, new(
+            BlocksMovement: true, SoftCollision: false, Diggable: false,
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0xd0, 0x40, 0x10)));
         Set(TerrainPixel.BaseCore, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Energy: false, Base: false, Scorched: false,
-            DisplayColor: new Color(0x20, 0x20, 0x20)));
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0x3A, 0x3E, 0x46)));
 
-        var baseColor = new Color(0x40, 0x40, 0x40);
+        var baseColor = new Color(0x58, 0x5C, 0x64);
         for (byte b = (byte)TerrainPixel.BaseMin; b <= (byte)TerrainPixel.BaseMax; b++)
             table[b] = new(
                 BlocksMovement: true, SoftCollision: false, Diggable: false,
-                Concrete: false, Mineral: false, Energy: false, Base: true, Scorched: false,
+                Concrete: false, Mineral: false, Gold: false, Base: true, Scorched: false,
                 DisplayColor: baseColor);
 
         return table;
@@ -144,23 +131,33 @@ public static class Pixel
     public static bool IsConcrete(TerrainPixel p) => _behaviors[(int)p].Concrete;
     public static bool IsRock(TerrainPixel p) => _behaviors[(int)p].Rock;
     public static bool IsMineral(TerrainPixel p) => _behaviors[(int)p].Mineral;
-    public static bool IsEnergy(TerrainPixel p) => _behaviors[(int)p].Energy;
+    public static bool IsGold(TerrainPixel p) => _behaviors[(int)p].Gold;
     public static bool IsEmpty(TerrainPixel p) => p == TerrainPixel.Blank;
 
-    public static ThermalMaterial GetThermalMaterial(TerrainPixel p)
+    /// <summary>Hot path of the thermal solver: a plain array lookup instead of re-deriving the material.</summary>
+    public static ThermalMaterial GetThermalMaterial(TerrainPixel p) => _thermalMaterials[(int)p];
+
+    private static ThermalMaterial[] BuildThermalMaterialTable()
+    {
+        var table = new ThermalMaterial[256];
+        for (int i = 0; i < table.Length; i++)
+            table[i] = DeriveThermalMaterial((TerrainPixel)i);
+        return table;
+    }
+
+    private static ThermalMaterial DeriveThermalMaterial(TerrainPixel p)
     {
         var b = _behaviors[(int)p];
-        if (p == TerrainPixel.BaseBarrier) return ThermalMaterial.Base;
-        if (p == TerrainPixel.BaseCore) return ThermalMaterial.ConstantEnergy;
-        if (b.Base) return ThermalMaterial.Base;
-        if (b.Energy) return ThermalMaterial.ConstantEnergy;
-        if (b.Dirt) return ThermalMaterial.Dirt;
-
-        // Hard terrain and structures behave as stone for thermal exchange.
-        if (b.BlocksMovement || b.Concrete || b.Mineral)
-            return ThermalMaterial.Stone;
-
-        return ThermalMaterial.Air;
+        return p switch
+        {
+            TerrainPixel.HotRock => ThermalMaterial.HotRock,
+            TerrainPixel.BaseCore or TerrainPixel.Gold => ThermalMaterial.ConstantEnergy,
+            TerrainPixel.BaseBarrier => ThermalMaterial.Base,
+            _ when b.Base => ThermalMaterial.Base,
+            _ when b.SoftCollision => ThermalMaterial.Dirt,
+            _ when b.BlocksMovement => ThermalMaterial.Stone,
+            _ => ThermalMaterial.Air,
+        };
     }
 
     public static Color GetColor(TerrainPixel p)

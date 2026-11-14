@@ -1,7 +1,7 @@
 namespace Tunnerer.Desktop.Input;
 
 using Silk.NET.SDL;
-using Tunnerer.Desktop.Rendering;
+using Tunnerer.Desktop.Config;
 
 public sealed class GameCommandController
 {

@@ -30,7 +30,7 @@ cbuffer PostParams : register(b0)
     float PostThermalRegionsEnabled;// > 0.5 to draw thermal tile debug overlay
     float ThermalTileSizeCells;     // Thermal active-tile size in world cells
     float ThermalTileHeatThreshold01; // Thermal activation threshold mapped to [0..1] heat byte
-    float _PadThermalOverlay0;
+    float SolidAlphaFloor;          // Min alpha for solid terrain cells (0 = disabled)
 
     // ---- Vignette ---------------------------------------------------------
     float VignetteStrength;         // Darkening intensity at screen edges
@@ -49,7 +49,7 @@ cbuffer PostParams : register(b0)
     float Quality;                  // 0 = minimal, higher = enable extra shading detail
 
     // ---- Material emissive ------------------------------------------------
-    float4 MaterialEmissiveEnergy;  // .rgb = energy vein glow, .a = intensity
+    float4 MaterialEmissiveGold;    // .rgb = gold vein glow, .a = intensity
     float4 MaterialEmissiveScorched;// .rgb = scorch glow color, .a = intensity
     float4 MaterialEmissivePulse;   // .x = speed, .y = base, .z = amplitude, .w = unused
 
@@ -66,6 +66,9 @@ cbuffer PostParams : register(b0)
 
     // ---- Terrain heat / scorch glow ---------------------------------------
     float4 TerrainHeatGlowColorAndThreshold; // .rgb = glow tint, .a = onset threshold
+
+    // ---- Scorch tint overlay -----------------------------------------------
+    float4 ScorchTint;              // .y = darken factor, .z = tint strength (.x/.w reserved)
 
     // ---- Per-tank glow positions ------------------------------------------
     float TankGlowCount;            // Number of active entries in TankGlow[]

@@ -16,7 +16,8 @@ public partial class Game
         var (winW, winH) = _renderer.GetWindowSize();
         float dt = 1f / Tweaks.Perf.TargetFps;
         int scale = DesktopScreenTweaks.PixelScale;
-        var viewSize = _renderViewState.ComputeViewSize(winW, winH, _renderBackend.SupportsUi);
+        bool uiViewport = _renderBackend.SupportsUi && !_terrainTestMode;
+        var viewSize = _renderViewState.ComputeViewSize(winW, winH, uiViewport);
         _renderViewState.EnsureHiResBuffer(viewSize);
 
         var player = tanks.Count > 0 ? tanks[0] : null;
@@ -129,12 +130,26 @@ public partial class Game
             ProfileSection(ref _drawProfile.ScreenNewFrame, () =>
                 _renderBackend.NewFrame(winW, winH, dt));
 
-            if (player != null)
+            if (_terrainTestMode)
             {
-                var vp = _hud.ViewportRect;
-                if (vp.w > 0 && vp.h > 0 &&
-                    frameInput.MouseX >= vp.x && frameInput.MouseY >= vp.y &&
-                    frameInput.MouseX < vp.x + vp.w && frameInput.MouseY < vp.y + vp.h)
+                var gameTextureSize = _renderBackend.GameTextureSize;
+                ProfileSection(ref _drawProfile.ScreenHudDraw, () =>
+                    _hud.DrawTerrainTest(
+                        _renderBackend.GameTextureId,
+                        gameTextureSize.X,
+                        gameTextureSize.Y,
+                        _commandController.ShowHeatDebugOverlay,
+                        _commandController.EnabledPostPasses,
+                        requestScreenshot: label => _renderBackend.RequestScreenshot(label),
+                        executeCommand: (cmd) => ExecuteGameCommand(cmd, InputCommandSources.Input)));
+            }
+            else if (player != null)
+            {
+                float vpW = _renderViewState.HiResSize.X;
+                float vpH = _renderViewState.HiResSize.Y;
+                if (vpW > 0 && vpH > 0 &&
+                    frameInput.MouseX >= 0 && frameInput.MouseY >= 0 &&
+                    frameInput.MouseX < vpW && frameInput.MouseY < vpH)
                 {
                     _hud.CrosshairScreenPos = (frameInput.MouseX, frameInput.MouseY);
                 }
@@ -153,6 +168,7 @@ public partial class Game
                         _commandController.ShowHeatDebugOverlay,
                         _commandController.EnabledPostPasses,
                         _commandController.ShowPostPassOverlay));
+                DrawSessionOverlay(dt);
             }
 
         }

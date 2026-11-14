@@ -22,7 +22,7 @@ public class Link
 
     public float Distance => VectorF.FromPositions(From.Position, To.Position).Length;
 
-    public void UpdateType(TerrainGrid terrain)
+    public void UpdateType(ITerrainPixelReadOnly terrain)
     {
         if (!From.IsEnabled || !To.IsEnabled || Distance > Tweaks.World.MaximumLiveLinkDistance)
         {
@@ -33,7 +33,7 @@ public class Link
         Type = IsPathBlocked(terrain) ? LinkType.Blocked : LinkType.Live;
     }
 
-    private bool IsPathBlocked(TerrainGrid terrain) =>
+    private bool IsPathBlocked(ITerrainPixelReadOnly terrain) =>
         Raycaster.BresenhamLineAny(From.Position, To.Position,
             pos => Pixel.IsBlockingCollision(terrain.GetPixel(pos)));
 }

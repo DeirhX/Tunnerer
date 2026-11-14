@@ -8,22 +8,67 @@ namespace Tunnerer.Tests;
 
 public class CollisionTests
 {
+    private static CollisionType ClassifyPoint(CollisionSolver solver, Position pos)
+    {
+        if (pos.X < 0 || pos.Y < 0 || pos.X >= solver.Terrain.Width || pos.Y >= solver.Terrain.Height)
+            return CollisionType.Blocked;
+
+        CollisionType result = CollisionType.None;
+        _ = solver.TestPoint(pos, onTerrain: pix =>
+        {
+            if (Pixel.IsBlockingCollision(pix))
+            {
+                result = CollisionType.Blocked;
+                return true;
+            }
+
+            if (Pixel.IsSoftCollision(pix))
+                result = CollisionType.Dirt;
+            return false;
+        });
+        return result;
+    }
+
+    private static CollisionType ClassifyShape(CollisionSolver solver, Position center, byte[] shape, int shapeW, int shapeH)
+    {
+        CollisionType result = CollisionType.None;
+        int cx = shapeW / 2;
+        int cy = shapeH / 2;
+        for (int sy = 0; sy < shapeH; sy++)
+        {
+            for (int sx = 0; sx < shapeW; sx++)
+            {
+                if (shape[sx + sy * shapeW] == 0)
+                    continue;
+
+                var worldPos = new Position(center.X - cx + sx, center.Y - cy + sy);
+                CollisionType pointType = ClassifyPoint(solver, worldPos);
+                if (pointType == CollisionType.Blocked)
+                    return CollisionType.Blocked;
+                if (pointType == CollisionType.Dirt)
+                    result = CollisionType.Dirt;
+            }
+        }
+
+        return result;
+    }
+
     [Fact]
     public void TestPixel_Rock_IsBlocked()
     {
         var t = new TerrainGrid(new Size(10, 10));
         t.SetPixelRaw(new Position(5, 5), TerrainPixel.Rock);
         var solver = new CollisionSolver(t);
-        Assert.Equal(CollisionType.Blocked, solver.TestPixel(new Position(5, 5)));
+        Assert.Equal(CollisionType.Blocked, ClassifyPoint(solver, new Position(5, 5)));
     }
 
     [Fact]
     public void TestPixel_Dirt_IsSoftCollision()
     {
         var t = new TerrainGrid(new Size(10, 10));
-        t.SetPixelRaw(new Position(5, 5), TerrainPixel.DirtHigh);
+        t.SetPixelRaw(new Position(5, 5), TerrainPixel.Dirt);
         var solver = new CollisionSolver(t);
-        Assert.Equal(CollisionType.Dirt, solver.TestPixel(new Position(5, 5)));
+        Assert.Equal(CollisionType.Dirt, ClassifyPoint(solver, new Position(5, 5)));
     }
 
     [Fact]
@@ -32,7 +77,7 @@ public class CollisionTests
         var t = new TerrainGrid(new Size(10, 10));
         t.SetPixelRaw(new Position(5, 5), TerrainPixel.Blank);
         var solver = new CollisionSolver(t);
-        Assert.Equal(CollisionType.None, solver.TestPixel(new Position(5, 5)));
+        Assert.Equal(CollisionType.None, ClassifyPoint(solver, new Position(5, 5)));
     }
 
     [Fact]
@@ -40,7 +85,7 @@ public class CollisionTests
     {
         var t = new TerrainGrid(new Size(10, 10));
         var solver = new CollisionSolver(t);
-        Assert.Equal(CollisionType.Blocked, solver.TestPixel(new Position(-1, 5)));
+        Assert.Equal(CollisionType.Blocked, ClassifyPoint(solver, new Position(-1, 5)));
     }
 
     [Fact]
@@ -51,7 +96,7 @@ public class CollisionTests
         var solver = new CollisionSolver(t);
 
         byte[] shape = [1, 1, 1, 1, 1, 1, 1, 1, 1]; // 3x3 filled
-        Assert.Equal(CollisionType.None, solver.TestShape(new Position(10, 10), shape, 3, 3));
+        Assert.Equal(CollisionType.None, ClassifyShape(solver, new Position(10, 10), shape, 3, 3));
     }
 
     [Fact]
@@ -63,7 +108,7 @@ public class CollisionTests
         var solver = new CollisionSolver(t);
 
         byte[] shape = [1, 1, 1, 1, 1, 1, 1, 1, 1]; // 3x3 filled
-        Assert.Equal(CollisionType.Blocked, solver.TestShape(new Position(10, 10), shape, 3, 3));
+        Assert.Equal(CollisionType.Blocked, ClassifyShape(solver, new Position(10, 10), shape, 3, 3));
     }
 
     [Fact]
@@ -71,11 +116,11 @@ public class CollisionTests
     {
         var t = new TerrainGrid(new Size(20, 20));
         for (int i = 0; i < 400; i++) t[i] = TerrainPixel.Blank;
-        t.SetPixelRaw(new Position(11, 10), TerrainPixel.DirtHigh);
+        t.SetPixelRaw(new Position(11, 10), TerrainPixel.Dirt);
         var solver = new CollisionSolver(t);
 
         byte[] shape = [1, 1, 1, 1, 1, 1, 1, 1, 1];
-        Assert.Equal(CollisionType.Dirt, solver.TestShape(new Position(10, 10), shape, 3, 3));
+        Assert.Equal(CollisionType.Dirt, ClassifyShape(solver, new Position(10, 10), shape, 3, 3));
     }
 
     [Fact]
@@ -87,7 +132,7 @@ public class CollisionTests
         var solver = new CollisionSolver(t);
 
         byte[] shape = [0, 1, 1, 1, 1, 1, 1, 1, 1]; // top-left pixel masked out
-        Assert.Equal(CollisionType.None, solver.TestShape(new Position(10, 10), shape, 3, 3));
+        Assert.Equal(CollisionType.None, ClassifyShape(solver, new Position(10, 10), shape, 3, 3));
     }
     [Fact]
     public void TestPoint_TerrainOnly_HitsRock()
@@ -323,7 +368,7 @@ public class CollisionTests
     {
         var t = new TerrainGrid(new Size(200, 200));
         for (int i = 0; i < t.Size.Area; i++) t[i] = TerrainPixel.Blank;
-        t.SetPixelRaw(new Position(100, 100), TerrainPixel.DirtHigh);
+        t.SetPixelRaw(new Position(100, 100), TerrainPixel.Dirt);
         var solver = new CollisionSolver(t);
 
         var tankBases = new TankBases();
@@ -446,11 +491,10 @@ public class TerrainBehaviorTests
 {
     [Theory]
     [InlineData(TerrainPixel.Rock, true, false)]
-    [InlineData(TerrainPixel.ConcreteHigh, true, false)]
-    [InlineData(TerrainPixel.ConcreteLow, true, false)]
-    [InlineData(TerrainPixel.DirtHigh, false, true)]
+    [InlineData(TerrainPixel.Concrete, true, false)]
+    [InlineData(TerrainPixel.Dirt, false, true)]
     [InlineData(TerrainPixel.Blank, false, false)]
-    [InlineData(TerrainPixel.DecalHigh, false, false)]
+    [InlineData(TerrainPixel.Decal, false, false)]
     public void BehaviorTable_MatchesLegacyMethods(TerrainPixel pix, bool blocksMovement, bool softCollision)
     {
         var b = Pixel.GetBehavior(pix);
@@ -478,7 +522,7 @@ public class TerrainBehaviorTests
     }
 
     [Theory]
-    [InlineData(TerrainPixel.DirtHigh)]
+    [InlineData(TerrainPixel.Dirt)]
     [InlineData(TerrainPixel.DirtGrow)]
     public void Diggable_IncludesAllDirtVariants(TerrainPixel pix)
     {
@@ -488,9 +532,9 @@ public class TerrainBehaviorTests
     [Fact]
     public void Torchable_IncludesDiggableAndMineral()
     {
-        Assert.True(Pixel.IsTorchable(TerrainPixel.DirtHigh));
+        Assert.True(Pixel.IsTorchable(TerrainPixel.Dirt));
         Assert.True(Pixel.IsTorchable(TerrainPixel.Rock));
-        Assert.True(Pixel.IsTorchable(TerrainPixel.ConcreteHigh));
+        Assert.True(Pixel.IsTorchable(TerrainPixel.Concrete));
         Assert.False(Pixel.IsTorchable(TerrainPixel.Blank));
     }
 
@@ -499,10 +543,9 @@ public class TerrainBehaviorTests
     {
         var magenta = new Color(0xff, 0x00, 0xff);
         TerrainPixel[] defined = [
-            TerrainPixel.Blank, TerrainPixel.DirtHigh,
-            TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.DecalHigh,
-            TerrainPixel.DecalLow, TerrainPixel.ConcreteLow, TerrainPixel.ConcreteHigh,
-            TerrainPixel.EnergyLow, TerrainPixel.EnergyMedium, TerrainPixel.EnergyHigh,
+            TerrainPixel.Blank, TerrainPixel.Dirt,
+            TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.Decal,
+            TerrainPixel.Concrete, TerrainPixel.Gold,
             TerrainPixel.BaseBarrier, TerrainPixel.BaseCore, TerrainPixel.BaseMin, TerrainPixel.BaseMax,
         ];
 
@@ -518,15 +561,12 @@ public class TerrainBehaviorTests
         Assert.Equal(magenta, color);
     }
 
-    [Theory]
-    [InlineData(TerrainPixel.EnergyLow)]
-    [InlineData(TerrainPixel.EnergyMedium)]
-    [InlineData(TerrainPixel.EnergyHigh)]
-    public void Energy_IsCollectible(TerrainPixel pix)
+    [Fact]
+    public void Gold_IsCollectible()
     {
-        Assert.True(Pixel.IsEnergy(pix));
-        Assert.False(Pixel.IsBlockingCollision(pix));
-        Assert.False(Pixel.IsSoftCollision(pix));
+        Assert.True(Pixel.IsGold(TerrainPixel.Gold));
+        Assert.False(Pixel.IsBlockingCollision(TerrainPixel.Gold));
+        Assert.False(Pixel.IsSoftCollision(TerrainPixel.Gold));
     }
 
     [Fact]
@@ -537,24 +577,20 @@ public class TerrainBehaviorTests
         Assert.False(Pixel.IsConcrete(TerrainPixel.Rock));
     }
 
-    [Theory]
-    [InlineData(TerrainPixel.ConcreteHigh)]
-    [InlineData(TerrainPixel.ConcreteLow)]
-    public void Concrete_IsMineral_AndConcrete(TerrainPixel pix)
+    [Fact]
+    public void Concrete_IsMineral_AndConcrete()
     {
-        Assert.True(Pixel.IsMineral(pix));
-        Assert.True(Pixel.IsConcrete(pix));
-        Assert.False(Pixel.IsRock(pix));
+        Assert.True(Pixel.IsMineral(TerrainPixel.Concrete));
+        Assert.True(Pixel.IsConcrete(TerrainPixel.Concrete));
+        Assert.False(Pixel.IsRock(TerrainPixel.Concrete));
     }
 
-    [Theory]
-    [InlineData(TerrainPixel.DecalHigh)]
-    [InlineData(TerrainPixel.DecalLow)]
-    public void Scorched_IsRecognized(TerrainPixel pix)
+    [Fact]
+    public void Scorched_IsRecognized()
     {
-        Assert.True(Pixel.IsScorched(pix));
-        Assert.False(Pixel.IsBlockingCollision(pix));
-        Assert.False(Pixel.IsDiggable(pix));
+        Assert.True(Pixel.IsScorched(TerrainPixel.Decal));
+        Assert.False(Pixel.IsBlockingCollision(TerrainPixel.Decal));
+        Assert.False(Pixel.IsDiggable(TerrainPixel.Decal));
     }
 
     [Fact]
@@ -578,7 +614,7 @@ public class TerrainBehaviorTests
     {
         Assert.True(Pixel.IsEmpty(TerrainPixel.Blank));
         Assert.False(Pixel.IsEmpty(TerrainPixel.Rock));
-        Assert.False(Pixel.IsEmpty(TerrainPixel.DirtHigh));
+        Assert.False(Pixel.IsEmpty(TerrainPixel.Dirt));
     }
 
     [Fact]
@@ -590,9 +626,8 @@ public class TerrainBehaviorTests
 
     [Theory]
     [InlineData(TerrainPixel.Rock)]
-    [InlineData(TerrainPixel.ConcreteHigh)]
-    [InlineData(TerrainPixel.ConcreteLow)]
-    [InlineData(TerrainPixel.DirtHigh)]
+    [InlineData(TerrainPixel.Concrete)]
+    [InlineData(TerrainPixel.Dirt)]
     [InlineData(TerrainPixel.DirtGrow)]
     public void Torchable_MatchesDerivedProperty(TerrainPixel pix)
     {
@@ -603,8 +638,8 @@ public class TerrainBehaviorTests
 
     [Theory]
     [InlineData(TerrainPixel.Blank)]
-    [InlineData(TerrainPixel.DecalHigh)]
-    [InlineData(TerrainPixel.EnergyLow)]
+    [InlineData(TerrainPixel.Decal)]
+    [InlineData(TerrainPixel.Gold)]
     [InlineData(TerrainPixel.BaseBarrier)]
     public void NotTorchable_PixelTypes(TerrainPixel pix)
     {

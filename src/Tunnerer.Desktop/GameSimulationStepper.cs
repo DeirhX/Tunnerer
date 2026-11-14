@@ -53,6 +53,7 @@ public sealed class GameSimulationStepper
                 {
                     MoveSpeed = move,
                     ShootPrimary = kb.ShootPrimary || mouseShoot || scripted.ShootPrimary,
+                    BuildPrimary = kb.BuildPrimary || scripted.BuildPrimary,
                     AimDirection = aimDirection ?? default,
                 };
                 return p1Output;
@@ -70,6 +71,13 @@ public sealed class GameSimulationStepper
             _requestScreenshot($"script_frame_{simFrame:D4}");
 
         return new SimulationStepResult(IsGameOver: _world.IsGameOver);
+    }
+
+    public void ProcessScriptedCommands(int frame)
+    {
+        ApplyScriptCommandsForFrame(frame);
+        if (_scriptedInput.ShouldCaptureScreenshot(frame))
+            _requestScreenshot($"script_frame_{frame:D4}");
     }
 
     private void ApplyScriptCommandsForFrame(int frame)

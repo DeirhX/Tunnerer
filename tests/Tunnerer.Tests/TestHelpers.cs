@@ -13,7 +13,8 @@ internal static class TestHelpers
     public static World CreateSeededWorld(
         Size? size = null,
         int seed = DefaultSeed,
-        bool enableTerrainRegrowth = true)
+        bool enableTerrainRegrowth = true,
+        int hotRockPocketCount = 0)
     {
         var mapSize = size ?? DefaultMapSize;
         var gen = new ToastGenerator();
@@ -22,8 +23,9 @@ internal static class TestHelpers
             mapSize,
             deterministicSimulation: true,
             simulationSeed: seed,
-            enableTerrainRegrowth: enableTerrainRegrowth);
-        world.Initialize(terrain, spawns, materializeSeed: seed + 1);
+            enableTerrainRegrowth: enableTerrainRegrowth,
+            hotRockPocketCount: hotRockPocketCount);
+        world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;
     }
 

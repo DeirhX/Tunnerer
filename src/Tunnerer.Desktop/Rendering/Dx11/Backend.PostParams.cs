@@ -34,6 +34,7 @@ public sealed unsafe partial class Backend
         cbData.PostThermalRegionsEnabled = BoolToFloat(HasPass(upload.PostProcess.PassFlags, PostProcessPassFlags.ThermalRegions));
         cbData.ThermalTileSizeCells = upload.PostProcess.ThermalRegions.TileSizeCells;
         cbData.ThermalTileHeatThreshold01 = upload.PostProcess.ThermalRegions.ActiveThresholdHeat01;
+        cbData.SolidAlphaFloor = DesktopScreenTweaks.SolidAlphaFloor;
         cbData.VignetteStrength = DesktopScreenTweaks.PostVignetteStrength;
         cbData.VignetteInnerRadius = DesktopScreenTweaks.PostVignetteInnerRadius;
         cbData.VignetteOuterRadius = DesktopScreenTweaks.PostVignetteOuterRadius;
@@ -52,10 +53,10 @@ public sealed unsafe partial class Backend
         cbData.TerrainMaskRimLift = DesktopScreenTweaks.PostTerrainMaskRimLift;
         cbData.TerrainMaskBoundaryScale = DesktopScreenTweaks.PostTerrainMaskBoundaryScale;
         cbData.Quality = (float)upload.PostProcess.Quality;
-        cbData.MaterialEnergyR = DesktopScreenTweaks.PostMaterialEmissiveEnergyR;
-        cbData.MaterialEnergyG = DesktopScreenTweaks.PostMaterialEmissiveEnergyG;
-        cbData.MaterialEnergyB = DesktopScreenTweaks.PostMaterialEmissiveEnergyB;
-        cbData.MaterialEnergyStrength = DesktopScreenTweaks.PostMaterialEmissiveEnergyStrength;
+        cbData.MaterialGoldR = DesktopScreenTweaks.PostMaterialEmissiveGoldR;
+        cbData.MaterialGoldG = DesktopScreenTweaks.PostMaterialEmissiveGoldG;
+        cbData.MaterialGoldB = DesktopScreenTweaks.PostMaterialEmissiveGoldB;
+        cbData.MaterialGoldStrength = DesktopScreenTweaks.PostMaterialEmissiveGoldStrength;
         cbData.MaterialScorchedR = DesktopScreenTweaks.PostMaterialEmissiveScorchedR;
         cbData.MaterialScorchedG = DesktopScreenTweaks.PostMaterialEmissiveScorchedG;
         cbData.MaterialScorchedB = DesktopScreenTweaks.PostMaterialEmissiveScorchedB;
@@ -88,6 +89,8 @@ public sealed unsafe partial class Backend
         cbData.LightDiffuseWeight = DesktopScreenTweaks.LightDiffuseWeight;
         cbData.LightShininess = DesktopScreenTweaks.LightShininess;
         cbData.LightSpecularIntensity = DesktopScreenTweaks.LightSpecularIntensity;
+        cbData.ScorchTintDarken = DesktopScreenTweaks.ScorchTintDarken;
+        cbData.ScorchTintStrength = DesktopScreenTweaks.ScorchTintStrength;
 
         int glowCount = Math.Clamp(upload.TankGlow.Count, 0, 8);
         cbData.TankGlowCount = glowCount;
@@ -136,11 +139,11 @@ public sealed unsafe partial class Backend
         public float ViewSizeX, ViewSizeY, UseTerrainAux, PostParamsLayoutVersion;
         public float HeatDebugOverlay, PostVignetteEnabled, PostTerrainCurveEnabled, PostTerrainAuxEnabled;
         public float PostTankGlowEnabled, PostTerrainHeatEnabled, PostThermalRegionsEnabled, ThermalTileSizeCells;
-        public float ThermalTileHeatThreshold01, _padOverlay0, VignetteStrength, VignetteInnerRadius;
+        public float ThermalTileHeatThreshold01, SolidAlphaFloor, VignetteStrength, VignetteInnerRadius;
         public float VignetteOuterRadius, TerrainMaskEdgeStrength, TerrainMaskCaveDarken, TerrainMaskSolidLift;
         public float TerrainMaskOutlineDarken, TerrainMaskRimLift, TerrainMaskBoundaryScale, Quality;
-        public float _padQuality0, MaterialEnergyR, MaterialEnergyG, MaterialEnergyB;
-        public float MaterialEnergyStrength, MaterialScorchedR, MaterialScorchedG, MaterialScorchedB;
+        public float _padQuality0, MaterialGoldR, MaterialGoldG, MaterialGoldB;
+        public float MaterialGoldStrength, MaterialScorchedR, MaterialScorchedG, MaterialScorchedB;
         public float MaterialScorchedStrength, MaterialPulseFreq, MaterialPulseMin, MaterialPulseRange;
         public float MaterialPulsePad, NativeEdgeSoftness, NativeBoundaryBlend, NativeSampleFactor;
         public float NativeCurvingEnabled, LightDirX, LightDirY, LightDirZ;
@@ -148,7 +151,8 @@ public sealed unsafe partial class Backend
         public float LightMicroNormalStrength, LightAmbient, LightDiffuseWeight, LightShininess;
         public float LightSpecularIntensity, TankHeatGlowR, TankHeatGlowG, TankHeatGlowB;
         public float TankHeatGlowA, TerrainHeatGlowR, TerrainHeatGlowG, TerrainHeatGlowB;
-        public float TerrainHeatThreshold, TankGlowCount, _pad0, _pad1;
+        public float TerrainHeatThreshold, ScorchTintDarken, ScorchTintStrength, _padScorch;
+        public float TankGlowCount, _padTankGlow0, _padTankGlow1, _padTankGlow2;
         public fixed float TankGlow[32];
     }
     #pragma warning restore CS0649

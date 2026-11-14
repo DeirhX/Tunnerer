@@ -30,8 +30,9 @@
 
 #include "Materials/TerrainShared.hlsli"
 #include "Materials/StoneMaterial.hlsli"
+#include "Materials/ConcreteMaterial.hlsli"
 #include "Materials/DirtMaterial.hlsli"
-#include "Materials/EnergyMaterial.hlsli"
+#include "Materials/GoldMaterial.hlsli"
 
 #include "Passes/DistortionPass.hlsli"
 #include "Passes/VignettePass.hlsli"
