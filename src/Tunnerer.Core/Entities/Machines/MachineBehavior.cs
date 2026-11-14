@@ -50,9 +50,11 @@ public static class MachineBehaviors
     private static void PumpHeat(Machine machine, ITerrainAccess terrain)
     {
         machine.LastPumpedEnergy = 0.0;
+        machine.LastPumpLimitedByBase = false;
         if (machine.OwnerBase == null || machine.LinkPoint is not { IsPowered: true })
             return;
 
+        machine.LastPumpLimitedByBase = machine.OwnerBase.ReactorRoomEnergy < Tweaks.Machine.RelayHeatPumpPerTick;
         machine.LastPumpedEnergy = machine.OwnerBase.AbsorbHeatFrom(
             terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick);
     }
@@ -63,7 +65,8 @@ public static class MachineBehaviors
 
         // Too hot to work: wait for the ground to cool (a linked relay nearby speeds that up a lot).
         // SampleAverageHeat is normalised (temperature / 255).
-        if (terrain.SampleAverageHeat(center, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f >= Tweaks.Machine.HarvesterStallTemperature)
+        machine.IsStalled = terrain.SampleAverageHeat(center, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f >= Tweaks.Machine.HarvesterStallTemperature;
+        if (machine.IsStalled)
             return;
 
         int range = Tweaks.Machine.HarvestRange;

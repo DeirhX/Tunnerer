@@ -694,6 +694,8 @@ public class GameHud
     /// Top-right readout: lives, the relay network (how many relays are linked, how full the base reservoir is)
     /// and a context hint for the build key that explains what E will do, or why a carried relay will not link.
     /// </summary>
+    private double _radiatorInflow;
+
     private void DrawHeatNetworkOverlay(Tank player, World world)
     {
         var vp = ViewportRect;
@@ -701,9 +703,18 @@ public class GameHud
         if (vp.w <= 0 || vp.h <= 0 || tankBase == null)
             return;
 
-        int relays = 0, powered = 0, pumping = 0;
+        int relays = 0, powered = 0, pumping = 0, harvesters = 0, stalled = 0;
+        double inflow = 0.0;
         foreach (var machine in world.Machines.Machines)
         {
+            if (machine.IsAlive && machine.Type == MachineType.Harvester && machine.State == MachineState.Planted &&
+                machine.OwnerBase == tankBase)
+            {
+                harvesters++;
+                if (machine.IsStalled)
+                    stalled++;
+            }
+
             if (!machine.IsAlive || machine.Type != MachineType.Relay || machine.State != MachineState.Planted ||
                 machine.OwnerBase != tankBase)
                 continue;
@@ -712,7 +723,11 @@ public class GameHud
                 powered++;
             if (machine.LastPumpedEnergy > 1.0)
                 pumping++;
+            inflow += machine.LastPumpedEnergy;
         }
+        // Smooth the readout: relays act every tick but the number is read by eye.
+        _radiatorInflow += (inflow - _radiatorInflow) * 0.1;
+        double ventCapacity = Tweaks.Base.HeatCooldown * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
         _dockedAtOwnBase = !player.IsDead && world.TankBases.CheckBaseCollision(player.Position) == tankBase;
 
         // Exact stored energy (including the sub-unit remainder), so a pumping relay shows progress at once.
@@ -811,6 +826,9 @@ public class GameHud
             ImGui.SetWindowFontScale(1.25f);
             ColoredText(player.LivesLeft > 1 ? TextDim : TextBad, $"Lives {player.LivesLeft}");
             ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Current.Dirt}");
+            if (harvesters > 0)
+                ColoredText(stalled > 0 ? TextWarn : TextDim,
+                    $"Harvesters working {harvesters - stalled}/{harvesters}" + (stalled > 0 ? $", {stalled} too hot" : ""));
             if (relays > 0)
             {
                 ColoredText(powered == relays ? TextDim : TextWarn,
@@ -818,6 +836,14 @@ public class GameHud
                 ColoredText(fillColor, fill > 0f && fill < 0.01f
                     ? "Base heat store <1% full"
                     : $"Base heat store {(int)MathF.Round(fill * 100f)}% full");
+
+                // Radiator load: heat arriving through relays against the rate the base can vent. Past 100% the
+                // store fills, and once it is full the relays are throttled.
+                float load = (float)(_radiatorInflow / ventCapacity);
+                var loadColor = load < 0.8f ? TextGood : load <= 1.0f ? TextWarn : TextBad;
+                ColoredText(loadColor,
+                    $"Radiator {(int)Math.Round(_radiatorInflow)} in / {(int)ventCapacity} out per tick");
+                ImGui.ProgressBar(Math.Clamp(load / 1.5f, 0f, 1f), new Vector2(180f, 8f), string.Empty);
             }
             if (hint.Length > 0)
             {

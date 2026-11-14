@@ -28,7 +28,10 @@ public readonly record struct MachineRenderState(
     MachineState State,
     bool IsAlive,
     bool IsPowered,
-    bool IsPumping = false);
+    bool IsPumping = false,
+    float PumpFraction = 0f,
+    bool IsPumpLimited = false,
+    bool IsStalled = false);
 
 public readonly record struct LinkRenderState(
     Position From,

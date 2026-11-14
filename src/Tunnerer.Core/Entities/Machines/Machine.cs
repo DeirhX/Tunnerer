@@ -29,6 +29,12 @@ public class Machine
     /// <summary>Energy a relay moved into its base during its last action (0 when unpowered or the base is full).</summary>
     public double LastPumpedEnergy { get; set; }
 
+    /// <summary>True when a relay could not pump its full rate because the base reservoir was nearly full.</summary>
+    public bool LastPumpLimitedByBase { get; set; }
+
+    /// <summary>True when a harvester skipped its last action because the ground around it was too hot.</summary>
+    public bool IsStalled { get; set; }
+
     private TimeSpan _actionAccumulator;
 
     public Machine(Position position, MachineType type, int ownerColor)

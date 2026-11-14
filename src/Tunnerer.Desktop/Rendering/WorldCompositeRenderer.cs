@@ -125,6 +125,9 @@ public sealed class WorldCompositeRenderer
         uint relayColor = Tweaks.Colors.Relay.ToArgb();
         uint relayIdleColor = Tweaks.Colors.RelayIdle.ToArgb();
         uint pumpingColor = new Color(255, 255, 255).ToArgb();
+        uint stalledColor = new Color(255, 140, 0).ToArgb();
+        bool blinkFast = (Environment.TickCount / 200) % 2 == 0;
+        bool blinkSlow = (Environment.TickCount / 500) % 2 == 0;
 
         for (int i = 0; i < count; i++)
         {
@@ -137,10 +140,12 @@ public sealed class WorldCompositeRenderer
                 ? templateColor
                 : machine.Type switch
                 {
-                    MachineType.Harvester => harvesterColor,
-                    // A pumping relay pulses; a linked but idle one is steady.
+                    // A stalled harvester (ground too hot) blinks orange; a working one is steady green.
+                    MachineType.Harvester => machine.IsStalled && blinkFast ? stalledColor : harvesterColor,
+                    // Relay: steady white = pumping near its full rate; slow blink = partial; fast blink = a trickle.
                     MachineType.Relay => !machine.IsPowered ? relayIdleColor
-                        : machine.IsPumping && (Environment.TickCount / 200) % 2 == 0 ? pumpingColor
+                        : machine.PumpFraction >= 0.8f ? pumpingColor
+                        : machine.IsPumping && (machine.PumpFraction >= 0.3f ? blinkSlow : blinkFast) ? pumpingColor
                         : relayColor,
                     _ => chargerColor,
                 };
@@ -157,6 +162,15 @@ public sealed class WorldCompositeRenderer
                     if (surface.IsInside(px, py))
                         surface.Pixels[px + py * surface.Width] = color;
                 }
+            }
+
+            // Shape cue so state never relies on colour alone: a pixel above a stalled harvester, and above a
+            // relay the full base reservoir is holding back.
+            if (machine.State == MachineState.Planted && (machine.IsStalled || machine.IsPumpLimited))
+            {
+                int markX = machine.Position.X, markY = machine.Position.Y - half - 2;
+                if (surface.IsInside(markX, markY))
+                    surface.Pixels[markX + markY * surface.Width] = stalledColor;
             }
         }
     }

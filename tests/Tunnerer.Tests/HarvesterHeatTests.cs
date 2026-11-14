@@ -110,4 +110,23 @@ public class HarvesterHeatTests
         Assert.True(s.World.Terrain.Ledger.Injected > 0, "harvesting should have injected heat");
         Assert.True(maxResidual < 0.5, $"harvest heat must be accounted for. residual={maxResidual:0.0000}");
     }
+
+    [Fact]
+    public void Harvester_OnHotGround_ReportsStalledInItsRenderState()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+        s.World.Terrain.AddHeatRadius(s.RelayPos, 200, 6);
+
+        int ticks = (int)Math.Ceiling(Tweaks.Machine.HarvesterIntervalMs / 1000.0 * Tweaks.Perf.TargetFps) + 2;
+        for (int i = 0; i < ticks; i++)
+            s.World.Advance(_ => default);
+
+        var states = new Tunnerer.Core.Rendering.MachineRenderState[8];
+        int count = s.World.Machines.CopyRenderStates(states);
+        Assert.True(harvester.IsStalled, "a harvester on very hot ground should be stalled");
+        Assert.Contains(states.Take(count), m => m.Type == MachineType.Harvester && m.IsStalled);
+    }
 }
