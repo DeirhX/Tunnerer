@@ -36,6 +36,44 @@ public class ToastGenerator
     }
 
     /// <summary>
+    /// Picks the player spawn positions from the random point cloud. The first point is always the first spawn;
+    /// every further spawn must be at least <see cref="Tweaks.LevelGen.MinSpawnDistanceSq"/> away from all
+    /// earlier ones. The playable area is only a bit larger than that distance, so when the first point lies near
+    /// the middle no other point can qualify; the best available pair (the two most distant points) is used
+    /// instead, so a map never has fewer than two spawns.
+    /// </summary>
+    public static Position[] SelectSpawns(IReadOnlyList<Position> points)
+    {
+        var spawns = new List<Position> { points[0] };
+        for (int i = 1; i < points.Count && spawns.Count < Tweaks.LevelGen.MaxPlayers; i++)
+        {
+            bool tooClose = false;
+            foreach (var s in spawns)
+            {
+                if (Position.DistanceSquared(points[i], s) < Tweaks.LevelGen.MinSpawnDistanceSq)
+                { tooClose = true; break; }
+            }
+            if (!tooClose) spawns.Add(points[i]);
+        }
+
+        if (spawns.Count < 2 && points.Count >= 2 && Tweaks.LevelGen.MaxPlayers >= 2)
+        {
+            int bestA = 0, bestB = 1, bestDistance = -1;
+            for (int i = 0; i < points.Count; i++)
+                for (int j = i + 1; j < points.Count; j++)
+                {
+                    int d = Position.DistanceSquared(points[i], points[j]);
+                    if (d > bestDistance)
+                    { bestDistance = d; bestA = i; bestB = j; }
+                }
+
+            return new[] { points[bestA], points[bestB] };
+        }
+
+        return spawns.ToArray();
+    }
+
+    /// <summary>
     /// Generates random points, selects spawn positions, then builds a minimum spanning
     /// tree (Kruskal's algorithm with naive union-find) connecting them via dirt tunnels.
     /// </summary>
@@ -47,17 +85,7 @@ public class ToastGenerator
         for (int i = 0; i < treeSize; i++)
             points[i] = GeneratorUtils.GenerateInside(terrain.Size, Tweaks.LevelGen.BorderWidth, rng);
 
-        var spawns = new List<Position> { points[0] };
-        for (int i = 1; i < treeSize && spawns.Count < Tweaks.LevelGen.MaxPlayers; i++)
-        {
-            bool tooClose = false;
-            foreach (var s in spawns)
-            {
-                if (Position.DistanceSquared(points[i], s) < Tweaks.LevelGen.MinSpawnDistanceSq)
-                { tooClose = true; break; }
-            }
-            if (!tooClose) spawns.Add(points[i]);
-        }
+        var spawns = SelectSpawns(points);
 
         // Kruskal's MST: each node starts in its own component
         int[] componentId = new int[treeSize];
@@ -81,7 +109,7 @@ public class ToastGenerator
             GeneratorUtils.DrawLine(terrain, points[a], points[b], TerrainPixel.LevelGenDirt);
         }
 
-        return spawns.ToArray();
+        return spawns;
     }
 
     #region Deterministic (single-threaded)
