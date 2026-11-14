@@ -15,8 +15,7 @@ dotnet run --project src/Tunnerer.Desktop -- --windowed
 ```
 
 - Target framework: net10.0. Solution file: `Tunnerer.slnx`.
-- `Tunnerer.Desktop` compiles its HLSL shaders with `fxc.exe` (Windows SDK) before each build. Override the path
-  with `-p:Dx11ShaderCompiler=<path>`.
+- `Tunnerer.Desktop` compiles its HLSL shaders to DXIL, SPIR-V and MSL before each build (SDL_shadercross from NuGet).
 - `Tunnerer.Core` must not reference SDL, ImGui or Direct3D (`ArchitectureGuardTests` enforces it).
 - The simulation must stay deterministic for a given seed: no `DateTime`, `Environment.TickCount` or unseeded
   `Random` in `Tunnerer.Core`.

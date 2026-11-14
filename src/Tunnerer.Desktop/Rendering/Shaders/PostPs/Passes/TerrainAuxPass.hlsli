@@ -90,10 +90,10 @@ void ApplyTerrainHeatAndScorch(
 
     // Wide: 2-cell axis samples for smoother falloff (shared fetches).
     float2 mTexel2 = mTexel * 2.0;
-    float4 wide0 = auxTex.Sample(s0, auxUv + float2(mTexel2.x, 0.0));
-    float4 wide1 = auxTex.Sample(s0, auxUv - float2(mTexel2.x, 0.0));
-    float4 wide2 = auxTex.Sample(s0, auxUv + float2(0.0, mTexel2.y));
-    float4 wide3 = auxTex.Sample(s0, auxUv - float2(0.0, mTexel2.y));
+    float4 wide0 = auxTex.Sample(s1, auxUv + float2(mTexel2.x, 0.0));
+    float4 wide1 = auxTex.Sample(s1, auxUv - float2(mTexel2.x, 0.0));
+    float4 wide2 = auxTex.Sample(s1, auxUv + float2(0.0, mTexel2.y));
+    float4 wide3 = auxTex.Sample(s1, auxUv - float2(0.0, mTexel2.y));
 
     float sW0 = 1.0 - abs(sideC - step(0.5, wide0.g));
     float sW1 = 1.0 - abs(sideC - step(0.5, wide1.g));
@@ -288,15 +288,15 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     float2 auxUv = worldCell / WorldSize;
     float2 mTexel = float2(1.0 / WorldSize.x, 1.0 / WorldSize.y);
 
-    float4 a0  = auxTex.Sample(s0, auxUv);
-    float4 ax1 = auxTex.Sample(s0, auxUv + float2( mTexel.x,  0.0));
-    float4 ax2 = auxTex.Sample(s0, auxUv + float2(-mTexel.x,  0.0));
-    float4 ay1 = auxTex.Sample(s0, auxUv + float2( 0.0,  mTexel.y));
-    float4 ay2 = auxTex.Sample(s0, auxUv + float2( 0.0, -mTexel.y));
-    float4 ad1 = auxTex.Sample(s0, auxUv + float2( mTexel.x,  mTexel.y));
-    float4 ad2 = auxTex.Sample(s0, auxUv + float2( mTexel.x, -mTexel.y));
-    float4 ad3 = auxTex.Sample(s0, auxUv + float2(-mTexel.x,  mTexel.y));
-    float4 ad4 = auxTex.Sample(s0, auxUv + float2(-mTexel.x, -mTexel.y));
+    float4 a0  = auxTex.Sample(s1, auxUv);
+    float4 ax1 = auxTex.Sample(s1, auxUv + float2( mTexel.x,  0.0));
+    float4 ax2 = auxTex.Sample(s1, auxUv + float2(-mTexel.x,  0.0));
+    float4 ay1 = auxTex.Sample(s1, auxUv + float2( 0.0,  mTexel.y));
+    float4 ay2 = auxTex.Sample(s1, auxUv + float2( 0.0, -mTexel.y));
+    float4 ad1 = auxTex.Sample(s1, auxUv + float2( mTexel.x,  mTexel.y));
+    float4 ad2 = auxTex.Sample(s1, auxUv + float2( mTexel.x, -mTexel.y));
+    float4 ad3 = auxTex.Sample(s1, auxUv + float2(-mTexel.x,  mTexel.y));
+    float4 ad4 = auxTex.Sample(s1, auxUv + float2(-mTexel.x, -mTexel.y));
 
     // ---- Material sampling (needed for base exclusion and texturing) -------
     int2 auxMax = int2(max(1.0, WorldSize.x), max(1.0, WorldSize.y)) - int2(1, 1);
@@ -371,7 +371,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         // (nearest) code only decides where the base is. Base cells are drawn
         // with their own mask so the solid/cave gating cannot dim them.
         float contentMask = terrainFactor * solidSide * solidCore;
-        float3 coverage = coverageTex.Sample(s0, auxUv).rgb;
+        float3 coverage = coverageTex.Sample(s2, auxUv).rgb;
         float3 margins = CoverageMargins(coverage);
         float3 naturalMasks = NaturalMaterialMasks(coverage) * (contentMask * (1.0 - baseInfluence));
         float stoneMask = naturalMasks.x;
@@ -382,10 +382,10 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         float baseMask = terrainFactor * baseInfluence;
         // Stone margin gradient (per cell) for the stone/dirt depth cue.
         float2 stoneMarginGrad = 0.5 * float2(
-            CoverageMargins(coverageTex.Sample(s0, auxUv + float2(mTexel.x, 0.0)).rgb).x -
-            CoverageMargins(coverageTex.Sample(s0, auxUv - float2(mTexel.x, 0.0)).rgb).x,
-            CoverageMargins(coverageTex.Sample(s0, auxUv + float2(0.0, mTexel.y)).rgb).x -
-            CoverageMargins(coverageTex.Sample(s0, auxUv - float2(0.0, mTexel.y)).rgb).x);
+            CoverageMargins(coverageTex.Sample(s2, auxUv + float2(mTexel.x, 0.0)).rgb).x -
+            CoverageMargins(coverageTex.Sample(s2, auxUv - float2(mTexel.x, 0.0)).rgb).x,
+            CoverageMargins(coverageTex.Sample(s2, auxUv + float2(0.0, mTexel.y)).rgb).x -
+            CoverageMargins(coverageTex.Sample(s2, auxUv - float2(0.0, mTexel.y)).rgb).x);
 
         // ---- Procedural material overlays ---------------------------------
         // Each material is evaluated on the scene colour and the results are
@@ -509,11 +509,11 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         float2 tileCenterUv = tileCenterCell / WorldSize;
         float2 tileSampleOffset = float2(tileSize / max(1.0, WorldSize.x), tileSize / max(1.0, WorldSize.y)) * 0.32;
 
-        float h0 = auxTex.Sample(s0, tileCenterUv).r;
-        float h1 = auxTex.Sample(s0, tileCenterUv + float2(tileSampleOffset.x, 0.0)).r;
-        float h2 = auxTex.Sample(s0, tileCenterUv - float2(tileSampleOffset.x, 0.0)).r;
-        float h3 = auxTex.Sample(s0, tileCenterUv + float2(0.0, tileSampleOffset.y)).r;
-        float h4 = auxTex.Sample(s0, tileCenterUv - float2(0.0, tileSampleOffset.y)).r;
+        float h0 = auxTex.Sample(s1, tileCenterUv).r;
+        float h1 = auxTex.Sample(s1, tileCenterUv + float2(tileSampleOffset.x, 0.0)).r;
+        float h2 = auxTex.Sample(s1, tileCenterUv - float2(tileSampleOffset.x, 0.0)).r;
+        float h3 = auxTex.Sample(s1, tileCenterUv + float2(0.0, tileSampleOffset.y)).r;
+        float h4 = auxTex.Sample(s1, tileCenterUv - float2(0.0, tileSampleOffset.y)).r;
         float heatProxy = (h0 * 0.40) + ((h1 + h2 + h3 + h4) * 0.15);
         float active = step(ThermalTileHeatThreshold01, heatProxy);
 

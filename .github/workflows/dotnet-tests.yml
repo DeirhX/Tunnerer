@@ -7,7 +7,13 @@ on:
 
 jobs:
   test:
-    runs-on: windows-latest
+    # Both OSes build the whole solution. The build compiles every shader to DXIL, SPIR-V and MSL
+    # (tools/Tunnerer.ShaderCompiler), so a shader change one GPU API cannot take fails on either runner.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -19,3 +25,27 @@ jobs:
         run: dotnet build "Tunnerer.slnx" -c Release --no-restore
       - name: Test
         run: dotnet test "Tunnerer.slnx" -c Release --no-build
+
+      # Runs the game on the SDL_GPU backend (Metal) in a hidden window for ~120 frames and checks it exits cleanly
+      # and writes a screenshot. Non-blocking for now: hosted macOS runners expose a virtual Metal device that is
+      # reported to be unreliable. Make it blocking once it has proven stable.
+      - name: Smoke run (SDL_GPU, hidden window)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        working-directory: src/Tunnerer.Desktop/out/bin/Release/net10.0
+        env:
+          TUNNERER_SCRIPTED_INPUT: "1,0:24;0,1,1:600"
+          TUNNERER_SCRIPT_SCREENSHOT_FRAMES: "60"
+          TUNNERER_SCREENSHOT_DIR: ${{ runner.temp }}/smoke
+        run: |
+          mkdir -p "$TUNNERER_SCREENSHOT_DIR"
+          dotnet Tunnerer.Desktop.dll --hidden --windowed=1280x720 --perf --perf-warmup=30 --perf-frames=90
+          ls "$TUNNERER_SCREENSHOT_DIR"/*.ppm
+      - name: Upload smoke screenshot
+        if: runner.os == 'macOS' && always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshot-macos
+          path: ${{ runner.temp }}/smoke/*.ppm
+          if-no-files-found: ignore

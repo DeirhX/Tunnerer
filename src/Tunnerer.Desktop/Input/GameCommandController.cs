@@ -1,6 +1,6 @@
 namespace Tunnerer.Desktop.Input;
 
-using Silk.NET.SDL;
+using static SDL3.SDL;
 using Tunnerer.Desktop.Config;
 
 public sealed class GameCommandController
@@ -22,13 +22,13 @@ public sealed class GameCommandController
     /// </summary>
     public static bool TryTranslateHotkey(Scancode scancode, bool shiftHeld, bool debugKeysEnabled, out GameCommand command)
     {
-        if (scancode == Scancode.ScancodeH)
+        if (scancode == Scancode.H)
         {
             command = GameCommand.ToggleHeatOverlay;
             return true;
         }
 
-        if (!debugKeysEnabled && scancode is >= Scancode.Scancode1 and <= Scancode.Scancode9)
+        if (!debugKeysEnabled && scancode is >= Scancode.Alpha1 and <= Scancode.Alpha9)
         {
             command = default;
             return false;
@@ -38,10 +38,10 @@ public sealed class GameCommandController
         {
             switch (scancode)
             {
-                case Scancode.Scancode1:
+                case Scancode.Alpha1:
                     command = GameCommand.ToggleHeatOverlay;            // #8
                     return true;
-                case Scancode.Scancode2:
+                case Scancode.Alpha2:
                     command = GameCommand.ToggleThermalRegionsOverlay;   // #9
                     return true;
             }
@@ -49,37 +49,37 @@ public sealed class GameCommandController
 
         switch (scancode)
         {
-            case Scancode.ScancodeF9:
+            case Scancode.F9:
                 command = GameCommand.ToggleHeatOverlay;
                 return true;
-            case Scancode.Scancode1:
+            case Scancode.Alpha1:
                 command = GameCommand.TogglePostVignette;
                 return true;
-            case Scancode.Scancode2:
+            case Scancode.Alpha2:
                 command = GameCommand.TogglePostTerrainCurve;
                 return true;
-            case Scancode.Scancode3:
+            case Scancode.Alpha3:
                 command = GameCommand.TogglePostTerrainAux;
                 return true;
-            case Scancode.Scancode4:
+            case Scancode.Alpha4:
                 command = GameCommand.TogglePostTankGlow;
                 return true;
-            case Scancode.Scancode5:
+            case Scancode.Alpha5:
                 command = GameCommand.TogglePostNativeTerrainSmoothing;
                 return true;
-            case Scancode.Scancode6:
+            case Scancode.Alpha6:
                 command = GameCommand.TogglePostTerrainHeat;
                 return true;
-            case Scancode.Scancode7:
+            case Scancode.Alpha7:
                 command = GameCommand.TogglePostNativeEdgeCurving;
                 return true;
-            case Scancode.ScancodeF10:
+            case Scancode.F10:
                 command = GameCommand.RequestScreenshot;
                 return true;
-            case Scancode.ScancodeF11:
+            case Scancode.F11:
                 command = GameCommand.TogglePostPassOverlay;
                 return true;
-            case Scancode.ScancodeF12:
+            case Scancode.F12:
                 command = GameCommand.ToggleInputRecording;
                 return true;
             default:
