@@ -61,8 +61,10 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     public void SetPixel(Position pos, TerrainPixel value)
     {
         int offset = pos.X + pos.Y * Width;
-        RecordMaterialChangeEnergy(offset, _data[offset], value);
+        TerrainPixel previous = _data[offset];
+        RecordMaterialChangeEnergy(offset, previous, value);
         _data[offset] = value;
+        MirrorAirIfCellBecameAir(pos, offset, previous, value);
         if (value == TerrainPixel.Decal)
             _scorchIntensity[offset] = ScorchIntensityMax;
         else if (!Pixel.IsScorched(value))
@@ -90,6 +92,25 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         // so the terrain-field energy that appears or disappears is T * (new stored capacity - old stored capacity).
         double stored(ThermalMaterial m) => m == ThermalMaterial.Air ? 0.0 : _heatEngine.GetHeatCapacity(m);
         Ledger.RecordInjected(_heatTemperature[offset] * (stored(newMaterial) - stored(oldMaterial)));
+    }
+
+    /// <summary>
+    /// A solid cell that becomes air (dug out, blasted) stops storing energy in the terrain field: from then on that
+    /// field only mirrors the cell's air. The solid's energy has just been written off in the ledger, so its old
+    /// temperature must not stay behind in the mirror, where a sampler or a sink would read it as heat the air does
+    /// not hold and pull the air below ambient to pay for it.
+    /// </summary>
+    private void MirrorAirIfCellBecameAir(Position pos, int offset, TerrainPixel oldPixel, TerrainPixel newPixel)
+    {
+        if (Pixel.GetThermalMaterial(newPixel) != ThermalMaterial.Air ||
+            Pixel.GetThermalMaterial(oldPixel) == ThermalMaterial.Air)
+            return;
+
+        float stale = _heatTemperature[offset];
+        float air = _airTemperature[offset];
+        _heatTemperature[offset] = air;
+        if (ShouldMarkHeatDirty(stale, air))
+            MarkHeatDirty(pos.X, pos.Y);
     }
 
     public void CommitPixel(Position pos) => _changeList.Add(pos);
