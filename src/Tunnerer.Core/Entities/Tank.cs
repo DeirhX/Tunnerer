@@ -9,6 +9,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Thermal;
+using Tunnerer.Core.Entities.Machines;
 
 public class Tank
 {
@@ -30,6 +31,11 @@ public class Tank
     private int _frameDugPixels;
     private bool _frameShotFired;
     private FastRandom _rng;
+    private readonly MachineMaterializer _machineMaterializer;
+    private bool _buildHeld;
+
+    /// <summary>True while the tank carries a machine (a relay) it has built but not planted yet.</summary>
+    public bool IsCarryingMachine => _machineMaterializer.IsCarrying;
 
     public Tank(int color, TankBase tankBase, int rngSeed = 0)
     {
@@ -44,6 +50,7 @@ public class Tank
             initial: new MaterialAmount(0, 0),
             capacity: new MaterialAmount(Tweaks.Tank.ResourceDirtCapacity, Tweaks.Tank.ResourceMineralsCapacity));
         Turret = new TankTurret(color);
+        _machineMaterializer = new MachineMaterializer(color);
         int fallbackSeed = Environment.TickCount ^ HashSeed(color, tankBase.Position);
         _rng = new FastRandom(rngSeed != 0 ? rngSeed : fallbackSeed);
         Direction = RandomDirection();
@@ -67,7 +74,37 @@ public class Tank
         HandleMove(world.Terrain, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
         AdvanceShooting(input, world);
         CollectItems(world.Terrain);
+        AdvanceBuilding(world, input);
         AdvanceHeat(world);
+    }
+
+    /// <summary>
+    /// Build key (edge triggered): with no machine in hand it builds a relay from the tank's resources and
+    /// carries it; pressed again outside a base it plants the relay where the tank stands.
+    /// </summary>
+    private void AdvanceBuilding(World world, ControllerOutput input)
+    {
+        bool pressed = input.BuildPrimary && !_buildHeld;
+        _buildHeld = input.BuildPrimary;
+
+        if (pressed)
+        {
+            if (_machineMaterializer.IsCarrying)
+            {
+                if (world.TankBases.CheckBaseCollision(Position) == null)
+                {
+                    var machine = _machineMaterializer.ReleaseCarried();
+                    if (machine != null)
+                        world.PlantMachine(machine, Base);
+                }
+            }
+            else
+            {
+                _machineMaterializer.TryBuild(MachineType.Relay, Position, Resources, world.Machines);
+            }
+        }
+
+        _machineMaterializer.UpdatePosition(Position);
     }
 
     private void AdvanceBaseInteraction(World world)
@@ -285,6 +322,7 @@ public class Tank
             return;
 
         Reactor.Exhaust(new ReactorState(Reactor.Heat, Reactor.Health));
+        _machineMaterializer.DiscardCarried();
         LivesLeft = Math.Max(0, LivesLeft - 1);
         _respawning = true;
         _respawnTimer = LivesLeft > 0 ? Tweaks.Tank.RespawnDelay : TimeSpan.Zero;

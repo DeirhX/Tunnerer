@@ -214,6 +214,27 @@ heat capacity (`Tweaks.Base.ReactorEnergyPerHeatUnit` per unit) and only heat th
 use `SetPixel`. Digging hot dirt out to air destroys the terrain-field heat of that cell (metered as a `SetPixel`
 material change); it does not move into the air.
 
+### Heat as a mechanic: base reservoir, radiator and relays
+
+The base is the heat sink of the game, and a finite one:
+
+- `TankBase.Reactor` heat is a **reservoir** (`Base.HeatCapacity` units of `Base.ReactorEnergyPerHeatUnit` energy).
+- Every tick the base **radiator** vents `Base.HeatCooldown` units out of the system (`Ledger.SunkBase`). Heat that
+  arrives faster than that fills the reservoir, and absorption stops until the radiator frees room.
+- Base cells (`BaseBarrier`, `BaseCore`) are still pinned to a fixed temperature, so heat that conducts into the base
+  interior vanishes (`SunkFixedTemperature`); the reservoir only limits what is *pumped* in.
+
+A **relay** (`MachineType.Relay`, cost `Machine.RelayDirtCost`) is a heat pipe. Once planted it is a `LinkPoint`;
+when `LinkMap` finds a live (line-of-sight, <= `MaximumLiveLinkDistance`) path to a base it is *powered*, and every
+tick `PumpHeat` calls `TankBase.AbsorbHeatFrom`: up to `Machine.RelayHeatPumpPerTick` energy is extracted from the
+square of half-width `Machine.RelayCoolingRadius` around the relay (terrain, then air; only heat above ambient) and
+stored in the owner base's reactor, limited by the reactor's free room. No power (wall in the way) or a full
+reservoir means no pumping. Several relays share the one radiator, so the sustained clearing rate is capped by it.
+
+Building: the build key is edge triggered (`ControllerOutput.BuildPrimary`). With nothing in hand `Tank` builds a relay
+from its own `Resources` and carries it (`MachineMaterializer`); pressed again outside a base it plants it
+(`World.PlantMachine` registers the link point). A tank that dies drops the carried relay.
+
 ## Level generation (Toast algorithm)
 
 `ToastGenerator.Generate(Size, int? seed)` → `(TerrainGrid, Position[] spawns)`:

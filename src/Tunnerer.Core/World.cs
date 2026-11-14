@@ -64,6 +64,17 @@ public class World
 
     public SimulationProfile Profile { get; } = new();
 
+    /// <summary>
+    /// Plants a carried machine where it stands: it becomes solid, joins the link network and belongs to
+    /// <paramref name="owner"/> (the base it delivers to).
+    /// </summary>
+    public void PlantMachine(Machine machine, TankBase? owner)
+    {
+        machine.State = MachineState.Planted;
+        machine.OwnerBase = owner;
+        machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
+    }
+
     public World(
         Size terrainSize,
         bool deterministicSimulation = false,
@@ -95,6 +106,8 @@ public class World
             _tankBases.AddBase(spawns[i], i);
 
         _tankBases.CreateBasesInTerrain(_terrain);
+        foreach (var tankBase in _tankBases.Bases)
+            tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
         for (int i = 0; i < spawns.Length; i++)
         {

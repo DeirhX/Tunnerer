@@ -21,7 +21,13 @@ public class MachineList
     {
         for (int i = _machines.Count - 1; i >= 0; i--)
         {
-            if (!_machines[i].IsAlive) { _machines.RemoveAt(i); continue; }
+            if (!_machines[i].IsAlive)
+            {
+                if (_machines[i].LinkPoint != null)
+                    _machines[i].LinkPoint!.IsEnabled = false; // the link map prunes disabled points
+                _machines.RemoveAt(i);
+                continue;
+            }
             _machines[i].Advance(terrain, dt);
         }
     }

@@ -29,12 +29,33 @@ public static class MachineBehaviors
         Tweaks.Colors.Charger,
         new MaterialAmount(Tweaks.Machine.ChargerDirtCost, 0));
 
+    public static readonly MachineBehavior Relay = new(
+        Tweaks.World.AdvanceStep,
+        PumpHeat,
+        Tweaks.Colors.Relay,
+        new MaterialAmount(Tweaks.Machine.RelayDirtCost, 0));
+
     public static MachineBehavior Get(MachineType type) => type switch
     {
         MachineType.Harvester => Harvester,
         MachineType.Charger => Charger,
+        MachineType.Relay => Relay,
         _ => throw new ArgumentOutOfRangeException(nameof(type)),
     };
+
+    /// <summary>
+    /// Heat pipe: when the relay is connected to a powered link network it pulls heat out of the area around it
+    /// and stores it in its owner's base reactor (which vents it at the radiator rate).
+    /// </summary>
+    private static void PumpHeat(Machine machine, TerrainGrid terrain)
+    {
+        machine.LastPumpedEnergy = 0.0;
+        if (machine.OwnerBase == null || machine.LinkPoint is not { IsPowered: true })
+            return;
+
+        machine.LastPumpedEnergy = machine.OwnerBase.AbsorbHeatFrom(
+            terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick);
+    }
 
     private static void HarvestNearby(Machine machine, TerrainGrid terrain)
     {

@@ -35,10 +35,22 @@ public class MachineMaterializer
             _carrying.Position = position;
     }
 
-    public void PlantMachine()
+    /// <summary>
+    /// Hands over the machine being carried so the caller can plant it (the world registers it in the link
+    /// network). Returns null if nothing is being carried.
+    /// </summary>
+    public Machine? ReleaseCarried()
     {
-        if (_carrying == null) return;
-        _carrying.State = MachineState.Planted;
+        var machine = _carrying;
+        _carrying = null;
+        return machine;
+    }
+
+    /// <summary>Drops the carried machine for good (the carrier died); its build cost is not refunded.</summary>
+    public void DiscardCarried()
+    {
+        if (_carrying != null)
+            _carrying.IsAlive = false;
         _carrying = null;
     }
 }

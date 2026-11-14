@@ -64,6 +64,7 @@ public class LinkMap
     private void RebuildLinks(TerrainGrid terrain)
     {
         _links.Clear();
+        _points.RemoveAll(p => !p.IsEnabled && p.Type != LinkPointType.Base);
 
         for (int i = 0; i < _points.Count; i++)
         {

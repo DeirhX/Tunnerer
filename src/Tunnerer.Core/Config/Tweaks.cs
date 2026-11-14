@@ -171,8 +171,10 @@ public static class Tweaks
         public const int MaterialMineralsCapacity = 20000;
         public const int HeatCooldown = 2;
         public const int HealthRegen = 10;
-        // Energy stored by one unit of base reactor heat (same material as the base cells).
-        public const float ReactorEnergyPerHeatUnit = Tweaks.World.ThermalCapacityBase;
+        // Energy stored by one unit of base reactor heat. One bullet impact injects ~10^4 energy into the grid,
+        // so the reactor (HeatCapacity units) is a reservoir worth a few hotspots, and HeatCooldown units per tick
+        // is the radiator that vents it out of the system (the base's finite sink rate).
+        public const float ReactorEnergyPerHeatUnit = 500f;
         // Per-tick energy caps for the base's area cooling (the "HeatTotal"/"AirTotal" names are legacy:
         // these are energy, pulled only from cells that are warmer than ambient).
         public const int AreaCoolingInnerHeatTotal = 6;
@@ -246,6 +248,12 @@ public static class Tweaks
         public const int HarvesterDirtCost = 1000;
         public const int ChargerDirtCost = 500;
         public const int BoundingBoxHalfSize = 2;
+
+        // Relay: a heat pipe. Planted within line of sight of a powered link network it pulls heat out of the
+        // surrounding square (half-width RelayCoolingRadius) and pumps it into its owner's base reactor.
+        public const int RelayDirtCost = 150;
+        public const int RelayCoolingRadius = 12;
+        public const float RelayHeatPumpPerTick = 300f;
     }
 
     public static class Explosion
@@ -278,6 +286,8 @@ public static class Tweaks
         public static readonly Color DirtProjectile = new(0xaa, 0x50, 0x03);
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
         public static readonly Color Charger = new(0x4f, 0x4f, 0xff, 0xa0);
+        public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
+        public static readonly Color RelayIdle = new(0x40, 0x68, 0x70);
         public static readonly Color MachineTemplate = new(0x66, 0x66, 0x66, 0x80);
         public static readonly Color FailedInteraction = new(0xff, 0x34, 0x08);
         public static readonly Color InfoMarker = new(0xff, 0xff, 0x4a);
