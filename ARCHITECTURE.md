@@ -13,7 +13,7 @@ Tunnerer.slnx
 src/
   Tunnerer.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
     ARCHITECTURE.md        Detailed design
-  Tunnerer.Desktop/        SDL3 window and input, renderers (SDL_GPU, DX11), ImGui HUD, game loop.
+  Tunnerer.Desktop/        SDL3 window and input, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering design
 tests/
   Tunnerer.Tests/          xUnit tests for Core, plus source rules for the renderers
@@ -90,7 +90,7 @@ compositePixels[w*h]                  terrain aux data (heat, SDF, material, sco
    |                                     |
    +------------- IGameRenderBackend.UploadGamePixels -------------+
                          |
-              terrain + post-process shaders (SDL_GPU or DX11)  ->  game texture
+              terrain + post-process shaders (SDL_GPU)  ->  game texture
                          |
               entity layer: tank and projectile quads (EntityLayerBuilder -> EntityPs)
                          |

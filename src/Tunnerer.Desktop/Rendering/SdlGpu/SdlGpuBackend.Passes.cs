@@ -8,7 +8,7 @@ using Tunnerer.Core.Types;
 /// <summary>
 /// The game frame: uploads, then the native terrain pass (TerrainPs into <see cref="_scene"/>), the post pass
 /// (PostPs into <see cref="_post"/>) and the entity layer (EntityVs/EntityPs, premultiplied alpha, onto
-/// <see cref="_post"/>). Mirrors the DX11 backend's UploadNative.
+/// <see cref="_post"/>).
 /// </summary>
 public sealed unsafe partial class SdlGpuBackend
 {

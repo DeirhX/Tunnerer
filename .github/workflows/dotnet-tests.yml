@@ -8,8 +8,7 @@ on:
 jobs:
   test:
     # Both OSes build the whole solution. The build compiles every shader to DXIL, SPIR-V and MSL
-    # (tools/Tunnerer.ShaderCompiler), so a shader change one GPU API cannot take fails on either runner. The DX11
-    # shaders are compiled on Windows only (see CompileDx11Shaders in Tunnerer.Desktop.csproj).
+    # (tools/Tunnerer.ShaderCompiler), so a shader change one GPU API cannot take fails on either runner.
     strategy:
       fail-fast: false
       matrix:

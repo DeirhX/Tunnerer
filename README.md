@@ -4,27 +4,19 @@ A 2D tunnelling tank game. You dig through the ground, fight an enemy tank, and 
 heat your tank and the rock around it, your base is the heat sink, and relays pipe heat back to the base.
 
 Written in C# on .NET 10. The simulation (`Tunnerer.Core`) has no platform dependencies; the desktop client
-(`Tunnerer.Desktop`) uses SDL3 for the window and input, SDL_GPU or Direct3D 11 for rendering and Dear ImGui for the
+(`Tunnerer.Desktop`) uses SDL3 for the window and input, SDL_GPU for rendering and Dear ImGui for the
 HUD.
 
 ## Requirements
 
 - .NET 10 SDK
 - Windows 10 or later, or macOS (tested on Apple silicon). Linux should work but is untested.
-- On Windows, `fxc.exe` from the Windows SDK for the Direct3D 11 renderer's shaders. The project looks for Windows
-  SDK 10.0.26100.0 and otherwise for `fxc.exe` on `PATH`; pass `-p:Dx11ShaderCompiler=<path>` to point at another
-  copy, or `-p:CompileDx11Shaders=false` to skip them.
+Everything comes from NuGet, including the shader compiler (SDL_shadercross).
 
-Everything else comes from NuGet, including the shader compiler for the SDL_GPU renderer.
+### Renderer
 
-### Renderers
-
-| Backend | APIs | Default on |
-|---------|------|------------|
-| `sdlgpu` | Metal (macOS), Direct3D 12 or Vulkan (Windows), Vulkan (Linux) | macOS, Linux |
-| `dx11` | Direct3D 11 | Windows, until `sdlgpu` has been checked there |
-
-Pick one with `--backend=sdlgpu` or `--backend=dx11`. Both draw the same HLSL in `src/Tunnerer.Desktop/Rendering/Shaders`.
+Rendering goes through SDL_GPU: Metal on macOS, Direct3D 12 or Vulkan on Windows, Vulkan on Linux. The HLSL in
+`src/Tunnerer.Desktop/Rendering/Shaders` is compiled to DXIL, SPIR-V and MSL at build time.
 
 ## Build, run, test
 
@@ -68,7 +60,6 @@ Run `Tunnerer.Desktop --help` for the full list. The common ones:
 | `--hidden` | Never show the window (automated runs) |
 | `--terrain-test` | Static terrain patterns for renderer work |
 | `--perf` | Capture frame times and exit |
-| `--backend=NAME` | `sdlgpu` or `dx11` (see Renderers) |
 
 ## Automated runs
 
@@ -92,7 +83,7 @@ frames keep counting while it is paused, so later commands and screenshots still
 
 ```
 src/Tunnerer.Core          simulation: terrain, heat, tanks, projectiles, machines, links, level generation, bot AI
-src/Tunnerer.Desktop       window, input, renderers (SDL_GPU, DX11), HUD, game loop
+src/Tunnerer.Desktop       window, input, renderer (SDL_GPU), HUD, game loop
 tests/Tunnerer.Tests       xUnit tests for Core, plus source rules for the renderers
 tools/Tunnerer.ShaderCompiler  build step: HLSL to DXIL, SPIR-V and MSL for SDL_GPU
 ```

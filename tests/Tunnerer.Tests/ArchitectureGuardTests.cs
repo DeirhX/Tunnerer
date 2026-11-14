@@ -15,9 +15,6 @@ public class ArchitectureGuardTests
         Assert.DoesNotContain("Tunnerer.Desktop", references);
         Assert.DoesNotContain("ImGui.NET", references);
         Assert.DoesNotContain("SDL3-CS", references);
-        Assert.DoesNotContain("Silk.NET.SDL", references);
-        Assert.DoesNotContain("Silk.NET.Direct3D11", references);
-        Assert.DoesNotContain("Silk.NET.DXGI", references);
     }
 
     [Fact]

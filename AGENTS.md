@@ -15,10 +15,9 @@ Run from the repository root.
 
 - `src/Tunnerer.Core`: the simulation. No window, graphics or input-device dependencies; `ArchitectureGuardTests`
   enforces this.
-- `src/Tunnerer.Desktop`: SDL3 window and input, renderers, HUD. It should read Core state and not own game rules.
-  - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan). Default everywhere but Windows.
-  - `Rendering/Dx11`: the Direct3D 11 backend, Windows default until SDL_GPU is checked there; then delete it.
-  - `Rendering/Shaders`: the HLSL both backends draw.
+- `src/Tunnerer.Desktop`: SDL3 window and input, renderer, HUD. It should read Core state and not own game rules.
+  - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
+  - `Rendering/Shaders`: the HLSL it draws.
 - `tools/Tunnerer.ShaderCompiler`: build step that compiles the HLSL for SDL_GPU (DXIL, SPIR-V, MSL) on every OS.
 - `tests/Tunnerer.Tests`: xUnit tests for Core, plus source rules for the renderers.
 
@@ -35,8 +34,8 @@ Run from the repository root.
   resources with the macros in `Rendering/Shaders/PostPs/Common/Registers.hlsli`, never `register()`, and give
   every `Texture2D` a `SamplerState` at the same index (`RenderingSourceGuardTests` and the shader build step
   check both).
-- **Graphics APIs stay in their backend.** Direct3D 11 code belongs in `Rendering/Dx11`, SDL_GPU code in
-  `Rendering/SdlGpu` (`RenderingSourceGuardTests`). Code both backends need goes in `Rendering/`.
+- **Graphics API calls stay in the backend.** SDL_GPU code belongs in `Rendering/SdlGpu`
+  (`RenderingSourceGuardTests`). Code shared with the game goes in `Rendering/`.
 
 ## Checklists
 
@@ -56,7 +55,7 @@ Adding a machine:
 Adding a shader:
 
 1. The `.hlsl` file in `Rendering/Shaders`, entry point `main`, resources declared with the register macros.
-2. An `SdlGpuShader` item (with `Stage`) in `Tunnerer.Desktop.csproj`, and a `Dx11Shader` item if DX11 uses it.
+2. An `SdlGpuShader` item (with `Stage`) in `Tunnerer.Desktop.csproj`.
 
 Tuning a number: constants live in `Config/Tweaks.cs`. Thermal code reads them through `SimulationSettings`, so
 that tests can inject their own values.

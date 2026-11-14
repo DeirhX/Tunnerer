@@ -11,6 +11,7 @@ using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Desktop.Rendering.SdlGpu;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -60,7 +61,6 @@ public partial class Game : IDisposable
         Size? terrainSizeOverride = null,
         LevelGenMode genMode = LevelGenMode.Deterministic,
         PerfCaptureOptions? perfCapture = null,
-        RenderBackendKind? renderBackendOverride = null,
         bool enableAiTanks = true,
         bool terrainTestMode = false)
     {
@@ -72,17 +72,15 @@ public partial class Game : IDisposable
             string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
         Seed = ResolveSeed(_automatedRun, terrainTestMode);
         var windowSize = DesktopScreenTweaks.WindowSize;
-        RenderBackendKind selectedBackend = renderBackendOverride ?? DesktopTweaks.DefaultRenderBackend;
         bool deterministicSimulation = genMode == LevelGenMode.Deterministic;
         bool parallel = genMode == LevelGenMode.Optimized;
         _perfSession = PerfCaptureSession.Create(perfCapture);
 
         _renderer = new SdlRenderer(Tweaks.System.WindowTitle + (terrainTestMode ? " [Terrain Test]" : ""), windowSize);
 
-        var renderServices = RenderBackendFactory.CreateServices(selectedBackend, _renderer.NativeWindow);
-        _renderBackend = renderServices.Backend;
-        _textures = renderServices.Textures;
-        Console.WriteLine($"[Render] Backend={selectedBackend}");
+        var sdlGpuBackend = new SdlGpuBackend(_renderer.NativeWindow);
+        _renderBackend = sdlGpuBackend;
+        _textures = new SdlGpuTextureLoader(sdlGpuBackend);
         _hud = new GameHud();
         LoadHudSprites();
 

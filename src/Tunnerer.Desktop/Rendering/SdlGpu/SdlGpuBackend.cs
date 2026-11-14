@@ -5,8 +5,8 @@ using SDL3;
 using Tunnerer.Core.Types;
 
 /// <summary>
-/// The SDL_GPU render backend: Metal on macOS, Direct3D 12 or Vulkan on Windows, Vulkan on Linux. It draws the same
-/// HLSL as the DX11 backend, compiled per API at build time by tools/Tunnerer.ShaderCompiler.
+/// The SDL_GPU render backend: Metal on macOS, Direct3D 12 or Vulkan on Windows, Vulkan on Linux. It draws HLSL
+/// compiled per API at build time by tools/Tunnerer.ShaderCompiler.
 /// </summary>
 /// <remarks>
 /// One command buffer per frame. <see cref="UploadGamePixels"/> records the uploads and the terrain, post and entity
