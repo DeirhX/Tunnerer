@@ -25,8 +25,10 @@ public sealed class WorldCompositeRenderer
 
         int linkCount = world.LinkMap.CopyRenderStates(EnsureCapacity(ref _linkStates, world.LinkMap.LinkCount));
         DrawLinks(surface, _linkStates, linkCount);
-        if (player is { IsDead: false, IsCarryingMachine: true })
+        if (player is { IsDead: false, IsCarryingMachine: true, CarriedMachineType: MachineType.Relay })
             DrawLinkPreview(surface, world.LinkMap.PreviewLink(player.Position, world.Terrain), player.Position);
+
+        DrawHarvesterHeatRings(surface, world, player);
 
         int machineCount = world.Machines.CopyRenderStates(EnsureCapacity(ref _machineStates, world.Machines.Count));
         DrawMachines(surface, _machineStates, machineCount);
@@ -116,6 +118,46 @@ public sealed class WorldCompositeRenderer
         }
     }
 
+    /// <summary>
+    /// A dotted ring around every planted harvester (and around the tank while it carries one) marking the ground the
+    /// harvester senses. Its colour is the live temperature there: green while the harvester can work, amber as it
+    /// nears the stall temperature, orange and solid once it is too hot. A carried harvester therefore shows whether
+    /// planting here would work.
+    /// </summary>
+    private static void DrawHarvesterHeatRings(Surface surface, World world, Tank? player)
+    {
+        foreach (var machine in world.Machines.Machines)
+            if (machine.IsAlive && machine.Type == MachineType.Harvester && machine.State == MachineState.Planted)
+                DrawSenseRing(surface, world, machine.Position);
+
+        if (player is { IsDead: false, IsCarryingMachine: true, CarriedMachineType: MachineType.Harvester })
+            DrawSenseRing(surface, world, player.Position);
+    }
+
+    private static void DrawSenseRing(Surface surface, World world, Position center)
+    {
+        int radius = Tweaks.Machine.HarvesterHeatSenseRadius + 1;
+        float temperature = world.Terrain.SampleAverageHeat(center, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f;
+        float stall = Tweaks.Machine.HarvesterStallTemperature;
+        bool tooHot = temperature >= stall;
+        uint color = tooHot ? new Color(255, 140, 0).ToArgb()
+            : temperature >= stall * 0.6f ? new Color(255, 215, 60).ToArgb()
+            : new Color(90, 255, 120).ToArgb();
+
+        // Dotted while fine, solid when stalled (a shape cue as well as a colour one).
+        int steps = Math.Max(24, radius * 8);
+        for (int i = 0; i < steps; i++)
+        {
+            if (!tooHot && i % 2 == 1)
+                continue;
+            double angle = i * Math.PI * 2.0 / steps;
+            int px = center.X + (int)Math.Round(Math.Cos(angle) * radius);
+            int py = center.Y + (int)Math.Round(Math.Sin(angle) * radius);
+            if (surface.IsInside(px, py))
+                surface.Pixels[px + py * surface.Width] = color;
+        }
+    }
+
     private static void DrawMachines(Surface surface, MachineRenderState[] states, int count)
     {
         int half = Tweaks.Machine.BoundingBoxHalfSize;
@@ -125,6 +167,9 @@ public sealed class WorldCompositeRenderer
         uint relayColor = Tweaks.Colors.Relay.ToArgb();
         uint relayIdleColor = Tweaks.Colors.RelayIdle.ToArgb();
         uint pumpingColor = new Color(255, 255, 255).ToArgb();
+        uint stalledColor = new Color(255, 140, 0).ToArgb();
+        bool blinkFast = (Environment.TickCount / 200) % 2 == 0;
+        bool blinkSlow = (Environment.TickCount / 500) % 2 == 0;
 
         for (int i = 0; i < count; i++)
         {
@@ -137,10 +182,12 @@ public sealed class WorldCompositeRenderer
                 ? templateColor
                 : machine.Type switch
                 {
-                    MachineType.Harvester => harvesterColor,
-                    // A pumping relay pulses; a linked but idle one is steady.
+                    // A stalled harvester (ground too hot) blinks orange; a working one is steady green.
+                    MachineType.Harvester => machine.IsStalled && blinkFast ? stalledColor : harvesterColor,
+                    // Relay: steady white = pumping near its full rate; slow blink = partial; fast blink = a trickle.
                     MachineType.Relay => !machine.IsPowered ? relayIdleColor
-                        : machine.IsPumping && (Environment.TickCount / 200) % 2 == 0 ? pumpingColor
+                        : machine.PumpFraction >= 0.8f ? pumpingColor
+                        : machine.IsPumping && (machine.PumpFraction >= 0.3f ? blinkSlow : blinkFast) ? pumpingColor
                         : relayColor,
                     _ => chargerColor,
                 };
@@ -157,6 +204,15 @@ public sealed class WorldCompositeRenderer
                     if (surface.IsInside(px, py))
                         surface.Pixels[px + py * surface.Width] = color;
                 }
+            }
+
+            // Shape cue so state never relies on colour alone: a pixel above a stalled harvester, and above a
+            // relay the full base reservoir is holding back.
+            if (machine.State == MachineState.Planted && (machine.IsStalled || machine.IsPumpLimited))
+            {
+                int markX = machine.Position.X, markY = machine.Position.Y - half - 2;
+                if (surface.IsInside(markX, markY))
+                    surface.Pixels[markX + markY * surface.Width] = stalledColor;
             }
         }
     }

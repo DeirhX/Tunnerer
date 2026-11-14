@@ -50,17 +50,26 @@ public static class MachineBehaviors
     private static void PumpHeat(Machine machine, ITerrainAccess terrain)
     {
         machine.LastPumpedEnergy = 0.0;
+        machine.LastPumpLimitedByBase = false;
         if (machine.OwnerBase == null || machine.LinkPoint is not { IsPowered: true })
             return;
 
+        machine.LastPumpLimitedByBase = machine.OwnerBase.ReactorRoomEnergy < Tweaks.Machine.RelayHeatPumpPerTick;
         machine.LastPumpedEnergy = machine.OwnerBase.AbsorbHeatFrom(
             terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick);
     }
 
     private static void HarvestNearby(Machine machine, ITerrainAccess terrain)
     {
-        int range = Tweaks.Machine.HarvestRange;
         var center = machine.Position;
+
+        // Too hot to work: wait for the ground to cool (a linked relay nearby speeds that up a lot).
+        // SampleAverageHeat is normalised (temperature / 255).
+        machine.IsStalled = terrain.SampleAverageHeat(center, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f >= Tweaks.Machine.HarvesterStallTemperature;
+        if (machine.IsStalled)
+            return;
+
+        int range = Tweaks.Machine.HarvestRange;
         for (int dy = -range; dy <= range; dy++)
             for (int dx = -range; dx <= range; dx++)
             {
@@ -71,6 +80,11 @@ public static class MachineBehaviors
                 if (Pixel.IsDirt(terrain.GetPixelRaw(pos)))
                 {
                     terrain.SetPixel(pos, TerrainPixel.Blank);
+                    // Working gives off heat into the ground beside the harvester.
+                    // The work itself creates this energy (no reactor is debited), so the ledger must book it as injected.
+                    double heat = terrain.AddEnergyInRadiusArea(center, Tweaks.Machine.HarvesterHeatRadius,
+                        Tweaks.Machine.HarvesterHeatPerHarvest, TerrainGrid.ThermalField.Terrain);
+                    terrain.Ledger.RecordInjected(heat);
                     return;
                 }
             }

@@ -148,7 +148,11 @@ public static class Tweaks
         // Hot rock pockets: indestructible rock pinned at a fixed high temperature. They are permanent heat sources
         // that push heat into any tunnel they touch. Pocket placement is opt-in per world (World ctor).
         public const float ThermalFixedHotRockTemperature = 100f;
-        public const int HotRockPocketCount = 4;
+        public const int HotRockPocketCount = 8;
+        // Gradient toward the centre: a large placeholder core at the map centre, and the other pockets biased toward
+        // it (uniform sample ^ bias; 1 = uniform scatter) and bigger there. Starting values for the spike.
+        public const int HotRockCoreRadius = 8;
+        public const double HotRockCentreBias = 1.6;
         public const int HotRockMinRadius = 3;
         public const int HotRockMaxRadius = 5;
         public const int HotRockMinDistanceFromBase = 60;
@@ -183,7 +187,9 @@ public static class Tweaks
         public const int HealthCapacity = 2000;
         public const int MaterialDirtCapacity = 2000;
         public const int MaterialMineralsCapacity = 20000;
-        public const int HeatCooldown = 2;
+        // Radiator. At 1 unit per tick (500 energy/tick), two relays (300 each) out-pump it, so the reservoir fills
+        // and pumping stops: the shared exit is the real bottleneck. Starting value for the first-prototype spike.
+        public const int HeatCooldown = 1;
         public const int HealthRegen = 10;
         // Energy stored by one unit of base reactor heat. One bullet impact injects ~10^4 energy into the grid,
         // so the reactor (HeatCapacity units) is a reservoir worth a few hotspots, and HeatCooldown units per tick
@@ -263,6 +269,15 @@ public static class Tweaks
         public const int HarvesterIntervalMs = 500;
         public const int ChargerIntervalMs = 200;
         public const int HarvestRange = 20;
+        // Machines that work give off heat: each successful harvest dumps this energy into the ground around it.
+        // Starting guess for the first-prototype spike; tune in play.
+        public const float HarvesterHeatPerHarvest = 1000f;
+        public const int HarvesterHeatRadius = 2;
+        // A harvester stalls while the ground around it is hotter than this (average over the sense radius), so the
+        // heat it makes can never run away: it keeps itself bounded, and a relay that pumps the heat out is what
+        // lets it work at full speed. Starting guess for the spike; tune in play.
+        public const float HarvesterStallTemperature = 30f;
+        public const int HarvesterHeatSenseRadius = 4;
         public const int HarvesterDirtCost = 1000;
         public const int ChargerDirtCost = 500;
         public const int BoundingBoxHalfSize = 2;
