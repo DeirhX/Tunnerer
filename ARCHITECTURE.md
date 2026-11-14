@@ -15,8 +15,6 @@ src/
     ARCHITECTURE.md        Detailed design
   Tunnerer.Desktop/        SDL2 window and input, DX11 renderer, ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering design
-  Tunnerer.Presentation/   Legacy software-rendered GUI (Screen, StatusBar). Not used by the game; referenced only
-                           by GuiLayoutTests.
 tests/
   Tunnerer.Tests/          xUnit tests for Core
 ```

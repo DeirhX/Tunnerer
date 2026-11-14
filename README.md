@@ -76,7 +76,6 @@ frames keep counting while it is paused, so later commands and screenshots still
 ```
 src/Tunnerer.Core          simulation: terrain, heat, tanks, projectiles, machines, links, level generation, bot AI
 src/Tunnerer.Desktop       window, input, DX11 renderer, HUD, game loop
-src/Tunnerer.Presentation  legacy software-rendered GUI, kept only for its layout tests
 tests/Tunnerer.Tests       xUnit tests for Core
 ```
 
