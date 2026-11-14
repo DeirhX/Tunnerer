@@ -12,10 +12,14 @@ internal static class TankHeatModel
         return heat;
     }
 
-    public static float ComputeTankTerrainHeatFlow(in SimulationSettings s, float tankTemperature, float terrainTemperature)
+    /// <summary>
+    /// Heat flowing into the tank from what it touches this tick (negative: the tank loses heat). Terrain and air
+    /// contact use this one formula; only the <paramref name="conductance"/> differs.
+    /// </summary>
+    public static float ComputeHeatFlowIntoTank(in SimulationSettings s, float conductance, float tankTemperature, float surroundingTemperature)
     {
-        float deltaT = terrainTemperature - tankTemperature;
-        float dQ = s.TankTerrainConductance * deltaT;
+        float deltaT = surroundingTemperature - tankTemperature;
+        float dQ = conductance * deltaT;
         float maxStableDQ = s.TankHeatCapacity * MathF.Abs(deltaT) * 0.01f;
         if (dQ > maxStableDQ) dQ = maxStableDQ;
         else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
@@ -25,16 +29,6 @@ internal static class TankHeatModel
     public static float ComputeTankDeltaFromHeatFlow(in SimulationSettings s, float dQ)
     {
         return s.TankHeatCapacity > 0f ? dQ / s.TankHeatCapacity : 0f;
-    }
-
-    public static float ComputeTankAirHeatFlow(in SimulationSettings s, float tankTemperature, float airTemperature)
-    {
-        float deltaT = airTemperature - tankTemperature;
-        float dQ = s.TankAmbientConductance * deltaT;
-        float maxStableDQ = s.TankHeatCapacity * MathF.Abs(deltaT) * 0.01f;
-        if (dQ > maxStableDQ) dQ = maxStableDQ;
-        else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
-        return dQ;
     }
 
     public static int ComputeOverheatDamage(in SimulationSettings s, float heat)

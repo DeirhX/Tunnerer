@@ -7,10 +7,8 @@ Platform-independent game simulation. Operates entirely on `uint[]` pixel buffer
 ```
 Tunnerer.Core/
 ├── World.cs                    # Simulation orchestrator
-├── RepetitiveTimer.cs          # Interval timer
 ├── Config/
-│   ├── Tweaks.cs               # All tuning constants
-│   └── RandomGenerator.cs      # Seeded RNG wrapper
+│   └── Tweaks.cs               # All tuning constants
 ├── Terrain/
 │   ├── Terrain.cs              # TerrainGrid: pixel ops, change list, drawing
 │   └── TerrainPixel.cs         # Pixel enum, TerrainBehavior lookup, classification
@@ -44,7 +42,6 @@ Tunnerer.Core/
 ├── Input/
 │   ├── Controller.cs           # ControllerOutput struct
 │   └── BotTankAI.cs             # AI state machine
-├── (Presentation moved)        # GUI/layout moved to Tunnerer.Presentation
 ├── Rendering/
 │   └── TankSprites.cs          # 9-direction tank bitmaps and color palettes
 ├── Resources/

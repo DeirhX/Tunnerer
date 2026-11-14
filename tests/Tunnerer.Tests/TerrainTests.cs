@@ -275,119 +275,45 @@ public class TerrainTests
     public void TerrainHeatEngine_OneDimensionalStrip_ClosedSystem_ConvergesToInitialEnergyMean()
     {
         // Single-pixel-wide bed (1 x N): inject heat on one side and wait for equilibrium.
-        const int width = 1;
-        const int height = 64;
-        var engine = new TerrainHeatEngine();
-        var heat = new float[width * height];
-        var pixels = new TerrainPixel[width * height];
-        float ambient = Tweaks.World.ThermalAmbientTemperature;
-
-        for (int i = 0; i < heat.Length; i++)
-        {
-            heat[i] = ambient;
-            pixels[i] = TerrainPixel.Rock;
-        }
-
-        // Spawn heat at one side of the strip.
-        heat[0] = 220;
-        double startTotal = SumHeat(heat);
-        double startInternalEnergy = SumThermalEnergy(heat, pixels);
-        float expectedMean = (float)(startTotal / heat.Length);
-
-        int? firstInternalDivergenceStep = null;
-        double firstInternalDivergenceEnergy = 0.0;
-        const double internalEnergyTolerance = 0.25;
-        for (int step = 1; step <= 30000; step++)
-        {
-            engine.Step(heat, pixels, width, height, includeAmbientExchange: false);
-            double internalEnergy = engine.SumInternalEnergy(heat, pixels);
-            if (!firstInternalDivergenceStep.HasValue &&
-                Math.Abs(internalEnergy - startInternalEnergy) > internalEnergyTolerance)
-            {
-                firstInternalDivergenceStep = step;
-                firstInternalDivergenceEnergy = internalEnergy;
-            }
-        }
-
-        float min = float.MaxValue;
-        float max = float.MinValue;
-        double sum = 0.0;
-        for (int i = 0; i < heat.Length; i++)
-        {
-            float v = heat[i];
-            if (v < min) min = v;
-            if (v > max) max = v;
-            sum += v;
-        }
-
-        Assert.True(!firstInternalDivergenceStep.HasValue,
-            $"Internal-energy diverged at step={firstInternalDivergenceStep}, " +
-            $"internal={firstInternalDivergenceEnergy:0.0000}, startInternal={startInternalEnergy:0.0000}");
-        float mean = (float)(sum / heat.Length);
-        Assert.InRange(mean, expectedMean - 0.75f, expectedMean + 0.75f);
-        Assert.InRange(min, expectedMean - 3f, expectedMean + 3f);
-        Assert.InRange(max, expectedMean - 3f, expectedMean + 3f);
+        AssertClosedRockSystemConverges(width: 1, height: 64, hotIndex: 0, hotTemperature: 220f, steps: 30000, tolerance: 3f);
     }
 
     [Fact]
     public void TerrainHeatEngine_SquareClosedSystem_ConvergesToInitialEnergyMean()
     {
-        const int width = 32;
-        const int height = 32;
+        // Hot spot in the centre of a square.
+        const int size = 32;
+        AssertClosedRockSystemConverges(size, size, hotIndex: size / 2 + (size / 2) * size, hotTemperature: 255f, steps: 60000, tolerance: 2f);
+    }
+
+    /// <summary>
+    /// A closed block of rock must keep its total energy and settle, in both the terrain and the air field, at the
+    /// temperature that energy implies.
+    /// </summary>
+    private static void AssertClosedRockSystemConverges(int width, int height, int hotIndex, float hotTemperature, int steps, float tolerance)
+    {
         var engine = new TerrainHeatEngine();
-        var heat = new float[width * height];
-        var pixels = new TerrainPixel[width * height];
-        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        int len = width * height;
+        var terrain = new float[len];
+        var air = new float[len];
+        var pixels = new TerrainPixel[len];
+        Array.Fill(pixels, TerrainPixel.Rock);
+        terrain[hotIndex] = hotTemperature;
 
-        for (int i = 0; i < heat.Length; i++)
+        double startEnergy = engine.SumTotalEnergy(terrain, air, pixels);
+        double capacityPerCell = engine.GetHeatCapacity(ThermalMaterial.Stone) + Tweaks.World.ThermalCapacityAir;
+        float expected = (float)(startEnergy / (len * capacityPerCell));
+
+        double maxAbsDrift = 0.0;
+        for (int step = 0; step < steps; step++)
         {
-            heat[i] = ambient;
-            pixels[i] = TerrainPixel.Rock;
+            engine.StepConservative(terrain, air, pixels, width, height);
+            maxAbsDrift = Math.Max(maxAbsDrift, Math.Abs(engine.SumTotalEnergy(terrain, air, pixels) - startEnergy));
         }
 
-        // Inject a hot spot in the center and verify the closed system equilibrates to
-        // the mean implied by initial total energy.
-        int cx = width / 2;
-        int cy = height / 2;
-        heat[cx + cy * width] = 255;
-
-        double startTotal = SumHeat(heat);
-        double startInternalEnergy = SumThermalEnergy(heat, pixels);
-        float expectedMean = (float)(startTotal / heat.Length);
-
-        int? firstInternalDivergenceStep = null;
-        double firstInternalDivergenceEnergy = 0.0;
-        const double internalEnergyTolerance = 0.25;
-        for (int step = 1; step <= 60000; step++)
-        {
-            engine.Step(heat, pixels, width, height, includeAmbientExchange: false);
-            double internalEnergy = engine.SumInternalEnergy(heat, pixels);
-            if (!firstInternalDivergenceStep.HasValue &&
-                Math.Abs(internalEnergy - startInternalEnergy) > internalEnergyTolerance)
-            {
-                firstInternalDivergenceStep = step;
-                firstInternalDivergenceEnergy = internalEnergy;
-            }
-        }
-
-        float min = float.MaxValue;
-        float max = float.MinValue;
-        double sum = 0.0;
-        for (int i = 0; i < heat.Length; i++)
-        {
-            float v = heat[i];
-            if (v < min) min = v;
-            if (v > max) max = v;
-            sum += v;
-        }
-
-        Assert.True(!firstInternalDivergenceStep.HasValue,
-            $"Internal-energy diverged at step={firstInternalDivergenceStep}, " +
-            $"internal={firstInternalDivergenceEnergy:0.0000}, startInternal={startInternalEnergy:0.0000}");
-        float mean = (float)(sum / heat.Length);
-        Assert.InRange(mean, expectedMean - 0.5f, expectedMean + 0.5f);
-        Assert.InRange(min, expectedMean - 2f, expectedMean + 2f);
-        Assert.InRange(max, expectedMean - 2f, expectedMean + 2f);
+        Assert.True(maxAbsDrift <= 0.5, $"Total energy drifted by {maxAbsDrift:0.0000} from {startEnergy:0.0000}");
+        Assert.All(terrain, t => Assert.InRange(t, expected - tolerance, expected + tolerance));
+        Assert.All(air, a => Assert.InRange(a, expected - tolerance, expected + tolerance));
     }
 
     [Fact]
@@ -421,29 +347,6 @@ public class TerrainTests
         Assert.True(maxAbsDrift <= 0.5,
             $"Expected conservative closed-system behavior. start={startEnergy:0.000}, maxAbsDrift={maxAbsDrift:0.000}");
     }
-
-    private static double SumHeat(float[] heat)
-    {
-        double sum = 0.0;
-        for (int i = 0; i < heat.Length; i++)
-            sum += heat[i];
-        return sum;
-    }
-
-    private static double SumThermalEnergy(float[] heat, TerrainPixel[] pixels)
-    {
-        double sum = 0.0;
-        for (int i = 0; i < heat.Length; i++)
-            sum += heat[i] * ThermalCapacityFor(Pixel.GetThermalMaterial(pixels[i]));
-        return sum;
-    }
-
-    private static float ThermalCapacityFor(ThermalMaterial material) => material switch
-    {
-        ThermalMaterial.Air => Tweaks.World.ThermalCapacityAir,
-        ThermalMaterial.Dirt => Tweaks.World.ThermalCapacityDirt,
-        _ => Tweaks.World.ThermalCapacityStone,
-    };
 
     private static double SumHeat(TerrainGrid terrain)
     {
