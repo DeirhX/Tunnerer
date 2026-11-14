@@ -14,6 +14,16 @@ public sealed class GameLoopScheduler
 
     public bool HasReadyStep => _accumulator >= _step;
 
+    /// <summary>Time left until the next simulation step is due (zero or negative when one is ready).</summary>
+    public TimeSpan TimeUntilNextStep => _step - _accumulator;
+
+    /// <summary>Drops the steps that are due without running them, so a paused game does not catch up on resume.</summary>
+    public void DiscardReadySteps()
+    {
+        if (_accumulator >= _step)
+            _accumulator = TimeSpan.FromTicks(_accumulator.Ticks % _step.Ticks);
+    }
+
     public void AddElapsed(TimeSpan elapsed)
     {
         _accumulator += elapsed;

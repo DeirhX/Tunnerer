@@ -54,3 +54,11 @@ Desktop.ini
 *.swp
 *~
 .idea/
+
+# ImGui window layout, rewritten on every run
+imgui.ini
+
+# Agent scratch space (playtest captures, worktrees)
+.claude/play/
+.claude/worktrees/
+.claude/*.png
