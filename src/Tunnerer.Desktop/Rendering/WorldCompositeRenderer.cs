@@ -25,7 +25,7 @@ public sealed class WorldCompositeRenderer
 
         int linkCount = world.LinkMap.CopyRenderStates(EnsureCapacity(ref _linkStates, world.LinkMap.LinkCount));
         DrawLinks(surface, _linkStates, linkCount);
-        if (player is { IsDead: false, IsCarryingMachine: true })
+        if (player is { IsDead: false, IsCarryingMachine: true, CarriedMachineType: MachineType.Relay })
             DrawLinkPreview(surface, world.LinkMap.PreviewLink(player.Position, world.Terrain), player.Position);
 
         int machineCount = world.Machines.CopyRenderStates(EnsureCapacity(ref _machineStates, world.Machines.Count));
