@@ -332,32 +332,52 @@ public class WorldThermalSimulationTests
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_DriveThroughTunnel_HeatTrailAndBaseEventuallyCool));
         var basePos = RequireBasePosition(tank);
 
+        // Driving itself no longer generates heat (MoveHeatGain == 0) and the base interior is a
+        // fixed-temperature sink, so start the tank warm: the scenario under test is a hot tank
+        // leaving the base, leaving a heat trail in the tunnel, and the base cooling back down.
+        const float startHeat = 60f;
         tank.Position = basePos;
-        SetTankHeat(tank, 0f);
+        SetTankHeat(tank, startHeat);
         visual.Capture(world, "start");
 
+        // Drive toward whichever map edge is farther away; a fixed direction can run into
+        // solid rock for some seeds, which leaves the tank jammed inside the base door.
+        int dirY = (world.Terrain.Height - basePos.Y) >= basePos.Y ? 1 : -1;
         int firstOutsideDy = (Tweaks.Base.BaseSize / 2) + 1;
-        CarveVerticalLine(world.Terrain, basePos, firstOutsideDy, firstOutsideDy + 56);
+        const int tunnelHalfWidth = 4; // wider than the tank so it never has to dig
+        for (int dx = -tunnelHalfWidth; dx <= tunnelHalfWidth; dx++)
+            CarveVerticalLine(world.Terrain, basePos + new Offset(dx, 0),
+                dirY * firstOutsideDy, dirY * (firstOutsideDy + 56));
 
-        var driveDown = MoveAndAim(0, 1, 0f, 1f);
-        var driveUp = MoveAndAim(0, -1, 0f, -1f);
+        var driveOut = MoveAndAim(0, dirY, 0f, dirY);
+        var driveBack = MoveAndAim(0, -dirY, 0f, -dirY);
 
+        int framesOutsideBase = 0;
         for (int i = 0; i < 60; i++)
         {
-            world.Advance(idx => idx == 0 ? driveDown : default);
+            world.Advance(idx => idx == 0 ? driveOut : default);
+            if (Math.Abs(tank.Position.Y - basePos.Y) > firstOutsideDy)
+                framesOutsideBase++;
             visual.Capture(world, $"drive_out_{i:D3}");
         }
+        var farthestPos = tank.Position;
         for (int i = 0; i < 60; i++)
         {
-            world.Advance(idx => idx == 0 ? driveUp : default);
+            world.Advance(idx => idx == 0 ? driveBack : default);
             visual.Capture(world, $"drive_back_{i:D3}");
         }
+
+        Assert.True(framesOutsideBase > 0,
+            $"Expected the tank to actually leave the base. basePos={basePos}, farthestPos={farthestPos}");
+
+        float trailHeat = world.Terrain.SampleAverageHeat(
+            new Position(basePos.X, basePos.Y + dirY * (firstOutsideDy + 8)), radius: 4) * 255f;
+        Assert.True(trailHeat > 0f,
+            $"Expected a hot tank to leave heat in the tunnel. trailHeat={trailHeat:0.000}, tankHeat={tank.Heat:0.00}");
 
         tank.Position = basePos;
 
         float baseAfterDrive = world.Terrain.SampleAverageHeat(basePos, radius: 10) * 255f;
-        Assert.True(tank.Heat > 0f,
-            $"Expected driving to accumulate some tank heat. tankHeat={tank.Heat:0.00}");
 
         AdvanceUntil(world, maxFrames: 24 * 120, () =>
             world.Terrain.SampleAverageHeat(basePos, radius: 10) * 255f <= 6f,

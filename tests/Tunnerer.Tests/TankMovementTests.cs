@@ -208,8 +208,20 @@ public class TankMovementTests
     [Fact]
     public void DirectionChange_InCorridor_WorksAfterDigging()
     {
-        var (world, spawn) = CreateControlledWorld();
+        var (world, _) = CreateControlledWorld();
         var tank = world.TankList.Tanks[0];
+
+        // The base placed at the spawn is 35x35 and covers the whole corridor from
+        // CreateControlledWorld, so build a dirt block with a corridor clear of it
+        // (base spans x=33..67) and put the tank at the top of that corridor.
+        var terrain = world.Terrain;
+        for (int y = 40; y < 90; y++)
+            for (int x = 75; x < 98; x++)
+                terrain.SetPixel(new Position(x, y), TerrainPixel.DirtHigh);
+        for (int y = 40; y < 90; y++)
+            for (int x = 83; x <= 87; x++)
+                terrain.SetPixel(new Position(x, y), TerrainPixel.Blank);
+        tank.Position = new Position(85, 45);
 
         // Move tank down into the corridor
         var moveDown = TestSimulation.Move(0, 1);
@@ -225,10 +237,12 @@ public class TankMovementTests
 
         // The tank should have dug into the wall and potentially moved
         // At minimum it should have cleared some dirt to the right
+        // Only look at the dirt wall beyond the corridor (x >= 88); the corridor floor
+        // itself (x=83..87) is blank from the start and would make this check trivial.
         bool anyBlanked = false;
-        for (int dx = 1; dx <= 7; dx++)
+        for (int x = 88; x <= 95; x++)
         {
-            var checkPos = new Position(posInCorridor.X + dx, posInCorridor.Y);
+            var checkPos = new Position(x, posInCorridor.Y);
             if (world.Terrain.IsInside(checkPos) &&
                 world.Terrain.GetPixelRaw(checkPos) == TerrainPixel.Blank)
             { anyBlanked = true; break; }
