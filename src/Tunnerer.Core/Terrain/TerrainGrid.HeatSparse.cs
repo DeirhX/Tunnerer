@@ -194,15 +194,6 @@ public partial class TerrainGrid
         return true;
     }
 
-    public bool IsThermalTileActive(int tileX, int tileY)
-    {
-        if (_activeTiles == null)
-            return false;
-        if ((uint)tileX >= (uint)_tileCountX || (uint)tileY >= (uint)_tileCountY)
-            return false;
-        return _activeTiles[tileX + tileY * _tileCountX];
-    }
-
     private void CoolDownSparseRegions(IReadOnlyList<SparseRegion> regions, bool parallel, out TimeSpan markDirty, out float maxAbsDelta)
     {
         markDirty = TimeSpan.Zero;
@@ -219,45 +210,22 @@ public partial class TerrainGrid
             workers.Add(new RegionWork(i, r, rw, rh, new float[rw * rh], new float[rw * rh]));
         }
 
+        void ComputeDelta(RegionWork work) => _heatEngine.ComputeRegionDeltaConservative(
+            _heatTemperature, _airTemperature, _data, Width, Height,
+            work.Region.MinX, work.Region.MinY, work.Region.MaxXInclusive, work.Region.MaxYInclusive,
+            work.Delta, work.AirDelta);
+
         if (parallel)
         {
             var po = new ParallelOptions();
             if (_simulationSettings.ThermalMaxWorkers > 0)
                 po.MaxDegreeOfParallelism = _simulationSettings.ThermalMaxWorkers;
-            Parallel.ForEach(workers, po, work =>
-            {
-                _heatEngine.ComputeRegionDeltaConservative(
-                    _heatTemperature,
-                    _airTemperature,
-                    _data,
-                    Width,
-                    Height,
-                    work.Region.MinX,
-                    work.Region.MinY,
-                    work.Region.MaxXInclusive,
-                    work.Region.MaxYInclusive,
-                    work.Delta,
-                    work.AirDelta);
-            });
+            Parallel.ForEach(workers, po, ComputeDelta);
         }
         else
         {
-            for (int i = 0; i < workers.Count; i++)
-            {
-                var work = workers[i];
-                _heatEngine.ComputeRegionDeltaConservative(
-                    _heatTemperature,
-                    _airTemperature,
-                    _data,
-                    Width,
-                    Height,
-                    work.Region.MinX,
-                    work.Region.MinY,
-                    work.Region.MaxXInclusive,
-                    work.Region.MaxYInclusive,
-                    work.Delta,
-                    work.AirDelta);
-            }
+            foreach (var work in workers)
+                ComputeDelta(work);
         }
 
         long markStart = Stopwatch.GetTimestamp();
@@ -279,18 +247,8 @@ public partial class TerrainGrid
                     float oldAir = _airTemperature[offset];
                     float next = _heatTemperature[offset] + work.Delta[idx];
                     float nextAir = _airTemperature[offset] + work.AirDelta[idx];
-                    ThermalMaterial material = Pixel.GetThermalMaterial(_data[offset]);
-                    if (material == ThermalMaterial.Air)
-                    {
-                        // Mirror of the air field; holds no energy of its own.
-                        next = nextAir;
-                    }
-                    else if (TerrainHeatEngine.IsFixedTemperatureMaterial(material))
-                    {
-                        float fixedTemperature = _heatEngine.GetFixedTemperature(material);
-                        sunkFixed += _heatEngine.FixedCellEnergySunk(material, next, fixedTemperature);
-                        next = fixedTemperature;
-                    }
+                    next = _heatEngine.ResolveTerrainTemperature(
+                        Pixel.GetThermalMaterial(_data[offset]), next, nextAir, ref sunkFixed);
                     _heatTemperature[offset] = next;
                     _airTemperature[offset] = nextAir;
                     float deltaTerrain = MathF.Abs(next - oldTerrain);

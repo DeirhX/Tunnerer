@@ -12,8 +12,6 @@ public readonly record struct SimulationSettings
 
     // --- Thermal simulation flags ---
     public bool EnableMaterialHeatExchange { get; init; }
-    public bool EnableThermalAmbientExchange { get; init; }
-    public bool EnableStoneAmbientExchange { get; init; }
     public bool EnableConservativeAirField { get; init; }
 
     // --- Sparse tile acceleration ---
@@ -26,7 +24,6 @@ public readonly record struct SimulationSettings
 
     // --- Thermal engine constants ---
     public float ThermalDt { get; init; }
-    public float ThermalAmbientTemperature { get; init; }
     public float ThermalArtificialCoolingPerFrame { get; init; }
 
     // --- Material heat capacities ---
@@ -56,13 +53,6 @@ public readonly record struct SimulationSettings
     // --- Air-field coupling ---
     public float ThermalAirCellCoupling { get; init; }
     public float ThermalAirNeighborCoupling { get; init; }
-
-    // --- Ambient exchange ---
-    public float ThermalKAmbientAir { get; init; }
-    public float ThermalKAmbientDirt { get; init; }
-    public float ThermalKAmbientStone { get; init; }
-    public float ThermalKAmbientBase { get; init; }
-    public float ThermalKAmbientConstantEnergy { get; init; }
 
     // --- Fixed temperature materials ---
     public float ThermalFixedBaseTemperature { get; init; }
@@ -111,8 +101,6 @@ public readonly record struct SimulationSettings
     {
         AdvanceStep = Tweaks.World.AdvanceStep,
         EnableMaterialHeatExchange = Tweaks.World.EnableMaterialHeatExchange,
-        EnableThermalAmbientExchange = Tweaks.World.EnableThermalAmbientExchange,
-        EnableStoneAmbientExchange = Tweaks.World.EnableStoneAmbientExchange,
         EnableConservativeAirField = Tweaks.World.EnableConservativeAirField,
         ThermalActiveTileSize = Tweaks.World.ThermalActiveTileSize,
         ThermalSparseFallbackCoverage = Tweaks.World.ThermalSparseFallbackCoverage,
@@ -121,7 +109,6 @@ public readonly record struct SimulationSettings
         ThermalMaxDeltaSleepThreshold = Tweaks.World.ThermalMaxDeltaSleepThreshold,
         ThermalActiveTemperatureThreshold = Tweaks.World.ThermalActiveTemperatureThreshold,
         ThermalDt = Tweaks.World.ThermalDt,
-        ThermalAmbientTemperature = Tweaks.World.ThermalAmbientTemperature,
         ThermalArtificialCoolingPerFrame = Tweaks.World.ThermalArtificialCoolingPerFrame,
         ThermalCapacityAir = Tweaks.World.ThermalCapacityAir,
         ThermalCapacityDirt = Tweaks.World.ThermalCapacityDirt,
@@ -145,11 +132,6 @@ public readonly record struct SimulationSettings
         ThermalKConstantEnergyConstantEnergy = Tweaks.World.ThermalKConstantEnergyConstantEnergy,
         ThermalAirCellCoupling = Tweaks.World.ThermalAirCellCoupling,
         ThermalAirNeighborCoupling = Tweaks.World.ThermalAirNeighborCoupling,
-        ThermalKAmbientAir = Tweaks.World.ThermalKAmbientAir,
-        ThermalKAmbientDirt = Tweaks.World.ThermalKAmbientDirt,
-        ThermalKAmbientStone = Tweaks.World.ThermalKAmbientStone,
-        ThermalKAmbientBase = Tweaks.World.ThermalKAmbientBase,
-        ThermalKAmbientConstantEnergy = Tweaks.World.ThermalKAmbientConstantEnergy,
         ThermalFixedBaseTemperature = Tweaks.World.ThermalFixedBaseTemperature,
         ThermalFixedConstantEnergyTemperature = Tweaks.World.ThermalFixedConstantEnergyTemperature,
         ThermalFixedHotRockTemperature = Tweaks.World.ThermalFixedHotRockTemperature,

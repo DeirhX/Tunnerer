@@ -64,7 +64,7 @@ public sealed class TankHeatEngine
         double energyToTerrain = 0.0;
         if (terrainCapacity > 0.0)
         {
-            float dQTerrain = TankHeatModel.ComputeTankTerrainHeatFlow(in _settings, 
+            float dQTerrain = TankHeatModel.ComputeHeatFlowIntoTank(in _settings, _settings.TankTerrainConductance,
                 MathF.Max(nextHeat, 0f), MathF.Max(sampledTerrainTemperature, 0f));
             nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, dQTerrain);
             energyToTerrain = -dQTerrain;
@@ -73,7 +73,7 @@ public sealed class TankHeatEngine
         double energyToAir = 0.0;
         if (airCapacity > 0.0)
         {
-            float dQAir = TankHeatModel.ComputeTankAirHeatFlow(in _settings, 
+            float dQAir = TankHeatModel.ComputeHeatFlowIntoTank(in _settings, _settings.TankAmbientConductance,
                 MathF.Max(nextHeat, 0f), MathF.Max(sampledAirTemperature, 0f));
             nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, dQAir);
             energyToAir = -dQAir;

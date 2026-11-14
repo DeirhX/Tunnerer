@@ -2,7 +2,6 @@
   <Folder Name="/src/">
     <Project Path="src/Tunnerer.Core/Tunnerer.Core.csproj" />
     <Project Path="src/Tunnerer.Desktop/Tunnerer.Desktop.csproj" />
-    <Project Path="src/Tunnerer.Presentation/Tunnerer.Presentation.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Tunnerer.Tests/Tunnerer.Tests.csproj" />
