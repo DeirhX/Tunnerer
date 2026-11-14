@@ -1,6 +1,6 @@
-# Tunnerer.Desktop — Rendering Architecture
+# Tunnerer.Desktop — Rendering and Sound Architecture
 
-This document describes the current rendering model used by the desktop client, including backend selection, frame flow, post-processing, and profiling hooks.
+This document describes the current rendering model used by the desktop client, including backend selection, frame flow, post-processing, and profiling hooks. Sound has its own section at the end.
 
 ## High-Level Layout
 
@@ -178,3 +178,61 @@ The older appended "Platform Layer" section has been removed because it describe
 | `--display=N` / `--display=secondary` | Opens the (borderless fullscreen) window on SDL display N instead of the primary one (`TUNNERER_DISPLAY` does the same). The game logs each display's bounds as `[Display] i: WxH at (x,y)`. Use it to keep test runs off the monitor you are working on. |
 
 Without these flags the window is borderless fullscreen on the primary display.
+
+## Sound
+
+Everything is in `Audio/`. Sound only observes the simulation: it reads world state and never writes it.
+
+| File | Role |
+|------|------|
+| `GameAudio.cs` | Decides what to play. Called before and after every simulation step. |
+| `SoundBank.cs` | Synthesises every effect at start-up (filtered noise, sine partials, envelopes) as mono 48 kHz samples. No sound files; the noise is seeded per effect, so the bank is the same on every run. |
+| `SoundMixer.cs` | Mixes one-shot voices and continuous loops to stereo, applies master volume, pause and a soft limiter. |
+| `SdlAudioOutput.cs` | The SDL audio device. SDL calls back on its own thread for samples and the mixer fills the buffer (512 samples, about 11 ms). |
+| `WavFile.cs` | WAV writer for captures and `--dump-sounds`. |
+
+### Detecting events
+
+`GameAudio.AfterStep` compares the world with what it recorded after the previous step. Triggering on steps
+rather than displayed frames is what keeps an effect from repeating on the frames drawn between steps.
+
+| Effect | Trigger |
+|--------|---------|
+| Fire | `Tank.ShotsFired` rose (the one signal Core provides for sound; nothing in the simulation reads it) |
+| Impact | A bullet in the projectile snapshot is dead. A projectile that dies in a step stays in the list, marked dead, until the next step removes it, so each is seen once. At most 2 per step. |
+| Debris | 3 or more shrapnel died in the step: one rattle at their centre, at most every 6 steps, however many there were |
+| Tank hit | `HitFlashTicks` rose |
+| Tank death, respawn | `IsDead` changed |
+| Build relay / harvester, plant | `IsCarryingMachine` changed (a tank that dies drops its machine silently) |
+| Plant refused | `PlantRefusedTicks` rose (player only) |
+| Pickup | A cell that held gold before the step (`BeforeStep` records those near each tank) is empty and under the tank, or the tank's mineral store grew. At most every 3 steps; a run of pickups climbs in pitch. |
+| Dock | The player's tank entered its own base |
+| Warnings | Player only, most urgent first like the HUD banner: overheating, low shield, low energy. The low thresholds are shared with the HUD through `PlayerWarnings`. Each repeats at its own interval while it lasts. |
+| Engine loop | Per tank, while alive: idle, or louder and higher while its position changes |
+| Dig loop | Per tank: its dirt store grew, or cells next to it were emptied while it was driving or torching |
+| Torch loop | Per tank: digging while the turret is firing |
+| Recharge loop | Player, docked, and the base is repairing, cooling or unloading it |
+
+Loops are held for a few steps after their last trigger, because a digging tank only clears cells on some steps,
+and the mixer glides loop volume, pan and pitch so nothing clicks.
+
+### Position and loudness
+
+The listener is the player's tank. Loudness falls with the square of distance (about half at 80 cells, silent
+beyond about 320) and effects pan by horizontal offset. One effect has at most 4 voices at once; a further one
+fades out the oldest. The mixer's limiter bends peaks above 0.75 towards full scale instead of clipping.
+
+### Settings
+
+`AudioOptions` and `AudioTweaks` in `Config/DesktopTweaks.cs` hold the volume, mute and capture settings and the
+per-effect levels, intervals and distances. Volume and mute come from `--volume=N` / `TUNNERER_VOLUME` and
+`--mute` / `TUNNERER_MUTE`; in game M toggles mute and - / = change the volume. Pausing fades the mix out and
+holds every sound in place.
+
+### Automated runs and checking sound
+
+Automated runs (`--hidden`, scripted, `--perf`) and the terrain test open no sound device. With
+`TUNNERER_AUDIO_CAPTURE=file.wav` the mixer is instead driven by the simulation, exactly one step (2000 samples)
+per step, into a WAV file, and every effect is logged as `[Audio] step N <effect> ...`; this is deterministic for
+a given seed and script. `--dump-sounds=DIR` writes each effect to its own WAV file and prints its length, peak
+and RMS level, and for loops the size of the jump at the loop point.

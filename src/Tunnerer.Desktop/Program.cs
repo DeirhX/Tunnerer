@@ -25,13 +25,18 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
           --display=N         Open on display N, or 'secondary'.
           --hidden            Never show the window (automated runs).
 
+        Sound
+          --volume=N          Master volume, 0 to 100 (default 70). In game: - and = change it.
+          --mute              Start with the sound off. In game: M toggles it.
+
         Development
+          --dump-sounds=DIR   Write every sound effect to a WAV file in DIR, print its levels, and exit.
           --terrain-test      Static terrain test patterns instead of a match.
           --perf              Capture frame times and exit (--perf-warmup=N --perf-frames=N --perf-csv=PATH).
           --backend=dx11      Render backend.
 
         In game: W A S D drive and dig, mouse aims, left click or Space fires, E builds a relay,
-        F1 shows the controls, Esc pauses.
+        M mutes the sound, F1 shows the controls, Esc pauses.
         """);
     return;
 }
@@ -48,6 +53,10 @@ bool enableAiTanks = true;
 int? displayIndex = DesktopDisplayOptions.Parse(Environment.GetEnvironmentVariable("TUNNERER_DISPLAY"));
 Size? windowedSize = DesktopDisplayOptions.ParseWindowed(Environment.GetEnvironmentVariable("TUNNERER_WINDOWED"));
 bool hiddenWindow = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_HIDDEN"));
+float? volume = AudioOptions.ParseVolume(Environment.GetEnvironmentVariable("TUNNERER_VOLUME"));
+bool mute = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_MUTE"));
+string? audioCapturePath = Environment.GetEnvironmentVariable("TUNNERER_AUDIO_CAPTURE");
+string? dumpSoundsDirectory = null;
 foreach (var arg in args)
 {
     if (arg == "--large")
@@ -99,6 +108,22 @@ foreach (var arg in args)
         else
             displayIndex = parsed;
     }
+    else if (arg.StartsWith("--volume="))
+    {
+        var parsed = AudioOptions.ParseVolume(arg[9..]);
+        if (parsed is null)
+            Console.WriteLine($"[Args] Unknown volume '{arg[9..]}', expected a number from 0 to 100. Using the default.");
+        else
+            volume = parsed;
+    }
+    else if (arg == "--mute")
+    {
+        mute = true;
+    }
+    else if (arg.StartsWith("--dump-sounds="))
+    {
+        dumpSoundsDirectory = arg[14..];
+    }
     else if (arg == "--no-ai" || arg == "--disable-ai")
     {
         enableAiTanks = false;
@@ -119,6 +144,14 @@ foreach (var arg in args)
 DesktopDisplayOptions.DisplayIndex = displayIndex;
 DesktopDisplayOptions.WindowedSize = windowedSize;
 DesktopDisplayOptions.Hidden = hiddenWindow;
+AudioOptions.Volume = volume ?? AudioOptions.DefaultVolume;
+AudioOptions.Muted = mute;
+AudioOptions.CapturePath = string.IsNullOrWhiteSpace(audioCapturePath) ? null : audioCapturePath.Trim();
+if (!string.IsNullOrWhiteSpace(dumpSoundsDirectory))
+{
+    Tunnerer.Desktop.Audio.GameAudio.DumpEffects(dumpSoundsDirectory);
+    return;
+}
 var mode = fastGen ? LevelGenMode.Optimized : LevelGenMode.Deterministic;
 Tunnerer.Desktop.PerfCaptureOptions? perfOptions = perfMode
     ? new Tunnerer.Desktop.PerfCaptureOptions(perfWarmupFrames, perfMeasureFrames, perfCsvPath)

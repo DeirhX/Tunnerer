@@ -63,7 +63,7 @@ public partial class Game
     }
 
     /// <summary>
-    /// Handles Escape, P, F1 and Q, and pauses when the window loses focus. Returns true when the event was consumed.
+    /// Handles Escape, P, F1, Q and the sound keys (M, - and =), and pauses when the window loses focus. Returns true when the event was consumed.
     /// </summary>
     private bool HandleSessionEvent(Event ev)
     {
@@ -108,6 +108,16 @@ public partial class Game
             case Scancode.ScancodeF1:
                 if (!isRepeat)
                     HandleSessionCommand(GameCommand.ToggleControls);
+                return true;
+            case Scancode.ScancodeM:
+                if (!isRepeat)
+                    _audio.ToggleMute();
+                return true;
+            case Scancode.ScancodeMinus:
+                _audio.AdjustVolume(-0.05f);
+                return true;
+            case Scancode.ScancodeEquals:
+                _audio.AdjustVolume(0.05f);
                 return true;
             case Scancode.ScancodeQ when _paused && !_showControls:
                 _isRunning = false;

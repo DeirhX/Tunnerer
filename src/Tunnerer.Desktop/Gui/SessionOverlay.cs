@@ -40,6 +40,7 @@ public sealed class SessionOverlay
         ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("Esc / P", "Pause"),
         ("F1", "This screen"),
+        ("M, - / =", "Mute sound, volume down / up"),
         ("F10", "Screenshot"),
         ("F11", "Renderer debug overlay (then 1-7 toggle passes)"),
         ("Enter", "New match, once a match is over"),

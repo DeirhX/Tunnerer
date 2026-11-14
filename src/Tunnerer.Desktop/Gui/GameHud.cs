@@ -520,10 +520,8 @@ public class GameHud
             return;
         }
 
-        float energy = player.HeatBudget / Tweaks.Tank.HeatSafeMax;
-        _lowEnergyLatched = _lowEnergyLatched ? energy < 0.30f : energy < 0.20f;
-        float shield = player.Reactor.Health / (float)Math.Max(1, player.Reactor.HealthCapacity);
-        _shieldLowLatched = _shieldLowLatched ? shield < 0.30f : shield < 0.25f;
+        _lowEnergyLatched = PlayerWarnings.LowEnergy(_lowEnergyLatched, player);
+        _shieldLowLatched = PlayerWarnings.LowShield(_shieldLowLatched, player);
 
         // After the first hit, teach the thermal view once: enemy tunnels glow in it.
         if (!_thermalHintShown && player.HitFlashTicks > 0 && !heatDebugOverlayEnabled)
