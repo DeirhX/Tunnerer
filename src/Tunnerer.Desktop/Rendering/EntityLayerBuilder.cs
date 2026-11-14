@@ -121,10 +121,11 @@ public sealed class EntityLayerBuilder
     }
 
     /// <summary>
-    /// Builds the quads for one displayed frame. <paramref name="turnSeconds"/> is the time since the last displayed
-    /// frame, used to swing hulls round to a new heading; zero snaps them (step-locked automated runs).
+    /// Builds the quads for one displayed frame. <paramref name="turnSeconds"/> is the game time since the last
+    /// displayed frame, used to swing hulls round to a new heading (zero while paused, so they hold still);
+    /// <paramref name="snapHeadings"/> puts them on the new heading at once (step-locked automated runs).
     /// </summary>
-    public void Build(in RenderView view, float alpha, float turnSeconds)
+    public void Build(in RenderView view, float alpha, float turnSeconds, bool snapHeadings)
     {
         _vertexCount = 0;
         ReadOnlySpan<PositionF> tankPositions = InterpolateTankPositions(alpha);
@@ -133,7 +134,7 @@ public sealed class EntityLayerBuilder
         for (int i = 0; i < _tankCount; i++)
         {
             ref readonly TankRenderState tank = ref _tanks[i];
-            float heading = UpdateHullHeading(i, tank.Direction, turnSeconds);
+            float heading = UpdateHullHeading(i, tank.Direction, turnSeconds, snapHeadings);
             if (tank.IsDead)
                 continue;
 
@@ -213,23 +214,24 @@ public sealed class EntityLayerBuilder
     }
 
     /// <summary>Returns the drawn hull heading (radians), turning it towards the simulation's 8-way direction.</summary>
-    private float UpdateHullHeading(int tankIndex, int direction, float turnSeconds)
+    private float UpdateHullHeading(int tankIndex, int direction, float turnSeconds, bool snap)
     {
-        // Directions are a 3x3 keypad: column = x step, row = y step; the middle one means "no direction".
-        int stepX = direction % 3 - 1;
+        // Directions are a 3x3 grid with east on the left (0=NE, 1=N, 2=NW, 3=E, 5=W, 6=SE, 7=S, 8=SW); the middle
+        // one means "no direction". See Tank.OffsetToDirection.
+        int stepX = 1 - direction % 3;
         int stepY = direction / 3 - 1;
         if (stepX == 0 && stepY == 0)
             return _hullHeading[tankIndex];
 
         float target = MathF.Atan2(stepY, stepX);
-        if (!_hullHeadingKnown[tankIndex] || turnSeconds <= 0f)
+        if (!_hullHeadingKnown[tankIndex] || snap)
         {
             _hullHeadingKnown[tankIndex] = true;
             return _hullHeading[tankIndex] = target;
         }
 
         float difference = MathF.IEEERemainder(target - _hullHeading[tankIndex], MathF.Tau);
-        float maxTurn = HullTurnRate * turnSeconds;
+        float maxTurn = HullTurnRate * MathF.Max(0f, turnSeconds);
         _hullHeading[tankIndex] += Math.Clamp(difference, -maxTurn, maxTurn);
         return _hullHeading[tankIndex];
     }

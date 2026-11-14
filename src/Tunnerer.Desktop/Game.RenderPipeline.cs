@@ -37,7 +37,8 @@ public partial class Game
             WorldSize: _terrainSize,
             CameraPixels: new Position(_renderViewState.CamPixelX, _renderViewState.CamPixelY),
             PixelScale: scale);
-        _entityLayer.Build(renderView, stepProgress, turnSeconds: _interpolateFrames ? dt : 0f);
+        _entityLayer.Build(
+            renderView, stepProgress, turnSeconds: _paused ? 0f : dt, snapHeadings: !_interpolateFrames);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
 
