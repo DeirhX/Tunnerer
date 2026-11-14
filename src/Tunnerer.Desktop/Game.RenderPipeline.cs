@@ -168,6 +168,7 @@ public partial class Game
                         _commandController.ShowHeatDebugOverlay,
                         _commandController.EnabledPostPasses,
                         _commandController.ShowPostPassOverlay));
+                DrawSessionOverlay(dt);
             }
 
         }

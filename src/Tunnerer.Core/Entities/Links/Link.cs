@@ -35,5 +35,5 @@ public class Link
 
     private bool IsPathBlocked(ITerrainPixelReadOnly terrain) =>
         Raycaster.BresenhamLineAny(From.Position, To.Position,
-            pos => Pixel.IsBlockingCollision(terrain.GetPixel(pos)));
+            pos => Pixel.BlocksLink(terrain.GetPixel(pos)));
 }

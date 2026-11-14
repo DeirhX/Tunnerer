@@ -33,6 +33,31 @@ public class ThermalLedgerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void DiggingHotDirtToAir_LeavesNoGhostHeatInTheTerrainField()
+    {
+        var t = new TerrainGrid(new Size(16, 16));
+        t.Fill(TerrainPixel.Dirt);
+        var pos = new Position(8, 8);
+        t.AddHeatRadius(pos, amount: 200, radius: 2);
+        Assert.True(t.SampleAverageHeat(pos, 0) > 0f, "the dirt must be hot before it is dug");
+
+        double energyBefore = t.SumTotalThermalEnergy();
+        double externalBefore = t.Ledger.NetExternal;
+        t.SetPixel(pos, TerrainPixel.Blank);
+
+        // The dirt's energy left the system with the dirt, and the ledger says so.
+        double residual = (t.SumTotalThermalEnergy() - energyBefore) - (t.Ledger.NetExternal - externalBefore);
+        Assert.InRange(residual, -1e-3, 1e-3);
+
+        // The new air cell holds no heat, so nothing can be sampled or extracted from it in the same tick.
+        Assert.Equal(0f, t.SampleAverageHeat(pos, 0));
+        double taken = t.ExtractEnergyInRadiusArea(pos, 0, maxEnergy: 1e9, TerrainGrid.ThermalField.Terrain);
+        Assert.Equal(0.0, taken);
+        Assert.True(t.SampleAverageAirTemperature(pos, 0) >= Tweaks.World.ThermalAmbientTemperature,
+            "extracting from freshly dug air must not push it below ambient");
+    }
+
+    [Fact]
     public void TankHeatEngine_ExchangeWithGrid_ConservesEnergy()
     {
         // Tank sits across dirt, rock and open air so every material capacity is exercised.

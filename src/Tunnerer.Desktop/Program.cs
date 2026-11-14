@@ -2,6 +2,40 @@ using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
 
+// Numbers in logs, CSV files and scripts use '.' as the decimal separator whatever the system language is.
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+
+if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
+{
+    Console.WriteLine("""
+        Tunnerer - a 2D tunnelling tank game
+
+        Usage: Tunnerer.Desktop [options]
+
+        Match
+          --seed=N            Play the map with seed N (shown in the pause menu). Default: a new map each match.
+          --size=WxH          Terrain size in cells.
+          --large             Terrain size 1500x750.
+          --no-ai             No enemy tank.
+          --fast              Parallel level generation and simulation (not reproducible).
+
+        Display
+          --windowed[=WxH]    Resizable window instead of borderless fullscreen (default 1280x720).
+          --display=N         Open on display N, or 'secondary'.
+          --hidden            Never show the window (automated runs).
+
+        Development
+          --terrain-test      Static terrain test patterns instead of a match.
+          --perf              Capture frame times and exit (--perf-warmup=N --perf-frames=N --perf-csv=PATH).
+          --backend=dx11      Render backend.
+
+        In game: W A S D drive and dig, mouse aims, left click or Space fires, E builds a relay,
+        F1 shows the controls, Esc pauses.
+        """);
+    return;
+}
+
 Size? terrainSize = null;
 bool fastGen = false;
 bool perfMode = false;
@@ -69,6 +103,17 @@ foreach (var arg in args)
     {
         enableAiTanks = false;
     }
+    else if (arg.StartsWith("--seed="))
+    {
+        if (int.TryParse(arg[7..], out int seedValue) && seedValue != 0)
+            GameLaunchOptions.Seed = seedValue;
+        else
+            Console.WriteLine($"[Args] Unknown seed '{arg[7..]}', expected a non-zero whole number. Using a new map.");
+    }
+    else
+    {
+        Console.WriteLine($"[Args] Unknown option '{arg}' ignored. Run with --help to list the options.");
+    }
 }
 
 DesktopDisplayOptions.DisplayIndex = displayIndex;
@@ -81,5 +126,15 @@ Tunnerer.Desktop.PerfCaptureOptions? perfOptions = perfMode
 var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, renderBackend, enableAiTanks,
     terrainTestMode: terrainTestMode);
 game.Run();
+
+// Enter after a match ends starts a new match. The renderer is not built to be created twice in one process,
+// so the new match runs in a fresh process with the same arguments (the old window has been closed by now).
+if (game.RestartRequested && Environment.ProcessPath is { } exePath)
+{
+    var start = new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = false };
+    foreach (var arg in args)
+        start.ArgumentList.Add(arg);
+    System.Diagnostics.Process.Start(start);
+}
 
 

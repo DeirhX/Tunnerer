@@ -23,4 +23,10 @@ public readonly record struct SimulationContext
 
     /// <summary>Plants a carried machine where it stands (it joins the link network). Null when building is unsupported.</summary>
     public Action<Machines.Machine, TankBase?>? PlantMachine { get; init; }
+
+    /// <summary>
+    /// Optional: whether a relay planted at a position would link to a powered network. When set, a tank refuses to
+    /// plant a relay that would not link, so the dirt it cost is not wasted.
+    /// </summary>
+    public Func<Types.Position, bool>? CanPlantRelayAt { get; init; }
 }

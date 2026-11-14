@@ -98,7 +98,7 @@ public class ProjectileList
                 onTank: tank =>
                 {
                     if (tank.Color == p.OwnerColor) return false;
-                    tank.Reactor.Exhaust(new ReactorState(0, Tweaks.Weapon.BulletDamage));
+                    tank.TakeDamage(Tweaks.Weapon.BulletDamage, DamageCause.EnemyFire, p.Speed);
                     return true;
                 },
                 onTerrain: pix => Pixel.IsAnyCollision(pix));

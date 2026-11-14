@@ -151,7 +151,9 @@ public sealed unsafe partial class Backend : IGameRenderBackend
     {
         string stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff");
         string cleanLabel = string.IsNullOrWhiteSpace(label) ? "frame" : SanitizeFilePart(label);
-        string dir = Path.Combine(AppContext.BaseDirectory, "screenshots");
+        string dir = Environment.GetEnvironmentVariable("TUNNERER_SCREENSHOT_DIR") is { Length: > 0 } custom
+            ? custom
+            : Path.Combine(AppContext.BaseDirectory, "screenshots");
         Directory.CreateDirectory(dir);
         _pendingScreenshotPath = Path.Combine(dir, $"{stamp}_{cleanLabel}.ppm");
         Console.WriteLine($"[Render] Queued final-frame screenshot capture: {_pendingScreenshotPath}");
