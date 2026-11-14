@@ -4,7 +4,7 @@ using System.Diagnostics;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 
-public partial class TerrainGrid : ITerrainPixelAccessor, ITerrainHeatSource, ITerrainChangeTracker
+public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
 {
     private readonly TerrainPixel[] _data;
     private readonly byte[] _scorchIntensity;
@@ -61,6 +61,7 @@ public partial class TerrainGrid : ITerrainPixelAccessor, ITerrainHeatSource, IT
     public void SetPixel(Position pos, TerrainPixel value)
     {
         int offset = pos.X + pos.Y * Width;
+        RecordMaterialChangeEnergy(offset, _data[offset], value);
         _data[offset] = value;
         if (value == TerrainPixel.Decal)
             _scorchIntensity[offset] = ScorchIntensityMax;
@@ -72,6 +73,24 @@ public partial class TerrainGrid : ITerrainPixelAccessor, ITerrainHeatSource, IT
     public byte GetScorchIntensity(int offset) => _scorchIntensity[offset];
 
     public void SetScorchIntensity(int offset, byte value) => _scorchIntensity[offset] = value;
+
+    /// <summary>
+    /// A cell that changes thermal material (dirt dug out to air, rock blasted, regrowth) keeps its
+    /// terrain-field temperature, but only non-air cells store energy there, so energy appears or disappears
+    /// with the change. The difference is recorded in <see cref="Ledger"/> so the balance stays auditable.
+    /// </summary>
+    private void RecordMaterialChangeEnergy(int offset, TerrainPixel oldPixel, TerrainPixel newPixel)
+    {
+        var oldMaterial = Pixel.GetThermalMaterial(oldPixel);
+        var newMaterial = Pixel.GetThermalMaterial(newPixel);
+        if (oldMaterial == newMaterial)
+            return;
+
+        // Only non-air cells store energy in the terrain field (an air cell's terrain field mirrors its air),
+        // so the terrain-field energy that appears or disappears is T * (new stored capacity - old stored capacity).
+        double stored(ThermalMaterial m) => m == ThermalMaterial.Air ? 0.0 : _heatEngine.GetHeatCapacity(m);
+        Ledger.RecordInjected(_heatTemperature[offset] * (stored(newMaterial) - stored(oldMaterial)));
+    }
 
     public void CommitPixel(Position pos) => _changeList.Add(pos);
 

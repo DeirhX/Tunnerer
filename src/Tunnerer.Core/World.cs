@@ -24,6 +24,8 @@ public class World
     private readonly CollisionSolver _collisionSolver;
     private readonly TerrainRegrowth _terrainRegrowth;
     private readonly bool _deterministicSimulation;
+    private readonly int _hotRockPocketCount;
+    private readonly List<Position> _hotRockPockets = new();
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
 
@@ -31,9 +33,25 @@ public class World
     private TimeSpan _elapsed;
     private bool _gameOver;
     private double _lastThermalEnergy;
+    private double _lastNetExternalEnergy;
 
     public TerrainGrid Terrain => _terrain;
     public TankBases TankBases => _tankBases;
+
+    /// <summary>
+    /// Total thermal energy of the whole simulation: the terrain and air fields, the heat stored in every tank
+    /// and the heat stored in every base reactor. Together with <see cref="TerrainGrid.Ledger"/> this closes the
+    /// energy balance.
+    /// </summary>
+    public double SumSystemThermalEnergy()
+    {
+        double total = _terrain.SumTotalThermalEnergy();
+        foreach (var tank in _tankList.Tanks)
+            total += tank.Heat * Tweaks.Tank.TankHeatCapacity;
+        foreach (var tankBase in _tankBases.Bases)
+            total += tankBase.ReactorHeatEnergy;
+        return total;
+    }
     public TankList TankList => _tankList;
     public ProjectileList Projectiles => _projectiles;
     public MachineList Machines => _machines;
@@ -46,14 +64,30 @@ public class World
 
     public SimulationProfile Profile { get; } = new();
 
+    /// <summary>Centres of the hot rock pockets placed at initialisation (empty unless the world was created with some).</summary>
+    public IReadOnlyList<Position> HotRockPockets => _hotRockPockets;
+
+    /// <summary>
+    /// Plants a carried machine where it stands: it becomes solid, joins the link network and belongs to
+    /// <paramref name="owner"/> (the base it delivers to).
+    /// </summary>
+    public void PlantMachine(Machine machine, TankBase? owner)
+    {
+        machine.State = MachineState.Planted;
+        machine.OwnerBase = owner;
+        machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
+    }
+
     public World(
         Size terrainSize,
         bool deterministicSimulation = false,
         int simulationSeed = 0,
         bool enableTerrainRegrowth = true,
+        int hotRockPocketCount = 0,
         SimulationSettings? simulationSettings = null)
     {
         _deterministicSimulation = deterministicSimulation;
+        _hotRockPocketCount = hotRockPocketCount;
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
@@ -76,6 +110,18 @@ public class World
             _tankBases.AddBase(spawns[i], i);
 
         _tankBases.CreateBasesInTerrain(_terrain);
+        foreach (var tankBase in _tankBases.Bases)
+            tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
+
+        if (_hotRockPocketCount > 0)
+        {
+            int pocketSeed = decorationSeed.HasValue ? decorationSeed.Value + 200 : Environment.TickCount;
+            _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, pocketSeed));
+
+            // Let the heat spread a little before play starts so the pockets do not begin as isolated hot dots.
+            for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
+                _terrain.CoolDown(Tweaks.World.ThermalArtificialCoolingPerFrame);
+        }
 
         for (int i = 0; i < spawns.Length; i++)
         {
@@ -110,15 +156,19 @@ public class World
         Profile.CooldownRegionCount += _terrain.LastCoolDownProfile.RegionCount;
         if (_terrain.LastCoolDownProfile.UsedSparse) Profile.CooldownSparseFrames++;
         if (_terrain.LastCoolDownProfile.UsedParallel) Profile.CooldownParallelFrames++;
-        double thermalEnergy = _terrain.SumTotalThermalEnergy();
+        // Energy balance: whatever the system gained since the last tick must equal what the ledger says came
+        // in from outside. A non-zero residual means energy was created or destroyed somewhere unmetered.
+        double thermalEnergy = SumSystemThermalEnergy();
+        double netExternal = _terrain.Ledger.NetExternal;
         Profile.ThermalEnergy += thermalEnergy;
         if (_advanceCount > 1)
         {
-            double drift = thermalEnergy - _lastThermalEnergy;
-            Profile.ThermalEnergyDriftSigned += drift;
-            Profile.ThermalEnergyDriftAbs += Math.Abs(drift);
+            double residual = (thermalEnergy - _lastThermalEnergy) - (netExternal - _lastNetExternalEnergy);
+            Profile.ThermalLedgerResidualSigned += residual;
+            Profile.ThermalLedgerResidualAbs += Math.Abs(residual);
         }
         _lastThermalEnergy = thermalEnergy;
+        _lastNetExternalEnergy = netExternal;
 
         ProfileSection(ref Profile.Regrow, () => _terrainRegrowth.Advance(_terrain, _advanceCount));
         ProfileSection(ref Profile.Projectiles, () => _projectiles.Advance(_collisionSolver));
@@ -129,6 +179,8 @@ public class World
             Projectiles = _projectiles,
             CheckBaseCollision = _tankBases.CheckBaseCollision,
             Settings = _simulationSettings,
+            Machines = _machines,
+            PlantMachine = PlantMachine,
         };
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         ProfileSection(ref Profile.Harvesters, () => _machines.Advance(_terrain, _simulationSettings.AdvanceStep));
@@ -171,8 +223,8 @@ public class SimulationProfile
     public int CooldownSparseFrames;
     public int CooldownParallelFrames;
     public double ThermalEnergy;
-    public double ThermalEnergyDriftSigned;
-    public double ThermalEnergyDriftAbs;
+    public double ThermalLedgerResidualSigned;
+    public double ThermalLedgerResidualAbs;
     public TimeSpan Regrow;
     public TimeSpan Projectiles;
     public TimeSpan Tanks;
@@ -200,8 +252,8 @@ public class SimulationProfile
             $"coolMark={Avg(CooldownMark):F3} coolCopy={Avg(CooldownWriteBack):F3} ms");
         ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
             $"sparseFrames={CooldownSparseFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
-        ReportSink($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} driftSigned={AvgValue(ThermalEnergyDriftSigned):F5} " +
-            $"driftAbs={AvgValue(ThermalEnergyDriftAbs):F5}");
+        ReportSink($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} ledgerResidualSigned={AvgValue(ThermalLedgerResidualSigned):F5} " +
+            $"ledgerResidualAbs={AvgValue(ThermalLedgerResidualAbs):F5}");
         Reset();
     }
 
@@ -218,8 +270,8 @@ public class SimulationProfile
         CooldownSparseFrames = 0;
         CooldownParallelFrames = 0;
         ThermalEnergy = 0;
-        ThermalEnergyDriftSigned = 0;
-        ThermalEnergyDriftAbs = 0;
+        ThermalLedgerResidualSigned = 0;
+        ThermalLedgerResidualAbs = 0;
         FrameCount = 0;
     }
 }

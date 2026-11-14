@@ -17,6 +17,7 @@ public enum TerrainPixel : byte
     BaseMax = (byte)'7',
     BaseBarrier = (byte)'8',
     BaseCore = (byte)'9',
+    HotRock = (byte)'h',
     Concrete = (byte)'C',
     Gold = (byte)'E',
 }
@@ -28,6 +29,7 @@ public enum ThermalMaterial : byte
     Stone = 2,
     Base = 3,
     ConstantEnergy = 4,
+    HotRock = 5,
 }
 
 /// <summary>
@@ -55,6 +57,7 @@ public readonly record struct TerrainBehavior(
 public static class Pixel
 {
     private static readonly TerrainBehavior[] _behaviors = BuildBehaviorTable();
+    private static readonly ThermalMaterial[] _thermalMaterials = BuildThermalMaterialTable();
 
     private static readonly Color MagentaFallback = new(0xff, 0x00, 0xff);
 
@@ -96,6 +99,10 @@ public static class Pixel
             BlocksMovement: false, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x50, 0x54, 0x5C)));
+        Set(TerrainPixel.HotRock, new(
+            BlocksMovement: true, SoftCollision: false, Diggable: false,
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0xd0, 0x40, 0x10)));
         Set(TerrainPixel.BaseCore, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
@@ -127,15 +134,31 @@ public static class Pixel
     public static bool IsGold(TerrainPixel p) => _behaviors[(int)p].Gold;
     public static bool IsEmpty(TerrainPixel p) => p == TerrainPixel.Blank;
 
-    public static ThermalMaterial GetThermalMaterial(TerrainPixel p) => p switch
+    /// <summary>Hot path of the thermal solver: a plain array lookup instead of re-deriving the material.</summary>
+    public static ThermalMaterial GetThermalMaterial(TerrainPixel p) => _thermalMaterials[(int)p];
+
+    private static ThermalMaterial[] BuildThermalMaterialTable()
     {
-        TerrainPixel.BaseCore or TerrainPixel.Gold => ThermalMaterial.ConstantEnergy,
-        TerrainPixel.BaseBarrier => ThermalMaterial.Base,
-        _ when _behaviors[(int)p].Base => ThermalMaterial.Base,
-        _ when _behaviors[(int)p].SoftCollision => ThermalMaterial.Dirt,
-        _ when _behaviors[(int)p].BlocksMovement => ThermalMaterial.Stone,
-        _ => ThermalMaterial.Air,
-    };
+        var table = new ThermalMaterial[256];
+        for (int i = 0; i < table.Length; i++)
+            table[i] = DeriveThermalMaterial((TerrainPixel)i);
+        return table;
+    }
+
+    private static ThermalMaterial DeriveThermalMaterial(TerrainPixel p)
+    {
+        var b = _behaviors[(int)p];
+        return p switch
+        {
+            TerrainPixel.HotRock => ThermalMaterial.HotRock,
+            TerrainPixel.BaseCore or TerrainPixel.Gold => ThermalMaterial.ConstantEnergy,
+            TerrainPixel.BaseBarrier => ThermalMaterial.Base,
+            _ when b.Base => ThermalMaterial.Base,
+            _ when b.SoftCollision => ThermalMaterial.Dirt,
+            _ when b.BlocksMovement => ThermalMaterial.Stone,
+            _ => ThermalMaterial.Air,
+        };
+    }
 
     public static Color GetColor(TerrainPixel p)
     {

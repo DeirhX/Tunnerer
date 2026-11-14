@@ -20,6 +20,8 @@ internal static class TankHeatTestHelpers
         Projectiles = world.Projectiles,
         CheckBaseCollision = world.TankBases.CheckBaseCollision,
         Settings = world.Settings,
+        Machines = world.Machines,
+        PlantMachine = world.PlantMachine,
     };
 
     internal static (World world, Tank tank) CreateWorldWithPrimaryTank()
@@ -151,16 +153,7 @@ internal static class TankHeatTestHelpers
         SetTankHeat(tank, initialHeat);
     }
 
-    internal static double SumSystemThermalEnergy(World world)
-    {
-        double total = 0.0;
-        total += world.Terrain.SumTotalThermalEnergy();
-        foreach (var tank in world.TankList.Tanks)
-            total += tank.Heat * Tweaks.Tank.TankHeatCapacity;
-        foreach (var tankBase in world.TankBases.Bases)
-            total += (int)tankBase.Reactor.Heat * Tweaks.World.ThermalCapacityBase;
-        return total;
-    }
+    internal static double SumSystemThermalEnergy(World world) => world.SumSystemThermalEnergy();
 
     internal static void AdvanceUntil(World world, int maxFrames, Func<bool> done, TestVisualTrace? visual = null, string phase = "advance")
     {

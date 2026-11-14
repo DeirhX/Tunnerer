@@ -57,6 +57,11 @@ public partial class TerrainGrid
 
     public CoolDownProfile LastCoolDownProfile { get; private set; }
 
+    /// <summary>
+    /// Energy that entered or left the thermal system from outside. See <see cref="ThermalLedger"/>.
+    /// </summary>
+    public ThermalLedger Ledger { get; } = new();
+
     public float GetHeatTemperature(int offset)
         => (uint)offset < (uint)_heatTemperature.Length ? _heatTemperature[offset] : 0f;
 
@@ -88,8 +93,9 @@ public partial class TerrainGrid
         int offset = pos.X + pos.Y * Width;
         Debug.Assert((uint)offset < (uint)_heatTemperature.Length, "Validated position must map to a valid offset.");
         float old = _heatTemperature[offset];
-        _heatEngine.AddEnergyAt(_heatTemperature, offset, amount);
+        AddToTerrainField(offset, amount);
         float next = _heatTemperature[offset];
+        Ledger.RecordInjected((double)amount * TerrainCapacityAt(offset));
         if (ShouldMarkHeatDirty(old, next))
             MarkHeatDirty(pos.X, pos.Y);
         if (amount != 0)
@@ -120,8 +126,9 @@ public partial class TerrainGrid
             if (scaled == 0) return;
             int offset = nx + ny * Width;
             float old = _heatTemperature[offset];
-            _heatEngine.AddEnergyAt(_heatTemperature, offset, scaled);
+            AddToTerrainField(offset, scaled);
             float next = _heatTemperature[offset];
+            Ledger.RecordInjected((double)scaled * TerrainCapacityAt(offset));
             if (ShouldMarkHeatDirty(old, next))
                 MarkHeatDirty(nx, ny);
             ActivateTileByCell(nx, ny);
@@ -204,7 +211,7 @@ public partial class TerrainGrid
         if (fallbackToFull)
         {
             t0 = Stopwatch.GetTimestamp();
-            _heatEngine.StepConservative(_heatTemperature, _airTemperature, _data, w, h);
+            _heatEngine.StepConservative(_heatTemperature, _airTemperature, _data, w, h, Ledger);
             simulate = Stopwatch.GetElapsedTime(t0);
             t0 = Stopwatch.GetTimestamp();
             ClearNextActiveTiles();
@@ -249,11 +256,21 @@ public partial class TerrainGrid
             ClearNextActiveTiles();
             for (int i = 0; i < len; i++)
             {
+                // Artificial cooling is a dirt-only gameplay sink: stone, base and hot rock keep their energy, and the
+                // ledger meters the sunk energy with the dirt capacity.
+                if (Pixel.GetThermalMaterial(_data[i]) != ThermalMaterial.Dirt)
+                {
+                    if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
+                        ActivateNextTileByCell(i % w, i / w);
+                    continue;
+                }
+
                 float old = _heatTemperature[i];
                 float next = MathF.Max(0f, old - artificialCoolingPerFrame);
                 if (next != old)
                 {
                     _heatTemperature[i] = next;
+                    Ledger.RecordSunkArtificialCooling((double)(old - next) * _heatEngine.GetHeatCapacity(ThermalMaterial.Dirt));
                     float deltaTerrain = MathF.Abs(next - old);
                     if (deltaTerrain > maxAbsDelta)
                         maxAbsDelta = deltaTerrain;
@@ -315,8 +332,10 @@ public partial class TerrainGrid
     }
 
     /// <summary>
-    /// Applies an exact integer total heat delta across the same square area used by
-    /// <see cref="SampleAverageHeat"/>. Returns the actually applied integer total.
+    /// Applies an exact integer total <b>temperature</b> delta (not energy) across the same square area used by
+    /// <see cref="SampleAverageHeat"/>. Returns the actually applied integer total. The resulting energy is
+    /// recorded as external injection in <see cref="Ledger"/>; entity code that exchanges heat with the
+    /// grid should use <see cref="AddEnergyInRadiusArea"/> / <see cref="ExtractEnergyInRadiusArea"/> instead.
     /// </summary>
     public int AddHeatTotalInRadiusArea(Position center, int radius, int totalAmount)
     {
@@ -345,13 +364,14 @@ public partial class TerrainGrid
 
             int offset = nx + ny * Width;
             float old = _heatTemperature[offset];
-            _heatEngine.AddEnergyAt(_heatTemperature, offset, delta);
+            AddToTerrainField(offset, delta);
             float next = _heatTemperature[offset];
+            Ledger.RecordInjected((double)delta * TerrainCapacityAt(offset));
             if (ShouldMarkHeatDirty(old, next))
                 MarkHeatDirty(nx, ny);
             ActivateTileByCell(nx, ny);
             RequestThermalWake();
-            applied += (int)MathF.Round(next - old);
+            applied += delta;
         });
 
         return applied;
@@ -386,6 +406,8 @@ public partial class TerrainGrid
             float old = _airTemperature[offset];
             _heatEngine.AddEnergyAt(_airTemperature, offset, delta);
             float next = _airTemperature[offset];
+            Ledger.RecordInjected((double)(next - old) * _simulationSettings.ThermalCapacityAir);
+            MirrorAirIntoTerrainFieldIfAirCell(nx, ny, offset, next);
             if (IsThermallyActive(_heatTemperature[offset], next))
                 ActivateTileByCell(nx, ny);
             RequestThermalWake();
@@ -393,6 +415,173 @@ public partial class TerrainGrid
         });
 
         return applied;
+    }
+
+    /// <summary>The two temperature fields of the grid.</summary>
+    public enum ThermalField { Terrain, Air }
+
+    private float TerrainCapacityAt(int offset)
+        => _heatEngine.GetHeatCapacity(Pixel.GetThermalMaterial(_data[offset]));
+
+    private float[] FieldArray(ThermalField field)
+        => field == ThermalField.Terrain ? _heatTemperature : _airTemperature;
+
+    private float FieldCapacityAt(ThermalField field, int offset)
+        => field == ThermalField.Terrain ? TerrainCapacityAt(offset) : _simulationSettings.ThermalCapacityAir;
+
+    private bool IsAirCell(int offset)
+        => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.Air;
+
+    /// <summary>
+    /// Sinks and relays only take heat that is stored in the cells. Hot rock is a source: it is pinned hot and refills
+    /// itself (and the air in it) from nothing, so drawing from it would be an unlimited supply that cools the source
+    /// instead of the tunnel. Everything else, including the air and pinned cells of a base, can be drawn from.
+    /// </summary>
+    private bool CannotExtractFrom(int offset, ThermalField field)
+        => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.HotRock;
+
+    /// <summary>
+    /// Adds a temperature delta to the terrain field of a cell. In an air cell the terrain field is only a
+    /// mirror of the air field and holds no energy of its own, so the delta lands in the air field (where the
+    /// energy lives) and the mirror follows. Without this the heat would be erased on the next solver step.
+    /// </summary>
+    private void AddToTerrainField(int offset, float deltaTemperature)
+    {
+        if (IsAirCell(offset))
+        {
+            float next = _airTemperature[offset] + deltaTemperature;
+            _airTemperature[offset] = next;
+            _heatTemperature[offset] = next;
+        }
+        else
+        {
+            _heatTemperature[offset] += deltaTemperature;
+        }
+    }
+
+    /// <summary>Keeps the terrain-field mirror of an air cell equal to its air temperature.</summary>
+    private void MirrorAirIntoTerrainFieldIfAirCell(int nx, int ny, int offset, float airTemperature)
+    {
+        if (!IsAirCell(offset))
+            return;
+        float oldMirror = _heatTemperature[offset];
+        _heatTemperature[offset] = airTemperature;
+        if (ShouldMarkHeatDirty(oldMirror, airTemperature))
+            MarkHeatDirty(nx, ny);
+    }
+
+    private void ApplyFieldDelta(int nx, int ny, ThermalField field, float deltaTemperature)
+    {
+        int offset = nx + ny * Width;
+        if (field == ThermalField.Terrain && !IsAirCell(offset))
+        {
+            float old = _heatTemperature[offset];
+            float next = old + deltaTemperature;
+            _heatTemperature[offset] = next;
+            if (ShouldMarkHeatDirty(old, next))
+                MarkHeatDirty(nx, ny);
+            ActivateTileByCell(nx, ny);
+        }
+        else
+        {
+            // Air field, or the (mirrored) terrain field of an air cell: both are the same stored energy.
+            float next = _airTemperature[offset] + deltaTemperature;
+            _airTemperature[offset] = next;
+            MirrorAirIntoTerrainFieldIfAirCell(nx, ny, offset, next);
+            if (IsThermallyActive(_heatTemperature[offset], next))
+                ActivateTileByCell(nx, ny);
+        }
+    }
+
+    /// <summary>Sum of heat capacities of every cell in the square area, for the given field.</summary>
+    public double SumHeatCapacityInRadiusArea(Position center, int radius, ThermalField field)
+    {
+        double sum = 0.0;
+        ForEachInRadius(center, radius, (nx, ny, _, _) => sum += FieldCapacityAt(field, nx + ny * Width));
+        return sum;
+    }
+
+    /// <summary>
+    /// Adds <paramref name="energy"/> to the square area as one uniform temperature rise
+    /// (<c>energy / sum(capacity)</c>), so exactly that much energy enters the grid. This is a transfer from
+    /// an entity that has already been debited; it does not touch the <see cref="Ledger"/>.
+    /// A negative <paramref name="energy"/> removes energy and can drive temperatures below ambient;
+    /// use <see cref="ExtractEnergyInRadiusArea"/> for a sink that may only take existing heat.
+    /// Returns the energy applied (0 if the area has no cells).
+    /// </summary>
+    public double AddEnergyInRadiusArea(Position center, int radius, double energy, ThermalField field)
+    {
+        if (energy == 0.0)
+            return 0.0;
+        double capacity = SumHeatCapacityInRadiusArea(center, radius, field);
+        if (capacity <= 0.0)
+            return 0.0;
+
+        float deltaTemperature = (float)(energy / capacity);
+        ForEachInRadius(center, radius, (nx, ny, _, _) => ApplyFieldDelta(nx, ny, field, deltaTemperature));
+        RequestThermalWake();
+        return energy;
+    }
+
+    /// <summary>
+    /// Removes up to <paramref name="maxEnergy"/> from cells that are warmer than ambient, in proportion to
+    /// the heat each cell holds above ambient. Cells never drop below ambient, so a sink cannot conjure
+    /// energy out of a cold area. Returns the energy actually removed; the caller decides where it goes
+    /// (a reactor, or <see cref="Ledger"/> if it is destroyed).
+    /// </summary>
+    public double ExtractEnergyInRadiusArea(Position center, int radius, double maxEnergy, ThermalField field)
+    {
+        if (maxEnergy <= 0.0)
+            return 0.0;
+
+        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        float[] temperatures = FieldArray(field);
+        double available = 0.0;
+        ForEachInRadius(center, radius, (nx, ny, _, _) =>
+        {
+            int offset = nx + ny * Width;
+            if (CannotExtractFrom(offset, field))
+                return; // a heat source or sink, not storage: nothing to take
+            float excess = temperatures[offset] - ambient;
+            if (excess > 0f)
+                available += excess * FieldCapacityAt(field, offset);
+        });
+        if (available <= 0.0)
+            return 0.0;
+
+        double take = Math.Min(maxEnergy, available);
+        float fraction = (float)(take / available);
+        ForEachInRadius(center, radius, (nx, ny, _, _) =>
+        {
+            int offset = nx + ny * Width;
+            if (CannotExtractFrom(offset, field))
+                return;
+            float excess = temperatures[offset] - ambient;
+            if (excess > 0f)
+                ApplyFieldDelta(nx, ny, field, -excess * fraction);
+        });
+        RequestThermalWake();
+        return take;
+    }
+
+    /// <summary>
+    /// Forces one cell back to ambient and records the removed energy as a base sink in <see cref="Ledger"/>.
+    /// Returns the removed energy (negative if the cell was below ambient).
+    /// </summary>
+    public double SinkCellToAmbient(Position pos, ThermalField field)
+    {
+        if ((uint)pos.X >= (uint)Width || (uint)pos.Y >= (uint)Height)
+            return 0.0;
+        int offset = pos.X + pos.Y * Width;
+        float[] temperatures = FieldArray(field);
+        float excess = temperatures[offset] - Tweaks.World.ThermalAmbientTemperature;
+        if (excess == 0f)
+            return 0.0;
+
+        ApplyFieldDelta(pos.X, pos.Y, field, -excess);
+        double energy = (double)excess * FieldCapacityAt(field, offset);
+        Ledger.RecordSunkBase(energy);
+        return energy;
     }
 
     public double SumTotalThermalEnergy()

@@ -212,20 +212,37 @@ public class TankMovementTests
         var (world, _) = CreateControlledWorld();
         var tank = world.TankList.Tanks[0];
 
-        // Teleport tank into the corridor (well below the base region).
-        tank.Position = new Position(50, 90);
+        // The base placed at the spawn is 35x35 and covers the whole corridor from
+        // CreateControlledWorld, so build a dirt block with a corridor clear of it
+        // (base spans x=33..67) and put the tank at the top of that corridor.
+        var terrain = world.Terrain;
+        for (int y = 40; y < 90; y++)
+            for (int x = 75; x < 98; x++)
+                terrain.SetPixel(new Position(x, y), TerrainPixel.Dirt);
+        for (int y = 40; y < 90; y++)
+            for (int x = 83; x <= 87; x++)
+                terrain.SetPixel(new Position(x, y), TerrainPixel.Blank);
+        tank.Position = new Position(85, 45);
+
+        // Move tank down into the corridor
+        var moveDown = TestSimulation.Move(0, 1);
+        for (int i = 0; i < 5; i++)
+            world.Advance(_ => moveDown);
+        var posInCorridor = tank.Position;
 
         // Move right into the corridor dirt wall (x >= 53).
         var moveRight = TestSimulation.Move(1, 0);
         for (int i = 0; i < 5; i++)
             world.Advance(_ => moveRight);
 
-        var posAfterDig = tank.Position;
-
+        // The tank should have dug into the wall and potentially moved
+        // At minimum it should have cleared some dirt to the right
+        // Only look at the dirt wall beyond the corridor (x >= 88); the corridor floor
+        // itself (x=83..87) is blank from the start and would make this check trivial.
         bool anyBlanked = false;
-        for (int dx = 1; dx <= 7; dx++)
+        for (int x = 88; x <= 95; x++)
         {
-            var checkPos = new Position(50 + dx, 90);
+            var checkPos = new Position(x, posInCorridor.Y);
             if (world.Terrain.IsInside(checkPos) &&
                 world.Terrain.GetPixelRaw(checkPos) == TerrainPixel.Blank)
             { anyBlanked = true; break; }

@@ -27,13 +27,11 @@ public class StatusBar
         int midY = (h - 1) / 2;
         int midH = (h % 2 != 0) ? 1 : 2;
 
-        int heatFilled = 0;
-        if (_tank.Reactor.HeatCapacity > 0)
-        {
-            int clampedHeat = Math.Clamp(_tank.Reactor.Heat, 0, _tank.Reactor.HeatCapacity);
-            int remainingHeatBudget = _tank.Reactor.HeatCapacity - clampedHeat;
-            heatFilled = remainingHeatBudget * (w - Border * 2) / _tank.Reactor.HeatCapacity;
-        }
+        // The bar shows the remaining heat budget: full when the tank carries a full coolant charge, shorter as
+        // heat builds up, empty at the overheating threshold.
+        float budgetCapacity = Tank.HeatBudgetCapacity;
+        float remainingHeatBudget = Math.Clamp(_tank.HeatBudget, 0f, budgetCapacity);
+        int heatFilled = (int)(remainingHeatBudget * (w - Border * 2) / budgetCapacity);
         int healthFilled = _tank.Reactor.HealthCapacity > 0
             ? _tank.Reactor.Health * (w - Border * 2) / _tank.Reactor.HealthCapacity
             : 0;

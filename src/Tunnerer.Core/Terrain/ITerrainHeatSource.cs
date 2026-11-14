@@ -24,6 +24,13 @@ public interface ITerrainHeatSource
     int AddAirHeatTotalInRadiusArea(Position center, int radius, int totalAmount);
     double SumTotalThermalEnergy();
 
+    // --- Energy-exact exchange (every unit moved is metered in the ledger) ---
+    Thermal.ThermalLedger Ledger { get; }
+    double SumHeatCapacityInRadiusArea(Position center, int radius, TerrainGrid.ThermalField field);
+    double AddEnergyInRadiusArea(Position center, int radius, double energy, TerrainGrid.ThermalField field);
+    double ExtractEnergyInRadiusArea(Position center, int radius, double maxEnergy, TerrainGrid.ThermalField field);
+    double SinkCellToAmbient(Position pos, TerrainGrid.ThermalField field);
+
     bool TryGetHeatDirtyRect(out Rect dirtyRect);
     void ClearHeatDirtyRect();
 }

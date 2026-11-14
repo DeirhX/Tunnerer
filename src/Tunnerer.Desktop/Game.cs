@@ -107,10 +107,14 @@ public partial class Game : IDisposable
             _world = new World(
                 _terrainSize,
                 deterministicSimulation: deterministicSimulation,
-                simulationSeed: deterministicSimulation ? DefaultSeed : 0);
+                simulationSeed: deterministicSimulation ? DefaultSeed : 0,
+                hotRockPocketCount: Tweaks.World.HotRockPocketCount);
             _world.Profile.ReportSink = static line => Console.WriteLine(line);
             int? decorationSeed = deterministicSimulation ? DefaultSeed + 1 : null;
             _world.Initialize(terrain, spawns, decorationSeed: decorationSeed, parallelMaterialize: parallel);
+            if (_world.HotRockPockets.Count > 0)
+                Console.WriteLine($"[HotRock] {_world.HotRockPockets.Count} pocket(s) at " +
+                    string.Join(", ", _world.HotRockPockets.Select(p => $"({p.X},{p.Y})")));
         }
 
         _p2AI = new BotTankAI(seed: deterministicSimulation ? DefaultSeed + 2 : null);
@@ -126,7 +130,8 @@ public partial class Game : IDisposable
         _p1Controller = new KeyboardController(_renderer.Sdl, new KeyBindings(
             Left: Scancode.ScancodeA, Right: Scancode.ScancodeD,
             Up: Scancode.ScancodeW, Down: Scancode.ScancodeS,
-            Shoot: Scancode.ScancodeSpace));
+            Shoot: Scancode.ScancodeSpace,
+            Build: Scancode.ScancodeE));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         if (!terrainTestMode)
         {

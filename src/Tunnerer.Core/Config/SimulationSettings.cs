@@ -67,12 +67,13 @@ public readonly record struct SimulationSettings
     // --- Fixed temperature materials ---
     public float ThermalFixedBaseTemperature { get; init; }
     public float ThermalFixedConstantEnergyTemperature { get; init; }
+    public float ThermalFixedHotRockTemperature { get; init; }
 
     // --- Tank heat model ---
     public float TankHeatDigPerPixel { get; init; }
     public float TankHeatShootPerShot { get; init; }
     public float TankHeatCapacity { get; init; }
-    public float TerrainHeatCapacity { get; init; }
+    public float TankCoolantCapacity { get; init; }
     public float TankTerrainConductance { get; init; }
     public float TankAmbientConductance { get; init; }
     public float TankHeatSafeMax { get; init; }
@@ -151,10 +152,11 @@ public readonly record struct SimulationSettings
         ThermalKAmbientConstantEnergy = Tweaks.World.ThermalKAmbientConstantEnergy,
         ThermalFixedBaseTemperature = Tweaks.World.ThermalFixedBaseTemperature,
         ThermalFixedConstantEnergyTemperature = Tweaks.World.ThermalFixedConstantEnergyTemperature,
+        ThermalFixedHotRockTemperature = Tweaks.World.ThermalFixedHotRockTemperature,
         TankHeatDigPerPixel = Tweaks.Tank.HeatDigPerPixel,
         TankHeatShootPerShot = Tweaks.Tank.HeatShootPerShot,
         TankHeatCapacity = Tweaks.Tank.TankHeatCapacity,
-        TerrainHeatCapacity = Tweaks.Tank.TerrainHeatCapacity,
+        TankCoolantCapacity = Tweaks.Tank.CoolantCapacity,
         TankTerrainConductance = Tweaks.Tank.TankTerrainConductance,
         TankAmbientConductance = Tweaks.Tank.TankAmbientConductance,
         TankHeatSafeMax = Tweaks.Tank.HeatSafeMax,

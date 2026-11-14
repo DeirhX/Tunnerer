@@ -91,8 +91,8 @@ public sealed class TerrainRegrowth
 
             foreach (var (offset, value) in writes)
             {
-                terrain.SetPixelRaw(offset, value);
-                terrain.CommitPixel(new Position(offset % w, offset / w));
+                // SetPixel (not SetPixelRaw): a material change moves energy, which the thermal ledger must see.
+                terrain.SetPixel(new Position(offset % w, offset / w), value);
             }
             return;
         }
@@ -149,8 +149,8 @@ public sealed class TerrainRegrowth
         {
             foreach (var (offset, value) in writes)
             {
-                terrain.SetPixelRaw(offset, value);
-                terrain.CommitPixel(new Position(offset % w, offset / w));
+                // SetPixel (not SetPixelRaw): a material change moves energy, which the thermal ledger must see.
+                terrain.SetPixel(new Position(offset % w, offset / w), value);
             }
         }
 

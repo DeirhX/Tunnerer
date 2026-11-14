@@ -144,6 +144,16 @@ public static class Tweaks
 
         public const float ThermalFixedBaseTemperature = 0f;
         public const float ThermalFixedConstantEnergyTemperature = 0f;
+
+        // Hot rock pockets: indestructible rock pinned at a fixed high temperature. They are permanent heat sources
+        // that push heat into any tunnel they touch. Pocket placement is opt-in per world (World ctor).
+        public const float ThermalFixedHotRockTemperature = 100f;
+        public const int HotRockPocketCount = 4;
+        public const int HotRockMinRadius = 3;
+        public const int HotRockMaxRadius = 5;
+        public const int HotRockMinDistanceFromBase = 60;
+        public const int HotRockMinDistanceBetween = 50;
+        public const int HotRockPrewarmTicks = 240;
         public const float ThermalKAmbientAir = 0.0120f;
         public const float ThermalKAmbientDirt = 0.0120f;
         public const float ThermalKAmbientStone = 0.0100f;
@@ -155,7 +165,7 @@ public static class Tweaks
         public const int ThermalMaxWorkers = 0; // 0 => default scheduler/CPU count
         public const float ThermalActiveTemperatureThreshold = 2.5f;
         public const float ThermalArtificialCoolingPerFrame = 0.02f;
-        public const float ThermalMaxDeltaSleepThreshold = 0.05f;
+        public const float ThermalMaxDeltaSleepThreshold = 0.005f;
         public const int ThermalNoActiveSleepFrames = 120;
         public const float ThermalSaturationCoverageThreshold = 0.90f;
         public const int ThermalSaturationFramesBeforeThrottle = 90;
@@ -175,6 +185,12 @@ public static class Tweaks
         public const int MaterialMineralsCapacity = 20000;
         public const int HeatCooldown = 2;
         public const int HealthRegen = 10;
+        // Energy stored by one unit of base reactor heat. One bullet impact injects ~10^4 energy into the grid,
+        // so the reactor (HeatCapacity units) is a reservoir worth a few hotspots, and HeatCooldown units per tick
+        // is the radiator that vents it out of the system (the base's finite sink rate).
+        public const float ReactorEnergyPerHeatUnit = 500f;
+        // Per-tick energy caps for the base's area cooling (the "HeatTotal"/"AirTotal" names are legacy:
+        // these are energy, pulled only from cells that are warmer than ambient).
         public const int AreaCoolingInnerHeatTotal = 6;
         public const int AreaCoolingMidHeatTotal = 3;
         public const int AreaCoolingOuterHeatTotal = 1;
@@ -219,7 +235,12 @@ public static class Tweaks
         public const int TorchRockHeatRadius = 3;
         public const float HeatAmbientOutsideBase = 0f;
         public const float TankHeatCapacity = 20f;
-        public const float TerrainHeatCapacity = 80f;
+        // Pre-cooling: a tank docked at its own base is refrigerated below ambient, down to -CoolantCapacity heat,
+        // at DockCoolingPerTick heat units per tick. The tank can then absorb CoolantCapacity more heat than
+        // HeatSafeMax before it overheats. The removed energy goes into the base reservoir (so a full reservoir
+        // blocks pre-cooling).
+        public const float CoolantCapacity = 50f;
+        public const float DockCoolingPerTick = 1.0f;
         public const float TankTerrainConductance = 2.0f;
         public const float TankAmbientConductance = 0.2f;
         public const float TankBaseConductance = 0.4f;
@@ -245,6 +266,12 @@ public static class Tweaks
         public const int HarvesterDirtCost = 1000;
         public const int ChargerDirtCost = 500;
         public const int BoundingBoxHalfSize = 2;
+
+        // Relay: a heat pipe. Planted within line of sight of a powered link network it pulls heat out of the
+        // surrounding square (half-width RelayCoolingRadius) and pumps it into its owner's base reactor.
+        public const int RelayDirtCost = 150;
+        public const int RelayCoolingRadius = 12;
+        public const float RelayHeatPumpPerTick = 300f;
     }
 
     public static class Explosion
@@ -277,6 +304,8 @@ public static class Tweaks
         public static readonly Color DirtProjectile = new(0xaa, 0x50, 0x03);
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
         public static readonly Color Charger = new(0x4f, 0x4f, 0xff, 0xa0);
+        public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
+        public static readonly Color RelayIdle = new(0x40, 0x68, 0x70);
         public static readonly Color MachineTemplate = new(0x66, 0x66, 0x66, 0x80);
         public static readonly Color FailedInteraction = new(0xff, 0x34, 0x08);
         public static readonly Color InfoMarker = new(0xff, 0xff, 0x4a);

@@ -11,6 +11,9 @@ int perfMeasureFrames = 900;
 string? perfCsvPath = null;
 RenderBackendKind? renderBackend = null;
 bool enableAiTanks = true;
+int? displayIndex = DesktopDisplayOptions.Parse(Environment.GetEnvironmentVariable("TUNNERER_DISPLAY"));
+Size? windowedSize = DesktopDisplayOptions.ParseWindowed(Environment.GetEnvironmentVariable("TUNNERER_WINDOWED"));
+bool hiddenWindow = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_HIDDEN"));
 foreach (var arg in args)
 {
     if (arg == "--large")
@@ -41,12 +44,36 @@ foreach (var arg in args)
         else
             Console.WriteLine($"[Args] Unknown backend '{backendRaw}', expected dx11. Using default.");
     }
+    else if (arg == "--windowed" || arg.StartsWith("--windowed="))
+    {
+        string value = arg.Length > "--windowed".Length ? arg["--windowed=".Length..] : string.Empty;
+        var parsed = DesktopDisplayOptions.ParseWindowed(value, flagPresent: true);
+        if (parsed is null)
+            Console.WriteLine($"[Args] Unknown window size '{value}', expected WxH (at least 320x200). Using fullscreen.");
+        else
+            windowedSize = parsed;
+    }
+    else if (arg == "--hidden")
+    {
+        hiddenWindow = true;
+    }
+    else if (arg.StartsWith("--display="))
+    {
+        var parsed = DesktopDisplayOptions.Parse(arg[10..]);
+        if (parsed is null)
+            Console.WriteLine($"[Args] Unknown display '{arg[10..]}', expected a number or 'secondary'. Using the default.");
+        else
+            displayIndex = parsed;
+    }
     else if (arg == "--no-ai" || arg == "--disable-ai")
     {
         enableAiTanks = false;
     }
 }
 
+DesktopDisplayOptions.DisplayIndex = displayIndex;
+DesktopDisplayOptions.WindowedSize = windowedSize;
+DesktopDisplayOptions.Hidden = hiddenWindow;
 var mode = fastGen ? LevelGenMode.Optimized : LevelGenMode.Deterministic;
 Tunnerer.Desktop.PerfCaptureOptions? perfOptions = perfMode
     ? new Tunnerer.Desktop.PerfCaptureOptions(perfWarmupFrames, perfMeasureFrames, perfCsvPath)

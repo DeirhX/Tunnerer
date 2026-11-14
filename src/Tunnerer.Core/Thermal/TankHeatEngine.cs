@@ -4,8 +4,34 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 
 /// <summary>
-/// Computes a full tank heat step against terrain + ambient.
+/// Result of one tank heat step. Energies are expressed in the grid's units
+/// (<c>temperature * heat capacity</c>); a tank's own energy is <c>Heat * Tweaks.Tank.TankHeatCapacity</c>.
+/// </summary>
+/// <param name="NextHeat">Tank heat after the step, not yet clamped to the physical floor.</param>
+/// <param name="EnergyToTerrain">Energy the tank hands to the terrain field of its footprint (negative: it takes energy).</param>
+/// <param name="EnergyToAir">Energy the tank hands to the air field of its footprint (negative: it takes energy).</param>
+/// <param name="ActionHeat">Heat created by digging/shooting this frame, in tank heat units. This is an external source.</param>
+/// <param name="OverheatDamage">Reactor damage caused by the resulting temperature.</param>
+public readonly record struct TankHeatStep(
+    float NextHeat,
+    double EnergyToTerrain,
+    double EnergyToAir,
+    float ActionHeat,
+    int OverheatDamage);
+
+/// <summary>
+/// Computes a full tank heat step against terrain + air.
 /// Extracted from Tank to make thermal behavior testable with real-world wiring.
+/// <para>
+/// The engine never invents or loses energy on its own: whatever the tank gains from a field is returned as a
+/// negative energy for that field, so the caller can move exactly that amount in or out of the grid.
+/// Only <see cref="TankHeatStep.ActionHeat"/> is created from nothing.
+/// </para>
+/// <para>
+/// Heat below ambient is the tank's coolant charge. Flows are driven by the heat <i>above</i> ambient only (both the
+/// tank's and the surroundings'), so ambient air neither warms a cold tank nor is chilled by it: the charge is
+/// spent only by absorbing real heat, and refrigeration happens at the base.
+/// </para>
 /// </summary>
 public sealed class TankHeatEngine
 {
@@ -21,52 +47,39 @@ public sealed class TankHeatEngine
         _settings = settings;
     }
 
-    public float Advance(
+    /// <param name="terrainCapacity">Sum of heat capacities of the terrain-field cells under the tank.</param>
+    /// <param name="airCapacity">Sum of heat capacities of the air-field cells under the tank.</param>
+    public TankHeatStep Advance(
         float currentHeat,
         int frameDugPixels,
         bool frameShotFired,
         float sampledTerrainTemperature,
         float sampledAirTemperature,
-        int sampleCells,
-        Func<int, int> applyTerrainTotalDelta,
-        Func<int, int> applyAirTotalDelta,
-        out int overheatDamage)
+        double terrainCapacity,
+        double airCapacity)
     {
-        float nextHeat = currentHeat;
-        nextHeat += TankHeatModel.ComputeActionHeat(in _settings, frameDugPixels, frameShotFired);
+        float actionHeat = TankHeatModel.ComputeActionHeat(in _settings, frameDugPixels, frameShotFired);
+        float nextHeat = currentHeat + actionHeat;
 
-        float dQTerrain = TankHeatModel.ComputeTankTerrainHeatFlow(in _settings, nextHeat, sampledTerrainTemperature);
-
-        if (sampleCells > 0 && _settings.TerrainHeatCapacity > 0f)
+        double energyToTerrain = 0.0;
+        if (terrainCapacity > 0.0)
         {
-            float desiredTerrainAvgDelta = TankHeatModel.ComputeTerrainDeltaFromHeatFlow(in _settings, dQTerrain);
-            int desiredTerrainTotalDelta = (int)MathF.Round(desiredTerrainAvgDelta * sampleCells);
-            int appliedTerrainTotalDelta = applyTerrainTotalDelta(desiredTerrainTotalDelta);
-            float appliedTerrainAvgDelta = appliedTerrainTotalDelta / (float)sampleCells;
-            float appliedDQTerrain = -appliedTerrainAvgDelta * _settings.TerrainHeatCapacity;
-            nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, appliedDQTerrain);
-        }
-        else
-        {
+            float dQTerrain = TankHeatModel.ComputeTankTerrainHeatFlow(in _settings, 
+                MathF.Max(nextHeat, 0f), MathF.Max(sampledTerrainTemperature, 0f));
             nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, dQTerrain);
+            energyToTerrain = -dQTerrain;
         }
 
-        float dQAir = TankHeatModel.ComputeTankAirHeatFlow(in _settings, nextHeat, sampledAirTemperature);
-        if (sampleCells > 0 && _settings.ThermalCapacityAir > 0f)
+        double energyToAir = 0.0;
+        if (airCapacity > 0.0)
         {
-            float desiredAirAvgDelta = -dQAir / _settings.ThermalCapacityAir;
-            int desiredAirTotalDelta = (int)MathF.Round(desiredAirAvgDelta * sampleCells);
-            int appliedAirTotalDelta = applyAirTotalDelta(desiredAirTotalDelta);
-            float appliedAirAvgDelta = appliedAirTotalDelta / (float)sampleCells;
-            float appliedDQAir = -appliedAirAvgDelta * _settings.ThermalCapacityAir;
-            nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, appliedDQAir);
-        }
-        else
-        {
+            float dQAir = TankHeatModel.ComputeTankAirHeatFlow(in _settings, 
+                MathF.Max(nextHeat, 0f), MathF.Max(sampledAirTemperature, 0f));
             nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, dQAir);
+            energyToAir = -dQAir;
         }
 
-        overheatDamage = TankHeatModel.ComputeOverheatDamage(in _settings, nextHeat);
-        return TankHeatModel.ClampHeat(nextHeat);
+        int overheatDamage = TankHeatModel.ComputeOverheatDamage(in _settings, nextHeat);
+        return new TankHeatStep(nextHeat, energyToTerrain, energyToAir, actionHeat, overheatDamage);
     }
 }

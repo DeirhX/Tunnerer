@@ -4,8 +4,9 @@ using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Entities.Links;
 
-public enum MachineType { Harvester, Charger }
+public enum MachineType { Harvester, Charger, Relay }
 public enum MachineState { Template, Transporting, Planted }
 
 public class Machine
@@ -18,6 +19,15 @@ public class Machine
     public int OwnerColor { get; }
     public BoundingBox BoundingBox { get; } = new(Tweaks.Machine.BoundingBoxHalfSize, Tweaks.Machine.BoundingBoxHalfSize);
     public bool IsAlive { get; set; } = true;
+
+    /// <summary>Node in the link network once planted; <see cref="LinkPoint.IsPowered"/> says whether a base can reach it.</summary>
+    public LinkPoint? LinkPoint { get; set; }
+
+    /// <summary>Base this machine delivers to (relays pump heat into its reactor).</summary>
+    public TankBase? OwnerBase { get; set; }
+
+    /// <summary>Energy a relay moved into its base during its last action (0 when unpowered or the base is full).</summary>
+    public double LastPumpedEnergy { get; set; }
 
     private TimeSpan _actionAccumulator;
 
@@ -35,7 +45,7 @@ public class Machine
     public bool IsBlockingCollision => State == MachineState.Planted;
     public bool TestCollide(Position pos) => BoundingBox.IsInside(pos, Position);
 
-    public void Advance(ITerrainPixelAccessor terrain, TimeSpan dt)
+    public void Advance(ITerrainAccess terrain, TimeSpan dt)
     {
         if (!IsAlive || State != MachineState.Planted) return;
         if (Reactor.Health <= 0) { IsAlive = false; return; }

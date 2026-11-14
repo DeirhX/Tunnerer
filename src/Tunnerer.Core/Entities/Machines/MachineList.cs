@@ -17,11 +17,17 @@ public class MachineList
         return machine;
     }
 
-    public void Advance(ITerrainPixelAccessor terrain, TimeSpan dt)
+    public void Advance(ITerrainAccess terrain, TimeSpan dt)
     {
         for (int i = _machines.Count - 1; i >= 0; i--)
         {
-            if (!_machines[i].IsAlive) { _machines.RemoveAt(i); continue; }
+            if (!_machines[i].IsAlive)
+            {
+                if (_machines[i].LinkPoint != null)
+                    _machines[i].LinkPoint!.IsEnabled = false; // the link map prunes disabled points
+                _machines.RemoveAt(i);
+                continue;
+            }
             _machines[i].Advance(terrain, dt);
         }
     }
@@ -50,7 +56,8 @@ public class MachineList
                 Position: m.Position,
                 Type: m.Type,
                 State: m.State,
-                IsAlive: m.IsAlive);
+                IsAlive: m.IsAlive,
+                IsPowered: m.LinkPoint?.IsPowered ?? false);
         }
         return count;
     }

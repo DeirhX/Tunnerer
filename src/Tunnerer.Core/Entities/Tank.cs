@@ -9,6 +9,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Thermal;
+using Tunnerer.Core.Entities.Machines;
 
 public class Tank
 {
@@ -25,11 +26,25 @@ public class Tank
     public TankTurret Turret { get; }
     public float Heat { get; set; }
 
+    /// <summary>Heat the tank can still take before it overheats (<c>HeatSafeMax - Heat</c>); more than HeatSafeMax when pre-cooled.</summary>
+    public float HeatBudget => Tweaks.Tank.HeatSafeMax - Heat;
+
+    /// <summary>Largest possible <see cref="HeatBudget"/>: a full coolant charge on top of the safe heat range.</summary>
+    public static float HeatBudgetCapacity => Tweaks.Tank.HeatSafeMax + Tweaks.Tank.CoolantCapacity;
+
+    /// <summary>Fraction of the coolant charge left (1 = fully pre-cooled, 0 = at ambient or warmer).</summary>
+    public float CoolantFraction => Math.Clamp(-Heat / Tweaks.Tank.CoolantCapacity, 0f, 1f);
+
     private TimeSpan _respawnTimer;
     private bool _respawning;
     private int _frameDugPixels;
     private bool _frameShotFired;
     private FastRandom _rng;
+    private readonly MachineMaterializer _machineMaterializer;
+    private bool _buildHeld;
+
+    /// <summary>True while the tank carries a machine (a relay) it has built but not planted yet.</summary>
+    public bool IsCarryingMachine => _machineMaterializer.IsCarrying;
 
     public Tank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null)
     {
@@ -45,6 +60,7 @@ public class Tank
             initial: new MaterialAmount(0, 0),
             capacity: new MaterialAmount(Tweaks.Tank.ResourceDirtCapacity, Tweaks.Tank.ResourceMineralsCapacity));
         Turret = new TankTurret(color);
+        _machineMaterializer = new MachineMaterializer(color);
         int fallbackSeed = Environment.TickCount ^ HashSeed(color, tankBase.Position);
         _rng = new FastRandom(rngSeed != 0 ? rngSeed : fallbackSeed);
         Direction = RandomDirection();
@@ -55,19 +71,50 @@ public class Tank
     {
         if (IsDead)
         {
-            AdvanceDeath(ctx.Projectiles);
+            AdvanceDeath(ctx.Projectiles, ctx.Heat.Ledger);
             return;
         }
 
         Heat += Tweaks.Tank.IdleHeatGain;
+        ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * Tweaks.Tank.TankHeatCapacity);
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
         AdvanceBaseInteraction(in ctx);
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
         HandleMove(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
         AdvanceShooting(input, ctx.Projectiles);
-        CollectItems(ctx.Terrain);
-        AdvanceHeat(ctx.Heat);
+        CollectItems(ctx.Terrain, ctx.Heat, ctx.Settings);
+        AdvanceBuilding(in ctx, input);
+        AdvanceHeat(ctx.Heat, ctx.Settings);
+    }
+
+    /// <summary>
+    /// Build key (edge triggered): with no machine in hand it builds a relay from the tank's resources and
+    /// carries it; pressed again outside a base it plants the relay where the tank stands.
+    /// </summary>
+    private void AdvanceBuilding(in SimulationContext ctx, ControllerOutput input)
+    {
+        bool pressed = input.BuildPrimary && !_buildHeld;
+        _buildHeld = input.BuildPrimary;
+
+        if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
+        {
+            if (_machineMaterializer.IsCarrying)
+            {
+                if (ctx.CheckBaseCollision(Position) == null)
+                {
+                    var machine = _machineMaterializer.ReleaseCarried();
+                    if (machine != null)
+                        ctx.PlantMachine(machine, Base);
+                }
+            }
+            else
+            {
+                _machineMaterializer.TryBuild(MachineType.Relay, Position, Resources, ctx.Machines);
+            }
+        }
+
+        _machineMaterializer.UpdatePosition(Position);
     }
 
     private void AdvanceBaseInteraction(in SimulationContext ctx)
@@ -88,18 +135,39 @@ public class Tank
             int sinkAmount = (int)MathF.Round(Math.Max(0f, baseCooldown * centerBonus));
             if (sinkAmount > 0)
             {
-                int terrainShare = (int)MathF.Round(sinkAmount * 0.40f);
-                int airShare = sinkAmount - terrainShare;
+                // The base destroys this energy (it is a sink, not a transfer), so it goes to the ledger.
+                // Only heat that is actually present can be removed.
+                double terrainShare = Math.Round(sinkAmount * 0.40);
+                double airShare = sinkAmount - terrainShare;
                 int radius = Math.Max(1, Tweaks.Tank.DigRadius);
-                if (terrainShare > 0)
-                    ctx.Heat.AddHeatTotalInRadiusArea(Position, radius, -terrainShare);
-                if (airShare > 0)
-                    ctx.Heat.AddAirHeatTotalInRadiusArea(Position, radius, -airShare);
+                double removed =
+                    ctx.Heat.ExtractEnergyInRadiusArea(Position, radius, terrainShare, TerrainGrid.ThermalField.Terrain) +
+                    ctx.Heat.ExtractEnergyInRadiusArea(Position, radius, airShare, TerrainGrid.ThermalField.Air);
+                ctx.Heat.Ledger.RecordSunkBase(removed);
             }
         }
 
         if (atOwnBase)
+        {
             baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
+            RefrigerateAtBase(baseColl);
+        }
+    }
+
+    /// <summary>
+    /// Pre-cooling: a tank docked at its own base is chilled toward a full coolant charge, handing its heat to the
+    /// base reservoir. This is an exact transfer (the tank goes colder, the reservoir fills), and it stops when the
+    /// reservoir is full.
+    /// </summary>
+    private void RefrigerateAtBase(TankBase tankBase)
+    {
+        float target = -Tweaks.Tank.CoolantCapacity;
+        if (Heat <= target)
+            return;
+
+        double wanted = Math.Min(Tweaks.Tank.DockCoolingPerTick, Heat - target) * (double)Tweaks.Tank.TankHeatCapacity;
+        double accepted = tankBase.AcceptTankHeat(wanted);
+        Heat -= (float)(accepted / Tweaks.Tank.TankHeatCapacity);
     }
 
     private void AdvanceTurretAim(ControllerOutput input)
@@ -153,6 +221,7 @@ public class Tank
         Direction = dir;
         Position = newPos;
         Heat += Tweaks.Tank.MoveHeatGain;
+        ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * Tweaks.Tank.TankHeatCapacity);
     }
 
     private CollisionType TestCollision(ITerrainPixelAccessor terrain, Position pos, int dir)
@@ -205,7 +274,7 @@ public class Tank
             }
     }
 
-    private void CollectItems(ITerrainPixelAccessor terrain)
+    private void CollectItems(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, SimulationSettings settings)
     {
         ForEachSpritePixel(Direction, Position, (_, worldPos) =>
         {
@@ -216,33 +285,41 @@ public class Tank
             {
                 terrain.SetPixel(worldPos, TerrainPixel.Blank);
                 int cooling = Tweaks.Tank.CoolingPickupGold;
-                Heat = TankHeatModel.ClampHeat(Heat - cooling);
+                float cooledHeat = TankHeatModel.ClampHeat(in settings, Heat - cooling);
+                heat.Ledger.RecordSunkTank((Heat - cooledHeat) * Tweaks.Tank.TankHeatCapacity);
+                Heat = cooledHeat;
             }
             return true;
         });
     }
 
-    private void AdvanceHeat(ITerrainHeatSource heat)
+    private void AdvanceHeat(ITerrainHeatSource heat, SimulationSettings settings)
     {
-        float terrainHeatNorm = heat.SampleAverageHeat(Position, Tweaks.Tank.DigRadius);
-        float sampledTerrainTemperature = terrainHeatNorm * 255f;
-        float sampledAirTemperature = heat.SampleAverageAirTemperature(Position, Tweaks.Tank.DigRadius);
-        int sampleCells = heat.CountCellsInRadiusArea(Position, Tweaks.Tank.DigRadius);
-        float nextHeat = _heatEngine.Advance(
+        int radius = Tweaks.Tank.DigRadius;
+        float sampledTerrainTemperature = heat.SampleAverageHeat(Position, radius) * 255f;
+        float sampledAirTemperature = heat.SampleAverageAirTemperature(Position, radius);
+        var step = _heatEngine.Advance(
             currentHeat: Heat,
             frameDugPixels: _frameDugPixels,
             frameShotFired: _frameShotFired,
             sampledTerrainTemperature: sampledTerrainTemperature,
             sampledAirTemperature: sampledAirTemperature,
-            sampleCells: sampleCells,
-            applyTerrainTotalDelta: desiredTotal =>
-                heat.AddHeatTotalInRadiusArea(Position, Tweaks.Tank.DigRadius, desiredTotal),
-            applyAirTotalDelta: desiredTotal =>
-                heat.AddAirHeatTotalInRadiusArea(Position, Tweaks.Tank.DigRadius, desiredTotal),
-            out int damage);
+            terrainCapacity: heat.SumHeatCapacityInRadiusArea(Position, radius, TerrainGrid.ThermalField.Terrain),
+            airCapacity: heat.SumHeatCapacityInRadiusArea(Position, radius, TerrainGrid.ThermalField.Air));
 
-        if (damage > 0)
-            Reactor.Exhaust(new ReactorState(0, damage));
+        // Exchange with the grid is an exact transfer: whatever the tank lost, the cells under it gained, and a tank
+        // can only take heat that is actually there (cells never drop below ambient).
+        float nextHeatAfterExchange = step.NextHeat;
+        nextHeatAfterExchange -= ExchangeWithGrid(heat, radius, step.EnergyToTerrain, TerrainGrid.ThermalField.Terrain);
+        nextHeatAfterExchange -= ExchangeWithGrid(heat, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
+
+        // Digging and shooting create heat from nothing; the heat floor can also create a little.
+        heat.Ledger.RecordInjected(step.ActionHeat * Tweaks.Tank.TankHeatCapacity);
+        float nextHeat = TankHeatModel.ClampHeat(in settings, nextHeatAfterExchange);
+        heat.Ledger.RecordSunkTank((nextHeatAfterExchange - nextHeat) * Tweaks.Tank.TankHeatCapacity);
+
+        if (step.OverheatDamage > 0)
+            Reactor.Exhaust(new ReactorState(0, step.OverheatDamage));
 
         Heat = nextHeat;
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
@@ -251,11 +328,36 @@ public class Tank
         _frameShotFired = false;
     }
 
-    public void Spawn()
+    /// <summary>
+    /// Moves heat between the tank and the grid for one field. A positive <paramref name="energyToField"/> is given to
+    /// the cells; a negative one is taken from the cells' heat above ambient, and if they hold less than wanted the
+    /// tank gets less. Returns how much tank heat must be taken back for that shortfall (0 when everything moved).
+    /// </summary>
+    private float ExchangeWithGrid(ITerrainHeatSource terrain, int radius, double energyToField, TerrainGrid.ThermalField field)
+    {
+        if (energyToField > 0.0)
+        {
+            terrain.AddEnergyInRadiusArea(Position, radius, energyToField, field);
+            return 0f;
+        }
+
+        if (energyToField < 0.0)
+        {
+            double wanted = -energyToField;
+            double taken = terrain.ExtractEnergyInRadiusArea(Position, radius, wanted, field);
+            return (float)((wanted - taken) / Tweaks.Tank.TankHeatCapacity);
+        }
+
+        return 0f;
+    }
+
+    public void Spawn(ThermalLedger? ledger = null)
     {
         if (Base == null) return;
         Reactor.Add(new ReactorState(0, Reactor.HealthCapacity));
         Position = Base.Position;
+        // A fresh tank starts cold: whatever heat the wreck still held is removed from the system.
+        ledger?.RecordSunkTank(Heat * Tweaks.Tank.TankHeatCapacity);
         Heat = 0f;
         Reactor.Current.Heat = new Heat(0);
         _respawning = false;
@@ -267,6 +369,7 @@ public class Tank
             return;
 
         Reactor.Exhaust(new ReactorState(Reactor.Heat, Reactor.Health));
+        _machineMaterializer.DiscardCarried();
         LivesLeft = Math.Max(0, LivesLeft - 1);
         _respawning = true;
         _respawnTimer = LivesLeft > 0 ? Tweaks.Tank.RespawnDelay : TimeSpan.Zero;
@@ -274,7 +377,7 @@ public class Tank
         projectiles?.AddExplosion(Position, Tweaks.Explosion.Death, Tweaks.Explosion.DeathHeatScale);
     }
 
-    private void AdvanceDeath(ProjectileList projectiles)
+    private void AdvanceDeath(ProjectileList projectiles, ThermalLedger ledger)
     {
         if (!_respawning)
             Die(projectiles);
@@ -286,7 +389,7 @@ public class Tank
         if (_respawnTimer > TimeSpan.Zero)
             return;
 
-        Spawn();
+        Spawn(ledger);
     }
 
     public void Draw(Surface surface)

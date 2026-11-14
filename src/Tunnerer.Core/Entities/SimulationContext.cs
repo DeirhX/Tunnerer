@@ -17,4 +17,10 @@ public readonly record struct SimulationContext
     public required ProjectileList Projectiles { get; init; }
     public required Func<Position, TankBase?> CheckBaseCollision { get; init; }
     public required SimulationSettings Settings { get; init; }
+
+    /// <summary>Machine list a tank builds relays into. Null in contexts that do not support building.</summary>
+    public Machines.MachineList? Machines { get; init; }
+
+    /// <summary>Plants a carried machine where it stands (it joins the link network). Null when building is unsupported.</summary>
+    public Action<Machines.Machine, TankBase?>? PlantMachine { get; init; }
 }

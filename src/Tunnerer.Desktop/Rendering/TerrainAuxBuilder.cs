@@ -142,7 +142,7 @@ public sealed class TerrainAuxBuilder
         {
             TerrainPixel.Dirt or TerrainPixel.DirtGrow => materialDirt,
             TerrainPixel.Gold => materialGold,
-            TerrainPixel.Rock => materialStone,
+            TerrainPixel.Rock or TerrainPixel.HotRock => materialStone,
             TerrainPixel.Concrete => materialConcrete,
             >= TerrainPixel.BaseMin and <= TerrainPixel.BaseCore => materialBase,
             _ => materialNone,

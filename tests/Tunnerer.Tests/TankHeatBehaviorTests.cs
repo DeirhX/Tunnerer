@@ -32,6 +32,10 @@ public class TankHeatBehaviorTests
     public void TankHeat_SingleShot_UsesModelShotHeatOnce()
     {
         var (world, tank) = CreateWorldWithPrimaryTank(seed: 7777);
+        // Measure the shot in open ground: at its own base the tank is refrigerated below ambient every tick.
+        var pos = GetWorldCenter(world);
+        tank.Position = pos;
+        ClearArea(world.Terrain, pos, radius: 8);
         SetTankHeat(tank, 0f);
 
         var ctx = CreateContext(world);
@@ -84,7 +88,14 @@ public class TankHeatBehaviorTests
         visual.Capture(world, "end");
         Assert.True(observedMax <= 46f,
             $"Expected no runaway heating. start=45, observedMax={observedMax:0.00}");
-        Assert.InRange(tank.Heat, 0f, 15f);
+
+        // AdvanceTank steps only the tank, never the grid, so heat cannot diffuse away from the air cells under
+        // the tank. The best it can do is share its energy with them: T_eq = E / (C_tank + sum(C_air)).
+        double airCapacity = world.Terrain.SumHeatCapacityInRadiusArea(
+            pos, Tweaks.Tank.DigRadius, TerrainGrid.ThermalField.Air);
+        float equilibrium = (float)(45f * Tweaks.Tank.TankHeatCapacity / (Tweaks.Tank.TankHeatCapacity + airCapacity));
+        Assert.InRange(tank.Heat, 0f, equilibrium + 1f);
+        Assert.True(tank.Heat < 20f, $"Expected the tank to shed most of its heat into the surrounding air. heat={tank.Heat:0.00}");
     }
 
     [Fact]

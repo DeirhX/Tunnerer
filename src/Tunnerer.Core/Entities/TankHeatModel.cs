@@ -27,11 +27,6 @@ internal static class TankHeatModel
         return s.TankHeatCapacity > 0f ? dQ / s.TankHeatCapacity : 0f;
     }
 
-    public static float ComputeTerrainDeltaFromHeatFlow(in SimulationSettings s, float dQ)
-    {
-        return s.TerrainHeatCapacity > 0f ? -dQ / s.TerrainHeatCapacity : 0f;
-    }
-
     public static float ComputeTankAirHeatFlow(in SimulationSettings s, float tankTemperature, float airTemperature)
     {
         float deltaT = airTemperature - tankTemperature;
@@ -49,8 +44,9 @@ internal static class TankHeatModel
         return (int)(excess * s.TankOverheatDamagePerDegree);
     }
 
-    public static float ClampHeat(float heat)
+    /// <summary>Heat cannot drop below the full coolant charge.</summary>
+    public static float ClampHeat(in SimulationSettings s, float heat)
     {
-        return Math.Max(0f, heat);
+        return Math.Max(-s.TankCoolantCapacity, heat);
     }
 }

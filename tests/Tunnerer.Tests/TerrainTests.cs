@@ -240,9 +240,10 @@ public class TerrainTests
     [Fact]
     public void CoolDown_ArtificialCooling_AppliesGlobally_AndClampsAtZero()
     {
+        // Artificial cooling only applies to dirt cells (see TerrainGrid.CoolDown).
         var t = MakeTerrain(4, 4);
         for (int i = 0; i < 16; i++)
-            t[i] = TerrainPixel.Rock;
+            t[i] = TerrainPixel.Dirt;
 
         t.AddHeat(new Position(0, 0), 2);
         t.AddHeat(new Position(3, 3), 12);
@@ -251,6 +252,23 @@ public class TerrainTests
 
         Assert.Equal(0f, t.GetHeatTemperature(new Position(0, 0)));
         Assert.Equal(0f, t.GetHeatTemperature(new Position(3, 3)));
+    }
+
+    [Fact]
+    public void CoolDown_ArtificialCooling_DoesNotCoolNonDirtMaterial()
+    {
+        var t = MakeTerrain(4, 4);
+        for (int i = 0; i < 16; i++)
+            t[i] = TerrainPixel.Rock;
+
+        t.AddHeat(new Position(1, 1), 12);
+        float before = t.GetHeatTemperature(new Position(1, 1));
+
+        t.CoolDown(artificialCoolingPerFrame: 1000f);
+
+        // Rock still conducts normally, but the artificial sink must not zero it out.
+        Assert.True(t.GetHeatTemperature(new Position(1, 1)) > 0f,
+            $"Rock cell should not be zeroed by artificial cooling (before={before}).");
     }
 
     [Fact]

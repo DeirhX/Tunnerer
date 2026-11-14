@@ -21,6 +21,8 @@ public sealed class TerrainHeatEngine
     public TerrainHeatEngine(SimulationSettings settings)
     {
         _settings = settings;
+        _heatCapacity = BuildHeatCapacityTable();
+        _conductance = BuildConductanceTable();
     }
 
     public bool AddEnergyAt(float[] temperature, int width, int height, int x, int y, float amount)
@@ -47,7 +49,7 @@ public sealed class TerrainHeatEngine
         return temperature[index];
     }
 
-    public void StepConservative(float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels, int width, int height)
+    public void StepConservative(float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels, int width, int height, ThermalLedger? ledger = null)
     {
         int len = width * height;
         if (terrainTemperature.Length < len || airTemperature.Length < len)
@@ -94,20 +96,31 @@ public sealed class TerrainHeatEngine
             }
         }
 
+        double sunkFixed = 0.0;
         for (int i = 0; i < len; i++)
         {
             terrainTemperature[i] += _delta[i];
             airTemperature[i] += _airDelta[i];
-            if (Pixel.GetThermalMaterial(pixels[i]) == ThermalMaterial.Air)
-                terrainTemperature[i] = airTemperature[i];
-            else
+            ThermalMaterial material = Pixel.GetThermalMaterial(pixels[i]);
+            if (material == ThermalMaterial.Air)
             {
-                ThermalMaterial material = Pixel.GetThermalMaterial(pixels[i]);
-                if (IsFixedTemperatureMaterial(material))
-                    terrainTemperature[i] = GetFixedTemperature(material);
+                // The terrain field of an air cell is a mirror of its air field and holds no energy.
+                terrainTemperature[i] = airTemperature[i];
+            }
+            else if (IsFixedTemperatureMaterial(material))
+            {
+                float fixedTemperature = GetFixedTemperature(material);
+                sunkFixed += FixedCellEnergySunk(material, terrainTemperature[i], fixedTemperature);
+                terrainTemperature[i] = fixedTemperature;
             }
         }
+
+        ledger?.RecordSunkFixedTemperature(sunkFixed);
     }
+
+    /// <summary>Energy removed when a fixed-temperature cell is pinned back to <paramref name="fixedTemperature"/>.</summary>
+    public double FixedCellEnergySunk(ThermalMaterial material, float terrainTemperature, float fixedTemperature)
+        => (double)(terrainTemperature - fixedTemperature) * GetHeatCapacity(material);
 
     public void ComputeRegionDeltaConservative(
         float[] terrainTemperature,
@@ -175,9 +188,10 @@ public sealed class TerrainHeatEngine
         double sum = 0.0;
         for (int i = 0; i < terrainTemperature.Length; i++)
         {
+            // An air cell's terrain field only mirrors its air field, so its energy is counted once (air).
             ThermalMaterial m = Pixel.GetThermalMaterial(pixels[i]);
-            float cTerrain = GetHeatCapacity(m);
-            sum += terrainTemperature[i] * cTerrain;
+            if (m != ThermalMaterial.Air)
+                sum += terrainTemperature[i] * GetHeatCapacity(m);
             sum += airTemperature[i] * _settings.ThermalCapacityAir;
         }
 
@@ -327,17 +341,17 @@ public sealed class TerrainHeatEngine
 
     private void ExchangeTerrainAir(int idx, ThermalMaterial material, float terrainT, float airT, float[] terrainDelta, float[] airDelta)
     {
+        // An air cell has no separate terrain state to exchange with: its terrain field mirrors the air field.
+        if (material == ThermalMaterial.Air)
+            return;
+
         float delta = terrainT - airT;
         if (MathF.Abs(delta) < 0.0001f)
             return;
 
-        float cTerrain = material == ThermalMaterial.Air
-            ? _settings.ThermalCapacityAir
-            : GetHeatCapacity(material);
+        float cTerrain = GetHeatCapacity(material);
         float cAir = _settings.ThermalCapacityAir;
-        float k = material == ThermalMaterial.Air
-            ? _settings.ThermalAirCellCoupling
-            : GetConductance(material, ThermalMaterial.Air) + 0.5f * _settings.ThermalAirCellCoupling;
+        float k = GetConductance(material, ThermalMaterial.Air) + 0.5f * _settings.ThermalAirCellCoupling;
         float dQ = StablePairHeatFlow(delta, cTerrain, cAir, k);
         if (MathF.Abs(dQ) < 0.0001f)
             return;
@@ -452,17 +466,50 @@ public sealed class TerrainHeatEngine
         }
     }
 
-    private float GetHeatCapacity(ThermalMaterial material) => material switch
+    private const int MaterialCount = 6; // Air, Dirt, Stone, Base, ConstantEnergy, HotRock
+
+    // Per-instance lookup tables, built once from the injected settings so tests can run the engine with custom values.
+    private readonly float[] _heatCapacity;
+    private readonly float[] _conductance;
+
+    private float[] BuildHeatCapacityTable()
+    {
+        var table = new float[MaterialCount];
+        for (int m = 0; m < MaterialCount; m++)
+            table[m] = ComputeHeatCapacity((ThermalMaterial)m);
+        return table;
+    }
+
+    private float[] BuildConductanceTable()
+    {
+        var table = new float[MaterialCount * MaterialCount];
+        for (int a = 0; a < MaterialCount; a++)
+            for (int b = 0; b < MaterialCount; b++)
+                table[a * MaterialCount + b] = ComputeConductance((ThermalMaterial)a, (ThermalMaterial)b);
+        return table;
+    }
+
+    /// <summary>Heat capacity of the terrain field of a cell made of <paramref name="material"/>.</summary>
+    public float GetHeatCapacity(ThermalMaterial material) => _heatCapacity[(int)material];
+
+    private float GetConductance(ThermalMaterial a, ThermalMaterial b)
+        => _conductance[(int)a * MaterialCount + (int)b];
+
+    private float ComputeHeatCapacity(ThermalMaterial material) => material switch
     {
         ThermalMaterial.Air => _settings.ThermalCapacityAir,
         ThermalMaterial.Dirt => _settings.ThermalCapacityDirt,
         ThermalMaterial.Stone => _settings.ThermalCapacityStone,
+        ThermalMaterial.HotRock => _settings.ThermalCapacityStone,
         ThermalMaterial.ConstantEnergy => _settings.ThermalCapacityConstantEnergy,
         _ => _settings.ThermalCapacityBase,
     };
 
-    private float GetConductance(ThermalMaterial a, ThermalMaterial b)
+    private float ComputeConductance(ThermalMaterial a, ThermalMaterial b)
     {
+        // Hot rock conducts like stone.
+        if (a == ThermalMaterial.HotRock) a = ThermalMaterial.Stone;
+        if (b == ThermalMaterial.HotRock) b = ThermalMaterial.Stone;
         if (a > b) (a, b) = (b, a);
         return (a, b) switch
         {
@@ -493,14 +540,19 @@ public sealed class TerrainHeatEngine
         _ => _settings.ThermalKAmbientBase,
     };
 
-    private static bool IsFixedTemperatureMaterial(ThermalMaterial material)
-        => material == ThermalMaterial.Base || material == ThermalMaterial.ConstantEnergy;
+    /// <summary>
+    /// Fixed-temperature materials hold their temperature whatever flows in or out: base cells are heat sinks
+    /// (pinned at ambient) and hot rock is a heat source. They are not storage, so sinks and relays never draw from them.
+    /// </summary>
+    public static bool IsFixedTemperatureMaterial(ThermalMaterial material)
+        => material == ThermalMaterial.Base || material == ThermalMaterial.ConstantEnergy || material == ThermalMaterial.HotRock;
 
-    private float GetFixedTemperature(ThermalMaterial material)
+    public float GetFixedTemperature(ThermalMaterial material)
         => material switch
         {
             ThermalMaterial.Base => _settings.ThermalFixedBaseTemperature,
             ThermalMaterial.ConstantEnergy => _settings.ThermalFixedConstantEnergyTemperature,
+            ThermalMaterial.HotRock => _settings.ThermalFixedHotRockTemperature,
             _ => 0f,
         };
 }
