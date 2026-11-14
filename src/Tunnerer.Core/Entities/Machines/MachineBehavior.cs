@@ -71,6 +71,9 @@ public static class MachineBehaviors
                 if (Pixel.IsDirt(terrain.GetPixelRaw(pos)))
                 {
                     terrain.SetPixel(pos, TerrainPixel.Blank);
+                    // Working gives off heat into the ground beside the harvester.
+                    terrain.AddEnergyInRadiusArea(center, Tweaks.Machine.HarvesterHeatRadius,
+                        Tweaks.Machine.HarvesterHeatPerHarvest, TerrainGrid.ThermalField.Terrain);
                     return;
                 }
             }

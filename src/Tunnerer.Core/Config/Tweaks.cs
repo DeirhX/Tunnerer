@@ -183,7 +183,9 @@ public static class Tweaks
         public const int HealthCapacity = 2000;
         public const int MaterialDirtCapacity = 2000;
         public const int MaterialMineralsCapacity = 20000;
-        public const int HeatCooldown = 2;
+        // Radiator. At 1 unit per tick (500 energy/tick), two relays (300 each) out-pump it, so the reservoir fills
+        // and pumping stops: the shared exit is the real bottleneck. Starting value for the first-prototype spike.
+        public const int HeatCooldown = 1;
         public const int HealthRegen = 10;
         // Energy stored by one unit of base reactor heat. One bullet impact injects ~10^4 energy into the grid,
         // so the reactor (HeatCapacity units) is a reservoir worth a few hotspots, and HeatCooldown units per tick
@@ -263,6 +265,10 @@ public static class Tweaks
         public const int HarvesterIntervalMs = 500;
         public const int ChargerIntervalMs = 200;
         public const int HarvestRange = 20;
+        // Machines that work give off heat: each successful harvest dumps this energy into the ground around it.
+        // Starting guess for the first-prototype spike; tune in play.
+        public const float HarvesterHeatPerHarvest = 1000f;
+        public const int HarvesterHeatRadius = 2;
         public const int HarvesterDirtCost = 1000;
         public const int ChargerDirtCost = 500;
         public const int BoundingBoxHalfSize = 2;
