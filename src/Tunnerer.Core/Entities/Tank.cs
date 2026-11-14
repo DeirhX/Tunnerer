@@ -26,6 +26,15 @@ public class Tank
     public TankTurret Turret { get; }
     public float Heat { get; set; }
 
+    /// <summary>Heat the tank can still take before it overheats (<c>HeatSafeMax - Heat</c>); more than HeatSafeMax when pre-cooled.</summary>
+    public float HeatBudget => Tweaks.Tank.HeatSafeMax - Heat;
+
+    /// <summary>Largest possible <see cref="HeatBudget"/>: a full coolant charge on top of the safe heat range.</summary>
+    public static float HeatBudgetCapacity => Tweaks.Tank.HeatSafeMax + Tweaks.Tank.CoolantCapacity;
+
+    /// <summary>Fraction of the coolant charge left (1 = fully pre-cooled, 0 = at ambient or warmer).</summary>
+    public float CoolantFraction => Math.Clamp(-Heat / Tweaks.Tank.CoolantCapacity, 0f, 1f);
+
     private TimeSpan _respawnTimer;
     private bool _respawning;
     private int _frameDugPixels;
@@ -139,7 +148,26 @@ public class Tank
         }
 
         if (atOwnBase)
+        {
             baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
+            RefrigerateAtBase(baseColl);
+        }
+    }
+
+    /// <summary>
+    /// Pre-cooling: a tank docked at its own base is chilled toward a full coolant charge, handing its heat to the
+    /// base reservoir. This is an exact transfer (the tank goes colder, the reservoir fills), and it stops when the
+    /// reservoir is full.
+    /// </summary>
+    private void RefrigerateAtBase(TankBase tankBase)
+    {
+        float target = -Tweaks.Tank.CoolantCapacity;
+        if (Heat <= target)
+            return;
+
+        double wanted = Math.Min(Tweaks.Tank.DockCoolingPerTick, Heat - target) * (double)Tweaks.Tank.TankHeatCapacity;
+        double accepted = tankBase.AcceptTankHeat(wanted);
+        Heat -= (float)(accepted / Tweaks.Tank.TankHeatCapacity);
     }
 
     private void AdvanceTurretAim(ControllerOutput input)
@@ -285,14 +313,16 @@ public class Tank
             terrainCapacity: terrain.SumHeatCapacityInRadiusArea(Position, radius, TerrainGrid.ThermalField.Terrain),
             airCapacity: terrain.SumHeatCapacityInRadiusArea(Position, radius, TerrainGrid.ThermalField.Air));
 
-        // Exchange with the grid is an exact transfer: whatever the tank lost, the cells under it gained.
-        terrain.AddEnergyInRadiusArea(Position, radius, step.EnergyToTerrain, TerrainGrid.ThermalField.Terrain);
-        terrain.AddEnergyInRadiusArea(Position, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
+        // Exchange with the grid is an exact transfer: whatever the tank lost, the cells under it gained, and a tank
+        // can only take heat that is actually there (cells never drop below ambient).
+        float nextHeatAfterExchange = step.NextHeat;
+        nextHeatAfterExchange -= ExchangeWithGrid(terrain, radius, step.EnergyToTerrain, TerrainGrid.ThermalField.Terrain);
+        nextHeatAfterExchange -= ExchangeWithGrid(terrain, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
 
         // Digging and shooting create heat from nothing; the heat floor can also create a little.
         terrain.Ledger.RecordInjected(step.ActionHeat * Tweaks.Tank.TankHeatCapacity);
-        float nextHeat = TankHeatModel.ClampHeat(step.NextHeat);
-        terrain.Ledger.RecordSunkTank((step.NextHeat - nextHeat) * Tweaks.Tank.TankHeatCapacity);
+        float nextHeat = TankHeatModel.ClampHeat(nextHeatAfterExchange);
+        terrain.Ledger.RecordSunkTank((nextHeatAfterExchange - nextHeat) * Tweaks.Tank.TankHeatCapacity);
 
         if (step.OverheatDamage > 0)
             Reactor.Exhaust(new ReactorState(0, step.OverheatDamage));
@@ -302,6 +332,29 @@ public class Tank
 
         _frameDugPixels = 0;
         _frameShotFired = false;
+    }
+
+    /// <summary>
+    /// Moves heat between the tank and the grid for one field. A positive <paramref name="energyToField"/> is given to
+    /// the cells; a negative one is taken from the cells' heat above ambient, and if they hold less than wanted the
+    /// tank gets less. Returns how much tank heat must be taken back for that shortfall (0 when everything moved).
+    /// </summary>
+    private float ExchangeWithGrid(TerrainGrid terrain, int radius, double energyToField, TerrainGrid.ThermalField field)
+    {
+        if (energyToField > 0.0)
+        {
+            terrain.AddEnergyInRadiusArea(Position, radius, energyToField, field);
+            return 0f;
+        }
+
+        if (energyToField < 0.0)
+        {
+            double wanted = -energyToField;
+            double taken = terrain.ExtractEnergyInRadiusArea(Position, radius, wanted, field);
+            return (float)((wanted - taken) / Tweaks.Tank.TankHeatCapacity);
+        }
+
+        return 0f;
     }
 
     public void Spawn(ThermalLedger? ledger = null)

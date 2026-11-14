@@ -63,6 +63,19 @@ public class TankBase
         return absorbed;
     }
 
+    /// <summary>
+    /// Takes up to <paramref name="energy"/> from a docked tank into the reactor, limited by the reactor's free room.
+    /// Returns the energy accepted; the caller removes exactly that from the tank.
+    /// </summary>
+    public double AcceptTankHeat(double energy)
+    {
+        double accepted = Math.Min(energy, ReactorRoomEnergy);
+        if (accepted <= 0.0)
+            return 0.0;
+        CreditReactor(accepted);
+        return accepted;
+    }
+
     private void CreditReactor(double energy)
     {
         if (energy <= 0.0)

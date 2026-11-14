@@ -235,6 +235,21 @@ Building: the build key is edge triggered (`ControllerOutput.BuildPrimary`). Wit
 from its own `Resources` and carries it (`MachineMaterializer`); pressed again outside a base it plants it
 (`World.PlantMachine` registers the link point). A tank that dies drops the carried relay.
 
+### Tank heat budget and pre-cooling
+
+`Tank.Heat` is measured from ambient and may go **negative**, down to `-Tank.CoolantCapacity`: that is the coolant
+charge. Overheat damage still starts above `Tank.HeatSafeMax`, so a fully pre-cooled tank has
+`HeatSafeMax + CoolantCapacity` of budget (`Tank.HeatBudget`, shown by the status bar, the ENERGY readout and the
+"Tank coolant" line of the heat overlay).
+
+- **Charging:** a tank docked at its *own* base is refrigerated by `Tank.DockCoolingPerTick` heat units per tick
+  toward the full charge. The energy goes into the base reservoir (`TankBase.AcceptTankHeat`), so it is an exact
+  transfer (tank colder, reservoir fuller) and a full reservoir blocks pre-cooling. A foreign base does not charge.
+- **Keeping the charge:** tank <-> grid flows are driven only by heat *above* ambient (`TankHeatEngine`), and a tank
+  can only take heat that is really in the cells (`TerrainGrid.ExtractEnergyInRadiusArea`, never below ambient). Ambient
+  air therefore neither warms a cold tank nor is chilled by it; the charge is spent only by absorbing real heat.
+- **Respawn:** a new tank starts at ambient and is pre-cooled again while it sits at its base.
+
 ## Level generation (Toast algorithm)
 
 `ToastGenerator.Generate(Size, int? seed)` → `(TerrainGrid, Position[] spawns)`:

@@ -44,8 +44,9 @@ internal static class TankHeatModel
         return (int)(excess * Tweaks.Tank.OverheatDamagePerDegree);
     }
 
+    /// <summary>Heat cannot drop below the full coolant charge.</summary>
     public static float ClampHeat(float heat)
     {
-        return Math.Max(0f, heat);
+        return Math.Max(-Tweaks.Tank.CoolantCapacity, heat);
     }
 }

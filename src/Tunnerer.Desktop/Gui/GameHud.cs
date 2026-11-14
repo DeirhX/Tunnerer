@@ -117,8 +117,8 @@ public class GameHud
         x += mW;
         dl.AddImage(_buildPanelTex, new Vector2(x, drawY), new Vector2(x + bW, drawY + h));
 
-        // Heat value: inside the left label plate.
-        int heat = player.Reactor.Heat;
+        // Heat budget left before overheating (more than 100 while the tank carries a coolant charge).
+        int heat = (int)MathF.Max(0f, MathF.Round(player.HeatBudget));
         float plateX = startX + 105f;
         float plateW = 130f;
         float plateY = drawY + 168f;
@@ -205,6 +205,7 @@ public class GameHud
             ImGui.SetWindowFontScale(1.25f);
             ImGui.TextUnformatted("Heat network");
             ImGui.Separator();
+            ImGui.TextColored(new Vector4(0.45f, 0.85f, 1f, 1f), $"Tank coolant {(int)(player.CoolantFraction * 100f)}%");
             ImGui.TextColored(fillColor, $"Base reservoir {(int)(fill * 100f)}%");
             ImGui.TextUnformatted($"Relays {powered}/{relays} connected");
             ImGui.TextUnformatted(buildHint);

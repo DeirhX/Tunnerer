@@ -32,6 +32,10 @@ public class TankHeatBehaviorTests
     public void TankHeat_SingleShot_UsesModelShotHeatOnce()
     {
         var (world, tank) = CreateWorldWithPrimaryTank(seed: 7777);
+        // Measure the shot in open ground: at its own base the tank is refrigerated below ambient every tick.
+        var pos = GetWorldCenter(world);
+        tank.Position = pos;
+        ClearArea(world.Terrain, pos, radius: 8);
         SetTankHeat(tank, 0f);
 
         tank.Advance(world, new ControllerOutput

@@ -223,6 +223,12 @@ public static class Tweaks
         public const int TorchRockHeatRadius = 3;
         public const float HeatAmbientOutsideBase = 0f;
         public const float TankHeatCapacity = 20f;
+        // Pre-cooling: a tank docked at its own base is refrigerated below ambient, down to -CoolantCapacity heat,
+        // at DockCoolingPerTick heat units per tick. The tank can then absorb CoolantCapacity more heat than
+        // HeatSafeMax before it overheats. The removed energy goes into the base reservoir (so a full reservoir
+        // blocks pre-cooling).
+        public const float CoolantCapacity = 50f;
+        public const float DockCoolingPerTick = 1.0f;
         public const float TankTerrainConductance = 2.0f;
         public const float TankAmbientConductance = 0.2f;
         public const float TankBaseConductance = 0.4f;

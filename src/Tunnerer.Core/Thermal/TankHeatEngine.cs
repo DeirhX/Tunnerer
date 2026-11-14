@@ -27,6 +27,11 @@ public readonly record struct TankHeatStep(
 /// negative energy for that field, so the caller can move exactly that amount in or out of the grid.
 /// Only <see cref="TankHeatStep.ActionHeat"/> is created from nothing.
 /// </para>
+/// <para>
+/// Heat below ambient is the tank's coolant charge. Flows are driven by the heat <i>above</i> ambient only (both the
+/// tank's and the surroundings'), so ambient air neither warms a cold tank nor is chilled by it: the charge is
+/// spent only by absorbing real heat, and refrigeration happens at the base.
+/// </para>
 /// </summary>
 public sealed class TankHeatEngine
 {
@@ -47,7 +52,8 @@ public sealed class TankHeatEngine
         double energyToTerrain = 0.0;
         if (terrainCapacity > 0.0)
         {
-            float dQTerrain = TankHeatModel.ComputeTankTerrainHeatFlow(nextHeat, sampledTerrainTemperature);
+            float dQTerrain = TankHeatModel.ComputeTankTerrainHeatFlow(
+                MathF.Max(nextHeat, 0f), MathF.Max(sampledTerrainTemperature, 0f));
             nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(dQTerrain);
             energyToTerrain = -dQTerrain;
         }
@@ -55,7 +61,8 @@ public sealed class TankHeatEngine
         double energyToAir = 0.0;
         if (airCapacity > 0.0)
         {
-            float dQAir = TankHeatModel.ComputeTankAirHeatFlow(nextHeat, sampledAirTemperature);
+            float dQAir = TankHeatModel.ComputeTankAirHeatFlow(
+                MathF.Max(nextHeat, 0f), MathF.Max(sampledAirTemperature, 0f));
             nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(dQAir);
             energyToAir = -dQAir;
         }
