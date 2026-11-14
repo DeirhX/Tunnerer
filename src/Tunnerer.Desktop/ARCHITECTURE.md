@@ -181,6 +181,9 @@ Parses command-line arguments:
 |----------|--------|
 | `--large` | Sets terrain size to 1500×750 |
 | `--size=WxH` | Sets terrain size to custom W×H |
+| `--hidden` | Creates the window hidden (never shown) and borderless at the largest display's resolution (or at `--windowed=WxH` if given), so automated runs and performance measurement render at full size without showing anything (`TUNNERER_HIDDEN` does the same). |
+| `--windowed` / `--windowed=WxH` | Uses a normal bordered, resizable window (default 1280×720) instead of borderless fullscreen, so test runs do not cover other windows (`TUNNERER_WINDOWED` does the same). |
+| `--display=N` / `--display=secondary` | Opens the (borderless fullscreen) window on SDL display N instead of the primary one (`TUNNERER_DISPLAY` does the same). The game logs each display's bounds as `[Display] i: WxH at (x,y)`. Use it to keep test runs off the monitor you are working on. |
 | *(none)* | Terrain size matches render surface (320×200) |
 
 Creates and runs `Game(terrainSize?)`.
