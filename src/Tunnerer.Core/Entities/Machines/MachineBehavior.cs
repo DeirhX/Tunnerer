@@ -78,8 +78,10 @@ public static class MachineBehaviors
                 {
                     terrain.SetPixel(pos, TerrainPixel.Blank);
                     // Working gives off heat into the ground beside the harvester.
-                    terrain.AddEnergyInRadiusArea(center, Tweaks.Machine.HarvesterHeatRadius,
+                    // The work itself creates this energy (no reactor is debited), so the ledger must book it as injected.
+                    double heat = terrain.AddEnergyInRadiusArea(center, Tweaks.Machine.HarvesterHeatRadius,
                         Tweaks.Machine.HarvesterHeatPerHarvest, TerrainGrid.ThermalField.Terrain);
+                    terrain.Ledger.RecordInjected(heat);
                     return;
                 }
             }

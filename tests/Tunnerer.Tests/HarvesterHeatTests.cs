@@ -88,4 +88,26 @@ public class HarvesterHeatTests
         Assert.True(piped.Dug > alone.Dug, $"a relay should let the harvester work faster. piped={piped.Dug}, alone={alone.Dug}");
         Assert.True(piped.HeatLeft < alone.HeatLeft, $"a relay should leave less heat in the ground. piped={piped.HeatLeft:0}, alone={alone.HeatLeft:0}");
     }
+
+    [Fact]
+    public void Harvester_Heat_IsBookedInTheLedger_SoTheEnergyBalanceHolds()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+
+        double start = s.World.SumSystemThermalEnergy();
+        double startNet = s.World.Terrain.Ledger.NetExternal;
+        double maxResidual = 0.0;
+        for (int i = 0; i < Tweaks.Perf.TargetFps * 20; i++)
+        {
+            s.World.Advance(_ => default);
+            double residual = (s.World.SumSystemThermalEnergy() - start) - (s.World.Terrain.Ledger.NetExternal - startNet);
+            maxResidual = Math.Max(maxResidual, Math.Abs(residual));
+        }
+
+        Assert.True(s.World.Terrain.Ledger.Injected > 0, "harvesting should have injected heat");
+        Assert.True(maxResidual < 0.5, $"harvest heat must be accounted for. residual={maxResidual:0.0000}");
+    }
 }
