@@ -29,11 +29,18 @@ public class SimulationTableGuardTests
     }
 
     [Fact]
-    public void EveryTerrainPixel_MapsToADefinedThermalMaterial()
+    public void TerrainPixels_AreExactlyTheReviewedSet()
     {
-        // A failure here means Pixel.DeriveThermalMaterial does not handle a new TerrainPixel.
-        foreach (TerrainPixel pixel in Enum.GetValues<TerrainPixel>())
-            Assert.True(Enum.IsDefined(Pixel.GetThermalMaterial(pixel)), $"{pixel} has no thermal material");
+        // Pixel.DeriveThermalMaterial maps any pixel it does not name to Air, so a new TerrainPixel would silently
+        // become air. This list is the reviewed set: when you add a pixel, decide its thermal material in
+        // DeriveThermalMaterial and add its name here. A failure here means exactly that.
+        string[] reviewed =
+        {
+            "LevelGenDirt", "LevelGenRock", "LevelGenMark", "Blank", "Dirt", "DirtGrow", "Rock", "Decal",
+            "BaseMin", "BaseMax", "BaseBarrier", "BaseCore", "HotRock", "Concrete", "Gold",
+        };
+        string[] actual = Enum.GetNames<TerrainPixel>();
+        Assert.Equal(reviewed.Order(), actual.Order());
     }
 
     [Theory]
