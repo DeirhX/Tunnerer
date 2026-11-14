@@ -55,8 +55,12 @@ Desktop.ini
 *~
 .idea/
 
-# Local Claude Code state and scratch output
-.claude/settings.local.json
-.claude/worktrees/
+# ImGui window layout, rewritten on every run
+imgui.ini
+
+# Agent scratch space (playtest captures, worktrees)
 .claude/play/
+.claude/worktrees/
+.claude/settings.local.json
+.claude/*.png
 .claude/*.png

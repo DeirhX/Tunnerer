@@ -11,6 +11,9 @@ public partial class Game
 {
     private void HandleEvent(Event ev)
     {
+        if (HandleSessionEvent(ev))
+            return;
+
         if (TryMapRenderInputEvent(ev, out var renderEvent))
             _renderBackend.ProcessEvent(renderEvent);
         if (ev.Type != (uint)EventType.Keydown)
@@ -147,6 +150,8 @@ public partial class Game
             }
             return;
         }
+        if (HandleSessionCommand(command))
+            return;
 
         RecordInputCommandForReplay(command, source);
         _commandController.Execute(

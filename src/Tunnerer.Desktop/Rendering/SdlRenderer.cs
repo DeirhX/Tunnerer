@@ -114,7 +114,8 @@ public sealed unsafe class SdlRenderer : IDisposable
     }
 
     /// <summary>
-    /// Polls SDL events. Returns false if quit was requested.
+    /// Polls SDL events. Returns false if the window was closed. Escape is left to the event handler, which decides
+    /// whether it pauses or quits.
     /// Calls <paramref name="eventHandler"/> for each event before checking quit.
     /// </summary>
     public bool PollEvents(Action<Event>? eventHandler = null)
@@ -125,8 +126,6 @@ public sealed unsafe class SdlRenderer : IDisposable
             eventHandler?.Invoke(ev);
 
             if (ev.Type == (uint)EventType.Quit)
-                return false;
-            if (ev.Type == (uint)EventType.Keydown && ev.Key.Keysym.Sym == (int)KeyCode.KEscape)
                 return false;
         }
         return true;

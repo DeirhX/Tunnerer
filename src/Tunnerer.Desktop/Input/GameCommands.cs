@@ -16,4 +16,6 @@ public enum GameCommand
     ToggleInputRecording,
     /// <summary>Starts a new match; only acts once the current match is over (Enter, or a command script).</summary>
     RestartMatch,
+    TogglePause,
+    ToggleControls,
 }

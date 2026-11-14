@@ -1,112 +1,97 @@
-# C# Rewrite Architecture (`root`)
+# Architecture
 
-A port of the C++ Tunnerer engine to C# / .NET 10. Uses Silk.NET for SDL2 bindings. The simulation logic is platform-independent (`Tunnerer.Core`); the platform layer is isolated (`Tunnerer.Desktop`).
+Tunnerer is a C# / .NET 10 game that began as a port of a C++ engine (kept on the `cplusplus-legacy` branch) and has
+since grown its own thermal simulation and a GPU renderer. The simulation is platform-independent
+(`Tunnerer.Core`); everything that touches a window, a GPU or an input device lives in `Tunnerer.Desktop`.
 
-The desktop renderer currently uses `DX11` behind `IGameRenderBackend`. For backend-specific details, see `src/Tunnerer.Desktop/ARCHITECTURE.md`.
+For build and run instructions, controls and command-line options see `README.md`.
 
 ## Solution structure
 
 ```
-tunnerer/
-├── ARCHITECTURE.md              ← you are here
-├── Tunnerer.slnx
-├── src/
-│   ├── Tunnerer.Core/        # Simulation, entities, terrain, GUI (no SDL dependency)
-│   │   └── ARCHITECTURE.md      # Detailed design
-│   └── Tunnerer.Desktop/     # SDL window, rendering, keyboard input, game loop
-│       └── ARCHITECTURE.md      # Detailed design
-└── tests/
-    └── Tunnerer.Tests/       # xUnit tests (141 tests)
+Tunnerer.slnx
+src/
+  Tunnerer.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
+    ARCHITECTURE.md        Detailed design
+  Tunnerer.Desktop/        SDL2 window and input, DX11 renderer, ImGui HUD, game loop.
+    ARCHITECTURE.md        Rendering design
+  Tunnerer.Presentation/   Legacy software-rendered GUI (Screen, StatusBar). Not used by the game; referenced only
+                           by GuiLayoutTests.
+tests/
+  Tunnerer.Tests/          xUnit tests for Core
 ```
 
 ## Design principles
 
-- **Core has no platform dependencies**: `Tunnerer.Core` operates on `uint[]` pixel buffers and `ControllerOutput` structs. It knows nothing about SDL, windows, or real input devices.
-- **Desktop is a thin shell**: `Tunnerer.Desktop` creates the SDL window, polls events, maps keyboard/mouse to `ControllerOutput`, and uploads the final pixel buffer to a texture.
-- **Faithful C++ port**: Subsystem execution order, terrain pixel types, movement mechanics, dig shapes, torch logic, color palette, and profiling categories all match the C++ original.
-- **Deterministic seeds**: `ToastGenerator`, `TerrainGrid.DecorateTerrain`, and `TwitchAI` accept optional `int? seed` parameters for reproducible maps and AI behavior.
+- **Core has no platform dependencies.** It takes a `ControllerOutput` per tank per tick and exposes state through
+  plain data (`TerrainGrid`, render snapshots such as `TankRenderState`). It knows nothing about windows or GPUs.
+- **Fixed-step, deterministic simulation.** `World.Advance` runs at `Tweaks.Perf.TargetFps` ticks per second. With
+  a seed, level generation, the simulation and the bot are reproducible, which is what replays, the determinism
+  tests and scripted screenshot runs rely on.
+- **Heat is conserved and audited.** Thermal exchange is energy-exact; `ThermalLedger` records every transfer in or
+  out of the system, and the profile output reports the residual, which should stay near zero.
+- **Tunables live in one place.** Gameplay and simulation constants are in `Tunnerer.Core/Config/Tweaks.cs`;
+  `SimulationSettings` and `ScreenConfig` wrap them so tests can inject other values.
 
-## Frame loop (`Game.Run`)
+## Frame loop
+
+`Program.cs` parses the command line and constructs `Game`. `Game.Run` hands a set of callbacks to
+`GameFrameCoordinator`, which owns the loop:
 
 ```
-while (!quit):
-  1. SdlRenderer.PollEvents()          → resize, close
-  2. KeyboardController.Update()       → ControllerOutput (keyboard)
-  3. SdlRenderer.GetMouseState()       → aim direction + mouse shoot
-  4. TwitchAI.GetOutput()              → ControllerOutput (AI)
-  5. World.Advance(getInput)           → full simulation step
-  6. Terrain.DrawChangesToSurface()    → incremental terrain render
-  7. Copy worldPixels → compositePixels
-  8. Draw entities → compositePixels   (links, machines, projectiles, sprites, tanks)
-  9. Screen.Draw(composite → screen)   → viewports, GUI widgets
-  10. SdlRenderer.RenderFrame(screen)  → SDL_UpdateTexture → present
-  11. Profile report every 100 frames
-  12. Frame pacing (24 FPS target)
+while running:
+  1. SdlRenderer.PollEvents            -> Game.HandleEvent (session keys, ImGui, debug hotkeys)
+  2. wait until a simulation step is due (sleeps instead of spinning)
+  3. update camera / view state
+  4. capture mouse state
+  5. for each due step (at most 4 to catch up; none while paused):
+       GameSimulationStepper.AdvanceOneStep
+         scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
+       TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
+  6. WorldCompositeRenderer.Compose    links, machines, projectiles, sprites and tanks over a copy of the terrain
+  7. Game.RenderImGuiFrame             terrain aux data + pixels to the GPU, HUD and session overlay via ImGui
 ```
+
+Rendering happens once per loop iteration that ran a step, so the frame rate equals the simulation rate.
+
+Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
+A run counts as *automated* when it is scripted, hidden, a perf capture or the terrain test; automated runs keep a
+fixed seed and never pause on their own.
 
 ## Simulation order (`World.Advance`)
 
-Matches the C++ exactly:
+1. **Collision** - rebuild the sector lookup for tanks and machines
+2. **Thermal** - `TerrainGrid.CoolDown`: heat diffusion between cells (sparse by active tile, parallel when large)
+3. **Regrowth** - dirt recovery by cellular automaton
+4. **Projectiles** - movement, impacts, explosions
+5. **Tanks** - input, turret, movement, digging, shooting, building, heat exchange with terrain and base
+6. **Machines** - relays pump heat to their base
+7. **Sprites** - lifetime
+8. **Bases** - reactor cooling, repair
+9. **LinkMap** - which machines are connected to a powered base (line of sight, range)
 
-1. **RegrowPass** — dirt recovery via cellular automata
-2. **Projectiles** — movement, terrain impact, explosions
-3. **Tanks** — input → turret → movement → dig → shoot
-4. **Machines** — harvest energy, charge reactor
-5. **Sprites** — decrement lifetime, remove expired
-6. **Bases** — reactor recharge
-7. **LinkMap** — power grid solve (Bresenham visibility)
-
-## Rendering pipeline (conceptual)
+## Rendering pipeline
 
 ```
-Terrain._data
-    ↓ DrawChangesToSurface (change list)
-worldPixels[w×h]
-    ↓ Array.Copy
-compositePixels[w×h]
-    ↓ Draw entities (in painter's order)
-compositePixels[w×h]
-    ↓ Screen.Draw (viewport blit + GUI)
-screenPixels[320×200]
-    ↓ IGameRenderBackend.UploadGamePixels
-Backend-managed GPU resources
-    ↓ IGameRenderBackend.Render
-Window
+TerrainGrid
+   | DrawChangesToSurface (change list)
+worldPixels[w*h]
+   | copy + draw entities (WorldCompositeRenderer)
+compositePixels[w*h]                  terrain aux data (heat, SDF, material, scorch)
+   |                                     |
+   +------------- IGameRenderBackend.UploadGamePixels -------------+
+                         |
+              DX11 terrain + post-process shaders  ->  game texture
+                         |
+              ImGui: viewport image, HUD, overlays  ->  swap chain
 ```
 
-The composite buffer prevents entity rendering from corrupting the terrain surface, which would cause ghosting artifacts. Concrete GPU implementation differs per backend and is documented in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
-
-## Key differences from C++
-
-| Area | C++ | C# |
-|------|-----|-----|
-| ECS | `ecs.hpp` library with components/aspects | No ECS; entities are plain classes |
-| Parallelism | `parallel_for` + staged writes | `Parallel.For` in `RegrowPass` and level gen |
-| Surface types | `WorldRenderSurface` with change lists | `uint[]` arrays; change list on `Terrain` only |
-| Input | Keyboard, mouse, gamepad controllers | Keyboard + mouse (no gamepad yet) |
-| Level generators | 4 (Simple, Maze, Braid, Toast) | 1 (Toast only) |
-| GUI framework | Widgets via `gui_widgets.h` | Inline in `Screen.cs` |
-| Memory | Custom allocators, `Container2D` | Managed arrays, `Span<T>` |
-
-## Dependencies
-
-- **Silk.NET.SDL** — SDL2 P/Invoke bindings (window, renderer, texture, input)
-- **xUnit** — test framework
-- **.NET 10** — target framework
+The composite buffer keeps entity drawing from corrupting the terrain surface. Shader passes and backend detail are
+in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 ## Tests
 
-141 tests across 10 files covering:
-
-| File | Coverage |
-|------|----------|
-| `CollisionTests` | CollisionSolver, pixel blocking queries |
-| `TerrainTests` | Terrain grid, change list, materialization |
-| `TerrainPixelTests` | Pixel classification (IsDirt, IsBlocking, etc.) |
-| `LevelGenTests` | Toast generator, connectivity, border walls |
-| `TypeTests` | Position, Offset, Size, VectorF, Rect |
-| `ResourceTests` | Reactor, MaterialContainer |
-| `GuiLayoutTests` | Screen layout for 1P and 2P modes |
-| `WorldIntegrationTests` | World.Advance, level init, draw pipeline |
-| `ReplayTests` | Deterministic seeded replays (map + simulation) |
-| `TankMovementTests` | Movement, digging, torch, corridor, crosshair |
+`dotnet test Tunnerer.slnx`. The suite covers terrain and pixels, collision, level generation, tank movement and
+heat, relays, hot rock, coolant, the thermal ledger and whole-world thermal behaviour, determinism and replays, and
+the bot. Desktop code (loop, input, HUD, renderer) has no unit tests; it is checked with scripted hidden runs that
+save final-frame screenshots (see "Automated runs" in `README.md`).
