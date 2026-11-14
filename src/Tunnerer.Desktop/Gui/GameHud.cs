@@ -370,36 +370,53 @@ public class GameHud
 
     private void DrawBuildSlots(ImDrawListPtr dl, Tank player, int dirt, float panelX, float panelY)
     {
-        float progress = Math.Clamp(dirt / (float)Tweaks.Machine.RelayDirtCost, 0f, 1f);
-        bool ready = progress >= 1f;
+        // Slot 0 builds a relay (E), slot 1 a harvester (R). While a machine is in hand only its own slot is lit:
+        // pressing the key again plants it.
+        var carried = player.IsCarryingMachine ? player.CarriedMachineType : null;
 
         for (int row = 0; row < BuildSlotY.Length; row++)
         {
             for (int col = 0; col < BuildSlotX.Length; col++)
             {
-                var min = new Vector2(panelX + BuildSlotX[col], panelY + BuildSlotY[row]);
-                var max = min + new Vector2(BuildSlotW, BuildSlotH);
-                if (row == 0 && col == 0)
+                if (row == 0 && col <= 1)
                     continue;
-                dl.AddRectFilled(min, max, 0xA8000000u, 6f);
+                var min = new Vector2(panelX + BuildSlotX[col], panelY + BuildSlotY[row]);
+                dl.AddRectFilled(min, min + new Vector2(BuildSlotW, BuildSlotH), 0xA8000000u, 6f);
             }
         }
 
-        var sMin = new Vector2(panelX + BuildSlotX[0], panelY + BuildSlotY[0]);
+        DrawBuildSlot(dl, player, panelX, panelY, col: 0, MachineType.Relay, "RELAY", "E", Tweaks.Machine.RelayDirtCost, dirt, carried);
+        DrawBuildSlot(dl, player, panelX, panelY, col: 1, MachineType.Harvester, "HARVEST", "R", Tweaks.Machine.HarvesterDirtCost, dirt, carried);
+    }
+
+    private void DrawBuildSlot(ImDrawListPtr dl, Tank player, float panelX, float panelY, int col, MachineType type,
+        string name, string key, int cost, int dirt, MachineType? carried)
+    {
+        float progress = Math.Clamp(dirt / (float)cost, 0f, 1f);
+        bool ready = progress >= 1f;
+        bool carryingThis = carried == type;
+        bool blocked = carried != null && !carryingThis; // the other machine is in hand
+
+        var sMin = new Vector2(panelX + BuildSlotX[col], panelY + BuildSlotY[0]);
         var sMax = sMin + new Vector2(BuildSlotW, BuildSlotH);
-        if (!ready && !player.IsCarryingMachine)
+        if (blocked)
+            dl.AddRectFilled(sMin, sMax, 0xA8000000u, 6f);
+        else if (!ready && !carryingThis)
         {
             float fillTop = sMax.Y - BuildSlotH * progress;
             dl.AddRectFilled(sMin, new Vector2(sMax.X, fillTop), 0x80000000u, 6f);
         }
 
-        uint border = player.IsCarryingMachine
+        uint border = carryingThis
             ? ((int)(_time * 3f) % 2 == 0 ? 0xFF40FFFFu : 0xFF20A0A0u)
-            : ready ? 0xFF40FF60u : 0xFF707070u;
+            : ready && !blocked ? 0xFF40FF60u : 0xFF707070u;
         dl.AddRect(sMin, sMax, border, 6f, ImDrawFlags.None, 2.5f);
 
-        string label = player.IsCarryingMachine ? "PLANT [E]" : ready ? "RELAY [E]" : $"{dirt}/{Tweaks.Machine.RelayDirtCost}";
-        DrawOutlinedText(dl, 15f, new Vector2(sMin.X + 4f, sMax.Y - 18f), label, 0xFFFFFFFFu);
+        string label = carryingThis ? $"PLANT [{key}]" : ready ? $"{name} [{key}]" : $"{dirt}/{cost}";
+        DrawOutlinedText(dl, 15f, new Vector2(sMin.X + 4f, sMax.Y - 18f), label, blocked ? 0xFF909090u : 0xFFFFFFFFu);
+        // The key is always visible, even before the slot is affordable.
+        if (!ready && !carryingThis)
+            DrawOutlinedText(dl, 13f, new Vector2(sMin.X + 4f, sMin.Y + 3f), $"[{key}] {name}", 0xFFB0B0B0u);
     }
 
     private static void DrawOutlinedText(ImDrawListPtr dl, float size, Vector2 pos, string text, uint color)
@@ -858,6 +875,7 @@ public class GameHud
                 ImGui.Separator();
                 ColoredText(hintColor, hint);
             }
+            ColoredText(TextDim, "H: heat view");
             ImGui.SetWindowFontScale(1.0f);
         }
         ImGui.End();
