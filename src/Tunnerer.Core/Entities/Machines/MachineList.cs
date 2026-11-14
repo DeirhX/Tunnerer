@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Entities.Machines;
 
+using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Rendering;
@@ -58,7 +59,10 @@ public class MachineList
                 State: m.State,
                 IsAlive: m.IsAlive,
                 IsPowered: m.LinkPoint?.IsPowered ?? false,
-                IsPumping: m.LastPumpedEnergy > 1.0);
+                IsPumping: m.LastPumpedEnergy > 1.0,
+                PumpFraction: (float)Math.Clamp(m.LastPumpedEnergy / Tweaks.Machine.RelayHeatPumpPerTick, 0.0, 1.0),
+                IsPumpLimited: m.LastPumpLimitedByBase,
+                IsStalled: m.IsStalled);
         }
         return count;
     }

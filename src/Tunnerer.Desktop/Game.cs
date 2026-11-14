@@ -145,7 +145,8 @@ public partial class Game : IDisposable
             Left: Scancode.ScancodeA, Right: Scancode.ScancodeD,
             Up: Scancode.ScancodeW, Down: Scancode.ScancodeS,
             Shoot: Scancode.ScancodeSpace,
-            Build: Scancode.ScancodeE));
+            Build: Scancode.ScancodeE,
+            BuildHarvester: Scancode.ScancodeR));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         if (!terrainTestMode)
         {

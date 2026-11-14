@@ -54,6 +54,7 @@ public sealed class GameSimulationStepper
                     MoveSpeed = move,
                     ShootPrimary = kb.ShootPrimary || mouseShoot || scripted.ShootPrimary,
                     BuildPrimary = kb.BuildPrimary || scripted.BuildPrimary,
+                    BuildSecondary = kb.BuildSecondary || scripted.BuildSecondary,
                     AimDirection = aimDirection ?? default,
                 };
                 return p1Output;

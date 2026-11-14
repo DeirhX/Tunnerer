@@ -117,9 +117,11 @@ public class Tank
     private FastRandom _rng;
     private readonly MachineMaterializer _machineMaterializer;
     private bool _buildHeld;
+    private bool _buildSecondaryHeld;
 
     /// <summary>True while the tank carries a machine (a relay) it has built but not planted yet.</summary>
     public bool IsCarryingMachine => _machineMaterializer.IsCarrying;
+    public MachineType? CarriedMachineType => _machineMaterializer.CarriedType;
 
     public Tank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null)
     {
@@ -171,19 +173,26 @@ public class Tank
     }
 
     /// <summary>
-    /// Build key (edge triggered): with no machine in hand it builds a relay from the tank's resources and
-    /// carries it; pressed again outside a base it plants the relay where the tank stands.
+    /// Build keys (edge triggered): with no machine in hand the primary key builds a relay and the secondary key a
+    /// harvester from the tank's resources and carries it; either key pressed again outside a base plants it
+    /// where the tank stands.
     /// </summary>
     private void AdvanceBuilding(in SimulationContext ctx, ControllerOutput input)
     {
-        bool pressed = input.BuildPrimary && !_buildHeld;
+        bool primaryPressed = input.BuildPrimary && !_buildHeld;
+        bool secondaryPressed = input.BuildSecondary && !_buildSecondaryHeld;
         _buildHeld = input.BuildPrimary;
+        _buildSecondaryHeld = input.BuildSecondary;
+        bool pressed = primaryPressed || secondaryPressed;
+        var buildType = secondaryPressed && !primaryPressed ? MachineType.Harvester : MachineType.Relay;
 
         if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
         {
             if (_machineMaterializer.IsCarrying)
             {
-                if (ctx.CheckBaseCollision(Position) == null && ctx.CanPlantRelayAt?.Invoke(Position) == false)
+                // Only relays need a live link to be worth planting; a harvester works anywhere outside a base.
+                if (ctx.CheckBaseCollision(Position) == null && _machineMaterializer.CarriedType == MachineType.Relay &&
+                    ctx.CanPlantRelayAt?.Invoke(Position) == false)
                 {
                     PlantRefusedTicks = 48;
                 }
@@ -198,12 +207,12 @@ public class Tank
             {
                 // Docked at its own base, a tank that is short of dirt builds from the base store, since
                 // docking deposits the tank's dirt there.
-                var cost = MachineBehaviors.Get(MachineType.Relay).BuildCost;
+                var cost = MachineBehaviors.Get(buildType).BuildCost;
                 var payer = !Resources.CanPay(cost) && Base != null && ctx.CheckBaseCollision(Position) == Base &&
                             Base.Materials.CanPay(cost)
                     ? Base.Materials
                     : Resources;
-                _machineMaterializer.TryBuild(MachineType.Relay, Position, payer, ctx.Machines);
+                _machineMaterializer.TryBuild(buildType, Position, payer, ctx.Machines);
             }
         }
 

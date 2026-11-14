@@ -406,36 +406,53 @@ public class GameHud
 
     private void DrawBuildSlots(ImDrawListPtr dl, Tank player, int dirt, float panelX, float panelY)
     {
-        float progress = Math.Clamp(dirt / (float)Tweaks.Machine.RelayDirtCost, 0f, 1f);
-        bool ready = progress >= 1f;
+        // Slot 0 builds a relay (E), slot 1 a harvester (R). While a machine is in hand only its own slot is lit:
+        // pressing the key again plants it.
+        var carried = player.IsCarryingMachine ? player.CarriedMachineType : null;
 
         for (int row = 0; row < BuildSlotY.Length; row++)
         {
             for (int col = 0; col < BuildSlotX.Length; col++)
             {
-                var min = new Vector2(panelX + BuildSlotX[col], panelY + BuildSlotY[row]);
-                var max = min + new Vector2(BuildSlotW, BuildSlotH);
-                if (row == 0 && col == 0)
+                if (row == 0 && col <= 1)
                     continue;
-                dl.AddRectFilled(min, max, 0xA8000000u, 6f);
+                var min = new Vector2(panelX + BuildSlotX[col], panelY + BuildSlotY[row]);
+                dl.AddRectFilled(min, min + new Vector2(BuildSlotW, BuildSlotH), 0xA8000000u, 6f);
             }
         }
 
-        var sMin = new Vector2(panelX + BuildSlotX[0], panelY + BuildSlotY[0]);
+        DrawBuildSlot(dl, player, panelX, panelY, col: 0, MachineType.Relay, "RELAY", "E", Tweaks.Machine.RelayDirtCost, dirt, carried);
+        DrawBuildSlot(dl, player, panelX, panelY, col: 1, MachineType.Harvester, "HARVEST", "R", Tweaks.Machine.HarvesterDirtCost, dirt, carried);
+    }
+
+    private void DrawBuildSlot(ImDrawListPtr dl, Tank player, float panelX, float panelY, int col, MachineType type,
+        string name, string key, int cost, int dirt, MachineType? carried)
+    {
+        float progress = Math.Clamp(dirt / (float)cost, 0f, 1f);
+        bool ready = progress >= 1f;
+        bool carryingThis = carried == type;
+        bool blocked = carried != null && !carryingThis; // the other machine is in hand
+
+        var sMin = new Vector2(panelX + BuildSlotX[col], panelY + BuildSlotY[0]);
         var sMax = sMin + new Vector2(BuildSlotW, BuildSlotH);
-        if (!ready && !player.IsCarryingMachine)
+        if (blocked)
+            dl.AddRectFilled(sMin, sMax, 0xA8000000u, 6f);
+        else if (!ready && !carryingThis)
         {
             float fillTop = sMax.Y - BuildSlotH * progress;
             dl.AddRectFilled(sMin, new Vector2(sMax.X, fillTop), 0x80000000u, 6f);
         }
 
-        uint border = player.IsCarryingMachine
+        uint border = carryingThis
             ? ((int)(_time * 3f) % 2 == 0 ? 0xFF40FFFFu : 0xFF20A0A0u)
-            : ready ? 0xFF40FF60u : 0xFF707070u;
+            : ready && !blocked ? 0xFF40FF60u : 0xFF707070u;
         dl.AddRect(sMin, sMax, border, 6f, ImDrawFlags.None, 2.5f);
 
-        string label = player.IsCarryingMachine ? "PLANT [E]" : ready ? "RELAY [E]" : $"{dirt}/{Tweaks.Machine.RelayDirtCost}";
-        DrawOutlinedText(dl, 15f, new Vector2(sMin.X + 4f, sMax.Y - 18f), label, 0xFFFFFFFFu);
+        string label = carryingThis ? $"PLANT [{key}]" : ready ? $"{name} [{key}]" : $"{dirt}/{cost}";
+        DrawOutlinedText(dl, 15f, new Vector2(sMin.X + 4f, sMax.Y - 18f), label, blocked ? 0xFF909090u : 0xFFFFFFFFu);
+        // The key is always visible, even before the slot is affordable.
+        if (!ready && !carryingThis)
+            DrawOutlinedText(dl, 13f, new Vector2(sMin.X + 4f, sMin.Y + 3f), $"[{key}] {name}", 0xFFB0B0B0u);
     }
 
     private static void DrawOutlinedText(ImDrawListPtr dl, float size, Vector2 pos, string text, uint color)
@@ -730,6 +747,8 @@ public class GameHud
     /// Top-right readout: lives, the relay network (how many relays are linked, how full the base reservoir is)
     /// and a context hint for the build key that explains what E will do, or why a carried relay will not link.
     /// </summary>
+    private double _radiatorInflow;
+
     private void DrawHeatNetworkOverlay(Tank player, World world)
     {
         var vp = ViewportRect;
@@ -737,9 +756,18 @@ public class GameHud
         if (vp.w <= 0 || vp.h <= 0 || tankBase == null)
             return;
 
-        int relays = 0, powered = 0, pumping = 0;
+        int relays = 0, powered = 0, pumping = 0, harvesters = 0, stalled = 0;
+        double inflow = 0.0;
         foreach (var machine in world.Machines.Machines)
         {
+            if (machine.IsAlive && machine.Type == MachineType.Harvester && machine.State == MachineState.Planted &&
+                machine.OwnerBase == tankBase)
+            {
+                harvesters++;
+                if (machine.IsStalled)
+                    stalled++;
+            }
+
             if (!machine.IsAlive || machine.Type != MachineType.Relay || machine.State != MachineState.Planted ||
                 machine.OwnerBase != tankBase)
                 continue;
@@ -748,7 +776,11 @@ public class GameHud
                 powered++;
             if (machine.LastPumpedEnergy > 1.0)
                 pumping++;
+            inflow += machine.LastPumpedEnergy;
         }
+        // Smooth the readout: relays act every tick but the number is read by eye.
+        _radiatorInflow += (inflow - _radiatorInflow) * 0.1;
+        double ventCapacity = Tweaks.Base.HeatCooldown * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
         _dockedAtOwnBase = !player.IsDead && world.TankBases.CheckBaseCollision(player.Position) == tankBase;
 
         // Exact stored energy (including the sub-unit remainder), so a pumping relay shows progress at once.
@@ -791,10 +823,16 @@ public class GameHud
         }
         else if (player.IsCarryingMachine)
         {
+            bool carryingHarvester = player.CarriedMachineType == MachineType.Harvester;
             if (world.TankBases.CheckBaseCollision(player.Position) != null)
             {
-                hint = "Carrying relay - leave the base to plant it";
+                hint = carryingHarvester ? "Carrying harvester - leave the base to plant it" : "Carrying relay - leave the base to plant it";
                 hintColor = TextInfo;
+            }
+            else if (carryingHarvester)
+            {
+                hint = "R: plant harvester here - it digs nearby dirt and heats the ground";
+                hintColor = TextGood;
             }
             else
             {
@@ -818,6 +856,8 @@ public class GameHud
             hint = fromBaseStore
                 ? $"E: build relay from the base store ({Tweaks.Machine.RelayDirtCost} dirt)"
                 : $"E: build relay ({Tweaks.Machine.RelayDirtCost} dirt)";
+            if (dirt >= Tweaks.Machine.HarvesterDirtCost)
+                hint += $"   R: build harvester ({Tweaks.Machine.HarvesterDirtCost} dirt)";
             hintColor = TextGood;
         }
         else if (_dockedAtOwnBase && _hasLeftBase && player.HeatBudget < Tank.HeatBudgetCapacity - 1f)
@@ -847,6 +887,9 @@ public class GameHud
             ImGui.SetWindowFontScale(1.25f);
             ColoredText(player.LivesLeft > 1 ? TextDim : TextBad, $"Lives {player.LivesLeft}");
             ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Current.Dirt}");
+            if (harvesters > 0)
+                ColoredText(stalled > 0 ? TextWarn : TextDim,
+                    $"Harvesters working {harvesters - stalled}/{harvesters}" + (stalled > 0 ? $", {stalled} too hot" : ""));
             if (relays > 0)
             {
                 ColoredText(powered == relays ? TextDim : TextWarn,
@@ -854,12 +897,21 @@ public class GameHud
                 ColoredText(fillColor, fill > 0f && fill < 0.01f
                     ? "Base heat store <1% full"
                     : $"Base heat store {(int)MathF.Round(fill * 100f)}% full");
+
+                // Radiator load: heat arriving through relays against the rate the base can vent. Past 100% the
+                // store fills, and once it is full the relays are throttled.
+                float load = (float)(_radiatorInflow / ventCapacity);
+                var loadColor = load < 0.8f ? TextGood : load <= 1.0f ? TextWarn : TextBad;
+                ColoredText(loadColor,
+                    $"Radiator {(int)Math.Round(_radiatorInflow)} in / {(int)ventCapacity} out per tick");
+                ImGui.ProgressBar(Math.Clamp(load / 1.5f, 0f, 1f), new Vector2(180f, 8f), string.Empty);
             }
             if (hint.Length > 0)
             {
                 ImGui.Separator();
                 ColoredText(hintColor, hint);
             }
+            ColoredText(TextDim, "H: heat view");
             ImGui.SetWindowFontScale(1.0f);
         }
         ImGui.End();
