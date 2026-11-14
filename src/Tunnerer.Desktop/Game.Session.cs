@@ -60,7 +60,7 @@ public partial class Game
     }
 
     /// <summary>
-    /// Handles Escape, P, F1 and Q, and pauses when the window loses focus. Returns true when the event was consumed.
+    /// Handles Escape, P, F1, Q and the sound keys (M, - and =), and pauses when the window loses focus. Returns true when the event was consumed.
     /// </summary>
     private bool HandleSessionEvent(Event ev)
     {
@@ -105,6 +105,16 @@ public partial class Game
             case Scancode.F1:
                 if (!isRepeat)
                     HandleSessionCommand(GameCommand.ToggleControls);
+                return true;
+            case Scancode.M:
+                if (!isRepeat)
+                    _audio.ToggleMute();
+                return true;
+            case Scancode.Minus:
+                _audio.AdjustVolume(-0.05f);
+                return true;
+            case Scancode.Equals:
+                _audio.AdjustVolume(0.05f);
                 return true;
             case Scancode.Q when _paused && !_showControls:
                 _isRunning = false;
@@ -156,8 +166,15 @@ public partial class Game
         if (!IsInteractiveSession && !_paused)
             return;
 
+        var sound = new SoundMenuState(_audio.Enabled, AudioOptions.Volume, AudioOptions.Muted);
         SessionOverlayAction action = _sessionOverlay.Draw(
-            _hud.ViewportRect, _paused, _showControls, Seed, deltaTime, showKeyReminder: IsInteractiveSession);
+            _hud.ViewportRect, _paused, _showControls, Seed, deltaTime, ref sound,
+            showKeyReminder: IsInteractiveSession);
+        // The menu only says what the player asked for; GameAudio owns the setting.
+        if (sound.Muted != AudioOptions.Muted)
+            _audio.SetMuted(sound.Muted);
+        else if (sound.Volume != AudioOptions.Volume)
+            _audio.SetVolume(sound.Volume);
         switch (action)
         {
             case SessionOverlayAction.Resume:

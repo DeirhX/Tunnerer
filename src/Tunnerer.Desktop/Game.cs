@@ -7,6 +7,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Input;
@@ -23,6 +24,7 @@ public partial class Game : IDisposable
     private readonly GameHud _hud;
     private readonly WorldCompositeRenderer _compositeRenderer = new();
     private readonly EntityLayerBuilder _entityLayer = new();
+    private readonly GameAudio _audio;
 
     private readonly Size _terrainSize;
     private readonly World _world;
@@ -83,6 +85,8 @@ public partial class Game : IDisposable
         _textures = new SdlGpuTextureLoader(sdlGpuBackend);
         _hud = new GameHud();
         LoadHudSprites();
+        // Automated runs (and the terrain test, which has no match) make no sound.
+        _audio = GameAudio.Create(_automatedRun || terrainTestMode);
 
         if (terrainTestMode)
         {
@@ -201,6 +205,7 @@ public partial class Game : IDisposable
                 onBeforeSimulationBatch: () =>
                 {
                     _terrainDirtyCells.Clear();
+                    _audio.SetPaused(_paused);
                     if (_terrainTestMode)
                         UpdateTerrainTestCamera();
                     else
@@ -278,6 +283,7 @@ public partial class Game : IDisposable
     {
         var aimDir = ComputeAimDirection(tanks, frameInput);
         bool mouseShoot = IsMouseInViewport(frameInput, out _, out _) && frameInput.IsLeftMouseDown;
+        _audio.BeforeStep(_world);
         SimulationStepResult stepResult = _simulationStepper.AdvanceOneStep(
             simFrame: _simFrameCounter,
             tanks: tanks,
@@ -288,6 +294,7 @@ public partial class Game : IDisposable
         _entityLayer.CaptureStep(_world);
 
         var changedCells = _world.Terrain.GetChangeList();
+        _audio.AfterStep(_world, changedCells);
         if (changedCells.Count > 0)
             _terrainDirtyCells.AddRange(changedCells);
 
@@ -319,6 +326,8 @@ public partial class Game : IDisposable
 
     private void DisposeResources()
     {
+        // Before the renderer: it shuts SDL down.
+        _audio.Dispose();
         _textures.Dispose();
         _renderBackend.Dispose();
         _renderer.Dispose();

@@ -610,8 +610,8 @@ public class GameHud
     }
 
     /// <summary>
-    /// One banner at a time, most urgent first: overheating, then low shield, then running hot. Warnings latch on
-    /// at one threshold and clear at a lower one so they do not flicker around it.
+    /// One banner at a time, most urgent first: overheating, then low shield, then running hot. When each warning is
+    /// on is decided by <see cref="PlayerWarnings"/>, which the warning sounds share.
     /// </summary>
     private void DrawWarnings(Tank player, bool heatDebugOverlayEnabled)
     {
@@ -622,10 +622,8 @@ public class GameHud
             return;
         }
 
-        float heat = player.Heat / Tweaks.Tank.HeatSafeMax;
-        _runningHotLatched = _runningHotLatched ? heat > 0.70f : heat > 0.80f;
-        float shield = player.Reactor.Health / (float)Math.Max(1, player.Reactor.HealthCapacity);
-        _shieldLowLatched = _shieldLowLatched ? shield < 0.30f : shield < 0.25f;
+        _runningHotLatched = PlayerWarnings.RunningHot(_runningHotLatched, player);
+        _shieldLowLatched = PlayerWarnings.LowShield(_shieldLowLatched, player);
 
         // After the first hit, teach the thermal view once: enemy tunnels glow in it.
         if (!_thermalHintShown && player.HitFlashTicks > 0 && !heatDebugOverlayEnabled)
