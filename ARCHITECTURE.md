@@ -36,24 +36,35 @@ tools/
 
 ## Frame loop
 
-`Program.cs` parses the command line and constructs `Game`. `Game.Run` hands a set of callbacks to
-`GameFrameCoordinator`, which owns the loop:
+`Program.cs` parses the command line and constructs `Game`. The constructor opens the window and GPU backend,
+asks `WorldFactory.Build` for the world (a generated match level, or the static patterns of `--terrain-test`) and
+sets up input. `WorldFactory.IsSimulationDeterministic` is the one place where `--fast` also turns off simulation
+determinism. `Game.Run` hands a set of callbacks to `GameFrameCoordinator`, which owns the loop:
 
 ```
 while running:
   1. SdlRenderer.PollEvents            -> Game.HandleEvent (session keys, ImGui, debug hotkeys)
   2. wait until a simulation step or a display frame is due (sleeps instead of spinning)
-  3. update camera / view state
+  3. update camera / view state         (match: follow the player; terrain test: WASD pans)
   4. capture mouse state
-  5. for each due step (at most 4 to catch up; none while paused):
-       GameAudio.BeforeStep              (notes the gold lying near each tank)
-       GameSimulationStepper.AdvanceOneStep
-         scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
-       EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
-       GameAudio.AfterStep               (compares the world with the previous step, starts sound effects)
-       TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
+  5. for each due step (at most 4 to catch up):
+       match:
+         GameAudio.BeforeStep              (notes the gold lying near each tank)
+         GameSimulationStepper.AdvanceOneStep
+           scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
+         EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
+         GameAudio.AfterStep               (compares the world with the previous step, starts sound effects)
+         TerrainAuxUploader.ObserveTerrainChanges (changed cells, to repack on the next frame)
+         TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
+       terrain test, or paused in an automated run:
+         scripted commands and screenshots only; the world does not step
   6. if a step was due: WorldCompositeRenderer.Compose   marker sprites over a copy of the terrain
-  7. Game.RenderImGuiFrame             terrain data + entity quads to the GPU, HUD and session overlay via ImGui
+  7. Game.RenderImGuiFrame
+       EntityLayerBuilder.Build          (entity quads at the frame's step progress)
+       TerrainAuxUploader.Prepare        (repack changed, revealed and heated terrain; dirty rects to upload)
+       TerrainAuxBuilder.BuildGpuTankHeatGlowData
+       IGameRenderBackend.UploadGamePixels, then TerrainAuxUploader.Commit
+       ClearFrame, NewFrame, GameHud (match HUD and session overlay, or the terrain test panel), Render
 ```
 
 The simulation always advances in fixed steps. Display frames are not tied to them: the loop draws as often as
@@ -67,8 +78,9 @@ Automated runs are step-locked instead: one frame per step, showing exactly that
 are reproducible. `TUNNERER_INTERPOLATE=1` turns the in-between frames on for them.
 
 Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
-A run counts as *automated* when it is scripted, hidden, a perf capture or the terrain test; automated runs keep a
-fixed seed and never pause on their own.
+A run counts as *automated* when it is scripted, hidden or a perf capture. Automated runs and the terrain test are
+not *interactive* (`Game.IsInteractiveSession`): they keep a fixed seed, make no sound, never pause on their own,
+and Escape quits at once.
 
 ## Simulation order (`World.Advance`)
 
