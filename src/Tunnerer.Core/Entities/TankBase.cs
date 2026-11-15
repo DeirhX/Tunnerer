@@ -77,8 +77,11 @@ public class TankBase
     /// <see cref="EngineEfficiency"/> of it (for the temperature it was taken at) becomes charge, while the store has
     /// room, and the rest goes into the reactor, limited by the reactor's free room. The reactor then vents it at
     /// the radiator rate in <see cref="Advance"/>. Returns the energy taken from the ground.
+    /// <paramref name="limitedByBase"/> is true when the base could not take all of <paramref name="maxEnergy"/>
+    /// (reactor room after the engine's share), whatever the ground had to give.
     /// </summary>
-    public double AbsorbHeatFrom(ITerrainHeatSource terrain, Position center, int radius, double maxEnergy)
+    public double AbsorbHeatFrom(ITerrainHeatSource terrain, Position center, int radius, double maxEnergy,
+        out bool limitedByBase)
     {
         double eta = EngineEfficiency(terrain.ExtractableHeatTemperature(center, radius, TerrainGrid.ThermalField.Terrain));
         double chargeRoom = Math.Max(0.0, ChargeCapacity - Charge);
@@ -88,6 +91,7 @@ public class TankBase
         double budget = Math.Min(maxEnergy, reactorRoom + chargeRoom);
         if (eta < 1.0)
             budget = Math.Min(budget, reactorRoom / (1.0 - eta));
+        limitedByBase = budget < maxEnergy;
         if (budget <= 0.0)
             return 0.0;
 

@@ -137,6 +137,55 @@ public class PowerLoopTests
     }
 
     [Fact]
+    public void Harvester_ReturningThroughDirtOutsideItsWorkArea_CarvesItsWayIntoTheBeam()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var pylon = Plant(s, MachineType.Pylon, PylonSpot(s));
+        var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
+        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
+        Advance(s, 12);
+        // A dirt plug across the tunnel just past the pylon, outside the harvester's work area (it is anchored 26
+        // cells further out with a 20-cell range), so the pylon cannot see it until it digs through.
+        var plug = PylonSpot(s) + new Offset(0, s.DirY * 3);
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dy = 0; dy <= 1; dy++)
+                s.World.Terrain.SetPixel(plug + new Offset(dx, s.DirY * dy), Tunnerer.Core.Terrain.TerrainPixel.Dirt);
+        harvester.Charge = Tweaks.Machine.HarvesterBatteryCapacity * 0.1;
+
+        bool charged = false;
+        for (int i = 0; i < Tweaks.Perf.TargetFps * 60 && !charged; i++)
+        {
+            s.World.Advance(_ => default);
+            charged = ReferenceEquals(harvester.ChargingFrom, pylon);
+        }
+
+        Assert.True(pylon.LinkPoint!.IsPowered, "the plug is beyond the pylon, so the pylon stays linked");
+        Assert.True(charged, $"the harvester should carve through the plug into the pylon's beam. at {harvester.Position}");
+    }
+
+    [Fact]
+    public void Harvester_CrawlsOverRegrowingDirt()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
+        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * -6));
+        // Fill the open tunnel around the harvester with regrowing dirt, as when its walls start to recover.
+        var t = s.World.Terrain;
+        for (int dy = -6; dy <= 6; dy++)
+            for (int dx = -6; dx <= 6; dx++)
+            {
+                var pos = s.RelayPos + new Offset(dx, dy);
+                if (t.GetPixelRaw(pos) == Tunnerer.Core.Terrain.TerrainPixel.Blank && Math.Abs(dx) + Math.Abs(dy) > 0)
+                    t.SetPixel(pos, Tunnerer.Core.Terrain.TerrainPixel.DirtGrow);
+            }
+        var start = harvester.Position;
+
+        Advance(s, Tweaks.Perf.TargetFps * 10);
+
+        Assert.NotEqual(start, harvester.Position);
+    }
+
+    [Fact]
     public void ThermalEnergyPlusCharge_BalancesWithTheLedger()
     {
         var s = RelayHeatTests.CreateScenario();

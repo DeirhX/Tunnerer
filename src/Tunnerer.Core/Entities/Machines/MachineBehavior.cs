@@ -67,9 +67,10 @@ public static class MachineBehaviors
         if (machine.OwnerBase == null || machine.LinkPoint is not { IsPowered: true })
             return;
 
-        machine.LastPumpLimitedByBase = machine.OwnerBase.ReactorRoomEnergy < Tweaks.Machine.RelayHeatPumpPerTick;
         machine.LastPumpedEnergy = machine.OwnerBase.AbsorbHeatFrom(
-            terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick);
+            terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick,
+            out bool limited);
+        machine.LastPumpLimitedByBase = limited;
         Links.LinkMap.CarryHeat(machine.LinkPoint, machine.LastPumpedEnergy);
     }
 
@@ -142,12 +143,34 @@ public static class MachineBehaviors
         if (machine.Charge < Tweaks.Machine.HarvesterCrawlCharge)
             return true; // flat: stranded until a pylon reaches it
         bool moved = Crawl(machine, ctx, pylon.Position, confined: false);
-        // Its way home is mostly its own tunnel; whatever dirt it does cut through still goes to the store.
-        int mined = moved && room > 0 && machine.Charge >= Tweaks.Machine.HarvesterHeatPerHarvest
-            ? MineAround(machine, ctx.Terrain, room)
-            : 0;
-        PayForWork(machine, ctx.Terrain, store, mined, moved);
+        // Its way home is mostly its own tunnel, but it may cut through dirt (or regrowth) outside its work area: carve
+        // it open, so the pylon can see it once it arrives. Settled dirt still goes to the store while there is room.
+        int carved = moved ? CarvePath(machine, ctx.Terrain) : 0;
+        PayForWork(machine, ctx.Terrain, store, Math.Min(carved, room), moved || carved > 0);
         return true;
+    }
+
+    /// <summary>
+    /// Clears every dirt cell, settled or regrowing, within the mine radius, ignoring the work area. Returns how many
+    /// settled cells it cleared (regrowing dirt is worth nothing).
+    /// </summary>
+    private static int CarvePath(Machine machine, ITerrainAccess terrain)
+    {
+        int r = Tweaks.Machine.HarvesterMineRadius;
+        int settled = 0;
+        for (int dy = -r; dy <= r; dy++)
+            for (int dx = -r; dx <= r; dx++)
+            {
+                if (dx * dx + dy * dy > r * r) continue;
+                var pos = new Position(machine.Position.X + dx, machine.Position.Y + dy);
+                if (!terrain.IsInside(pos)) continue;
+                var pixel = terrain.GetPixelRaw(pos);
+                if (pixel != TerrainPixel.Dirt && pixel != TerrainPixel.DirtGrow) continue;
+                terrain.SetPixel(pos, TerrainPixel.Blank);
+                if (pixel == TerrainPixel.Dirt)
+                    settled++;
+            }
+        return settled;
     }
 
     /// <summary>
@@ -293,8 +316,8 @@ public static class MachineBehaviors
 
     /// <summary>
     /// The step that brings the harvester closest to <paramref name="target"/>, preferring its current heading on
-    /// ties and never straight back, through ground its footprint can cross (open, dirt or scorched; not rock or
-    /// base) and not onto a tank or another machine. Zero when it is boxed in. <paramref name="confined"/> keeps it in
+    /// ties and never straight back, through ground its footprint can cross (<see cref="IsCrawlable"/>: not rock,
+    /// concrete or base) and not onto a tank or another machine. Zero when it is boxed in. <paramref name="confined"/> keeps it in
     /// its work area (a harvester that left it to recharge may always step back toward its anchor).
     /// </summary>
     private static Offset ChooseStep(Machine machine, MachineContext ctx, Position target, bool confined)
@@ -332,9 +355,16 @@ public static class MachineBehaviors
             {
                 var pos = new Position(center.X + dx, center.Y + dy);
                 if (!terrain.IsInside(pos)) return false;
-                var pixel = terrain.GetPixelRaw(pos);
-                if (pixel != TerrainPixel.Blank && !Pixel.IsDirt(pixel) && !Pixel.IsScorched(pixel)) return false;
+                if (!IsCrawlable(terrain.GetPixelRaw(pos))) return false;
             }
         return true;
     }
+
+    /// <summary>
+    /// Ground a harvester's footprint may cross: anything that does not block movement (open, settled or regrowing
+    /// dirt, scorch, gold) except a base.
+    /// </summary>
+    private static bool IsCrawlable(TerrainPixel pixel) =>
+        !Pixel.IsBlockingCollision(pixel) && !Pixel.IsBase(pixel) &&
+        pixel is not (TerrainPixel.BaseBarrier or TerrainPixel.BaseCore);
 }

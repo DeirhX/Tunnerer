@@ -953,13 +953,15 @@ public class GameHud
             if (machine.IsAlive && machine.Type == MachineType.Harvester && machine.State == MachineState.Planted &&
                 machine.OwnerBase == tankBase)
             {
+                // Each harvester is counted in exactly one state, in this order: heading to a pylon, out of charge,
+                // too hot, otherwise working.
                 harvesters++;
-                if (machine.IsStalled)
-                    stalled++;
                 if (machine.IsReturning)
                     recharging++;
                 else if (machine.Charge < Tweaks.Machine.HarvesterHeatPerHarvest)
                     flat++;
+                else if (machine.IsStalled)
+                    stalled++;
             }
 
             if (!machine.IsAlive || machine.Type != MachineType.Relay || machine.State != MachineState.Planted ||
@@ -1101,7 +1103,7 @@ public class GameHud
             if (harvesters > 0)
             {
                 ColoredText(stalled > 0 ? TextWarn : TextDim,
-                    $"Harvesters working {Math.Max(0, harvesters - stalled - recharging - flat)}/{harvesters}" +
+                    $"Harvesters working {harvesters - stalled - recharging - flat}/{harvesters}" +
                     (stalled > 0 ? $", {stalled} too hot" : ""));
                 if (recharging > 0 || flat > 0)
                     ColoredText(flat > 0 ? TextBad : TextWarn,
