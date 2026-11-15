@@ -3,17 +3,24 @@ namespace Tunnerer.Core.Entities;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
-using Tunnerer.Core.Terrain;
-using Tunnerer.Core.Collision;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Tanks;
 
+/// <summary>
+/// A player's tank. It owns the tank's state and the order of one tick; the rules live in its collaborators:
+/// <see cref="TankThermals"/> (heat), <see cref="TankDigger"/> (moving and digging), <see cref="TankBuildController"/>
+/// (build keys) and <see cref="TankLifecycle"/> (damage, death, respawn).
+/// </summary>
 public class Tank
 {
-    private readonly TankHeatEngine _heatEngine;
+    private readonly TankThermals _thermals;
+    private readonly TankBuildController _build;
+    private readonly TankDigger _digger;
+    private readonly TankLifecycle _lifecycle;
 
     public Position Position { get; set; }
     public int Color { get; }
@@ -41,32 +48,34 @@ public class Tank
     /// <summary>Fraction of the coolant charge left (1 = fully pre-cooled, 0 = at ambient or warmer).</summary>
     public float CoolantFraction => Math.Clamp(-Heat / Tweaks.Tank.CoolantCapacity, 0f, 1f);
 
-    /// <summary>Ticks a hit flash lasts after the tank is struck by enemy fire.</summary>
-    public const int HitFlashDuration = 18;
-
-    /// <summary>Cause of the most recent armor loss.</summary>
-    public DamageCause LastDamageCause { get; private set; }
-
-    /// <summary>What destroyed the tank; <see cref="DamageCause.None"/> while it is alive.</summary>
-    public DamageCause DeathCause { get; private set; }
-
-    /// <summary>Counts down from <see cref="HitFlashDuration"/> after a hit by enemy fire.</summary>
-    public int HitFlashTicks { get; private set; }
-
-    /// <summary>Velocity of the last projectile that hit the tank (zero if it was never hit).</summary>
-    public VectorF LastHitVelocity { get; private set; }
+    /// <summary>Heat capacity of the tank, from the settings its heat engine uses: tank energy is <c>Heat * ThermalCapacity</c>.</summary>
+    public float ThermalCapacity => _thermals.ThermalCapacity;
 
     /// <summary>True on ticks where the tank took overheat damage.</summary>
-    public bool IsOverheating { get; private set; }
+    public bool IsOverheating => _thermals.IsOverheating;
 
     /// <summary>
-    /// Shots this tank has fired since the match began. Nothing in the simulation reads it; presentation code
-    /// compares it between ticks to learn that a shot was fired.
+    /// The network node cooling the tank, as of its last tick. None while it is inside a base (the base cools it there,
+    /// not the network) or off network.
     /// </summary>
-    public int ShotsFired { get; private set; }
+    public Links.TankCoverage Coverage => _thermals.Coverage;
 
-    /// <summary>Time left until the tank respawns; zero while alive or when no lives remain.</summary>
-    public TimeSpan RespawnRemaining => _respawning && LivesLeft > 0 ? _respawnTimer : TimeSpan.Zero;
+    /// <summary>True when the coverage rule is on and the tank is outside its network: its reactor is heating up.</summary>
+    public bool IsOffNetwork => _thermals.IsOffNetwork;
+
+    /// <summary>
+    /// The lowest the tank's heat can fall while off network. It rises steadily outside coverage and is pulled back
+    /// down inside it (and reset by docking), so it is the clock on how long the tank can stay out; work heat above
+    /// it still sheds into the surroundings as usual.
+    /// </summary>
+    public float OffNetworkFloor => _thermals.OffNetworkFloor;
+
+    /// <summary>Seconds until the rising off-network heat floor reaches the safe maximum (zero once it has).</summary>
+    public float OffNetworkSecondsToOverheat =>
+        MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
+
+    /// <summary>Ticks a hit flash lasts after the tank is struck by enemy fire.</summary>
+    public const int HitFlashDuration = 18;
 
     /// <summary>Ticks of protection from enemy fire after a respawned tank leaves its base.</summary>
     public const int SpawnProtectionDuration = 48;
@@ -74,74 +83,40 @@ public class Tank
     /// <summary>Longest a respawn shield can last, even if the tank stays in its base.</summary>
     public const int SpawnProtectionCap = 10 * Tweaks.Perf.TargetFps;
 
-    private bool _protectedUntilExit;
+    /// <summary>Cause of the most recent armor loss.</summary>
+    public DamageCause LastDamageCause => _lifecycle.LastDamageCause;
+
+    /// <summary>What destroyed the tank; <see cref="DamageCause.None"/> while it is alive.</summary>
+    public DamageCause DeathCause => _lifecycle.DeathCause;
+
+    /// <summary>Counts down from <see cref="HitFlashDuration"/> after a hit by enemy fire.</summary>
+    public int HitFlashTicks => _lifecycle.HitFlashTicks;
+
+    /// <summary>Velocity of the last projectile that hit the tank (zero if it was never hit).</summary>
+    public VectorF LastHitVelocity => _lifecycle.LastHitVelocity;
+
+    /// <summary>Time left until the tank respawns; zero while alive or when no lives remain.</summary>
+    public TimeSpan RespawnRemaining => _lifecycle.RespawnRemaining;
 
     /// <summary>Counts down after a respawn; while positive, enemy fire does no damage.</summary>
-    public int SpawnProtectionTicks { get; private set; }
-
-    /// <summary>Counts down after the tank refused to plant a relay that would not link.</summary>
-    public int PlantRefusedTicks { get; private set; }
+    public int SpawnProtectionTicks => _lifecycle.SpawnProtectionTicks;
 
     /// <summary>
-    /// The respawn shield holds while the tank is in its own base, then lasts <see cref="SpawnProtectionDuration"/>
-    /// more ticks after it leaves; it never exceeds <see cref="SpawnProtectionCap"/> and firing ends it at once.
+    /// Shots this tank has fired since the match began. Nothing in the simulation reads it; presentation code
+    /// compares it between ticks to learn that a shot was fired.
     /// </summary>
-    private void UpdateSpawnProtection(bool inOwnBase, bool firing)
-    {
-        if (SpawnProtectionTicks <= 0)
-            return;
-        if (firing)
-        {
-            SpawnProtectionTicks = 0;
-            _protectedUntilExit = false;
-            return;
-        }
-        if (_protectedUntilExit && !inOwnBase)
-        {
-            _protectedUntilExit = false;
-            SpawnProtectionTicks = Math.Min(SpawnProtectionTicks, SpawnProtectionDuration);
-        }
-        SpawnProtectionTicks--;
-    }
+    public int ShotsFired { get; private set; }
 
-    /// <summary>Takes armor off the tank and records why, so the cause can be shown to the player.</summary>
-    public void TakeDamage(int amount, DamageCause cause, VectorF hitVelocity = default)
-    {
-        if (amount <= 0 || IsDead)
-            return;
-        if (cause == DamageCause.EnemyFire && SpawnProtectionTicks > 0)
-            return;
-        Reactor.Exhaust(new ReactorState(0, amount));
-        LastDamageCause = cause;
-        if (cause == DamageCause.EnemyFire)
-        {
-            HitFlashTicks = HitFlashDuration;
-            LastHitVelocity = hitVelocity;
-        }
-        if (IsDead)
-            DeathCause = cause;
-    }
-
-    private TimeSpan _respawnTimer;
-    private bool _respawning;
-    private int _frameDugPixels;
-    private bool _frameShotFired;
-    private FastRandom _rng;
-    private readonly MachineMaterializer _machineMaterializer;
-    private bool _buildHeld;
-    private bool _buildSecondaryHeld;
-    private bool _buildTertiaryHeld;
+    /// <summary>Counts down after the tank refused to plant a relay that would not link.</summary>
+    public int PlantRefusedTicks => _build.PlantRefusedTicks;
 
     /// <summary>True while the tank carries a machine (a relay) it has built but not planted yet.</summary>
-    public bool IsCarryingMachine => _machineMaterializer.IsCarrying;
-    public MachineType? CarriedMachineType => _machineMaterializer.CarriedType;
-
-    /// <summary>Heat capacity of the tank, from the settings its heat engine uses: tank energy is <c>Heat * ThermalCapacity</c>.</summary>
-    public float ThermalCapacity => _heatEngine.TankHeatCapacity;
+    public bool IsCarryingMachine => _build.IsCarrying;
+    public MachineType? CarriedMachineType => _build.CarriedType;
 
     public Tank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null)
     {
-        _heatEngine = new TankHeatEngine(settings ?? SimulationSettings.FromTweaks());
+        _thermals = new TankThermals(this, settings ?? SimulationSettings.FromTweaks());
         Color = color;
         Base = tankBase;
         Position = tankBase.Position;
@@ -153,107 +128,57 @@ public class Tank
             initial: new MaterialAmount(0, 0),
             capacity: new MaterialAmount(Tweaks.Tank.ResourceDirtCapacity, Tweaks.Tank.ResourceMineralsCapacity));
         Turret = new TankTurret(color);
-        _machineMaterializer = new MachineMaterializer(color);
+        _build = new TankBuildController(this, color);
+        _lifecycle = new TankLifecycle(this, _build);
         int fallbackSeed = Environment.TickCount ^ HashSeed(color, tankBase.Position);
-        _rng = new FastRandom(rngSeed != 0 ? rngSeed : fallbackSeed);
-        Direction = RandomDirection();
+        _digger = new TankDigger(this, _thermals, rngSeed != 0 ? rngSeed : fallbackSeed);
+        Direction = _digger.RandomDirection();
         Heat = Tweaks.Tank.InitialHeat;
     }
 
+    /// <summary>One simulation tick. The order of the steps is part of the simulation's result; keep it.</summary>
     public void Advance(in SimulationContext ctx, ControllerOutput input)
     {
-        if (HitFlashTicks > 0)
-            HitFlashTicks--;
-        if (PlantRefusedTicks > 0)
-            PlantRefusedTicks--;
-        IsOverheating = false;
+        _lifecycle.BeginTick();
+        _build.BeginTick();
+        _thermals.BeginTick();
 
         if (IsDead)
         {
-            AdvanceDeath(ctx.Projectiles, ctx.Heat.Ledger);
+            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Heat.Ledger);
             return;
         }
 
-        Heat += Tweaks.Tank.IdleHeatGain;
-        ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * ThermalCapacity);
-        Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
+        _thermals.AddIdleHeat(ctx.Heat.Ledger);
         AdvanceBaseInteraction(in ctx);
-        AdvanceNetworkCoverage(in ctx);
+        _thermals.AdvanceNetworkCoverage(in ctx);
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
-        HandleMove(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
-        UpdateSpawnProtection(ctx.CheckBaseCollision(Position) == Base, input.ShootPrimary);
+        _digger.Move(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
+        _lifecycle.UpdateSpawnProtection(ctx.CheckBaseCollision(Position) == Base, input.ShootPrimary);
         AdvanceShooting(input, ctx.Projectiles);
-        CollectItems(ctx.Terrain, ctx.Heat, ctx.Settings);
-        AdvanceBuilding(in ctx, input);
-        AdvanceHeat(ctx.Heat, ctx.Settings);
+        _digger.CollectPickups(ctx.Terrain, ctx.Heat, ctx.Settings);
+        _build.Advance(in ctx, input);
+        _thermals.Advance(ctx.Heat, ctx.Settings);
     }
 
-    /// <summary>
-    /// Build keys (edge triggered): with no machine in hand the primary key builds a relay, the secondary key a
-    /// harvester and the tertiary key a pylon from the tank's resources and carries it; any build key pressed again
-    /// outside a base plants it where the tank stands.
-    /// </summary>
-    private void AdvanceBuilding(in SimulationContext ctx, ControllerOutput input)
-    {
-        bool primaryPressed = input.BuildPrimary && !_buildHeld;
-        bool secondaryPressed = input.BuildSecondary && !_buildSecondaryHeld;
-        bool tertiaryPressed = input.BuildTertiary && !_buildTertiaryHeld;
-        _buildHeld = input.BuildPrimary;
-        _buildSecondaryHeld = input.BuildSecondary;
-        _buildTertiaryHeld = input.BuildTertiary;
-        bool pressed = primaryPressed || secondaryPressed || tertiaryPressed;
-        var buildType = MachineBehaviors.ForKey(
-            primaryPressed ? BuildKey.Primary : secondaryPressed ? BuildKey.Secondary : BuildKey.Tertiary).Type;
-
-        if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
-        {
-            if (_machineMaterializer.IsCarrying)
-            {
-                // Machines that work through the link network need a live link to be worth planting; others
-                // (the harvester) work anywhere outside a base.
-                if (ctx.CheckBaseCollision(Position) == null &&
-                    _machineMaterializer.CarriedType is MachineType carried && MachineBehaviors.Get(carried).RequiresLinkToPlant &&
-                    ctx.CanPlantRelayAt?.Invoke(Position) == false)
-                {
-                    PlantRefusedTicks = 48;
-                }
-                else if (ctx.CheckBaseCollision(Position) == null)
-                {
-                    var machine = _machineMaterializer.ReleaseCarried();
-                    if (machine != null)
-                        ctx.PlantMachine(machine, Base);
-                }
-            }
-            else
-            {
-                var payer = BuildPayer(buildType, IsDockedAtOwnBase);
-                if (payer != null)
-                    _machineMaterializer.TryBuild(buildType, Position, payer, ctx.Machines);
-            }
-        }
-
-        _machineMaterializer.UpdatePosition(Position);
-    }
+    /// <summary>Takes armor off the tank and records why, so the cause can be shown to the player.</summary>
+    public void TakeDamage(int amount, DamageCause cause, VectorF hitVelocity = default) =>
+        _lifecycle.TakeDamage(amount, cause, hitVelocity);
 
     /// <summary>
     /// Dirt available to build with: the tank's own, or the base store if that is larger while docked at the own
     /// base (docking moves the tank's dirt into the store). A machine is affordable when its cost fits.
     /// </summary>
-    public int BuildableDirt(bool dockedAtOwnBase) =>
-        dockedAtOwnBase && Base != null ? Math.Max(Resources.Dirt, Base.Materials.Dirt) : Resources.Dirt;
+    public int BuildableDirt(bool dockedAtOwnBase) => _build.BuildableDirt(dockedAtOwnBase);
 
     /// <summary>The store that pays for <paramref name="type"/>, or null if neither can.</summary>
-    public MaterialContainer? BuildPayer(MachineType type, bool dockedAtOwnBase)
-    {
-        var cost = MachineBehaviors.Get(type).BuildCost;
-        if (Resources.CanPay(cost))
-            return Resources;
-        if (dockedAtOwnBase && Base != null && Base.Materials.CanPay(cost))
-            return Base.Materials;
-        return null;
-    }
+    public MaterialContainer? BuildPayer(MachineType type, bool dockedAtOwnBase) => _build.BuildPayer(type, dockedAtOwnBase);
 
+    /// <summary>
+    /// Any base the tank is in recharges it and sinks heat around it; its own base also takes its dirt and
+    /// refrigerates it.
+    /// </summary>
     private void AdvanceBaseInteraction(in SimulationContext ctx)
     {
         var baseColl = ctx.CheckBaseCollision(Position);
@@ -261,114 +186,13 @@ public class Tank
 
         baseColl.RechargeTank(Reactor, Color);
         bool atOwnBase = baseColl.Color == Color;
-        int baseCooldown = atOwnBase ? Tweaks.Base.HomeCooldownHeat : Tweaks.Base.ForeignCooldownHeat;
-        if (baseCooldown > 0)
-        {
-            int half = Math.Max(1, Tweaks.Base.BaseSize / 2);
-            int dist2 = global::Tunnerer.Core.Types.Position.DistanceSquared(Position, baseColl.Position);
-            float radial = 1f - MathF.Sqrt(dist2) / half;
-            float centerWeight = Math.Clamp(radial, 0f, 1f);
-            float centerBonus = 1f + Tweaks.Tank.HeatBaseCoolBonus * centerWeight;
-            int sinkAmount = (int)MathF.Round(Math.Max(0f, baseCooldown * centerBonus));
-            if (sinkAmount > 0)
-            {
-                // The base destroys this energy (it is a sink, not a transfer), so it goes to the ledger.
-                // Only heat that is actually present can be removed.
-                double terrainShare = Math.Round(sinkAmount * 0.40);
-                double airShare = sinkAmount - terrainShare;
-                int radius = Math.Max(1, Tweaks.Tank.DigRadius);
-                double removed =
-                    ctx.Heat.ExtractEnergyInRadiusArea(Position, radius, terrainShare, TerrainGrid.ThermalField.Terrain) +
-                    ctx.Heat.ExtractEnergyInRadiusArea(Position, radius, airShare, TerrainGrid.ThermalField.Air);
-                ctx.Heat.Ledger.RecordSunkBase(removed);
-            }
-        }
+        _thermals.SinkAtBase(ctx.Heat, baseColl, atOwnBase);
 
         if (atOwnBase)
         {
             baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
-            RefrigerateAtBase(baseColl);
+            _thermals.RefrigerateAtBase(baseColl);
         }
-    }
-
-    /// <summary>
-    /// The network node cooling the tank, as of its last tick. None while it is inside a base (the base cools it there,
-    /// not the network) or off network.
-    /// </summary>
-    public Links.TankCoverage Coverage { get; private set; }
-
-    /// <summary>True when the coverage rule is on and the tank is outside its network: its reactor is heating up.</summary>
-    public bool IsOffNetwork { get; private set; }
-
-    /// <summary>
-    /// The lowest the tank's heat can fall while off network. It rises steadily outside coverage and is pulled back
-    /// down inside it (and reset by docking), so it is the clock on how long the tank can stay out; work heat above
-    /// it still sheds into the surroundings as usual.
-    /// </summary>
-    public float OffNetworkFloor { get; private set; }
-
-    /// <summary>Seconds until the rising off-network heat floor reaches the safe maximum (zero once it has).</summary>
-    public float OffNetworkSecondsToOverheat =>
-        MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
-
-    /// <summary>
-    /// Network coverage (DESIGN.md §4.6). Inside its base's coverage the tank sheds heat down the links into the base
-    /// reactor (an exact transfer, limited by the reactor's room, never below zero heat: only docking refills coolant),
-    /// and its heat floor falls at the same rate. Outside it, the floor rises at a steady rate and the tank cannot cool
-    /// below it (<see cref="AdvanceHeat"/>), so the time it can stay out is set by how far the floor has to climb.
-    /// </summary>
-    private void AdvanceNetworkCoverage(in SimulationContext ctx)
-    {
-        IsOffNetwork = false;
-        if (ctx.CoverageFor == null || Base == null)
-        {
-            Coverage = Links.TankCoverage.None;
-            return;
-        }
-
-        Coverage = ctx.CoverageFor(this);
-        if (ctx.CheckBaseCollision(Position) != null)
-        {
-            // Docked or passing through a base: the base itself handles cooling, so the network is not cooling the tank.
-            Coverage = Links.TankCoverage.None;
-            OffNetworkFloor = Math.Min(Heat, 0f);
-            return;
-        }
-
-        float capacity = ThermalCapacity;
-        if (Coverage.Covered)
-        {
-            float cooling = ctx.Settings.TankNetworkCoolingPerTick * Coverage.Strength;
-            // The floor falls at the network's cooling rate (so a moment in coverage is not a full reset), but never
-            // below the tank's coolant level: coverage only takes heat away, it does not bank coolant.
-            OffNetworkFloor = Math.Min(Math.Max(OffNetworkFloor - cooling, Math.Min(Heat, 0f)), Heat);
-            if (Heat <= 0f)
-                return;
-            double wanted = Math.Min(cooling, Heat) * (double)capacity;
-            double accepted = Base.AcceptTankHeat(wanted);
-            Heat -= (float)(accepted / capacity);
-        }
-        else
-        {
-            IsOffNetwork = true;
-            OffNetworkFloor = Math.Min(OffNetworkFloor, Heat) + ctx.Settings.TankOffNetworkHeatPerTick;
-        }
-    }
-
-    /// <summary>
-    /// Pre-cooling: a tank docked at its own base is chilled toward a full coolant charge, handing its heat to the
-    /// base reservoir. This is an exact transfer (the tank goes colder, the reservoir fills), and it stops when the
-    /// reservoir is full.
-    /// </summary>
-    private void RefrigerateAtBase(TankBase tankBase)
-    {
-        float target = -Tweaks.Tank.CoolantCapacity;
-        if (Heat <= target)
-            return;
-
-        double wanted = Math.Min(Tweaks.Tank.DockCoolingPerTick, Heat - target) * (double)ThermalCapacity;
-        double accepted = tankBase.AcceptTankHeat(wanted);
-        Heat -= (float)(accepted / ThermalCapacity);
     }
 
     private void AdvanceTurretAim(ControllerOutput input)
@@ -391,230 +215,30 @@ public class Tank
         var bullet = Turret.TryShoot(Position, projectiles);
         if (bullet != null)
         {
-            _frameShotFired = true;
+            _thermals.RecordShot();
             ShotsFired++;
         }
     }
 
-    private void HandleMove(in SimulationContext ctx, Offset speed, DirectionF torchHeading, bool torchUse)
-    {
-        if (speed.X == 0 && speed.Y == 0) return;
-
-        int dir = OffsetToDirection(speed);
-        var newPos = Position + speed;
-
-        var collision = TestCollision(ctx.Terrain, newPos, dir);
-        if (collision != CollisionType.None)
-        {
-            DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse);
-
-            int torchDir = OffsetToDirection(new Offset(
-                (int)MathF.Round(torchHeading.X),
-                (int)MathF.Round(torchHeading.Y)));
-
-            if (!(torchUse && torchDir == dir))
-                return;
-
-            collision = TestCollision(ctx.Terrain, newPos, dir);
-            if (collision != CollisionType.None)
-                return;
-        }
-
-        Direction = dir;
-        Position = newPos;
-        Heat += Tweaks.Tank.MoveHeatGain;
-        ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * ThermalCapacity);
-    }
-
-    private static CollisionType TestCollision(ITerrainPixelAccessor terrain, Position pos, int dir)
-    {
-        var result = CollisionType.None;
-        ForEachSpritePixel(dir, pos, (_, worldPos) =>
-        {
-            var pix = terrain.GetPixel(worldPos);
-            if (Pixel.IsBlockingCollision(pix)) { result = CollisionType.Blocked; return false; }
-            if (Pixel.IsSoftCollision(pix)) result = CollisionType.Dirt;
-            return true;
-        });
-        return result;
-    }
-
-    private void DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse)
-    {
-        int r = Tweaks.Tank.DigRadius;
-        for (int ty = center.Y - r; ty <= center.Y + r; ty++)
-            for (int tx = center.X - r; tx <= center.X + r; tx++)
-            {
-                if ((tx == center.X - r || tx == center.X + r) &&
-                    (ty == center.Y - r || ty == center.Y + r))
-                    continue;
-
-                var worldPos = new Position(tx, ty);
-                if (!terrain.IsInside(worldPos)) continue;
-
-                var pix = terrain.GetPixelRaw(worldPos);
-                if (Pixel.IsDiggable(pix))
-                {
-                    terrain.SetPixel(worldPos, TerrainPixel.Blank);
-                    if (torchUse)
-                    {
-                        _frameDugPixels++;
-                        heat.AddHeat(worldPos, Tweaks.Tank.TorchTerrainHeatAmount);
-                    }
-                    if (Pixel.IsDirt(pix))
-                        Resources.Add(new MaterialAmount(1, 0));
-                }
-                else if (Pixel.IsTorchable(pix) && torchUse &&
-                         _rng.Chance1000(Tweaks.World.DigThroughRockChance))
-                {
-                    terrain.SetPixel(worldPos, TerrainPixel.Blank);
-                    _frameDugPixels += 2;
-                    heat.AddHeatRadius(worldPos, Tweaks.Tank.TorchRockHeatAmount, Tweaks.Tank.TorchRockHeatRadius);
-                    if (Pixel.IsMineral(pix))
-                        Resources.Add(new MaterialAmount(0, 1));
-                }
-            }
-    }
-
-    private void CollectItems(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, SimulationSettings settings)
-    {
-        ForEachSpritePixel(Direction, Position, (_, worldPos) =>
-        {
-            if (!terrain.IsInside(worldPos)) return true;
-
-            var pix = terrain.GetPixelRaw(worldPos);
-            if (Pixel.IsGold(pix))
-            {
-                terrain.SetPixel(worldPos, TerrainPixel.Blank);
-                int cooling = Tweaks.Tank.CoolingPickupGold;
-                float cooledHeat = TankHeatModel.ClampHeat(in settings, Heat - cooling);
-                heat.Ledger.RecordSunkTank((Heat - cooledHeat) * ThermalCapacity);
-                Heat = cooledHeat;
-            }
-            return true;
-        });
-    }
-
-    private void AdvanceHeat(ITerrainHeatSource heat, SimulationSettings settings)
-    {
-        int radius = Tweaks.Tank.DigRadius;
-        float sampledTerrainTemperature = heat.SampleAverageHeat(Position, radius) * 255f;
-        float sampledAirTemperature = heat.SampleAverageAirTemperature(Position, radius);
-        var step = _heatEngine.Advance(
-            currentHeat: Heat,
-            frameDugPixels: _frameDugPixels,
-            frameShotFired: _frameShotFired,
-            sampledTerrainTemperature: sampledTerrainTemperature,
-            sampledAirTemperature: sampledAirTemperature,
-            terrainCapacity: heat.SumHeatCapacityInRadiusArea(Position, radius, TerrainGrid.ThermalField.Terrain),
-            airCapacity: heat.SumHeatCapacityInRadiusArea(Position, radius, TerrainGrid.ThermalField.Air));
-
-        // Exchange with the grid is an exact transfer: whatever the tank lost, the cells under it gained, and a tank
-        // can only take heat that is actually there (cells never drop below ambient).
-        float nextHeatAfterExchange = step.NextHeat;
-        nextHeatAfterExchange -= ExchangeWithGrid(heat, radius, step.EnergyToTerrain, TerrainGrid.ThermalField.Terrain);
-        nextHeatAfterExchange -= ExchangeWithGrid(heat, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
-
-        // Digging and shooting create heat from nothing; the heat floor can also create a little.
-        heat.Ledger.RecordInjected(step.ActionHeat * ThermalCapacity);
-        float nextHeat = TankHeatModel.ClampHeat(in settings, nextHeatAfterExchange);
-        heat.Ledger.RecordSunkTank((nextHeatAfterExchange - nextHeat) * ThermalCapacity);
-
-        if (step.OverheatDamage > 0)
-        {
-            IsOverheating = true;
-            TakeDamage(step.OverheatDamage, DamageCause.Overheat);
-        }
-
-        // Off network the tank cannot cool below its rising heat floor; holding it there is reactor heat, created here.
-        if (IsOffNetwork && nextHeat < OffNetworkFloor)
-        {
-            heat.Ledger.RecordInjected((OffNetworkFloor - nextHeat) * (double)ThermalCapacity);
-            nextHeat = OffNetworkFloor;
-        }
-
-        Heat = nextHeat;
-        Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
-
-        _frameDugPixels = 0;
-        _frameShotFired = false;
-    }
-
-    /// <summary>
-    /// Moves heat between the tank and the grid for one field. A positive <paramref name="energyToField"/> is given to
-    /// the cells; a negative one is taken from the cells' heat above ambient, and if they hold less than wanted the
-    /// tank gets less. Returns how much tank heat must be taken back for that shortfall (0 when everything moved).
-    /// </summary>
-    private float ExchangeWithGrid(ITerrainHeatSource terrain, int radius, double energyToField, TerrainGrid.ThermalField field)
-    {
-        if (energyToField > 0.0)
-        {
-            terrain.AddEnergyInRadiusArea(Position, radius, energyToField, field);
-            return 0f;
-        }
-
-        if (energyToField < 0.0)
-        {
-            double wanted = -energyToField;
-            double taken = terrain.ExtractEnergyInRadiusArea(Position, radius, wanted, field);
-            return (float)((wanted - taken) / ThermalCapacity);
-        }
-
-        return 0f;
-    }
-
+    /// <summary>Puts the tank back at its base with full armor, cold, and shielded until it leaves.</summary>
     public void Spawn(ThermalLedger? ledger = null)
     {
         if (Base == null) return;
         Reactor.Add(new ReactorState(0, Reactor.HealthCapacity));
         Position = Base.Position;
-        // A fresh tank starts cold: whatever heat the wreck still held is removed from the system.
-        ledger?.RecordSunkTank(Heat * ThermalCapacity);
-        Heat = 0f;
-        OffNetworkFloor = 0f;
-        Reactor.Current.Heat = new Heat(0);
-        _respawning = false;
-        DeathCause = DamageCause.None;
-        LastDamageCause = DamageCause.None;
-        HitFlashTicks = 0;
-        SpawnProtectionTicks = SpawnProtectionCap;
-        _protectedUntilExit = true;
+        _thermals.ResetForSpawn(ledger);
+        _lifecycle.OnSpawned();
     }
 
-    public void Die(ProjectileList? projectiles = null)
-    {
-        if (_respawning)
-            return;
+    /// <summary>Destroys the tank: it loses a life, drops what it carries and explodes.</summary>
+    public void Die(ProjectileList? projectiles = null) => _lifecycle.Die(projectiles);
 
-        Reactor.Exhaust(new ReactorState(Reactor.Heat, Reactor.Health));
-        _machineMaterializer.DiscardCarried();
-        LivesLeft = Math.Max(0, LivesLeft - 1);
-        _respawning = true;
-        _respawnTimer = LivesLeft > 0 ? Tweaks.Tank.RespawnDelay : TimeSpan.Zero;
-
-        projectiles?.AddExplosion(Position, Tweaks.Explosion.Death, Tweaks.Explosion.DeathHeatScale);
-    }
-
-    private void AdvanceDeath(ProjectileList projectiles, ThermalLedger ledger)
-    {
-        if (!_respawning)
-            Die(projectiles);
-
-        if (LivesLeft <= 0)
-            return;
-
-        _respawnTimer -= Tweaks.World.AdvanceStep;
-        if (_respawnTimer > TimeSpan.Zero)
-            return;
-
-        Spawn(ledger);
-    }
-
+    /// <summary>CPU drawing of the tank's sprite shape and turret.</summary>
     public void Draw(Surface surface)
     {
         if (IsDead) return;
 
-        ForEachSpritePixel(Direction, Position, (spriteVal, worldPos) =>
+        TankSpriteShape.ForEachPixel(Direction, Position, (spriteVal, worldPos) =>
         {
             if (!surface.IsInside(worldPos.X, worldPos.Y))
                 return true;
@@ -623,58 +247,6 @@ public class Tank
         });
 
         Turret.Draw(surface, Position);
-    }
-
-    /// <summary>
-    /// Iterates all non-transparent pixels of the sprite for the given direction,
-    /// calling <paramref name="visitor"/> with (spriteByteValue, worldPosition).
-    /// Return false from visitor to break early.
-    /// </summary>
-    private static void ForEachSpritePixel(int dir, Position origin, Func<byte, Position, bool> visitor)
-    {
-        dir = Math.Clamp(dir, 0, TankSprites.DirectionCount - 1);
-        var sprite = TankSprites.Sprites[dir];
-        int w = TankSprites.SpriteWidth, h = TankSprites.SpriteHeight;
-        int cx = w / 2, cy = h / 2;
-
-        for (int sy = 0; sy < h; sy++)
-            for (int sx = 0; sx < w; sx++)
-            {
-                byte val = sprite[sx + sy * w];
-                if (val == 0) continue;
-                var worldPos = new Position(origin.X - cx + sx, origin.Y - cy + sy);
-                if (!visitor(val, worldPos)) return;
-            }
-    }
-
-    /// <summary>
-    /// Maps a signed (dx,dy) offset to one of 8 sprite directions.
-    /// Layout: 0=NE, 1=N, 2=NW, 3=E, 5=W, 6=SE, 7=S, 8=SW (index 4 is unused).
-    /// </summary>
-    private static int OffsetToDirection(Offset speed)
-    {
-        int dx = Math.Sign(speed.X), dy = Math.Sign(speed.Y);
-        return (dx, dy) switch
-        {
-            (1, -1) => 0,
-            (0, -1) => 1,
-            (-1, -1) => 2,
-            (1, 0) => 3,
-            (-1, 0) => 5,
-            (1, 1) => 6,
-            (0, 1) => 7,
-            (-1, 1) => 8,
-            _ => 1,
-        };
-    }
-
-    /// <summary>
-    /// Picks a random 8-direction index, skipping the unused center index (4).
-    /// </summary>
-    private int RandomDirection()
-    {
-        int dir = _rng.NextInt(8);
-        return dir >= 4 ? dir + 1 : dir;
     }
 
     private static int HashSeed(int color, Position pos)

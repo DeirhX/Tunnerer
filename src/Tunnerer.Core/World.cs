@@ -103,7 +103,8 @@ public class World
         return false;
     }
 
-    // Tanks are 7x7 cells around their position.
+    // Tank footprint for machine placement: a 7x7 square around the tank. Not the sprite shape (TankSpriteShape) nor
+    // the projectile collision mask (TankCollisionMask); the three are kept apart on purpose.
     private const int TankFootprintHalf = 3;
 
     /// <summary>

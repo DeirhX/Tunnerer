@@ -16,13 +16,19 @@ Tunnerer.Core/
 │   ├── ToastGenerator.cs       # Procedural cavern generator
 │   └── GeneratorUtils.cs       # Shared helpers (lines, fills, borders)
 ├── Entities/
-│   ├── Tank.cs                 # Player tank (movement, dig, shoot, respawn)
+│   ├── Tank.cs                 # Player tank: state and the per-tick order
 │   ├── TankBase.cs             # Fixed bases (reactor, materials)
 │   ├── TankBases.cs            # Base collection
 │   ├── TankTurret.cs           # Turret aim, fire, cooldown
 │   ├── TankList.cs             # Tank collection
 │   ├── MachineMaterializer.cs  # Build-mode for machines
 │   ├── Sprite.cs               # Short-lived visual effects
+│   ├── Tanks/
+│   │   ├── TankThermals.cs     # Tank heat, coverage floor, base sink, refrigeration, ledger
+│   │   ├── TankDigger.cs       # Move, terrain collision, dig/torch, pickups (owns the tank RNG)
+│   │   ├── TankBuildController.cs # Build keys: build, carry, plant
+│   │   ├── TankLifecycle.cs    # Damage, death, respawn, spawn shield
+│   │   └── TankSpriteShape.cs  # Sprite bitmap as terrain-contact shape
 │   ├── Projectiles/
 │   │   ├── Projectile.cs       # Projectile types (Bullet, Shrapnel, Foam)
 │   │   ├── ProjectileList.cs   # Projectile container + ProjectileBehavior strategies
@@ -109,7 +115,7 @@ public bool TestPoint(Position pos,
 CollisionSolver    Rebuild sector indices for broad-phase queries
 RegrowPass         Cellular automata: Blank→DirtGrow→Dirt
 Projectiles        Movement, terrain impact, explosions, spawn shrapnel
-Tanks              Input → turret → HandleMove → DigTunnel → shoot
+Tanks              Input → turret → TankDigger.Move → shoot → pickups → build → heat
 Machines           Harvest dirt, pump heat, link-powered
 Sprites            Decrement lifetime, remove expired
 Bases              Reactor recharge from materials
@@ -254,19 +260,19 @@ breadth-first power pass records `Hops`. `NetworkCoverage.At` returns the strong
 position and which sees it through open ground (`Pixel.BlocksLink`, like links). `World.CoverageFor(tank)` is passed
 to tanks as `SimulationContext.CoverageFor`; contexts without it leave the rule off.
 
-`Tank.AdvanceNetworkCoverage` runs each tick outside bases:
+`TankThermals.AdvanceNetworkCoverage` runs each tick outside bases:
 
 - Covered: the tank hands up to `TankNetworkCoolingPerTick * strength` heat to its base reactor
   (`TankBase.AcceptTankHeat`, an exact transfer), never below zero heat. `OffNetworkFloor` falls by the same amount,
   but not below `min(Heat, 0)`.
 - Off network: `IsOffNetwork` is set and `OffNetworkFloor` rises by `TankOffNetworkHeatPerTick`. At the end of
-  `AdvanceHeat`, heat below the floor is raised to it and the difference is booked as injected.
+  `TankThermals.Advance`, heat below the floor is raised to it and the difference is booked as injected.
 
 Docking and respawning reset the floor. The tank's normal exchange with the grid is unchanged, so work heat sheds as
 before.
 
 Building: the build keys are edge triggered: `ControllerOutput.BuildPrimary` for a relay, `BuildSecondary` for a
-harvester and `BuildTertiary` for a pylon. With nothing in hand, `Tank` builds the machine from its own
+harvester and `BuildTertiary` for a pylon. With nothing in hand, `TankBuildController` builds the machine from its own
 `Resources`, or from the base store while docked (`BuildPayer`), and carries it (`MachineMaterializer`). Pressed
 again outside a base, it plants it (`World.PlantMachine` registers the link point). Relays and pylons are only
 planted where they would link. A tank that dies drops what it carried.
@@ -320,7 +326,7 @@ that has to be managed (relays, pre-cooled tanks) or avoided.
 
 ## Tank movement and digging
 
-### HandleMove flow
+### TankDigger.Move flow
 
 ```
 newPos = position + speed
@@ -351,7 +357,7 @@ Fixed 7×7 area minus 4 corners, centered on tank:
 
 For each pixel in the shape:
 - **Diggable** (dirt, decal, energy, scorched): always cleared to `Blank`; minerals add to resources
-- **Torchable** (rock): cleared only if `torchUse` AND `Random.Shared.Next(1000) < DigThroughRockChance`
+- **Torchable** (rock): cleared only if `torchUse` AND the tank's seeded `FastRandom.Chance1000(DigThroughRockChance)`
 
 ### Turret
 
