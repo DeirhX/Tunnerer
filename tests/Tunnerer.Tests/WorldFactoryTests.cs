@@ -5,6 +5,7 @@ using Tunnerer.Desktop;
 
 namespace Tunnerer.Tests;
 
+[Collection(ConsoleTestGroup.Name)]
 public class WorldFactoryTests
 {
     private static readonly Size SmallSize = new(320, 200);
