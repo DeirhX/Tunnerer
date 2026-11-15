@@ -52,7 +52,6 @@ public class SourceGuardTests
     private static readonly Dictionary<string, int> LongFilesAllowed = new()
     {
         ["src/Tunnerer.Desktop/Gui/GameHud.cs"] = 1203,
-        ["tests/Tunnerer.Tests/CollisionTests.cs"] = 723,
     };
 
     [Fact]
