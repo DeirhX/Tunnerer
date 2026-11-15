@@ -70,11 +70,17 @@ public class EntityLayoutGuardTests
         Assert.Contains("#include \"Entity/Layout.hlsli\"", shader, StringComparison.Ordinal);
         int main = shader.IndexOf("float4 main(", StringComparison.Ordinal);
         Assert.True(main >= 0, "EntityPs.hlsl has no main()");
-        string body = shader[main..];
-        var missing = ReadShaderConstants(File.ReadAllText(LayoutPath), "kKind").Keys
-            .Where(name => !Regex.IsMatch(body, $@"\bkKind{name}\b"))
-            .ToList();
+        // Comments are stripped so a kind named only in a comment does not count as dispatched.
+        string body = Regex.Replace(shader[main..], @"//[^\n]*", "");
+        var kinds = ReadShaderConstants(File.ReadAllText(LayoutPath), "kKind");
+        var compared = Regex.Matches(body, @"\bkind\s*<\s*kKind(?<name>\w+)\b")
+            .Select(m => m.Groups["name"].Value)
+            .ToHashSet();
+        // Every kind has a `kind < kKindX + 0.5` branch except the highest, which is the final fallthrough.
+        string fallthrough = kinds.MaxBy(kv => kv.Value).Key;
+        var missing = kinds.Keys.Where(name => name != fallthrough && !compared.Contains(name)).ToList();
         Assert.True(missing.Count == 0, "EntityPs main() never dispatches: " + string.Join(", ", missing));
+        Assert.DoesNotContain(fallthrough, compared);
     }
 
     private static void AssertConstantsMatch(string csharpPrefix, string shaderPrefix)

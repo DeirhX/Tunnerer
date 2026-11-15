@@ -39,6 +39,9 @@ public class SourceGuardTests
     // Thermal code reads its numbers through SimulationSettings so tests can inject their own.
     private static readonly HashSet<(string File, string Pattern)> ThermalTweaksAllowed =
     [
+        // Coolant capacity, dock cooling, dig radius and base cooldown: routing them through settings changes
+        // results for tests that inject settings, so it waits for a decision (docs/quality-plan.md).
+        ("src/Tunnerer.Core/Entities/Tanks/TankThermals.cs", "Tweaks."),
     ];
 
     // Mutable statics in Tweaks make results depend on what ran before (and on test order).
@@ -77,7 +80,8 @@ public class SourceGuardTests
         var tweaks = new Regex(@"\bTweaks\.");
         var files = RepositoryFiles.CSharpFiles(Path.Combine(CoreDir, "Thermal"))
             .Concat(RepositoryFiles.CSharpFiles(Path.Combine(CoreDir, "Terrain"))
-                .Where(path => Path.GetFileName(path).StartsWith("TerrainGrid.Heat", StringComparison.Ordinal)));
+                .Where(path => Path.GetFileName(path).StartsWith("TerrainGrid.Heat", StringComparison.Ordinal)))
+            .Append(Path.Combine(RepositoryFiles.Root, CoreDir, "Entities", "Tanks", "TankThermals.cs"));
 
         var found = files
             .Where(path => tweaks.IsMatch(WithoutLineComments(File.ReadAllText(path))))
