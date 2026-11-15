@@ -69,7 +69,7 @@ public class GameHud
 
     // Layout of the bottom strip (ImGui units): the four art panels drawn side by side.
     private const float HeatPanelW = 245f, ShieldPanelW = 145f, MaterialsPanelW = 230f, BuildPanelW = 404f;
-    private const float StripW = HeatPanelW +ShieldPanelW + MaterialsPanelW + BuildPanelW; // 1024
+    private const float StripW = HeatPanelW + ShieldPanelW + MaterialsPanelW + BuildPanelW; // 1024
 
     // Build slots inside build_panel.png (offsets from the panel's top-left), 3 columns x 2 rows.
     // The strip is extended to both screen edges by repeating, mirrored, the chassis at its outer ends: the left
