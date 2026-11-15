@@ -79,6 +79,8 @@ public readonly record struct SimulationSettings
     public int TankResourceMineralsCapacity { get; init; }
     public float TankIdleHeatGain { get; init; }
     public float TankMoveHeatGain { get; init; }
+    public float TankOffNetworkHeatPerTick { get; init; }
+    public float TankNetworkCoolingPerTick { get; init; }
     public int TankDigRadius { get; init; }
     public float TankHeatBaseCoolBonus { get; init; }
     public int TankTorchTerrainHeatAmount { get; init; }
@@ -152,6 +154,8 @@ public readonly record struct SimulationSettings
         TankResourceMineralsCapacity = Tweaks.Tank.ResourceMineralsCapacity,
         TankIdleHeatGain = Tweaks.Tank.IdleHeatGain,
         TankMoveHeatGain = Tweaks.Tank.MoveHeatGain,
+        TankOffNetworkHeatPerTick = Tweaks.Tank.OffNetworkHeatPerSecond / Tweaks.Perf.TargetFps,
+        TankNetworkCoolingPerTick = Tweaks.Tank.NetworkCoolingPerSecond / Tweaks.Perf.TargetFps,
         TankDigRadius = Tweaks.Tank.DigRadius,
         TankHeatBaseCoolBonus = Tweaks.Tank.HeatBaseCoolBonus,
         TankTorchTerrainHeatAmount = Tweaks.Tank.TorchTerrainHeatAmount,

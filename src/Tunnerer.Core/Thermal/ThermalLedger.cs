@@ -28,13 +28,25 @@ public sealed class ThermalLedger
     /// <summary>Energy removed from tanks by cooling pickups; negative if a tank was clamped up to zero heat.</summary>
     public double SunkTank { get; private set; }
 
+    /// <summary>
+    /// Net heat turned into charge: positive when a base engine converts relay heat to charge, reduced when a machine
+    /// spends charge as work heat. Charge is not thermal energy, so the thermal balance treats it as leaving the
+    /// system; thermal energy plus all stored charge balances against <c>Injected - TotalSunk</c>.
+    /// </summary>
+    public double ConvertedToCharge { get; private set; }
+
     public double TotalSunk =>
         SunkFixedTemperature + SunkArtificialCooling + SunkBase + SunkTank;
 
-    /// <summary><c>Injected - TotalSunk</c>: the net energy the system should have gained since the last reset.</summary>
-    public double NetExternal => Injected - TotalSunk;
+    /// <summary>
+    /// <c>Injected - TotalSunk - ConvertedToCharge</c>: the net thermal energy the system should have gained since the
+    /// last reset.
+    /// </summary>
+    public double NetExternal => Injected - TotalSunk - ConvertedToCharge;
 
     public void RecordInjected(double energy) => Injected += energy;
+    public void RecordToCharge(double energy) => ConvertedToCharge += energy;
+    public void RecordFromCharge(double energy) => ConvertedToCharge -= energy;
     public void RecordSunkFixedTemperature(double energy) => SunkFixedTemperature += energy;
     public void RecordSunkArtificialCooling(double energy) => SunkArtificialCooling += energy;
     public void RecordSunkBase(double energy) => SunkBase += energy;
@@ -47,5 +59,6 @@ public sealed class ThermalLedger
         SunkArtificialCooling = 0;
         SunkBase = 0;
         SunkTank = 0;
+        ConvertedToCharge = 0;
     }
 }

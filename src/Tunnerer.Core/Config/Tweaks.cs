@@ -202,6 +202,15 @@ public static class Tweaks
         public const int ForeignRechargeHealth = 1;
         public const int HomeAbsorbDirt = 15;
         public const int HomeAbsorbMinerals = 15;
+
+        // Power (DESIGN.md §4.5). Heat relays deliver passes through the base engine on its way to the dimensional-link
+        // cold sink; a fraction becomes charge: eta = clamp(dT / (dT + EngineTemperatureScale), 0, EngineMaxEfficiency),
+        // dT = source temperature above the base's. Warm dirt (~30) gives ~0.17, hot rock (~100) 0.4.
+        public const float EngineTemperatureScale = 150f;
+        public const float EngineMaxEfficiency = 0.5f;
+        public const float ChargeCapacity = 1_000_000f;
+        // Enough to run the first harvester and pylon before any engine output.
+        public const float InitialCharge = 300_000f;
     }
 
     public static class Tank
@@ -245,6 +254,23 @@ public static class Tweaks
         public const float TankBaseConductance = 0.4f;
         public const float HeatSafeMax = 100f;
         public const float OverheatDamagePerDegree = 0.5f;
+
+        // Network coverage (DESIGN.md §4.6): outside it the tank's heat floor rises at OffNetworkHeatPerSecond and the
+        // tank cannot cool below it; inside it the tank sheds up to NetworkCoolingPerSecond (times the coverage
+        // strength) down the links into its base's reactor, never below zero (coolant is only refilled by docking), and
+        // the floor falls at that rate. From a full coolant charge, idle off network lasts
+        // (HeatSafeMax + CoolantCapacity) / OffNetworkHeatPerSecond = 150 s; digging near the end shortens it.
+        public const float OffNetworkHeatPerSecond = 1.0f;
+        public const float NetworkCoolingPerSecond = 6.0f;
+    }
+
+    /// <summary>Network coverage: the ground the base and its powered relays and pylons cool for their tanks.</summary>
+    public static class Coverage
+    {
+        public const int NodeRadius = 20;
+        public const int BaseRadius = Base.BaseSize / 2 + NodeRadius;
+        // Cooling strength falls by this factor per live link between a node and its base.
+        public const float HopFalloff = 0.85f;
     }
 
     public static class Weapon
@@ -259,12 +285,23 @@ public static class Tweaks
     {
         public const int ReactorHeatCapacity = 100;
         public const int ReactorHealthCapacity = 1000;
-        public const int HarvesterIntervalMs = 500;
-        public const int ChargerIntervalMs = 200;
+        // A harvester acts (mines what it can reach, or crawls one cell) every this many milliseconds.
+        public const int HarvesterIntervalMs = 300;
+        // A harvester roams and mines within this distance of where it was planted.
         public const int HarvestRange = 20;
-        // Machines that work give off heat: each successful harvest dumps this energy into the ground around it.
-        // Starting guess for the first-prototype spike; tune in play.
+        // It eats settled dirt within this radius of itself into the owner base's store. Crawling through solid dirt
+        // that is about 5 new cells per step, roughly 16 dirt/s, so it repays HarvesterDirtCost in about a minute.
+        public const int HarvesterMineRadius = 2;
+        // Work runs on charge, and spent charge ends up as heat in the ground around the harvester: each action that
+        // mines dirt spends this much, a crawl step that mines nothing spends HarvesterCrawlCharge.
+        // Starting guesses for the first-prototype spike; tune in play.
         public const float HarvesterHeatPerHarvest = 1000f;
+        public const float HarvesterCrawlCharge = 200f;
+        // About 40 s of mining on a full battery. A harvester is planted full.
+        public const float HarvesterBatteryCapacity = 120_000f;
+        // Below this fraction it heads back to a pylon; it goes back to work once charged above HarvesterResumeAbove.
+        public const float HarvesterReturnBelow = 0.25f;
+        public const float HarvesterResumeAbove = 0.8f;
         public const int HarvesterHeatRadius = 2;
         // A harvester stalls while the ground around it is hotter than this (average over the sense radius), so the
         // heat it makes can never run away: it keeps itself bounded, and a relay that pumps the heat out is what
@@ -272,7 +309,13 @@ public static class Tweaks
         public const float HarvesterStallTemperature = 30f;
         public const int HarvesterHeatSenseRadius = 4;
         public const int HarvesterDirtCost = 1000;
-        public const int ChargerDirtCost = 500;
+
+        // Pylon: a link node that hands base charge to batteries in direct line of sight within PylonRange, drawing
+        // it from its base over the link network.
+        public const int PylonDirtCost = 300;
+        public const int PylonIntervalMs = 200;
+        public const int PylonRange = 12;
+        public const float PylonChargePerAction = 6000f;
         public const int BoundingBoxHalfSize = 2;
 
         // Relay: a heat pipe. Planted within line of sight of a powered link network it pulls heat out of the
@@ -311,7 +354,7 @@ public static class Tweaks
         public static readonly Color Concrete = new(0xba, 0xba, 0xcc);
         public static readonly Color DirtProjectile = new(0xaa, 0x50, 0x03);
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
-        public static readonly Color Charger = new(0x4f, 0x4f, 0xff, 0xa0);
+        public static readonly Color Pylon = new(0x4f, 0x8f, 0xff);
         public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
         public static readonly Color RelayIdle = new(0x40, 0x68, 0x70);
         public static readonly Color MachineTemplate = new(0x66, 0x66, 0x66, 0x80);

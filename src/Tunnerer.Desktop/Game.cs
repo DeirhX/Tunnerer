@@ -49,6 +49,9 @@ public partial class Game : IDisposable
     private readonly Stopwatch _renderClock = Stopwatch.StartNew();
     private readonly bool _interpolateFrames;
     private readonly Stopwatch _gameTimer = Stopwatch.StartNew();
+    /// <summary>Shader animation clock (seconds); regrow stamps are written in it too.</summary>
+    private readonly Stopwatch _visualClock = Stopwatch.StartNew();
+    private float VisualTime => (float)_visualClock.Elapsed.TotalSeconds;
 
     public const int DefaultSeed = 42;
 
@@ -147,7 +150,8 @@ public partial class Game : IDisposable
             Up: Scancode.W, Down: Scancode.S,
             Shoot: Scancode.Space,
             Build: Scancode.E,
-            BuildHarvester: Scancode.R));
+            BuildHarvester: Scancode.R,
+            BuildPylon: Scancode.T));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         if (!terrainTestMode)
         {
@@ -226,7 +230,7 @@ public partial class Game : IDisposable
                 {
                     ProfileSection(ref _drawProfile.ObjectsDraw, () =>
                     {
-                        _compositeRenderer.Compose(_world, _worldPixels, _compositePixels, tanks.Count > 0 ? tanks[0] : null);
+                        _compositeRenderer.Compose(_world, _worldPixels, _compositePixels);
                         MarkEntityPixels(_worldPixels, _compositePixels);
                         _compositeChanged = true;
                     });
@@ -296,7 +300,10 @@ public partial class Game : IDisposable
         var changedCells = _world.Terrain.GetChangeList();
         _audio.AfterStep(_world, changedCells);
         if (changedCells.Count > 0)
+        {
             _terrainDirtyCells.AddRange(changedCells);
+            _terrainAuxBuilder.GrowthFade.ObserveChanges(_world.Terrain, changedCells, VisualTime);
+        }
 
         ProfileSection(ref _drawProfile.TerrainDraw,
             () => _world.Terrain.DrawChangesToSurface(_worldPixels));

@@ -86,7 +86,73 @@ Heat currently leaves the world in ways that bypass the base. Each one weakens "
 ### 4.4 Heat as a resource *(Proposed)*
 
 Late in the campaign the gradient between hot rock and a cold base drives generators. What was killing you now
-powers you, and that power is what taps the core.
+powers you, and that power is what taps the core. §4.5 brings the first form of this forward into the core loop.
+
+### 4.5 Power: heat in, charge out *(Prototype)*
+
+Power is heat taking a detour. The base's dimensional link is a cold sink, and heat travelling from a hot place
+to it can drive an engine. The engine's output is **charge**, which runs the machines. Spending charge turns it
+back into heat where it is spent, so the energy ledger still accounts for every bit of it.
+
+```
+hot ground --relay--> base engine --> charge store --pylon--> batteries
+     ^                    | waste heat                          |
+     |                    v                                     |
+     |                radiator                                  |
+     +---------- work heat (digging, mining) <------------------+
+```
+
+- **The engine.** Every unit of heat a relay delivers passes through it. A fraction becomes charge and the rest
+  goes into the base's heat store as before. The fraction depends on the temperature difference, like a real heat
+  engine: `eta = min(dT / (dT + K), eta_max)`, where dT is how far the source is above the base. Warm dirt gives
+  a trickle and hot rock gives a lot, so **the dangerous hot places are your power plants**. Heat turned into
+  charge doesn't have to be vented, so better sources also ease the radiator bottleneck (§12.1).
+- **Charge storage.** The base keeps a charge store and starts with enough for the first harvester, so the loop can
+  start without power already in hand. Harvesters carry batteries, filled from the store when planted.
+- **Pylons** are link nodes that hand base charge to batteries in direct line of sight within a short range,
+  drawing it over the link network. A link carries orange heat in and blue charge out. A relay cools a spot and a
+  pylon powers one, so a dig site needs both laid out with connecting lines of sight: a small **mining camp**.
+- **Harvesters refuel.** Each mining action and each crawl step costs charge, which ends up as heat in the ground
+  beside the harvester. Below a quarter full, a harvester stops mining and crawls back toward the nearest powered
+  pylon of its base. It waits in the pylon's beam and goes back to work above 80%. With no pylon to go to, it works
+  until the battery is flat.
+- **Running at a loss.** A camp beside hot rock makes more charge than its harvesters spend. A camp in cold dirt
+  only recovers the harvesters' own warm waste heat, at low efficiency, so it slowly drains the base. The loop only
+  comes out ahead when it taps a real heat source.
+- **Failing gently.** With the store empty, pylons stop and harvesters strand where they are. Relays keep pumping:
+  they are passive heat pipes.
+- **Accounting.** Heat converted to charge, and charge spent back as heat, are booked in the ledger
+  (`ConvertedToCharge`). Thermal energy plus all stored charge balances against what entered and left the system.
+
+Still to do (Proposed):
+
+- Charge balance per minute as part of the steady-state check (§7.2): a sector is finished when its camps make at
+  least the charge they spend.
+
+The tank does not use charge. Its one limit is heat (§4.6); a second meter on the tank was rejected so the player
+never tracks two resources at once.
+
+### 4.6 Network coverage: the leash *(Prototype)*
+
+Exploring should be planned, not free. The network you have built is your coolant line: inside its coverage the
+tank is cooled through the links; outside it, the tank heats up. How far you can go is how long your heat lasts
+off the network. There is no new meter: the TEMP gauge is the only thing to watch.
+
+- **Coverage.** The base and every powered relay and pylon cover a circle around themselves. A position is covered
+  when it is inside a node's circle and in direct line of sight through open ground, the same rule links use, so
+  coverage follows your tunnels.
+- **Inside coverage** the tank's heat goes down the links into the base reactor, so it competes with the relays for
+  the same radiator. Coverage takes heat away but never refills coolant; only docking does that.
+- **Outside coverage** the tank's heat floor climbs steadily. Work heat from digging and firing still sheds into the
+  ground as usual, but the tank can never cool below the floor. From a full coolant charge an idle tank lasts about
+  150 seconds out; every burst of digging spends some of what is left once the floor is high. Back in coverage the
+  floor falls at the network's cooling rate, so a moment's dip is not a full reset.
+- **What stops spamming relays.** A relay is only useful where it can see the network. Cooling strength falls with
+  each link hop from the base, so the far end of a long chain barely holds the tank. Every node also loads the
+  shared radiator. Going much further means a forward base: a big, planned decision.
+- **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
+  the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node. Off network an
+  "OFF NETWORK ~Ns" tag above the TEMP gauge shows how long until the floor reaches the safe maximum.
 
 ## 5. The player *(Decided: mainly a builder that can also fight, as in Factorio)*
 
@@ -148,7 +214,7 @@ Rare minerals and metals sit in the terrain, and the player has reasons to colle
 
 ### 6.4 Structures
 
-Existing: harvester, charger, relay. All cost only dirt today, although build costs already carry a minerals
+Existing: harvester, relay, pylon. All cost only dirt today, although build costs already carry a minerals
 field. Planned: conductor lines, insulating walls, haulers, turrets, props, heat pumps, generators.
 
 ### 6.5 The rival tank *(Proposed)*
@@ -257,10 +323,11 @@ On the thermal integration work (branch `integrate/thermal-ledger-and-visuals` a
 
 - An energy-exact heat simulation over terrain and air fields, with a ledger of every source and sink.
 - A base with a finite reservoir and a radiator.
-- Relays that pump heat from a radius into the base when linked by line of sight.
+- Relays that pump heat from a radius into the base when linked by direct line of sight through open tunnel.
+- Harvesters that roam near where they were planted, mining dirt into the base store; a relay keeps them cool.
 - Tank coolant: pre-cooling at the home base, spent by absorbing heat.
 - Hot rock pockets as permanent heat sources, opt-in per world.
-- Harvester and charger machines, gold as a pickup, and one bot opponent.
+- Harvester, relay and pylon machines, gold as a pickup, and one bot opponent.
 
 Gaps between that and this design, using the constants in `Tweaks.cs` in the working copy on 2026-11-14:
 
@@ -297,6 +364,9 @@ Each step should be playable without the next.
 6. World map, sector save, freeze and resume.
 7. Heat pumps, structure failure by temperature, generators.
 
+The power loop (§4.5) is in as a prototype: the engine, the charge store, pylons, and harvester batteries with the
+return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are starting guesses to tune in play.
+
 ## 13. Decision log
 
 | Decision | Status |
@@ -314,6 +384,8 @@ Each step should be playable without the next.
 | A sector completes at thermal steady state | Proposed |
 | Reach the core; rings that change the kind of heat problem | Proposed |
 | Everything useful makes heat; the radiator is the shared bottleneck | Proposed |
+| Power is converted relay heat; machines run on charge and refuel at pylons | Prototype |
+| The tank's range is set by network coverage and its heat; no second meter on the tank | Prototype |
 | Heat-seeking mobs; threat scales with heat rejected | Proposed |
 | Quenchable hot rock as the first hazard | Proposed |
 | Alerts are caused by the player's actions; headroom buys time | Proposed |

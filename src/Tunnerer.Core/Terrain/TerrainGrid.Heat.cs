@@ -565,6 +565,31 @@ public partial class TerrainGrid
     }
 
     /// <summary>
+    /// The temperature (above ambient) of the heat <see cref="ExtractEnergyInRadiusArea"/> would take from this area:
+    /// the cells' excess temperatures weighted by the energy each one gives up. A small hot spot in cold ground
+    /// still reads hot, because nearly all the extracted energy comes from it. Zero when there is nothing to take.
+    /// </summary>
+    public double ExtractableHeatTemperature(Position center, int radius, ThermalField field)
+    {
+        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        float[] temperatures = FieldArray(field);
+        double energy = 0.0, weighted = 0.0;
+        ForEachInRadius(center, radius, (nx, ny, _, _) =>
+        {
+            int offset = nx + ny * Width;
+            if (CannotExtractFrom(offset, field))
+                return;
+            float excess = temperatures[offset] - ambient;
+            if (excess <= 0f)
+                return;
+            double e = excess * FieldCapacityAt(field, offset);
+            energy += e;
+            weighted += e * excess;
+        });
+        return energy > 0.0 ? weighted / energy : 0.0;
+    }
+
+    /// <summary>
     /// Forces one cell back to ambient and records the removed energy as a base sink in <see cref="Ledger"/>.
     /// Returns the removed energy (negative if the cell was below ambient).
     /// </summary>

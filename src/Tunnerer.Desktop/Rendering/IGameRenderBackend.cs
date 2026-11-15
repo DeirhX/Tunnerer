@@ -19,11 +19,13 @@ public readonly record struct GamePixelsUpload(
     NativeContinuousUpload NativeContinuous,
     EntityLayerUpload Entities);
 
+/// <param name="TimeSeconds">The shaders' animation clock; also the clock regrow stamps are written in.</param>
 public readonly record struct PostProcessUploadOptions(
     HiResRenderQuality Quality,
     bool HeatDebugOverlayEnabled,
     PostProcessPassFlags PassFlags,
-    ThermalRegionOverlayUpload ThermalRegions);
+    ThermalRegionOverlayUpload ThermalRegions,
+    float TimeSeconds);
 
 public readonly record struct ThermalRegionOverlayUpload(
     int TileSizeCells,

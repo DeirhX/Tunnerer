@@ -29,4 +29,10 @@ public readonly record struct SimulationContext
     /// plant a relay that would not link, so the dirt it cost is not wasted.
     /// </summary>
     public Func<Types.Position, bool>? CanPlantRelayAt { get; init; }
+
+    /// <summary>
+    /// Optional: the network coverage of a tank's own base at a position (DESIGN.md §4.6). When set, a tank outside
+    /// it heats up and a tank inside it is cooled down the links; when null the rule is off.
+    /// </summary>
+    public Func<Tank, Links.TankCoverage>? CoverageFor { get; init; }
 }

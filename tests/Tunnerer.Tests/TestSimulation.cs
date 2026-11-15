@@ -123,7 +123,14 @@ internal static class TestSimulation
         var pix = new uint[w * h];
         var surface = new Surface(pix, w, h);
         world.LinkMap.Draw(surface);
-        world.Machines.Draw(surface);
+        foreach (var m in world.Machines.Machines)
+        {
+            hash = Mix(hash, (uint)m.Position.X);
+            hash = Mix(hash, (uint)m.Position.Y);
+            hash = Mix(hash, (uint)m.Type);
+            hash = Mix(hash, (uint)m.State);
+            hash = Mix(hash, m.IsAlive ? 1u : 0u);
+        }
         world.Projectiles.Draw(surface);
         world.Sprites.Draw(surface);
         world.TankList.Draw(surface);

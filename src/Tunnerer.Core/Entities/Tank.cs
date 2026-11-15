@@ -124,6 +124,7 @@ public class Tank
     private readonly MachineMaterializer _machineMaterializer;
     private bool _buildHeld;
     private bool _buildSecondaryHeld;
+    private bool _buildTertiaryHeld;
 
     /// <summary>True while the tank carries a machine (a relay) it has built but not planted yet.</summary>
     public bool IsCarryingMachine => _machineMaterializer.IsCarrying;
@@ -168,6 +169,7 @@ public class Tank
         ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * Tweaks.Tank.TankHeatCapacity);
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
         AdvanceBaseInteraction(in ctx);
+        AdvanceNetworkCoverage(in ctx);
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
         HandleMove(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
@@ -179,25 +181,30 @@ public class Tank
     }
 
     /// <summary>
-    /// Build keys (edge triggered): with no machine in hand the primary key builds a relay and the secondary key a
-    /// harvester from the tank's resources and carries it; either key pressed again outside a base plants it
-    /// where the tank stands.
+    /// Build keys (edge triggered): with no machine in hand the primary key builds a relay, the secondary key a
+    /// harvester and the tertiary key a pylon from the tank's resources and carries it; any build key pressed again
+    /// outside a base plants it where the tank stands.
     /// </summary>
     private void AdvanceBuilding(in SimulationContext ctx, ControllerOutput input)
     {
         bool primaryPressed = input.BuildPrimary && !_buildHeld;
         bool secondaryPressed = input.BuildSecondary && !_buildSecondaryHeld;
+        bool tertiaryPressed = input.BuildTertiary && !_buildTertiaryHeld;
         _buildHeld = input.BuildPrimary;
         _buildSecondaryHeld = input.BuildSecondary;
-        bool pressed = primaryPressed || secondaryPressed;
-        var buildType = secondaryPressed && !primaryPressed ? MachineType.Harvester : MachineType.Relay;
+        _buildTertiaryHeld = input.BuildTertiary;
+        bool pressed = primaryPressed || secondaryPressed || tertiaryPressed;
+        var buildType = primaryPressed ? MachineType.Relay
+            : secondaryPressed ? MachineType.Harvester
+            : MachineType.Pylon;
 
         if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
         {
             if (_machineMaterializer.IsCarrying)
             {
-                // Only relays need a live link to be worth planting; a harvester works anywhere outside a base.
-                if (ctx.CheckBaseCollision(Position) == null && _machineMaterializer.CarriedType == MachineType.Relay &&
+                // Relays and pylons work through the link network, so they need a live link to be worth planting;
+                // a harvester works anywhere outside a base.
+                if (ctx.CheckBaseCollision(Position) == null && _machineMaterializer.CarriedType != MachineType.Harvester &&
                     ctx.CanPlantRelayAt?.Invoke(Position) == false)
                 {
                     PlantRefusedTicks = 48;
@@ -211,18 +218,31 @@ public class Tank
             }
             else
             {
-                // Docked at its own base, a tank that is short of dirt builds from the base store, since
-                // docking deposits the tank's dirt there.
-                var cost = MachineBehaviors.Get(buildType).BuildCost;
-                var payer = !Resources.CanPay(cost) && Base != null && ctx.CheckBaseCollision(Position) == Base &&
-                            Base.Materials.CanPay(cost)
-                    ? Base.Materials
-                    : Resources;
-                _machineMaterializer.TryBuild(buildType, Position, payer, ctx.Machines);
+                var payer = BuildPayer(buildType, dockedAtOwnBase: Base != null && ctx.CheckBaseCollision(Position) == Base);
+                if (payer != null)
+                    _machineMaterializer.TryBuild(buildType, Position, payer, ctx.Machines);
             }
         }
 
         _machineMaterializer.UpdatePosition(Position);
+    }
+
+    /// <summary>
+    /// Dirt available to build with: the tank's own, or the base store if that is larger while docked at the own
+    /// base (docking moves the tank's dirt into the store). A machine is affordable when its cost fits.
+    /// </summary>
+    public int BuildableDirt(bool dockedAtOwnBase) =>
+        dockedAtOwnBase && Base != null ? Math.Max(Resources.Dirt, Base.Materials.Dirt) : Resources.Dirt;
+
+    /// <summary>The store that pays for <paramref name="type"/>, or null if neither can.</summary>
+    public MaterialContainer? BuildPayer(MachineType type, bool dockedAtOwnBase)
+    {
+        var cost = MachineBehaviors.Get(type).BuildCost;
+        if (Resources.CanPay(cost))
+            return Resources;
+        if (dockedAtOwnBase && Base != null && Base.Materials.CanPay(cost))
+            return Base.Materials;
+        return null;
     }
 
     private void AdvanceBaseInteraction(in SimulationContext ctx)
@@ -259,6 +279,66 @@ public class Tank
         {
             baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
             RefrigerateAtBase(baseColl);
+        }
+    }
+
+    /// <summary>
+    /// The network node cooling the tank, as of its last tick. None while it is inside a base (the base cools it there,
+    /// not the network) or off network.
+    /// </summary>
+    public Links.TankCoverage Coverage { get; private set; }
+
+    /// <summary>True when the coverage rule is on and the tank is outside its network: its reactor is heating up.</summary>
+    public bool IsOffNetwork { get; private set; }
+
+    /// <summary>
+    /// The lowest the tank's heat can fall while off network. It rises steadily outside coverage and is pulled back
+    /// down inside it (and reset by docking), so it is the clock on how long the tank can stay out; work heat above
+    /// it still sheds into the surroundings as usual.
+    /// </summary>
+    public float OffNetworkFloor { get; private set; }
+
+    /// <summary>
+    /// Network coverage (DESIGN.md §4.6). Inside its base's coverage the tank sheds heat down the links into the base
+    /// reactor (an exact transfer, limited by the reactor's room, never below zero heat: only docking refills coolant),
+    /// and its heat floor falls at the same rate. Outside it, the floor rises at a steady rate and the tank cannot cool
+    /// below it (<see cref="AdvanceHeat"/>), so the time it can stay out is set by how far the floor has to climb.
+    /// </summary>
+    private void AdvanceNetworkCoverage(in SimulationContext ctx)
+    {
+        IsOffNetwork = false;
+        if (ctx.CoverageFor == null || Base == null)
+        {
+            Coverage = Links.TankCoverage.None;
+            return;
+        }
+
+        Coverage = ctx.CoverageFor(this);
+        if (ctx.CheckBaseCollision(Position) != null)
+        {
+            // Docked or passing through a base: the base itself handles cooling, so the network is not cooling the tank.
+            Coverage = Links.TankCoverage.None;
+            OffNetworkFloor = Math.Min(Heat, 0f);
+            return;
+        }
+
+        float capacity = Tweaks.Tank.TankHeatCapacity;
+        if (Coverage.Covered)
+        {
+            float cooling = ctx.Settings.TankNetworkCoolingPerTick * Coverage.Strength;
+            // The floor falls at the network's cooling rate (so a moment in coverage is not a full reset), but never
+            // below the tank's coolant level: coverage only takes heat away, it does not bank coolant.
+            OffNetworkFloor = Math.Min(Math.Max(OffNetworkFloor - cooling, Math.Min(Heat, 0f)), Heat);
+            if (Heat <= 0f)
+                return;
+            double wanted = Math.Min(cooling, Heat) * (double)capacity;
+            double accepted = Base.AcceptTankHeat(wanted);
+            Heat -= (float)(accepted / capacity);
+        }
+        else
+        {
+            IsOffNetwork = true;
+            OffNetworkFloor = Math.Min(OffNetworkFloor, Heat) + ctx.Settings.TankOffNetworkHeatPerTick;
         }
     }
 
@@ -433,6 +513,13 @@ public class Tank
             TakeDamage(step.OverheatDamage, DamageCause.Overheat);
         }
 
+        // Off network the tank cannot cool below its rising heat floor; holding it there is reactor heat, created here.
+        if (IsOffNetwork && nextHeat < OffNetworkFloor)
+        {
+            heat.Ledger.RecordInjected((OffNetworkFloor - nextHeat) * (double)Tweaks.Tank.TankHeatCapacity);
+            nextHeat = OffNetworkFloor;
+        }
+
         Heat = nextHeat;
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
 
@@ -471,6 +558,7 @@ public class Tank
         // A fresh tank starts cold: whatever heat the wreck still held is removed from the system.
         ledger?.RecordSunkTank(Heat * Tweaks.Tank.TankHeatCapacity);
         Heat = 0f;
+        OffNetworkFloor = 0f;
         Reactor.Current.Heat = new Heat(0);
         _respawning = false;
         DeathCause = DamageCause.None;

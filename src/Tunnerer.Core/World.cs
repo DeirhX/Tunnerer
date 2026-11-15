@@ -52,6 +52,20 @@ public class World
             total += tankBase.ReactorHeatEnergy;
         return total;
     }
+    /// <summary>
+    /// Charge stored in every base and machine battery. Charge is converted heat, so
+    /// <c>SumSystemThermalEnergy() + SumSystemCharge()</c> balances against <c>Injected - TotalSunk</c>.
+    /// </summary>
+    public double SumSystemCharge()
+    {
+        double total = 0.0;
+        foreach (var tankBase in _tankBases.Bases)
+            total += tankBase.Charge;
+        foreach (var machine in _machines.Machines)
+            total += machine.Charge;
+        return total;
+    }
+
     public TankList TankList => _tankList;
     public ProjectileList Projectiles => _projectiles;
     public MachineList Machines => _machines;
@@ -71,11 +85,43 @@ public class World
     /// Plants a carried machine where it stands: it becomes solid, joins the link network and belongs to
     /// <paramref name="owner"/> (the base it delivers to).
     /// </summary>
+    /// <summary>
+    /// Whether <paramref name="machine"/> centred on <paramref name="center"/> would overlap a live tank or another
+    /// planted machine (footprints compared as squares).
+    /// </summary>
+    private bool IsMachineSpotOccupied(Machine machine, Position center)
+    {
+        int half = machine.BoundingBox.HalfWidth;
+        foreach (var tank in _tankList.Tanks)
+        {
+            if (tank.IsDead) continue;
+            int reach = half + TankFootprintHalf;
+            if (Math.Abs(tank.Position.X - center.X) <= reach && Math.Abs(tank.Position.Y - center.Y) <= reach)
+                return true;
+        }
+        foreach (var other in _machines.Machines)
+        {
+            if (ReferenceEquals(other, machine) || !other.IsAlive || other.State != MachineState.Planted) continue;
+            int reach = half + other.BoundingBox.HalfWidth;
+            if (Math.Abs(other.Position.X - center.X) <= reach && Math.Abs(other.Position.Y - center.Y) <= reach)
+                return true;
+        }
+        return false;
+    }
+
+    // Tanks are 7x7 cells around their position.
+    private const int TankFootprintHalf = 3;
+
     public void PlantMachine(Machine machine, TankBase? owner)
     {
         machine.State = MachineState.Planted;
         machine.OwnerBase = owner;
-        machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
+        machine.Anchor = machine.Position;
+        if (owner != null)
+            machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
+        // A harvester roams, so it is not a fixed node of the link network.
+        if (machine.Type != MachineType.Harvester)
+            machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
     }
 
     public World(
@@ -182,9 +228,17 @@ public class World
             Machines = _machines,
             PlantMachine = PlantMachine,
             CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
+            CoverageFor = CoverageFor,
         };
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
-        ProfileSection(ref Profile.Harvesters, () => _machines.Advance(_terrain, _simulationSettings.AdvanceStep));
+        _linkMap.ClearHeatFlow();
+        ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
+            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines), _simulationSettings.AdvanceStep));
+        // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
+        _linkMap.ClearChargeFlow();
+        foreach (var machine in _machines.Machines)
+            if (machine.Type == MachineType.Pylon && machine.IsAlive)
+                LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
@@ -195,6 +249,21 @@ public class World
         if (Profile.FrameCount >= 100)
             Profile.Report();
     }
+
+    private readonly List<CoverageNode> _coverageNodes = new();
+
+    /// <summary>The network coverage of <paramref name="tank"/>'s own base where the tank stands (DESIGN.md §4.6).</summary>
+    public TankCoverage CoverageFor(Tank tank)
+    {
+        if (tank.Base == null)
+            return TankCoverage.None;
+        NetworkCoverage.CollectNodes(tank.Base, _machines.Machines, _coverageNodes);
+        return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
+    }
+
+    /// <summary>Fills <paramref name="into"/> with the coverage nodes of <paramref name="owner"/>'s network.</summary>
+    public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
+        NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
     public void SetGameOver() => _gameOver = true;
 

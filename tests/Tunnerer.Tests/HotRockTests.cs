@@ -191,9 +191,11 @@ public class HotRockTests
             coldWorld.Advance(_ => default);
         }
 
-        Assert.True(hotTank.Heat > 5f, $"standing beside a pocket must heat the tank. heat={hotTank.Heat:0.0}");
+        // Both tanks are off their network, so both gain the same off-network trickle (DESIGN.md §4.6).
+        float offNetwork = 300 * Tweaks.Tank.OffNetworkHeatPerSecond / Tweaks.Perf.TargetFps;
+        Assert.True(hotTank.Heat > coldTank.Heat + 5f, $"standing beside a pocket must heat the tank. heat={hotTank.Heat:0.0}, cold={coldTank.Heat:0.0}");
         Assert.True(hotTank.Heat < Tweaks.Tank.HeatSafeMax, $"the tank should not be cooked outright. heat={hotTank.Heat:0.0}");
-        Assert.True(coldTank.Heat < 1f, $"without a pocket nothing heats the tank. heat={coldTank.Heat:0.0}");
+        Assert.True(coldTank.Heat < offNetwork + 1f, $"without a pocket only the off-network trickle heats the tank. heat={coldTank.Heat:0.0}");
     }
 
     [Fact]

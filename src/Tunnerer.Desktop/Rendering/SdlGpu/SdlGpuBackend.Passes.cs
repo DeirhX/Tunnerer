@@ -129,14 +129,14 @@ public sealed unsafe partial class SdlGpuBackend
         FlushUploads(cmd);
 
         // ---- Passes ------------------------------------------------------------------------------------------
-        PostParamsBlock postParams = PostParamsBlock.Build(upload, (float)ImGui.GetTime());
+        PostParamsBlock postParams = PostParamsBlock.Build(upload, upload.PostProcess.TimeSeconds);
 
         if (useNativeContinuous)
         {
             nint terrainPass = BeginPass(cmd, _scene.Handle, SDL.GPULoadOp.DontCare);
             SDL.PushGPUFragmentUniformData(cmd, 0, (nint)(&postParams), (uint)sizeof(PostParamsBlock));
             DrawFullscreen(terrainPass, _terrainPipeline, _scene.Width, _scene.Height,
-                [_nativeSource.Handle, AuxTextureOrFallback(_terrainAux)]);
+                [_nativeSource.Handle, AuxTextureOrFallback(_terrainAux), AuxTextureOrFallback(_materialCoverage)]);
             SDL.EndGPURenderPass(terrainPass);
         }
 

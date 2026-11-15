@@ -11,4 +11,6 @@ public struct ControllerOutput
     public bool BuildPrimary;
     /// <summary>Second build key: builds (and plants) a harvester instead of a relay.</summary>
     public bool BuildSecondary;
+    /// <summary>Third build key: builds (and plants) a pylon.</summary>
+    public bool BuildTertiary;
 }

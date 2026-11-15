@@ -224,6 +224,7 @@ public class GameHud
         DrawHeatTrend(dl, player, plateX + plateW - 14f, plateY + 10f);
         if (!player.IsDead)
             DrawHeatBar(dl, player.Heat, plateX + 8f, 192f, plateW - 16f);
+        DrawOffNetworkTag(dl, player, heatX + HeatPanelW * 0.5f);
 
         // SHIELD: the tank's armor.
         int health = Math.Max(0, player.Reactor.Health);
@@ -234,14 +235,14 @@ public class GameHud
         DrawBar(dl, sPlateX + 8f, 191f, sPlateW - 16f, 5f, shieldFill,
             shieldFill > 0.5f ? 0xFFFFC040u : shieldFill > 0.25f ? 0xFF30C0FFu : 0xFF3040FFu);
 
-        // MATERIALS: how full the tank's hold is with dirt, which is what structures are built from (percent).
+        // MATERIALS: the dirt in the tank's hold, which is what structures are built from; the bar is how full it is.
         float materialsFill = MaterialsFill(player);
         const float mPlateX = materialsX + 15f;
         const float mPlateW = MaterialsPanelW - 30f;
-        DrawNumberCentered(dl, (int)MathF.Round(materialsFill * 100f), mPlateX, 166f, mPlateW);
+        DrawNumberCentered(dl, player.Resources.Dirt, mPlateX, 166f, mPlateW);
         DrawBar(dl, mPlateX + 40f, 191f, mPlateW - 80f, 5f, materialsFill, 0xFF40B8F0u);
 
-        DrawBuildSlots(dl, player, AvailableRelayDirt(player, _dockedAtOwnBase), buildX);
+        DrawBuildSlots(dl, player, player.BuildableDirt(_dockedAtOwnBase), buildX);
 
         // The COMMAND button has no function yet; dim it like the unavailable build slots.
         dl.AddRectFilled(At(buildX + 77f, 172f), At(buildX + 277f, 212f), 0x90000000u, S(10f));
@@ -297,6 +298,27 @@ public class GameHud
             dl.AddTriangleFilled(At(x - s, y + s * 0.6f), At(x + s, y + s * 0.6f), At(x, y - s * 0.8f), 0xFF4050FFu);
         else
             dl.AddTriangleFilled(At(x - s, y - s * 0.6f), At(x + s, y - s * 0.6f), At(x, y + s * 0.8f), 0xFFFFC050u);
+    }
+
+    /// <summary>
+    /// Above the TEMP panel while the tank is outside its network's coverage (DESIGN.md §4.6): how long until its
+    /// rising heat floor reaches the safe maximum. Digging spikes show on the gauge itself and shed back down.
+    /// </summary>
+    private void DrawOffNetworkTag(ImDrawListPtr dl, Tank player, float centerX)
+    {
+        if (player.IsDead || !player.IsOffNetwork)
+            return;
+
+        float seconds = MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - player.OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
+        string text = seconds > 0f ? $"OFF NETWORK  ~{(int)MathF.Ceiling(seconds)}s" : "OFF NETWORK  OVERHEATING";
+        bool urgent = seconds < 20f;
+        uint color = urgent
+            ? ((int)(_time * 4f) % 2 == 0 ? 0xFF3040FFu : 0xFF60A0FFu)
+            : 0xFF40C8FFu;
+        float size = S(20f);
+        float width = ImGui.GetFont().CalcTextSizeA(size, float.MaxValue, 0f, text).X;
+        var pos = At(centerX, -30f);
+        DrawOutlinedText(dl, size, new Vector2(MathF.Floor(pos.X - width * 0.5f), pos.Y), text, color);
     }
 
     /// <summary>Where a temperature lies on the heat scale, 0 (full coolant charge) to 1 (well past overheating).</summary>
@@ -558,22 +580,9 @@ public class GameHud
         dl.AddRectFilled(At(x, y), At(x + w * fill, y + h), color);
     }
 
-    /// <summary>
-    /// The relay is the only structure that can be built today: its slot shows how much of the dirt cost is
-    /// collected and the key that builds it; the other slots are dimmed.
-    /// </summary>
-    /// <summary>Dirt that can pay for a relay: the tank's own, or the base store while docked at the own base.</summary>
-    private static int AvailableRelayDirt(Tank player, bool docked)
-    {
-        int own = player.Resources.Current.Dirt;
-        if (!docked || player.Base == null || own >= Tweaks.Machine.RelayDirtCost)
-            return own;
-        return Math.Max(own, player.Base.Materials.Current.Dirt);
-    }
-
     private void DrawBuildSlots(ImDrawListPtr dl, Tank player, int dirt, float panelX)
     {
-        // Slot 0 builds a relay (E), slot 1 a harvester (R). While a machine is in hand only its own slot is lit:
+        // Slot 0 builds a relay (E), slot 1 a harvester (R), slot 2 a pylon (T). While a machine is in hand only its own slot is lit:
         // pressing the key again plants it.
         var carried = player.IsCarryingMachine ? player.CarriedMachineType : null;
 
@@ -581,7 +590,7 @@ public class GameHud
         {
             for (int col = 0; col < BuildSlotX.Length; col++)
             {
-                if (row == 0 && col <= 1)
+                if (row == 0)
                     continue;
                 float x = panelX + BuildSlotX[col], y = BuildSlotY[row];
                 dl.AddRectFilled(At(x, y), At(x + BuildSlotW, y + BuildSlotH), 0xA8000000u, S(6f));
@@ -590,6 +599,7 @@ public class GameHud
 
         DrawBuildSlot(dl, player, panelX, col: 0, MachineType.Relay, "RELAY", "E", Tweaks.Machine.RelayDirtCost, dirt, carried);
         DrawBuildSlot(dl, player, panelX, col: 1, MachineType.Harvester, "HARVEST", "R", Tweaks.Machine.HarvesterDirtCost, dirt, carried);
+        DrawBuildSlot(dl, player, panelX, col: 2, MachineType.Pylon, "PYLON", "T", Tweaks.Machine.PylonDirtCost, dirt, carried);
     }
 
     private void DrawBuildSlot(ImDrawListPtr dl, Tank player, float panelX, int col, MachineType type,
@@ -927,6 +937,7 @@ public class GameHud
     /// and a context hint for the build key that explains what E will do, or why a carried relay will not link.
     /// </summary>
     private double _radiatorInflow;
+    private double _engineOutput;
 
     private void DrawHeatNetworkOverlay(Tank player, World world)
     {
@@ -935,15 +946,21 @@ public class GameHud
         if (vp.w <= 0 || vp.h <= 0 || tankBase == null)
             return;
 
-        int relays = 0, powered = 0, pumping = 0, harvesters = 0, stalled = 0;
+        int relays = 0, powered = 0, pumping = 0, harvesters = 0, stalled = 0, recharging = 0, flat = 0;
         double inflow = 0.0;
         foreach (var machine in world.Machines.Machines)
         {
             if (machine.IsAlive && machine.Type == MachineType.Harvester && machine.State == MachineState.Planted &&
                 machine.OwnerBase == tankBase)
             {
+                // Each harvester is counted in exactly one state, in this order: heading to a pylon, out of charge,
+                // too hot, otherwise working.
                 harvesters++;
-                if (machine.IsStalled)
+                if (machine.IsReturning)
+                    recharging++;
+                else if (machine.Charge < Tweaks.Machine.HarvesterHeatPerHarvest)
+                    flat++;
+                else if (machine.IsStalled)
                     stalled++;
             }
 
@@ -958,7 +975,9 @@ public class GameHud
             inflow += machine.LastPumpedEnergy;
         }
         // Smooth the readout: relays act every tick but the number is read by eye.
-        _radiatorInflow += (inflow - _radiatorInflow) * 0.1;
+        // The engine turns part of the relay heat into charge; only the rest reaches the radiator.
+        _engineOutput += (tankBase.EngineOutputPerTick - _engineOutput) * 0.1;
+        _radiatorInflow += (inflow - tankBase.EngineOutputPerTick - _radiatorInflow) * 0.1;
         double ventCapacity = Tweaks.Base.HeatCooldown * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
         _dockedAtOwnBase = !player.IsDead && world.TankBases.CheckBaseCollision(player.Position) == tankBase;
 
@@ -973,8 +992,8 @@ public class GameHud
             _relayLinkedUntil = _time + 4f;
         _lastPoweredRelays = powered;
 
-        int dirt = AvailableRelayDirt(player, _dockedAtOwnBase);
-        bool fromBaseStore = _dockedAtOwnBase && player.Resources.Current.Dirt < Tweaks.Machine.RelayDirtCost &&
+        int dirt = player.BuildableDirt(_dockedAtOwnBase);
+        bool fromBaseStore = _dockedAtOwnBase && player.Resources.Dirt < Tweaks.Machine.RelayDirtCost &&
                              dirt >= Tweaks.Machine.RelayDirtCost;
         string hint;
         Vector4 hintColor;
@@ -997,20 +1016,22 @@ public class GameHud
         }
         else if (player.PlantRefusedTicks > 0)
         {
-            hint = "Relay not planted: it would not link - find a clear line";
+            hint = "Not planted: it would not link - find a clear line";
             hintColor = TextBad;
         }
         else if (player.IsCarryingMachine)
         {
             bool carryingHarvester = player.CarriedMachineType == MachineType.Harvester;
+            bool carryingPylon = player.CarriedMachineType == MachineType.Pylon;
+            string carriedName = carryingHarvester ? "harvester" : carryingPylon ? "pylon" : "relay";
             if (world.TankBases.CheckBaseCollision(player.Position) != null)
             {
-                hint = carryingHarvester ? "Carrying harvester - leave the base to plant it" : "Carrying relay - leave the base to plant it";
+                hint = $"Carrying {carriedName} - leave the base to plant it";
                 hintColor = TextInfo;
             }
             else if (carryingHarvester)
             {
-                hint = "R: plant harvester here - it digs nearby dirt and heats the ground";
+                hint = "R: plant harvester here - it mines nearby dirt into your base store";
                 hintColor = TextGood;
             }
             else
@@ -1018,7 +1039,9 @@ public class GameHud
                 var preview = world.LinkMap.PreviewLink(player.Position, world.Terrain);
                 (hint, hintColor) = preview.Status switch
                 {
-                    LinkPreviewStatus.Live => ("E: plant relay here - it will link (green line)", TextGood),
+                    LinkPreviewStatus.Live => (carryingPylon
+                        ? "T: plant pylon here - it charges harvesters it can see"
+                        : "E: plant relay here - it will link (green line)", TextGood),
                     LinkPreviewStatus.Blocked => ("Line to network blocked (red X) - dig it clear", TextBad),
                     LinkPreviewStatus.TooFar => ("Too far from the network - move closer", TextWarn),
                     _ => ("No powered network to link to", TextWarn),
@@ -1037,6 +1060,8 @@ public class GameHud
                 : $"E: build relay ({Tweaks.Machine.RelayDirtCost} dirt)";
             if (dirt >= Tweaks.Machine.HarvesterDirtCost)
                 hint += $"   R: build harvester ({Tweaks.Machine.HarvesterDirtCost} dirt)";
+            if (dirt >= Tweaks.Machine.PylonDirtCost && harvesters > 0)
+                hint += $"   T: pylon ({Tweaks.Machine.PylonDirtCost})";
             hintColor = TextGood;
         }
         else if (_dockedAtOwnBase && _hasLeftBase && player.HeatBudget < Tank.HeatBudgetCapacity - 1f)
@@ -1065,10 +1090,27 @@ public class GameHud
         {
             ImGui.SetWindowFontScale(1.25f);
             ColoredText(player.LivesLeft > 1 ? TextDim : TextBad, $"Lives {player.LivesLeft}");
-            ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Current.Dirt}");
+            ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Dirt}/{tankBase.Materials.DirtCapacity}");
+
+            // Power: the charge store and what the engine is making from relay heat right now.
+            float chargeFill = (float)Math.Clamp(tankBase.Charge / tankBase.ChargeCapacity, 0.0, 1.0);
+            double perSecond = _engineOutput * Tweaks.Perf.TargetFps;
+            ColoredText(chargeFill < 0.1f ? TextBad : chargeFill < 0.3f ? TextWarn : TextInfo,
+                $"Charge {tankBase.Charge / 1000.0:0}k / {tankBase.ChargeCapacity / 1000.0:0}k" +
+                (perSecond >= 1.0 ? $"   engine +{perSecond / 1000.0:0.0}k/s" : "   engine idle"));
+            ImGui.ProgressBar(chargeFill, new Vector2(180f, 8f), string.Empty);
+
             if (harvesters > 0)
+            {
                 ColoredText(stalled > 0 ? TextWarn : TextDim,
-                    $"Harvesters working {harvesters - stalled}/{harvesters}" + (stalled > 0 ? $", {stalled} too hot" : ""));
+                    $"Harvesters working {harvesters - stalled - recharging - flat}/{harvesters}" +
+                    (stalled > 0 ? $", {stalled} too hot" : ""));
+                if (recharging > 0 || flat > 0)
+                    ColoredText(flat > 0 ? TextBad : TextWarn,
+                        (recharging > 0 ? $"{recharging} heading to a pylon" : "") +
+                        (recharging > 0 && flat > 0 ? ", " : "") +
+                        (flat > 0 ? $"{flat} out of charge" : ""));
+            }
             if (relays > 0)
             {
                 ColoredText(powered == relays ? TextDim : TextWarn,
