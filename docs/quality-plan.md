@@ -101,4 +101,6 @@ Independent review of the whole diff.
 
 | Package | Status |
 |---|---|
-| 1A, 1B, 1C | in progress |
+| 1A, 1B, 1C | done (merged 2026-11-15) |
+| Golden fingerprint test (`SimulationFingerprintTests`) | done: refactors are checked bit-for-bit against recorded hashes |
+| 2A, 2C, 3D | in progress |
