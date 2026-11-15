@@ -48,7 +48,7 @@ public static class NetworkCoverage
                 continue;
             if (Position.DistanceSquared(position, node.Position) > node.Radius * node.Radius)
                 continue;
-            if (Raycaster.BresenhamLineAny(node.Position, position, p => Pixel.BlocksLink(terrain.GetPixel(p))))
+            if (!Raycaster.HasOpenLine(terrain, node.Position, position))
                 continue;
             best = new TankCoverage(true, node.Strength, node.Position);
         }

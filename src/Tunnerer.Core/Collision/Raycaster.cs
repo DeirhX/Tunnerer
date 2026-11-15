@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Collision;
 
+using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 
 public static class Raycaster
@@ -25,6 +26,32 @@ public static class Raycaster
     public static bool BresenhamLineAny(Position from, Position to, Func<Position, bool> predicate)
     {
         return WalkBresenham(from, to, predicate);
+    }
+
+    /// <summary>
+    /// Line of sight through open ground: true when no cell on the Bresenham line from <paramref name="from"/> to
+    /// <paramref name="to"/> (both ends included) blocks a link (<see cref="Pixel.BlocksLink"/>). Links, the link
+    /// preview, network coverage and pylon charging all use this test.
+    /// </summary>
+    public static bool HasOpenLine(ITerrainPixelReadOnly terrain, Position from, Position to) =>
+        !TryFindLineBlock(terrain, from, to, out _);
+
+    /// <summary>
+    /// Like <see cref="HasOpenLine"/>, walking from <paramref name="from"/>, but also gives the first blocking cell.
+    /// Returns true when the line is blocked.
+    /// </summary>
+    public static bool TryFindLineBlock(ITerrainPixelReadOnly terrain, Position from, Position to, out Position firstBlock)
+    {
+        Position found = default;
+        bool blocked = WalkBresenham(from, to, pos =>
+        {
+            if (!Pixel.BlocksLink(terrain.GetPixel(pos)))
+                return false;
+            found = pos;
+            return true;
+        });
+        firstBlock = found;
+        return blocked;
     }
 
     private static bool WalkBresenham(Position from, Position to, Func<Position, bool> visitor)

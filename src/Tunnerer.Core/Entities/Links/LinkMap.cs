@@ -203,14 +203,7 @@ public class LinkMap
             if (dist > Tweaks.World.MaximumLiveLinkDistance)
                 continue;
 
-            Position firstBlock = default;
-            bool blocked = Raycaster.BresenhamLineAny(at, point.Position, pos =>
-            {
-                if (!Pixel.BlocksLink(terrain.GetPixel(pos)))
-                    return false;
-                firstBlock = pos;
-                return true;
-            });
+            bool blocked = Raycaster.TryFindLineBlock(terrain, at, point.Position, out Position firstBlock);
             if (!blocked && dist < bestLiveDist) { bestLiveDist = dist; bestLive = point; }
             else if (blocked && dist < bestBlockedDist) { bestBlockedDist = dist; bestBlocked = point; blockedAt = firstBlock; }
         }

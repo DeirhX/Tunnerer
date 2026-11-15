@@ -225,8 +225,7 @@ public static class MachineBehaviors
         int range = Tweaks.Machine.PylonRange;
         if (Position.DistanceSquared(pylon.Position, battery.Position) > range * range)
             return false;
-        return !Collision.Raycaster.BresenhamLineAny(pylon.Position, battery.Position,
-            pos => Pixel.BlocksLink(terrain.GetPixel(pos)));
+        return Collision.Raycaster.HasOpenLine(terrain, pylon.Position, battery.Position);
     }
 
     /// <summary>
