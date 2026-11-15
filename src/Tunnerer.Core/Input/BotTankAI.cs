@@ -338,7 +338,7 @@ public class BotTankAI
         return new ControllerOutput { MoveSpeed = new Offset(sx, sy) };
     }
 
-    private bool ShouldRetreat(Tank self, Tank enemy, BehaviorProfile profile)
+    private static bool ShouldRetreat(Tank self, Tank enemy, BehaviorProfile profile)
     {
         bool lowHealth = self.Reactor.Health < (int)(Tweaks.Tank.InitialHealth * profile.LowHealthRatio);
         bool highHeat = self.Reactor.Heat > (int)(Tweaks.Tank.HeatCapacity * profile.HighHeatRatio);
@@ -435,7 +435,7 @@ public class BotTankAI
         return score;
     }
 
-    private bool NeedsDigging(Position self, Offset move, ITerrainPixelReadOnly terrain)
+    private static bool NeedsDigging(Position self, Offset move, ITerrainPixelReadOnly terrain)
     {
         var next = self + move;
         if (!terrain.IsInside(next))
@@ -443,7 +443,7 @@ public class BotTankAI
         return Pixel.IsAnyCollision(terrain.GetPixelRaw(next));
     }
 
-    private bool HasLineOfSight(Position from, Position to, ITerrainPixelReadOnly terrain)
+    private static bool HasLineOfSight(Position from, Position to, ITerrainPixelReadOnly terrain)
     {
         bool blocked = Raycaster.BresenhamLineAny(from, to, pos =>
         {

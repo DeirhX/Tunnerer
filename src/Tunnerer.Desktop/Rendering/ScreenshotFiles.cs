@@ -1,5 +1,7 @@
 namespace Tunnerer.Desktop.Rendering;
 
+using System.Globalization;
+
 /// <summary>Where screenshots go and how they are written, for every backend.</summary>
 public static class ScreenshotFiles
 {
@@ -9,7 +11,7 @@ public static class ScreenshotFiles
     /// </summary>
     public static string NewPath(string? label)
     {
-        string stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff");
+        string stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff", CultureInfo.InvariantCulture);
         string cleanLabel = string.IsNullOrWhiteSpace(label) ? "frame" : SanitizeFilePart(label);
         string dir = Environment.GetEnvironmentVariable("TUNNERER_SCREENSHOT_DIR") is { Length: > 0 } custom
             ? custom

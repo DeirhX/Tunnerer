@@ -18,7 +18,7 @@ public class TankMovementTests
     /// region (which ends at y=47) so <c>CreateBasesInTerrain</c> does not
     /// overwrite the manually placed dirt.
     /// </summary>
-    private (World world, Position spawn) CreateControlledWorld()
+    private static (World world, Position spawn) CreateControlledWorld()
     {
         var size = new Size(150, 150);
         var terrain = new TerrainGrid(size);

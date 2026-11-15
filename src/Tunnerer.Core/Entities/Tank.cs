@@ -413,7 +413,7 @@ public class Tank
         ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * Tweaks.Tank.TankHeatCapacity);
     }
 
-    private CollisionType TestCollision(ITerrainPixelAccessor terrain, Position pos, int dir)
+    private static CollisionType TestCollision(ITerrainPixelAccessor terrain, Position pos, int dir)
     {
         var result = CollisionType.None;
         ForEachSpritePixel(dir, pos, (_, worldPos) =>

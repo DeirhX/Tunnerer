@@ -156,7 +156,7 @@ public sealed unsafe partial class SdlGpuBackend
     private nint AuxTextureOrFallback(WorldDataTexture data) =>
         data.Texture.Handle != nint.Zero ? data.Texture.Handle : _emptyTexture;
 
-    private nint BeginPass(nint cmd, nint texture, SDL.GPULoadOp loadOp)
+    private static nint BeginPass(nint cmd, nint texture, SDL.GPULoadOp loadOp)
     {
         var target = new SDL.GPUColorTargetInfo
         {

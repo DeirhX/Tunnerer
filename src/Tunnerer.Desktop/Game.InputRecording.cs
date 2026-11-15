@@ -1,5 +1,6 @@
 namespace Tunnerer.Desktop;
 
+using System.Globalization;
 using System.Text;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Input;
@@ -37,7 +38,7 @@ public partial class Game
         if (!string.IsNullOrWhiteSpace(_scriptedInput.RecordPath))
             return _scriptedInput.RecordPath;
 
-        string ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        string ts = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
         return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "artifacts", "debug", $"scripted_input_{ts}.txt"));
     }
 
@@ -49,11 +50,11 @@ public partial class Game
 
         var text = new StringBuilder();
         text.AppendLine("# Scripted input recording");
-        text.AppendLine($"# Generated: {DateTime.Now:O}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"# Generated: {DateTime.Now:O}");
         if (!string.IsNullOrWhiteSpace(capture.InputScript))
-            text.AppendLine($"TUNNERER_SCRIPTED_INPUT={capture.InputScript}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"TUNNERER_SCRIPTED_INPUT={capture.InputScript}");
         if (!string.IsNullOrWhiteSpace(capture.CommandScript))
-            text.AppendLine($"TUNNERER_COMMAND_SCRIPT={capture.CommandScript}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"TUNNERER_COMMAND_SCRIPT={capture.CommandScript}");
         File.WriteAllText(path, text.ToString());
     }
 

@@ -69,6 +69,7 @@ static int Fail(string message)
 internal static unsafe partial class Compiler
 {
     private const string Entrypoint = "main";
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 
     public static bool CompileOne(string path, ShaderCross.ShaderStage stage, string outDir, out string error)
     {
@@ -159,7 +160,7 @@ internal static unsafe partial class Compiler
             DxilEntrypoint: Entrypoint,
             MslEntrypoint: mslEntry.Groups[1].Value);
         File.WriteAllText(Path.Combine(outDir, name + ".json"),
-            JsonSerializer.Serialize(json, new JsonSerializerOptions { WriteIndented = true }));
+            JsonSerializer.Serialize(json, IndentedJson));
 
         error = string.Empty;
         return true;

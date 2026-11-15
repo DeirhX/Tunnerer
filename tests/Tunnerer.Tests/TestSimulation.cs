@@ -6,7 +6,7 @@ using Tunnerer.Core.Types;
 
 internal static class TestSimulation
 {
-    public static readonly ControllerOutput Idle = default;
+    public static ControllerOutput Idle => default;
 
     public static ControllerOutput Move(int x, int y) =>
         new() { MoveSpeed = new Offset(x, y) };

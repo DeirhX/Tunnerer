@@ -7,7 +7,7 @@ namespace Tunnerer.Tests;
 
 public class TerrainTests
 {
-    private TerrainGrid MakeTerrain(int w, int h) => new(new Size(w, h));
+    private static TerrainGrid MakeTerrain(int w, int h) => new(new Size(w, h));
 
     [Fact]
     public void SetPixelRaw_GetPixelRaw_Roundtrip()

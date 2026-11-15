@@ -1,5 +1,7 @@
 namespace Tunnerer.Desktop;
 
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using static SDL3.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
@@ -19,7 +21,9 @@ using System.Runtime.InteropServices;
 public partial class Game : IDisposable
 {
     private readonly SdlRenderer _renderer;
+    [SuppressMessage("Performance", "CA1859", Justification = "Game talks to the backend through its interface, not SDL_GPU types.")]
     private readonly IGameRenderBackend _renderBackend;
+    [SuppressMessage("Performance", "CA1859", Justification = "Game talks to the backend through its interface, not SDL_GPU types.")]
     private readonly ITextureLoader _textures;
     private readonly GameHud _hud;
     private readonly WorldCompositeRenderer _compositeRenderer = new();
@@ -113,7 +117,7 @@ public partial class Game : IDisposable
         {
             _terrainSize = terrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize;
             var modeLabel = parallel ? "optimized" : "deterministic";
-            Console.WriteLine($"Generating terrain {_terrainSize.X}x{_terrainSize.Y} ({modeLabel}, seed={(deterministicSimulation ? Seed.ToString() : "random")})...");
+            Console.WriteLine($"Generating terrain {_terrainSize.X}x{_terrainSize.Y} ({modeLabel}, seed={(deterministicSimulation ? Seed.ToString(CultureInfo.InvariantCulture) : "random")})...");
             var genWatch = Stopwatch.StartNew();
             var generator = new ToastGenerator();
             int? seed = deterministicSimulation ? Seed : null;

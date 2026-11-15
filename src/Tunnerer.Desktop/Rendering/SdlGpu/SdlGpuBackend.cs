@@ -90,10 +90,10 @@ public sealed unsafe partial class SdlGpuBackend : IGameRenderBackend
             ImGuiPlatform.ProcessEvent(ev);
     }
 
-    public void ClearFrame(Size viewportSize, Color c)
+    public void ClearFrame(Size viewportSize, Color clearColor)
     {
         _ = viewportSize;
-        _clearColor = new SDL.FColor { R = c.R / 255f, G = c.G / 255f, B = c.B / 255f, A = c.A / 255f };
+        _clearColor = new SDL.FColor { R = clearColor.R / 255f, G = clearColor.G / 255f, B = clearColor.B / 255f, A = clearColor.A / 255f };
     }
 
     public void NewFrame(int windowW, int windowH, float deltaTime)
