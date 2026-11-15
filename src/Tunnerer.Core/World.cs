@@ -117,8 +117,7 @@ public class World
         machine.Anchor = machine.Position;
         if (owner != null)
             machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
-        // A harvester roams, so it is not a fixed node of the link network.
-        if (machine.Type != MachineType.Harvester)
+        if (machine.Behavior.IsLinkNode)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
     }
 
@@ -233,8 +232,9 @@ public class World
             new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines), _simulationSettings.AdvanceStep));
         // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
         _linkMap.ClearChargeFlow();
+        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
         foreach (var machine in _machines.Machines)
-            if (machine.Type == MachineType.Pylon && machine.IsAlive)
+            if (machine.IsAlive)
                 LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
@@ -260,10 +260,10 @@ public class World
 
     /// <summary>What a machine of <paramref name="type"/> would do if planted at <paramref name="at"/>.</summary>
     public MachinePlacementPreview PreviewPlacement(MachineType type, Position at) =>
-        type == MachineType.Harvester
-            ? new MachinePlacementPreview(default,
-                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)))
-            : new MachinePlacementPreview(_linkMap.PreviewLink(at, _terrain), 0f);
+        MachineBehaviors.Get(type).RequiresLinkToPlant
+            ? new MachinePlacementPreview(_linkMap.PreviewLink(at, _terrain), 0f)
+            : new MachinePlacementPreview(default,
+                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)));
 
     /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
     public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines);

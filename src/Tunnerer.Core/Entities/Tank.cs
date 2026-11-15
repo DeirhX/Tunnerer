@@ -203,17 +203,17 @@ public class Tank
         _buildSecondaryHeld = input.BuildSecondary;
         _buildTertiaryHeld = input.BuildTertiary;
         bool pressed = primaryPressed || secondaryPressed || tertiaryPressed;
-        var buildType = primaryPressed ? MachineType.Relay
-            : secondaryPressed ? MachineType.Harvester
-            : MachineType.Pylon;
+        var buildType = MachineBehaviors.ForKey(
+            primaryPressed ? BuildKey.Primary : secondaryPressed ? BuildKey.Secondary : BuildKey.Tertiary).Type;
 
         if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
         {
             if (_machineMaterializer.IsCarrying)
             {
-                // Relays and pylons work through the link network, so they need a live link to be worth planting;
-                // a harvester works anywhere outside a base.
-                if (ctx.CheckBaseCollision(Position) == null && _machineMaterializer.CarriedType != MachineType.Harvester &&
+                // Machines that work through the link network need a live link to be worth planting; others
+                // (the harvester) work anywhere outside a base.
+                if (ctx.CheckBaseCollision(Position) == null &&
+                    _machineMaterializer.CarriedType is MachineType carried && MachineBehaviors.Get(carried).RequiresLinkToPlant &&
                     ctx.CanPlantRelayAt?.Invoke(Position) == false)
                 {
                     PlantRefusedTicks = 48;
