@@ -258,6 +258,13 @@ public class World
         return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
     }
 
+    /// <summary>What a machine of <paramref name="type"/> would do if planted at <paramref name="at"/>.</summary>
+    public MachinePlacementPreview PreviewPlacement(MachineType type, Position at) =>
+        type == MachineType.Harvester
+            ? new MachinePlacementPreview(default,
+                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)))
+            : new MachinePlacementPreview(_linkMap.PreviewLink(at, _terrain), 0f);
+
     /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
     public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines);
 

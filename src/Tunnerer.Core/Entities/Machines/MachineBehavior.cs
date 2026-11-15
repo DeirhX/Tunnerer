@@ -68,6 +68,14 @@ public static class MachineBehaviors
         _ => throw new ArgumentOutOfRangeException(nameof(type)),
     };
 
+    /// <summary>The ground temperature a harvester at <paramref name="at"/> senses (averaged over its sense radius).</summary>
+    public static float HarvesterSenseTemperature(ITerrainHeatSource heat, Position at) =>
+        // SampleAverageHeat is normalised (temperature / 255).
+        heat.SampleAverageHeat(at, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f;
+
+    /// <summary>A sensed ground temperature as a fraction of the harvester's stall temperature (1 = stalled).</summary>
+    public static float HarvesterSenseHeat(float temperature) => temperature / Tweaks.Machine.HarvesterStallTemperature;
+
     /// <summary>True when a harvester's battery cannot pay for another harvest.</summary>
     public static bool IsOutOfCharge(Machine harvester) => harvester.Charge < Tweaks.Machine.HarvesterHeatPerHarvest;
 
@@ -112,9 +120,8 @@ public static class MachineBehaviors
     {
         var terrain = ctx.Terrain;
 
-        // SampleAverageHeat is normalised (temperature / 255).
-        float temperature = terrain.SampleAverageHeat(machine.Position, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f;
-        machine.SenseHeat = temperature / Tweaks.Machine.HarvesterStallTemperature;
+        float temperature = HarvesterSenseTemperature(terrain, machine.Position);
+        machine.SenseHeat = HarvesterSenseHeat(temperature);
         machine.IsStalled = temperature >= Tweaks.Machine.HarvesterStallTemperature;
 
         var store = machine.OwnerBase?.Materials;
