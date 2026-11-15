@@ -21,6 +21,7 @@ public readonly record struct MachineContext(
 /// Defines per-type machine behavior in one place.
 /// Adding a new machine type = one entry in <see cref="MachineBehaviors.Get"/>.
 /// </summary>
+/// <param name="ActionInterval">Time between actions; <see cref="TimeSpan.Zero"/> acts on every world tick.</param>
 public record MachineBehavior(
     TimeSpan ActionInterval,
     Action<Machine, MachineContext>? PerformAction,
@@ -42,7 +43,7 @@ public static class MachineBehaviors
         new MaterialAmount(Tweaks.Machine.PylonDirtCost, 0));
 
     public static readonly MachineBehavior Relay = new(
-        Tweaks.World.AdvanceStep,
+        TimeSpan.Zero,
         PumpHeat,
         Tweaks.Colors.Relay,
         new MaterialAmount(Tweaks.Machine.RelayDirtCost, 0));

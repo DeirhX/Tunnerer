@@ -15,7 +15,7 @@ using Tunnerer.Core.Rendering;
 public class World
 {
     private readonly TerrainGrid _terrain;
-    private readonly TankBases _tankBases = new();
+    private readonly TankBases _tankBases;
     private readonly TankList _tankList = new();
     private readonly ProjectileList _projectiles;
     private readonly MachineList _machines = new();
@@ -47,7 +47,7 @@ public class World
     {
         double total = _terrain.SumTotalThermalEnergy();
         foreach (var tank in _tankList.Tanks)
-            total += tank.Heat * Tweaks.Tank.TankHeatCapacity;
+            total += tank.Heat * tank.ThermalCapacity;
         foreach (var tankBase in _tankBases.Bases)
             total += tankBase.ReactorHeatEnergy;
         return total;
@@ -137,6 +137,7 @@ public class World
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
+        _tankBases = new TankBases(_simulationSettings);
         _projectiles = new ProjectileList(deterministicSimulation ? _simulationSeed ^ 0x5f3759df : null);
         _linkMap = new LinkMap(deterministicSimulation, _simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);

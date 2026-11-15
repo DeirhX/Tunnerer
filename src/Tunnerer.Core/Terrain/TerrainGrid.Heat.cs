@@ -162,20 +162,20 @@ public partial class TerrainGrid
         else
             _noActiveTileFrameCount = 0;
 
-        if (coverage >= Tweaks.World.ThermalSaturationCoverageThreshold)
+        if (coverage >= _simulationSettings.ThermalSaturationCoverageThreshold)
             _saturatedCoverageFrameCount++;
         else
             _saturatedCoverageFrameCount = 0;
 
         bool shouldSleepNoActive =
             artificialCoolingPerFrame <= 0f &&
-            _noActiveTileFrameCount >= Tweaks.World.ThermalNoActiveSleepFrames;
+            _noActiveTileFrameCount >= _simulationSettings.ThermalNoActiveSleepFrames;
         bool shouldSleepQuietDelta =
             !_thermalWakeRequested &&
             _lastCoolDownMaxDelta < _simulationSettings.ThermalMaxDeltaSleepThreshold;
         bool shouldThrottleSaturation =
-            _saturatedCoverageFrameCount >= Tweaks.World.ThermalSaturationFramesBeforeThrottle &&
-            (_coolDownFrameCounter % Math.Max(1, Tweaks.World.ThermalSaturationStepIntervalFrames)) != 0;
+            _saturatedCoverageFrameCount >= _simulationSettings.ThermalSaturationFramesBeforeThrottle &&
+            (_coolDownFrameCounter % Math.Max(1, _simulationSettings.ThermalSaturationStepIntervalFrames)) != 0;
 
         if (shouldSleepNoActive || shouldSleepQuietDelta || shouldThrottleSaturation)
         {
@@ -534,7 +534,7 @@ public partial class TerrainGrid
         if (maxEnergy <= 0.0)
             return 0.0;
 
-        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        float ambient = _simulationSettings.ThermalAmbientTemperature;
         float[] temperatures = FieldArray(field);
         double available = 0.0;
         ForEachInRadius(center, radius, (nx, ny, _, _) =>
@@ -571,7 +571,7 @@ public partial class TerrainGrid
     /// </summary>
     public double ExtractableHeatTemperature(Position center, int radius, ThermalField field)
     {
-        float ambient = Tweaks.World.ThermalAmbientTemperature;
+        float ambient = _simulationSettings.ThermalAmbientTemperature;
         float[] temperatures = FieldArray(field);
         double energy = 0.0, weighted = 0.0;
         ForEachInRadius(center, radius, (nx, ny, _, _) =>
@@ -599,7 +599,7 @@ public partial class TerrainGrid
             return 0.0;
         int offset = pos.X + pos.Y * Width;
         float[] temperatures = FieldArray(field);
-        float excess = temperatures[offset] - Tweaks.World.ThermalAmbientTemperature;
+        float excess = temperatures[offset] - _simulationSettings.ThermalAmbientTemperature;
         if (excess == 0f)
             return 0.0;
 

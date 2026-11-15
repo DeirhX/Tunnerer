@@ -22,8 +22,15 @@ public readonly record struct SimulationSettings
     public float ThermalMaxDeltaSleepThreshold { get; init; }
     public float ThermalActiveTemperatureThreshold { get; init; }
 
+    // --- Sleep and saturation throttle ---
+    public int ThermalNoActiveSleepFrames { get; init; }
+    public float ThermalSaturationCoverageThreshold { get; init; }
+    public int ThermalSaturationFramesBeforeThrottle { get; init; }
+    public int ThermalSaturationStepIntervalFrames { get; init; }
+
     // --- Thermal engine constants ---
     public float ThermalDt { get; init; }
+    public float ThermalAmbientTemperature { get; init; }
     public float ThermalArtificialCoolingPerFrame { get; init; }
 
     // --- Material heat capacities ---
@@ -110,7 +117,12 @@ public readonly record struct SimulationSettings
         ThermalMaxWorkers = Tweaks.World.ThermalMaxWorkers,
         ThermalMaxDeltaSleepThreshold = Tweaks.World.ThermalMaxDeltaSleepThreshold,
         ThermalActiveTemperatureThreshold = Tweaks.World.ThermalActiveTemperatureThreshold,
+        ThermalNoActiveSleepFrames = Tweaks.World.ThermalNoActiveSleepFrames,
+        ThermalSaturationCoverageThreshold = Tweaks.World.ThermalSaturationCoverageThreshold,
+        ThermalSaturationFramesBeforeThrottle = Tweaks.World.ThermalSaturationFramesBeforeThrottle,
+        ThermalSaturationStepIntervalFrames = Tweaks.World.ThermalSaturationStepIntervalFrames,
         ThermalDt = Tweaks.World.ThermalDt,
+        ThermalAmbientTemperature = Tweaks.World.ThermalAmbientTemperature,
         ThermalArtificialCoolingPerFrame = Tweaks.World.ThermalArtificialCoolingPerFrame,
         ThermalCapacityAir = Tweaks.World.ThermalCapacityAir,
         ThermalCapacityDirt = Tweaks.World.ThermalCapacityDirt,

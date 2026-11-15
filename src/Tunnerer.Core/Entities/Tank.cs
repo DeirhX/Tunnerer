@@ -130,6 +130,9 @@ public class Tank
     public bool IsCarryingMachine => _machineMaterializer.IsCarrying;
     public MachineType? CarriedMachineType => _machineMaterializer.CarriedType;
 
+    /// <summary>Heat capacity of the tank, from the settings its heat engine uses: tank energy is <c>Heat * ThermalCapacity</c>.</summary>
+    public float ThermalCapacity => _heatEngine.TankHeatCapacity;
+
     public Tank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null)
     {
         _heatEngine = new TankHeatEngine(settings ?? SimulationSettings.FromTweaks());
@@ -166,7 +169,7 @@ public class Tank
         }
 
         Heat += Tweaks.Tank.IdleHeatGain;
-        ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * Tweaks.Tank.TankHeatCapacity);
+        ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * ThermalCapacity);
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
         AdvanceBaseInteraction(in ctx);
         AdvanceNetworkCoverage(in ctx);
@@ -322,7 +325,7 @@ public class Tank
             return;
         }
 
-        float capacity = Tweaks.Tank.TankHeatCapacity;
+        float capacity = ThermalCapacity;
         if (Coverage.Covered)
         {
             float cooling = ctx.Settings.TankNetworkCoolingPerTick * Coverage.Strength;
@@ -353,9 +356,9 @@ public class Tank
         if (Heat <= target)
             return;
 
-        double wanted = Math.Min(Tweaks.Tank.DockCoolingPerTick, Heat - target) * (double)Tweaks.Tank.TankHeatCapacity;
+        double wanted = Math.Min(Tweaks.Tank.DockCoolingPerTick, Heat - target) * (double)ThermalCapacity;
         double accepted = tankBase.AcceptTankHeat(wanted);
-        Heat -= (float)(accepted / Tweaks.Tank.TankHeatCapacity);
+        Heat -= (float)(accepted / ThermalCapacity);
     }
 
     private void AdvanceTurretAim(ControllerOutput input)
@@ -410,7 +413,7 @@ public class Tank
         Direction = dir;
         Position = newPos;
         Heat += Tweaks.Tank.MoveHeatGain;
-        ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * Tweaks.Tank.TankHeatCapacity);
+        ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * ThermalCapacity);
     }
 
     private CollisionType TestCollision(ITerrainPixelAccessor terrain, Position pos, int dir)
@@ -475,7 +478,7 @@ public class Tank
                 terrain.SetPixel(worldPos, TerrainPixel.Blank);
                 int cooling = Tweaks.Tank.CoolingPickupGold;
                 float cooledHeat = TankHeatModel.ClampHeat(in settings, Heat - cooling);
-                heat.Ledger.RecordSunkTank((Heat - cooledHeat) * Tweaks.Tank.TankHeatCapacity);
+                heat.Ledger.RecordSunkTank((Heat - cooledHeat) * ThermalCapacity);
                 Heat = cooledHeat;
             }
             return true;
@@ -503,9 +506,9 @@ public class Tank
         nextHeatAfterExchange -= ExchangeWithGrid(heat, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
 
         // Digging and shooting create heat from nothing; the heat floor can also create a little.
-        heat.Ledger.RecordInjected(step.ActionHeat * Tweaks.Tank.TankHeatCapacity);
+        heat.Ledger.RecordInjected(step.ActionHeat * ThermalCapacity);
         float nextHeat = TankHeatModel.ClampHeat(in settings, nextHeatAfterExchange);
-        heat.Ledger.RecordSunkTank((nextHeatAfterExchange - nextHeat) * Tweaks.Tank.TankHeatCapacity);
+        heat.Ledger.RecordSunkTank((nextHeatAfterExchange - nextHeat) * ThermalCapacity);
 
         if (step.OverheatDamage > 0)
         {
@@ -516,7 +519,7 @@ public class Tank
         // Off network the tank cannot cool below its rising heat floor; holding it there is reactor heat, created here.
         if (IsOffNetwork && nextHeat < OffNetworkFloor)
         {
-            heat.Ledger.RecordInjected((OffNetworkFloor - nextHeat) * (double)Tweaks.Tank.TankHeatCapacity);
+            heat.Ledger.RecordInjected((OffNetworkFloor - nextHeat) * (double)ThermalCapacity);
             nextHeat = OffNetworkFloor;
         }
 
@@ -544,7 +547,7 @@ public class Tank
         {
             double wanted = -energyToField;
             double taken = terrain.ExtractEnergyInRadiusArea(Position, radius, wanted, field);
-            return (float)((wanted - taken) / Tweaks.Tank.TankHeatCapacity);
+            return (float)((wanted - taken) / ThermalCapacity);
         }
 
         return 0f;
@@ -556,7 +559,7 @@ public class Tank
         Reactor.Add(new ReactorState(0, Reactor.HealthCapacity));
         Position = Base.Position;
         // A fresh tank starts cold: whatever heat the wreck still held is removed from the system.
-        ledger?.RecordSunkTank(Heat * Tweaks.Tank.TankHeatCapacity);
+        ledger?.RecordSunkTank(Heat * ThermalCapacity);
         Heat = 0f;
         OffNetworkFloor = 0f;
         Reactor.Current.Heat = new Heat(0);
