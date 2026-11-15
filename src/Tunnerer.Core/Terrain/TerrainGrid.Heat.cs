@@ -46,11 +46,6 @@ public partial class TerrainGrid
     private readonly float[] _heatTemperature;
     private readonly TerrainHeatEngine _heatEngine;
     private readonly SimulationSettings _simulationSettings;
-    private bool _hasHeatDirtyRect;
-    private int _heatDirtyMinX;
-    private int _heatDirtyMinY;
-    private int _heatDirtyMaxX;
-    private int _heatDirtyMaxY;
     private readonly ThermalScheduler _thermalScheduler = new();
 
     public CoolDownProfile LastCoolDownProfile { get; private set; }
@@ -142,13 +137,14 @@ public partial class TerrainGrid
     /// </summary>
     public void CoolDown(float artificialCoolingPerFrame = 0f)
     {
-        EnsureThermalTiles();
-        int activeTiles = CountActiveTiles();
-        ThermalStep step = _thermalScheduler.Decide(_simulationSettings, activeTiles, _tileCount, artificialCoolingPerFrame > 0f);
+        _thermalActivity.EnsureTiles(Width, Height, Math.Max(8, _simulationSettings.ThermalActiveTileSize));
+        int activeTiles = _thermalActivity.CountActiveTiles();
+        ThermalStep step = _thermalScheduler.Decide(
+            _simulationSettings, activeTiles, _thermalActivity.TileCount, artificialCoolingPerFrame > 0f);
 
         if (step == ThermalStep.SleepAndForgetActivity)
         {
-            ClearThermalActiveTiles();
+            _thermalActivity.ForgetActivity();
             activeTiles = 0;
         }
         if (step is ThermalStep.Sleep or ThermalStep.SleepAndForgetActivity)
@@ -157,7 +153,7 @@ public partial class TerrainGrid
             return;
         }
 
-        IReadOnlyList<HeatRegion> regions = step == ThermalStep.Full ? FullGridRegion() : BuildSparseRegions();
+        IReadOnlyList<HeatRegion> regions = step == ThermalStep.Full ? FullGridRegion() : _thermalActivity.BuildActiveRegions();
         bool parallel = step == ThermalStep.Sparse && regions.Count >= _simulationSettings.ThermalParallelRegionThreshold;
         float maxAbsDelta = StepRegions(regions, parallel, out TimeSpan simulate, out TimeSpan markDirty);
 
@@ -179,7 +175,7 @@ public partial class TerrainGrid
         int w = Width, len = Width * Height;
         float dirtCapacity = _heatEngine.GetHeatCapacity(ThermalMaterial.Dirt);
         long t0 = Stopwatch.GetTimestamp();
-        ClearNextActiveTiles();
+        _thermalActivity.BeginNextPass();
         for (int i = 0; i < len; i++)
         {
             if (Pixel.GetThermalMaterial(_data[i]) == ThermalMaterial.Dirt)
@@ -198,10 +194,10 @@ public partial class TerrainGrid
                 }
             }
             if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
-                ActivateNextTileByCell(i % w, i / w);
+                _thermalActivity.ActivateNext(i % w, i / w);
         }
         TimeSpan elapsed = Stopwatch.GetElapsedTime(t0);
-        SwapActiveTiles();
+        _thermalActivity.CommitNextPass();
         return elapsed;
     }
 
@@ -537,49 +533,13 @@ public partial class TerrainGrid
         }
     }
 
-    public bool TryGetHeatDirtyRect(out Rect dirtyRect)
-    {
-        if (_hasHeatDirtyRect)
-        {
-            dirtyRect = new Rect(
-                _heatDirtyMinX,
-                _heatDirtyMinY,
-                _heatDirtyMaxX - _heatDirtyMinX + 1,
-                _heatDirtyMaxY - _heatDirtyMinY + 1);
-            return true;
-        }
+    public bool TryGetHeatDirtyRect(out Rect dirtyRect) => _thermalActivity.TryGetDirtyRect(out dirtyRect);
 
-        dirtyRect = default;
-        return false;
-    }
-
-    public void ClearHeatDirtyRect() => _hasHeatDirtyRect = false;
+    public void ClearHeatDirtyRect() => _thermalActivity.ClearDirtyRect();
 
     private void RequestThermalWake() => _thermalScheduler.RequestWake();
 
-    private void ClearThermalActiveTiles()
-    {
-        if (_activeTiles != null)
-            Array.Clear(_activeTiles, 0, _activeTiles.Length);
-        if (_nextActiveTiles != null)
-            Array.Clear(_nextActiveTiles, 0, _nextActiveTiles.Length);
-    }
-
-    private void MarkHeatDirty(int x, int y)
-    {
-        if (!_hasHeatDirtyRect)
-        {
-            _hasHeatDirtyRect = true;
-            _heatDirtyMinX = _heatDirtyMaxX = x;
-            _heatDirtyMinY = _heatDirtyMaxY = y;
-            return;
-        }
-
-        if (x < _heatDirtyMinX) _heatDirtyMinX = x;
-        if (x > _heatDirtyMaxX) _heatDirtyMaxX = x;
-        if (y < _heatDirtyMinY) _heatDirtyMinY = y;
-        if (y > _heatDirtyMaxY) _heatDirtyMaxY = y;
-    }
+    private void MarkHeatDirty(int x, int y) => _thermalActivity.MarkDirty(x, y);
 
     private static bool ShouldMarkHeatDirty(float oldTemperature, float newTemperature)
     {
