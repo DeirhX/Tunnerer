@@ -63,6 +63,12 @@ public class LinkMap
 
     private void RebuildLinks(ITerrainPixelReadOnly terrain)
     {
+        // Machines already booked this tick's heat on the old links; keep it on their replacements so the drawn
+        // heat flow does not drop to zero for a tick at every rebuild.
+        var previousFlow = new Dictionary<(int, int), (double Flow, bool FromTo)>();
+        foreach (var old in _links)
+            if (old.HeatFlow > 0.0)
+                previousFlow[(old.From.Id, old.To.Id)] = (old.HeatFlow, old.FlowsFromTo);
         _links.Clear();
         _points.RemoveAll(p => !p.IsEnabled && p.Type != LinkPointType.Base);
 
@@ -77,6 +83,11 @@ public class LinkMap
 
                 var link = new Link(_points[i], _points[j]);
                 link.UpdateType(terrain);
+                if (link.Type == LinkType.Live && previousFlow.TryGetValue((link.From.Id, link.To.Id), out var flow))
+                {
+                    link.HeatFlow = flow.Flow;
+                    link.FlowsFromTo = flow.FromTo;
+                }
                 _links.Add(link);
             }
         }

@@ -60,4 +60,19 @@ public class LinkVisibilityTests
         map.ClearHeatFlow();
         Assert.All(map.Links, l => Assert.Equal(0.0, l.HeatFlow));
     }
+
+    [Fact]
+    public void HeatFlow_SurvivesALinkRebuild()
+    {
+        var (terrain, map, _, _, b) = Build(dirtBetween: false);
+        map.ClearHeatFlow();
+        LinkMap.CarryHeat(b, 300.0);
+        var before = map.Links.Where(l => l.HeatFlow > 0).Select(l => (l.From.Id, l.To.Id, l.FlowsFromTo)).ToList();
+
+        map.Advance(terrain, Tweaks.World.RefreshLinkMapInterval);   // replaces every Link object
+
+        var after = map.Links.Where(l => l.HeatFlow > 0).Select(l => (l.From.Id, l.To.Id, l.FlowsFromTo)).ToList();
+        Assert.NotEmpty(before);
+        Assert.Equal(before, after);
+    }
 }
