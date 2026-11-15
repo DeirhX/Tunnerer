@@ -33,7 +33,7 @@ public class WorldIntegrationTests
         TestSimulation.AdvanceIdle(world, frames: 100);
 
         Assert.Equal(100, world.AdvanceCount);
-        Assert.False(world.IsGameOver);
+        Assert.False(world.IsMatchOver);
     }
 
     [Fact]

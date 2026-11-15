@@ -53,8 +53,13 @@ Adding a thermal material:
 Adding a machine:
 
 1. `MachineType` in `Entities/Machines/Machine.cs`.
-2. An entry in `MachineBehaviors.Get` in `Entities/Machines/MachineBehavior.cs`.
-3. Cost, interval and colour in `Config/Tweaks.cs`.
+2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), listed in `MachineBehaviors.All`:
+   action, interval, colour, build cost, build key, and the traits Core reads instead of the type (`BatteryCapacity`,
+   `IsLinkNode`, `RequiresLinkToPlant`, `IsCharger`). `MachineBehaviorTableTests` must pass.
+3. Cost, interval, colour and battery size in `Config/Tweaks.cs`.
+4. Desktop still names machines by type: the HUD build slots and hints (`Gui/GameHud.cs`), the build sound
+   (`Audio/GameAudio.cs`) and the sprite and placement preview (`Rendering/EntityLayerBuilder.cs`). Only three build
+   keys exist (`BuildKey`, `ControllerOutput.Build*`), so a fourth machine also needs a new key.
 
 Adding a shader:
 

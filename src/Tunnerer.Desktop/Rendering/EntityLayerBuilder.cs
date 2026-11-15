@@ -214,15 +214,8 @@ public sealed class EntityLayerBuilder
         var player = world.TankList.Tanks[0];
         if (player.IsDead || !player.IsCarryingMachine || player.CarriedMachineType is not MachineType type)
             return;
-        if (type == MachineType.Harvester)
-        {
-            float temperature = world.Terrain.SampleAverageHeat(player.Position, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f;
-            _preview = new PlacementPreview(true, type, default, temperature / Tweaks.Machine.HarvesterStallTemperature);
-        }
-        else
-        {
-            _preview = new PlacementPreview(true, type, world.LinkMap.PreviewLink(player.Position, world.Terrain), 0f);
-        }
+        var preview = world.PreviewPlacement(type, player.Position);
+        _preview = new PlacementPreview(true, type, preview.Link, preview.SenseHeat);
     }
 
     private void CaptureMachines(World world)

@@ -30,7 +30,7 @@ public static class NetworkCoverage
         foreach (var machine in machines)
         {
             if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner ||
-                machine.Type is not (MachineType.Relay or MachineType.Pylon) ||
+                !machine.Behavior.IsLinkNode ||
                 machine.LinkPoint is not { IsPowered: true, Hops: >= 0 } point)
                 continue;
             into.Add(new CoverageNode(machine.Position, Tweaks.Coverage.NodeRadius, StrengthForHops(point.Hops)));

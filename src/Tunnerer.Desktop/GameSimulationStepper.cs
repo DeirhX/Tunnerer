@@ -37,7 +37,7 @@ public sealed class GameSimulationStepper
         _requestScreenshot = requestScreenshot;
     }
 
-    public SimulationStepResult AdvanceOneStep(int simFrame, IReadOnlyList<Tank> tanks, DirectionF? aimDirection, bool mouseShoot)
+    public void AdvanceOneStep(int simFrame, IReadOnlyList<Tank> tanks, DirectionF? aimDirection, bool mouseShoot)
     {
         ApplyScriptCommandsForFrame(simFrame);
 
@@ -71,8 +71,6 @@ public sealed class GameSimulationStepper
         _inputRecorder.RecordFrame(p1Output.MoveSpeed, p1Output.ShootPrimary);
         if (_scriptedInput.ShouldCaptureScreenshot(simFrame))
             _requestScreenshot($"script_frame_{simFrame:D4}");
-
-        return new SimulationStepResult(IsGameOver: _world.IsGameOver);
     }
 
     public void ProcessScriptedCommands(int frame)
@@ -91,5 +89,3 @@ public sealed class GameSimulationStepper
             _executeCommand(commands[i], InputCommandSources.Script);
     }
 }
-
-public readonly record struct SimulationStepResult(bool IsGameOver);

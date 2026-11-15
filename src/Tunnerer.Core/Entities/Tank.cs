@@ -23,6 +23,12 @@ public class Tank
     public int LivesLeft { get; set; }
     public bool IsDead => Reactor.Health <= 0;
     public TankBase? Base { get; }
+
+    /// <summary>
+    /// True while the tank is alive and inside its own base: it builds from the base store, is cooled and
+    /// unloads its dirt there. Bases never overlap, so this is the same as asking which base the tank is in.
+    /// </summary>
+    public bool IsDockedAtOwnBase => !IsDead && Base != null && Base.IsInside(Position);
     public TankTurret Turret { get; }
     public float Heat { get; set; }
 
@@ -197,17 +203,17 @@ public class Tank
         _buildSecondaryHeld = input.BuildSecondary;
         _buildTertiaryHeld = input.BuildTertiary;
         bool pressed = primaryPressed || secondaryPressed || tertiaryPressed;
-        var buildType = primaryPressed ? MachineType.Relay
-            : secondaryPressed ? MachineType.Harvester
-            : MachineType.Pylon;
+        var buildType = MachineBehaviors.ForKey(
+            primaryPressed ? BuildKey.Primary : secondaryPressed ? BuildKey.Secondary : BuildKey.Tertiary).Type;
 
         if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
         {
             if (_machineMaterializer.IsCarrying)
             {
-                // Relays and pylons work through the link network, so they need a live link to be worth planting;
-                // a harvester works anywhere outside a base.
-                if (ctx.CheckBaseCollision(Position) == null && _machineMaterializer.CarriedType != MachineType.Harvester &&
+                // Machines that work through the link network need a live link to be worth planting; others
+                // (the harvester) work anywhere outside a base.
+                if (ctx.CheckBaseCollision(Position) == null &&
+                    _machineMaterializer.CarriedType is MachineType carried && MachineBehaviors.Get(carried).RequiresLinkToPlant &&
                     ctx.CanPlantRelayAt?.Invoke(Position) == false)
                 {
                     PlantRefusedTicks = 48;
@@ -221,7 +227,7 @@ public class Tank
             }
             else
             {
-                var payer = BuildPayer(buildType, dockedAtOwnBase: Base != null && ctx.CheckBaseCollision(Position) == Base);
+                var payer = BuildPayer(buildType, IsDockedAtOwnBase);
                 if (payer != null)
                     _machineMaterializer.TryBuild(buildType, Position, payer, ctx.Machines);
             }
@@ -300,6 +306,10 @@ public class Tank
     /// it still sheds into the surroundings as usual.
     /// </summary>
     public float OffNetworkFloor { get; private set; }
+
+    /// <summary>Seconds until the rising off-network heat floor reaches the safe maximum (zero once it has).</summary>
+    public float OffNetworkSecondsToOverheat =>
+        MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
 
     /// <summary>
     /// Network coverage (DESIGN.md §4.6). Inside its base's coverage the tank sheds heat down the links into the base

@@ -31,7 +31,6 @@ public class World
 
     private int _advanceCount;
     private TimeSpan _elapsed;
-    private bool _gameOver;
     private double _lastThermalEnergy;
     private double _lastNetExternalEnergy;
 
@@ -73,7 +72,6 @@ public class World
     public SpriteList Sprites => _sprites;
     public CollisionSolver CollisionSolver => _collisionSolver;
     public int AdvanceCount => _advanceCount;
-    public bool IsGameOver => _gameOver;
     public SimulationSettings Settings => _simulationSettings;
 
     public SimulationProfile Profile { get; } = new();
@@ -119,8 +117,7 @@ public class World
         machine.Anchor = machine.Position;
         if (owner != null)
             machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
-        // A harvester roams, so it is not a fixed node of the link network.
-        if (machine.Type != MachineType.Harvester)
+        if (machine.Behavior.IsLinkNode)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
     }
 
@@ -186,8 +183,6 @@ public class World
 
     public void Advance(Func<int, ControllerOutput> getInput)
     {
-        if (_gameOver) return;
-
         var frameWatch = Stopwatch.StartNew();
 
         _advanceCount++;
@@ -237,8 +232,9 @@ public class World
             new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines), _simulationSettings.AdvanceStep));
         // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
         _linkMap.ClearChargeFlow();
+        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
         foreach (var machine in _machines.Machines)
-            if (machine.Type == MachineType.Pylon && machine.IsAlive)
+            if (machine.IsAlive)
                 LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
@@ -262,11 +258,46 @@ public class World
         return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
     }
 
+    /// <summary>What a machine of <paramref name="type"/> would do if planted at <paramref name="at"/>.</summary>
+    public MachinePlacementPreview PreviewPlacement(MachineType type, Position at) =>
+        MachineBehaviors.Get(type).RequiresLinkToPlant
+            ? new MachinePlacementPreview(_linkMap.PreviewLink(at, _terrain), 0f)
+            : new MachinePlacementPreview(default,
+                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)));
+
+    /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
+    public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines);
+
     /// <summary>Fills <paramref name="into"/> with the coverage nodes of <paramref name="owner"/>'s network.</summary>
     public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
         NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
-    public void SetGameOver() => _gameOver = true;
+    /// <summary>A match is over once any tank has died with no lives left.</summary>
+    public bool IsMatchOver
+    {
+        get
+        {
+            foreach (var tank in _tankList.Tanks)
+                if (IsOutOfLives(tank))
+                    return true;
+            return false;
+        }
+    }
+
+    /// <summary>How the match stands for <paramref name="player"/>.</summary>
+    public MatchOutcome MatchOutcomeFor(Tank player)
+    {
+        if (IsOutOfLives(player))
+            return MatchOutcome.Defeat;
+        if (player.IsDead)
+            return MatchOutcome.InProgress;
+        foreach (var tank in _tankList.Tanks)
+            if (tank != player && IsOutOfLives(tank))
+                return MatchOutcome.Victory;
+        return MatchOutcome.InProgress;
+    }
+
+    private static bool IsOutOfLives(Tank tank) => tank.IsDead && tank.LivesLeft <= 0;
 
     private static void ProfileSection(ref TimeSpan accumulator, Action action)
     {

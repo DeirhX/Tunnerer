@@ -3,6 +3,7 @@ namespace Tunnerer.Desktop.Gui;
 using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Core.Config;
+using Tunnerer.Core.Entities.Machines;
 
 public enum SessionOverlayAction
 {
@@ -42,7 +43,7 @@ public sealed class SessionOverlay
         ("W A S D", "Drive and dig"),
         ("Mouse", "Aim the turret"),
         ("Left click / Space", "Fire"),
-        ("E", $"Build a relay ({Tweaks.Machine.RelayDirtCost} dirt); press again to plant it"),
+        ("E", $"Build a relay ({MachineBehaviors.Relay.BuildCost.Dirt} dirt); press again to plant it"),
         ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("Esc / P", "Pause"),
         ("F1", "This screen"),
