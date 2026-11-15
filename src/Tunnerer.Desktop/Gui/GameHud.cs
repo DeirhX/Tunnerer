@@ -13,7 +13,11 @@ using Tunnerer.Desktop.Rendering;
 
 public class GameHud
 {
-    public const float BottomPanelHeight = 223f;
+    /// <summary>Height of the HUD art in its own pixels; on screen it is multiplied by the HUD scale.</summary>
+    private const float StripH = 223f;
+
+    /// <summary>The display height at which the HUD art is drawn 1:1; taller displays enlarge it.</summary>
+    private const float ReferenceDisplayHeight = 1080f;
 
     private nint _heatIconTex, _shieldIconTex;
     private nint _panelFrameTex, _buildPanelTex;
@@ -68,6 +72,16 @@ public class GameHud
     private const float StripW = HeatPanelW +ShieldPanelW + MaterialsPanelW + BuildPanelW; // 1024
 
     // Build slots inside build_panel.png (offsets from the panel's top-left), 3 columns x 2 rows.
+    // The strip is extended to both screen edges by repeating, mirrored, the chassis at its outer ends: the left
+    // end of heat_icon.png and the right end of build_panel.png, from ExtensionTopY down. Mirroring every other
+    // copy makes the joins seamless.
+    private const float ExtensionTileW = 60f;
+    private const float ExtensionTopY = 100f;
+
+    // Where the bottom strip is on screen this frame: art pixel (x, y) is drawn at _hudOrigin + (x, y) * _hudScale.
+    private Vector2 _hudOrigin;
+    private float _hudScale = 1f;
+
     private static readonly float[] BuildSlotX = [25f, 117f, 209f];
     private static readonly float[] BuildSlotY = [44f, 105f];
     private const float BuildSlotW = 80f, BuildSlotH = 56f;
@@ -80,6 +94,22 @@ public class GameHud
 
     public (float x, float y, float w, float h) ViewportRect { get; private set; }
     public (float x, float y)? CrosshairScreenPos { get; set; }
+
+    /// <summary>
+    /// How much the HUD art is enlarged: 1 up to a 1080-pixel-high display, in proportion above it (2 at 4K), and
+    /// shrunk only when the display is narrower than the art.
+    /// </summary>
+    public static float HudScale(float displayW, float displayH) =>
+        MathF.Min(displayW / StripW, MathF.Max(1f, displayH / ReferenceDisplayHeight));
+
+    /// <summary>Screen pixels at the bottom of the window covered by the HUD; the game view is drawn above them.</summary>
+    public static int BottomPanelHeight(int windowW, int windowH) =>
+        (int)MathF.Ceiling(StripH * HudScale(windowW, windowH));
+
+    /// <summary>Art pixel to screen position, for the HUD drawn at the current scale.</summary>
+    private Vector2 At(float x, float y) => _hudOrigin + new Vector2(x, y) * _hudScale;
+    private Vector2 At(Vector2 p) => _hudOrigin + p * _hudScale;
+    private float S(float v) => v * _hudScale;
 
     /// <summary>State of the temperature orb shader for the frame just drawn; the game passes it to the backend.</summary>
     public HeatOrbState HeatOrb { get; private set; }
@@ -163,56 +193,90 @@ public class GameHud
         var displaySize = ImGui.GetIO().DisplaySize;
         var dl = ImGui.GetForegroundDrawList();
 
-        const float h = BottomPanelHeight;
-        float startX = MathF.Floor((displaySize.X - StripW) * 0.5f);
-        float drawY = displaySize.Y - h;
+        _hudScale = HudScale(displaySize.X, displaySize.Y);
+        float stripScreenW = StripW * _hudScale;
+        _hudOrigin = new Vector2(
+            MathF.Floor((displaySize.X - stripScreenW) * 0.5f),
+            displaySize.Y - BottomPanelHeight((int)displaySize.X, (int)displaySize.Y));
 
-        float x = startX;
-        dl.AddImage(_heatIconTex, new Vector2(x, drawY), new Vector2(x + HeatPanelW, drawY + h));
-        x += HeatPanelW;
-        dl.AddImage(_shieldIconTex, new Vector2(x, drawY), new Vector2(x + ShieldPanelW, drawY + h));
-        x += ShieldPanelW;
-        float materialsX = x;
-        dl.AddImage(_panelFrameTex, new Vector2(x, drawY), new Vector2(x + MaterialsPanelW, drawY + h));
-        x += MaterialsPanelW;
-        float buildX = x;
-        dl.AddImage(_buildPanelTex, new Vector2(x, drawY), new Vector2(x + BuildPanelW, drawY + h));
+        DrawStripExtensions(dl, displaySize.X);
 
-        DrawHeatOrb(dl, player, new Vector2(startX, drawY) + HeatOrbCenter, HeatOrbRadius);
-        DrawLiquidGauges(dl, player, startX + HeatPanelW, materialsX, drawY);
+        const float h = StripH;
+        const float heatX = 0f;
+        const float shieldX = heatX + HeatPanelW;
+        const float materialsX = shieldX + ShieldPanelW;
+        const float buildX = materialsX + MaterialsPanelW;
+        dl.AddImage(_heatIconTex, At(heatX, 0f), At(heatX + HeatPanelW, h));
+        dl.AddImage(_shieldIconTex, At(shieldX, 0f), At(shieldX + ShieldPanelW, h));
+        dl.AddImage(_panelFrameTex, At(materialsX, 0f), At(materialsX + MaterialsPanelW, h));
+        dl.AddImage(_buildPanelTex, At(buildX, 0f), At(buildX + BuildPanelW, h));
+
+        DrawHeatOrb(dl, player, At(HeatOrbCenter), S(HeatOrbRadius));
+        DrawLiquidGauges(dl, player, shieldX, materialsX);
 
         // TEMP: the tank's temperature in degrees above ambient. Digging and firing heat it; past the safe maximum
         // the heat burns the shield. A tank docked at its own base is pre-cooled below ambient (negative degrees).
-        float plateX = startX + 105f;
-        float plateW = 130f;
-        float plateY = drawY + 168f;
+        const float plateX = heatX + 105f;
+        const float plateW = 130f;
+        const float plateY = 168f;
         int degrees = player.IsDead ? 0 : (int)MathF.Round(player.Heat);
         DrawNumberCentered(dl, degrees, plateX, plateY, plateW, degreeSign: true);
         DrawHeatTrend(dl, player, plateX + plateW - 14f, plateY + 10f);
         if (!player.IsDead)
-            DrawHeatBar(dl, player.Heat, plateX + 8f, drawY + 192f, plateW - 16f);
+            DrawHeatBar(dl, player.Heat, plateX + 8f, 192f, plateW - 16f);
 
         // SHIELD: the tank's armor.
         int health = Math.Max(0, player.Reactor.Health);
-        float sPlateX = startX + HeatPanelW + 10f;
-        float sPlateW = 125f;
-        float sPlateY = drawY + 166f;
-        DrawNumberCentered(dl, health, sPlateX, sPlateY, sPlateW);
+        const float sPlateX = shieldX + 10f;
+        const float sPlateW = 125f;
+        DrawNumberCentered(dl, health, sPlateX, 166f, sPlateW);
         float shieldFill = player.Reactor.HealthCapacity > 0 ? health / (float)player.Reactor.HealthCapacity : 0f;
-        DrawBar(dl, sPlateX + 8f, drawY + 191f, sPlateW - 16f, 5f, shieldFill,
+        DrawBar(dl, sPlateX + 8f, 191f, sPlateW - 16f, 5f, shieldFill,
             shieldFill > 0.5f ? 0xFFFFC040u : shieldFill > 0.25f ? 0xFF30C0FFu : 0xFF3040FFu);
 
         // MATERIALS: how full the tank's hold is with dirt, which is what structures are built from (percent).
         float materialsFill = MaterialsFill(player);
-        float mPlateX = materialsX + 15f;
-        float mPlateW = MaterialsPanelW - 30f;
-        DrawNumberCentered(dl, (int)MathF.Round(materialsFill * 100f), mPlateX, drawY + 166f, mPlateW);
-        DrawBar(dl, mPlateX + 40f, drawY + 191f, mPlateW - 80f, 5f, materialsFill, 0xFF40B8F0u);
+        const float mPlateX = materialsX + 15f;
+        const float mPlateW = MaterialsPanelW - 30f;
+        DrawNumberCentered(dl, (int)MathF.Round(materialsFill * 100f), mPlateX, 166f, mPlateW);
+        DrawBar(dl, mPlateX + 40f, 191f, mPlateW - 80f, 5f, materialsFill, 0xFF40B8F0u);
 
-        DrawBuildSlots(dl, player, AvailableRelayDirt(player, _dockedAtOwnBase), buildX, drawY);
+        DrawBuildSlots(dl, player, AvailableRelayDirt(player, _dockedAtOwnBase), buildX);
 
         // The COMMAND button has no function yet; dim it like the unavailable build slots.
-        dl.AddRectFilled(new Vector2(buildX + 77f, drawY + 172f), new Vector2(buildX + 277f, drawY + 212f), 0x90000000u, 10f);
+        dl.AddRectFilled(At(buildX + 77f, 172f), At(buildX + 277f, 212f), 0x90000000u, S(10f));
+    }
+
+    /// <summary>
+    /// Fills the screen width on both sides of the strip with mirrored copies of the chassis at its outer ends, so
+    /// the HUD runs from edge to edge at any aspect ratio.
+    /// </summary>
+    private void DrawStripExtensions(ImDrawListPtr dl, float displayW)
+    {
+        float tileW = S(ExtensionTileW);
+        float top = At(0f, ExtensionTopY).Y;
+        float bottom = At(0f, StripH).Y;
+        float vTop = ExtensionTopY / StripH;
+
+        // Left: the first ExtensionTileW columns of the heat panel, the copy touching the strip mirrored.
+        float uHeat = ExtensionTileW / HeatPanelW;
+        float x = _hudOrigin.X;
+        for (int i = 0; x > 0f; i++, x -= tileW)
+        {
+            bool mirrored = i % 2 == 0;
+            dl.AddImage(_heatIconTex, new Vector2(x - tileW, top), new Vector2(x, bottom),
+                new Vector2(mirrored ? uHeat : 0f, vTop), new Vector2(mirrored ? 0f : uHeat, 1f));
+        }
+
+        // Right: the last columns of the build panel.
+        float uBuild = 1f - ExtensionTileW / BuildPanelW;
+        x = _hudOrigin.X + S(StripW);
+        for (int i = 0; x < displayW; i++, x += tileW)
+        {
+            bool mirrored = i % 2 == 0;
+            dl.AddImage(_buildPanelTex, new Vector2(x, top), new Vector2(x + tileW, bottom),
+                new Vector2(mirrored ? 1f : uBuild, vTop), new Vector2(mirrored ? uBuild : 1f, 1f));
+        }
     }
 
     /// <summary>
@@ -230,9 +294,9 @@ public class GameHud
 
         const float s = 6f;
         if (_heatTrend > 0f)
-            dl.AddTriangleFilled(new Vector2(x - s, y + s * 0.6f), new Vector2(x + s, y + s * 0.6f), new Vector2(x, y - s * 0.8f), 0xFF4050FFu);
+            dl.AddTriangleFilled(At(x - s, y + s * 0.6f), At(x + s, y + s * 0.6f), At(x, y - s * 0.8f), 0xFF4050FFu);
         else
-            dl.AddTriangleFilled(new Vector2(x - s, y - s * 0.6f), new Vector2(x + s, y - s * 0.6f), new Vector2(x, y + s * 0.8f), 0xFFFFC050u);
+            dl.AddTriangleFilled(At(x - s, y - s * 0.6f), At(x + s, y - s * 0.6f), At(x, y + s * 0.8f), 0xFFFFC050u);
     }
 
     /// <summary>Where a temperature lies on the heat scale, 0 (full coolant charge) to 1 (well past overheating).</summary>
@@ -297,6 +361,7 @@ public class GameHud
     /// </summary>
     private void DrawHeatOrb(ImDrawListPtr dl, Tank player, Vector2 c, float r)
     {
+        float k = _hudScale;
         float heat = player.IsDead ? HeatScaleMin : player.Heat;
         // Ease the shown temperature toward the real one so the liquid and needle move rather than jump.
         _shownHeat = float.IsNaN(_shownHeat) ? heat : _shownHeat + (heat - _shownHeat) * 0.15f;
@@ -308,8 +373,8 @@ public class GameHud
         float lit = HeatScaleFraction(shown);
 
         // Dark glass behind everything (hides the energy bolt baked into the art), then the liquid sphere.
-        dl.AddCircleFilled(c, r - 1f, 0xFF0A0C0Eu, 64);
-        float inner = r - 9f;
+        dl.AddCircleFilled(c, r - k, 0xFF0A0C0Eu, 64);
+        float inner = r - 9f * k;
         HeatOrb = new HeatOrbState(
             LiquidColor: alive ? HeatColorRgb(shown) : new Vector3(0.12f, 0.13f, 0.14f),
             Frozen: alive ? Math.Clamp(-shown / (0.6f * Tweaks.Tank.CoolantCapacity), 0f, 1f) : 0f,
@@ -319,8 +384,8 @@ public class GameHud
         dl.AddImage(HeatOrbEffect.TextureId, c - new Vector2(inner), c + new Vector2(inner));
 
         // Dial round the rim: dim track in the zone colours, lit up to the shown temperature.
-        float arcR = r - 6f;
-        const float arcW = 5f;
+        float arcR = r - 6f * k;
+        float arcW = 5f * k;
         const int bands = 48;
         for (int i = 0; i < bands; i++)
         {
@@ -335,7 +400,7 @@ public class GameHud
         }
         if (burning)
             StrokeArc(dl, c, arcR, HeatDialAngle(safe), HeatDialStartAngle + HeatDialSweep,
-                PackColor(new Vector3(1f, 0.3f, 0.2f), 0.35f + 0.5f * pulse), arcW + 3f);
+                PackColor(new Vector3(1f, 0.3f, 0.2f), 0.35f + 0.5f * pulse), arcW + 3f * k);
 
         // Ticks at ambient (0) and at the safe maximum, where overheating starts.
         foreach (float t in stackalloc float[] { 0f, safe })
@@ -343,8 +408,8 @@ public class GameHud
             float a = HeatDialAngle(t);
             var dir = new Vector2(MathF.Cos(a), MathF.Sin(a));
             uint tickCol = t == 0f ? 0xC0FFFFFFu : 0xFF4060FFu;
-            dl.AddLine(c + dir * (arcR - arcW * 0.5f - 3f), c + dir * (arcR + arcW * 0.5f + 1f), 0xFF000000u, 4f);
-            dl.AddLine(c + dir * (arcR - arcW * 0.5f - 2f), c + dir * (arcR + arcW * 0.5f), tickCol, 2f);
+            dl.AddLine(c + dir * (arcR - arcW * 0.5f - 3f * k), c + dir * (arcR + arcW * 0.5f + k), 0xFF000000u, 4f * k);
+            dl.AddLine(c + dir * (arcR - arcW * 0.5f - 2f * k), c + dir * (arcR + arcW * 0.5f), tickCol, 2f * k);
         }
 
         // Needle at the tip of the lit arc.
@@ -352,14 +417,14 @@ public class GameHud
         {
             float a = HeatDialAngle(shown);
             var dir = new Vector2(MathF.Cos(a), MathF.Sin(a));
-            var tip = c + dir * (arcR + arcW * 0.5f + 1f);
-            var tail = c + dir * (arcR - arcW * 0.5f - 5f);
-            dl.AddLine(tail, tip, 0xFF000000u, 4.5f);
-            dl.AddLine(tail, tip, 0xFFFFFFFFu, 2f);
+            var tip = c + dir * (arcR + arcW * 0.5f + k);
+            var tail = c + dir * (arcR - arcW * 0.5f - 5f * k);
+            dl.AddLine(tail, tip, 0xFF000000u, 4.5f * k);
+            dl.AddLine(tail, tip, 0xFFFFFFFFu, 2f * k);
         }
 
         // Highlight on the glass.
-        StrokeArc(dl, c, inner - 3f, MathF.PI * 1.15f, MathF.PI * 1.55f, 0x30FFFFFFu, 3f);
+        StrokeArc(dl, c, inner - 3f * k, MathF.PI * 1.15f, MathF.PI * 1.55f, 0x30FFFFFFu, 3f * k);
     }
 
     /// <summary>
@@ -370,21 +435,21 @@ public class GameHud
     {
         const float barH = 5f;
         float X(float t) => x + w * HeatScaleFraction(t);
-        dl.AddRectFilled(new Vector2(x - 1f, y - 1f), new Vector2(x + w + 1f, y + barH + 1f), 0xC0000000u);
-        dl.AddRectFilled(new Vector2(X(Tweaks.Tank.HeatSafeMax), y), new Vector2(x + w, y + barH), 0x503040FFu); // danger zone
+        dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + barH + 1f), 0xC0000000u);
+        dl.AddRectFilled(At(X(Tweaks.Tank.HeatSafeMax), y), At(x + w, y + barH), 0x503040FFu); // danger zone
         uint col = HeatColor(heat);
         if (heat > Tweaks.Tank.HeatSafeMax && (int)(_time * 4f) % 2 == 0)
             col = 0xFF8080FFu;
-        dl.AddRectFilled(new Vector2(x, y), new Vector2(X(heat), y + barH), col);
-        dl.AddLine(new Vector2(X(0f), y - 1f), new Vector2(X(0f), y + barH + 1f), 0x80FFFFFFu);
-        dl.AddLine(new Vector2(X(Tweaks.Tank.HeatSafeMax), y - 2f), new Vector2(X(Tweaks.Tank.HeatSafeMax), y + barH + 2f), 0xFF4060FFu);
+        dl.AddRectFilled(At(x, y), At(X(heat), y + barH), col);
+        dl.AddLine(At(X(0f), y - 1f), At(X(0f), y + barH + 1f), 0x80FFFFFFu, S(1f));
+        dl.AddLine(At(X(Tweaks.Tank.HeatSafeMax), y - 2f), At(X(Tweaks.Tank.HeatSafeMax), y + barH + 2f), 0xFF4060FFu, S(1f));
     }
 
     /// <summary>
     /// Diablo-style liquid gauges in the art: the shield crystal and the materials chest are full up to their level
     /// and dark above it, with a softly waving bright surface. A low shield pulses red and flashes when hit.
     /// </summary>
-    private void DrawLiquidGauges(ImDrawListPtr dl, Tank player, float shieldPanelX, float materialsPanelX, float panelY)
+    private void DrawLiquidGauges(ImDrawListPtr dl, Tank player, float shieldPanelX, float materialsPanelX)
     {
         float shieldFill = Math.Clamp(Math.Max(0, player.Reactor.Health) / (float)Math.Max(1, player.Reactor.HealthCapacity), 0f, 1f);
         // Ease the shown levels toward the real ones so the liquid moves rather than jumps.
@@ -393,12 +458,12 @@ public class GameHud
         bool pulse = (int)(_time * 4f) % 2 == 0;
 
         // Shield crystal.
-        var o = new Vector2(shieldPanelX, panelY);
+        var o = new Vector2(shieldPanelX, 0f);
         var poly = new Vector2[ShieldOutline.Length];
         float sTop = float.MaxValue, sBottom = float.MinValue;
         for (int i = 0; i < poly.Length; i++)
         {
-            poly[i] = o + ShieldOutline[i];
+            poly[i] = At(o + ShieldOutline[i]);
             sTop = MathF.Min(sTop, poly[i].Y);
             sBottom = MathF.Max(sBottom, poly[i].Y);
         }
@@ -421,7 +486,7 @@ public class GameHud
         float cTop = float.MaxValue, cBottom = float.MinValue;
         for (int i = 0; i < chest.Length; i++)
         {
-            chest[i] = new Vector2(materialsPanelX, panelY) + ChestOutline[i];
+            chest[i] = At(new Vector2(materialsPanelX, 0f) + ChestOutline[i]);
             cTop = MathF.Min(cTop, chest[i].Y);
             cBottom = MathF.Max(cBottom, chest[i].Y);
         }
@@ -472,7 +537,7 @@ public class GameHud
     /// <summary>A gently waving bright line where the liquid meets the empty part.</summary>
     private void DrawSurface(ImDrawListPtr dl, float y, float halfWidth, float centerX, uint color)
     {
-        if (color == 0u || halfWidth < 3f)
+        if (color == 0u || halfWidth < S(3f))
             return;
         const int segments = 12;
         var points = new Vector2[segments + 1];
@@ -480,17 +545,17 @@ public class GameHud
         {
             float u = i / (float)segments;
             float x = centerX - halfWidth + 2f * halfWidth * u;
-            points[i] = new Vector2(x, y + MathF.Sin(u * 9f + _time * 5f) * 1.2f);
+            points[i] = new Vector2(x, y + MathF.Sin(u * 9f + _time * 5f) * S(1.2f));
         }
-        dl.AddPolyline(ref points[0], points.Length, color & 0x00FFFFFFu | 0x50000000u, ImDrawFlags.None, 4f);
-        dl.AddPolyline(ref points[0], points.Length, color, ImDrawFlags.None, 1.5f);
+        dl.AddPolyline(ref points[0], points.Length, color & 0x00FFFFFFu | 0x50000000u, ImDrawFlags.None, S(4f));
+        dl.AddPolyline(ref points[0], points.Length, color, ImDrawFlags.None, S(1.5f));
     }
 
-    private static void DrawBar(ImDrawListPtr dl, float x, float y, float w, float h, float fill, uint color)
+    private void DrawBar(ImDrawListPtr dl, float x, float y, float w, float h, float fill, uint color)
     {
         fill = Math.Clamp(fill, 0f, 1f);
-        dl.AddRectFilled(new Vector2(x - 1f, y - 1f), new Vector2(x + w + 1f, y + h + 1f), 0xC0000000u);
-        dl.AddRectFilled(new Vector2(x, y), new Vector2(x + w * fill, y + h), color);
+        dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + h + 1f), 0xC0000000u);
+        dl.AddRectFilled(At(x, y), At(x + w * fill, y + h), color);
     }
 
     /// <summary>
@@ -506,7 +571,7 @@ public class GameHud
         return Math.Max(own, player.Base.Materials.Current.Dirt);
     }
 
-    private void DrawBuildSlots(ImDrawListPtr dl, Tank player, int dirt, float panelX, float panelY)
+    private void DrawBuildSlots(ImDrawListPtr dl, Tank player, int dirt, float panelX)
     {
         // Slot 0 builds a relay (E), slot 1 a harvester (R). While a machine is in hand only its own slot is lit:
         // pressing the key again plants it.
@@ -518,16 +583,16 @@ public class GameHud
             {
                 if (row == 0 && col <= 1)
                     continue;
-                var min = new Vector2(panelX + BuildSlotX[col], panelY + BuildSlotY[row]);
-                dl.AddRectFilled(min, min + new Vector2(BuildSlotW, BuildSlotH), 0xA8000000u, 6f);
+                float x = panelX + BuildSlotX[col], y = BuildSlotY[row];
+                dl.AddRectFilled(At(x, y), At(x + BuildSlotW, y + BuildSlotH), 0xA8000000u, S(6f));
             }
         }
 
-        DrawBuildSlot(dl, player, panelX, panelY, col: 0, MachineType.Relay, "RELAY", "E", Tweaks.Machine.RelayDirtCost, dirt, carried);
-        DrawBuildSlot(dl, player, panelX, panelY, col: 1, MachineType.Harvester, "HARVEST", "R", Tweaks.Machine.HarvesterDirtCost, dirt, carried);
+        DrawBuildSlot(dl, player, panelX, col: 0, MachineType.Relay, "RELAY", "E", Tweaks.Machine.RelayDirtCost, dirt, carried);
+        DrawBuildSlot(dl, player, panelX, col: 1, MachineType.Harvester, "HARVEST", "R", Tweaks.Machine.HarvesterDirtCost, dirt, carried);
     }
 
-    private void DrawBuildSlot(ImDrawListPtr dl, Tank player, float panelX, float panelY, int col, MachineType type,
+    private void DrawBuildSlot(ImDrawListPtr dl, Tank player, float panelX, int col, MachineType type,
         string name, string key, int cost, int dirt, MachineType? carried)
     {
         float progress = Math.Clamp(dirt / (float)cost, 0f, 1f);
@@ -535,36 +600,36 @@ public class GameHud
         bool carryingThis = carried == type;
         bool blocked = carried != null && !carryingThis; // the other machine is in hand
 
-        var sMin = new Vector2(panelX + BuildSlotX[col], panelY + BuildSlotY[0]);
-        var sMax = sMin + new Vector2(BuildSlotW, BuildSlotH);
+        var sMin = At(panelX + BuildSlotX[col], BuildSlotY[0]);
+        var sMax = At(panelX + BuildSlotX[col] + BuildSlotW, BuildSlotY[0] + BuildSlotH);
         if (blocked)
-            dl.AddRectFilled(sMin, sMax, 0xA8000000u, 6f);
+            dl.AddRectFilled(sMin, sMax, 0xA8000000u, S(6f));
         else if (!ready && !carryingThis)
         {
-            float fillTop = sMax.Y - BuildSlotH * progress;
-            dl.AddRectFilled(sMin, new Vector2(sMax.X, fillTop), 0x80000000u, 6f);
+            float fillTop = sMax.Y - S(BuildSlotH) * progress;
+            dl.AddRectFilled(sMin, new Vector2(sMax.X, fillTop), 0x80000000u, S(6f));
         }
 
         uint border = carryingThis
             ? ((int)(_time * 3f) % 2 == 0 ? 0xFF40FFFFu : 0xFF20A0A0u)
             : ready && !blocked ? 0xFF40FF60u : 0xFF707070u;
-        dl.AddRect(sMin, sMax, border, 6f, ImDrawFlags.None, 2.5f);
+        dl.AddRect(sMin, sMax, border, S(6f), ImDrawFlags.None, S(2.5f));
 
         string label = carryingThis ? $"PLANT [{key}]" : ready ? $"{name} [{key}]" : $"{dirt}/{cost}";
-        DrawOutlinedText(dl, 15f, new Vector2(sMin.X + 4f, sMax.Y - 18f), label, blocked ? 0xFF909090u : 0xFFFFFFFFu);
+        DrawOutlinedText(dl, S(15f), new Vector2(sMin.X + S(4f), sMax.Y - S(18f)), label, blocked ? 0xFF909090u : 0xFFFFFFFFu, S(1f));
         // The key is always visible, even before the slot is affordable.
         if (!ready && !carryingThis)
-            DrawOutlinedText(dl, 13f, new Vector2(sMin.X + 4f, sMin.Y + 3f), $"[{key}] {name}", 0xFFB0B0B0u);
+            DrawOutlinedText(dl, S(13f), new Vector2(sMin.X + S(4f), sMin.Y + S(3f)), $"[{key}] {name}", 0xFFB0B0B0u, S(1f));
     }
 
-    private static void DrawOutlinedText(ImDrawListPtr dl, float size, Vector2 pos, string text, uint color)
+    private static void DrawOutlinedText(ImDrawListPtr dl, float size, Vector2 pos, string text, uint color, float outline = 1f)
     {
         var font = ImGui.GetFont();
         uint shadow = 0xE0000000u;
-        dl.AddText(font, size, pos + new Vector2(1f, 1f), shadow, text);
-        dl.AddText(font, size, pos + new Vector2(-1f, 1f), shadow, text);
-        dl.AddText(font, size, pos + new Vector2(1f, -1f), shadow, text);
-        dl.AddText(font, size, pos + new Vector2(-1f, -1f), shadow, text);
+        dl.AddText(font, size, pos + new Vector2(outline, outline), shadow, text);
+        dl.AddText(font, size, pos + new Vector2(-outline, outline), shadow, text);
+        dl.AddText(font, size, pos + new Vector2(outline, -outline), shadow, text);
+        dl.AddText(font, size, pos + new Vector2(-outline, -outline), shadow, text);
         dl.AddText(font, size, pos, color, text);
     }
 
@@ -726,6 +791,7 @@ public class GameHud
             totalW += degreeW;
         float x = MathF.Floor(areaX + (areaW - totalW) * 0.5f);
         float y = MathF.Floor(areaY);
+        var cell = new Vector2(S(DigitCellW), S(DigitCellH));
 
         foreach (char c in text)
         {
@@ -733,8 +799,8 @@ public class GameHud
             {
                 // The digit strip has no minus: draw one in the digits' green, at their middle height.
                 float my = y + DigitCellH * 0.5f;
-                dl.AddRectFilled(new Vector2(x + 3f, my - 2.5f), new Vector2(x + DigitCellW - 3f, my + 2.5f), 0xFF000000u, 1f);
-                dl.AddRectFilled(new Vector2(x + 4f, my - 1.5f), new Vector2(x + DigitCellW - 4f, my + 1.5f), 0xFFAAFACDu);
+                dl.AddRectFilled(At(x + 3f, my - 2.5f), At(x + DigitCellW - 3f, my + 2.5f), 0xFF000000u, 1f);
+                dl.AddRectFilled(At(x + 4f, my - 1.5f), At(x + DigitCellW - 4f, my + 1.5f), 0xFFAAFACDu);
             }
             else if (c is >= '0' and <= '9')
             {
@@ -743,20 +809,17 @@ public class GameHud
                 float texelU = 0.5f / DigitStripW;
                 float u0 = (float)(idx * DigitCellW) / DigitStripW + texelU;
                 float u1 = (float)((idx + 1) * DigitCellW) / DigitStripW - texelU;
-                dl.AddImage(_digitStripTex,
-                    new Vector2(x, y),
-                    new Vector2(x + DigitCellW, y + DigitCellH),
-                    new Vector2(u0, 0f),
-                    new Vector2(u1, 1f));
+                var min = At(x, y);
+                dl.AddImage(_digitStripTex, min, min + cell, new Vector2(u0, 0f), new Vector2(u1, 1f));
             }
             x += DigitCellW + DigitSpacing;
         }
 
         if (degreeSign)
         {
-            var ring = new Vector2(x + 3f, y + 4.5f);
-            dl.AddCircle(ring, 3.2f, 0xFF000000u, 16, 3.5f);
-            dl.AddCircle(ring, 3.2f, 0xFFAAFACDu, 16, 1.6f);
+            var ring = At(x + 3f, y + 4.5f);
+            dl.AddCircle(ring, S(3.2f), 0xFF000000u, 16, S(3.5f));
+            dl.AddCircle(ring, S(3.2f), 0xFFAAFACDu, 16, S(1.6f));
         }
     }
 
