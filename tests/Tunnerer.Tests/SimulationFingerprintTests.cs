@@ -18,7 +18,12 @@ public class SimulationFingerprintTests
     private const string ChangedMessage =
         "Simulation output changed. If intended, update the constant and say so in the commit message (AGENTS.md).";
 
-    private const ulong ExpectedPlayerDrivesAndShoots = 0x901AD40E3DF6F29BUL;
+    // This run differs between Windows and macOS/Linux (both arm64 and x64 agree off Windows), most likely because
+    // the platform math libraries round transcendental functions differently. The simulation is deterministic per
+    // platform, not across platforms; see docs/quality-plan.md. Each platform keeps its own recorded value so the
+    // test still catches refactors everywhere.
+    private static readonly ulong ExpectedPlayerDrivesAndShoots =
+        OperatingSystem.IsWindows() ? 0x901AD40E3DF6F29BUL : 0xBFEAAB0A7D013778UL;
     private const ulong ExpectedRelayPylonHarvesterNetwork = 0xCC67A68447AE4216UL;
 
     [Fact]

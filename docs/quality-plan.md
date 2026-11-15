@@ -127,5 +127,9 @@ Change results (owner's call, add to Decisions):
 - `TankThermals` still reads coolant capacity, dock cooling, dig radius and base cooldown from `Tweaks`; routing them through `SimulationSettings` changes tests that inject settings.
 - Bot reads the int `Reactor.Heat` mirror and pre-coolant thresholds instead of `Tank.HeatBudget`.
 - Pylon plays the relay build sound (`SoundBank` has no pylon sound).
+- Same seed and inputs give different results on Windows vs macOS/Linux (found by `SimulationFingerprintTests` in CI;
+  the player-driving run differs, the network run does not). Likely platform `Math.Sin/Cos/Pow` rounding. Replays and
+  seeds are therefore not portable across OSes. Fix by finding the transcendental calls in the simulation path and
+  replacing them with table-based or deterministic versions; this changes results.
 - Bullets never hit machines (nothing passes `onMachine`, nothing lowers machine health), so machines cannot be destroyed. Gameplay decision.
 - `World.Initialize` seeds hot-rock pockets from `Environment.TickCount` when no decoration seed is given, even in deterministic mode.
