@@ -3,6 +3,7 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 using static Tunnerer.Tests.TankHeatTestHelpers;
 
@@ -457,6 +458,7 @@ public class WorldThermalSimulationTests
         world.Terrain.AddHeatRadius(hotspotPos, amount: 255, radius: 10);
         visual.Capture(world, "after_heat_injection");
 
+        var heatEngine = new TerrainHeatEngine(world.Settings);
         double SumTunnelEnergy()
         {
             double sum = 0.0;
@@ -469,7 +471,7 @@ public class WorldThermalSimulationTests
                     var p = new Position(x, y);
                     if (!world.Terrain.IsInside(p))
                         continue;
-                    float c = ThermalCapacityFor(world.Terrain.GetPixelRaw(p));
+                    float c = heatEngine.GetHeatCapacity(Pixel.GetThermalMaterial(world.Terrain.GetPixelRaw(p)));
                     sum += world.Terrain.GetHeatTemperature(p) * c;
                 }
             }

@@ -1,7 +1,5 @@
 using Tunnerer.Core;
-using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
-using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
@@ -113,27 +111,6 @@ internal static class TankHeatTestHelpers
             visual?.Capture(world, $"{phase}_{i:D4}");
         }
     }
-
-    internal static double SumTerrainThermalEnergy(TerrainGrid terrain)
-    {
-        double total = 0.0;
-        for (int i = 0; i < terrain.Size.Area; i++)
-        {
-            float capacity = ThermalCapacityFor(terrain.GetPixelRaw(i));
-            total += terrain.GetHeatTemperature(i) * capacity;
-            total += terrain.GetAirTemperature(i) * Tweaks.World.ThermalCapacityAir;
-        }
-
-        return total;
-    }
-
-    internal static float ThermalCapacityFor(TerrainPixel pixel) => Pixel.GetThermalMaterial(pixel) switch
-    {
-        ThermalMaterial.Air => Tweaks.World.ThermalCapacityAir,
-        ThermalMaterial.Dirt => Tweaks.World.ThermalCapacityDirt,
-        ThermalMaterial.Base => Tweaks.World.ThermalCapacityBase,
-        _ => Tweaks.World.ThermalCapacityStone,
-    };
 
     internal static float StdDev(IEnumerable<float> values, float mean)
     {
