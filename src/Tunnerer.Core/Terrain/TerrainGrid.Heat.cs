@@ -37,6 +37,10 @@ public partial class TerrainGrid
         public int RegionCount { get; }
         public bool UsedSparse { get; }
         public bool UsedParallel { get; }
+
+        /// <summary>A tick on which the solver slept.</summary>
+        public static CoolDownProfile Idle(int activeTiles)
+            => new(TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, activeTiles, 0, false, false);
     }
 
     private readonly float[] _heatTemperature;
@@ -49,11 +53,7 @@ public partial class TerrainGrid
     private int _heatDirtyMinY;
     private int _heatDirtyMaxX;
     private int _heatDirtyMaxY;
-    private int _coolDownFrameCounter;
-    private int _noActiveTileFrameCount;
-    private int _saturatedCoverageFrameCount;
-    private bool _thermalWakeRequested = true;
-    private float _lastCoolDownMaxDelta;
+    private readonly ThermalScheduler _thermalScheduler = new();
 
     public CoolDownProfile LastCoolDownProfile { get; private set; }
 
@@ -138,64 +138,57 @@ public partial class TerrainGrid
             RequestThermalWake();
     }
 
+    /// <summary>
+    /// One tick of terrain heat: ask the scheduler whether (and how widely) to step, run the full-grid or sparse
+    /// solver, then the optional artificial cooling. Profiling timings go to <see cref="LastCoolDownProfile"/> only.
+    /// </summary>
     public void CoolDown(float artificialCoolingPerFrame = 0f)
     {
-        int w = Width, h = Height;
-        int len = w * h;
-        TimeSpan prep = TimeSpan.Zero;
-        TimeSpan simulate = TimeSpan.Zero;
-        TimeSpan markDirty = TimeSpan.Zero;
-        TimeSpan writeBack = TimeSpan.Zero;
-        int activeTiles = 0;
-        int regionCount = 0;
-        bool usedSparse = false;
-        bool usedParallel = false;
-        float maxAbsDelta = 0f;
-
         EnsureThermalTiles();
-        _coolDownFrameCounter++;
-        activeTiles = CountActiveTiles();
-        float coverage = _tileCount <= 0 ? 1f : activeTiles / (float)_tileCount;
+        int activeTiles = CountActiveTiles();
+        ThermalStep step = _thermalScheduler.Decide(_simulationSettings, activeTiles, _tileCount, artificialCoolingPerFrame > 0f);
 
-        if (activeTiles == 0)
-            _noActiveTileFrameCount++;
-        else
-            _noActiveTileFrameCount = 0;
-
-        if (coverage >= _simulationSettings.ThermalSaturationCoverageThreshold)
-            _saturatedCoverageFrameCount++;
-        else
-            _saturatedCoverageFrameCount = 0;
-
-        bool shouldSleepNoActive =
-            artificialCoolingPerFrame <= 0f &&
-            _noActiveTileFrameCount >= _simulationSettings.ThermalNoActiveSleepFrames;
-        bool shouldSleepQuietDelta =
-            !_thermalWakeRequested &&
-            _lastCoolDownMaxDelta < _simulationSettings.ThermalMaxDeltaSleepThreshold;
-        bool shouldThrottleSaturation =
-            _saturatedCoverageFrameCount >= _simulationSettings.ThermalSaturationFramesBeforeThrottle &&
-            (_coolDownFrameCounter % Math.Max(1, _simulationSettings.ThermalSaturationStepIntervalFrames)) != 0;
-
-        if (shouldSleepNoActive || shouldSleepQuietDelta || shouldThrottleSaturation)
+        if (step == ThermalStep.SleepAndForgetActivity)
         {
-            if (shouldSleepQuietDelta)
-            {
-                ClearThermalActiveTiles();
-                activeTiles = 0;
-            }
-            LastCoolDownProfile = new CoolDownProfile(
-                prep: TimeSpan.Zero,
-                simulate: TimeSpan.Zero,
-                markDirty: TimeSpan.Zero,
-                writeBack: TimeSpan.Zero,
-                activeTiles: activeTiles,
-                regionCount: 0,
-                usedSparse: false,
-                usedParallel: false);
+            ClearThermalActiveTiles();
+            activeTiles = 0;
+        }
+        if (step is ThermalStep.Sleep or ThermalStep.SleepAndForgetActivity)
+        {
+            LastCoolDownProfile = CoolDownProfile.Idle(activeTiles);
             return;
         }
 
+        TimeSpan prep = SnapshotTemperatures();
+        TimeSpan simulate, markDirty;
+        int regionCount = 0;
+        bool usedParallel = false;
+        float maxAbsDelta;
+        if (step == ThermalStep.Full)
+        {
+            maxAbsDelta = StepFullGrid(out simulate, out markDirty);
+        }
+        else
+        {
+            var regions = BuildSparseRegions();
+            regionCount = regions.Count;
+            usedParallel = regions.Count >= _simulationSettings.ThermalParallelRegionThreshold;
+            long t0 = Stopwatch.GetTimestamp();
+            CoolDownSparseRegions(regions, usedParallel, out markDirty, out maxAbsDelta);
+            simulate = Stopwatch.GetElapsedTime(t0) - markDirty;
+        }
+
+        if (artificialCoolingPerFrame > 0f)
+            markDirty += ApplyArtificialCooling(artificialCoolingPerFrame, ref maxAbsDelta);
+
+        _thermalScheduler.RecordStep(maxAbsDelta);
+        LastCoolDownProfile = new CoolDownProfile(
+            prep, simulate, markDirty, TimeSpan.Zero, activeTiles, regionCount, step == ThermalStep.Sparse, usedParallel);
+    }
+
+    private TimeSpan SnapshotTemperatures()
+    {
+        int len = Width * Height;
         if (_heatTemp == null || _heatTemp.Length < len)
             _heatTemp = new float[len];
         if (_airTemp == null || _airTemp.Length < len)
@@ -203,99 +196,70 @@ public partial class TerrainGrid
         long t0 = Stopwatch.GetTimestamp();
         Array.Copy(_heatTemperature, _heatTemp, len);
         Array.Copy(_airTemperature, _airTemp, len);
-        prep = Stopwatch.GetElapsedTime(t0);
+        return Stopwatch.GetElapsedTime(t0);
+    }
 
-        bool canUseSparse = activeTiles > 0;
-        bool fallbackToFull = !canUseSparse || coverage >= _simulationSettings.ThermalSparseFallbackCoverage;
-
-        if (fallbackToFull)
+    /// <summary>Steps every cell; returns the largest temperature change.</summary>
+    private float StepFullGrid(out TimeSpan simulate, out TimeSpan markDirty)
+    {
+        int w = Width, len = Width * Height;
+        float[] heatBefore = _heatTemp!, airBefore = _airTemp!;
+        float maxAbsDelta = 0f;
+        long t0 = Stopwatch.GetTimestamp();
+        _heatEngine.StepConservative(_heatTemperature, _airTemperature, _data, w, Height, Ledger);
+        simulate = Stopwatch.GetElapsedTime(t0);
+        t0 = Stopwatch.GetTimestamp();
+        ClearNextActiveTiles();
+        for (int i = 0; i < len; i++)
         {
-            t0 = Stopwatch.GetTimestamp();
-            _heatEngine.StepConservative(_heatTemperature, _airTemperature, _data, w, h, Ledger);
-            simulate = Stopwatch.GetElapsedTime(t0);
-            t0 = Stopwatch.GetTimestamp();
-            ClearNextActiveTiles();
-            for (int i = 0; i < len; i++)
-            {
-                float deltaTerrain = MathF.Abs(_heatTemperature[i] - _heatTemp[i]);
-                float deltaAir = MathF.Abs(_airTemperature[i] - _airTemp[i]);
-                float cellMaxDelta = MathF.Max(deltaTerrain, deltaAir);
-                if (cellMaxDelta > maxAbsDelta)
-                    maxAbsDelta = cellMaxDelta;
-                if (ShouldMarkHeatDirty(_heatTemp[i], _heatTemperature[i]))
-                {
-                    int x = i % w;
-                    int y = i / w;
-                    MarkHeatDirty(x, y);
-                }
-                if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
-                {
-                    ActivateNextTileByCell(i % w, i / w);
-                }
-            }
-            markDirty = Stopwatch.GetElapsedTime(t0);
-            SwapActiveTiles();
+            float deltaTerrain = MathF.Abs(_heatTemperature[i] - heatBefore[i]);
+            float deltaAir = MathF.Abs(_airTemperature[i] - airBefore[i]);
+            float cellMaxDelta = MathF.Max(deltaTerrain, deltaAir);
+            if (cellMaxDelta > maxAbsDelta)
+                maxAbsDelta = cellMaxDelta;
+            if (ShouldMarkHeatDirty(heatBefore[i], _heatTemperature[i]))
+                MarkHeatDirty(i % w, i / w);
+            if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
+                ActivateNextTileByCell(i % w, i / w);
         }
-        else
-        {
-            usedSparse = true;
-            var regions = BuildSparseRegions();
-            regionCount = regions.Count;
-            bool parallel = regions.Count >= _simulationSettings.ThermalParallelRegionThreshold;
-            usedParallel = parallel;
-            t0 = Stopwatch.GetTimestamp();
-            CoolDownSparseRegions(regions, parallel, out markDirty, out float sparseMaxDelta);
-            if (sparseMaxDelta > maxAbsDelta)
-                maxAbsDelta = sparseMaxDelta;
-            simulate = Stopwatch.GetElapsedTime(t0) - markDirty;
-        }
+        markDirty = Stopwatch.GetElapsedTime(t0);
+        SwapActiveTiles();
+        return maxAbsDelta;
+    }
 
-        if (artificialCoolingPerFrame > 0f)
+    /// <summary>
+    /// A dirt-only gameplay sink: stone, base and hot rock keep their energy, and the ledger meters the sunk energy
+    /// with the dirt capacity. Rebuilds the active tiles; returns the time spent.
+    /// </summary>
+    private TimeSpan ApplyArtificialCooling(float coolingPerFrame, ref float maxAbsDelta)
+    {
+        int w = Width, len = Width * Height;
+        float dirtCapacity = _heatEngine.GetHeatCapacity(ThermalMaterial.Dirt);
+        long t0 = Stopwatch.GetTimestamp();
+        ClearNextActiveTiles();
+        for (int i = 0; i < len; i++)
         {
-            t0 = Stopwatch.GetTimestamp();
-            ClearNextActiveTiles();
-            for (int i = 0; i < len; i++)
+            if (Pixel.GetThermalMaterial(_data[i]) == ThermalMaterial.Dirt)
             {
-                // Artificial cooling is a dirt-only gameplay sink: stone, base and hot rock keep their energy, and the
-                // ledger meters the sunk energy with the dirt capacity.
-                if (Pixel.GetThermalMaterial(_data[i]) != ThermalMaterial.Dirt)
-                {
-                    if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
-                        ActivateNextTileByCell(i % w, i / w);
-                    continue;
-                }
-
                 float old = _heatTemperature[i];
-                float next = MathF.Max(0f, old - artificialCoolingPerFrame);
+                float next = MathF.Max(0f, old - coolingPerFrame);
                 if (next != old)
                 {
                     _heatTemperature[i] = next;
-                    Ledger.RecordSunkArtificialCooling((double)(old - next) * _heatEngine.GetHeatCapacity(ThermalMaterial.Dirt));
+                    Ledger.RecordSunkArtificialCooling((double)(old - next) * dirtCapacity);
                     float deltaTerrain = MathF.Abs(next - old);
                     if (deltaTerrain > maxAbsDelta)
                         maxAbsDelta = deltaTerrain;
                     if (ShouldMarkHeatDirty(old, next))
-                    {
-                        int x = i % w;
-                        int y = i / w;
-                        MarkHeatDirty(x, y);
-                    }
-                    if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
-                    {
-                        ActivateNextTileByCell(i % w, i / w);
-                    }
-                }
-                if (IsThermallyActive(next, _airTemperature[i]))
-                {
-                    ActivateNextTileByCell(i % w, i / w);
+                        MarkHeatDirty(i % w, i / w);
                 }
             }
-            markDirty += Stopwatch.GetElapsedTime(t0);
-            SwapActiveTiles();
+            if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
+                ActivateNextTileByCell(i % w, i / w);
         }
-        _lastCoolDownMaxDelta = maxAbsDelta;
-        _thermalWakeRequested = false;
-        LastCoolDownProfile = new CoolDownProfile(prep, simulate, markDirty, writeBack, activeTiles, regionCount, usedSparse, usedParallel);
+        TimeSpan elapsed = Stopwatch.GetElapsedTime(t0);
+        SwapActiveTiles();
+        return elapsed;
     }
 
     public float SampleAverageHeat(Position center, int radius)
@@ -648,10 +612,7 @@ public partial class TerrainGrid
 
     public void ClearHeatDirtyRect() => _hasHeatDirtyRect = false;
 
-    private void RequestThermalWake()
-    {
-        _thermalWakeRequested = true;
-    }
+    private void RequestThermalWake() => _thermalScheduler.RequestWake();
 
     private void ClearThermalActiveTiles()
     {
