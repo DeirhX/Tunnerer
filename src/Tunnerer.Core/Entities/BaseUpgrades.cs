@@ -15,6 +15,9 @@ public enum BaseUpgrade
     Insulation,
 }
 
+/// <summary>Why an upgrade key press bought nothing.</summary>
+public enum UpgradeRefusal { None, NotDocked, Maxed, CannotPay }
+
 /// <summary>A base's upgrade levels (0 to <see cref="MaxLevel"/> each) and what each level is worth.</summary>
 public sealed class BaseUpgrades
 {

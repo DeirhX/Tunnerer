@@ -75,7 +75,9 @@ public partial class GameHud
                 ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, 25f));
             }
             if (player.UpgradeRefusedTicks > 0)
-                ColoredText(TextBad, "Not enough dirt in the base store for that one.");
+                ColoredText(TextBad, player.LastUpgradeRefusal == UpgradeRefusal.Maxed
+                    ? "That upgrade is already at its top level."
+                    : "Not enough dirt in the base store for that one.");
         }
         HudTheme.EndWindow();
     }

@@ -70,9 +70,9 @@ public static class MachineBehaviors
 
         machine.LastPumpedEnergy = machine.OwnerBase.AbsorbHeatFrom(
             terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick,
-            out bool limited, out double chargeMade);
+            out bool limited, out double engineOutput);
         machine.LastPumpLimitedByBase = limited;
-        machine.LastChargeMade = chargeMade;
+        machine.LastChargeMade = engineOutput;
         Links.LinkMap.CarryHeat(machine.LinkPoint, machine.LastPumpedEnergy);
     }
 

@@ -117,6 +117,30 @@ public class SectorGoalTests
     }
 
     [Fact]
+    public void ARefusedUpgrade_SaysWhy()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var engine = new ControllerOutput { Upgrade = (int)BaseUpgrade.Engine + 1 };
+        void Press() { s.World.Advance(i => i == 0 ? engine : default); s.World.Advance(_ => default); }
+
+        Press();   // docked, empty store
+        Assert.Equal(UpgradeRefusal.CannotPay, s.Tank.LastUpgradeRefusal);
+
+        while (!s.Base.Upgrades.IsMaxed(BaseUpgrade.Engine))
+        {
+            Fund(s.Base, s.Base.Materials.DirtCapacity);
+            Assert.True(s.Base.TryBuyUpgrade(BaseUpgrade.Engine));
+        }
+        Fund(s.Base, s.Base.Materials.DirtCapacity);
+        Press();
+        Assert.Equal(UpgradeRefusal.Maxed, s.Tank.LastUpgradeRefusal);
+
+        s.Tank.Position = s.RelayPos;
+        Press();
+        Assert.Equal(UpgradeRefusal.NotDocked, s.Tank.LastUpgradeRefusal);
+    }
+
+    [Fact]
     public void CoreHold_GrowsAtTheGoalRate_AndDrainsFasterBelowIt()
     {
         double dt = Tweaks.World.AdvanceStep.TotalSeconds;

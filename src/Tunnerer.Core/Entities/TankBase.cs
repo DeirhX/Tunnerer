@@ -116,9 +116,9 @@ public class TankBase
     /// (reactor room after the engine's share), whatever the ground had to give.
     /// </summary>
     public double AbsorbHeatFrom(ITerrainHeatSource terrain, Position center, int radius, double maxEnergy,
-        out bool limitedByBase, out double chargeMade)
+        out bool limitedByBase, out double engineOutput)
     {
-        chargeMade = 0.0;
+        engineOutput = 0.0;
         double eta = UpgradedEngineEfficiency(terrain.ExtractableHeatTemperature(center, radius, TerrainGrid.ThermalField.Terrain));
         double chargeRoom = Math.Max(0.0, ChargeCapacity - Charge);
         double reactorRoom = ReactorRoomEnergy;
@@ -141,7 +141,9 @@ public class TankBase
             terrain.Ledger.RecordToCharge(toCharge);
         }
         CreditReactor(absorbed - toCharge);
-        chargeMade = toCharge;
+        // What the engine made from this heat, whether or not the store had room to keep all of it (the core goal
+        // measures the tap, not the store).
+        engineOutput = eta * absorbed;
         _engineInputThisTick += absorbed;
         _engineOutputThisTick += toCharge;
         return absorbed;

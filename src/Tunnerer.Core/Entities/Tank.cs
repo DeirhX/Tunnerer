@@ -235,11 +235,15 @@ public class Tank
     /// <summary>Ticks left on the "could not buy that upgrade" feedback after a refused purchase.</summary>
     public int UpgradeRefusedTicks { get; private set; }
 
+    /// <summary>Why the last refused upgrade press bought nothing (valid while <see cref="UpgradeRefusedTicks"/> runs).</summary>
+    public UpgradeRefusal LastUpgradeRefusal { get; private set; }
+
     private int _upgradeHeld;
 
     /// <summary>
     /// Upgrade keys (edge triggered): docked at its own base, the tank buys the next level of the chosen upgrade from
-    /// the base's dirt store. Anywhere else, or when the store cannot pay, the press is refused.
+    /// the base's dirt store. Anywhere else, for a maxed upgrade, or when the store cannot pay, the press is refused
+    /// and <see cref="LastUpgradeRefusal"/> says why.
     /// </summary>
     private void AdvanceUpgrades(in SimulationContext ctx, ControllerOutput input)
     {
@@ -249,9 +253,17 @@ public class Tank
         _upgradeHeld = input.Upgrade;
         if (!pressed || input.Upgrade < 1 || input.Upgrade > BaseUpgrades.Count)
             return;
+        var upgrade = (BaseUpgrade)(input.Upgrade - 1);
         bool docked = Base != null && ctx.CheckBaseCollision(Position) == Base;
-        if (!docked || !Base!.TryBuyUpgrade((BaseUpgrade)(input.Upgrade - 1)))
+        UpgradeRefusal refusal = !docked ? UpgradeRefusal.NotDocked
+            : Base!.Upgrades.IsMaxed(upgrade) ? UpgradeRefusal.Maxed
+            : Base.TryBuyUpgrade(upgrade) ? UpgradeRefusal.None
+            : UpgradeRefusal.CannotPay;
+        if (refusal != UpgradeRefusal.None)
+        {
+            LastUpgradeRefusal = refusal;
             UpgradeRefusedTicks = 48;
+        }
     }
 
     /// <summary>
