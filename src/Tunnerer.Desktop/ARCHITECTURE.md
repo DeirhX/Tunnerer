@@ -55,8 +55,11 @@ Shared contract (`IGameRenderBackend`):
 - `UploadGamePixels(in GamePixelsUpload upload)`
 - `ClearFrame(Size viewportSize, Color clearColor)`
 - `NewFrame(int windowW, int windowH, float deltaTime)`
+- `SetHeatOrb(in HeatOrbState state)` (the HUD heat gauge's orb, drawn by `HeatOrbPs` where ImGui uses
+  `HeatOrbEffect.TextureId`)
 - `Render()`
-- `GameTextureId` (used by HUD viewport `ImGui.Image`)
+- `RequestScreenshot(string? label)`
+- `GameTextureId` / `GameTextureSize` (used by HUD viewport `ImGui.Image`)
 - `SupportsUi` (if false, HUD/ImGui path is skipped)
 
 Upload payload (`GamePixelsUpload`) includes:
