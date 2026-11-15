@@ -103,4 +103,23 @@ Independent review of the whole diff.
 |---|---|
 | 1A, 1B, 1C | done (merged 2026-11-15) |
 | Golden fingerprint test (`SimulationFingerprintTests`) | done: refactors are checked bit-for-bit against recorded hashes |
-| 2A, 2C, 3D | in progress |
+| 2A, 2B, 2C | done: Core owns match outcome, docking, network status, placement preview, machine traits; Tank 685→257 lines, bot 583→211; thermal step ~10% faster |
+| 3A, 3B, 3C, 3D | done: GameHud 1203→143, EntityLayerBuilder 634→92, EntityPs.hlsl 753→61 (compiled output byte-identical), Game.cs 358→280; flaky test fixed |
+| 4 | in progress: docs rewrite, independent review |
+
+After Wave 3: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
+
+## Follow-ups found during the work (not started)
+
+Behaviour-preserving:
+- Rules the HUD still computes: "has left base" (`NetworkPanel`), "cooling down", "build from base store", radiator load and fill ratios, `PlayerWarnings` thresholds, heat-scale range. Move each to a Core query.
+- Entity emitters still switch on `MachineType` in four places; add a shader kind to `MachinePresentation`.
+- `TerrainHeatEngine.StepConservative` is now called only by tests; `TerrainGrid` keeps thin thermal forwards for `TerrainGrid.cs`/`HotRock.cs`.
+- `VisualTime` is a real-time stopwatch, so step-locked screenshot runs are not reproducible; derive it from steps in automated runs.
+- `RenderingSourceGuardTests`-style guard for `PostParamsBlock` layout vs `PostParams.hlsli` (blocked on the misalignment decision).
+- Ubuntu CI job is non-blocking until it has passed once.
+
+Change results (owner's call, add to Decisions):
+- `TankThermals` still reads coolant capacity, dock cooling, dig radius and base cooldown from `Tweaks`; routing them through `SimulationSettings` changes tests that inject settings.
+- Bot reads the int `Reactor.Heat` mirror and pre-coolant thresholds instead of `Tank.HeatBudget`.
+- Pylon plays the relay build sound (`SoundBank` has no pylon sound).
