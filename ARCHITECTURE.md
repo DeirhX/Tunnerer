@@ -13,8 +13,8 @@ Tunnerer.slnx
 src/
   Tunnerer.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
     ARCHITECTURE.md        Detailed design
-  Tunnerer.Desktop/        SDL3 window and input, renderer (SDL_GPU), ImGui HUD, game loop.
-    ARCHITECTURE.md        Rendering design
+  Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
+    ARCHITECTURE.md        Rendering and sound design
 tests/
   Tunnerer.Tests/          xUnit tests for Core, plus source rules for the renderers
 tools/
@@ -45,9 +45,11 @@ while running:
   3. update camera / view state
   4. capture mouse state
   5. for each due step (at most 4 to catch up; none while paused):
+       GameAudio.BeforeStep              (notes the gold lying near each tank)
        GameSimulationStepper.AdvanceOneStep
          scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
        EntityLayerBuilder.CaptureStep    (tank and projectile snapshot for the entity layer)
+       GameAudio.AfterStep               (compares the world with the previous step, starts sound effects)
        TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
   6. if a step was due: WorldCompositeRenderer.Compose   links, machines and marker sprites over a copy of the terrain
   7. Game.RenderImGuiFrame             terrain data + entity quads to the GPU, HUD and session overlay via ImGui
@@ -86,7 +88,7 @@ TerrainGrid
    | DrawChangesToSurface (change list)
 worldPixels[w*h]
    | copy + draw entities (WorldCompositeRenderer)
-compositePixels[w*h]                  terrain aux data (heat, SDF, material, scorch), material coverage
+compositePixels[w*h]                  terrain aux data (heat, solid field, material, scorch), material coverage
    |                                     |
    +------------- IGameRenderBackend.UploadGamePixels -------------+
                          |
@@ -101,9 +103,21 @@ The composite buffer keeps entity drawing from corrupting the terrain surface. I
 entities; tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
 in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
+## Sound
+
+`Tunnerer.Desktop/Audio` turns the simulation into sound without the simulation knowing. `GameAudio` runs once
+around every simulation step, never per displayed frame, so an effect cannot repeat on the frames shown between
+steps. It compares what it reads from the world with what it saw after the previous step (a tank's shot count, hit
+flash, death, carried machine, position; projectiles that died during the step; cells the step emptied next to a
+tank) and starts the matching effect, placed in stereo and attenuated by distance from the player's tank. The one
+thing Core provides for it is `Tank.ShotsFired`, a counter nothing in the simulation reads. All effects are
+synthesised at start-up (`SoundBank`), mixed by `SoundMixer` and played through an SDL audio device. Automated runs
+open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
+
 ## Tests
 
 `dotnet test Tunnerer.slnx`. The suite covers terrain and pixels, collision, level generation, tank movement and
 heat, relays, hot rock, coolant, the thermal ledger and whole-world thermal behaviour, determinism and replays, and
-the bot. Desktop code (loop, input, HUD, renderer) has no unit tests; it is checked with scripted hidden runs that
-save final-frame screenshots (see "Automated runs" in `README.md`).
+the bot. Desktop code (loop, input, HUD, renderer, sound) has no unit tests; it is checked with scripted hidden runs
+that save final-frame screenshots and, for sound, a WAV capture and an event log (see "Automated runs" in
+`README.md`).

@@ -29,14 +29,10 @@ public static class Tweaks
         public const int NativeContinuousSampleLow = 1;
         public const int NativeContinuousSampleMedium = 2;
         public const int NativeContinuousSampleHigh = 4;
-        public const float NativeContinuousEdgeSoftness = 0.10f;
-        public const float NativeContinuousBoundaryBlend = 0.98f;
         public const float NativeContinuousRenderBudgetMs = 5.0f;
         public const int NativeContinuousBudgetHysteresisFrames = 10;
         public const float NativeContinuousBudgetUnderThreshold = 0.65f;
         public const int NativeContinuousRecoveryFramesMultiplier = 20;
-
-        public const float SolidAlphaFloor = 0.40f;
 
         public const float ScorchTintDarken = 0.35f;
         public const float ScorchTintStrength = 0.50f;
@@ -46,12 +42,9 @@ public static class Tweaks
         public const float PostVignetteInnerRadius = 0.35f;
         public const float PostVignetteOuterRadius = 0.95f;
         public const float PostTerrainHeatThreshold = 0.10f;
-        public const float PostTerrainMaskEdgeStrength = 0.18f;
         public const float PostTerrainMaskCaveDarken = 0.12f;
         public const float PostTerrainMaskSolidLift = 0.04f;
-        public const float PostTerrainMaskOutlineDarken = 0.26f;
         public const float PostTerrainMaskRimLift = 0.07f;
-        public const float PostTerrainMaskBoundaryScale = 2.4f;
         public const float PostMaterialEmissiveGoldR = 0.95f;
         public const float PostMaterialEmissiveGoldG = 0.75f;
         public const float PostMaterialEmissiveGoldB = 0.20f;

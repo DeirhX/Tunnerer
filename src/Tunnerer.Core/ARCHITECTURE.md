@@ -231,8 +231,8 @@ from its own `Resources` and carries it (`MachineMaterializer`); pressed again o
 
 `Tank.Heat` is measured from ambient and may go **negative**, down to `-Tank.CoolantCapacity`: that is the coolant
 charge. Overheat damage still starts above `Tank.HeatSafeMax`, so a fully pre-cooled tank has
-`HeatSafeMax + CoolantCapacity` of budget (`Tank.HeatBudget`, shown by the status bar, the ENERGY readout and the
-"Tank coolant" line of the heat overlay).
+`HeatSafeMax + CoolantCapacity` of budget (`Tank.HeatBudget`, shown by the status bar and the "Tank coolant" line of
+the heat overlay). The HUD's TEMP gauge shows `Tank.Heat` itself, so a pre-cooled tank reads below zero.
 
 - **Charging:** a tank docked at its *own* base is refrigerated by `Tank.DockCoolingPerTick` heat units per tick
   toward the full charge. The energy goes into the base reservoir (`TankBase.AcceptTankHeat`), so it is an exact

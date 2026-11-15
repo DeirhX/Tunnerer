@@ -102,6 +102,8 @@ public sealed unsafe partial class SdlGpuBackend : IGameRenderBackend
             ImGuiPlatform.NewFrame(windowW, windowH, deltaTime);
     }
 
+    public void SetHeatOrb(in HeatOrbState state) => _imgui?.SetHeatOrb(state);
+
     public void Render()
     {
         nint cmd = BeginFrame();

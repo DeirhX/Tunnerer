@@ -18,21 +18,21 @@ using Tunnerer.Desktop.Config;
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct PostParamsBlock
 {
-    public const float LayoutVersion = 3.0f;
+    public const float LayoutVersion = 4.0f;
     public const int MaxTankGlows = 8;
 
     public float TexelSizeX, TexelSizeY, PixelScale, Time;
     public float WorldSizeX, WorldSizeY, CameraPixelsX, CameraPixelsY;
     public float ViewSizeX, ViewSizeY, UseTerrainAux, PostParamsLayoutVersion;
-    public float HeatDebugOverlay, PostVignetteEnabled, PostTerrainCurveEnabled, PostTerrainAuxEnabled;
+    public float HeatDebugOverlay, PostVignetteEnabled, _padReserved0, PostTerrainAuxEnabled;
     public float PostTankGlowEnabled, PostTerrainHeatEnabled, PostThermalRegionsEnabled, ThermalTileSizeCells;
-    public float ThermalTileHeatThreshold01, SolidAlphaFloor, VignetteStrength, VignetteInnerRadius;
-    public float VignetteOuterRadius, TerrainMaskEdgeStrength, TerrainMaskCaveDarken, TerrainMaskSolidLift;
-    public float TerrainMaskOutlineDarken, TerrainMaskRimLift, TerrainMaskBoundaryScale, Quality;
+    public float ThermalTileHeatThreshold01, _padReserved1, VignetteStrength, VignetteInnerRadius;
+    public float VignetteOuterRadius, _padReserved2, TerrainMaskCaveDarken, TerrainMaskSolidLift;
+    public float _padReserved3, TerrainMaskRimLift, _padReserved4, Quality;
     public float _padQuality0, MaterialGoldR, MaterialGoldG, MaterialGoldB;
     public float MaterialGoldStrength, MaterialScorchedR, MaterialScorchedG, MaterialScorchedB;
     public float MaterialScorchedStrength, MaterialPulseFreq, MaterialPulseMin, MaterialPulseRange;
-    public float MaterialPulsePad, NativeEdgeSoftness, NativeBoundaryBlend, NativeSampleFactor;
+    public float MaterialPulsePad, NativeSmoothingEnabled, _padReserved5, NativeSampleFactor;
     public float NativeCurvingEnabled, LightDirX, LightDirY, LightDirZ;
     public float LightNormalStrength, HalfVecX, HalfVecY, HalfVecZ;
     public float LightMicroNormalStrength, LightAmbient, LightDiffuseWeight, LightShininess;
@@ -61,14 +61,12 @@ public unsafe struct PostParamsBlock
         PostProcessPassFlags passes = upload.PostProcess.PassFlags;
         cb.HeatDebugOverlay = BoolToFloat(upload.PostProcess.HeatDebugOverlayEnabled);
         cb.PostVignetteEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.Vignette));
-        cb.PostTerrainCurveEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.TerrainCurve));
         cb.PostTerrainAuxEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.TerrainAux));
         cb.PostTankGlowEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.TankGlow));
         cb.PostTerrainHeatEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.TerrainHeat));
         cb.PostThermalRegionsEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.ThermalRegions));
         cb.ThermalTileSizeCells = upload.PostProcess.ThermalRegions.TileSizeCells;
         cb.ThermalTileHeatThreshold01 = upload.PostProcess.ThermalRegions.ActiveThresholdHeat01;
-        cb.SolidAlphaFloor = DesktopScreenTweaks.SolidAlphaFloor;
         cb.VignetteStrength = DesktopScreenTweaks.PostVignetteStrength;
         cb.VignetteInnerRadius = DesktopScreenTweaks.PostVignetteInnerRadius;
         cb.VignetteOuterRadius = DesktopScreenTweaks.PostVignetteOuterRadius;
@@ -80,12 +78,9 @@ public unsafe struct PostParamsBlock
         cb.TerrainHeatGlowG = DesktopScreenTweaks.PostTerrainHeatGlowG;
         cb.TerrainHeatGlowB = DesktopScreenTweaks.PostTerrainHeatGlowB;
         cb.TerrainHeatThreshold = DesktopScreenTweaks.PostTerrainHeatThreshold;
-        cb.TerrainMaskEdgeStrength = DesktopScreenTweaks.PostTerrainMaskEdgeStrength;
         cb.TerrainMaskCaveDarken = DesktopScreenTweaks.PostTerrainMaskCaveDarken;
         cb.TerrainMaskSolidLift = DesktopScreenTweaks.PostTerrainMaskSolidLift;
-        cb.TerrainMaskOutlineDarken = DesktopScreenTweaks.PostTerrainMaskOutlineDarken;
         cb.TerrainMaskRimLift = DesktopScreenTweaks.PostTerrainMaskRimLift;
-        cb.TerrainMaskBoundaryScale = DesktopScreenTweaks.PostTerrainMaskBoundaryScale;
         cb.Quality = (float)upload.PostProcess.Quality;
         cb.MaterialGoldR = DesktopScreenTweaks.PostMaterialEmissiveGoldR;
         cb.MaterialGoldG = DesktopScreenTweaks.PostMaterialEmissiveGoldG;
@@ -99,9 +94,7 @@ public unsafe struct PostParamsBlock
         cb.MaterialPulseMin = DesktopScreenTweaks.PostMaterialEmissivePulseMin;
         cb.MaterialPulseRange = DesktopScreenTweaks.PostMaterialEmissivePulseRange;
         cb.MaterialPulsePad = 0f;
-        bool nativeSmoothingEnabled = HasPass(passes, PostProcessPassFlags.NativeTerrainSmoothing);
-        cb.NativeEdgeSoftness = nativeSmoothingEnabled ? DesktopScreenTweaks.NativeContinuousEdgeSoftness : 0f;
-        cb.NativeBoundaryBlend = nativeSmoothingEnabled ? DesktopScreenTweaks.NativeContinuousBoundaryBlend : 0f;
+        cb.NativeSmoothingEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.NativeTerrainSmoothing));
         cb.NativeSampleFactor = upload.NativeContinuous.SampleCount <= 1
             ? 0f
             : upload.NativeContinuous.SampleCount <= 2 ? 0.5f : 1f;

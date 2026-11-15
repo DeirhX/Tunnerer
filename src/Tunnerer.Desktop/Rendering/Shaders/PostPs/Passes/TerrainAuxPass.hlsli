@@ -1,5 +1,5 @@
 // ============================================================================
-// Passes/TerrainAuxPass.hlsli — SDF shading, material overlays, heat & scorch
+// Passes/TerrainAuxPass.hlsli — Edge shading, material overlays, heat & scorch
 // ============================================================================
 //
 // The most complex post-process pass. Uses the auxiliary terrain texture
@@ -7,20 +7,16 @@
 // flat-colored terrain rendered by TerrainPs.
 //
 // Sub-passes executed in order:
-//   1. SDF edge shading — Sobel gradient of auxTex.g produces edge strength
-//      and boundary proximity. Solid terrain gets a brightness lift and rim
-//      highlight near the cave/solid boundary.
-//   2. Material classification — natural materials (stone, concrete,
-//      dirt) are chosen from the blurred coverage texture (coverageTex), never
-//      from interpolated material codes: each material wins where its coverage
-//      beats the best other one, with an anti-aliased edge. Stone/dirt edges
-//      get a contact shadow and bevel for depth. The tank base (wall, floor,
-//      door) is drawn pixel-exact from the nearest cell's exact code.
-//   3. Neighborhood AA — 8-tap average blended in at edges to soften
-//      remaining aliasing after material overlays.
-//   4. Heat & scorch glow — auxTex.r (heat) and auxTex.a (scorch) drive
+//   1. Material classification — natural materials (stone, concrete, dirt)
+//      are chosen from the blurred coverage texture (coverageTex), never from
+//      interpolated material codes. Stone/dirt edges get a contact shadow and
+//      bevel. The result is composited over the cave by the shared cave/solid
+//      edge (Common/TerrainEdge.hlsli), with a rim light on the solid side and
+//      a contact shadow on the cave side. The tank base (wall, floor, door) is
+//      drawn pixel-exact from the nearest cell's exact code.
+//   2. Heat & scorch glow — auxTex.r (heat) and auxTex.a (scorch) drive
 //      emissive overlays with multi-scale thermal blur.
-//   5. Heat debug overlay — optional half-transparent temperature colormap.
+//   3. Heat debug overlay — optional half-transparent temperature colormap.
 //
 // All terrain-only effects are gated by `terrainFactor` to avoid bleeding
 // onto entity pixels.
@@ -278,7 +274,6 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     bool terrainAuxOnlyMode =
         textureEnabled &&
         !heatEnabled &&
-        PostTerrainCurveEnabled <= 0.5 &&
         PostVignetteEnabled <= 0.5 &&
         PostTankGlowEnabled <= 0.5;
 
@@ -287,6 +282,9 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     float2 worldCell = (CameraPixels + screenPx) / PixelScale;
     float2 auxUv = worldCell / WorldSize;
     float2 mTexel = float2(1.0 / WorldSize.x, 1.0 / WorldSize.y);
+
+    // The cave/solid edge, shared with TerrainPs (uses derivatives: keep outside flow control).
+    TerrainEdge edge = EvalTerrainEdge(worldCell);
 
     float4 a0  = auxTex.Sample(s1, auxUv);
     float4 ax1 = auxTex.Sample(s1, auxUv + float2( mTexel.x,  0.0));
@@ -302,78 +300,24 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     int2 auxMax = int2(max(1.0, WorldSize.x), max(1.0, WorldSize.y)) - int2(1, 1);
     int2 auxCell = clamp(int2(floor(worldCell)), int2(0, 0), auxMax);
     float4 aNearest = auxTex.Load(int3(auxCell, 0));
-    float sdfNearest = aNearest.g;
-    float solidCoreHard = step(0.52, sdfNearest);
-    float solidCoreSoft = smoothstep(0.52, 0.66, a0.g);
-    float solidCore = solidCoreHard * solidCoreSoft;
     int materialCodeNearest = DecodeMaterialCode(aNearest.b);
     float baseInfluence = IsBaseCode(materialCodeNearest) ? 1.0 : 0.0;
-    // When scorch remnants are present around edges, prefer smoothing and avoid
-    // hard contour accents that make the boundary look jagged.
+    // Scorch remnants along an edge read better without a crisp rim accent.
     float scorchNeighbor = max(
         max(max(a0.a, ax1.a), max(ax2.a, ay1.a)),
         max(max(ay2.a, ad1.a), max(ad2.a, max(ad3.a, ad4.a))));
     float scorchEdgeSoften = smoothstep(0.03, 0.14, scorchNeighbor) * (1.0 - baseInfluence);
 
-    // ---- SDF edge shading -------------------------------------------------
-    // Sobel gradient of the smooth SDF for edge detection and normal estimation.
-    float m0  = a0.g;
-    float mx1 = ax1.g; float mx2 = ax2.g;
-    float my1 = ay1.g; float my2 = ay2.g;
-
-    float gx = (ad2.g + 2.0 * mx1 + ad1.g) - (ad4.g + 2.0 * mx2 + ad3.g);
-    float gy = (ad3.g + 2.0 * my1 + ad1.g) - (ad4.g + 2.0 * my2 + ad2.g);
-    float edge = length(float2(gx, gy)) * 0.25;
-    float edgeAmt = min(1.0, edge * TerrainMaskEdgeStrength);
-
-    // Boundary proximity: 0 deep inside, 1 at the 0.5 isoline.
-    float m = lerp(m0, (mx1 + mx2 + my1 + my2) * 0.25, 0.15);
-    float boundary = 1.0 - abs(m * 2.0 - 1.0);
-    float outline = min(1.0, boundary * TerrainMaskBoundaryScale);
-    float maskWidth = max(fwidth(m) * 1.4, 0.02);
-    float maskSoft = smoothstep(0.5 - maskWidth, 0.5 + maskWidth, m);
-    // Keep texture shaping on the solid side to avoid cave-side halos.
-    float solidSide = smoothstep(0.5 + maskWidth * 0.2, 0.5 + maskWidth * 1.8, m);
-    // Suppress contour emphasis on tiny isolated fragments: if the local 3x3
-    // neighborhood has little same-side support, treat it as alias/noise and
-    // damp edge/rim overlays that would otherwise create a dark halo.
-    float sideC = step(0.5, m0);
-    float sideSupport = (
-        sideC * 2.0 +
-        (1.0 - abs(sideC - step(0.5, mx1))) +
-        (1.0 - abs(sideC - step(0.5, mx2))) +
-        (1.0 - abs(sideC - step(0.5, my1))) +
-        (1.0 - abs(sideC - step(0.5, my2))) +
-        (1.0 - abs(sideC - step(0.5, ad1.g))) * 0.5 +
-        (1.0 - abs(sideC - step(0.5, ad2.g))) * 0.5 +
-        (1.0 - abs(sideC - step(0.5, ad3.g))) * 0.5 +
-        (1.0 - abs(sideC - step(0.5, ad4.g))) * 0.5) / 8.0;
-    float contourSupport = smoothstep(0.48, 0.78, sideSupport);
-    // Additional smoothing signal for cave-mouth transitions where boundary
-    // energy is high but same-side support is weak (staircase-prone zone).
-    float caveTransitionSoften = smoothstep(0.42, 0.86, boundary) * (1.0 - contourSupport) * (1.0 - baseInfluence) * solidSide;
-
     if (textureEnabled)
     {
-        // Solid-side brightness lift and rim highlight near the boundary.
-        // In TerrainAux-only mode, suppress ring-like edge accents to avoid the
-        // visible outline artifact around hard silhouettes.
-        float edgeProfile = edgeAmt * smoothstep(0.05, 0.8, boundary) * (1.0 - baseInfluence) * solidSide * solidCore * contourSupport;
-        edgeProfile *= (1.0 - 0.90 * scorchEdgeSoften);
-        edgeProfile *= (1.0 - 0.55 * caveTransitionSoften);
-        float solidLift = terrainAuxOnlyMode ? TerrainMaskSolidLift * 0.35 : TerrainMaskSolidLift;
-        float rimLift = terrainAuxOnlyMode ? 0.0 : TerrainMaskRimLift;
-        color += maskSoft * edgeProfile * solidLift * terrainFactor;
-        color += maskSoft * edgeProfile * outline * rimLift * terrainFactor;
-
         // ---- Material classification --------------------------------------
         // Natural materials come from the blurred coverage field; the exact
         // (nearest) code only decides where the base is. Base cells are drawn
-        // with their own mask so the solid/cave gating cannot dim them.
-        float contentMask = terrainFactor * solidSide * solidCore;
+        // with their own mask.
+        float natural = terrainFactor * (1.0 - baseInfluence);
         float3 coverage = coverageTex.Sample(s2, auxUv).rgb;
         float3 margins = CoverageMargins(coverage);
-        float3 naturalMasks = NaturalMaterialMasks(coverage) * (contentMask * (1.0 - baseInfluence));
+        float3 naturalMasks = NaturalMaterialMasks(coverage);
         float stoneMask = naturalMasks.x;
         float concreteMask = naturalMasks.y;
         float dirtMask = naturalMasks.z;
@@ -387,11 +331,11 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             CoverageMargins(coverageTex.Sample(s2, auxUv + float2(0.0, mTexel.y)).rgb).x -
             CoverageMargins(coverageTex.Sample(s2, auxUv - float2(0.0, mTexel.y)).rgb).x);
 
-        // ---- Procedural material overlays ---------------------------------
-        // Each material is evaluated on the scene colour and the results are
-        // blended by mask weight, so no stale scene colour leaks into an edge.
+        // ---- Procedural material, composited over the cave by the edge ----
+        // Each material is evaluated in full and blended by mask weight, then
+        // the result replaces the scene colour on the solid side of the edge.
         float3 lightDir = normalize(float3(LightDir.xy, max(0.35, LightDir.z)));
-        if (naturalTotal > 0.001)
+        if (naturalTotal > 0.001 && natural > 0.0)
         {
             float3 blended = float3(0.0, 0.0, 0.0);
             if (stoneMask > 0.001)
@@ -412,10 +356,23 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
                 ApplyDirtMaterial(c, worldCell, 1.0, lightDir);
                 blended += c * dirtMask;
             }
-            color = lerp(color, blended / naturalTotal, naturalTotal);
+            float3 materialColor = blended / naturalTotal;
 
             // Depth at the stone/dirt boundary.
-            ApplyStoneDirtDepth(color, stoneMarginGrad, margins.x, naturalTotal);
+            ApplyStoneDirtDepth(materialColor, stoneMarginGrad, margins.x, 1.0);
+
+            // Rim light on the solid side of the cave edge, brighter where it faces the light.
+            float facing = dot(-edge.normal, normalize(LightDir.xy));
+            float rim = (1.0 - smoothstep(0.0, 1.2, edge.distCells)) * (1.0 - 0.90 * scorchEdgeSoften);
+            float solidLift = terrainAuxOnlyMode ? TerrainMaskSolidLift * 0.35 : TerrainMaskSolidLift;
+            float rimLift = terrainAuxOnlyMode ? 0.0 : TerrainMaskRimLift;
+            materialColor += rim * (solidLift + rimLift * saturate(0.5 + 0.5 * facing));
+
+            // Contact shadow on the cave floor just outside the edge.
+            float caveShadow = 1.0 - smoothstep(-1.0, 0.0, edge.distCells) * TerrainMaskCaveDarken * 4.0;
+            float3 caveColor = kTerrainCaveColor * saturate(caveShadow);
+
+            color = lerp(color, lerp(caveColor, materialColor, edge.coverage), natural * saturate(naturalTotal));
         }
 
         // Gold is a pickup the tank drives through, so it stays visible whatever
@@ -423,60 +380,6 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         ApplyGoldVein(color, worldCell, goldField, terrainFactor * (1.0 - baseInfluence), lightDir);
 
         ApplyBaseMaterial(color, worldCell, auxCell, auxMax, materialCodeNearest, baseMask);
-
-        // ---- Neighborhood AA ----------------------------------------------
-        // Blend a lightweight 8-tap average at terrain edges to soften residual
-        // aliasing from the material overlays.
-        // Smaller AA radius in TerrainAux-only mode to avoid perceived boundary
-        // displacement while still softening jagged cell transitions.
-        float aaRadiusScale = terrainAuxOnlyMode ? 0.55 : 1.0;
-        float2 oneCell = PixelScale * TexelSize * aaRadiusScale;
-        float4 aaC = sceneTex.Sample(s0, uv);
-        float4 aaX1 = sceneTex.Sample(s0, uv + float2( oneCell.x,  0.0));
-        float4 aaX2 = sceneTex.Sample(s0, uv + float2(-oneCell.x,  0.0));
-        float4 aaY1 = sceneTex.Sample(s0, uv + float2( 0.0,  oneCell.y));
-        float4 aaY2 = sceneTex.Sample(s0, uv + float2( 0.0, -oneCell.y));
-        float4 aaD1 = sceneTex.Sample(s0, uv + float2( oneCell.x,  oneCell.y));
-        float4 aaD2 = sceneTex.Sample(s0, uv + float2( oneCell.x, -oneCell.y));
-        float4 aaD3 = sceneTex.Sample(s0, uv + float2(-oneCell.x,  oneCell.y));
-        float4 aaD4 = sceneTex.Sample(s0, uv + float2(-oneCell.x, -oneCell.y));
-
-        // Prevent AA from blending across cave/solid boundary (main halo source).
-        float sideX1 = 1.0 - abs(sideC - step(0.5, ax1.g));
-        float sideX2 = 1.0 - abs(sideC - step(0.5, ax2.g));
-        float sideY1 = 1.0 - abs(sideC - step(0.5, ay1.g));
-        float sideY2 = 1.0 - abs(sideC - step(0.5, ay2.g));
-        float sideD1 = 1.0 - abs(sideC - step(0.5, ad1.g));
-        float sideD2 = 1.0 - abs(sideC - step(0.5, ad2.g));
-        float sideD3 = 1.0 - abs(sideC - step(0.5, ad3.g));
-        float sideD4 = 1.0 - abs(sideC - step(0.5, ad4.g));
-
-        float wC = step(kTerrainAlphaThreshold, aaC.a) * 2.0;
-        float wX1 = step(kTerrainAlphaThreshold, aaX1.a) * sideX1;
-        float wX2 = step(kTerrainAlphaThreshold, aaX2.a) * sideX2;
-        float wY1 = step(kTerrainAlphaThreshold, aaY1.a) * sideY1;
-        float wY2 = step(kTerrainAlphaThreshold, aaY2.a) * sideY2;
-        float wD1 = step(kTerrainAlphaThreshold, aaD1.a) * sideD1 * 0.8;
-        float wD2 = step(kTerrainAlphaThreshold, aaD2.a) * sideD2 * 0.8;
-        float wD3 = step(kTerrainAlphaThreshold, aaD3.a) * sideD3 * 0.8;
-        float wD4 = step(kTerrainAlphaThreshold, aaD4.a) * sideD4 * 0.8;
-        float wSum = wC + wX1 + wX2 + wY1 + wY2 + wD1 + wD2 + wD3 + wD4;
-        if (wSum > 0.001)
-        {
-            float3 aaNeighborhood =
-                (aaC.rgb * wC + aaX1.rgb * wX1 + aaX2.rgb * wX2 + aaY1.rgb * wY1 + aaY2.rgb * wY2 +
-                aaD1.rgb * wD1 + aaD2.rgb * wD2 + aaD3.rgb * wD3 + aaD4.rgb * wD4) / wSum;
-            bool nativeSmoothingOff = NativeContinuousParams.y <= 1e-5;
-            float aaBase = nativeSmoothingOff ? 0.62 : 0.30;
-            if (terrainAuxOnlyMode)
-                aaBase *= 0.55;
-            float terrainContent = saturate(naturalTotal);
-            float aaContentBoost = smoothstep(0.25, 0.90, terrainContent) * 0.10;
-            float aaEdgeSignal = edgeProfile * (1.0 - baseInfluence);
-            float aaMix = saturate(aaEdgeSignal * (aaBase + aaContentBoost)) * terrainFactor * contourSupport;
-            aaMix = saturate(aaMix + scorchEdgeSoften * 0.26 + caveTransitionSoften * 0.18);
-            color = lerp(color, aaNeighborhood, aaMix);
-        }
     }
 
     // ---- Heat & scorch glow -----------------------------------------------

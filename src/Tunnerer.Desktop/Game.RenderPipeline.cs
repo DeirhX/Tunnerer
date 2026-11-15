@@ -200,6 +200,7 @@ public partial class Game
                         _commandController.ShowHeatDebugOverlay,
                         _commandController.EnabledPostPasses,
                         _commandController.ShowPostPassOverlay));
+                _renderBackend.SetHeatOrb(_hud.HeatOrb);
                 DrawSessionOverlay(dt);
             }
 
