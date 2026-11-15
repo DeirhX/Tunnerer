@@ -31,7 +31,8 @@ tools/
 - **Heat is conserved and audited.** Thermal exchange is energy-exact; `ThermalLedger` records every transfer in or
   out of the system, and the profile output reports the residual, which should stay near zero.
 - **Tunables live in one place.** Gameplay and simulation constants are in `Tunnerer.Core/Config/Tweaks.cs`;
-  `SimulationSettings` and `ScreenConfig` wrap them so tests can inject other values.
+  `SimulationSettings` wraps them so tests can inject other values. Window, render and lighting constants that only
+  the desktop client reads are in `Tunnerer.Desktop/Config/DesktopTweaks.cs`.
 
 ## Frame loop
 

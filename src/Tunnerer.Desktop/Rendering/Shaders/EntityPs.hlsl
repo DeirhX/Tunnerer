@@ -37,6 +37,28 @@
 // cover the same 6x5 cells as the simulation's tank sprite.
 // ============================================================================
 
+// Shape kinds (color.a); EntityLayerBuilder's Kind* constants must match (EntityLayoutGuardTests).
+static const float kKindTankHull = 0.0;
+static const float kKindTankTurret = 1.0;
+static const float kKindHotShot = 2.0;
+static const float kKindFoam = 3.0;
+static const float kKindRelay = 4.0;
+static const float kKindHarvester = 5.0;
+static const float kKindSenseRing = 6.0;
+static const float kKindLink = 7.0;
+static const float kKindChargeBeam = 8.0;
+static const float kKindPylon = 9.0;
+static const float kKindBattery = 10.0;
+static const float kKindPreviewBeam = 11.0;
+static const float kKindReachArea = 12.0;
+static const float kKindCoverage = 13.0;
+static const float kKindTether = 14.0;
+
+// Machine flags (params.w); EntityLayerBuilder's MachineFlag* constants must match.
+static const float kMachineFlagStalled = 1.0;
+static const float kMachineFlagCarried = 2.0;
+static const float kMachineFlagLimited = 4.0;
+
 struct PSIn
 {
     float4 pos : SV_POSITION;
@@ -210,7 +232,7 @@ bool MachineFlag(float flags, float bit)
 // A carried machine is a see-through ghost over the tank.
 float4 Ghost(float4 c, float flags)
 {
-    return MachineFlag(flags, 2.0) ? c * 0.55 : c;
+    return MachineFlag(flags, kMachineFlagCarried) ? c * 0.55 : c;
 }
 
 // Relay: a heat pump on a finned plate. Its core glows cyan once it is linked to a powered network, brighter and
@@ -271,7 +293,7 @@ float4 Relay(float2 p, float4 params, float aa)
     float halo = exp(-max(length(p) - 0.8, 0.0) * 1.6) * pump * powered * 0.55;
     result.rgb += cyan * halo * (1.0 - result.a * 0.5);
 
-    if (MachineFlag(flags, 4.0))
+    if (MachineFlag(flags, kMachineFlagLimited))
     {
         float lamp = length(p - float2(1.55, -1.55)) - 0.38;
         Over(result, kOutlineColor, Coverage(lamp - 0.1, aa));
@@ -287,7 +309,7 @@ float4 Harvester(float2 p, float4 params, float aa)
     float2 light = LocalLight(params.xy);
     float drum = params.z;
     float flags = params.w;
-    bool stalled = MachineFlag(flags, 1.0);
+    bool stalled = MachineFlag(flags, kMachineFlagStalled);
     float4 result = float4(0.0, 0.0, 0.0, 0.0);
 
     static const float2 kBodyCenter = float2(-0.45, 0.0);
@@ -699,33 +721,33 @@ float4 main(PSIn input) : SV_Target
     float aa = max(length(fwidth(p)) * 0.7071, 1e-4);
     float kind = input.color.a;
 
-    if (kind < 0.5)
+    if (kind < kKindTankHull + 0.5)
         return TankHull(p, input.color.rgb, input.params, aa);
-    if (kind < 1.5)
+    if (kind < kKindTankTurret + 0.5)
         return TankTurret(p, input.color.rgb, input.params, aa);
-    if (kind < 2.5)
+    if (kind < kKindHotShot + 0.5)
         return HotShot(p, input.color.rgb, input.params, aa);
-    if (kind < 3.5)
+    if (kind < kKindFoam + 0.5)
         return FoamBlob(p, input.color.rgb, input.params, aa);
-    if (kind < 4.5)
+    if (kind < kKindRelay + 0.5)
         return Relay(p, input.params, aa);
-    if (kind < 5.5)
+    if (kind < kKindHarvester + 0.5)
         return Harvester(p, input.params, aa);
-    if (kind < 6.5)
+    if (kind < kKindSenseRing + 0.5)
         return SenseRing(p, input.params, aa);
-    if (kind < 7.5)
+    if (kind < kKindLink + 0.5)
         return LinkBeam(p, input.params, aa);
-    if (kind < 8.5)
+    if (kind < kKindChargeBeam + 0.5)
         return ChargeBeam(p, input.params, aa);
-    if (kind < 9.5)
+    if (kind < kKindPylon + 0.5)
         return Pylon(p, input.params, aa);
-    if (kind < 10.5)
+    if (kind < kKindBattery + 0.5)
         return Battery(p, input.params, aa);
-    if (kind < 11.5)
+    if (kind < kKindPreviewBeam + 0.5)
         return PreviewBeam(p, input.params, aa);
-    if (kind < 12.5)
+    if (kind < kKindReachArea + 0.5)
         return ReachArea(p, input.color.rgb, input.params, aa);
-    if (kind < 13.5)
+    if (kind < kKindCoverage + 0.5)
         return Coverage(p, input.color.rgb, input.params, aa);
-    return Tether(p, input.params, aa);
+    return Tether(p, input.params, aa); // kKindTether
 }

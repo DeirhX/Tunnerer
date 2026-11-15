@@ -46,6 +46,18 @@ public sealed unsafe partial class SdlGpuBackend
         }
     }
 
+    /// <summary>
+    /// The entity vertex layout. Must match <see cref="EntityVertex"/> (checked by EntityLayoutGuardTests) and VSIn in
+    /// EntityVs.hlsl.
+    /// </summary>
+    public static readonly SDL.GPUVertexAttribute[] EntityVertexAttributes =
+    [
+        new() { Location = 0, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float2, Offset = 0 },
+        new() { Location = 1, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float2, Offset = 8 },
+        new() { Location = 2, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float4, Offset = 16 },
+        new() { Location = 3, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float4, Offset = 32 },
+    ];
+
     private void CreateScenePipelines()
     {
         uint transparent = 0;
@@ -53,17 +65,9 @@ public sealed unsafe partial class SdlGpuBackend
         _terrainPipeline = CreateFullscreenPipeline("TerrainPs");
         _postPipeline = CreateFullscreenPipeline("PostPs");
 
-        // Must match EntityVertex and VSIn in EntityVs.hlsl.
         SDL.GPUVertexBufferDescription[] buffers =
         [
             new() { Slot = 0, Pitch = (uint)Unsafe.SizeOf<EntityVertex>(), InputRate = SDL.GPUVertexInputRate.Vertex },
-        ];
-        SDL.GPUVertexAttribute[] attributes =
-        [
-            new() { Location = 0, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float2, Offset = 0 },
-            new() { Location = 1, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float2, Offset = 8 },
-            new() { Location = 2, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float4, Offset = 16 },
-            new() { Location = 3, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float4, Offset = 32 },
         ];
         // Premultiplied alpha, so opaque bodies and additive glows share the pass; destination alpha is kept.
         var blend = new SDL.GPUColorTargetBlendState
@@ -76,7 +80,7 @@ public sealed unsafe partial class SdlGpuBackend
             DstAlphaBlendFactor = SDL.GPUBlendFactor.One,
             AlphaBlendOp = SDL.GPUBlendOp.Add,
         };
-        _entityPipeline = CreatePipeline("EntityVs", "EntityPs", buffers, attributes, blend, ColorFormat);
+        _entityPipeline = CreatePipeline("EntityVs", "EntityPs", buffers, EntityVertexAttributes, blend, ColorFormat);
     }
 
     private void ReleaseScenePipelines()
@@ -110,8 +114,7 @@ public sealed unsafe partial class SdlGpuBackend
         StageWorldData(_materialCoverage, upload.TerrainAux.MaterialCoverage, upload.View.WorldSize,
             upload.TerrainAux.MaterialCoverageDirtyRect);
 
-        bool useNativeContinuous = upload.NativeContinuous.Enabled &&
-                                   upload.NativeContinuous.SourcePixels != null &&
+        bool useNativeContinuous = upload.NativeContinuous.SourcePixels != null &&
                                    upload.View.WorldSize.X > 0 &&
                                    upload.View.WorldSize.Y > 0;
         if (useNativeContinuous)
@@ -120,10 +123,6 @@ public sealed unsafe partial class SdlGpuBackend
             bool created = _nativeSource.Ensure(_device, worldW, worldH);
             if (created || upload.NativeContinuous.SourceChanged)
                 StagePixels(_nativeSource, upload.NativeContinuous.SourcePixels!, worldW, worldH);
-        }
-        else
-        {
-            StagePixels(_scene, upload.Pixels, w, h);
         }
         StageEntityVertices(upload.Entities);
         FlushUploads(cmd);

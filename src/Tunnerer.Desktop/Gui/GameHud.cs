@@ -842,34 +842,8 @@ public class GameHud
         Action<string?> requestScreenshot,
         Action<GameCommand> executeCommand)
     {
-        DrawGameViewportFullscreen(gameTextureId, texW, texH);
+        DrawGameViewport(gameTextureId, texW, texH);
         DrawTerrainTestPanel(heatDebugOverlayEnabled, passFlags, requestScreenshot, executeCommand);
-    }
-
-    private void DrawGameViewportFullscreen(nint gameTextureId, int texW, int texH)
-    {
-        var displaySize = ImGui.GetIO().DisplaySize;
-
-        ImGui.SetNextWindowPos(Vector2.Zero, ImGuiCond.Always);
-        ImGui.SetNextWindowSize(new Vector2(displaySize.X, displaySize.Y), ImGuiCond.Always);
-
-        var flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize |
-                    ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollbar |
-                    ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoCollapse |
-                    ImGuiWindowFlags.NoBringToFrontOnFocus | ImGuiWindowFlags.NoBackground;
-
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0f);
-
-        if (ImGui.Begin("##Viewport", flags))
-        {
-            var cursorPos = ImGui.GetCursorScreenPos();
-            ImGui.SetCursorPos(Vector2.Zero);
-            ImGui.Image(gameTextureId, new Vector2(texW, texH));
-            ViewportRect = (cursorPos.X, cursorPos.Y, texW, texH);
-        }
-        ImGui.End();
-        ImGui.PopStyleVar(2);
     }
 
     private void DrawTerrainTestPanel(
@@ -1190,14 +1164,5 @@ public class GameHud
             ? new Vector4(0.36f, 0.96f, 0.49f, 1.0f)
             : new Vector4(0.92f, 0.33f, 0.33f, 1.0f);
         ColoredText(color, $"{label}: {(enabled ? "ON" : "OFF")}");
-    }
-
-    private static uint ToAbgr(float r, float g, float b, float a)
-    {
-        byte rb = (byte)(MathF.Min(r, 1f) * 255 + 0.5f);
-        byte gb = (byte)(MathF.Min(g, 1f) * 255 + 0.5f);
-        byte bb = (byte)(MathF.Min(b, 1f) * 255 + 0.5f);
-        byte ab = (byte)(MathF.Min(a, 1f) * 255 + 0.5f);
-        return (uint)(ab << 24 | bb << 16 | gb << 8 | rb);
     }
 }

@@ -192,18 +192,19 @@ public static class PlayerWarnings
     }
 }
 
+/// <summary>Window, render-surface and GPU post-processing / lighting tuning for the desktop client.</summary>
 public static class DesktopScreenTweaks
 {
-    public static Size WindowSize => Tweaks.Screen.WindowSize;
-    public static Size RenderSurfaceSize => Tweaks.Screen.RenderSurfaceSize;
-    public static int PixelScale => Tweaks.Screen.PixelScale;
-    public static int NativeContinuousSampleLow => Tweaks.Screen.NativeContinuousSampleLow;
-    public static int NativeContinuousSampleMedium => Tweaks.Screen.NativeContinuousSampleMedium;
-    public static int NativeContinuousSampleHigh => Tweaks.Screen.NativeContinuousSampleHigh;
-    public static float NativeContinuousRenderBudgetMs => Tweaks.Screen.NativeContinuousRenderBudgetMs;
-    public static int NativeContinuousBudgetHysteresisFrames => Tweaks.Screen.NativeContinuousBudgetHysteresisFrames;
-    public static float NativeContinuousBudgetUnderThreshold => Tweaks.Screen.NativeContinuousBudgetUnderThreshold;
-    public static int NativeContinuousRecoveryFramesMultiplier => Tweaks.Screen.NativeContinuousRecoveryFramesMultiplier;
+    public static readonly Size WindowSize = new(1920, 1080);
+    public static readonly Size RenderSurfaceSize = new(320, 200);
+    public const int PixelScale = 6;
+    public const int NativeContinuousSampleLow = 1;
+    public const int NativeContinuousSampleMedium = 2;
+    public const int NativeContinuousSampleHigh = 4;
+    public const float NativeContinuousRenderBudgetMs = 5.0f;
+    public const int NativeContinuousBudgetHysteresisFrames = 10;
+    public const float NativeContinuousBudgetUnderThreshold = 0.65f;
+    public const int NativeContinuousRecoveryFramesMultiplier = 20;
     public const int HeatAuxUpdateIntervalFrames = 2;
 
     /// <summary>
@@ -211,47 +212,48 @@ public static class DesktopScreenTweaks
     /// matters where presenting does not wait for it.
     /// </summary>
     public const int MaxRenderFps = 240;
-    public static float ScorchTintDarken => Tweaks.Screen.ScorchTintDarken;
-    public static float ScorchTintStrength => Tweaks.Screen.ScorchTintStrength;
 
-    public static float PostVignetteStrength => Tweaks.Screen.PostVignetteStrength;
-    public static float PostVignetteInnerRadius => Tweaks.Screen.PostVignetteInnerRadius;
-    public static float PostVignetteOuterRadius => Tweaks.Screen.PostVignetteOuterRadius;
-    public static float PostTerrainHeatThreshold => Tweaks.Screen.PostTerrainHeatThreshold;
-    public static float PostTerrainMaskCaveDarken => Tweaks.Screen.PostTerrainMaskCaveDarken;
-    public static float PostTerrainMaskSolidLift => Tweaks.Screen.PostTerrainMaskSolidLift;
-    public static float PostTerrainMaskRimLift => Tweaks.Screen.PostTerrainMaskRimLift;
-    public static float PostMaterialEmissiveGoldR => Tweaks.Screen.PostMaterialEmissiveGoldR;
-    public static float PostMaterialEmissiveGoldG => Tweaks.Screen.PostMaterialEmissiveGoldG;
-    public static float PostMaterialEmissiveGoldB => Tweaks.Screen.PostMaterialEmissiveGoldB;
-    public static float PostMaterialEmissiveScorchedR => Tweaks.Screen.PostMaterialEmissiveScorchedR;
-    public static float PostMaterialEmissiveScorchedG => Tweaks.Screen.PostMaterialEmissiveScorchedG;
-    public static float PostMaterialEmissiveScorchedB => Tweaks.Screen.PostMaterialEmissiveScorchedB;
-    public static float PostMaterialEmissiveGoldStrength => Tweaks.Screen.PostMaterialEmissiveGoldStrength;
-    public static float PostMaterialEmissiveScorchedStrength => Tweaks.Screen.PostMaterialEmissiveScorchedStrength;
-    public static float PostMaterialEmissivePulseFreq => Tweaks.Screen.PostMaterialEmissivePulseFreq;
-    public static float PostMaterialEmissivePulseMin => Tweaks.Screen.PostMaterialEmissivePulseMin;
-    public static float PostMaterialEmissivePulseRange => Tweaks.Screen.PostMaterialEmissivePulseRange;
-    public static float PostTankHeatGlowR => Tweaks.Screen.PostTankHeatGlowR;
-    public static float PostTankHeatGlowG => Tweaks.Screen.PostTankHeatGlowG;
-    public static float PostTankHeatGlowB => Tweaks.Screen.PostTankHeatGlowB;
-    public static bool PostTankHeatDistortionEnabled => Tweaks.Screen.PostTankHeatDistortionEnabled;
-    public static float PostTankHeatGlowMinHeat => Tweaks.Screen.PostTankHeatGlowMinHeat;
-    public static float PostTankHeatGlowBaseRadius => Tweaks.Screen.PostTankHeatGlowBaseRadius;
-    public static float PostTankHeatGlowScaleRadius => Tweaks.Screen.PostTankHeatGlowScaleRadius;
-    public static float PostTerrainHeatGlowR => Tweaks.Screen.PostTerrainHeatGlowR;
-    public static float PostTerrainHeatGlowG => Tweaks.Screen.PostTerrainHeatGlowG;
-    public static float PostTerrainHeatGlowB => Tweaks.Screen.PostTerrainHeatGlowB;
-    public static byte PostEmissiveGold => Tweaks.Screen.PostEmissiveGold;
-    public static byte PostEmissiveScorchedHigh => Tweaks.Screen.PostEmissiveScorchedHigh;
-    public static byte PostEmissiveScorchedLow => Tweaks.Screen.PostEmissiveScorchedLow;
-    public static float LightDirX => Tweaks.Screen.LightDirX;
-    public static float LightDirY => Tweaks.Screen.LightDirY;
-    public static float LightDirZ => Tweaks.Screen.LightDirZ;
-    public static float LightAmbient => Tweaks.Screen.LightAmbient;
-    public static float LightDiffuseWeight => Tweaks.Screen.LightDiffuseWeight;
-    public static float LightNormalStrength => Tweaks.Screen.LightNormalStrength;
-    public static float LightShininess => Tweaks.Screen.LightShininess;
-    public static float LightSpecularIntensity => Tweaks.Screen.LightSpecularIntensity;
-    public static float LightMicroNormalStrength => Tweaks.Screen.LightMicroNormalStrength;
+    public const float ScorchTintDarken = 0.35f;
+    public const float ScorchTintStrength = 0.50f;
+
+    // GPU post-processing / lighting tuning
+    public const float PostVignetteStrength = 0.18f;
+    public const float PostVignetteInnerRadius = 0.35f;
+    public const float PostVignetteOuterRadius = 0.95f;
+    public const float PostTerrainHeatThreshold = 0.10f;
+    public const float PostTerrainMaskCaveDarken = 0.12f;
+    public const float PostTerrainMaskSolidLift = 0.04f;
+    public const float PostTerrainMaskRimLift = 0.07f;
+    public const float PostMaterialEmissiveGoldR = 0.95f;
+    public const float PostMaterialEmissiveGoldG = 0.75f;
+    public const float PostMaterialEmissiveGoldB = 0.20f;
+    public const float PostMaterialEmissiveScorchedR = 0.7059f;
+    public const float PostMaterialEmissiveScorchedG = 0.3137f;
+    public const float PostMaterialEmissiveScorchedB = 0.1176f;
+    public const float PostMaterialEmissiveGoldStrength = 0.95f;
+    public const float PostMaterialEmissiveScorchedStrength = 0.32f;
+    public const float PostMaterialEmissivePulseFreq = 3.0f;
+    public const float PostMaterialEmissivePulseMin = 0.8f;
+    public const float PostMaterialEmissivePulseRange = 0.2f;
+    public const float PostTankHeatGlowR = 0.78f;
+    public const float PostTankHeatGlowG = 0.24f;
+    public const float PostTankHeatGlowB = 0.04f;
+    public const bool PostTankHeatDistortionEnabled = false;
+    public const float PostTankHeatGlowMinHeat = 1.5f;
+    public const float PostTankHeatGlowBaseRadius = 2.5f;
+    public const float PostTankHeatGlowScaleRadius = 2.5f;
+    public const float PostTerrainHeatGlowR = 1.0000f;
+    public const float PostTerrainHeatGlowG = 0.4500f;
+    public const float PostTerrainHeatGlowB = 0.0500f;
+
+    // Directional lighting: top-left, slightly forward.
+    public const float LightDirX = -0.35f;
+    public const float LightDirY = -0.55f;
+    public const float LightDirZ = 0.70f;
+    public const float LightAmbient = 0.22f;
+    public const float LightDiffuseWeight = 0.68f;
+    public const float LightNormalStrength = 2.2f;
+    public const float LightShininess = 8f;
+    public const float LightSpecularIntensity = 0.10f;
+    public const float LightMicroNormalStrength = 0.35f;
 }

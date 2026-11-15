@@ -26,7 +26,7 @@ public struct EntityVertex
 /// </summary>
 public sealed class EntityLayerBuilder
 {
-    // Shape kinds; must match EntityPs.hlsl.
+    // Shape kinds; must match the kKind* constants in EntityPs.hlsl (EntityLayoutGuardTests).
     private const float KindTankHull = 0f;
     private const float KindTankTurret = 1f;
     private const float KindHotShot = 2f;
@@ -52,7 +52,7 @@ public sealed class EntityLayerBuilder
     private readonly record struct PlacementPreview(bool Active, MachineType Type, LinkPreview Link, float SenseHeat);
     private PlacementPreview _preview;
 
-    // Machine flags (params.w), must match EntityPs.hlsl.
+    // Machine flags (params.w); must match the kMachineFlag* constants in EntityPs.hlsl (EntityLayoutGuardTests).
     private const float MachineFlagStalled = 1f;
     private const float MachineFlagCarried = 2f;
     private const float MachineFlagLimited = 4f;
@@ -71,6 +71,12 @@ public sealed class EntityLayerBuilder
     private const float HullTurnRate = 16f;
 
     private const int VerticesPerQuad = 6;
+
+    /// <summary>The shaders' animation phase wraps here so it keeps float precision in long sessions.</summary>
+    private const float AnimationPhaseWrapSeconds = 1000f;
+
+    /// <summary>A protected (just respawned) tank blinks on and off at this period.</summary>
+    private const int ProtectedBlinkMilliseconds = 120;
 
     private TankRenderState[] _tanks = [];
     private TankRenderState[] _previousTanks = [];
@@ -93,6 +99,9 @@ public sealed class EntityLayerBuilder
     private float[] _machineHeading = [];
     private int _machineCount;
     private int _previousMachineCount;
+
+    private float _animationPhase;
+    private bool _protectedBlinkOn;
 
     private EntityVertex[] _vertices = new EntityVertex[1024];
     private int _vertexCount;
@@ -170,7 +179,7 @@ public sealed class EntityLayerBuilder
     private void BuildCoverage(in RenderView view, PositionF player)
     {
         float scale = view.PixelScale;
-        float phase = (float)(Environment.TickCount64 % 1_000_000L) / 1000f;
+        float phase = _animationPhase;
         float emphasis = _playerOffNetwork ? 1f : 0f;
         foreach (var node in _coverageNodes)
         {
@@ -252,10 +261,13 @@ public sealed class EntityLayerBuilder
     /// Builds the quads for one displayed frame. <paramref name="turnSeconds"/> is the game time since the last
     /// displayed frame, used to swing hulls round to a new heading (zero while paused, so they hold still);
     /// <paramref name="snapHeadings"/> puts them on the new heading at once (step-locked automated runs).
+    /// <paramref name="visualSeconds"/> is the game's visual clock, which drives every animation (pulses, blinking).
     /// </summary>
-    public void Build(in RenderView view, float alpha, float turnSeconds, bool snapHeadings)
+    public void Build(in RenderView view, float alpha, float turnSeconds, bool snapHeadings, float visualSeconds)
     {
         _vertexCount = 0;
+        _animationPhase = visualSeconds % AnimationPhaseWrapSeconds;
+        _protectedBlinkOn = (long)(visualSeconds * 1000f) / ProtectedBlinkMilliseconds % 2 == 0;
         ReadOnlySpan<PositionF> tankPositions = InterpolateTankPositions(alpha);
         float scale = view.PixelScale;
 
@@ -282,7 +294,7 @@ public sealed class EntityLayerBuilder
 
             Color team = TankSprites.GetPixelColor(1, tank.Color);
             float state = tank.HitFlashTicks > 0 && (tank.HitFlashTicks / 3) % 2 == 1 ? StateHitFlash
-                : tank.IsProtected && (Environment.TickCount64 / 120) % 2 == 0 ? StateProtected
+                : tank.IsProtected && _protectedBlinkOn ? StateProtected
                 : StateNormal;
             float travel = _previousTreadTravel[i] + (_treadTravel[i] - _previousTreadTravel[i]) * alpha;
 
@@ -347,7 +359,7 @@ public sealed class EntityLayerBuilder
     private void BuildLinks(in RenderView view)
     {
         float scale = view.PixelScale;
-        float phase = (float)(Environment.TickCount64 % 1_000_000L) / 1000f;
+        float phase = _animationPhase;
         for (int i = 0; i < _linkCount; i++)
         {
             ref readonly LinkRenderState link = ref _links[i];
@@ -394,7 +406,7 @@ public sealed class EntityLayerBuilder
         if (!_preview.Active)
             return;
         float scale = view.PixelScale;
-        float phase = (float)(Environment.TickCount64 % 1_000_000L) / 1000f;
+        float phase = _animationPhase;
         float cx = (player.X + 0.5f) * scale - view.CameraPixels.X;
         float cy = (player.Y + 0.5f) * scale - view.CameraPixels.Y;
 
@@ -456,7 +468,7 @@ public sealed class EntityLayerBuilder
     private void BuildMachines(in RenderView view, float alpha, float turnSeconds, bool snapHeadings)
     {
         float scale = view.PixelScale;
-        float phase = (float)(Environment.TickCount64 % 1_000_000L) / 1000f;
+        float phase = _animationPhase;
         // The machine list only appends, or drops dead machines; while its size is unchanged, index i is the same
         // machine as in the previous step, so a crawling harvester can slide between steps.
         bool sameMachines = _previousMachineCount == _machineCount;

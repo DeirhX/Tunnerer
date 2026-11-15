@@ -52,7 +52,6 @@ public partial class Game : IDisposable
     private bool _steppedSinceRender = true;
     private readonly Stopwatch _renderClock = Stopwatch.StartNew();
     private readonly bool _interpolateFrames;
-    private readonly Stopwatch _gameTimer = Stopwatch.StartNew();
     /// <summary>Shader animation clock (seconds); regrow stamps are written in it too.</summary>
     private readonly Stopwatch _visualClock = Stopwatch.StartNew();
     private float VisualTime => (float)_visualClock.Elapsed.TotalSeconds;
