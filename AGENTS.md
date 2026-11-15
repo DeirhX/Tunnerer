@@ -25,6 +25,8 @@ Run from the repository root.
 
 - **Determinism.** The same seed and inputs give the same world every frame (`DeterminismTests`, `ReplayTests`).
   Do not read the wall clock, `Random.Shared` or unordered collections in simulation code.
+- **Refactors keep results bit-for-bit.** `SimulationFingerprintTests` compares two fixed runs with recorded hashes;
+  update a constant only when a change alters results on purpose, and say so in the commit message.
 - **Energy is conserved.** Entities exchange *energy* with the grid; they never write temperatures. Energy that is
   created or destroyed is recorded in `ThermalLedger`, and `ThermalLedgerTests` checks the balance every tick.
 - **One heat solver.** `TerrainHeatEngine.ComputeRegionDeltaConservative` is the only exchange stencil and
