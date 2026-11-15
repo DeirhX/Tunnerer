@@ -37,8 +37,10 @@ public partial class Game
             WorldSize: _terrainSize,
             CameraPixels: new Position(_renderViewState.CamPixelX, _renderViewState.CamPixelY),
             PixelScale: scale);
+        float visualTime = VisualTime;
         _entityLayer.Build(
-            renderView, stepProgress, turnSeconds: _paused ? 0f : dt, snapHeadings: !_interpolateFrames);
+            renderView, stepProgress, turnSeconds: _paused ? 0f : dt, snapHeadings: !_interpolateFrames,
+            visualSeconds: visualTime);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
 
@@ -47,7 +49,6 @@ public partial class Game
             var hiResWatch = Stopwatch.StartNew();
 
             var visibleRect = _renderViewState.ComputeVisibleWorldRect(_terrainSize, scale);
-            float visualTime = VisualTime;
             _terrainAuxBuilder.GrowthFade.CollectExpired(visualTime, _terrainDirtyCells);
 
             Rect? auxDirtyRect;
