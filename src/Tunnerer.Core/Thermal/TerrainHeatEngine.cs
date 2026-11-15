@@ -239,7 +239,7 @@ public sealed class TerrainHeatEngine
         return dQ;
     }
 
-    // Must equal the number of ThermalMaterial values; ThermalTableGuardTests fails if the two drift apart.
+    // Must equal the number of ThermalMaterial values; SimulationTableGuardTests fails if the two drift apart.
     private const int MaterialCount = 6; // Air, Dirt, Stone, Base, ConstantEnergy, HotRock
 
     // Per-instance lookup tables, built once from the injected settings so tests can run the engine with custom values.

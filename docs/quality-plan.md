@@ -105,9 +105,9 @@ Independent review of the whole diff.
 | Golden fingerprint test (`SimulationFingerprintTests`) | done: refactors are checked bit-for-bit against recorded hashes |
 | 2A, 2B, 2C | done: Core owns match outcome, docking, network status, placement preview, machine traits; Tank 685→257 lines, bot 583→211; thermal step ~10% faster |
 | 3A, 3B, 3C, 3D | done: GameHud 1203→143, EntityLayerBuilder 634→92, EntityPs.hlsl 753→61 (compiled output byte-identical), Game.cs 358→280; flaky test fixed |
-| 4 | in progress: docs rewrite, independent review |
+| 4 | done: architecture docs rewritten from the code (Core doc 518→221 lines), "Keeping the code healthy" in AGENTS.md; independent review found no serious defects, two weak guard tests tightened |
 
-After Wave 3: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
+After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
 
 ## Follow-ups found during the work (not started)
 
@@ -118,8 +118,14 @@ Behaviour-preserving:
 - `VisualTime` is a real-time stopwatch, so step-locked screenshot runs are not reproducible; derive it from steps in automated runs.
 - `RenderingSourceGuardTests`-style guard for `PostParamsBlock` layout vs `PostParams.hlsli` (blocked on the misalignment decision).
 - Ubuntu CI job is non-blocking until it has passed once.
+- `NetworkStatus.Collect` still checks machine types directly instead of asking `MachineBehaviors`.
+- `[Profile+]` `coolPrep`/`coolCopy` are always 0 since the thermal snapshot copy was removed; drop them.
+- Dead or unreachable: foam projectiles and their factories, `MachineList.TestCollide`.
+- `EntityPs_DispatchesEveryShapeKind` and the thermal ratchet were tightened after review; `Machine.Advance` relay ignores `dt` (same result while `AdvanceStep` is the default).
 
 Change results (owner's call, add to Decisions):
 - `TankThermals` still reads coolant capacity, dock cooling, dig radius and base cooldown from `Tweaks`; routing them through `SimulationSettings` changes tests that inject settings.
 - Bot reads the int `Reactor.Heat` mirror and pre-coolant thresholds instead of `Tank.HeatBudget`.
 - Pylon plays the relay build sound (`SoundBank` has no pylon sound).
+- Bullets never hit machines (nothing passes `onMachine`, nothing lowers machine health), so machines cannot be destroyed. Gameplay decision.
+- `World.Initialize` seeds hot-rock pockets from `Environment.TickCount` when no decoration seed is given, even in deterministic mode.
