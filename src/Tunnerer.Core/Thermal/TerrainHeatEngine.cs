@@ -25,14 +25,6 @@ public sealed class TerrainHeatEngine
         _conductance = BuildConductanceTable();
     }
 
-    public bool AddEnergyAt(float[] temperature, int width, int height, int x, int y, float amount)
-    {
-        if ((uint)x >= (uint)width || (uint)y >= (uint)height)
-            return false;
-        int idx = x + y * width;
-        return AddEnergyAt(temperature, idx, amount);
-    }
-
     public bool AddEnergyAt(float[] temperature, int index, float amount)
     {
         if ((uint)index >= (uint)temperature.Length || amount == 0f)

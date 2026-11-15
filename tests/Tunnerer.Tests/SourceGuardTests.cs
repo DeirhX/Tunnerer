@@ -39,13 +39,11 @@ public class SourceGuardTests
     // Thermal code reads its numbers through SimulationSettings so tests can inject their own.
     private static readonly HashSet<(string File, string Pattern)> ThermalTweaksAllowed =
     [
-        ("src/Tunnerer.Core/Terrain/TerrainGrid.Heat.cs", "Tweaks."),
     ];
 
     // Mutable statics in Tweaks make results depend on what ran before (and on test order).
     private static readonly HashSet<(string File, string Pattern)> MutableTweaksAllowed =
     [
-        ("src/Tunnerer.Core/Config/Tweaks.cs", "EnableStoneAmbientExchange"),
     ];
 
     private const int MaxLines = 700;

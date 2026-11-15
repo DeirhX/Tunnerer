@@ -20,10 +20,14 @@ public class TankBase
     private static int Half => Tweaks.Base.BaseSize / 2;
     private static int DoorHalf => Tweaks.Base.DoorSize / 2;
 
-    public TankBase(Position position, int color)
+    // The base's own temperature, which the engine's efficiency is measured from.
+    private readonly float _baseTemperature;
+
+    public TankBase(Position position, int color, SimulationSettings? settings = null)
     {
         Position = position;
         Color = color;
+        _baseTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalFixedBaseTemperature;
     }
 
     public bool IsInside(Position tested) => BoundingBox.IsInside(tested, Position);
@@ -63,9 +67,9 @@ public class TankBase
     /// Fraction of delivered heat the base engine turns into charge, from how far the source is above the base's
     /// own temperature: hot sources are worth far more than warm ones.
     /// </summary>
-    public static double EngineEfficiency(double sourceTemperature)
+    public double EngineEfficiency(double sourceTemperature)
     {
-        double dT = sourceTemperature - Tweaks.World.ThermalFixedBaseTemperature;
+        double dT = sourceTemperature - _baseTemperature;
         if (dT <= 0.0)
             return 0.0;
         return Math.Min(Tweaks.Base.EngineMaxEfficiency, dT / (dT + Tweaks.Base.EngineTemperatureScale));

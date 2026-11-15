@@ -5,7 +5,7 @@ using Tunnerer.Core.Entities;
 
 /// <summary>
 /// Result of one tank heat step. Energies are expressed in the grid's units
-/// (<c>temperature * heat capacity</c>); a tank's own energy is <c>Heat * Tweaks.Tank.TankHeatCapacity</c>.
+/// (<c>temperature * heat capacity</c>); a tank's own energy is <c>Heat * SimulationSettings.TankHeatCapacity</c>.
 /// </summary>
 /// <param name="NextHeat">Tank heat after the step, not yet clamped to the physical floor.</param>
 /// <param name="EnergyToTerrain">Energy the tank hands to the terrain field of its footprint (negative: it takes energy).</param>
@@ -46,6 +46,9 @@ public sealed class TankHeatEngine
     {
         _settings = settings;
     }
+
+    /// <summary>Heat capacity of the tank: tank energy is <c>Heat * TankHeatCapacity</c>.</summary>
+    public float TankHeatCapacity => _settings.TankHeatCapacity;
 
     /// <param name="terrainCapacity">Sum of heat capacities of the terrain-field cells under the tank.</param>
     /// <param name="airCapacity">Sum of heat capacities of the air-field cells under the tank.</param>

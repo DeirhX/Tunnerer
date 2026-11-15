@@ -84,9 +84,13 @@ public class Machine
         if (!IsAlive || State != MachineState.Planted) return;
         if (Reactor.Health <= 0) { IsAlive = false; return; }
 
-        _actionAccumulator += dt;
-        if (_actionAccumulator < Behavior.ActionInterval) return;
-        _actionAccumulator -= Behavior.ActionInterval;
+        var interval = Behavior.ActionInterval;
+        if (interval > TimeSpan.Zero)
+        {
+            _actionAccumulator += dt;
+            if (_actionAccumulator < interval) return;
+            _actionAccumulator -= interval;
+        }
 
         Behavior.PerformAction?.Invoke(this, ctx);
     }

@@ -60,12 +60,6 @@ public class ProjectileList
     public void Add(Projectile p) => _pending.Add(p);
     public void AddRange(IEnumerable<Projectile> items) => _pending.AddRange(items);
 
-    public void RemoveAll()
-    {
-        _projectiles.Clear();
-        _pending.Clear();
-    }
-
     public void Advance(CollisionSolver solver)
     {
         _projectiles.AddRange(_pending);

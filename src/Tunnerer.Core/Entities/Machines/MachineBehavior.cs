@@ -12,15 +12,13 @@ using Tunnerer.Core.Terrain;
 /// </param>
 /// <param name="Machines">Every machine in the world, in a fixed order: pylons look for batteries, harvesters for pylons.</param>
 public readonly record struct MachineContext(
-    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines)
-{
-    public static MachineContext ForTerrain(ITerrainAccess terrain) => new(terrain, static (_, _) => false, []);
-}
+    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines);
 
 /// <summary>
 /// Defines per-type machine behavior in one place.
 /// Adding a new machine type = one entry in <see cref="MachineBehaviors.Get"/>.
 /// </summary>
+/// <param name="ActionInterval">Time between actions; <see cref="TimeSpan.Zero"/> acts on every world tick.</param>
 public record MachineBehavior(
     TimeSpan ActionInterval,
     Action<Machine, MachineContext>? PerformAction,
@@ -42,7 +40,7 @@ public static class MachineBehaviors
         new MaterialAmount(Tweaks.Machine.PylonDirtCost, 0));
 
     public static readonly MachineBehavior Relay = new(
-        Tweaks.World.AdvanceStep,
+        TimeSpan.Zero,
         PumpHeat,
         Tweaks.Colors.Relay,
         new MaterialAmount(Tweaks.Machine.RelayDirtCost, 0));
@@ -227,8 +225,7 @@ public static class MachineBehaviors
         int range = Tweaks.Machine.PylonRange;
         if (Position.DistanceSquared(pylon.Position, battery.Position) > range * range)
             return false;
-        return !Collision.Raycaster.BresenhamLineAny(pylon.Position, battery.Position,
-            pos => Pixel.BlocksLink(terrain.GetPixel(pos)));
+        return Collision.Raycaster.HasOpenLine(terrain, pylon.Position, battery.Position);
     }
 
     /// <summary>
