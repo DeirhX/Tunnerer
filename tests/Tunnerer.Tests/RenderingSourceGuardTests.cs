@@ -9,7 +9,7 @@ namespace Tunnerer.Tests;
 /// </summary>
 public class RenderingSourceGuardTests
 {
-    private static readonly string DesktopDir = Path.Combine(FindRepositoryRoot(), "src", "Tunnerer.Desktop");
+    private static readonly string DesktopDir = Path.Combine(RepositoryFiles.Root, "src", "Tunnerer.Desktop");
     private static readonly string ShaderDir = Path.Combine(DesktopDir, "Rendering", "Shaders");
 
     [Fact]
@@ -37,7 +37,7 @@ public class RenderingSourceGuardTests
     {
         string allowed = Path.Combine(DesktopDir, allowedRelativeDir) + Path.DirectorySeparatorChar;
         var offenders = Directory.EnumerateFiles(DesktopDir, "*.cs", SearchOption.AllDirectories)
-            .Where(path => !IsBuildOutput(path))
+            .Where(path => !RepositoryFiles.IsBuildOutput(path))
             .Where(path => !path.StartsWith(allowed, StringComparison.Ordinal))
             .Where(path => pattern.IsMatch(File.ReadAllText(path)))
             .Select(path => Path.GetRelativePath(DesktopDir, path))
@@ -45,23 +45,5 @@ public class RenderingSourceGuardTests
 
         Assert.True(offenders.Count == 0,
             $"'{pattern}' belongs in {allowedRelativeDir} only, but appears in: {string.Join(", ", offenders)}");
-    }
-
-    private static bool IsBuildOutput(string path)
-    {
-        string sep = Path.DirectorySeparatorChar.ToString();
-        return path.Contains(sep + "obj" + sep, StringComparison.Ordinal) ||
-               path.Contains(sep + "bin" + sep, StringComparison.Ordinal) ||
-               path.Contains(sep + "out" + sep, StringComparison.Ordinal);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Tunnerer.slnx")))
-                return dir.FullName;
-        }
-        throw new DirectoryNotFoundException("Could not find Tunnerer.slnx above the test output directory.");
     }
 }
