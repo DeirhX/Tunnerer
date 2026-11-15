@@ -21,7 +21,14 @@ public sealed class NetworkPanel
     private double _radiatorInflow;
     private double _engineOutput;
 
-    private static int DirtCost(MachineType type) => MachineBehaviors.Get(type).BuildCost.Dirt;
+    private static Vector4 ToneColor(HintTone tone) => tone switch
+    {
+        HintTone.Info => TextInfo,
+        HintTone.Good => TextGood,
+        HintTone.Warn => TextWarn,
+        HintTone.Bad => TextBad,
+        _ => TextDim,
+    };
 
     public void Draw((float x, float y, float w, float h) vp, Tank player, World world, float time)
     {
@@ -42,100 +49,36 @@ public sealed class NetworkPanel
         float fill = (float)status.HeatStoreFill;
         var fillColor = fill < 0.6f ? TextGood : fill < 0.9f ? TextWarn : TextBad;
 
-        if (!player.IsDead && world.TankBases.CheckBaseCollision(player.Position) == null)
+        bool insideBase = world.TankBases.CheckBaseCollision(player.Position) != null;
+        if (!player.IsDead && !insideBase)
             _hasLeftBase = true;
         if (powered > _lastPoweredRelays)
             _relayLinkedUntil = time + 4f;
         _lastPoweredRelays = powered;
 
         bool docked = player.IsDockedAtOwnBase;
-        int dirt = player.BuildableDirt(docked);
-        int relayCost = DirtCost(MachineType.Relay);
-        int harvesterCost = DirtCost(MachineType.Harvester);
-        int pylonCost = DirtCost(MachineType.Pylon);
-        bool fromBaseStore = docked && player.Resources.Dirt < relayCost && dirt >= relayCost;
-        string hint;
-        Vector4 hintColor;
-        if (player.IsDead)
-        {
-            hint = string.Empty;
-            hintColor = TextDim;
-        }
-        else if (!_hasLeftBase && docked)
-        {
-            hint = "WASD to drive - the base exit is at the bottom";
-            hintColor = TextInfo;
-        }
-        else if (time < _relayLinkedUntil && !player.IsCarryingMachine)
-        {
-            hint = pumping > 0
-                ? "Relay linked - pumping heat into your base"
-                : "Relay linked - idle until the ground near it heats up";
-            hintColor = TextGood;
-        }
-        else if (player.PlantRefusedTicks > 0)
-        {
-            hint = "Not planted: it would not link - find a clear line";
-            hintColor = TextBad;
-        }
-        else if (player.IsCarryingMachine)
-        {
-            bool carryingHarvester = player.CarriedMachineType == MachineType.Harvester;
-            bool carryingPylon = player.CarriedMachineType == MachineType.Pylon;
-            string carriedName = carryingHarvester ? "harvester" : carryingPylon ? "pylon" : "relay";
-            if (world.TankBases.CheckBaseCollision(player.Position) != null)
-            {
-                hint = $"Carrying {carriedName} - leave the base to plant it";
-                hintColor = TextInfo;
-            }
-            else if (carryingHarvester)
-            {
-                hint = "R: plant harvester here - it mines nearby dirt into your base store";
-                hintColor = TextGood;
-            }
-            else
-            {
-                var preview = world.LinkMap.PreviewLink(player.Position, world.Terrain);
-                (hint, hintColor) = preview.Status switch
-                {
-                    LinkPreviewStatus.Live => (carryingPylon
-                        ? "T: plant pylon here - it charges harvesters it can see"
-                        : "E: plant relay here - it will link (green line)", TextGood),
-                    LinkPreviewStatus.Blocked => ("Line to network blocked (red X) - dig it clear", TextBad),
-                    LinkPreviewStatus.TooFar => ("Too far from the network - move closer", TextWarn),
-                    _ => ("No powered network to link to", TextWarn),
-                };
-            }
-        }
-        else if (fill >= 0.9f && powered > 0)
-        {
-            hint = "Base heat store full - relays and docking cool less";
-            hintColor = TextWarn;
-        }
-        else if (dirt >= relayCost)
-        {
-            hint = fromBaseStore
-                ? $"E: build relay from the base store ({relayCost} dirt)"
-                : $"E: build relay ({relayCost} dirt)";
-            if (dirt >= harvesterCost)
-                hint += $"   R: build harvester ({harvesterCost} dirt)";
-            if (dirt >= pylonCost && harvesters > 0)
-                hint += $"   T: pylon ({pylonCost})";
-            hintColor = TextGood;
-        }
-        else if (docked && _hasLeftBase && player.HeatBudget < Tank.HeatBudgetCapacity - 1f)
-        {
-            hint = "Docked: cooling down and storing your dirt";
-            hintColor = TextInfo;
-        }
-        else
-        {
-            int stored = tankBase.Materials.Current.Dirt;
-            hint = stored >= relayCost
-                ? $"Dig {relayCost - dirt} more dirt, or build a relay at base from the store"
-                : $"Dig {relayCost - dirt} more dirt to build a relay";
-            hintColor = TextDim;
-        }
+        var carried = player.CarriedMachineType;
+        var carriedLink = carried is MachineType type && !insideBase && MachineBehaviors.Get(type).RequiresLinkToPlant
+            ? world.PreviewPlacement(type, player.Position).Link.Status
+            : LinkPreviewStatus.NoNetwork;
+        var (hint, tone) = HintSelector.Select(new HintInputs(
+            IsDead: player.IsDead,
+            HasLeftBase: _hasLeftBase,
+            Docked: docked,
+            InsideBase: insideBase,
+            RelayJustLinked: time < _relayLinkedUntil,
+            PumpingRelays: pumping,
+            PlantRefused: player.PlantRefusedTicks > 0,
+            Carried: carried,
+            CarriedLink: carriedLink,
+            HeatStoreFill: fill,
+            PoweredRelays: powered,
+            Harvesters: harvesters,
+            BuildableDirt: player.BuildableDirt(docked),
+            HoldDirt: player.Resources.Dirt,
+            BaseStoreDirt: tankBase.Materials.Current.Dirt,
+            CoolingDown: player.HeatBudget < Tank.HeatBudgetCapacity - 1f));
+        var hintColor = ToneColor(tone);
 
         ImGui.SetNextWindowPos(new Vector2(vp.x + vp.w - 10f, vp.y + 10f), ImGuiCond.Always, new Vector2(1f, 0f));
         ImGui.SetNextWindowBgAlpha(0.55f);

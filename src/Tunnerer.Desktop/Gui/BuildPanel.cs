@@ -21,7 +21,7 @@ public sealed class BuildPanel(HudLayout layout)
     {
         // Slot 0 builds a relay (E), slot 1 a harvester (R), slot 2 a pylon (T). While a machine is in hand only its own slot is lit:
         // pressing the key again plants it.
-        var carried = player.IsCarryingMachine ? player.CarriedMachineType : null;
+        var carried = player.CarriedMachineType;
 
         for (int row = 0; row < SlotY.Length; row++)
         {
