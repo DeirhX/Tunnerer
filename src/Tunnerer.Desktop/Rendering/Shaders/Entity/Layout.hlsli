@@ -24,7 +24,7 @@
 //  11 preview beam — .x = length (cells, toward the network point at +x), .y = 0 would link, 1 blocked,
 //                   2 too far, .z = phase, .w = distance to the first blocking cell
 //  12 reach area  — .x = reach (cells), .y = 0 square (relay cooling), 1 circle (pylon), .z = phase
-//  13 coverage    — .x = radius (cells), .y = cooling strength (0..1), .z = phase, .w = 1 while the tank is off network
+//  13 network coverage — .x = radius (cells), .y = cooling strength (0..1), .z = phase, .w = 1 while the tank is off network
 //  14 tether      — .x = length (cells, toward the node at +x), .y = cooling strength, .z = phase
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
 // ============================================================================

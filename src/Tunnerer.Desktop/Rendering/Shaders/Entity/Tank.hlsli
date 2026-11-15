@@ -42,8 +42,8 @@ float4 TankHull(float2 p, float3 team, float4 params, float aa)
     float trackShade = 1.0 - 0.45 * smoothstep(0.15, 0.50, abs(trackP.y - kTrackOffset));
     float3 trackColor = lerp(float3(0.07, 0.07, 0.08), float3(0.27, 0.26, 0.25), tread) * trackShade;
     float3 outline = state > 1.5 ? kProtectedColor : kOutlineColor;
-    Over(result, outline, Coverage(trackDist - 0.16, aa));
-    Over(result, ApplyState(trackColor, state), Coverage(trackDist, aa));
+    Over(result, outline, FillAlpha(trackDist - 0.16, aa));
+    Over(result, ApplyState(trackColor, state), FillAlpha(trackDist, aa));
 
     // ---- Hull ----------------------------------------------------------------
     float hullDist = sdRoundBox(p, kHullCenter, kHullHalf, 0.5);
@@ -57,14 +57,14 @@ float4 TankHull(float2 p, float3 team, float4 params, float aa)
     hullColor += float3(0.16, 0.16, 0.16) * saturate(lit) * bevel;
 
     // Engine deck at the rear and a glacis line at the front.
-    float deck = Coverage(sdRoundBox(p, float2(-2.05, 0.0), float2(0.42, 0.95), 0.12), aa);
+    float deck = FillAlpha(sdRoundBox(p, float2(-2.05, 0.0), float2(0.42, 0.95), 0.12), aa);
     float louvre = smoothstep(0.25, 0.45, abs(frac(p.y * 2.2) - 0.5));
     hullColor = lerp(hullColor, team * lerp(0.30, 0.52, louvre), deck);
-    float glacis = Coverage(abs(p.x - 1.25) - 0.06, aa) * step(abs(p.y), 1.2);
+    float glacis = FillAlpha(abs(p.x - 1.25) - 0.06, aa) * step(abs(p.y), 1.2);
     hullColor = lerp(hullColor, team * 0.50, glacis * 0.8);
 
-    Over(result, outline, Coverage(hullDist - 0.16, aa));
-    Over(result, ApplyState(hullColor, state), Coverage(hullDist, aa));
+    Over(result, outline, FillAlpha(hullDist - 0.16, aa));
+    Over(result, ApplyState(hullColor, state), FillAlpha(hullDist, aa));
     return result;
 }
 
@@ -83,8 +83,8 @@ float4 TankTurret(float2 p, float3 team, float4 params, float aa)
     float3 barrelColor = lerp(team * 0.45, float3(0.34, 0.35, 0.37), 0.55) * barrelLit;
     // Bright muzzle tip: the aiming cue the old one-pixel barrel tip gave.
     barrelColor = lerp(barrelColor, float3(0.95, 0.92, 0.11), smoothstep(3.55, 3.75, p.x));
-    Over(result, outline, Coverage(barrelDist - 0.14, aa));
-    Over(result, ApplyState(barrelColor, state), Coverage(barrelDist, aa));
+    Over(result, outline, FillAlpha(barrelDist - 0.14, aa));
+    Over(result, ApplyState(barrelColor, state), FillAlpha(barrelDist, aa));
 
     // ---- Dome ----------------------------------------------------------------
     float domeDist = length(p) - 1.12;
@@ -92,10 +92,10 @@ float4 TankTurret(float2 p, float3 team, float4 params, float aa)
     float domeRise = saturate(length(p) / 1.12);
     float3 domeColor = team * (1.02 + 0.40 * dot(domeNormal, light) * domeRise);
     domeColor += float3(0.22, 0.22, 0.22) * smoothstep(0.55, 0.0, length(p - light * 0.42));
-    float hatch = Coverage(abs(length(p + float2(0.25, 0.0)) - 0.42) - 0.05, aa);
+    float hatch = FillAlpha(abs(length(p + float2(0.25, 0.0)) - 0.42) - 0.05, aa);
     domeColor = lerp(domeColor, team * 0.45, hatch * 0.75);
-    Over(result, outline, Coverage(domeDist - 0.15, aa));
-    Over(result, ApplyState(domeColor, state), Coverage(domeDist, aa));
+    Over(result, outline, FillAlpha(domeDist - 0.15, aa));
+    Over(result, ApplyState(domeColor, state), FillAlpha(domeDist, aa));
     return result;
 }
 

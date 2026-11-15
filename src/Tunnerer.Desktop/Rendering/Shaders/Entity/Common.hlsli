@@ -27,8 +27,8 @@ float sdSegment(float2 p, float2 a, float2 b)
     return length(pa - ba * h);
 }
 
-// Anti-aliased coverage of the inside of a signed distance (aa = one pixel in cells).
-float Coverage(float dist, float aa)
+// Anti-aliased alpha of the inside of a signed distance (negative inside; aa = one pixel in cells).
+float FillAlpha(float dist, float aa)
 {
     return saturate(0.5 - dist / aa);
 }

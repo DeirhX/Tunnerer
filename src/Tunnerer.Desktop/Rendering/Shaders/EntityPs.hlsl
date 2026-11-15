@@ -56,6 +56,6 @@ float4 main(PSIn input) : SV_Target
     if (kind < kKindReachArea + 0.5)
         return ReachArea(p, input.color.rgb, input.params, aa);
     if (kind < kKindCoverage + 0.5)
-        return Coverage(p, input.color.rgb, input.params, aa);
+        return NetworkCoverage(p, input.color.rgb, input.params, aa);
     return Tether(p, input.params, aa); // kKindTether
 }

@@ -26,7 +26,7 @@ float4 LinkBeam(float2 p, float4 params, float aa)
     {
         float d = sdSegment(p, float2(0.0, 0.0), float2(len, 0.0));
         float dash = smoothstep(0.35, 0.45, abs(frac(p.x * 0.45) - 0.5));
-        Over(result, float3(0.85, 0.22, 0.18), Coverage(d - 0.09, aa) * dash * 0.55 * endFade);
+        Over(result, float3(0.85, 0.22, 0.18), FillAlpha(d - 0.09, aa) * dash * 0.55 * endFade);
         return result;
     }
 
@@ -61,7 +61,7 @@ float4 LinkBeam(float2 p, float4 params, float aa)
     float3 yellow = float3(1.0, 0.82, 0.35);
     float3 white = float3(1.0, 0.97, 0.88);
     float3 coreColor = lerp(lerp(orange, yellow, energy), white, pulse * h);
-    Over(result, coreColor, Coverage(d - coreWidth, aa) * endFade);
+    Over(result, coreColor, FillAlpha(d - coreWidth, aa) * endFade);
 
     // Heat haze: an additive glow whose reach grows with the flow, brighter at each pulse.
     float glowReach = 1.8 + 1.6 * flow;
@@ -92,7 +92,7 @@ float4 ChargeBeam(float2 p, float4 params, float aa)
     float3 color = lerp(kChargeBlue, float3(0.85, 0.92, 1.0), spark);
 
     float4 result = float4(0.0, 0.0, 0.0, 0.0);
-    Over(result, color, Coverage(d - (0.06 + 0.12 * spark), aa) * endFade * strength);
+    Over(result, color, FillAlpha(d - (0.06 + 0.12 * spark), aa) * endFade * strength);
     float glow = exp(-d * 2.2) * (0.18 + 0.6 * spark) * strength;
     result.rgb += lerp(kChargeBlue, kChargeViolet, 0.35) * glow * endFade;
     return result;
@@ -152,8 +152,8 @@ float4 PreviewBeam(float2 p, float4 params, float aa)
     {
         float2 q = p - float2(blockAt, 0.0);
         float2 rq = float2(q.x + q.y, q.x - q.y) * 0.7071;
-        float cross = max(Coverage(max(abs(rq.x) - 1.1, abs(rq.y) - 0.16), aa),
-                          Coverage(max(abs(rq.y) - 1.1, abs(rq.x) - 0.16), aa));
+        float cross = max(FillAlpha(max(abs(rq.x) - 1.1, abs(rq.y) - 0.16), aa),
+                          FillAlpha(max(abs(rq.y) - 1.1, abs(rq.x) - 0.16), aa));
         float pulse = 0.7 + 0.3 * sin(phase * 8.0);
         Over(result, bad * pulse, cross * 0.9);
         result.rgb += bad * exp(-length(q) * 1.5) * 0.5 * pulse;

@@ -24,7 +24,7 @@ float4 SenseRing(float2 p, float4 params, float aa)
     float ring = abs(length(p) - radius) - 0.12;
     float angle = atan2(p.y, p.x) / 6.2831853;
     float dash = tooHot ? 1.0 : smoothstep(0.2, 0.3, abs(frac(angle * 16.0 + phase * 0.15) - 0.5));
-    float alpha = Coverage(ring, aa) * dash * (tooHot ? 0.75 + 0.25 * sin(phase * 6.0) : 0.7);
+    float alpha = FillAlpha(ring, aa) * dash * (tooHot ? 0.75 + 0.25 * sin(phase * 6.0) : 0.7);
     float4 result = float4(0.0, 0.0, 0.0, 0.0);
     Over(result, color, alpha);
     return result;
@@ -60,7 +60,7 @@ float4 ReachArea(float2 p, float3 tint, float4 params, float aa)
 // Network coverage around one node: a barely-there cool tint inside and a soft, slowly breathing rim, so the
 // territory reads without covering the terrain. Weaker nodes (more hops out) are fainter. While the tank is off
 // network the rims brighten, showing the way back.
-float4 Coverage(float2 p, float3 tint, float4 params, float aa)
+float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 {
     float radius = params.x;
     float strength = saturate(params.y);

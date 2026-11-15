@@ -20,7 +20,7 @@ float4 HotShot(float2 p, float3 body, float4 params, float aa)
     float along = saturate(1.0 + p.x / trail);                 // 0 at the tail, 1 at the head
     float taper = lerp(0.35, 1.0, along);
 
-    float core = Coverage(dist - radius * taper, aa) * lerp(0.25, 1.0, along);
+    float core = FillAlpha(dist - radius * taper, aa) * lerp(0.25, 1.0, along);
     float3 coreColor = lerp(body, float3(1.0, 0.86, 0.42), along);
     coreColor = lerp(coreColor, float3(1.0, 0.98, 0.90), smoothstep(0.75, 1.0, along));
 
@@ -35,9 +35,9 @@ float4 FoamBlob(float2 p, float3 body, float4 params, float aa)
     float radius = params.y;
     float dist = length(p) - radius;
     float4 result = float4(0.0, 0.0, 0.0, 0.0);
-    Over(result, kOutlineColor, Coverage(dist - 0.12, aa) * 0.8);
+    Over(result, kOutlineColor, FillAlpha(dist - 0.12, aa) * 0.8);
     float3 lit = body * (0.85 + 0.35 * saturate(dot(p / max(radius, 1e-4), kLightDir)));
-    Over(result, lit, Coverage(dist, aa));
+    Over(result, lit, FillAlpha(dist, aa));
     return result;
 }
 
