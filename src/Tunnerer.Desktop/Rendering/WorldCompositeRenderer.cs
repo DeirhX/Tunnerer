@@ -15,8 +15,6 @@ using Tunnerer.Core.Types;
 /// </summary>
 public sealed class WorldCompositeRenderer
 {
-    private MachineRenderState[] _machineStates = [];
-    private LinkRenderState[] _linkStates = [];
     private SpriteRenderState[] _spriteStates = [];
 
     public void Compose(World world, uint[] terrainPixels, uint[] compositePixels, Tank? player = null)
@@ -24,15 +22,11 @@ public sealed class WorldCompositeRenderer
         Array.Copy(terrainPixels, compositePixels, terrainPixels.Length);
         var surface = new Surface(compositePixels, world.Terrain.Width, world.Terrain.Height);
 
-        int linkCount = world.LinkMap.CopyRenderStates(EnsureCapacity(ref _linkStates, world.LinkMap.LinkCount));
-        DrawLinks(surface, _linkStates, linkCount);
+        // Links and machines are drawn by the entity layer (EntityLayerBuilder / EntityPs.hlsl).
         if (player is { IsDead: false, IsCarryingMachine: true, CarriedMachineType: MachineType.Relay })
             DrawLinkPreview(surface, world.LinkMap.PreviewLink(player.Position, world.Terrain), player.Position);
 
         DrawHarvesterHeatRings(surface, world, player);
-
-        int machineCount = world.Machines.CopyRenderStates(EnsureCapacity(ref _machineStates, world.Machines.Count));
-        DrawMachines(surface, _machineStates, machineCount);
 
         int spriteCount = world.Sprites.CopyRenderStates(EnsureCapacity(ref _spriteStates, world.Sprites.Count));
         DrawSprites(surface, _spriteStates, spriteCount);
@@ -43,26 +37,6 @@ public sealed class WorldCompositeRenderer
         if (buffer.Length < requiredCount)
             buffer = new T[Math.Max(requiredCount, 16)];
         return buffer;
-    }
-
-    private static void DrawLinks(Surface surface, LinkRenderState[] states, int count)
-    {
-        uint liveColor = Tweaks.Colors.LinkLive.ToArgb();
-        uint blockedColor = Tweaks.Colors.LinkBlocked.ToArgb();
-
-        for (int i = 0; i < count; i++)
-        {
-            ref readonly var link = ref states[i];
-            if (!link.IsAlive || link.Type == LinkType.Theoretical)
-                continue;
-
-            uint color = link.Type == LinkType.Live ? liveColor : blockedColor;
-            Raycaster.BresenhamLine(link.From, link.To, pos =>
-            {
-                if (surface.IsInside(pos.X, pos.Y))
-                    surface.Pixels[pos.X + pos.Y * surface.Width] = color;
-            });
-        }
     }
 
     /// <summary>
@@ -114,17 +88,13 @@ public sealed class WorldCompositeRenderer
     }
 
     /// <summary>
-    /// A dotted ring around every planted harvester (and around the tank while it carries one) marking the ground the
-    /// harvester senses. Its colour is the live temperature there: green while the harvester can work, amber as it
+    /// A dotted ring around the tank while it carries a harvester, marking the ground the harvester would sense
+    /// (planted harvesters draw their own ring in the entity layer). Its colour is the live temperature there: green while the harvester can work, amber as it
     /// nears the stall temperature, orange and solid once it is too hot. A carried harvester therefore shows whether
     /// planting here would work.
     /// </summary>
     private static void DrawHarvesterHeatRings(Surface surface, World world, Tank? player)
     {
-        foreach (var machine in world.Machines.Machines)
-            if (machine.IsAlive && machine.Type == MachineType.Harvester && machine.State == MachineState.Planted)
-                DrawSenseRing(surface, world, machine.Position);
-
         if (player is { IsDead: false, IsCarryingMachine: true, CarriedMachineType: MachineType.Harvester })
             DrawSenseRing(surface, world, player.Position);
     }
@@ -150,65 +120,6 @@ public sealed class WorldCompositeRenderer
             int py = center.Y + (int)Math.Round(Math.Sin(angle) * radius);
             if (surface.IsInside(px, py))
                 surface.Pixels[px + py * surface.Width] = color;
-        }
-    }
-
-    private static void DrawMachines(Surface surface, MachineRenderState[] states, int count)
-    {
-        int half = Tweaks.Machine.BoundingBoxHalfSize;
-        uint templateColor = Tweaks.Colors.MachineTemplate.ToArgb();
-        uint harvesterColor = Tweaks.Colors.Harvester.ToArgb();
-        uint chargerColor = Tweaks.Colors.Charger.ToArgb();
-        uint relayColor = Tweaks.Colors.Relay.ToArgb();
-        uint relayIdleColor = Tweaks.Colors.RelayIdle.ToArgb();
-        uint pumpingColor = new Color(255, 255, 255).ToArgb();
-        uint stalledColor = new Color(255, 140, 0).ToArgb();
-        bool blinkFast = (Environment.TickCount / 200) % 2 == 0;
-        bool blinkSlow = (Environment.TickCount / 500) % 2 == 0;
-
-        for (int i = 0; i < count; i++)
-        {
-            ref readonly var machine = ref states[i];
-            if (!machine.IsAlive)
-                continue;
-
-            // A relay being carried looks like a template; a planted one is bright when it is connected to a base.
-            uint color = machine.State != MachineState.Planted
-                ? templateColor
-                : machine.Type switch
-                {
-                    // A stalled harvester (ground too hot) blinks orange; a working one is steady green.
-                    MachineType.Harvester => machine.IsStalled && blinkFast ? stalledColor : harvesterColor,
-                    // Relay: steady white = pumping near its full rate; slow blink = partial; fast blink = a trickle.
-                    MachineType.Relay => !machine.IsPowered ? relayIdleColor
-                        : machine.PumpFraction >= 0.8f ? pumpingColor
-                        : machine.IsPumping && (machine.PumpFraction >= 0.3f ? blinkSlow : blinkFast) ? pumpingColor
-                        : relayColor,
-                    _ => chargerColor,
-                };
-
-            for (int dy = -half; dy <= half; dy++)
-            {
-                for (int dx = -half; dx <= half; dx++)
-                {
-                    bool edge = Math.Abs(dx) == half || Math.Abs(dy) == half;
-                    if (!edge)
-                        continue;
-                    int px = machine.Position.X + dx;
-                    int py = machine.Position.Y + dy;
-                    if (surface.IsInside(px, py))
-                        surface.Pixels[px + py * surface.Width] = color;
-                }
-            }
-
-            // Shape cue so state never relies on colour alone: a pixel above a stalled harvester, and above a
-            // relay the full base reservoir is holding back.
-            if (machine.State == MachineState.Planted && (machine.IsStalled || machine.IsPumpLimited))
-            {
-                int markX = machine.Position.X, markY = machine.Position.Y - half - 2;
-                if (surface.IsInside(markX, markY))
-                    surface.Pixels[markX + markY * surface.Width] = stalledColor;
-            }
         }
     }
 

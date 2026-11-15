@@ -211,18 +211,31 @@ public class Tank
             }
             else
             {
-                // Docked at its own base, a tank that is short of dirt builds from the base store, since
-                // docking deposits the tank's dirt there.
-                var cost = MachineBehaviors.Get(buildType).BuildCost;
-                var payer = !Resources.CanPay(cost) && Base != null && ctx.CheckBaseCollision(Position) == Base &&
-                            Base.Materials.CanPay(cost)
-                    ? Base.Materials
-                    : Resources;
-                _machineMaterializer.TryBuild(buildType, Position, payer, ctx.Machines);
+                var payer = BuildPayer(buildType, dockedAtOwnBase: Base != null && ctx.CheckBaseCollision(Position) == Base);
+                if (payer != null)
+                    _machineMaterializer.TryBuild(buildType, Position, payer, ctx.Machines);
             }
         }
 
         _machineMaterializer.UpdatePosition(Position);
+    }
+
+    /// <summary>
+    /// Dirt available to build with: the tank's own, or the base store if that is larger while docked at the own
+    /// base (docking moves the tank's dirt into the store). A machine is affordable when its cost fits.
+    /// </summary>
+    public int BuildableDirt(bool dockedAtOwnBase) =>
+        dockedAtOwnBase && Base != null ? Math.Max(Resources.Dirt, Base.Materials.Dirt) : Resources.Dirt;
+
+    /// <summary>The store that pays for <paramref name="type"/>, or null if neither can.</summary>
+    public MaterialContainer? BuildPayer(MachineType type, bool dockedAtOwnBase)
+    {
+        var cost = MachineBehaviors.Get(type).BuildCost;
+        if (Resources.CanPay(cost))
+            return Resources;
+        if (dockedAtOwnBase && Base != null && Base.Materials.CanPay(cost))
+            return Base.Materials;
+        return null;
     }
 
     private void AdvanceBaseInteraction(in SimulationContext ctx)

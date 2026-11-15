@@ -3,6 +3,10 @@ namespace Tunnerer.Desktop.Input;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Types;
 
+/// <summary>
+/// Scripted input: "dx,dy[,shoot[,build]]:frames" segments separated by ';'. build is 1 for the primary build key
+/// (relay) and 2 for the secondary one (harvester).
+/// </summary>
 public sealed class ScriptedController
 {
     private readonly Segment[] _segments;
@@ -33,7 +37,7 @@ public sealed class ScriptedController
 
             string[] move = pair[0].Split(',', StringSplitOptions.TrimEntries);
             bool shoot = false;
-            bool build = false;
+            int build = 0;
             if (move.Length < 2 || move.Length > 4 ||
                 !int.TryParse(move[0], out int mx) ||
                 !int.TryParse(move[1], out int my) ||
@@ -50,9 +54,8 @@ public sealed class ScriptedController
             }
             if (move.Length == 4)
             {
-                if (!int.TryParse(move[3], out int buildRaw))
+                if (!int.TryParse(move[3], out build))
                     return null;
-                build = buildRaw != 0;
             }
 
             end += frames;
@@ -89,12 +92,13 @@ public sealed class ScriptedController
             {
                 MoveSpeed = segment.Move,
                 ShootPrimary = segment.Shoot,
-                BuildPrimary = segment.Build,
+                BuildPrimary = segment.Build == 1,
+                BuildSecondary = segment.Build == 2,
             };
         }
 
         return default;
     }
 
-    private readonly record struct Segment(int EndFrameExclusive, Offset Move, bool Shoot, bool Build);
+    private readonly record struct Segment(int EndFrameExclusive, Offset Move, bool Shoot, int Build);
 }

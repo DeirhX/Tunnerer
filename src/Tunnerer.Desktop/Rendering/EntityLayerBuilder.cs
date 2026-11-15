@@ -3,6 +3,8 @@ namespace Tunnerer.Desktop.Rendering;
 using System.Runtime.InteropServices;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
+using Tunnerer.Core.Entities.Links;
+using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Types;
@@ -18,7 +20,7 @@ public struct EntityVertex
 }
 
 /// <summary>
-/// Turns simulation snapshots into the entity layer's quads (tanks and projectiles), placed between the last two
+/// Turns simulation snapshots into the entity layer's quads (machines, tanks and projectiles), placed between the last two
 /// simulation steps so they move smoothly when the display refreshes faster than the simulation ticks.
 /// It only reads render snapshots; nothing here feeds back into the simulation.
 /// </summary>
@@ -29,6 +31,18 @@ public sealed class EntityLayerBuilder
     private const float KindTankTurret = 1f;
     private const float KindHotShot = 2f;
     private const float KindFoam = 3f;
+    private const float KindRelay = 4f;
+    private const float KindHarvester = 5f;
+    private const float KindSenseRing = 6f;
+    private const float KindLink = 7f;
+
+    // Machine flags (params.w), must match EntityPs.hlsl.
+    private const float MachineFlagStalled = 1f;
+    private const float MachineFlagCarried = 2f;
+    private const float MachineFlagLimited = 4f;
+
+    /// <summary>How fast a drawn harvester turns to a new crawl direction (radians per second).</summary>
+    private const float HarvesterTurnRate = 6f;
 
     private const float StateNormal = 0f;
     private const float StateHitFlash = 1f;
@@ -54,6 +68,15 @@ public sealed class EntityLayerBuilder
 
     private ProjectileRenderState[] _projectiles = [];
     private int _projectileCount;
+
+    private LinkRenderState[] _links = [];
+    private int _linkCount;
+
+    private MachineRenderState[] _machines = [];
+    private MachineRenderState[] _previousMachines = [];
+    private float[] _machineHeading = [];
+    private int _machineCount;
+    private int _previousMachineCount;
 
     private EntityVertex[] _vertices = new EntityVertex[1024];
     private int _vertexCount;
@@ -97,10 +120,31 @@ public sealed class EntityLayerBuilder
         }
         _hasPreviousTanks = true;
 
+        CaptureMachines(world);
+
+        if (_links.Length < world.LinkMap.LinkCount)
+            _links = new LinkRenderState[Math.Max(world.LinkMap.LinkCount, 32)];
+        _linkCount = world.LinkMap.CopyRenderStates(_links);
+
         int projectileCount = world.Projectiles.Count;
         if (_projectiles.Length < projectileCount)
             _projectiles = new ProjectileRenderState[Math.Max(projectileCount, 64)];
         _projectileCount = world.Projectiles.CopyRenderStates(_projectiles);
+    }
+
+    private void CaptureMachines(World world)
+    {
+        int count = world.Machines.Count;
+        if (_machines.Length < count)
+        {
+            int size = Math.Max(count, 16);
+            Array.Resize(ref _machines, size);
+            Array.Resize(ref _previousMachines, size);
+            Array.Resize(ref _machineHeading, size);
+        }
+        Array.Copy(_machines, _previousMachines, Math.Min(_machineCount, _previousMachines.Length));
+        _previousMachineCount = _machineCount;
+        _machineCount = world.Machines.CopyRenderStates(_machines);
     }
 
     /// <summary>
@@ -130,6 +174,10 @@ public sealed class EntityLayerBuilder
         _vertexCount = 0;
         ReadOnlySpan<PositionF> tankPositions = InterpolateTankPositions(alpha);
         float scale = view.PixelScale;
+
+        // Links under machines, machines under tanks (a tank carrying one draws on top of it).
+        BuildLinks(view);
+        BuildMachines(view, alpha, turnSeconds, snapHeadings);
 
         for (int i = 0; i < _tankCount; i++)
         {
@@ -202,6 +250,120 @@ public sealed class EntityLayerBuilder
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Live and blocked links as beams. A link carrying heat is oriented so its +x runs toward the base, which is
+    /// the way the shader's heat pulses flow.
+    /// </summary>
+    private void BuildLinks(in RenderView view)
+    {
+        float scale = view.PixelScale;
+        float phase = (float)(Environment.TickCount64 % 1_000_000L) / 1000f;
+        for (int i = 0; i < _linkCount; i++)
+        {
+            ref readonly LinkRenderState link = ref _links[i];
+            if (!link.IsAlive || link.Type == LinkType.Theoretical)
+                continue;
+
+            Position from = link.FlowsFromTo ? link.From : link.To;
+            Position to = link.FlowsFromTo ? link.To : link.From;
+            float dx = to.X - from.X, dy = to.Y - from.Y;
+            float length = MathF.Sqrt(dx * dx + dy * dy);
+            if (length < 0.5f)
+                continue;
+            float ax = dx / length, ay = dy / length;
+            float fx = (from.X + 0.5f) * scale - view.CameraPixels.X;
+            float fy = (from.Y + 0.5f) * scale - view.CameraPixels.Y;
+            float mx = fx + dx * 0.5f * scale, my = fy + dy * 0.5f * scale;
+            if (IsOffScreen(mx, my, (length * 0.5f + 3f) * scale, view))
+                continue;
+
+            float heat = link.Type == LinkType.Live ? link.HeatFlow : 0f;
+            float type = link.Type == LinkType.Live ? 0f : 1f;
+            // Room for the glow, which the shader grows with the flow.
+            float halfWidth = heat > 0.01f ? 4.5f : 1.2f;
+            AddQuad(view, fx, fy, ax, ay, -1.5f, length + 1.5f, -halfWidth, halfWidth, Tweaks.Colors.LinkLive, KindLink,
+                length, heat, phase, type);
+        }
+    }
+
+    private void BuildMachines(in RenderView view, float alpha, float turnSeconds, bool snapHeadings)
+    {
+        float scale = view.PixelScale;
+        float phase = (float)(Environment.TickCount64 % 1_000_000L) / 1000f;
+        // The machine list only appends, or drops dead machines; while its size is unchanged, index i is the same
+        // machine as in the previous step, so a crawling harvester can slide between steps.
+        bool sameMachines = _previousMachineCount == _machineCount;
+
+        for (int i = 0; i < _machineCount; i++)
+        {
+            ref readonly MachineRenderState machine = ref _machines[i];
+            if (!machine.IsAlive)
+                continue;
+
+            float x = machine.Position.X, y = machine.Position.Y;
+            if (sameMachines && _previousMachines[i].Type == machine.Type)
+            {
+                Position from = _previousMachines[i].Position;
+                int jump = Math.Abs(machine.Position.X - from.X) + Math.Abs(machine.Position.Y - from.Y);
+                if (jump <= 2)
+                {
+                    x = from.X + (machine.Position.X - from.X) * alpha;
+                    y = from.Y + (machine.Position.Y - from.Y) * alpha;
+                }
+            }
+            float cx = (x + 0.5f) * scale - view.CameraPixels.X;
+            float cy = (y + 0.5f) * scale - view.CameraPixels.Y;
+            if (IsOffScreen(cx, cy, 6f * scale, view))
+                continue;
+
+            bool carried = machine.State != MachineState.Planted;
+            float flags = (machine.IsStalled ? MachineFlagStalled : 0f) + (carried ? MachineFlagCarried : 0f) +
+                          (machine.IsPumpLimited ? MachineFlagLimited : 0f);
+
+            switch (machine.Type)
+            {
+                case MachineType.Harvester:
+                {
+                    if (!carried)
+                    {
+                        // The ground the harvester senses, coloured by how close it is to stalling.
+                        float r = Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f;
+                        AddQuad(view, cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f, Tweaks.Colors.Harvester,
+                            KindSenseRing, machine.SenseHeat, r, phase, flags);
+                    }
+                    float heading = UpdateMachineHeading(i, machine.Heading, turnSeconds, snapHeadings);
+                    float hx = MathF.Cos(heading), hy = MathF.Sin(heading);
+                    // The drum turns while it works, not while stalled or carried.
+                    float drum = machine.IsStalled || carried ? 0f : phase * 2.2f;
+                    AddQuad(view, cx, cy, hx, hy, -3.4f, 3.4f, -3.0f, 3.0f, Tweaks.Colors.Harvester, KindHarvester,
+                        hx, hy, drum, flags);
+                    break;
+                }
+                case MachineType.Relay:
+                {
+                    float powered = machine.IsPowered ? 1f : 0f;
+                    AddQuad(view, cx, cy, 1f, 0f, -3.6f, 3.6f, -3.6f, 3.6f, Tweaks.Colors.Relay, KindRelay,
+                        powered, machine.PumpFraction, phase, flags);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>The drawn heading of machine <paramref name="index"/>, turning smoothly to its crawl direction.</summary>
+    private float UpdateMachineHeading(int index, Offset step, float turnSeconds, bool snap)
+    {
+        if (step == default)
+            return _machineHeading[index];
+        float target = MathF.Atan2(step.Y, step.X);
+        if (snap)
+            return _machineHeading[index] = target;
+        float difference = MathF.IEEERemainder(target - _machineHeading[index], MathF.Tau);
+        float maxTurn = HarvesterTurnRate * MathF.Max(0f, turnSeconds);
+        _machineHeading[index] += Math.Clamp(difference, -maxTurn, maxTurn);
+        return _machineHeading[index];
     }
 
     private static bool IsTeleport(in TankRenderState from, in TankRenderState to)

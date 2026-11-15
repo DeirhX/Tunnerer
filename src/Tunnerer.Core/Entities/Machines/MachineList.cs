@@ -18,7 +18,7 @@ public class MachineList
         return machine;
     }
 
-    public void Advance(ITerrainAccess terrain, TimeSpan dt)
+    public void Advance(in MachineContext ctx, TimeSpan dt)
     {
         for (int i = _machines.Count - 1; i >= 0; i--)
         {
@@ -29,7 +29,7 @@ public class MachineList
                 _machines.RemoveAt(i);
                 continue;
             }
-            _machines[i].Advance(terrain, dt);
+            _machines[i].Advance(ctx, dt);
         }
     }
 
@@ -39,12 +39,6 @@ public class MachineList
             if (m.IsAlive && m.TestCollide(pos))
                 return m;
         return null;
-    }
-
-    public void Draw(Surface surface)
-    {
-        foreach (var m in _machines)
-            m.Draw(surface);
     }
 
     public int CopyRenderStates(Span<MachineRenderState> destination)
@@ -62,7 +56,9 @@ public class MachineList
                 IsPumping: m.LastPumpedEnergy > 1.0,
                 PumpFraction: (float)Math.Clamp(m.LastPumpedEnergy / Tweaks.Machine.RelayHeatPumpPerTick, 0.0, 1.0),
                 IsPumpLimited: m.LastPumpLimitedByBase,
-                IsStalled: m.IsStalled);
+                IsStalled: m.IsStalled,
+                Heading: m.Heading,
+                SenseHeat: m.SenseHeat);
         }
         return count;
     }

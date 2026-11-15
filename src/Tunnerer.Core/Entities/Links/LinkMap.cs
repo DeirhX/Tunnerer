@@ -81,20 +81,57 @@ public class LinkMap
             }
         }
 
-        // Propagate power from bases
+        // Propagate power from bases, breadth first so each point's upstream link is on a shortest route home.
+        var frontier = new List<LinkPoint>();
         foreach (var p in _points)
-            p.IsPowered = p.Type == LinkPointType.Base;
-
-        bool changed = true;
-        while (changed)
         {
-            changed = false;
+            p.IsPowered = p.Type == LinkPointType.Base;
+            p.UpstreamLink = null;
+            if (p.IsPowered)
+                frontier.Add(p);
+        }
+
+        while (frontier.Count > 0)
+        {
+            var next = new List<LinkPoint>();
             foreach (var link in _links)
             {
                 if (link.Type != LinkType.Live) continue;
-                if (link.From.IsPowered && !link.To.IsPowered) { link.To.IsPowered = true; changed = true; }
-                if (link.To.IsPowered && !link.From.IsPowered) { link.From.IsPowered = true; changed = true; }
+                if (link.From.IsPowered && !link.To.IsPowered && frontier.Contains(link.From))
+                {
+                    link.To.IsPowered = true;
+                    link.To.UpstreamLink = link;
+                    next.Add(link.To);
+                }
+                else if (link.To.IsPowered && !link.From.IsPowered && frontier.Contains(link.To))
+                {
+                    link.From.IsPowered = true;
+                    link.From.UpstreamLink = link;
+                    next.Add(link.From);
+                }
             }
+            frontier = next;
+        }
+    }
+
+    /// <summary>Forgets last tick's heat flows; called before machines act.</summary>
+    public void ClearHeatFlow()
+    {
+        foreach (var link in _links)
+            link.HeatFlow = 0.0;
+    }
+
+    /// <summary>Records <paramref name="energy"/> travelling from <paramref name="source"/> back to its base.</summary>
+    public static void CarryHeat(LinkPoint source, double energy)
+    {
+        if (energy <= 0.0)
+            return;
+        var point = source;
+        for (int hops = 0; point.UpstreamLink is { } link && hops < 64; hops++)
+        {
+            link.FlowsFromTo = ReferenceEquals(link.From, point);
+            link.HeatFlow += energy;
+            point = link.FlowsFromTo ? link.To : link.From;
         }
     }
 
@@ -168,7 +205,9 @@ public class LinkMap
                 From: link.From.Position,
                 To: link.To.Position,
                 Type: link.Type,
-                IsAlive: link.IsAlive);
+                IsAlive: link.IsAlive,
+                HeatFlow: (float)(link.HeatFlow / Tweaks.Machine.RelayHeatPumpPerTick),
+                FlowsFromTo: link.FlowsFromTo);
         }
         return count;
     }

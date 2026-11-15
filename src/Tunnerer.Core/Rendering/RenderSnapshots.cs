@@ -31,13 +31,18 @@ public readonly record struct MachineRenderState(
     bool IsPumping = false,
     float PumpFraction = 0f,
     bool IsPumpLimited = false,
-    bool IsStalled = false);
+    bool IsStalled = false,
+    Offset Heading = default,
+    float SenseHeat = 0f);
 
+/// <param name="HeatFlow">Heat carried in the last tick, in full relay pump rates (2 = two relays' worth).</param>
 public readonly record struct LinkRenderState(
     Position From,
     Position To,
     LinkType Type,
-    bool IsAlive);
+    bool IsAlive,
+    float HeatFlow = 0f,
+    bool FlowsFromTo = true);
 
 public readonly record struct SpriteRenderState(
     Position Position,

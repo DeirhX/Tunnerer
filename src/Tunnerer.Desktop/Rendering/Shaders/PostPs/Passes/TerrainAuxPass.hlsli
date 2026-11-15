@@ -31,9 +31,15 @@
 // temperature boundaries.
 // ----------------------------------------------------------------------------
 
+// Soft solid/cave side of a sampled field value (0 cave, 1 solid), for side-aware heat blurring.
+float HeatSide(float field)
+{
+    return smoothstep(0.38, 0.62, field);
+}
+
 void ApplyTerrainHeatAndScorch(
     inout float3 color, float2 worldCell, float2 auxUv, float2 mTexel,
-    float terrainFactor, float baseInfluence, float4 a0,
+    float terrainFactor, float baseInfluence, float edgeCoverage, float4 a0,
     float4 ax1, float4 ax2, float4 ay1, float4 ay2,
     float4 ad1, float4 ad2, float4 ad3, float4 ad4)
 {
@@ -44,15 +50,17 @@ void ApplyTerrainHeatAndScorch(
     // Keep heat/scorch accumulation on the same SDF side as the center sample.
     // This prevents explosion scorch outside a wall from bleeding into enclosed
     // interior regions (e.g. base rooms) via neighborhood filtering.
-    float sideC = step(0.5, a0.g);
-    float sX1 = 1.0 - abs(sideC - step(0.5, ax1.g));
-    float sX2 = 1.0 - abs(sideC - step(0.5, ax2.g));
-    float sY1 = 1.0 - abs(sideC - step(0.5, ay1.g));
-    float sY2 = 1.0 - abs(sideC - step(0.5, ay2.g));
-    float sD1 = 1.0 - abs(sideC - step(0.5, ad1.g));
-    float sD2 = 1.0 - abs(sideC - step(0.5, ad2.g));
-    float sD3 = 1.0 - abs(sideC - step(0.5, ad3.g));
-    float sD4 = 1.0 - abs(sideC - step(0.5, ad4.g));
+    // The side is soft and the centre uses the shared edge's coverage, so the weights change smoothly across the
+    // drawn edge instead of in hard steps that show as seams in the glow.
+    float sideC = edgeCoverage;
+    float sX1 = 1.0 - abs(sideC - HeatSide(ax1.g));
+    float sX2 = 1.0 - abs(sideC - HeatSide(ax2.g));
+    float sY1 = 1.0 - abs(sideC - HeatSide(ay1.g));
+    float sY2 = 1.0 - abs(sideC - HeatSide(ay2.g));
+    float sD1 = 1.0 - abs(sideC - HeatSide(ad1.g));
+    float sD2 = 1.0 - abs(sideC - HeatSide(ad2.g));
+    float sD3 = 1.0 - abs(sideC - HeatSide(ad3.g));
+    float sD4 = 1.0 - abs(sideC - HeatSide(ad4.g));
 
     // ---- Multi-scale heat + scorch blur ------------------------------------
     // Local: 3x3 weighted average (center-heavy), side-aware.
@@ -91,10 +99,10 @@ void ApplyTerrainHeatAndScorch(
     float4 wide2 = auxTex.Sample(s1, auxUv + float2(0.0, mTexel2.y));
     float4 wide3 = auxTex.Sample(s1, auxUv - float2(0.0, mTexel2.y));
 
-    float sW0 = 1.0 - abs(sideC - step(0.5, wide0.g));
-    float sW1 = 1.0 - abs(sideC - step(0.5, wide1.g));
-    float sW2 = 1.0 - abs(sideC - step(0.5, wide2.g));
-    float sW3 = 1.0 - abs(sideC - step(0.5, wide3.g));
+    float sW0 = 1.0 - abs(sideC - HeatSide(wide0.g));
+    float sW1 = 1.0 - abs(sideC - HeatSide(wide1.g));
+    float sW2 = 1.0 - abs(sideC - HeatSide(wide2.g));
+    float sW3 = 1.0 - abs(sideC - HeatSide(wide3.g));
     float wSum = max(1e-4, sW0 + sW1 + sW2 + sW3);
     float heatWide = (wide0.r * sW0 + wide1.r * sW1 + wide2.r * sW2 + wide3.r * sW3) / wSum;
     float scorchWide = (wide0.a * sW0 + wide1.a * sW1 + wide2.a * sW2 + wide3.a * sW3) / wSum;
@@ -369,7 +377,9 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             materialColor += rim * (solidLift + rimLift * saturate(0.5 + 0.5 * facing));
 
             // Contact shadow on the cave floor just outside the edge.
-            float caveShadow = 1.0 - smoothstep(-1.0, 0.0, edge.distCells) * TerrainMaskCaveDarken * 4.0;
+            // Faded out on hot ground, where a dark rim would outline every island against the heat glow.
+            float hotGround = saturate(a0.r * 6.0);
+            float caveShadow = 1.0 - smoothstep(-1.0, 0.0, edge.distCells) * TerrainMaskCaveDarken * 4.0 * (1.0 - hotGround);
             float3 caveColor = kTerrainCaveColor * saturate(caveShadow);
 
             color = lerp(color, lerp(caveColor, materialColor, edge.coverage), natural * saturate(naturalTotal));
@@ -385,7 +395,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     // ---- Heat & scorch glow -----------------------------------------------
     if (heatEnabled)
     {
-        ApplyTerrainHeatAndScorch(color, worldCell, auxUv, mTexel, terrainFactor, baseInfluence,
+        ApplyTerrainHeatAndScorch(color, worldCell, auxUv, mTexel, terrainFactor, baseInfluence, edge.coverage,
             a0, ax1, ax2, ay1, ay2, ad1, ad2, ad3, ad4);
     }
 

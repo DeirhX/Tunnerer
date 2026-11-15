@@ -18,7 +18,7 @@ public class HarvesterHeatTests
 
         var harvester = new Machine(working.RelayPos, MachineType.Harvester, working.Tank.Color);
         working.World.Machines.Add(harvester);
-        working.World.PlantMachine(harvester, null);
+        working.World.PlantMachine(harvester, working.Base);
 
         double startWorking = working.World.SumSystemThermalEnergy();
         double startIdle = idle.World.SumSystemThermalEnergy();
@@ -73,10 +73,67 @@ public class HarvesterHeatTests
     {
         var (dug, heatLeft) = RunHarvester(withRelay: false);
 
-        double unthrottledDug = 60.0 * 1000.0 / Tweaks.Machine.HarvesterIntervalMs;
+        double unthrottledDug = 60.0 * 1000.0 / Tweaks.Machine.HarvesterIntervalMs * 13;
         Assert.True(dug > 0, "it should still dig until the ground gets hot");
         Assert.True(dug < unthrottledDug * 0.7, $"a harvester with nowhere to put its heat must slow down. dug={dug}, unthrottled={unthrottledDug:0}");
         Assert.True(heatLeft < dug * Tweaks.Machine.HarvesterHeatPerHarvest + 1.0, "heat in the ground never exceeds what the digging made");
+    }
+
+    [Fact]
+    public void Harvester_PutsTheDirtItMinesIntoItsBaseStore()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+        int storeBefore = s.Base.Materials.Dirt;
+        int dirtBefore = DirtAround(s, Tweaks.Machine.HarvestRange);
+
+        int ticks = (int)Math.Ceiling(Tweaks.Machine.HarvesterIntervalMs / 1000.0 * Tweaks.Perf.TargetFps) + 2;
+        for (int i = 0; i < ticks; i++)
+            s.World.Advance(_ => default);
+
+        int mined = dirtBefore - DirtAround(s, Tweaks.Machine.HarvestRange);
+        Assert.True(mined > 0, "the harvester should have mined some dirt");
+        Assert.True(mined <= 13 * 3, $"no more than its mine disc per action. mined={mined}");
+        Assert.Equal(storeBefore + mined, s.Base.Materials.Dirt);
+    }
+
+    [Fact]
+    public void Harvester_CrawlsToTheDirt_ButStaysInItsWorkArea()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
+
+        int maxDist2 = 0;
+        for (int i = 0; i < Tweaks.Perf.TargetFps * 30; i++)
+        {
+            s.World.Advance(_ => default);
+            maxDist2 = Math.Max(maxDist2, Position.DistanceSquared(harvester.Position, harvester.Anchor));
+        }
+
+        Assert.True(maxDist2 > 4, $"the harvester should have crawled away from where it was planted. max dist^2={maxDist2}");
+        Assert.True(maxDist2 <= Tweaks.Machine.HarvestRange * Tweaks.Machine.HarvestRange, "it never leaves its work area");
+        Assert.Null(harvester.LinkPoint);
+    }
+
+    [Fact]
+    public void Harvester_IdlesWhileItsBaseStoreIsFull()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        s.Base.Materials.Add(new Tunnerer.Core.Resources.MaterialAmount(s.Base.Materials.DirtCapacity, 0));
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+        int dirtBefore = DirtAround(s, Tweaks.Machine.HarvestRange);
+
+        for (int i = 0; i < Tweaks.Perf.TargetFps * 3; i++)
+            s.World.Advance(_ => default);
+
+        Assert.Equal(dirtBefore, DirtAround(s, Tweaks.Machine.HarvestRange));
     }
 
     [Fact]
@@ -86,7 +143,10 @@ public class HarvesterHeatTests
         var piped = RunHarvester(withRelay: true);
 
         Assert.True(piped.Dug > alone.Dug, $"a relay should let the harvester work faster. piped={piped.Dug}, alone={alone.Dug}");
-        Assert.True(piped.HeatLeft < alone.HeatLeft, $"a relay should leave less heat in the ground. piped={piped.HeatLeft:0}, alone={alone.HeatLeft:0}");
+        // It works more with the relay, so compare the heat left behind per dirt dug.
+        double pipedPerDirt = piped.HeatLeft / piped.Dug, alonePerDirt = alone.HeatLeft / Math.Max(1, alone.Dug);
+        Assert.True(pipedPerDirt < alonePerDirt,
+            $"a relay should carry heat away. heat per dirt piped={pipedPerDirt:0.0}, alone={alonePerDirt:0.0}");
     }
 
     [Fact]

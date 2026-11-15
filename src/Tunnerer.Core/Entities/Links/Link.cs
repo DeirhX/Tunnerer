@@ -14,6 +14,12 @@ public class Link
     public LinkType Type { get; set; } = LinkType.Theoretical;
     public bool IsAlive { get; set; } = true;
 
+    /// <summary>Heat energy carried along this link during the last tick (drawn as flowing heat).</summary>
+    public double HeatFlow { get; set; }
+
+    /// <summary>True when that heat flows from <see cref="From"/> to <see cref="To"/>; false for To to From.</summary>
+    public bool FlowsFromTo { get; set; }
+
     public Link(LinkPoint from, LinkPoint to)
     {
         From = from;

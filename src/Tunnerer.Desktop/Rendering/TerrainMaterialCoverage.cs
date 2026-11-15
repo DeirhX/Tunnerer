@@ -5,7 +5,8 @@ using Tunnerer.Core.Terrain;
 /// <summary>
 /// Per-cell Gaussian-blurred material coverage for the GPU "material coverage" texture.
 /// Channels: R = stone (Rock, HotRock, and Gold, which is a vein drawn over the rock it was cut from),
-/// G = concrete, B = dirt (Dirt, DirtGrow), A = unused.
+/// G = concrete, B = dirt (Dirt, DirtGrow). A is written by <see cref="TerrainAuxBuilder"/>: the regrow stamp of
+/// <see cref="TerrainGrowthFade"/>.
 /// Each channel is sum(w * [cell is that material]) / sum(w * [cell is any of the three]) over non-base solid
 /// cells only, so the channels sum to 1 and caves, scorch and the base never bend a material boundary.
 /// The shader picks materials from these smooth fields instead of interpolating material ids.

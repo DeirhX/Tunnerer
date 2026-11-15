@@ -202,14 +202,14 @@ public class GameHud
         DrawBar(dl, sPlateX + 8f, drawY + 191f, sPlateW - 16f, 5f, shieldFill,
             shieldFill > 0.5f ? 0xFFFFC040u : shieldFill > 0.25f ? 0xFF30C0FFu : 0xFF3040FFu);
 
-        // MATERIALS: how full the tank's hold is with dirt, which is what structures are built from (percent).
+        // MATERIALS: the dirt in the tank's hold, which is what structures are built from; the bar is how full it is.
         float materialsFill = MaterialsFill(player);
         float mPlateX = materialsX + 15f;
         float mPlateW = MaterialsPanelW - 30f;
-        DrawNumberCentered(dl, (int)MathF.Round(materialsFill * 100f), mPlateX, drawY + 166f, mPlateW);
+        DrawNumberCentered(dl, player.Resources.Dirt, mPlateX, drawY + 166f, mPlateW);
         DrawBar(dl, mPlateX + 40f, drawY + 191f, mPlateW - 80f, 5f, materialsFill, 0xFF40B8F0u);
 
-        DrawBuildSlots(dl, player, AvailableRelayDirt(player, _dockedAtOwnBase), buildX, drawY);
+        DrawBuildSlots(dl, player, player.BuildableDirt(_dockedAtOwnBase), buildX, drawY);
 
         // The COMMAND button has no function yet; dim it like the unavailable build slots.
         dl.AddRectFilled(new Vector2(buildX + 77f, drawY + 172f), new Vector2(buildX + 277f, drawY + 212f), 0x90000000u, 10f);
@@ -491,19 +491,6 @@ public class GameHud
         fill = Math.Clamp(fill, 0f, 1f);
         dl.AddRectFilled(new Vector2(x - 1f, y - 1f), new Vector2(x + w + 1f, y + h + 1f), 0xC0000000u);
         dl.AddRectFilled(new Vector2(x, y), new Vector2(x + w * fill, y + h), color);
-    }
-
-    /// <summary>
-    /// The relay is the only structure that can be built today: its slot shows how much of the dirt cost is
-    /// collected and the key that builds it; the other slots are dimmed.
-    /// </summary>
-    /// <summary>Dirt that can pay for a relay: the tank's own, or the base store while docked at the own base.</summary>
-    private static int AvailableRelayDirt(Tank player, bool docked)
-    {
-        int own = player.Resources.Current.Dirt;
-        if (!docked || player.Base == null || own >= Tweaks.Machine.RelayDirtCost)
-            return own;
-        return Math.Max(own, player.Base.Materials.Current.Dirt);
     }
 
     private void DrawBuildSlots(ImDrawListPtr dl, Tank player, int dirt, float panelX, float panelY)
@@ -910,8 +897,8 @@ public class GameHud
             _relayLinkedUntil = _time + 4f;
         _lastPoweredRelays = powered;
 
-        int dirt = AvailableRelayDirt(player, _dockedAtOwnBase);
-        bool fromBaseStore = _dockedAtOwnBase && player.Resources.Current.Dirt < Tweaks.Machine.RelayDirtCost &&
+        int dirt = player.BuildableDirt(_dockedAtOwnBase);
+        bool fromBaseStore = _dockedAtOwnBase && player.Resources.Dirt < Tweaks.Machine.RelayDirtCost &&
                              dirt >= Tweaks.Machine.RelayDirtCost;
         string hint;
         Vector4 hintColor;
@@ -947,7 +934,7 @@ public class GameHud
             }
             else if (carryingHarvester)
             {
-                hint = "R: plant harvester here - it digs nearby dirt and heats the ground";
+                hint = "R: plant harvester here - it mines nearby dirt into your base store";
                 hintColor = TextGood;
             }
             else
@@ -1002,7 +989,7 @@ public class GameHud
         {
             ImGui.SetWindowFontScale(1.25f);
             ColoredText(player.LivesLeft > 1 ? TextDim : TextBad, $"Lives {player.LivesLeft}");
-            ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Current.Dirt}");
+            ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Dirt}/{tankBase.Materials.DirtCapacity}");
             if (harvesters > 0)
                 ColoredText(stalled > 0 ? TextWarn : TextDim,
                     $"Harvesters working {harvesters - stalled}/{harvesters}" + (stalled > 0 ? $", {stalled} too hot" : ""));

@@ -257,7 +257,8 @@ On the thermal integration work (branch `integrate/thermal-ledger-and-visuals` a
 
 - An energy-exact heat simulation over terrain and air fields, with a ledger of every source and sink.
 - A base with a finite reservoir and a radiator.
-- Relays that pump heat from a radius into the base when linked by line of sight.
+- Relays that pump heat from a radius into the base when linked by direct line of sight through open tunnel.
+- Harvesters that roam near where they were planted, mining dirt into the base store; a relay keeps them cool.
 - Tank coolant: pre-cooling at the home base, spent by absorbing heat.
 - Hot rock pockets as permanent heat sources, opt-in per world.
 - Harvester and charger machines, gold as a pickup, and one bot opponent.

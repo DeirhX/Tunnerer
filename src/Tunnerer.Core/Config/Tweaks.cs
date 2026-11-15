@@ -259,10 +259,15 @@ public static class Tweaks
     {
         public const int ReactorHeatCapacity = 100;
         public const int ReactorHealthCapacity = 1000;
-        public const int HarvesterIntervalMs = 500;
+        // A harvester acts (mines what it can reach, or crawls one cell) every this many milliseconds.
+        public const int HarvesterIntervalMs = 300;
         public const int ChargerIntervalMs = 200;
+        // A harvester roams and mines within this distance of where it was planted.
         public const int HarvestRange = 20;
-        // Machines that work give off heat: each successful harvest dumps this energy into the ground around it.
+        // It eats settled dirt within this radius of itself into the owner base's store. Crawling through solid dirt
+        // that is about 5 new cells per step, roughly 16 dirt/s, so it repays HarvesterDirtCost in about a minute.
+        public const int HarvesterMineRadius = 2;
+        // Machines that work give off heat: each work cycle that mines dirt dumps this energy into the ground around it.
         // Starting guess for the first-prototype spike; tune in play.
         public const float HarvesterHeatPerHarvest = 1000f;
         public const int HarvesterHeatRadius = 2;

@@ -10,6 +10,9 @@ public sealed class TerrainAuxBuilder
 {
     private readonly TerrainSolidField _solidField = new();
 
+    /// <summary>Regrow times written to the coverage texture's alpha (see <see cref="TerrainGrowthFade"/>).</summary>
+    public TerrainGrowthFade GrowthFade { get; } = new();
+
     /// <param name="tankPositions">Where each tank is drawn this frame (cell coordinates), indexed like <paramref name="tanks"/>.</param>
     public int BuildGpuTankHeatGlowData(
         IReadOnlyList<Tank> tanks,
@@ -93,6 +96,7 @@ public sealed class TerrainAuxBuilder
 
     private void WriteRect(TerrainGrid terrain, int minX, int minY, int maxX, int maxY, byte[] auxTarget, byte[] coverageTarget)
     {
+        TerrainMaterialCoverage.WriteRect(terrain, minX, minY, maxX, maxY, coverageTarget);
         RowParallel.For(minY, maxY + 1, maxX - minX + 1, (from, to) =>
         {
             for (int y = from; y < to; y++)
@@ -102,10 +106,10 @@ public sealed class TerrainAuxBuilder
                 {
                     int idx = row + x;
                     WriteTerrainAux(terrain, idx, terrain.GetPixelRaw(idx), _solidField.SampleAsByte(x, y), auxTarget, idx * 4);
+                    coverageTarget[idx * 4 + 3] = GrowthFade.StampAt(idx);
                 }
             }
         });
-        TerrainMaterialCoverage.WriteRect(terrain, minX, minY, maxX, maxY, coverageTarget);
     }
 
     public static void UpdateGpuTerrainAuxHeatOnly(TerrainGrid terrain, byte[] target, in Rect dirtyRect)

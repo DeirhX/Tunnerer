@@ -35,6 +35,15 @@ public class Machine
     /// <summary>True when a harvester skipped its last action because the ground around it was too hot.</summary>
     public bool IsStalled { get; set; }
 
+    /// <summary>A harvester's ground temperature at its last action, as a fraction of its stall temperature.</summary>
+    public float SenseHeat { get; set; }
+
+    /// <summary>Where a harvester was planted: it roams and mines within <c>HarvestRange</c> of this point.</summary>
+    public Position Anchor { get; set; }
+
+    /// <summary>The last step a harvester crawled (zero before it first moves); also the way it faces.</summary>
+    public Offset Heading { get; set; }
+
     private TimeSpan _actionAccumulator;
 
     public Machine(Position position, MachineType type, int ownerColor)
@@ -51,7 +60,7 @@ public class Machine
     public bool IsBlockingCollision => State == MachineState.Planted;
     public bool TestCollide(Position pos) => BoundingBox.IsInside(pos, Position);
 
-    public void Advance(ITerrainAccess terrain, TimeSpan dt)
+    public void Advance(in MachineContext ctx, TimeSpan dt)
     {
         if (!IsAlive || State != MachineState.Planted) return;
         if (Reactor.Health <= 0) { IsAlive = false; return; }
@@ -60,25 +69,6 @@ public class Machine
         if (_actionAccumulator < Behavior.ActionInterval) return;
         _actionAccumulator -= Behavior.ActionInterval;
 
-        Behavior.PerformAction?.Invoke(this, terrain);
-    }
-
-    public void Draw(Surface surface)
-    {
-        if (!IsAlive) return;
-        int half = BoundingBox.HalfWidth;
-        uint color = State == MachineState.Template
-            ? Tweaks.Colors.MachineTemplate.ToArgb()
-            : Behavior.ActiveColor.ToArgb();
-
-        for (int dy = -half; dy <= half; dy++)
-            for (int dx = -half; dx <= half; dx++)
-            {
-                int px = Position.X + dx, py = Position.Y + dy;
-                if (!surface.IsInside(px, py)) continue;
-                bool edge = Math.Abs(dx) == half || Math.Abs(dy) == half;
-                if (edge)
-                    surface.Pixels[px + py * surface.Width] = color;
-            }
+        Behavior.PerformAction?.Invoke(this, ctx);
     }
 }

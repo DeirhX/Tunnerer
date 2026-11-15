@@ -47,6 +47,8 @@ public partial class Game
             var hiResWatch = Stopwatch.StartNew();
 
             var visibleRect = _renderViewState.ComputeVisibleWorldRect(_terrainSize, scale);
+            float visualTime = VisualTime;
+            _terrainAuxBuilder.GrowthFade.CollectExpired(visualTime, _terrainDirtyCells);
 
             Rect? auxDirtyRect;
             Rect? coverageDirtyRect;
@@ -121,7 +123,8 @@ public partial class Game
                     Quality: HiResRenderQuality.High,
                     HeatDebugOverlayEnabled: _commandController.ShowHeatDebugOverlay,
                     PassFlags: _commandController.EnabledPostPasses,
-                    ThermalRegions: BuildThermalRegionOverlayUpload()),
+                    ThermalRegions: BuildThermalRegionOverlayUpload(),
+                    TimeSeconds: visualTime),
                 TankGlow: new TankGlowUpload(
                     Data: _gpuTankHeatGlow,
                     Count: tankHeatGlowCount),

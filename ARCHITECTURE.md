@@ -48,7 +48,7 @@ while running:
        GameAudio.BeforeStep              (notes the gold lying near each tank)
        GameSimulationStepper.AdvanceOneStep
          scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
-       EntityLayerBuilder.CaptureStep    (tank and projectile snapshot for the entity layer)
+       EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
        GameAudio.AfterStep               (compares the world with the previous step, starts sound effects)
        TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
   6. if a step was due: WorldCompositeRenderer.Compose   links, machines and marker sprites over a copy of the terrain
@@ -57,7 +57,7 @@ while running:
 
 The simulation always advances in fixed steps. Display frames are not tied to them: the loop draws as often as
 the display allows (vsync, capped by `DesktopScreenTweaks.MaxRenderFps`) and passes each frame its *step
-progress*, the fraction of a step elapsed since the last one. `EntityLayerBuilder` draws tanks and projectiles
+progress*, the fraction of a step elapsed since the last one. `EntityLayerBuilder` draws tanks, projectiles, machines and links
 at that point between the previous and the latest step, and the camera follows the interpolated player, so
 motion is smooth at the display rate while the terrain only changes on steps. The cost is that what is shown
 trails the simulation by up to one step.
@@ -94,13 +94,13 @@ compositePixels[w*h]                  terrain aux data (heat, solid field, mater
                          |
               terrain + post-process shaders (SDL_GPU)  ->  game texture
                          |
-              entity layer: tank and projectile quads (EntityLayerBuilder -> EntityPs)
+              entity layer: link, machine, tank and projectile quads (EntityLayerBuilder -> EntityPs)
                          |
               ImGui: viewport image, HUD, overlays  ->  window
 ```
 
 The composite buffer keeps entity drawing from corrupting the terrain surface. It holds only the cell-resolution
-entities; tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
+entities; links, relays, harvesters, tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
 in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 ## Sound

@@ -1,6 +1,7 @@
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Links;
+using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
@@ -167,6 +168,28 @@ public class PlayerFeedbackTests
 
         Assert.True(tank.IsCarryingMachine);
         Assert.Equal(500 - Tweaks.Machine.RelayDirtCost, tank.Base.Materials.Current.Dirt);
+    }
+
+    [Fact]
+    public void DockedTank_WithSomeDirt_CanStillAffordAHarvesterFromTheBaseStore()
+    {
+        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false);
+        var tank = world.TankList.Tanks[0];
+        tank.Resources.Add(new MaterialAmount(Tweaks.Machine.RelayDirtCost + 100 - tank.Resources.Dirt, 0));
+        tank.Base!.Materials.Add(new MaterialAmount(Tweaks.Machine.HarvesterDirtCost + 200, 0));
+
+        // What the HUD shows as affordable is what a key press builds.
+        Assert.True(tank.BuildableDirt(dockedAtOwnBase: true) >= Tweaks.Machine.HarvesterDirtCost);
+        Assert.Same(tank.Base.Materials, tank.BuildPayer(MachineType.Harvester, dockedAtOwnBase: true));
+        Assert.Same(tank.Resources, tank.BuildPayer(MachineType.Relay, dockedAtOwnBase: true));
+        Assert.Null(tank.BuildPayer(MachineType.Harvester, dockedAtOwnBase: false));
+
+        int totalBefore = tank.Resources.Dirt + tank.Base.Materials.Dirt;
+        world.Advance(i => i == 0 ? new ControllerOutput { BuildSecondary = true } : default);
+
+        // Docking also moves dirt from tank to store each tick, so check the total that was spent.
+        Assert.Equal(MachineType.Harvester, tank.CarriedMachineType);
+        Assert.Equal(totalBefore - Tweaks.Machine.HarvesterDirtCost, tank.Resources.Dirt + tank.Base.Materials.Dirt);
     }
 
     private static void Press(Tunnerer.Core.World world, bool pressed)

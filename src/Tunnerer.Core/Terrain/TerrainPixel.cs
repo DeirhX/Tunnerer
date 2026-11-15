@@ -129,11 +129,13 @@ public static class Pixel
     public static bool IsBase(TerrainPixel p) => _behaviors[(int)p].Base;
 
     /// <summary>
-    /// True when the pixel blocks a link's line of sight: solid terrain does, but base walls and floors do not, so a
-    /// relay can link to its base from any side rather than only through the exit gap.
+    /// True when the pixel blocks a link's line of sight: links need direct visibility, so anything but open ground
+    /// (dug tunnel or scorch) blocks them, dirt included. Base walls and floors do not, so a relay can link to its
+    /// base from any side rather than only through the exit gap.
     /// </summary>
     public static bool BlocksLink(TerrainPixel p) =>
-        IsBlockingCollision(p) && !IsBase(p) && p is not (TerrainPixel.BaseBarrier or TerrainPixel.BaseCore);
+        p != TerrainPixel.Blank && !IsScorched(p) && !IsBase(p) &&
+        p is not (TerrainPixel.BaseBarrier or TerrainPixel.BaseCore);
     public static bool IsScorched(TerrainPixel p) => _behaviors[(int)p].Scorched;
     public static bool IsConcrete(TerrainPixel p) => _behaviors[(int)p].Concrete;
     public static bool IsRock(TerrainPixel p) => _behaviors[(int)p].Rock;

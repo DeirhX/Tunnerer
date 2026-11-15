@@ -110,7 +110,7 @@ CollisionSolver    Rebuild sector indices for broad-phase queries
 RegrowPass         Cellular automata: Blank→DirtGrow→Dirt
 Projectiles        Movement, terrain impact, explosions, spawn shrapnel
 Tanks              Input → turret → HandleMove → DigTunnel → shoot
-Machines           Harvest energy, charge reactor, link-powered
+Machines           Harvest dirt, pump heat, link-powered
 Sprites            Decrement lifetime, remove expired
 Bases              Reactor recharge from materials
 LinkMap            Solve power graph via Bresenham visibility
@@ -217,7 +217,11 @@ The base is the heat sink of the game, and a finite one:
   interior vanishes (`SunkFixedTemperature`); the reservoir only limits what is *pumped* in.
 
 A **relay** (`MachineType.Relay`, cost `Machine.RelayDirtCost`) is a heat pipe. Once planted it is a `LinkPoint`;
-when `LinkMap` finds a live (line-of-sight, <= `MaximumLiveLinkDistance`) path to a base it is *powered*, and every
+when `LinkMap` finds a live (line-of-sight, <= `MaximumLiveLinkDistance`) path to a base it is *powered*. Line of
+sight means direct visibility through open ground: any solid pixel, dirt included, blocks a link (`Pixel.BlocksLink`),
+except base walls and floors. Power spreads breadth first from the bases, so each powered point keeps the
+`UpstreamLink` it was reached by; the heat a relay pumps is booked on every link along that route home
+(`LinkMap.CarryHeat`, `Link.HeatFlow`), which is what the renderer draws as flowing heat. Every
 tick `PumpHeat` calls `TankBase.AbsorbHeatFrom`: up to `Machine.RelayHeatPumpPerTick` energy is extracted from the
 square of half-width `Machine.RelayCoolingRadius` around the relay (terrain, then air; only heat above ambient) and
 stored in the owner base's reactor, limited by the reactor's free room. No power (wall in the way) or a full
@@ -357,7 +361,7 @@ Factory methods create explosion configs:
 `MachineBehavior` records define per-type behavior (action interval, action logic, color, build cost).
 Adding a new machine type = one entry in `MachineBehaviors`.
 
-- **Harvester**: Planted near energy deposits. Drains energy pixels within radius, adds to owner's reactor.
+- **Harvester**: Planted outside a base, it roams. Every `HarvesterIntervalMs` it eats the settled dirt within `HarvesterMineRadius` of itself into its owner base's dirt store; when nothing is left in reach it crawls one cell toward the nearest dirt within `HarvestRange` of where it was planted (`Machine.Anchor`), carving its own tunnel and steering around rock, bases, tanks and other machines. Working heats the ground; it stalls while that ground is too hot, so a linked relay nearby keeps it going. It idles while the store is full, and is not a node of the link network.
 - **Charger**: Planted on power link. Charges owner's reactor from the grid.
 - **States**: `Template` (carried by tank) → `Transporting` → `Planted` (active)
 - `MachineMaterializer`: Build-mode input handler, manages placement preview

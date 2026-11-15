@@ -12,6 +12,12 @@ public class LinkPoint
     public bool IsPowered { get; set; }
     public int Id { get; }
 
+    /// <summary>
+    /// The live link this point's power comes through, toward the nearest base (in hops); null for bases and for
+    /// unpowered points. Heat a relay pumps travels back along these links to the base.
+    /// </summary>
+    public Link? UpstreamLink { get; set; }
+
     public LinkPoint(Position position, LinkPointType type, int id)
     {
         Position = position;

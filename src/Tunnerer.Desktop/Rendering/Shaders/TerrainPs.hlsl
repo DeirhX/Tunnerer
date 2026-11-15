@@ -18,17 +18,19 @@
 // Entity pixels (tanks, bases, projectiles) are passed through unmodified;
 // they are identified by alpha < 1.0 in the source texture.
 //
-// Bindings: t0 = world colours, t1 = aux (.g solid field used here). t2 (material
-// coverage) is bound for both passes but only the post pass reads it.
+// Bindings: t0 = world colours, t1 = aux (.g solid field used here), t2 = material
+// coverage (only its .a regrow stamps are read here).
 // ============================================================================
 
 #include "PostPs/Common/Registers.hlsli"
 
 Texture2D sourceTex : FRAGMENT_TEXTURE(0);
 Texture2D auxTex : FRAGMENT_TEXTURE(1);
+Texture2D coverageTex : FRAGMENT_TEXTURE(2);   // .a = regrow stamps, read by TerrainEdge.hlsli
 // One bilinear-clamp sampler per texture, at the texture's index (see PostPs/Common/Bindings.hlsli).
 SamplerState s0 : FRAGMENT_SAMPLER(0);
 SamplerState s1 : FRAGMENT_SAMPLER(1);
+SamplerState s2 : FRAGMENT_SAMPLER(2);
 
 #include "PostPs/Common/PostParams.hlsli"
 #include "PostPs/Common/TerrainEdge.hlsli"
