@@ -46,8 +46,6 @@ public partial class TerrainGrid
     private readonly float[] _heatTemperature;
     private readonly TerrainHeatEngine _heatEngine;
     private readonly SimulationSettings _simulationSettings;
-    private float[]? _heatTemp;
-    private float[]? _airTemp;
     private bool _hasHeatDirtyRect;
     private int _heatDirtyMinX;
     private int _heatDirtyMinY;
@@ -159,72 +157,17 @@ public partial class TerrainGrid
             return;
         }
 
-        TimeSpan prep = SnapshotTemperatures();
-        TimeSpan simulate, markDirty;
-        int regionCount = 0;
-        bool usedParallel = false;
-        float maxAbsDelta;
-        if (step == ThermalStep.Full)
-        {
-            maxAbsDelta = StepFullGrid(out simulate, out markDirty);
-        }
-        else
-        {
-            var regions = BuildSparseRegions();
-            regionCount = regions.Count;
-            usedParallel = regions.Count >= _simulationSettings.ThermalParallelRegionThreshold;
-            long t0 = Stopwatch.GetTimestamp();
-            CoolDownSparseRegions(regions, usedParallel, out markDirty, out maxAbsDelta);
-            simulate = Stopwatch.GetElapsedTime(t0) - markDirty;
-        }
+        IReadOnlyList<HeatRegion> regions = step == ThermalStep.Full ? FullGridRegion() : BuildSparseRegions();
+        bool parallel = step == ThermalStep.Sparse && regions.Count >= _simulationSettings.ThermalParallelRegionThreshold;
+        float maxAbsDelta = StepRegions(regions, parallel, out TimeSpan simulate, out TimeSpan markDirty);
 
         if (artificialCoolingPerFrame > 0f)
             markDirty += ApplyArtificialCooling(artificialCoolingPerFrame, ref maxAbsDelta);
 
         _thermalScheduler.RecordStep(maxAbsDelta);
+        bool sparse = step == ThermalStep.Sparse;
         LastCoolDownProfile = new CoolDownProfile(
-            prep, simulate, markDirty, TimeSpan.Zero, activeTiles, regionCount, step == ThermalStep.Sparse, usedParallel);
-    }
-
-    private TimeSpan SnapshotTemperatures()
-    {
-        int len = Width * Height;
-        if (_heatTemp == null || _heatTemp.Length < len)
-            _heatTemp = new float[len];
-        if (_airTemp == null || _airTemp.Length < len)
-            _airTemp = new float[len];
-        long t0 = Stopwatch.GetTimestamp();
-        Array.Copy(_heatTemperature, _heatTemp, len);
-        Array.Copy(_airTemperature, _airTemp, len);
-        return Stopwatch.GetElapsedTime(t0);
-    }
-
-    /// <summary>Steps every cell; returns the largest temperature change.</summary>
-    private float StepFullGrid(out TimeSpan simulate, out TimeSpan markDirty)
-    {
-        int w = Width, len = Width * Height;
-        float[] heatBefore = _heatTemp!, airBefore = _airTemp!;
-        float maxAbsDelta = 0f;
-        long t0 = Stopwatch.GetTimestamp();
-        _heatEngine.StepConservative(_heatTemperature, _airTemperature, _data, w, Height, Ledger);
-        simulate = Stopwatch.GetElapsedTime(t0);
-        t0 = Stopwatch.GetTimestamp();
-        ClearNextActiveTiles();
-        for (int i = 0; i < len; i++)
-        {
-            float deltaTerrain = MathF.Abs(_heatTemperature[i] - heatBefore[i]);
-            float deltaAir = MathF.Abs(_airTemperature[i] - airBefore[i]);
-            float cellMaxDelta = MathF.Max(deltaTerrain, deltaAir);
-            if (cellMaxDelta > maxAbsDelta)
-                maxAbsDelta = cellMaxDelta;
-            if (ShouldMarkHeatDirty(heatBefore[i], _heatTemperature[i]))
-                MarkHeatDirty(i % w, i / w);
-            if (IsThermallyActive(_heatTemperature[i], _airTemperature[i]))
-                ActivateNextTileByCell(i % w, i / w);
-        }
-        markDirty = Stopwatch.GetElapsedTime(t0);
-        SwapActiveTiles();
-        return maxAbsDelta;
+            TimeSpan.Zero, simulate, markDirty, TimeSpan.Zero, activeTiles, sparse ? regions.Count : 0, sparse, parallel);
     }
 
     /// <summary>

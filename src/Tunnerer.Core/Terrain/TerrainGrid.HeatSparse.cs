@@ -7,7 +7,16 @@ using Tunnerer.Core.Types;
 
 public partial class TerrainGrid
 {
-    private readonly record struct SparseRegion(int MinX, int MinY, int MaxXInclusive, int MaxYInclusive);
+    /// <summary>A rectangle of cells that the solver steps as one block; regions of one step never overlap.</summary>
+    private readonly record struct HeatRegion(int MinX, int MinY, int MaxXInclusive, int MaxYInclusive)
+    {
+        public int Width => MaxXInclusive - MinX + 1;
+        public int Height => MaxYInclusive - MinY + 1;
+    }
+
+    private HeatRegion[]? _fullGridRegion;
+    private readonly List<float[]> _regionDelta = new();
+    private readonly List<float[]> _regionAirDelta = new();
 
     private bool[]? _activeTiles;
     private bool[]? _nextActiveTiles;
@@ -81,9 +90,9 @@ public partial class TerrainGrid
         Array.Clear(_nextActiveTiles, 0, _nextActiveTiles.Length);
     }
 
-    private List<SparseRegion> BuildSparseRegions()
+    private List<HeatRegion> BuildSparseRegions()
     {
-        var regions = new List<SparseRegion>();
+        var regions = new List<HeatRegion>();
         if (_activeTiles == null)
             return regions;
 
@@ -121,7 +130,7 @@ public partial class TerrainGrid
             int minY = padMinTy * _tileSize;
             int maxX = Math.Min(Width - 1, (padMaxTx + 1) * _tileSize - 1);
             int maxY = Math.Min(Height - 1, (padMaxTy + 1) * _tileSize - 1);
-            regions.Add(new SparseRegion(minX, minY, maxX, maxY));
+            regions.Add(new HeatRegion(minX, minY, maxX, maxY));
 
             void TryEnqueue(int nx, int ny)
             {
@@ -139,7 +148,7 @@ public partial class TerrainGrid
         return regions;
     }
 
-    private static void MergeOverlappingRegions(List<SparseRegion> regions)
+    private static void MergeOverlappingRegions(List<HeatRegion> regions)
     {
         bool merged;
         do
@@ -153,7 +162,7 @@ public partial class TerrainGrid
                         continue;
                     var a = regions[i];
                     var b = regions[j];
-                    regions[i] = new SparseRegion(
+                    regions[i] = new HeatRegion(
                         Math.Min(a.MinX, b.MinX),
                         Math.Min(a.MinY, b.MinY),
                         Math.Max(a.MaxXInclusive, b.MaxXInclusive),
@@ -166,7 +175,7 @@ public partial class TerrainGrid
         } while (merged);
     }
 
-    private static bool Intersects(in SparseRegion a, in SparseRegion b)
+    private static bool Intersects(in HeatRegion a, in HeatRegion b)
     {
         return a.MinX <= b.MaxXInclusive && b.MinX <= a.MaxXInclusive &&
                a.MinY <= b.MaxYInclusive && b.MinY <= a.MaxYInclusive;
@@ -194,85 +203,98 @@ public partial class TerrainGrid
         return true;
     }
 
-    private void CoolDownSparseRegions(IReadOnlyList<SparseRegion> regions, bool parallel, out TimeSpan markDirty, out float maxAbsDelta)
+    private HeatRegion[] FullGridRegion()
+        => _fullGridRegion ??= [new HeatRegion(0, 0, Width - 1, Height - 1)];
+
+    /// <summary>
+    /// One solver step over disjoint regions: every region's deltas are computed from the same state (in parallel if
+    /// asked), then applied and marked region by region in order. Returns the largest temperature change.
+    /// </summary>
+    private float StepRegions(IReadOnlyList<HeatRegion> regions, bool parallel, out TimeSpan simulate, out TimeSpan markDirty)
     {
-        markDirty = TimeSpan.Zero;
-        maxAbsDelta = 0f;
-        if (_heatTemp == null || _nextActiveTiles == null)
-            return;
-
-        var workers = new List<RegionWork>(regions.Count);
-        for (int i = 0; i < regions.Count; i++)
-        {
-            var r = regions[i];
-            int rw = r.MaxXInclusive - r.MinX + 1;
-            int rh = r.MaxYInclusive - r.MinY + 1;
-            workers.Add(new RegionWork(i, r, rw, rh, new float[rw * rh], new float[rw * rh]));
-        }
-
-        void ComputeDelta(RegionWork work) => _heatEngine.ComputeRegionDeltaConservative(
-            _heatTemperature, _airTemperature, _data, Width, Height,
-            work.Region.MinX, work.Region.MinY, work.Region.MaxXInclusive, work.Region.MaxYInclusive,
-            work.Delta, work.AirDelta);
-
+        long t0 = Stopwatch.GetTimestamp();
+        EnsureRegionBuffers(regions);
         if (parallel)
         {
             var po = new ParallelOptions();
             if (_simulationSettings.ThermalMaxWorkers > 0)
                 po.MaxDegreeOfParallelism = _simulationSettings.ThermalMaxWorkers;
-            Parallel.ForEach(workers, po, ComputeDelta);
+            Parallel.For(0, regions.Count, po, ComputeRegionDelta);
         }
         else
         {
-            foreach (var work in workers)
-                ComputeDelta(work);
+            for (int i = 0; i < regions.Count; i++)
+                ComputeRegionDelta(i);
         }
+        simulate = Stopwatch.GetElapsedTime(t0);
 
-        long markStart = Stopwatch.GetTimestamp();
-        workers.Sort(static (a, b) => a.Id.CompareTo(b.Id));
+        t0 = Stopwatch.GetTimestamp();
         ClearNextActiveTiles();
         double sunkFixed = 0.0;
-        for (int i = 0; i < workers.Count; i++)
-        {
-            var work = workers[i];
-            int rw = work.RegionWidth;
-            int idx = 0;
-            for (int y = work.Region.MinY; y <= work.Region.MaxYInclusive; y++)
-            {
-                int row = y * Width;
-                for (int x = work.Region.MinX; x <= work.Region.MaxXInclusive; x++, idx++)
-                {
-                    int offset = row + x;
-                    float oldTerrain = _heatTemperature[offset];
-                    float oldAir = _airTemperature[offset];
-                    float next = _heatTemperature[offset] + work.Delta[idx];
-                    float nextAir = _airTemperature[offset] + work.AirDelta[idx];
-                    next = _heatEngine.ResolveTerrainTemperature(
-                        Pixel.GetThermalMaterial(_data[offset]), next, nextAir, ref sunkFixed);
-                    _heatTemperature[offset] = next;
-                    _airTemperature[offset] = nextAir;
-                    float deltaTerrain = MathF.Abs(next - oldTerrain);
-                    float deltaAir = MathF.Abs(nextAir - oldAir);
-                    float cellMaxDelta = MathF.Max(deltaTerrain, deltaAir);
-                    if (cellMaxDelta > maxAbsDelta)
-                        maxAbsDelta = cellMaxDelta;
-                    if (ShouldMarkHeatDirty(_heatTemp[offset], next))
-                        MarkHeatDirty(x, y);
-                    if (IsThermallyActive(next, nextAir))
-                        ActivateNextTileByCell(x, y);
-                }
-            }
-        }
+        float maxAbsDelta = 0f;
+        for (int i = 0; i < regions.Count; i++)
+            ApplyStepAndMark(regions[i], _regionDelta[i], _regionAirDelta[i], ref sunkFixed, ref maxAbsDelta);
         Ledger.RecordSunkFixedTemperature(sunkFixed);
-        markDirty = Stopwatch.GetElapsedTime(markStart);
+        markDirty = Stopwatch.GetElapsedTime(t0);
         SwapActiveTiles();
+        return maxAbsDelta;
+
+        void ComputeRegionDelta(int i)
+        {
+            var r = regions[i];
+            _heatEngine.ComputeRegionDeltaConservative(
+                _heatTemperature, _airTemperature, _data, Width, Height,
+                r.MinX, r.MinY, r.MaxXInclusive, r.MaxYInclusive,
+                _regionDelta[i], _regionAirDelta[i]);
+        }
     }
 
-    private readonly record struct RegionWork(
-        int Id,
-        SparseRegion Region,
-        int RegionWidth,
-        int RegionHeight,
-        float[] Delta,
-        float[] AirDelta);
+    private void EnsureRegionBuffers(IReadOnlyList<HeatRegion> regions)
+    {
+        for (int i = 0; i < regions.Count; i++)
+        {
+            int area = regions[i].Width * regions[i].Height;
+            if (i == _regionDelta.Count)
+            {
+                _regionDelta.Add(new float[area]);
+                _regionAirDelta.Add(new float[area]);
+            }
+            else if (_regionDelta[i].Length < area)
+            {
+                _regionDelta[i] = new float[area];
+                _regionAirDelta[i] = new float[area];
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies one region's step deltas (through <see cref="TerrainHeatEngine.ResolveTerrainTemperature"/>, the only
+    /// apply point) and marks what changed: the largest change, the dirty rect, and the next active tiles.
+    /// </summary>
+    private void ApplyStepAndMark(in HeatRegion region, float[] delta, float[] airDelta, ref double sunkFixed, ref float maxAbsDelta)
+    {
+        int idx = 0;
+        for (int y = region.MinY; y <= region.MaxYInclusive; y++)
+        {
+            int row = y * Width;
+            for (int x = region.MinX; x <= region.MaxXInclusive; x++, idx++)
+            {
+                int offset = row + x;
+                float oldTerrain = _heatTemperature[offset];
+                float oldAir = _airTemperature[offset];
+                float nextAir = oldAir + airDelta[idx];
+                float next = _heatEngine.ResolveTerrainTemperature(
+                    Pixel.GetThermalMaterial(_data[offset]), oldTerrain + delta[idx], nextAir, ref sunkFixed);
+                _heatTemperature[offset] = next;
+                _airTemperature[offset] = nextAir;
+                float cellMaxDelta = MathF.Max(MathF.Abs(next - oldTerrain), MathF.Abs(nextAir - oldAir));
+                if (cellMaxDelta > maxAbsDelta)
+                    maxAbsDelta = cellMaxDelta;
+                if (ShouldMarkHeatDirty(oldTerrain, next))
+                    MarkHeatDirty(x, y);
+                if (IsThermallyActive(next, nextAir))
+                    ActivateNextTileByCell(x, y);
+            }
+        }
+    }
 }
