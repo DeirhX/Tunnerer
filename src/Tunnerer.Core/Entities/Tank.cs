@@ -307,6 +307,10 @@ public class Tank
     /// </summary>
     public float OffNetworkFloor { get; private set; }
 
+    /// <summary>Seconds until the rising off-network heat floor reaches the safe maximum (zero once it has).</summary>
+    public float OffNetworkSecondsToOverheat =>
+        MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
+
     /// <summary>
     /// Network coverage (DESIGN.md §4.6). Inside its base's coverage the tank sheds heat down the links into the base
     /// reactor (an exact transfer, limited by the reactor's room, never below zero heat: only docking refills coolant),

@@ -42,6 +42,19 @@ public class TankBase
     /// </summary>
     public double ReactorHeatEnergy => (int)Reactor.Heat * (double)Tweaks.Base.ReactorEnergyPerHeatUnit + _reactorHeatRemainder;
 
+    /// <summary>How full the reactor (the base's heat store) is, 0 to 1, from its exact stored energy.</summary>
+    public double HeatStoreFill
+    {
+        get
+        {
+            double capacityEnergy = Math.Max(1, (int)Reactor.HeatCapacity) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
+            return Math.Clamp(ReactorHeatEnergy / capacityEnergy, 0.0, 1.0);
+        }
+    }
+
+    /// <summary>Energy the radiator vents out of the reactor per tick while it holds heat (see <see cref="Advance"/>).</summary>
+    public static double VentCapacityPerTick => Tweaks.Base.HeatCooldown * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
+
     /// <summary>Link-network node of this base; relays are powered through it.</summary>
     public Links.LinkPoint? LinkPoint { get; set; }
 

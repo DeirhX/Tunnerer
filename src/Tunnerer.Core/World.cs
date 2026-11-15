@@ -258,6 +258,9 @@ public class World
         return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
     }
 
+    /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
+    public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines);
+
     /// <summary>Fills <paramref name="into"/> with the coverage nodes of <paramref name="owner"/>'s network.</summary>
     public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
         NetworkCoverage.CollectNodes(owner, _machines.Machines, into);

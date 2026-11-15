@@ -25,6 +25,21 @@ public record MachineBehavior(
     Color ActiveColor,
     MaterialAmount BuildCost);
 
+/// <summary>What a planted harvester is doing, as of its last action.</summary>
+public enum HarvesterState
+{
+    Working,
+
+    /// <summary>Heading back to a pylon to recharge.</summary>
+    Returning,
+
+    /// <summary>Its battery cannot pay for another harvest.</summary>
+    OutOfCharge,
+
+    /// <summary>Stalled: the ground around it is too hot.</summary>
+    TooHot,
+}
+
 public static class MachineBehaviors
 {
     public static readonly MachineBehavior Harvester = new(
@@ -52,6 +67,19 @@ public static class MachineBehaviors
         MachineType.Relay => Relay,
         _ => throw new ArgumentOutOfRangeException(nameof(type)),
     };
+
+    /// <summary>True when a harvester's battery cannot pay for another harvest.</summary>
+    public static bool IsOutOfCharge(Machine harvester) => harvester.Charge < Tweaks.Machine.HarvesterHeatPerHarvest;
+
+    /// <summary>
+    /// A harvester's state, each harvester in exactly one, in this order: heading to a pylon, out of charge, too hot,
+    /// otherwise working.
+    /// </summary>
+    public static HarvesterState HarvesterStateOf(Machine harvester) =>
+        harvester.IsReturning ? HarvesterState.Returning
+        : IsOutOfCharge(harvester) ? HarvesterState.OutOfCharge
+        : harvester.IsStalled ? HarvesterState.TooHot
+        : HarvesterState.Working;
 
     /// <summary>
     /// Heat pipe: when the relay is connected to a powered link network it pulls heat out of the area around it
@@ -101,7 +129,7 @@ public static class MachineBehaviors
         if (machine.IsStalled)
             return;
         // With the store full there is nowhere to put the dirt; with a flat battery there is nothing to dig with.
-        if (room <= 0 || machine.Charge < Tweaks.Machine.HarvesterHeatPerHarvest)
+        if (room <= 0 || IsOutOfCharge(machine))
             return;
 
         int mined = MineAround(machine, terrain, room);
