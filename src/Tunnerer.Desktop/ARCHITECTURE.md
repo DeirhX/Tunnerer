@@ -59,9 +59,8 @@ Shared contract (`IGameRenderBackend`):
 
 Upload payload (`GamePixelsUpload`) includes:
 
-- scene pixels (`uint[]`)
 - camera/view metadata (`RenderView`)
-- quality level
+- the composed world image the terrain pass samples (`NativeContinuousUpload`)
 - tank glow array
 - terrain auxiliary mask texture data + dirty rect, and the material coverage texture data + dirty rect
 

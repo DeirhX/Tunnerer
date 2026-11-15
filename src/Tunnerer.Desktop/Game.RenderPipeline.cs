@@ -117,10 +117,8 @@ public partial class Game
 
             hiResWatch.Restart();
             var upload = new GamePixelsUpload(
-                Pixels: Array.Empty<uint>(),
                 View: renderView,
                 PostProcess: new PostProcessUploadOptions(
-                    Quality: HiResRenderQuality.High,
                     HeatDebugOverlayEnabled: _commandController.ShowHeatDebugOverlay,
                     PassFlags: _commandController.EnabledPostPasses,
                     ThermalRegions: BuildThermalRegionOverlayUpload(),
@@ -134,7 +132,6 @@ public partial class Game
                     MaterialCoverage: _gpuMaterialCoverage,
                     MaterialCoverageDirtyRect: coverageDirtyRect),
                 NativeContinuous: new NativeContinuousUpload(
-                    Enabled: true,
                     SourcePixels: _compositePixels,
                     SourceChanged: _compositeChanged,
                     SampleCount: _renderViewState.NativeContinuousSampleCount),
@@ -180,16 +177,9 @@ public partial class Game
             }
             else if (player != null)
             {
-                float vpW = _renderViewState.HiResSize.X;
-                float vpH = _renderViewState.HiResSize.Y;
-                if (vpW > 0 && vpH > 0 &&
-                    frameInput.MouseX >= 0 && frameInput.MouseY >= 0 &&
-                    frameInput.MouseX < vpW && frameInput.MouseY < vpH)
-                {
-                    _hud.CrosshairScreenPos = (frameInput.MouseX, frameInput.MouseY);
-                }
-                else
-                    _hud.CrosshairScreenPos = null;
+                _hud.CrosshairScreenPos = IsMouseInViewport(frameInput, out float mouseX, out float mouseY)
+                    ? (mouseX, mouseY)
+                    : null;
 
                 var gameTextureSize = _renderBackend.GameTextureSize;
                 ProfileSection(ref _drawProfile.ScreenHudDraw, () =>

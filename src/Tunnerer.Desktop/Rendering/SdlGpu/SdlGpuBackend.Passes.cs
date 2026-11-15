@@ -110,8 +110,7 @@ public sealed unsafe partial class SdlGpuBackend
         StageWorldData(_materialCoverage, upload.TerrainAux.MaterialCoverage, upload.View.WorldSize,
             upload.TerrainAux.MaterialCoverageDirtyRect);
 
-        bool useNativeContinuous = upload.NativeContinuous.Enabled &&
-                                   upload.NativeContinuous.SourcePixels != null &&
+        bool useNativeContinuous = upload.NativeContinuous.SourcePixels != null &&
                                    upload.View.WorldSize.X > 0 &&
                                    upload.View.WorldSize.Y > 0;
         if (useNativeContinuous)
@@ -120,10 +119,6 @@ public sealed unsafe partial class SdlGpuBackend
             bool created = _nativeSource.Ensure(_device, worldW, worldH);
             if (created || upload.NativeContinuous.SourceChanged)
                 StagePixels(_nativeSource, upload.NativeContinuous.SourcePixels!, worldW, worldH);
-        }
-        else
-        {
-            StagePixels(_scene, upload.Pixels, w, h);
         }
         StageEntityVertices(upload.Entities);
         FlushUploads(cmd);

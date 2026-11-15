@@ -81,7 +81,7 @@ public unsafe struct PostParamsBlock
         cb.TerrainMaskCaveDarken = DesktopScreenTweaks.PostTerrainMaskCaveDarken;
         cb.TerrainMaskSolidLift = DesktopScreenTweaks.PostTerrainMaskSolidLift;
         cb.TerrainMaskRimLift = DesktopScreenTweaks.PostTerrainMaskRimLift;
-        cb.Quality = (float)upload.PostProcess.Quality;
+        cb.Quality = 2f; // full detail; the vignette pass runs from Quality 2
         cb.MaterialGoldR = DesktopScreenTweaks.PostMaterialEmissiveGoldR;
         cb.MaterialGoldG = DesktopScreenTweaks.PostMaterialEmissiveGoldG;
         cb.MaterialGoldB = DesktopScreenTweaks.PostMaterialEmissiveGoldB;
