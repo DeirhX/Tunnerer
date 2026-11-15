@@ -8,13 +8,12 @@
 // Pipeline order:
 //   1. Heat haze distortion (ComputeTankHeatHaze + ApplyOutlineHeatDistortion)
 //   2. Vignette (ApplyVignettePass)
-//   3. Terrain curve smoothing (ApplyTerrainCurvePass)
-//   4. Terrain aux: SDF shading, material overlays, heat glow (ApplyTerrainAuxPass)
-//   5. Tank heat glow (ApplyTankHeatGlowPass)
+//   3. Terrain aux: edge shading, material overlays, heat glow (ApplyTerrainAuxPass)
+//   4. Tank heat glow (ApplyTankHeatGlowPass)
 //
 // Inputs:
 //   sceneTex (t0) — composited scene (terrain + entities)
-//   auxTex   (t1) — per-cell terrain data (.r = heat, .g = SDF, .b = exact material code, .a = scorch)
+//   auxTex   (t1) — per-cell terrain data (.r = heat, .g = solid field, .b = exact material code, .a = scorch)
 //   coverageTex (t2) — per-cell blurred natural-material coverage (.r stone, .g concrete, .b dirt)
 //
 // Terrain vs entity discrimination:
@@ -28,6 +27,7 @@
 
 #include "Common/MathNoise.hlsli"
 #include "Common/ColorRamps.hlsli"
+#include "Common/TerrainEdge.hlsli"
 
 #include "Materials/TerrainShared.hlsli"
 #include "Materials/StoneMaterial.hlsli"
@@ -38,7 +38,6 @@
 
 #include "Passes/DistortionPass.hlsli"
 #include "Passes/VignettePass.hlsli"
-#include "Passes/TerrainCurvePass.hlsli"
 #include "Passes/TerrainAuxPass.hlsli"
 #include "Passes/TankGlowPass.hlsli"
 
@@ -70,8 +69,6 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
     // ---- Post-process chain -----------------------------------------------
     if (PostVignetteEnabled > 0.5)
         ApplyVignettePass(uv, color);
-    if (PostTerrainCurveEnabled > 0.5)
-        ApplyTerrainCurvePass(uv, terrainFactor, color);
     if (PostTerrainAuxEnabled > 0.5 || PostTerrainHeatEnabled > 0.5 || PostThermalRegionsEnabled > 0.5)
         ApplyTerrainAuxPass(uv, terrainFactor, PostTerrainAuxEnabled > 0.5, PostTerrainHeatEnabled > 0.5, PostThermalRegionsEnabled > 0.5, color);
     if (PostTankGlowEnabled > 0.5)

@@ -8,7 +8,7 @@
 
 #include "Registers.hlsli"
 
-static const float kPostParamsLayoutVersion = 3.0;
+static const float kPostParamsLayoutVersion = 4.0;
 
 cbuffer PostParams : FRAGMENT_UNIFORMS(0)
 {
@@ -25,27 +25,27 @@ cbuffer PostParams : FRAGMENT_UNIFORMS(0)
     float PostParamsLayoutVersion;  // Must match kPostParamsLayoutVersion
     float HeatDebugOverlay;         // > 0.5 to show temperature color overlay
     float PostVignetteEnabled;      // > 0.5 to run vignette
-    float PostTerrainCurveEnabled;  // > 0.5 to run terrain curve pass
+    float _padReserved0;
     float PostTerrainAuxEnabled;    // > 0.5 to run terrain texture pass
     float PostTankGlowEnabled;      // > 0.5 to run tank glow pass
     float PostTerrainHeatEnabled;   // > 0.5 to run terrain heat/scorch pass
     float PostThermalRegionsEnabled;// > 0.5 to draw thermal tile debug overlay
     float ThermalTileSizeCells;     // Thermal active-tile size in world cells
     float ThermalTileHeatThreshold01; // Thermal activation threshold mapped to [0..1] heat byte
-    float SolidAlphaFloor;          // Min alpha for solid terrain cells (0 = disabled)
+    float _padReserved1;
 
     // ---- Vignette ---------------------------------------------------------
     float VignetteStrength;         // Darkening intensity at screen edges
     float VignetteInnerRadius;      // UV distance where darkening begins
     float VignetteOuterRadius;      // UV distance where darkening reaches full
 
-    // ---- Terrain SDF shading (TerrainAuxPass) -----------------------------
-    float TerrainMaskEdgeStrength;  // Sobel edge response multiplier
-    float TerrainMaskCaveDarken;    // Cave-side darkening factor
-    float TerrainMaskSolidLift;     // Solid-side brightness lift
-    float TerrainMaskOutlineDarken; // Outline ring darkening
-    float TerrainMaskRimLift;       // Rim highlight on boundary ring
-    float TerrainMaskBoundaryScale; // Width scaling for boundary ring detection
+    // ---- Cave edge shading (TerrainAuxPass) -------------------------------
+    float _padReserved2;
+    float TerrainMaskCaveDarken;    // Cave-side contact shadow strength
+    float TerrainMaskSolidLift;     // Solid-side brightness lift along the edge
+    float _padReserved3;
+    float TerrainMaskRimLift;       // Extra rim light where the edge faces the light
+    float _padReserved4;
 
     // ---- Quality level ----------------------------------------------------
     float Quality;                  // 0 = minimal, higher = enable extra shading detail
@@ -56,7 +56,7 @@ cbuffer PostParams : FRAGMENT_UNIFORMS(0)
     float4 MaterialEmissivePulse;   // .x = speed, .y = base, .z = amplitude, .w = unused
 
     // ---- TerrainPs native-continuous rendering ----------------------------
-    float4 NativeContinuousParams;  // .x = EdgeSoftness, .y = BoundaryBlend, .w = CurvingEnabled
+    float4 NativeContinuousParams;  // .x = SmoothingEnabled, .y = unused, .z = SampleFactor, .w = CurvingEnabled
 
     // ---- Directional lighting (material shading) --------------------------
     float4 LightDir;                // .xyz = light direction, .w = NormalStrength

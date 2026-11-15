@@ -8,7 +8,7 @@ using Tunnerer.Desktop.Config;
 
 public sealed class TerrainAuxBuilder
 {
-    private readonly TerrainBlurField _gpuBlurField = new();
+    private readonly TerrainSolidField _solidField = new();
 
     /// <param name="tankPositions">Where each tank is drawn this frame (cell coordinates), indexed like <paramref name="tanks"/>.</param>
     public int BuildGpuTankHeatGlowData(
@@ -67,10 +67,8 @@ public sealed class TerrainAuxBuilder
 
     public void BuildGpuTerrainAuxData(TerrainGrid terrain, byte[] auxTarget, byte[] coverageTarget)
     {
-        _gpuBlurField.Rebuild(terrain);
-        int w = terrain.Width;
-        int h = terrain.Height;
-        Parallel.For(0, h, y => WriteRow(terrain, y, 0, w - 1, auxTarget, coverageTarget));
+        _solidField.Rebuild(terrain);
+        WriteRect(terrain, 0, 0, terrain.Width - 1, terrain.Height - 1, auxTarget, coverageTarget);
     }
 
     /// <summary>
@@ -81,54 +79,44 @@ public sealed class TerrainAuxBuilder
     public Rect BuildGpuTerrainAuxRect(TerrainGrid terrain, byte[] auxTarget, byte[] coverageTarget, in Rect dirtyRect)
     {
         RectMath.GetMinMaxInclusive(dirtyRect, out int minX, out int minY, out int maxX, out int maxY);
-        const int pad = TerrainBlurField.KernelRadius; // >= TerrainMaterialCoverage.KernelRadius
+        const int pad = TerrainSolidField.KernelRadius > TerrainMaterialCoverage.KernelRadius
+            ? TerrainSolidField.KernelRadius
+            : TerrainMaterialCoverage.KernelRadius;
         minX = Math.Max(0, minX - pad);
         minY = Math.Max(0, minY - pad);
         maxX = Math.Min(terrain.Width - 1, maxX + pad);
         maxY = Math.Min(terrain.Height - 1, maxY + pad);
-        _gpuBlurField.UpdateRect(terrain, minX, minY, maxX, maxY);
-        if (maxY - minY + 1 >= 32)
-            Parallel.For(minY, maxY + 1, y => WriteRow(terrain, y, minX, maxX, auxTarget, coverageTarget));
-        else
-            for (int y = minY; y <= maxY; y++)
-                WriteRow(terrain, y, minX, maxX, auxTarget, coverageTarget);
+        _solidField.UpdateRect(terrain, minX, minY, maxX, maxY);
+        WriteRect(terrain, minX, minY, maxX, maxY, auxTarget, coverageTarget);
         return RectMath.FromMinMaxInclusive(minX, minY, maxX, maxY);
     }
 
-    private void WriteRow(TerrainGrid terrain, int y, int minX, int maxX, byte[] auxTarget, byte[] coverageTarget)
+    private void WriteRect(TerrainGrid terrain, int minX, int minY, int maxX, int maxY, byte[] auxTarget, byte[] coverageTarget)
     {
-        int row = y * terrain.Width;
-        for (int x = minX; x <= maxX; x++)
+        RowParallel.For(minY, maxY + 1, maxX - minX + 1, (from, to) =>
         {
-            int idx = row + x;
-            WriteTerrainAux(terrain, idx, terrain.GetPixelRaw(idx), _gpuBlurField.SampleAsByte(x, y), auxTarget, idx * 4);
-            TerrainMaterialCoverage.WriteCell(terrain, x, y, coverageTarget, idx * 4);
-        }
+            for (int y = from; y < to; y++)
+            {
+                int row = y * terrain.Width;
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int idx = row + x;
+                    WriteTerrainAux(terrain, idx, terrain.GetPixelRaw(idx), _solidField.SampleAsByte(x, y), auxTarget, idx * 4);
+                }
+            }
+        });
+        TerrainMaterialCoverage.WriteRect(terrain, minX, minY, maxX, maxY, coverageTarget);
     }
 
     public static void UpdateGpuTerrainAuxHeatOnly(TerrainGrid terrain, byte[] target, in Rect dirtyRect)
     {
         RectMath.GetMinMaxInclusive(dirtyRect, out int minX, out int minY, out int maxX, out int maxY);
         int w = terrain.Width;
-        int rowCount = maxY - minY + 1;
 
         const float scale = TerrainGrid.HeatByteScale;
-        if (rowCount >= 32)
+        RowParallel.For(minY, maxY + 1, maxX - minX + 1, (from, to) =>
         {
-            Parallel.For(minY, maxY + 1, y =>
-            {
-                int row = y * w;
-                for (int x = minX; x <= maxX; x++)
-                {
-                    int idx = row + x;
-                    float heat = terrain.GetHeatTemperature(idx);
-                    target[idx * 4] = (byte)Math.Clamp((int)MathF.Round(heat / scale), 0, 255);
-                }
-            });
-        }
-        else
-        {
-            for (int y = minY; y <= maxY; y++)
+            for (int y = from; y < to; y++)
             {
                 int row = y * w;
                 for (int x = minX; x <= maxX; x++)
@@ -138,13 +126,13 @@ public sealed class TerrainAuxBuilder
                     target[idx * 4] = (byte)Math.Clamp((int)MathF.Round(heat / scale), 0, 255);
                 }
             }
-        }
+        });
     }
 
     private static void WriteTerrainAux(TerrainGrid terrain, int idx, TerrainPixel pixel, byte sdfValue, byte[] target, int writeIndex)
     {
         // Aux channel layout:
-        // R = heat, G = smoothed SDF, B = material class, A = scorch damage level.
+        // R = heat, G = solid field (TerrainSolidField, cave edge at 0.5), B = material class, A = scorch damage level.
         // B is read by nearest-cell Load only (never interpolated). Natural materials are told apart by the
         // material coverage texture; B just marks them solid. Gold has its own code so the shader can draw the vein
         // from the exact cells. Base cells keep their exact code:

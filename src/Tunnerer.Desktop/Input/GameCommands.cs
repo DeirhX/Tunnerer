@@ -5,7 +5,6 @@ public enum GameCommand
     ToggleThermalRegionsOverlay,
     ToggleHeatOverlay,
     TogglePostVignette,
-    TogglePostTerrainCurve,
     TogglePostTerrainAux,
     TogglePostTerrainHeat,
     TogglePostTankGlow,

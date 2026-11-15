@@ -200,8 +200,6 @@ public static class DesktopScreenTweaks
     public static int NativeContinuousSampleLow => Tweaks.Screen.NativeContinuousSampleLow;
     public static int NativeContinuousSampleMedium => Tweaks.Screen.NativeContinuousSampleMedium;
     public static int NativeContinuousSampleHigh => Tweaks.Screen.NativeContinuousSampleHigh;
-    public static float NativeContinuousEdgeSoftness => Tweaks.Screen.NativeContinuousEdgeSoftness;
-    public static float NativeContinuousBoundaryBlend => Tweaks.Screen.NativeContinuousBoundaryBlend;
     public static float NativeContinuousRenderBudgetMs => Tweaks.Screen.NativeContinuousRenderBudgetMs;
     public static int NativeContinuousBudgetHysteresisFrames => Tweaks.Screen.NativeContinuousBudgetHysteresisFrames;
     public static float NativeContinuousBudgetUnderThreshold => Tweaks.Screen.NativeContinuousBudgetUnderThreshold;
@@ -213,7 +211,6 @@ public static class DesktopScreenTweaks
     /// matters where presenting does not wait for it.
     /// </summary>
     public const int MaxRenderFps = 240;
-    public static float SolidAlphaFloor => Tweaks.Screen.SolidAlphaFloor;
     public static float ScorchTintDarken => Tweaks.Screen.ScorchTintDarken;
     public static float ScorchTintStrength => Tweaks.Screen.ScorchTintStrength;
 
@@ -221,12 +218,9 @@ public static class DesktopScreenTweaks
     public static float PostVignetteInnerRadius => Tweaks.Screen.PostVignetteInnerRadius;
     public static float PostVignetteOuterRadius => Tweaks.Screen.PostVignetteOuterRadius;
     public static float PostTerrainHeatThreshold => Tweaks.Screen.PostTerrainHeatThreshold;
-    public static float PostTerrainMaskEdgeStrength => Tweaks.Screen.PostTerrainMaskEdgeStrength;
     public static float PostTerrainMaskCaveDarken => Tweaks.Screen.PostTerrainMaskCaveDarken;
     public static float PostTerrainMaskSolidLift => Tweaks.Screen.PostTerrainMaskSolidLift;
-    public static float PostTerrainMaskOutlineDarken => Tweaks.Screen.PostTerrainMaskOutlineDarken;
     public static float PostTerrainMaskRimLift => Tweaks.Screen.PostTerrainMaskRimLift;
-    public static float PostTerrainMaskBoundaryScale => Tweaks.Screen.PostTerrainMaskBoundaryScale;
     public static float PostMaterialEmissiveGoldR => Tweaks.Screen.PostMaterialEmissiveGoldR;
     public static float PostMaterialEmissiveGoldG => Tweaks.Screen.PostMaterialEmissiveGoldG;
     public static float PostMaterialEmissiveGoldB => Tweaks.Screen.PostMaterialEmissiveGoldB;
