@@ -17,6 +17,8 @@ block (`PostParamsBlock.cs`), ImGui context and input (`ImGuiPlatform.cs`) and s
 
 `Game` creates the SDL3 window (`SdlRenderer`), then the `SdlGpuBackend` and `SdlGpuTextureLoader` for that window.
 SDL picks the GPU API from the shader formats the game supplies.
+It then builds the world through `WorldFactory` (match level or terrain test patterns) and creates the
+`TerrainAuxUploader` that owns the CPU copies of the terrain aux and material coverage textures.
 
 ## Shaders
 
@@ -64,50 +66,41 @@ Upload payload (`GamePixelsUpload`) includes:
 - tank glow array
 - terrain auxiliary mask texture data + dirty rect, and the material coverage texture data + dirty rect
 
-## Per-Frame Flow (Game.cs)
+## Per-Frame Flow (`Game.RenderPipeline.cs`)
 
-Simplified frame pipeline:
+The loop around it (polling, fixed simulation steps, composing) is described in the root `ARCHITECTURE.md`,
+"Frame loop". Each displayed frame, `Game.RenderImGuiFrame`:
 
-1. Poll SDL3 input/events (`SdlRenderer.PollEvents`)
-2. Advance simulation (`World.Advance`)
-3. Build high-res terrain buffer:
-   - full render, or
-   - camera scroll copy + exposed strips, plus
-   - dirty terrain updates
-4. Build/update terrain aux texture payload
-5. Compose entities over terrain
-6. Build tank glow metadata
-7. Upload composed frame to backend (`UploadGamePixels`)
-8. Clear frame (`ClearFrame`)
-9. If backend supports UI:
-   - `NewFrame`
-   - `GameHud.Draw` (`ImGui.Image` + overlays/panels)
-10. `Render` backend output
+1. Sizes the game view (`RenderViewState`; a match leaves room for the HUD panels) and moves the camera to the
+   interpolated player.
+2. Builds the entity layer quads at the frame's step progress (`EntityLayerBuilder.Build`).
+3. Asks `TerrainAuxUploader.Prepare` which part of the terrain aux and material coverage textures to repack:
+   - on the first frame, everything;
+   - after that, the cells the simulation changed (and growth fades that ended) plus the strip the camera
+     revealed, in all four channels (`TerrainAuxBuilder.BuildGpuTerrainAuxRect`, padded by the blur margin);
+   - on every `DesktopScreenTweaks.HeatAuxUpdateIntervalFrames`-th frame that follows a step, the terrain's heat
+     dirty rect, heat channel only, minus what was already repacked.
+4. Builds the tank glow array (`TerrainAuxBuilder.BuildGpuTankHeatGlowData`).
+5. Uploads everything in one `GamePixelsUpload` (`UploadGamePixels`): the composed world image (only when a step
+   changed it), the aux and coverage dirty rects, tank glow and entity vertices. `TerrainAuxUploader.Commit` then
+   clears the terrain's heat dirty rect if it was packed.
+6. Adjusts the native-continuous sample count to the time steps 3 and 5 took.
+7. `ClearFrame`; if the backend supports UI, `NewFrame` and the HUD: `GameHud.Draw` and the session overlay in a
+   match, `GameHud.DrawTerrainTest` in the terrain test.
+8. `Render`.
 
-## Current Profiling Output
+## Profiling Output
 
-`DrawProfile` (logged every 100 frames) includes:
+`DrawProfile` sums section times and logs their averages every 100 frames:
 
-- top-level: `[Draw]`
-- screen-level: `[Screen]`
-- decomposition: `[Screen+]`
-- finer decomposition: `[Screen++]`
+- `[Draw]`: `terrain` (`DrawChangesToSurface` after each step), `objects` (composing), `screen` (steps 3-6 above)
+  and `total` (the whole loop iteration).
+- `[Screen]`: `hiresTerrain` (step 3), `hiresEntities` (step 4), `upload` (step 5), `ui` (step 7) and
+  `imguiRender` (step 8).
+- `[Screen+]`: `backendUpload`, `auxBuild` (the first full pack), `auxTerrain` and `auxHeat` (the partial packs),
+  `tankGlowBuild`, `qualityAdjust`, `clear`, `newFrame` and `hud`.
 
-`[Screen++]` currently includes:
-
-- `fullTerrain`
-- `terrainCopy`
-- `entities`
-- `tankGlowBuild`
-- `qualityAdjust`
-- `clear`
-- `newFrame`
-- `hud`
-
-## Notes on Known Behavior
-
-- Performance spikes observed in recent traces are usually terrain-side (`dirtyTerrain`, `fullTerrain`, `exposedStrips`) rather than post/blit.
-- Remaining visual parity work is focused on fine-tuning look consistency (e.g. heat/emissive tint) and stability edge cases.
+`--perf` (`PerfCaptureSession`) measures whole frame times separately and writes them to the console or a CSV file.
 
 ## Display options (CLI)
 
