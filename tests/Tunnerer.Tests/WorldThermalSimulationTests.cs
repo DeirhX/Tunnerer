@@ -440,29 +440,10 @@ public class WorldThermalSimulationTests
     }
 
     [Fact]
-    public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange_NormalRules()
+    public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange()
     {
-        RunExteriorTunnelHotspotScenario(disableStoneAmbientExchange: false);
-    }
-
-    [Fact]
-    public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange_StoneAmbientOff()
-    {
-        RunExteriorTunnelHotspotScenario(disableStoneAmbientExchange: true);
-    }
-
-    private static void RunExteriorTunnelHotspotScenario(bool disableStoneAmbientExchange)
-    {
-        lock (StoneAmbientToggleGate)
-        {
-            bool originalStoneAmbient = Tweaks.World.EnableStoneAmbientExchange;
-            Tweaks.World.EnableStoneAmbientExchange = !disableStoneAmbientExchange;
-            try
-            {
         var (world, tank) = CreateWorldWithPrimaryTank(seed: 9903, enableTerrainRegrowth: false);
-        using var visual = TestVisualTrace.Start(disableStoneAmbientExchange
-            ? nameof(WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange_StoneAmbientOff)
-            : nameof(WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange_NormalRules));
+        using var visual = TestVisualTrace.Start(nameof(WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange));
         var basePos = RequireBasePosition(tank);
         int half = Tweaks.Base.BaseSize / 2;
 
@@ -517,12 +498,6 @@ public class WorldThermalSimulationTests
         Assert.True(endHotspot < startHotspot * 0.35f,
             $"Expected strong decay through base boundary exchange. startHotspot={startHotspot:0.00}, endHotspot={endHotspot:0.00}");
         Assert.True(endHotspot <= 8f,
-            $"Expected exterior tunnel hotspot to cool near ambient eventually. stoneAmbientOff={disableStoneAmbientExchange}, endHotspot={endHotspot:0.00}, tunnelEnergyStart={startTunnelEnergy:0.0}, tunnelEnergyEnd={endTunnelEnergy:0.0}, tunnelEnergySamples=[{string.Join(", ", energySamples)}]");
-            }
-            finally
-            {
-                Tweaks.World.EnableStoneAmbientExchange = originalStoneAmbient;
-            }
-        }
+            $"Expected exterior tunnel hotspot to cool near ambient eventually. endHotspot={endHotspot:0.00}, tunnelEnergyStart={startTunnelEnergy:0.0}, tunnelEnergyEnd={endTunnelEnergy:0.0}, tunnelEnergySamples=[{string.Join(", ", energySamples)}]");
     }
 }

@@ -98,12 +98,6 @@ public static class Tweaks
         public const float MaximumLiveLinkDistance = 100f;
         public const float MaximumTheoreticalLinkDistance = 170f;
 
-        // Physically-inspired material heat exchange model.
-        public static bool EnableMaterialHeatExchange => true;
-        // Ambient sink toggle; conservative mode keeps this off.
-        public static bool EnableThermalAmbientExchange => false;
-        public static bool EnableStoneAmbientExchange { get; set; } = true;
-        public static bool EnableConservativeAirField => true;
         public const float ThermalDt = 2.0f;
         public const float ThermalAmbientTemperature = 0f;
 

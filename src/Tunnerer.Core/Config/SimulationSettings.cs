@@ -10,10 +10,6 @@ public readonly record struct SimulationSettings
     // --- Simulation timing ---
     public TimeSpan AdvanceStep { get; init; }
 
-    // --- Thermal simulation flags ---
-    public bool EnableMaterialHeatExchange { get; init; }
-    public bool EnableConservativeAirField { get; init; }
-
     // --- Sparse tile acceleration ---
     public int ThermalActiveTileSize { get; init; }
     public float ThermalSparseFallbackCoverage { get; init; }
@@ -76,41 +72,16 @@ public readonly record struct SimulationSettings
     public float TankHeatSafeMax { get; init; }
     public float TankOverheatDamagePerDegree { get; init; }
 
-    // --- Tank gameplay ---
-    public int TankMaxLives { get; init; }
-    public int TankInitialHeat { get; init; }
-    public int TankInitialHealth { get; init; }
-    public int TankHeatCapacityValue { get; init; }
-    public int TankHealthCapacityValue { get; init; }
-    public int TankResourceDirtCapacity { get; init; }
-    public int TankResourceMineralsCapacity { get; init; }
-    public float TankIdleHeatGain { get; init; }
-    public float TankMoveHeatGain { get; init; }
+    // --- Tank network cooling ---
     public float TankOffNetworkHeatPerTick { get; init; }
     public float TankNetworkCoolingPerTick { get; init; }
-    public int TankDigRadius { get; init; }
-    public float TankHeatBaseCoolBonus { get; init; }
-    public int TankTorchTerrainHeatAmount { get; init; }
-    public int TankTorchRockHeatAmount { get; init; }
-    public int TankTorchRockHeatRadius { get; init; }
-    public int TankCoolingPickupGold { get; init; }
-    public TimeSpan TankRespawnDelay { get; init; }
 
-    // --- Base interaction ---
-    public int BaseHomeCooldownHeat { get; init; }
-    public int BaseForeignCooldownHeat { get; init; }
+    // --- Base ---
     public int BaseSize { get; init; }
-    public int BaseHomeAbsorbDirt { get; init; }
-    public int BaseHomeAbsorbMinerals { get; init; }
-
-    // --- World gameplay ---
-    public int DigThroughRockChance { get; init; }
 
     public static SimulationSettings FromTweaks() => new()
     {
         AdvanceStep = Tweaks.World.AdvanceStep,
-        EnableMaterialHeatExchange = Tweaks.World.EnableMaterialHeatExchange,
-        EnableConservativeAirField = Tweaks.World.EnableConservativeAirField,
         ThermalActiveTileSize = Tweaks.World.ThermalActiveTileSize,
         ThermalSparseFallbackCoverage = Tweaks.World.ThermalSparseFallbackCoverage,
         ThermalParallelRegionThreshold = Tweaks.World.ThermalParallelRegionThreshold,
@@ -157,29 +128,8 @@ public readonly record struct SimulationSettings
         TankAmbientConductance = Tweaks.Tank.TankAmbientConductance,
         TankHeatSafeMax = Tweaks.Tank.HeatSafeMax,
         TankOverheatDamagePerDegree = Tweaks.Tank.OverheatDamagePerDegree,
-        TankMaxLives = Tweaks.Tank.MaxLives,
-        TankInitialHeat = Tweaks.Tank.InitialHeat,
-        TankInitialHealth = Tweaks.Tank.InitialHealth,
-        TankHeatCapacityValue = Tweaks.Tank.HeatCapacity,
-        TankHealthCapacityValue = Tweaks.Tank.HealthCapacity,
-        TankResourceDirtCapacity = Tweaks.Tank.ResourceDirtCapacity,
-        TankResourceMineralsCapacity = Tweaks.Tank.ResourceMineralsCapacity,
-        TankIdleHeatGain = Tweaks.Tank.IdleHeatGain,
-        TankMoveHeatGain = Tweaks.Tank.MoveHeatGain,
         TankOffNetworkHeatPerTick = Tweaks.Tank.OffNetworkHeatPerSecond / Tweaks.Perf.TargetFps,
         TankNetworkCoolingPerTick = Tweaks.Tank.NetworkCoolingPerSecond / Tweaks.Perf.TargetFps,
-        TankDigRadius = Tweaks.Tank.DigRadius,
-        TankHeatBaseCoolBonus = Tweaks.Tank.HeatBaseCoolBonus,
-        TankTorchTerrainHeatAmount = Tweaks.Tank.TorchTerrainHeatAmount,
-        TankTorchRockHeatAmount = Tweaks.Tank.TorchRockHeatAmount,
-        TankTorchRockHeatRadius = Tweaks.Tank.TorchRockHeatRadius,
-        TankCoolingPickupGold = Tweaks.Tank.CoolingPickupGold,
-        TankRespawnDelay = Tweaks.Tank.RespawnDelay,
-        BaseHomeCooldownHeat = Tweaks.Base.HomeCooldownHeat,
-        BaseForeignCooldownHeat = Tweaks.Base.ForeignCooldownHeat,
         BaseSize = Tweaks.Base.BaseSize,
-        BaseHomeAbsorbDirt = Tweaks.Base.HomeAbsorbDirt,
-        BaseHomeAbsorbMinerals = Tweaks.Base.HomeAbsorbMinerals,
-        DigThroughRockChance = Tweaks.World.DigThroughRockChance,
     };
 }

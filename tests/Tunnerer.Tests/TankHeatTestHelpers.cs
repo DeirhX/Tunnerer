@@ -10,7 +10,6 @@ namespace Tunnerer.Tests;
 
 internal static class TankHeatTestHelpers
 {
-    internal static readonly object StoneAmbientToggleGate = new();
     internal static readonly ControllerOutput IdleInput = default;
 
     internal static SimulationContext CreateContext(World world) => new()
