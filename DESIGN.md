@@ -126,10 +126,33 @@ hot ground --relay--> base engine --> charge store --pylon--> batteries
 
 Still to do (Proposed):
 
-- Tank charge for the active tools (torch, cannon, building), recharged when docked or in a pylon's beam. It would
-  add a second limit to a dive: out of punch before out of cool.
 - Charge balance per minute as part of the steady-state check (§7.2): a sector is finished when its camps make at
   least the charge they spend.
+
+The tank does not use charge. Its one limit is heat (§4.6); a second meter on the tank was rejected so the player
+never tracks two resources at once.
+
+### 4.6 Network coverage: the leash *(Prototype)*
+
+Exploring should be planned, not free. The network you have built is your coolant line: inside its coverage the
+tank is cooled through the links; outside it, the tank heats up. How far you can go is how long your heat lasts
+off the network. There is no new meter: the TEMP gauge is the only thing to watch.
+
+- **Coverage.** The base and every powered relay and pylon cover a circle around themselves. A position is covered
+  when it is inside a node's circle and in direct line of sight through open ground, the same rule links use, so
+  coverage follows your tunnels.
+- **Inside coverage** the tank's heat goes down the links into the base reactor, so it competes with the relays for
+  the same radiator. Coverage takes heat away but never refills coolant; only docking does that.
+- **Outside coverage** the tank's heat floor climbs steadily. Work heat from digging and firing still sheds into the
+  ground as usual, but the tank can never cool below the floor. From a full coolant charge an idle tank lasts about
+  150 seconds out; every burst of digging spends some of what is left once the floor is high. Back in coverage the
+  floor falls at the network's cooling rate, so a moment's dip is not a full reset.
+- **What stops spamming relays.** A relay is only useful where it can see the network. Cooling strength falls with
+  each link hop from the base, so the far end of a long chain barely holds the tank. Every node also loads the
+  shared radiator. Going much further means a forward base: a big, planned decision.
+- **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
+  the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node. Off network an
+  "OFF NETWORK ~Ns" tag above the TEMP gauge shows how long until the floor reaches the safe maximum.
 
 ## 5. The player *(Decided: mainly a builder that can also fight, as in Factorio)*
 
@@ -342,7 +365,7 @@ Each step should be playable without the next.
 7. Heat pumps, structure failure by temperature, generators.
 
 The power loop (§4.5) is in as a prototype: the engine, the charge store, pylons, and harvester batteries with the
-return-to-pylon behaviour. Its numbers are starting guesses to tune in play.
+return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are starting guesses to tune in play.
 
 ## 13. Decision log
 
@@ -362,6 +385,7 @@ return-to-pylon behaviour. Its numbers are starting guesses to tune in play.
 | Reach the core; rings that change the kind of heat problem | Proposed |
 | Everything useful makes heat; the radiator is the shared bottleneck | Proposed |
 | Power is converted relay heat; machines run on charge and refuel at pylons | Prototype |
+| The tank's range is set by network coverage and its heat; no second meter on the tank | Prototype |
 | Heat-seeking mobs; threat scales with heat rejected | Proposed |
 | Quenchable hot rock as the first hazard | Proposed |
 | Alerts are caused by the player's actions; headroom buys time | Proposed |

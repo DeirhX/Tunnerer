@@ -18,6 +18,9 @@ public class LinkPoint
     /// </summary>
     public Link? UpstreamLink { get; set; }
 
+    /// <summary>Live links between this point and the nearest base: 0 for bases, -1 while unpowered.</summary>
+    public int Hops { get; set; } = -1;
+
     public LinkPoint(Position position, LinkPointType type, int id)
     {
         Position = position;

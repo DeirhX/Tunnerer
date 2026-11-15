@@ -224,6 +224,7 @@ public class GameHud
         DrawHeatTrend(dl, player, plateX + plateW - 14f, plateY + 10f);
         if (!player.IsDead)
             DrawHeatBar(dl, player.Heat, plateX + 8f, 192f, plateW - 16f);
+        DrawOffNetworkTag(dl, player, heatX + HeatPanelW * 0.5f);
 
         // SHIELD: the tank's armor.
         int health = Math.Max(0, player.Reactor.Health);
@@ -297,6 +298,27 @@ public class GameHud
             dl.AddTriangleFilled(At(x - s, y + s * 0.6f), At(x + s, y + s * 0.6f), At(x, y - s * 0.8f), 0xFF4050FFu);
         else
             dl.AddTriangleFilled(At(x - s, y - s * 0.6f), At(x + s, y - s * 0.6f), At(x, y + s * 0.8f), 0xFFFFC050u);
+    }
+
+    /// <summary>
+    /// Above the TEMP panel while the tank is outside its network's coverage (DESIGN.md §4.6): how long until its
+    /// rising heat floor reaches the safe maximum. Digging spikes show on the gauge itself and shed back down.
+    /// </summary>
+    private void DrawOffNetworkTag(ImDrawListPtr dl, Tank player, float centerX)
+    {
+        if (player.IsDead || !player.IsOffNetwork)
+            return;
+
+        float seconds = MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - player.OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
+        string text = seconds > 0f ? $"OFF NETWORK  ~{(int)MathF.Ceiling(seconds)}s" : "OFF NETWORK  OVERHEATING";
+        bool urgent = seconds < 20f;
+        uint color = urgent
+            ? ((int)(_time * 4f) % 2 == 0 ? 0xFF3040FFu : 0xFF60A0FFu)
+            : 0xFF40C8FFu;
+        float size = S(20f);
+        float width = ImGui.GetFont().CalcTextSizeA(size, float.MaxValue, 0f, text).X;
+        var pos = At(centerX, -30f);
+        DrawOutlinedText(dl, size, new Vector2(MathF.Floor(pos.X - width * 0.5f), pos.Y), text, color);
     }
 
     /// <summary>Where a temperature lies on the heat scale, 0 (full coolant charge) to 1 (well past overheating).</summary>

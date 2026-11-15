@@ -228,6 +228,7 @@ public class World
             Machines = _machines,
             PlantMachine = PlantMachine,
             CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
+            CoverageFor = CoverageFor,
         };
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         _linkMap.ClearHeatFlow();
@@ -248,6 +249,21 @@ public class World
         if (Profile.FrameCount >= 100)
             Profile.Report();
     }
+
+    private readonly List<CoverageNode> _coverageNodes = new();
+
+    /// <summary>The network coverage of <paramref name="tank"/>'s own base where the tank stands (DESIGN.md §4.6).</summary>
+    public TankCoverage CoverageFor(Tank tank)
+    {
+        if (tank.Base == null)
+            return TankCoverage.None;
+        NetworkCoverage.CollectNodes(tank.Base, _machines.Machines, _coverageNodes);
+        return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
+    }
+
+    /// <summary>Fills <paramref name="into"/> with the coverage nodes of <paramref name="owner"/>'s network.</summary>
+    public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
+        NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
     public void SetGameOver() => _gameOver = true;
 

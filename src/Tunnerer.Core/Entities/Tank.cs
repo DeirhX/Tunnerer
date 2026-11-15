@@ -169,6 +169,7 @@ public class Tank
         ctx.Heat.Ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * Tweaks.Tank.TankHeatCapacity);
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
         AdvanceBaseInteraction(in ctx);
+        AdvanceNetworkCoverage(in ctx);
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
         HandleMove(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
@@ -278,6 +279,61 @@ public class Tank
         {
             baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
             RefrigerateAtBase(baseColl);
+        }
+    }
+
+    /// <summary>Coverage of the tank's own network at its position, as of its last tick.</summary>
+    public Links.TankCoverage Coverage { get; private set; }
+
+    /// <summary>True when the coverage rule is on and the tank is outside its network: its reactor is heating up.</summary>
+    public bool IsOffNetwork { get; private set; }
+
+    /// <summary>
+    /// The lowest the tank's heat can fall while off network. It rises steadily outside coverage and is pulled back
+    /// down inside it (and reset by docking), so it is the clock on how long the tank can stay out; work heat above
+    /// it still sheds into the surroundings as usual.
+    /// </summary>
+    public float OffNetworkFloor { get; private set; }
+
+    /// <summary>
+    /// Network coverage (DESIGN.md §4.6). Inside its base's coverage the tank sheds heat down the links into the base
+    /// reactor (an exact transfer, limited by the reactor's room, never below zero heat: only docking refills coolant),
+    /// and its heat floor falls at the same rate. Outside it, the floor rises at a steady rate and the tank cannot cool
+    /// below it (<see cref="AdvanceHeat"/>), so the time it can stay out is set by how far the floor has to climb.
+    /// </summary>
+    private void AdvanceNetworkCoverage(in SimulationContext ctx)
+    {
+        IsOffNetwork = false;
+        if (ctx.CoverageFor == null || Base == null)
+        {
+            Coverage = Links.TankCoverage.None;
+            return;
+        }
+
+        Coverage = ctx.CoverageFor(this);
+        if (ctx.CheckBaseCollision(Position) != null)
+        {
+            OffNetworkFloor = Math.Min(Heat, 0f); // docked or passing through a base: the base itself handles cooling
+            return;
+        }
+
+        float capacity = Tweaks.Tank.TankHeatCapacity;
+        if (Coverage.Covered)
+        {
+            float cooling = ctx.Settings.TankNetworkCoolingPerTick * Coverage.Strength;
+            // The floor falls at the network's cooling rate (so a moment in coverage is not a full reset), but never
+            // below the tank's coolant level: coverage only takes heat away, it does not bank coolant.
+            OffNetworkFloor = Math.Min(Math.Max(OffNetworkFloor - cooling, Math.Min(Heat, 0f)), Heat);
+            if (Heat <= 0f)
+                return;
+            double wanted = Math.Min(cooling, Heat) * (double)capacity;
+            double accepted = Base.AcceptTankHeat(wanted);
+            Heat -= (float)(accepted / capacity);
+        }
+        else
+        {
+            IsOffNetwork = true;
+            OffNetworkFloor = Math.Min(OffNetworkFloor, Heat) + ctx.Settings.TankOffNetworkHeatPerTick;
         }
     }
 
@@ -452,6 +508,13 @@ public class Tank
             TakeDamage(step.OverheatDamage, DamageCause.Overheat);
         }
 
+        // Off network the tank cannot cool below its rising heat floor; holding it there is reactor heat, created here.
+        if (IsOffNetwork && nextHeat < OffNetworkFloor)
+        {
+            heat.Ledger.RecordInjected((OffNetworkFloor - nextHeat) * (double)Tweaks.Tank.TankHeatCapacity);
+            nextHeat = OffNetworkFloor;
+        }
+
         Heat = nextHeat;
         Reactor.Current.Heat = new Heat((int)MathF.Round(Heat));
 
@@ -490,6 +553,7 @@ public class Tank
         // A fresh tank starts cold: whatever heat the wreck still held is removed from the system.
         ledger?.RecordSunkTank(Heat * Tweaks.Tank.TankHeatCapacity);
         Heat = 0f;
+        OffNetworkFloor = 0f;
         Reactor.Current.Heat = new Heat(0);
         _respawning = false;
         DeathCause = DamageCause.None;

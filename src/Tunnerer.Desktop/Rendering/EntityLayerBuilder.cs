@@ -40,6 +40,13 @@ public sealed class EntityLayerBuilder
     private const float KindBattery = 10f;
     private const float KindPreviewBeam = 11f;
     private const float KindReachArea = 12f;
+    private const float KindCoverage = 13f;
+    private const float KindTether = 14f;
+
+    // The player's network coverage (DESIGN.md §4.6): the nodes' fields, and the node cooling the tank right now.
+    private readonly List<CoverageNode> _coverageNodes = new();
+    private TankCoverage _playerCoverage;
+    private bool _playerOffNetwork;
 
     /// <summary>What the player's carried machine would do if planted now; drawn from the player tank.</summary>
     private readonly record struct PlacementPreview(bool Active, MachineType Type, LinkPreview Link, float SenseHeat);
@@ -131,6 +138,7 @@ public sealed class EntityLayerBuilder
 
         CaptureMachines(world);
         CapturePlacementPreview(world);
+        CaptureCoverage(world);
 
         if (_links.Length < world.LinkMap.LinkCount)
             _links = new LinkRenderState[Math.Max(world.LinkMap.LinkCount, 32)];
@@ -140,6 +148,52 @@ public sealed class EntityLayerBuilder
         if (_projectiles.Length < projectileCount)
             _projectiles = new ProjectileRenderState[Math.Max(projectileCount, 64)];
         _projectileCount = world.Projectiles.CopyRenderStates(_projectiles);
+    }
+
+    private void CaptureCoverage(World world)
+    {
+        _coverageNodes.Clear();
+        _playerCoverage = TankCoverage.None;
+        _playerOffNetwork = false;
+        if (world.TankList.Count == 0 || world.TankList.Tanks[0] is not { Base: { } home } player)
+            return;
+        world.CollectCoverageNodes(home, _coverageNodes);
+        _playerCoverage = player.IsDead ? TankCoverage.None : player.Coverage;
+        _playerOffNetwork = !player.IsDead && player.IsOffNetwork;
+    }
+
+    /// <summary>
+    /// The player's network coverage: a faint field around every node, and while the tank is covered (outside a
+    /// base) a cool tether from the node carrying its heat away. Off network the fields brighten a little, so the way
+    /// back reads at a glance.
+    /// </summary>
+    private void BuildCoverage(in RenderView view, PositionF player)
+    {
+        float scale = view.PixelScale;
+        float phase = (float)(Environment.TickCount64 % 1_000_000L) / 1000f;
+        float emphasis = _playerOffNetwork ? 1f : 0f;
+        foreach (var node in _coverageNodes)
+        {
+            float nx = (node.Position.X + 0.5f) * scale - view.CameraPixels.X;
+            float ny = (node.Position.Y + 0.5f) * scale - view.CameraPixels.Y;
+            float r = node.Radius;
+            if (IsOffScreen(nx, ny, (r + 4f) * scale, view))
+                continue;
+            AddQuad(view, nx, ny, 1f, 0f, -r - 4f, r + 4f, -r - 4f, r + 4f, Tweaks.Colors.Relay, KindCoverage,
+                r, node.Strength, phase, emphasis);
+        }
+
+        if (!_playerCoverage.Covered)
+            return;
+        float dx = player.X - _playerCoverage.Node.X, dy = player.Y - _playerCoverage.Node.Y;
+        float length = MathF.Sqrt(dx * dx + dy * dy);
+        if (length < 4f)
+            return;   // standing on the node (or in the base): nothing to draw
+        // Oriented from the tank toward the node: heat flows that way.
+        float tx = (player.X + 0.5f) * scale - view.CameraPixels.X;
+        float ty = (player.Y + 0.5f) * scale - view.CameraPixels.Y;
+        AddQuad(view, tx, ty, -dx / length, -dy / length, -1.5f, length + 1.5f, -2.5f, 2.5f, Tweaks.Colors.Relay,
+            KindTether, length, _playerCoverage.Strength, phase, 0f);
     }
 
     /// <summary>The player is tank 0: while it carries a machine, record where that machine would link or what it would sense.</summary>
@@ -206,6 +260,8 @@ public sealed class EntityLayerBuilder
         float scale = view.PixelScale;
 
         // Links under machines, machines under tanks (a tank carrying one draws on top of it).
+        if (_tankCount > 0)
+            BuildCoverage(view, tankPositions[0]);
         BuildLinks(view);
         if (_tankCount > 0)
             BuildPlacementPreview(view, tankPositions[0]);

@@ -101,8 +101,10 @@ public class TankCoolantTests
 
         Advance(world, 300);
 
-        Assert.True(Math.Abs(tank.Heat - -40f) < 0.5f,
-            $"ambient air must not quietly spend the coolant. heat={tank.Heat:0.00}");
+        // Out here, away from its network, the only change is the off-network trickle (DESIGN.md §4.6).
+        float expected = -40f + 300 * Tweaks.Tank.OffNetworkHeatPerSecond / Tweaks.Perf.TargetFps;
+        Assert.True(Math.Abs(tank.Heat - expected) < 0.5f,
+            $"ambient air must not quietly spend the coolant. heat={tank.Heat:0.00}, expected={expected:0.00}");
     }
 
     [Fact]

@@ -254,6 +254,23 @@ public static class Tweaks
         public const float TankBaseConductance = 0.4f;
         public const float HeatSafeMax = 100f;
         public const float OverheatDamagePerDegree = 0.5f;
+
+        // Network coverage (DESIGN.md §4.6): outside it the tank's heat floor rises at OffNetworkHeatPerSecond and the
+        // tank cannot cool below it; inside it the tank sheds up to NetworkCoolingPerSecond (times the coverage
+        // strength) down the links into its base's reactor, never below zero (coolant is only refilled by docking), and
+        // the floor falls at that rate. From a full coolant charge, idle off network lasts
+        // (HeatSafeMax + CoolantCapacity) / OffNetworkHeatPerSecond = 150 s; digging near the end shortens it.
+        public const float OffNetworkHeatPerSecond = 1.0f;
+        public const float NetworkCoolingPerSecond = 6.0f;
+    }
+
+    /// <summary>Network coverage: the ground the base and its powered relays and pylons cool for their tanks.</summary>
+    public static class Coverage
+    {
+        public const int NodeRadius = 20;
+        public const int BaseRadius = Base.BaseSize / 2 + NodeRadius;
+        // Cooling strength falls by this factor per live link between a node and its base.
+        public const float HopFalloff = 0.85f;
     }
 
     public static class Weapon

@@ -100,6 +100,7 @@ public class LinkMap
         {
             p.IsPowered = p.Type == LinkPointType.Base;
             p.UpstreamLink = null;
+            p.Hops = p.IsPowered ? 0 : -1;
             if (p.IsPowered)
                 frontier.Add(p);
         }
@@ -114,12 +115,14 @@ public class LinkMap
                 {
                     link.To.IsPowered = true;
                     link.To.UpstreamLink = link;
+                    link.To.Hops = link.From.Hops + 1;
                     next.Add(link.To);
                 }
                 else if (link.To.IsPowered && !link.From.IsPowered && frontier.Contains(link.To))
                 {
                     link.From.IsPowered = true;
                     link.From.UpstreamLink = link;
+                    link.From.Hops = link.To.Hops + 1;
                     next.Add(link.From);
                 }
             }

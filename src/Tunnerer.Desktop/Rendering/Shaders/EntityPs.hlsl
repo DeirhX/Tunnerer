@@ -29,6 +29,8 @@
 //  11 preview beam — .x = length (cells, toward the network point at +x), .y = 0 would link, 1 blocked,
 //                   2 too far, .z = phase, .w = distance to the first blocking cell
 //  12 reach area  — .x = reach (cells), .y = 0 square (relay cooling), 1 circle (pylon), .z = phase
+//  13 coverage    — .x = radius (cells), .y = cooling strength (0..1), .z = phase, .w = 1 while the tank is off network
+//  14 tether      — .x = length (cells, toward the node at +x), .y = cooling strength, .z = phase
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
 //
 // The tank shapes stay inside the 7x7-cell collision footprint: tracks and hull
@@ -643,6 +645,54 @@ float4 ReachArea(float2 p, float3 tint, float4 params, float aa)
     return float4(tint * glow, (inside * falloff * 0.05 + rim * 0.05) * quadFade);
 }
 
+// Network coverage around one node: a barely-there cool tint inside and a soft, slowly breathing rim, so the
+// territory reads without covering the terrain. Weaker nodes (more hops out) are fainter. While the tank is off
+// network the rims brighten, showing the way back.
+float4 Coverage(float2 p, float3 tint, float4 params, float aa)
+{
+    float radius = params.x;
+    float strength = saturate(params.y);
+    float phase = params.z;
+    float emphasis = params.w;
+    float r = length(p);
+    float d = r - radius;
+
+    float inside = smoothstep(1.0, -3.0, d);
+    float angle = atan2(p.y, p.x);
+    float breathe = 0.75 + 0.25 * sin(phase * 1.3 + angle * 2.0);
+    float rim = exp(-abs(d) * 1.4) * breathe;
+    float quadFade = smoothstep(radius + 4.0, radius + 2.0, max(abs(p.x), abs(p.y)));
+
+    float level = (0.35 + 0.65 * strength) * (1.0 + 1.2 * emphasis);
+    float3 cool = lerp(tint, float3(0.70, 0.95, 1.0), 0.3);
+    float glow = (rim * 0.16 + inside * 0.025) * level * quadFade;
+    return float4(cool * glow, (rim * 0.04 + inside * 0.02) * level * quadFade);
+}
+
+// Tether: the tank's heat being carried to the covering node. A faint icy thread with warm motes leaving the tank
+// (at x = 0) and cooling as they travel toward the node (+x).
+float4 Tether(float2 p, float4 params, float aa)
+{
+    float len = params.x;
+    float strength = saturate(params.y);
+    float phase = params.z;
+    float startFade = smoothstep(1.0, 3.5, p.x);
+    float endFade = smoothstep(len + 0.5, len - 2.0, p.x);
+    float sway = sin(p.x * 0.35 - phase * 2.0) * 0.25;
+    float d = abs(p.y - sway);
+
+    float thread = exp(-d * d * 40.0) * 0.35;
+    float travel = p.x * 0.3 - phase * 2.2;
+    float mote = pow(saturate(1.0 - abs(frac(travel) - 0.5) * 2.0), 10.0) * exp(-d * d * 10.0);
+    float along = saturate(p.x / max(len, 1.0));
+    float3 moteColor = lerp(float3(1.0, 0.55, 0.20), float3(0.55, 0.90, 1.0), along);
+    float3 threadColor = float3(0.45, 0.85, 1.0);
+
+    float level = (0.5 + 0.5 * strength) * startFade * endFade;
+    float3 rgb = (threadColor * thread + moteColor * mote * 0.9) * level;
+    return float4(rgb, saturate(thread * 0.5 + mote * 0.3) * level);
+}
+
 float4 main(PSIn input) : SV_Target
 {
     float2 p = input.local;
@@ -673,5 +723,9 @@ float4 main(PSIn input) : SV_Target
         return Battery(p, input.params, aa);
     if (kind < 11.5)
         return PreviewBeam(p, input.params, aa);
-    return ReachArea(p, input.color.rgb, input.params, aa);
+    if (kind < 12.5)
+        return ReachArea(p, input.color.rgb, input.params, aa);
+    if (kind < 13.5)
+        return Coverage(p, input.color.rgb, input.params, aa);
+    return Tether(p, input.params, aa);
 }

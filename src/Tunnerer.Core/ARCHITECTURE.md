@@ -246,6 +246,25 @@ otherwise:
 - A pylon moves charge from the base to batteries.
 - A destroyed machine releases its charge into the ground as heat.
 
+### Network coverage (DESIGN.md §4.6)
+
+`NetworkCoverage.CollectNodes` lists a base's coverage nodes: the base (radius `Coverage.BaseRadius`) and its powered,
+planted relays and pylons (`Coverage.NodeRadius`). Each has strength `HopFalloff ^ LinkPoint.Hops`; the link map's
+breadth-first power pass records `Hops`. `NetworkCoverage.At` returns the strongest node whose circle holds the
+position and which sees it through open ground (`Pixel.BlocksLink`, like links). `World.CoverageFor(tank)` is passed
+to tanks as `SimulationContext.CoverageFor`; contexts without it leave the rule off.
+
+`Tank.AdvanceNetworkCoverage` runs each tick outside bases:
+
+- Covered: the tank hands up to `TankNetworkCoolingPerTick * strength` heat to its base reactor
+  (`TankBase.AcceptTankHeat`, an exact transfer), never below zero heat. `OffNetworkFloor` falls by the same amount,
+  but not below `min(Heat, 0)`.
+- Off network: `IsOffNetwork` is set and `OffNetworkFloor` rises by `TankOffNetworkHeatPerTick`. At the end of
+  `AdvanceHeat`, heat below the floor is raised to it and the difference is booked as injected.
+
+Docking and respawning reset the floor. The tank's normal exchange with the grid is unchanged, so work heat sheds as
+before.
+
 Building: the build keys are edge triggered: `ControllerOutput.BuildPrimary` for a relay, `BuildSecondary` for a
 harvester and `BuildTertiary` for a pylon. With nothing in hand, `Tank` builds the machine from its own
 `Resources`, or from the base store while docked (`BuildPayer`), and carries it (`MachineMaterializer`). Pressed
