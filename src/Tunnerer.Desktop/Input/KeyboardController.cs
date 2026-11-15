@@ -5,7 +5,7 @@ using Tunnerer.Core.Types;
 using static SDL3.SDL;
 
 public readonly record struct KeyBindings(
-    Scancode Left, Scancode Right, Scancode Up, Scancode Down, Scancode Shoot, Scancode Build, Scancode BuildHarvester);
+    Scancode Left, Scancode Right, Scancode Up, Scancode Down, Scancode Shoot, Scancode Build, Scancode BuildHarvester, Scancode BuildPylon);
 
 public class KeyboardController
 {
@@ -42,6 +42,7 @@ public class KeyboardController
             ShootPrimary = IsHeld(_keys.Shoot),
             BuildPrimary = IsHeld(_keys.Build),
             BuildSecondary = IsHeld(_keys.BuildHarvester),
+            BuildTertiary = IsHeld(_keys.BuildPylon),
         };
     }
 }

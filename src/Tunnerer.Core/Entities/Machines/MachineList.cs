@@ -22,10 +22,19 @@ public class MachineList
     {
         for (int i = _machines.Count - 1; i >= 0; i--)
         {
-            if (!_machines[i].IsAlive)
+            var machine = _machines[i];
+            if (!machine.IsAlive)
             {
-                if (_machines[i].LinkPoint != null)
-                    _machines[i].LinkPoint!.IsEnabled = false; // the link map prunes disabled points
+                if (machine.LinkPoint != null)
+                    machine.LinkPoint.IsEnabled = false; // the link map prunes disabled points
+                // A destroyed battery dumps its charge into the ground as heat.
+                if (machine.Charge > 0.0)
+                {
+                    double heat = ctx.Terrain.AddEnergyInRadiusArea(machine.Position,
+                        Tweaks.Machine.HarvesterHeatRadius, machine.Charge, TerrainGrid.ThermalField.Terrain);
+                    ctx.Terrain.Ledger.RecordFromCharge(heat);
+                    machine.Charge -= heat;
+                }
                 _machines.RemoveAt(i);
                 continue;
             }
@@ -58,7 +67,12 @@ public class MachineList
                 IsPumpLimited: m.LastPumpLimitedByBase,
                 IsStalled: m.IsStalled,
                 Heading: m.Heading,
-                SenseHeat: m.SenseHeat);
+                SenseHeat: m.SenseHeat,
+                Charge: m.ChargeFraction,
+                IsReturning: m.IsReturning,
+                IsCharging: m.ChargingFrom is { IsAlive: true },
+                ChargingFrom: m.ChargingFrom?.Position ?? default,
+                IsGivingCharge: m.LastChargeGiven > 0.0);
         }
         return count;
     }

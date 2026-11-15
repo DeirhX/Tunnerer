@@ -22,6 +22,13 @@
 //   6 sense ring  — .x = ground heat / stall temperature, .y = radius (cells), .z = phase, .w = machine flags
 //   7 link        — .x = length (cells, along +x), .y = heat flow (relay pump rates), .z = phase,
 //                   .w = 0 live, 1 blocked. Heat flows toward +x (the base).
+//   8 charge beam — .x = length (cells, along +x), .y = charge flow (pylon hand-outs), .z = phase.
+//                   Charge flows toward +x (a pylon or a battery).
+//   9 pylon       — .x = powered (0/1), .y = handing out charge (0/1), .z = phase, .w = machine flags
+//  10 battery     — .x = fill (0..1), .y = heading home to recharge (0/1), .z = phase, .w = charging (0/1)
+//  11 preview beam — .x = length (cells, toward the network point at +x), .y = 0 would link, 1 blocked,
+//                   2 too far, .z = phase, .w = distance to the first blocking cell
+//  12 reach area  — .x = reach (cells), .y = 0 square (relay cooling), 1 circle (pylon), .z = phase
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
 //
 // The tank shapes stay inside the 7x7-cell collision footprint: tracks and hull
@@ -399,11 +406,14 @@ float4 LinkBeam(float2 p, float4 params, float aa)
 
     if (hot < 0.5)
     {
+        // Idle link: a see-through filament of light with motes drifting along it, no solid line.
         float3 cyan = float3(0.30, 0.85, 1.00);
         float shimmer = pow(saturate(1.0 - abs(frac(p.x * 0.08 - phase * 0.35) - 0.5) * 2.0), 8.0);
-        Over(result, cyan * (0.65 + 0.6 * shimmer), Coverage(d - 0.09, aa) * 0.7 * endFade);
-        result.rgb += cyan * exp(-d * 3.5) * (0.10 + 0.25 * shimmer) * endFade;
-        return result;
+        float motes = pow(saturate(1.0 - abs(frac(p.x * 0.25 - phase * 0.6) - 0.5) * 2.0), 12.0);
+        float filament = exp(-d * d * 30.0) * (0.35 + 0.5 * shimmer + 0.6 * motes);
+        float haze = exp(-d * 2.8) * (0.08 + 0.20 * shimmer + 0.15 * motes);
+        float3 light = cyan * (filament + haze) * endFade;
+        return float4(light, saturate(filament * 0.25) * endFade);
     }
 
     float flow = min(h + max(heat - 1.0, 0.0) * 0.5, 2.5);
@@ -427,6 +437,212 @@ float4 LinkBeam(float2 p, float4 params, float aa)
     return result;
 }
 
+static const float3 kChargeBlue = float3(0.30, 0.55, 1.00);
+static const float3 kChargeViolet = float3(0.62, 0.45, 1.00);
+
+// A charge beam: a thin electric-blue arc that jitters, with crisp sparks racing toward +x. It is drawn beside heat
+// beams on the same links, so it is deliberately narrower and cooler-coloured.
+float4 ChargeBeam(float2 p, float4 params, float aa)
+{
+    float len = params.x;
+    float flow = saturate(params.y);
+    float phase = params.z;
+    float endFade = smoothstep(-0.2, 1.0, p.x) * smoothstep(len + 0.2, len - 1.0, p.x);
+    float strength = 0.45 + 0.55 * sqrt(flow);
+
+    // Electric jitter: fast, small, piecewise so it reads as an arc rather than a wave.
+    float t = floor(phase * 14.0);
+    float n = frac(sin(floor(p.x * 1.5) * 17.13 + t * 3.7) * 43758.5);
+    float n2 = frac(sin(floor(p.x * 1.5 + 1.0) * 17.13 + t * 3.7) * 43758.5);
+    float jitter = (lerp(n, n2, frac(p.x * 1.5)) - 0.5) * 0.35 * strength;
+    float d = sdSegment(float2(p.x, p.y - jitter), float2(0.0, 0.0), float2(len, 0.0));
+
+    float travel = p.x * 0.45 - phase * 2.4;
+    float spark = pow(saturate(1.0 - abs(frac(travel) - 0.5) * 2.0), 10.0);
+    float3 color = lerp(kChargeBlue, float3(0.85, 0.92, 1.0), spark);
+
+    float4 result = float4(0.0, 0.0, 0.0, 0.0);
+    Over(result, color, Coverage(d - (0.06 + 0.12 * spark), aa) * endFade * strength);
+    float glow = exp(-d * 2.2) * (0.18 + 0.6 * spark) * strength;
+    result.rgb += lerp(kChargeBlue, kChargeViolet, 0.35) * glow * endFade;
+    return result;
+}
+
+// Pylon: a mast on a three-legged base with a charge crystal on top. The crystal glows blue once the pylon is on a
+// powered network, and arcs crackle around it while it hands out charge.
+float4 Pylon(float2 p, float4 params, float aa)
+{
+    float powered = params.x;
+    float giving = params.y;
+    float phase = params.z;
+    float flags = params.w;
+    float4 result = float4(0.0, 0.0, 0.0, 0.0);
+
+    // Three legs at 120 degrees, plus a hub; shadowed together.
+    float legs = 1e5, legsShadow = 1e5;
+    float2 sp = p + kLightDir * 0.6;
+    [unroll] for (int i = 0; i < 3; i++)
+    {
+        float a = 1.5708 + i * 2.0944;
+        float2 tip = float2(cos(a), sin(a)) * 3.0;
+        legs = min(legs, sdSegment(p, float2(0.0, 0.0), tip) - 0.38);
+        legsShadow = min(legsShadow, sdSegment(sp, float2(0.0, 0.0), tip) - 0.38);
+    }
+    float hub = length(p) - 1.55;
+    Over(result, float3(0.0, 0.0, 0.0), 0.40 * smoothstep(0.5, -0.3, min(legsShadow, length(sp) - 1.55)));
+
+    Over(result, kOutlineColor, Coverage(legs - 0.14, aa));
+    Over(result, float3(0.26, 0.28, 0.32), Coverage(legs, aa));
+    float2 nrm = p / max(length(p), 1e-4);
+    float3 hubColor = float3(0.30, 0.33, 0.38) * (0.85 + 0.3 * dot(nrm, kLightDir) * smoothstep(0.4, 1.5, length(p)));
+    Over(result, kOutlineColor, Coverage(hub - 0.14, aa));
+    Over(result, hubColor, Coverage(hub, aa));
+
+    // Crystal: a diamond seen from above.
+    float crystal = (abs(p.x) + abs(p.y)) * 0.7071 - 0.75;
+    float facet = step(0.0, p.x * kLightDir.x + p.y * kLightDir.y);
+    float pulse = 0.7 + 0.3 * sin(phase * (giving > 0.5 ? 9.0 : 2.5));
+    float3 crystalColor = powered > 0.5
+        ? lerp(kChargeBlue * 0.75, float3(0.80, 0.90, 1.0), facet * 0.5 + 0.4 * giving * pulse)
+        : float3(0.12, 0.14, 0.20);
+    Over(result, kOutlineColor, Coverage(crystal - 0.12, aa));
+    Over(result, crystalColor, Coverage(crystal, aa));
+
+    if (powered > 0.5)
+    {
+        float halo = exp(-max(length(p) - 0.6, 0.0) * 1.8) * (0.25 + 0.45 * giving * pulse);
+        result.rgb += kChargeBlue * halo;
+        if (giving > 0.5)
+        {
+            // Arcs flickering around the hub rim.
+            float angle = atan2(p.y, p.x) / 6.2831853;
+            float t = floor(phase * 12.0);
+            float arcs = step(0.72, frac(sin(floor(angle * 9.0) * 12.7 + t * 5.3) * 43758.5));
+            float rim = exp(-abs(length(p) - 2.0) * 6.0);
+            result.rgb += float3(0.75, 0.85, 1.0) * rim * arcs * 0.8;
+        }
+    }
+    return Ghost(result, flags);
+}
+
+// Battery gauge: a pill with a fill bar; blue when healthy, amber below half, blinking red when low and heading home.
+// A bright running edge shows it is being charged.
+float4 Battery(float2 p, float4 params, float aa)
+{
+    float fill = saturate(params.x);
+    bool returning = params.y > 0.5;
+    float phase = params.z;
+    bool charging = params.w > 0.5;
+    float4 result = float4(0.0, 0.0, 0.0, 0.0);
+
+    static const float2 kHalf = float2(2.0, 0.5);
+    float shell = sdRoundBox(p, float2(0.0, 0.0), kHalf, 0.45);
+    Over(result, kOutlineColor, Coverage(shell - 0.14, aa) * 0.85);
+    Over(result, float3(0.08, 0.09, 0.11), Coverage(shell, aa) * 0.85);
+
+    float right = -kHalf.x + 0.18 + (kHalf.x - 0.18) * 2.0 * fill;
+    float bar = max(sdRoundBox(p, float2(0.0, 0.0), kHalf - 0.18, 0.3), p.x - right);
+    float3 color = fill > 0.5 ? kChargeBlue : lerp(float3(1.0, 0.25, 0.15), float3(1.0, 0.72, 0.18), saturate(fill * 2.0 - 0.3));
+    float blink = returning && !charging ? 0.55 + 0.45 * step(0.5, frac(phase * 2.0)) : 1.0;
+    Over(result, color * blink, Coverage(bar, aa));
+    if (charging)
+    {
+        float run = pow(saturate(1.0 - abs(frac(p.x * 0.35 - phase * 1.5) - 0.5) * 2.0), 8.0);
+        result.rgb += float3(0.8, 0.9, 1.0) * run * Coverage(bar, aa) * 0.7;
+    }
+    return result;
+}
+
+// Placement preview: a translucent stream of energy from the carried machine to the network point it would join.
+// It has no hard edge. Two soft, interleaved strands of light drift toward the network, with a lock-on ring
+// where it would connect. Past a blocking cell the stream turns red and frays, with a glowing cross on the block.
+// Too far: a short amber feeler that fades out.
+float4 PreviewBeam(float2 p, float4 params, float aa)
+{
+    float len = params.x;
+    float status = params.y;
+    float phase = params.z;
+    float blockAt = params.w;
+    float startFade = smoothstep(-0.5, 2.5, p.x);
+    float endFade = smoothstep(len + 0.5, len - 1.5, p.x);
+
+    float3 good = float3(0.40, 1.00, 0.62);
+    float3 bad = float3(1.00, 0.28, 0.20);
+    float3 far = float3(1.00, 0.75, 0.30);
+
+    // Two strands winding around the line of sight, drifting toward +x.
+    float drift = phase * 3.0;
+    float s1 = p.y - 0.45 * sin(p.x * 0.55 - drift);
+    float s2 = p.y + 0.45 * sin(p.x * 0.55 - drift + 1.3);
+    float strands = exp(-s1 * s1 * 9.0) + exp(-s2 * s2 * 9.0);
+    float haze = exp(-p.y * p.y * 1.4);
+
+    // Packets of energy travelling toward the network.
+    float packets = pow(saturate(1.0 - abs(frac(p.x * 0.18 - phase * 0.9) - 0.5) * 2.0), 4.0);
+
+    float pastBlock = status > 0.5 && status < 1.5 ? smoothstep(blockAt - 0.6, blockAt + 0.6, p.x) : 0.0;
+    float3 color = status > 1.5 ? far : lerp(good, bad, pastBlock);
+    // Past the block the stream frays: it breaks into flickering fragments.
+    float fray = lerp(1.0, step(0.45, frac(sin(floor(p.x * 1.3) * 91.7 + floor(phase * 10.0) * 7.1) * 43758.5)) * 0.6, pastBlock);
+    float distanceFade = status > 1.5 ? saturate(1.0 - p.x / max(len, 1.0)) : 1.0;
+
+    float intensity = (strands * (0.45 + 0.75 * packets) * 0.75 + haze * (0.14 + 0.26 * packets)) * fray;
+    intensity *= startFade * endFade * distanceFade;
+
+    float4 result = float4(color * intensity, intensity * 0.35);
+
+    // Lock-on ring at the network point, turning slowly.
+    if (status < 0.5)
+    {
+        float2 q = p - float2(len, 0.0);
+        float r = length(q);
+        float angle = atan2(q.y, q.x) / 6.2831853 + phase * 0.25;
+        float ticks = smoothstep(0.25, 0.35, abs(frac(angle * 4.0) - 0.5));
+        float ring = exp(-abs(r - 1.6) * 7.0) * ticks * (0.6 + 0.4 * sin(phase * 5.0));
+        result.rgb += good * ring * 0.9;
+        result.a += ring * 0.25;
+    }
+    // Glowing cross on the first blocking cell.
+    if (status > 0.5 && status < 1.5)
+    {
+        float2 q = p - float2(blockAt, 0.0);
+        float2 rq = float2(q.x + q.y, q.x - q.y) * 0.7071;
+        float cross = max(Coverage(max(abs(rq.x) - 1.1, abs(rq.y) - 0.16), aa),
+                          Coverage(max(abs(rq.y) - 1.1, abs(rq.x) - 0.16), aa));
+        float pulse = 0.7 + 0.3 * sin(phase * 8.0);
+        Over(result, bad * pulse, cross * 0.9);
+        result.rgb += bad * exp(-length(q) * 1.5) * 0.5 * pulse;
+    }
+    return result;
+}
+
+// The ground a carried relay would cool (a square) or a carried pylon would reach (a circle): a faint tinted fill
+// with a soft glowing rim. Ripples run inward for a relay (heat drawn in) and outward for a pylon (charge sent out).
+float4 ReachArea(float2 p, float3 tint, float4 params, float aa)
+{
+    float reach = params.x;
+    bool circle = params.y > 0.5;
+    float phase = params.z;
+    // Very rounded corners and no hard edge, so it reads as a field rather than a box.
+    float d = circle ? length(p) - reach : sdRoundBox(p, float2(0.0, 0.0), float2(reach, reach), reach * 0.55);
+    float inside = smoothstep(1.5, -2.5, d);
+
+    // A soft rim that shimmers along its length.
+    float angle = atan2(p.y, p.x);
+    float shimmer = 0.6 + 0.4 * sin(angle * 7.0 + phase * 1.7) * sin(angle * 3.0 - phase * 1.1);
+    float rim = exp(-abs(d) * 1.2) * shimmer;
+
+    // Round ripples: inward for a relay, outward for a pylon, fading toward the centre.
+    float dir = circle ? -1.0 : 1.0;
+    float ripple = pow(saturate(1.0 - abs(frac(length(p) * 0.22 + dir * phase * 0.5) - 0.5) * 2.0), 5.0);
+    float falloff = smoothstep(0.0, reach, length(p));
+
+    // Reach zero well inside the quad (which extends reach + 6), so its square outline never shows.
+    float quadFade = smoothstep(reach + 5.5, reach + 2.5, max(abs(p.x), abs(p.y)));
+    float glow = (rim * 0.30 + inside * falloff * (0.04 + 0.10 * ripple)) * quadFade;
+    return float4(tint * glow, (inside * falloff * 0.05 + rim * 0.05) * quadFade);
+}
+
 float4 main(PSIn input) : SV_Target
 {
     float2 p = input.local;
@@ -447,5 +663,15 @@ float4 main(PSIn input) : SV_Target
         return Harvester(p, input.params, aa);
     if (kind < 6.5)
         return SenseRing(p, input.params, aa);
-    return LinkBeam(p, input.params, aa);
+    if (kind < 7.5)
+        return LinkBeam(p, input.params, aa);
+    if (kind < 8.5)
+        return ChargeBeam(p, input.params, aa);
+    if (kind < 9.5)
+        return Pylon(p, input.params, aa);
+    if (kind < 10.5)
+        return Battery(p, input.params, aa);
+    if (kind < 11.5)
+        return PreviewBeam(p, input.params, aa);
+    return ReachArea(p, input.color.rgb, input.params, aa);
 }

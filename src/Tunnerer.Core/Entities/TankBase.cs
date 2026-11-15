@@ -45,22 +45,73 @@ public class TankBase
     public double ReactorRoomEnergy =>
         Math.Max(0, (int)Reactor.HeatCapacity - (int)Reactor.Heat) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit - _reactorHeatRemainder;
 
+    /// <summary>Charge stored at the base: the power machines and pylons draw on (DESIGN.md §4.5).</summary>
+    public double Charge { get; private set; } = Tweaks.Base.InitialCharge;
+
+    public double ChargeCapacity => Tweaks.Base.ChargeCapacity;
+
+    /// <summary>Charge the engine made from relay heat during the last tick.</summary>
+    public double EngineOutputPerTick { get; private set; }
+
+    /// <summary>Heat relays delivered during the last tick (the engine's input).</summary>
+    public double EngineInputPerTick { get; private set; }
+
+    private double _engineOutputThisTick;
+    private double _engineInputThisTick;
+
+    /// <summary>
+    /// Fraction of delivered heat the base engine turns into charge, from how far the source is above the base's
+    /// own temperature: hot sources are worth far more than warm ones.
+    /// </summary>
+    public static double EngineEfficiency(double sourceTemperature)
+    {
+        double dT = sourceTemperature - Tweaks.World.ThermalFixedBaseTemperature;
+        if (dT <= 0.0)
+            return 0.0;
+        return Math.Min(Tweaks.Base.EngineMaxEfficiency, dT / (dT + Tweaks.Base.EngineTemperatureScale));
+    }
+
     /// <summary>
     /// Pulls up to <paramref name="maxEnergy"/> out of the square area around <paramref name="center"/> (terrain and
-    /// air, only heat above ambient) and stores it in the reactor, limited by the reactor's free room. This is how
-    /// relays export heat; the reactor then vents it at the radiator rate in <see cref="Advance"/>.
-    /// Returns the energy moved.
+    /// air, only heat above ambient) on behalf of a relay. The heat runs through the base engine: a fraction
+    /// <see cref="EngineEfficiency"/> of it (for the temperature it was taken at) becomes charge, while the store has
+    /// room, and the rest goes into the reactor, limited by the reactor's free room. The reactor then vents it at
+    /// the radiator rate in <see cref="Advance"/>. Returns the energy taken from the ground.
     /// </summary>
     public double AbsorbHeatFrom(ITerrainHeatSource terrain, Position center, int radius, double maxEnergy)
     {
-        double budget = Math.Min(maxEnergy, ReactorRoomEnergy);
+        double eta = EngineEfficiency(terrain.ExtractableHeatTemperature(center, radius, TerrainGrid.ThermalField.Terrain));
+        double chargeRoom = Math.Max(0.0, ChargeCapacity - Charge);
+        double reactorRoom = ReactorRoomEnergy;
+        // Take only what the reactor can hold after the engine's share: (1 - eta) E fits while the charge store has
+        // room, and E - chargeRoom fits once it is full.
+        double budget = Math.Min(maxEnergy, reactorRoom + chargeRoom);
+        if (eta < 1.0)
+            budget = Math.Min(budget, reactorRoom / (1.0 - eta));
         if (budget <= 0.0)
             return 0.0;
 
         double absorbed = terrain.ExtractEnergyInRadiusArea(center, radius, budget, TerrainGrid.ThermalField.Terrain);
         absorbed += terrain.ExtractEnergyInRadiusArea(center, radius, budget - absorbed, TerrainGrid.ThermalField.Air);
-        CreditReactor(absorbed);
+
+        double toCharge = Math.Min(eta * absorbed, chargeRoom);
+        if (toCharge > 0.0)
+        {
+            Charge += toCharge;
+            terrain.Ledger.RecordToCharge(toCharge);
+        }
+        CreditReactor(absorbed - toCharge);
+        _engineInputThisTick += absorbed;
+        _engineOutputThisTick += toCharge;
         return absorbed;
+    }
+
+    /// <summary>Takes up to <paramref name="amount"/> out of the charge store and returns what was taken.</summary>
+    public double DrawCharge(double amount)
+    {
+        double taken = Math.Clamp(amount, 0.0, Charge);
+        Charge -= taken;
+        return taken;
     }
 
     /// <summary>
@@ -93,6 +144,11 @@ public class TankBase
 
     public void Advance(ITerrainHeatSource terrain)
     {
+        // Bases advance after machines, so this tick's relay deliveries are complete.
+        EngineInputPerTick = _engineInputThisTick;
+        EngineOutputPerTick = _engineOutputThisTick;
+        _engineInputThisTick = _engineOutputThisTick = 0.0;
+
         int outerRadius = Half;
         int midRadius = Math.Max(1, (outerRadius * 2) / 3);
         int innerRadius = Math.Max(1, outerRadius / 3);

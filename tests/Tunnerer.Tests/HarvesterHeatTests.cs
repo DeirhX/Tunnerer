@@ -167,7 +167,7 @@ public class HarvesterHeatTests
             maxResidual = Math.Max(maxResidual, Math.Abs(residual));
         }
 
-        Assert.True(s.World.Terrain.Ledger.Injected > 0, "harvesting should have injected heat");
+        Assert.True(s.World.Terrain.Ledger.ConvertedToCharge < 0, "harvesting should have turned battery charge into heat");
         Assert.True(maxResidual < 0.5, $"harvest heat must be accounted for. residual={maxResidual:0.0000}");
     }
 

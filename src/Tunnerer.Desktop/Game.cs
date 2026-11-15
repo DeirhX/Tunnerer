@@ -150,7 +150,8 @@ public partial class Game : IDisposable
             Up: Scancode.W, Down: Scancode.S,
             Shoot: Scancode.Space,
             Build: Scancode.E,
-            BuildHarvester: Scancode.R));
+            BuildHarvester: Scancode.R,
+            BuildPylon: Scancode.T));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         if (!terrainTestMode)
         {
@@ -229,7 +230,7 @@ public partial class Game : IDisposable
                 {
                     ProfileSection(ref _drawProfile.ObjectsDraw, () =>
                     {
-                        _compositeRenderer.Compose(_world, _worldPixels, _compositePixels, tanks.Count > 0 ? tanks[0] : null);
+                        _compositeRenderer.Compose(_world, _worldPixels, _compositePixels);
                         MarkEntityPixels(_worldPixels, _compositePixels);
                         _compositeChanged = true;
                     });

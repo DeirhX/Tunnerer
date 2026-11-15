@@ -124,6 +124,7 @@ public class Tank
     private readonly MachineMaterializer _machineMaterializer;
     private bool _buildHeld;
     private bool _buildSecondaryHeld;
+    private bool _buildTertiaryHeld;
 
     /// <summary>True while the tank carries a machine (a relay) it has built but not planted yet.</summary>
     public bool IsCarryingMachine => _machineMaterializer.IsCarrying;
@@ -179,25 +180,30 @@ public class Tank
     }
 
     /// <summary>
-    /// Build keys (edge triggered): with no machine in hand the primary key builds a relay and the secondary key a
-    /// harvester from the tank's resources and carries it; either key pressed again outside a base plants it
-    /// where the tank stands.
+    /// Build keys (edge triggered): with no machine in hand the primary key builds a relay, the secondary key a
+    /// harvester and the tertiary key a pylon from the tank's resources and carries it; any build key pressed again
+    /// outside a base plants it where the tank stands.
     /// </summary>
     private void AdvanceBuilding(in SimulationContext ctx, ControllerOutput input)
     {
         bool primaryPressed = input.BuildPrimary && !_buildHeld;
         bool secondaryPressed = input.BuildSecondary && !_buildSecondaryHeld;
+        bool tertiaryPressed = input.BuildTertiary && !_buildTertiaryHeld;
         _buildHeld = input.BuildPrimary;
         _buildSecondaryHeld = input.BuildSecondary;
-        bool pressed = primaryPressed || secondaryPressed;
-        var buildType = secondaryPressed && !primaryPressed ? MachineType.Harvester : MachineType.Relay;
+        _buildTertiaryHeld = input.BuildTertiary;
+        bool pressed = primaryPressed || secondaryPressed || tertiaryPressed;
+        var buildType = primaryPressed ? MachineType.Relay
+            : secondaryPressed ? MachineType.Harvester
+            : MachineType.Pylon;
 
         if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
         {
             if (_machineMaterializer.IsCarrying)
             {
-                // Only relays need a live link to be worth planting; a harvester works anywhere outside a base.
-                if (ctx.CheckBaseCollision(Position) == null && _machineMaterializer.CarriedType == MachineType.Relay &&
+                // Relays and pylons work through the link network, so they need a live link to be worth planting;
+                // a harvester works anywhere outside a base.
+                if (ctx.CheckBaseCollision(Position) == null && _machineMaterializer.CarriedType != MachineType.Harvester &&
                     ctx.CanPlantRelayAt?.Invoke(Position) == false)
                 {
                     PlantRefusedTicks = 48;

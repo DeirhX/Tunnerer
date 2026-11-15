@@ -35,6 +35,15 @@ public sealed class EntityLayerBuilder
     private const float KindHarvester = 5f;
     private const float KindSenseRing = 6f;
     private const float KindLink = 7f;
+    private const float KindChargeBeam = 8f;
+    private const float KindPylon = 9f;
+    private const float KindBattery = 10f;
+    private const float KindPreviewBeam = 11f;
+    private const float KindReachArea = 12f;
+
+    /// <summary>What the player's carried machine would do if planted now; drawn from the player tank.</summary>
+    private readonly record struct PlacementPreview(bool Active, MachineType Type, LinkPreview Link, float SenseHeat);
+    private PlacementPreview _preview;
 
     // Machine flags (params.w), must match EntityPs.hlsl.
     private const float MachineFlagStalled = 1f;
@@ -121,6 +130,7 @@ public sealed class EntityLayerBuilder
         _hasPreviousTanks = true;
 
         CaptureMachines(world);
+        CapturePlacementPreview(world);
 
         if (_links.Length < world.LinkMap.LinkCount)
             _links = new LinkRenderState[Math.Max(world.LinkMap.LinkCount, 32)];
@@ -130,6 +140,26 @@ public sealed class EntityLayerBuilder
         if (_projectiles.Length < projectileCount)
             _projectiles = new ProjectileRenderState[Math.Max(projectileCount, 64)];
         _projectileCount = world.Projectiles.CopyRenderStates(_projectiles);
+    }
+
+    /// <summary>The player is tank 0: while it carries a machine, record where that machine would link or what it would sense.</summary>
+    private void CapturePlacementPreview(World world)
+    {
+        _preview = default;
+        if (world.TankList.Count == 0)
+            return;
+        var player = world.TankList.Tanks[0];
+        if (player.IsDead || !player.IsCarryingMachine || player.CarriedMachineType is not MachineType type)
+            return;
+        if (type == MachineType.Harvester)
+        {
+            float temperature = world.Terrain.SampleAverageHeat(player.Position, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f;
+            _preview = new PlacementPreview(true, type, default, temperature / Tweaks.Machine.HarvesterStallTemperature);
+        }
+        else
+        {
+            _preview = new PlacementPreview(true, type, world.LinkMap.PreviewLink(player.Position, world.Terrain), 0f);
+        }
     }
 
     private void CaptureMachines(World world)
@@ -177,6 +207,8 @@ public sealed class EntityLayerBuilder
 
         // Links under machines, machines under tanks (a tank carrying one draws on top of it).
         BuildLinks(view);
+        if (_tankCount > 0)
+            BuildPlacementPreview(view, tankPositions[0]);
         BuildMachines(view, alpha, turnSeconds, snapHeadings);
 
         for (int i = 0; i < _tankCount; i++)
@@ -285,7 +317,84 @@ public sealed class EntityLayerBuilder
             float halfWidth = heat > 0.01f ? 4.5f : 1.2f;
             AddQuad(view, fx, fy, ax, ay, -1.5f, length + 1.5f, -halfWidth, halfWidth, Tweaks.Colors.LinkLive, KindLink,
                 length, heat, phase, type);
+
+            // Charge going out to pylons: a second, blue beam whose pulses run the other way, toward the pylon.
+            if (link.Type == LinkType.Live && link.ChargeFlow > 0.01f)
+            {
+                Position chargeFrom = link.ChargeFlowsFromTo ? link.From : link.To;
+                Position chargeTo = link.ChargeFlowsFromTo ? link.To : link.From;
+                AddChargeBeam(view, chargeFrom.X, chargeFrom.Y, chargeTo.X, chargeTo.Y, link.ChargeFlow, phase);
+            }
         }
+    }
+
+    /// <summary>
+    /// The carried machine's preview, anchored on the (interpolated) player tank: the ground a relay would cool or a
+    /// pylon would reach, and a translucent energy stream to the network point it would link to (red past whatever
+    /// blocks the line). A carried harvester shows the ground it would sense instead.
+    /// </summary>
+    private void BuildPlacementPreview(in RenderView view, PositionF player)
+    {
+        if (!_preview.Active)
+            return;
+        float scale = view.PixelScale;
+        float phase = (float)(Environment.TickCount64 % 1_000_000L) / 1000f;
+        float cx = (player.X + 0.5f) * scale - view.CameraPixels.X;
+        float cy = (player.Y + 0.5f) * scale - view.CameraPixels.Y;
+
+        if (_preview.Type == MachineType.Harvester)
+        {
+            float r = Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f;
+            AddQuad(view, cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f, Tweaks.Colors.Harvester,
+                KindSenseRing, _preview.SenseHeat, r, phase, 0f);
+            return;
+        }
+
+        bool pylon = _preview.Type == MachineType.Pylon;
+        float reach = pylon ? Tweaks.Machine.PylonRange : Tweaks.Machine.RelayCoolingRadius;
+        Color areaColor = pylon ? Tweaks.Colors.Pylon : Tweaks.Colors.Relay;
+        AddQuad(view, cx, cy, 1f, 0f, -reach - 6f, reach + 6f, -reach - 6f, reach + 6f, areaColor, KindReachArea,
+            reach, pylon ? 1f : 0f, phase, 0f);
+
+        var link = _preview.Link;
+        if (link.Status is LinkPreviewStatus.NoNetwork)
+            return;
+        float dx = link.Target.X - player.X, dy = link.Target.Y - player.Y;
+        float length = MathF.Sqrt(dx * dx + dy * dy);
+        if (length < 0.5f)
+            return;
+        float status = link.Status switch
+        {
+            LinkPreviewStatus.Live => 0f,
+            LinkPreviewStatus.Blocked => 1f,
+            _ => 2f,
+        };
+        float blockedAt = length;
+        if (link.Status == LinkPreviewStatus.Blocked)
+        {
+            float bx = link.BlockedAt.X - player.X, by = link.BlockedAt.Y - player.Y;
+            blockedAt = MathF.Sqrt(bx * bx + by * by);
+        }
+        // Too far: only a short fading feeler toward the network, not a full line across the map.
+        float drawn = link.Status == LinkPreviewStatus.TooFar ? MathF.Min(length, 24f) : length;
+        AddQuad(view, cx, cy, dx / length, dy / length, -1.5f, drawn + 1.5f, -3f, 3f, new Color(120, 255, 150),
+            KindPreviewBeam, drawn, status, phase, blockedAt);
+    }
+
+    /// <summary>A charge beam from cell (<paramref name="x0"/>, <paramref name="y0"/>) to (<paramref name="x1"/>, <paramref name="y1"/>); its pulses flow toward the end.</summary>
+    private void AddChargeBeam(in RenderView view, float x0, float y0, float x1, float y1, float flow, float phase)
+    {
+        float scale = view.PixelScale;
+        float dx = x1 - x0, dy = y1 - y0;
+        float length = MathF.Sqrt(dx * dx + dy * dy);
+        if (length < 0.5f)
+            return;
+        float fx = (x0 + 0.5f) * scale - view.CameraPixels.X;
+        float fy = (y0 + 0.5f) * scale - view.CameraPixels.Y;
+        if (IsOffScreen(fx + dx * 0.5f * scale, fy + dy * 0.5f * scale, (length * 0.5f + 3f) * scale, view))
+            return;
+        AddQuad(view, fx, fy, dx / length, dy / length, -1.5f, length + 1.5f, -3.5f, 3.5f, Tweaks.Colors.Pylon,
+            KindChargeBeam, length, flow, phase, 0f);
     }
 
     private void BuildMachines(in RenderView view, float alpha, float turnSeconds, bool snapHeadings)
@@ -339,6 +448,21 @@ public sealed class EntityLayerBuilder
                     float drum = machine.IsStalled || carried ? 0f : phase * 2.2f;
                     AddQuad(view, cx, cy, hx, hy, -3.4f, 3.4f, -3.0f, 3.0f, Tweaks.Colors.Harvester, KindHarvester,
                         hx, hy, drum, flags);
+                    if (!carried)
+                    {
+                        if (machine.IsCharging)
+                            AddChargeBeam(view, machine.ChargingFrom.X, machine.ChargingFrom.Y, x, y, 1f, phase);
+                        // Battery gauge above the crawler, upright whichever way it faces.
+                        AddQuad(view, cx, cy - 4.6f * scale, 1f, 0f, -2.4f, 2.4f, -0.9f, 0.9f, Tweaks.Colors.Pylon,
+                            KindBattery, machine.Charge, machine.IsReturning ? 1f : 0f, phase,
+                            machine.IsCharging ? 1f : 0f);
+                    }
+                    break;
+                }
+                case MachineType.Pylon:
+                {
+                    AddQuad(view, cx, cy, 1f, 0f, -3.6f, 3.6f, -3.6f, 3.6f, Tweaks.Colors.Pylon, KindPylon,
+                        machine.IsPowered ? 1f : 0f, machine.IsGivingCharge ? 1f : 0f, phase, flags);
                     break;
                 }
                 case MachineType.Relay:

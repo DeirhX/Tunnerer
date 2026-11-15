@@ -5,7 +5,7 @@ using Tunnerer.Core.Types;
 
 /// <summary>
 /// Scripted input: "dx,dy[,shoot[,build]]:frames" segments separated by ';'. build is 1 for the primary build key
-/// (relay) and 2 for the secondary one (harvester).
+/// (relay), 2 for the secondary one (harvester) and 3 for the tertiary one (pylon).
 /// </summary>
 public sealed class ScriptedController
 {
@@ -94,6 +94,7 @@ public sealed class ScriptedController
                 ShootPrimary = segment.Shoot,
                 BuildPrimary = segment.Build == 1,
                 BuildSecondary = segment.Build == 2,
+                BuildTertiary = segment.Build == 3,
             };
         }
 

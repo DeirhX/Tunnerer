@@ -10,9 +10,11 @@ using Tunnerer.Core.Terrain;
 /// True when the position would put the given machine on top of a tank or another machine; a roaming harvester
 /// checks it before every step.
 /// </param>
-public readonly record struct MachineContext(ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied)
+/// <param name="Machines">Every machine in the world, in a fixed order: pylons look for batteries, harvesters for pylons.</param>
+public readonly record struct MachineContext(
+    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines)
 {
-    public static MachineContext ForTerrain(ITerrainAccess terrain) => new(terrain, static (_, _) => false);
+    public static MachineContext ForTerrain(ITerrainAccess terrain) => new(terrain, static (_, _) => false, []);
 }
 
 /// <summary>
@@ -33,11 +35,11 @@ public static class MachineBehaviors
         Tweaks.Colors.Harvester,
         new MaterialAmount(Tweaks.Machine.HarvesterDirtCost, 0));
 
-    public static readonly MachineBehavior Charger = new(
-        TimeSpan.FromMilliseconds(Tweaks.Machine.ChargerIntervalMs),
-        null,
-        Tweaks.Colors.Charger,
-        new MaterialAmount(Tweaks.Machine.ChargerDirtCost, 0));
+    public static readonly MachineBehavior Pylon = new(
+        TimeSpan.FromMilliseconds(Tweaks.Machine.PylonIntervalMs),
+        ChargeBatteries,
+        Tweaks.Colors.Pylon,
+        new MaterialAmount(Tweaks.Machine.PylonDirtCost, 0));
 
     public static readonly MachineBehavior Relay = new(
         Tweaks.World.AdvanceStep,
@@ -48,7 +50,7 @@ public static class MachineBehaviors
     public static MachineBehavior Get(MachineType type) => type switch
     {
         MachineType.Harvester => Harvester,
-        MachineType.Charger => Charger,
+        MachineType.Pylon => Pylon,
         MachineType.Relay => Relay,
         _ => throw new ArgumentOutOfRangeException(nameof(type)),
     };
@@ -74,49 +76,167 @@ public static class MachineBehaviors
     /// <summary>
     /// A roaming harvester: each action it eats the settled dirt within <c>HarvesterMineRadius</c> of itself into its
     /// owner base's store; when nothing is left in reach it crawls one cell toward the nearest dirt within
-    /// <c>HarvestRange</c> of where it was planted, carving its own tunnel. Working heats the ground, and it stalls
-    /// while that ground is too hot, so it needs a relay nearby to keep going. It idles while the store is full.
+    /// <c>HarvestRange</c> of where it was planted, carving its own tunnel. Working spends battery charge, which ends
+    /// up as heat in the ground, and it stalls while that ground is too hot, so it needs a relay nearby to keep going.
+    /// It idles while the store is full. When its battery runs low it crawls back toward the nearest powered pylon of
+    /// its base and waits in its beam until it is charged again.
     /// </summary>
     private static void CrawlAndHarvest(Machine machine, MachineContext ctx)
     {
         var terrain = ctx.Terrain;
 
-        // Too hot to work: wait for the ground to cool (a linked relay nearby speeds that up a lot).
         // SampleAverageHeat is normalised (temperature / 255).
         float temperature = terrain.SampleAverageHeat(machine.Position, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f;
         machine.SenseHeat = temperature / Tweaks.Machine.HarvesterStallTemperature;
         machine.IsStalled = temperature >= Tweaks.Machine.HarvesterStallTemperature;
-        if (machine.IsStalled)
-            return;
 
-        // The dirt goes to the owner base's store; with the store full there is nowhere to put it.
         var store = machine.OwnerBase?.Materials;
         if (store == null)
             return;
-        int room = store.DirtCapacity - store.Dirt;
-        if (room <= 0)
+        int room = Math.Max(0, store.DirtCapacity - store.Dirt);
+
+        if (ReturnToPylon(machine, ctx, store, room))
+            return;
+
+        // Too hot to work: wait for the ground to cool (a linked relay nearby speeds that up a lot).
+        if (machine.IsStalled)
+            return;
+        // With the store full there is nowhere to put the dirt; with a flat battery there is nothing to dig with.
+        if (room <= 0 || machine.Charge < Tweaks.Machine.HarvesterHeatPerHarvest)
             return;
 
         int mined = MineAround(machine, terrain, room);
+        bool moved = false;
         if (mined == 0 && FindNearestDirt(machine, terrain) is Position target)
         {
-            Offset step = ChooseStep(machine, ctx, target);
-            if (step != default)
-            {
-                machine.Position += step;
-                machine.Heading = step;
+            moved = Crawl(machine, ctx, target, confined: true);
+            if (moved)
                 mined = MineAround(machine, terrain, room);
+        }
+        PayForWork(machine, terrain, store, mined, moved);
+    }
+
+    /// <summary>
+    /// The low-battery half of a harvester: from below <c>HarvesterReturnBelow</c> until above
+    /// <c>HarvesterResumeAbove</c> it heads for the nearest powered pylon of its base and waits once it is in that
+    /// pylon's beam. With no pylon to go to it keeps working until the battery is flat. True when it used the action.
+    /// </summary>
+    private static bool ReturnToPylon(Machine machine, MachineContext ctx, MaterialContainer store, int room)
+    {
+        if (machine.ChargeFraction < Tweaks.Machine.HarvesterReturnBelow)
+            machine.IsReturning = true;
+        else if (machine.ChargeFraction >= Tweaks.Machine.HarvesterResumeAbove)
+            machine.IsReturning = false;
+        if (!machine.IsReturning)
+            return false;
+
+        var pylon = NearestPylon(machine, ctx);
+        if (pylon == null)
+        {
+            machine.IsReturning = false;
+            return false;
+        }
+        if (CanCharge(pylon, machine, ctx.Terrain))
+            return true; // in the beam: wait
+
+        if (machine.Charge < Tweaks.Machine.HarvesterCrawlCharge)
+            return true; // flat: stranded until a pylon reaches it
+        bool moved = Crawl(machine, ctx, pylon.Position, confined: false);
+        // Its way home is mostly its own tunnel; whatever dirt it does cut through still goes to the store.
+        int mined = moved && room > 0 && machine.Charge >= Tweaks.Machine.HarvesterHeatPerHarvest
+            ? MineAround(machine, ctx.Terrain, room)
+            : 0;
+        PayForWork(machine, ctx.Terrain, store, mined, moved);
+        return true;
+    }
+
+    /// <summary>
+    /// Books one action's results: mined dirt goes to the store, and the charge the work took becomes heat in the
+    /// ground beside the harvester (booked in the ledger as charge turned back into heat).
+    /// </summary>
+    private static void PayForWork(Machine machine, ITerrainAccess terrain, MaterialContainer store, int mined, bool moved)
+    {
+        if (mined > 0)
+            store.Add(new MaterialAmount(mined, 0));
+        double cost = mined > 0 ? Tweaks.Machine.HarvesterHeatPerHarvest : moved ? Tweaks.Machine.HarvesterCrawlCharge : 0.0;
+        cost = Math.Min(cost, machine.Charge);
+        if (cost <= 0.0)
+            return;
+        double heat = terrain.AddEnergyInRadiusArea(machine.Position, Tweaks.Machine.HarvesterHeatRadius,
+            cost, TerrainGrid.ThermalField.Terrain);
+        machine.Charge -= heat;
+        terrain.Ledger.RecordFromCharge(heat);
+    }
+
+    private static bool Crawl(Machine machine, MachineContext ctx, Position target, bool confined)
+    {
+        Offset step = ChooseStep(machine, ctx, target, confined);
+        if (step == default)
+            return false;
+        machine.Position += step;
+        machine.Heading = step;
+        return true;
+    }
+
+    /// <summary>The closest powered pylon of the harvester's own base (first in list order on ties), or null.</summary>
+    private static Machine? NearestPylon(Machine machine, MachineContext ctx)
+    {
+        Machine? best = null;
+        int bestDist = int.MaxValue;
+        foreach (var other in ctx.Machines)
+        {
+            if (other.Type != MachineType.Pylon || !other.IsAlive || other.State != MachineState.Planted ||
+                other.OwnerBase != machine.OwnerBase || other.LinkPoint is not { IsPowered: true })
+                continue;
+            int d = Position.DistanceSquared(other.Position, machine.Position);
+            if (d < bestDist)
+            {
+                bestDist = d;
+                best = other;
             }
         }
+        return best;
+    }
 
-        if (mined == 0)
+    /// <summary>A pylon reaches a battery within <c>PylonRange</c> in direct line of sight through open ground.</summary>
+    public static bool CanCharge(Machine pylon, Machine battery, ITerrainPixelReadOnly terrain)
+    {
+        int range = Tweaks.Machine.PylonRange;
+        if (Position.DistanceSquared(pylon.Position, battery.Position) > range * range)
+            return false;
+        return !Collision.Raycaster.BresenhamLineAny(pylon.Position, battery.Position,
+            pos => Pixel.BlocksLink(terrain.GetPixel(pos)));
+    }
+
+    /// <summary>
+    /// Pylon: while its link network reaches its base, it hands up to <c>PylonChargePerAction</c> of the base's charge
+    /// to the batteries of its base's machines that it can reach (<see cref="CanCharge"/>), in list order.
+    /// </summary>
+    private static void ChargeBatteries(Machine pylon, MachineContext ctx)
+    {
+        pylon.LastChargeGiven = 0.0;
+        foreach (var m in ctx.Machines)
+            if (ReferenceEquals(m.ChargingFrom, pylon))
+                m.ChargingFrom = null;
+
+        var home = pylon.OwnerBase;
+        if (home == null || pylon.LinkPoint is not { IsPowered: true })
             return;
-        store.Add(new MaterialAmount(mined, 0));
-        // Working gives off heat into the ground beside the harvester, once per action that mined something.
-        // The work itself creates this energy (no reactor is debited), so the ledger must book it as injected.
-        double heat = terrain.AddEnergyInRadiusArea(machine.Position, Tweaks.Machine.HarvesterHeatRadius,
-            Tweaks.Machine.HarvesterHeatPerHarvest, TerrainGrid.ThermalField.Terrain);
-        terrain.Ledger.RecordInjected(heat);
+
+        double budget = Tweaks.Machine.PylonChargePerAction;
+        foreach (var m in ctx.Machines)
+        {
+            if (budget <= 0.0 || home.Charge <= 0.0)
+                break;
+            if (m.ChargeCapacity <= 0.0 || !m.IsAlive || m.State != MachineState.Planted || m.OwnerBase != home ||
+                m.Charge >= m.ChargeCapacity || !CanCharge(pylon, m, ctx.Terrain))
+                continue;
+            double given = home.DrawCharge(Math.Min(budget, m.ChargeCapacity - m.Charge));
+            m.Charge += given;
+            m.ChargingFrom = pylon;
+            budget -= given;
+            pylon.LastChargeGiven += given;
+        }
     }
 
     private static bool InWorkArea(Machine machine, Position p)
@@ -174,20 +294,24 @@ public static class MachineBehaviors
     /// <summary>
     /// The step that brings the harvester closest to <paramref name="target"/>, preferring its current heading on
     /// ties and never straight back, through ground its footprint can cross (open, dirt or scorched; not rock or
-    /// base) and not onto a tank or another machine. Zero when it is boxed in.
+    /// base) and not onto a tank or another machine. Zero when it is boxed in. <paramref name="confined"/> keeps it in
+    /// its work area (a harvester that left it to recharge may always step back toward its anchor).
     /// </summary>
-    private static Offset ChooseStep(Machine machine, MachineContext ctx, Position target)
+    private static Offset ChooseStep(Machine machine, MachineContext ctx, Position target, bool confined)
     {
         Offset best = default;
         int bestScore = int.MaxValue;
         var back = new Offset(-machine.Heading.X, -machine.Heading.Y);
         // Planted right beside a relay or tank it already overlaps: let it crawl out rather than freeze.
         bool alreadyCrowded = ctx.IsOccupied(machine, machine.Position);
+        int anchorDist = Position.DistanceSquared(machine.Position, machine.Anchor);
         foreach (var step in Steps)
         {
             if (machine.Heading != default && step == back) continue;
             var next = machine.Position + step;
-            if (!InWorkArea(machine, next) || !CanStand(machine, ctx.Terrain, next) ||
+            bool allowed = !confined || InWorkArea(machine, next) ||
+                Position.DistanceSquared(next, machine.Anchor) < anchorDist;
+            if (!allowed || !CanStand(machine, ctx.Terrain, next) ||
                 (!alreadyCrowded && ctx.IsOccupied(machine, next)))
                 continue;
             int score = Position.DistanceSquared(next, target) * 2 + (step == machine.Heading ? 0 : 1);

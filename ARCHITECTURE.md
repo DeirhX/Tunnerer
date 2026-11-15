@@ -51,7 +51,7 @@ while running:
        EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
        GameAudio.AfterStep               (compares the world with the previous step, starts sound effects)
        TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
-  6. if a step was due: WorldCompositeRenderer.Compose   links, machines and marker sprites over a copy of the terrain
+  6. if a step was due: WorldCompositeRenderer.Compose   marker sprites over a copy of the terrain
   7. Game.RenderImGuiFrame             terrain data + entity quads to the GPU, HUD and session overlay via ImGui
 ```
 
@@ -87,14 +87,14 @@ fixed seed and never pause on their own.
 TerrainGrid
    | DrawChangesToSurface (change list)
 worldPixels[w*h]
-   | copy + draw entities (WorldCompositeRenderer)
+   | copy + draw marker sprites (WorldCompositeRenderer)
 compositePixels[w*h]                  terrain aux data (heat, solid field, material, scorch), material coverage
    |                                     |
    +------------- IGameRenderBackend.UploadGamePixels -------------+
                          |
               terrain + post-process shaders (SDL_GPU)  ->  game texture
                          |
-              entity layer: link, machine, tank and projectile quads (EntityLayerBuilder -> EntityPs)
+              entity layer: link, machine, placement preview, tank and projectile quads (EntityLayerBuilder -> EntityPs)
                          |
               ImGui: viewport image, HUD, overlays  ->  window
 ```

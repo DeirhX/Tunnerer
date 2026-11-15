@@ -100,9 +100,9 @@ public class MachineBehaviorTests
     }
 
     [Fact]
-    public void Charger_HasNullPerformAction()
+    public void Pylon_HasPerformAction()
     {
-        Assert.Null(MachineBehaviors.Charger.PerformAction);
+        Assert.NotNull(MachineBehaviors.Pylon.PerformAction);
     }
 
     [Fact]
@@ -113,10 +113,10 @@ public class MachineBehaviorTests
     }
 
     [Fact]
-    public void Charger_BuildCost_MatchesTweaks()
+    public void Pylon_BuildCost_MatchesTweaks()
     {
-        Assert.Equal(Tweaks.Machine.ChargerDirtCost, MachineBehaviors.Charger.BuildCost.Dirt);
-        Assert.Equal(0, MachineBehaviors.Charger.BuildCost.Minerals);
+        Assert.Equal(Tweaks.Machine.PylonDirtCost, MachineBehaviors.Pylon.BuildCost.Dirt);
+        Assert.Equal(0, MachineBehaviors.Pylon.BuildCost.Minerals);
     }
 
     [Fact]
@@ -126,9 +126,9 @@ public class MachineBehaviorTests
     }
 
     [Fact]
-    public void Charger_ActiveColor_IsBlue()
+    public void Pylon_ActiveColor_IsBlue()
     {
-        Assert.Equal(Tweaks.Colors.Charger, MachineBehaviors.Charger.ActiveColor);
+        Assert.Equal(Tweaks.Colors.Pylon, MachineBehaviors.Pylon.ActiveColor);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class MachineBehaviorTests
         var machine = new Machine(new Position(50, 50), MachineType.Harvester, 0);
         Assert.Same(MachineBehaviors.Harvester, machine.Behavior);
 
-        var charger = new Machine(new Position(50, 50), MachineType.Charger, 0);
-        Assert.Same(MachineBehaviors.Charger, charger.Behavior);
+        var pylon = new Machine(new Position(50, 50), MachineType.Pylon, 0);
+        Assert.Same(MachineBehaviors.Pylon, pylon.Behavior);
     }
 }

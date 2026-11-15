@@ -227,9 +227,30 @@ square of half-width `Machine.RelayCoolingRadius` around the relay (terrain, the
 stored in the owner base's reactor, limited by the reactor's free room. No power (wall in the way) or a full
 reservoir means no pumping. Several relays share the one radiator, so the sustained clearing rate is capped by it.
 
-Building: the build key is edge triggered (`ControllerOutput.BuildPrimary`). With nothing in hand `Tank` builds a relay
-from its own `Resources` and carries it (`MachineMaterializer`); pressed again outside a base it plants it
-(`World.PlantMachine` registers the link point). A tank that dies drops the carried relay.
+### Power: the base engine, charge and batteries (DESIGN.md §4.5)
+
+Relay heat runs through the owner base's engine on its way into the reactor. `AbsorbHeatFrom` reads the source
+temperature with `ExtractableHeatTemperature` (the excess temperature of the cells it would drain, weighted by the
+energy each gives up). It then converts a share `TankBase.EngineEfficiency(T)` of the extracted energy into
+`TankBase.Charge`, while the store has room, and credits the reactor with the rest. Its budget is sized so that the
+reactor's share still fits, so the engine also lets relays move more heat than the radiator alone could vent.
+`EngineInputPerTick` and `EngineOutputPerTick` report the last tick for the HUD.
+
+Charge is not thermal energy. Conversions are booked in `ThermalLedger.ConvertedToCharge`: `RecordToCharge` when
+the engine makes charge, and `RecordFromCharge` when a machine spends it as heat. `NetExternal` subtracts it, so the
+thermal balance still closes every tick. `World.SumSystemCharge` (base stores plus batteries) closes the combined
+balance: thermal energy plus charge changes by exactly `Injected - TotalSunk`. Charge only moves between stores
+otherwise:
+
+- `World.PlantMachine` fills a new battery from the owner's store.
+- A pylon moves charge from the base to batteries.
+- A destroyed machine releases its charge into the ground as heat.
+
+Building: the build keys are edge triggered: `ControllerOutput.BuildPrimary` for a relay, `BuildSecondary` for a
+harvester and `BuildTertiary` for a pylon. With nothing in hand, `Tank` builds the machine from its own
+`Resources`, or from the base store while docked (`BuildPayer`), and carries it (`MachineMaterializer`). Pressed
+again outside a base, it plants it (`World.PlantMachine` registers the link point). Relays and pylons are only
+planted where they would link. A tank that dies drops what it carried.
 
 ### Tank heat budget and pre-cooling
 
@@ -361,8 +382,9 @@ Factory methods create explosion configs:
 `MachineBehavior` records define per-type behavior (action interval, action logic, color, build cost).
 Adding a new machine type = one entry in `MachineBehaviors`.
 
-- **Harvester**: Planted outside a base, it roams. Every `HarvesterIntervalMs` it eats the settled dirt within `HarvesterMineRadius` of itself into its owner base's dirt store; when nothing is left in reach it crawls one cell toward the nearest dirt within `HarvestRange` of where it was planted (`Machine.Anchor`), carving its own tunnel and steering around rock, bases, tanks and other machines. Working heats the ground; it stalls while that ground is too hot, so a linked relay nearby keeps it going. It idles while the store is full, and is not a node of the link network.
-- **Charger**: Planted on power link. Charges owner's reactor from the grid.
+- **Harvester**: Planted outside a base, it roams. Every `HarvesterIntervalMs` it eats the settled dirt within `HarvesterMineRadius` of itself into its owner base's dirt store; when nothing is left in reach it crawls one cell toward the nearest dirt within `HarvestRange` of where it was planted (`Machine.Anchor`), carving its own tunnel and steering around rock, bases, tanks and other machines. Working spends battery charge (`Machine.Charge`, `HarvesterHeatPerHarvest` per mining action, `HarvesterCrawlCharge` per empty step), which becomes heat in the ground; it stalls while that ground is too hot, so a linked relay nearby keeps it going. It idles while the store is full, and is not a node of the link network. Below `HarvesterReturnBelow` it sets `IsReturning`, crawls toward the nearest powered pylon of its base (it may leave its work area to do so, and steps back toward its anchor afterwards) and waits in the beam until `HarvesterResumeAbove`.
+- **Pylon**: A link node. Every `PylonIntervalMs`, while powered, it hands up to `PylonChargePerAction` of its base's charge to batteries of its base's machines within `PylonRange` in direct line of sight (`MachineBehaviors.CanCharge`). It sets `Machine.ChargingFrom` on each battery it fills. After machines act, `World` books every pylon's last hand-out on its route home (`LinkMap.CarryCharge`, `Link.ChargeFlow`) for the renderer.
+- **Relay**: see "Heat as a mechanic" above.
 - **States**: `Template` (carried by tank) → `Transporting` → `Planted` (active)
 - `MachineMaterializer`: Build-mode input handler, manages placement preview
 

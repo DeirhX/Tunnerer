@@ -29,6 +29,7 @@ public interface ITerrainHeatSource
     double SumHeatCapacityInRadiusArea(Position center, int radius, TerrainGrid.ThermalField field);
     double AddEnergyInRadiusArea(Position center, int radius, double energy, TerrainGrid.ThermalField field);
     double ExtractEnergyInRadiusArea(Position center, int radius, double maxEnergy, TerrainGrid.ThermalField field);
+    double ExtractableHeatTemperature(Position center, int radius, TerrainGrid.ThermalField field);
     double SinkCellToAmbient(Position pos, TerrainGrid.ThermalField field);
 
     bool TryGetHeatDirtyRect(out Rect dirtyRect);

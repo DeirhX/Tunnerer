@@ -20,6 +20,12 @@ public class Link
     /// <summary>True when that heat flows from <see cref="From"/> to <see cref="To"/>; false for To to From.</summary>
     public bool FlowsFromTo { get; set; }
 
+    /// <summary>Charge carried out to pylons along this link during the last pylon actions (drawn as flowing charge).</summary>
+    public double ChargeFlow { get; set; }
+
+    /// <summary>True when that charge flows from <see cref="From"/> to <see cref="To"/>.</summary>
+    public bool ChargeFlowsFromTo { get; set; }
+
     public Link(LinkPoint from, LinkPoint to)
     {
         From = from;

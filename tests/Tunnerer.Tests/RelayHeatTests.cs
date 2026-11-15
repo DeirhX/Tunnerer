@@ -127,6 +127,7 @@ public class RelayHeatTests
 
         const int ticks = 300;
         double pumped = 0.0;
+        double chargeBefore = s.Base.Charge;
         for (int i = 0; i < ticks; i++)
         {
             HeatZone(s, amount: 255, radius: 12); // endless supply
@@ -135,10 +136,15 @@ public class RelayHeatTests
                 pumped += relay.LastPumpedEnergy;
         }
 
-        Assert.True(pumped <= ticks * ventPerTick + 1.0,
-            $"pumping cannot outrun the radiator. pumped={pumped:0.0}, limit={ticks * ventPerTick:0.0}");
-        Assert.True(pumped > ticks * ventPerTick * 0.8,
-            $"the relays should keep the radiator busy. pumped={pumped:0.0}");
+        // The engine turns part of the heat into charge; only the rest has to leave through the radiator.
+        double charged = s.Base.Charge - chargeBefore;
+        double heatShare = pumped - charged;
+        Assert.True(charged > 0.0, "hot ground should make charge");
+        Assert.True(heatShare <= ticks * ventPerTick + 1.0,
+            $"the heat share cannot outrun the radiator. heat={heatShare:0.0}, limit={ticks * ventPerTick:0.0}");
+        Assert.True(heatShare > ticks * ventPerTick * 0.8,
+            $"the relays should keep the radiator busy. heat={heatShare:0.0}");
+        Assert.True(pumped > ticks * ventPerTick * 1.2, $"the engine should let the relays move more heat than the radiator alone. pumped={pumped:0.0}");
     }
 
     [Fact]

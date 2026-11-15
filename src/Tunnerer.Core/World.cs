@@ -52,6 +52,20 @@ public class World
             total += tankBase.ReactorHeatEnergy;
         return total;
     }
+    /// <summary>
+    /// Charge stored in every base and machine battery. Charge is converted heat, so
+    /// <c>SumSystemThermalEnergy() + SumSystemCharge()</c> balances against <c>Injected - TotalSunk</c>.
+    /// </summary>
+    public double SumSystemCharge()
+    {
+        double total = 0.0;
+        foreach (var tankBase in _tankBases.Bases)
+            total += tankBase.Charge;
+        foreach (var machine in _machines.Machines)
+            total += machine.Charge;
+        return total;
+    }
+
     public TankList TankList => _tankList;
     public ProjectileList Projectiles => _projectiles;
     public MachineList Machines => _machines;
@@ -103,6 +117,8 @@ public class World
         machine.State = MachineState.Planted;
         machine.OwnerBase = owner;
         machine.Anchor = machine.Position;
+        if (owner != null)
+            machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
         // A harvester roams, so it is not a fixed node of the link network.
         if (machine.Type != MachineType.Harvester)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
@@ -215,7 +231,13 @@ public class World
         };
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         _linkMap.ClearHeatFlow();
-        ProfileSection(ref Profile.Harvesters, () => _machines.Advance(new MachineContext(_terrain, IsMachineSpotOccupied), _simulationSettings.AdvanceStep));
+        ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
+            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines), _simulationSettings.AdvanceStep));
+        // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
+        _linkMap.ClearChargeFlow();
+        foreach (var machine in _machines.Machines)
+            if (machine.Type == MachineType.Pylon && machine.IsAlive)
+                LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
