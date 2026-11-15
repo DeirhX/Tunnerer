@@ -24,9 +24,7 @@ public partial class Game
             : 1f / Tweaks.Perf.TargetFps;
         _renderClock.Restart();
         int scale = DesktopScreenTweaks.PixelScale;
-        bool uiViewport = _renderBackend.SupportsUi && !_terrainTestMode;
-        var viewSize = _renderViewState.ComputeViewSize(winW, winH, uiViewport);
-        _renderViewState.EnsureHiResBuffer(viewSize);
+        var viewSize = EnsureViewSize();
 
         var player = tanks.Count > 0 ? tanks[0] : null;
         ReadOnlySpan<PositionF> drawnTankPositions = _entityLayer.InterpolateTankPositions(stepProgress);

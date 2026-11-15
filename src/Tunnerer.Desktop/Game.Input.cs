@@ -28,7 +28,7 @@ public partial class Game
         bool shiftHeld = (ev.Key.Mod & Keymod.Shift) != 0;
 
         // After a match ends, Enter starts a new one.
-        if (scancode == Scancode.Return && !_terrainTestMode && _world.IsMatchOver)
+        if (scancode == Scancode.Return && CanRestartMatch)
         {
             ExecuteGameCommand(GameCommand.RestartMatch, InputCommandSources.Input);
             return;
@@ -37,6 +37,9 @@ public partial class Game
         if (GameCommandController.TryTranslateHotkey(scancode, shiftHeld, _commandController.ShowPostPassOverlay, out GameCommand command))
             ExecuteGameCommand(command, InputCommandSources.Input);
     }
+
+    /// <summary>A match is running and has ended, so Enter (or a RestartMatch command) starts a new one.</summary>
+    private bool CanRestartMatch => !_terrainTestMode && _world.IsMatchOver;
 
     /// <summary>True when the player asked for a new match (Enter after a match ended).</summary>
     public bool RestartRequested { get; private set; }
@@ -132,7 +135,7 @@ public partial class Game
     {
         if (command == GameCommand.RestartMatch)
         {
-            if (!_terrainTestMode && _world.IsMatchOver)
+            if (CanRestartMatch)
             {
                 Console.WriteLine($"[Game] Restarting match [source={source}]");
                 RestartRequested = true;

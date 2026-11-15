@@ -7,6 +7,33 @@ using Tunnerer.Desktop.Input;
 
 public partial class Game
 {
+    /// <summary>
+    /// Logs which scripted input, commands, screenshots and recording the environment asked for, starts an
+    /// autostarted recording, and returns whether the enemy tank is driven by its AI.
+    /// </summary>
+    private bool StartMatchInput(bool enableAiTanks)
+    {
+        if (_scriptedInput.HasScriptedController())
+            Console.WriteLine("[Input] Scripted controller enabled via TUNNERER_SCRIPTED_INPUT.");
+        if (_scriptedInput.ScreenshotFrameCount > 0)
+            Console.WriteLine($"[Input] Scripted screenshot frames enabled ({_scriptedInput.ScreenshotFrameCount} frame(s)).");
+        if (_scriptedInput.CommandFrameCount > 0)
+            Console.WriteLine($"[Input] Scripted commands enabled via TUNNERER_COMMAND_SCRIPT ({_scriptedInput.CommandFrameCount} frame slot(s)).");
+        if (_scriptedInput.RecordPath is not null)
+            Console.WriteLine($"[Input] Scripted input recording path: {_scriptedInput.RecordPath}");
+        if (_scriptedInput.RecordAutoStart)
+        {
+            Console.WriteLine("[Input] Scripted input recording autostart enabled.");
+            _inputRecorder.Start();
+        }
+
+        bool aiTanks = enableAiTanks && (!_scriptedInput.HasScriptedController() || _scriptedInput.KeepAi);
+        if (enableAiTanks && !aiTanks)
+            Console.WriteLine("[Input] AI tanks forced OFF during scripted replay.");
+        Console.WriteLine($"[Input] AI tanks: {(aiTanks ? "enabled" : "disabled")}");
+        return aiTanks;
+    }
+
     private void ToggleInputRecording(string source)
     {
         if (_inputRecorder.IsRecording)

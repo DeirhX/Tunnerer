@@ -47,14 +47,14 @@ public partial class Game
     }
 
     /// <summary>
-    /// An explicit --seed always wins. Automated runs keep the fixed <see cref="DefaultSeed"/> so replays, perf
-    /// captures and screenshots stay comparable. A normal match gets a fresh map every time.
+    /// An explicit --seed always wins. Automated runs and the terrain test keep the fixed <see cref="DefaultSeed"/>
+    /// so replays, perf captures and screenshots stay comparable. A normal match gets a fresh map every time.
     /// </summary>
-    private static int ResolveSeed(bool automatedRun, bool terrainTestMode)
+    private static int ResolveSeed(bool interactiveSession)
     {
         if (GameLaunchOptions.Seed is int requested)
             return requested;
-        if (automatedRun || terrainTestMode)
+        if (!interactiveSession)
             return DefaultSeed;
         return Random.Shared.Next(1, int.MaxValue);
     }
@@ -157,6 +157,12 @@ public partial class Game
         if (!_automatedRun)
             return;
 
+        AdvanceScriptClock();
+    }
+
+    /// <summary>Runs the scripted commands and screenshots due this frame without stepping the simulation.</summary>
+    private void AdvanceScriptClock()
+    {
         _simulationStepper.ProcessScriptedCommands(_simFrameCounter);
         _simFrameCounter++;
     }

@@ -73,7 +73,7 @@ public partial class Game : IDisposable
         // reproducible; TUNNERER_INTERPOLATE=1 turns the in-between frames back on for them.
         _interpolateFrames = !_automatedRun ||
             string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
-        Seed = ResolveSeed(_automatedRun, terrainTestMode);
+        Seed = ResolveSeed(IsInteractiveSession);
         var windowSize = DesktopScreenTweaks.WindowSize;
         _perfSession = PerfCaptureSession.Create(perfCapture);
 
@@ -84,8 +84,8 @@ public partial class Game : IDisposable
         _textures = new SdlGpuTextureLoader(sdlGpuBackend);
         _hud = new GameHud();
         LoadHudSprites();
-        // Automated runs (and the terrain test, which has no match) make no sound.
-        _audio = GameAudio.Create(_automatedRun || terrainTestMode);
+        // Only a person playing a match hears sound.
+        _audio = GameAudio.Create(!IsInteractiveSession);
 
         var built = WorldFactory.Build(new WorldLaunchOptions(terrainTestMode, terrainSizeOverride, genMode, Seed));
         _world = built.World;
@@ -109,37 +109,17 @@ public partial class Game : IDisposable
             BuildHarvester: Scancode.R,
             BuildPylon: Scancode.T));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
-        if (!terrainTestMode)
-        {
-            if (_scriptedInput.HasScriptedController())
-                Console.WriteLine("[Input] Scripted controller enabled via TUNNERER_SCRIPTED_INPUT.");
-            if (_scriptedInput.ScreenshotFrameCount > 0)
-                Console.WriteLine($"[Input] Scripted screenshot frames enabled ({_scriptedInput.ScreenshotFrameCount} frame(s)).");
-            if (_scriptedInput.CommandFrameCount > 0)
-                Console.WriteLine($"[Input] Scripted commands enabled via TUNNERER_COMMAND_SCRIPT ({_scriptedInput.CommandFrameCount} frame slot(s)).");
-            if (_scriptedInput.RecordPath is not null)
-                Console.WriteLine($"[Input] Scripted input recording path: {_scriptedInput.RecordPath}");
-            if (_scriptedInput.RecordAutoStart)
-            {
-                Console.WriteLine("[Input] Scripted input recording autostart enabled.");
-                _inputRecorder.Start();
-            }
-        }
-        bool effectiveEnableAiTanks = !terrainTestMode && enableAiTanks &&
-            (!_scriptedInput.HasScriptedController() || _scriptedInput.KeepAi);
-        if (enableAiTanks && !effectiveEnableAiTanks && !terrainTestMode)
-            Console.WriteLine("[Input] AI tanks forced OFF during scripted replay.");
+        // The terrain test has no match: no player input to script or record, and no enemy tank.
+        bool aiTanks = !terrainTestMode && StartMatchInput(enableAiTanks);
         _simulationStepper = new GameSimulationStepper(
             world: _world,
             p1Controller: _p1Controller,
             p2AI: _p2AI,
-            enableAiTanks: effectiveEnableAiTanks,
+            enableAiTanks: aiTanks,
             scriptedInput: _scriptedInput,
             inputRecorder: _inputRecorder,
             executeCommand: ExecuteGameCommand,
             requestScreenshot: label => _renderBackend.RequestScreenshot(label));
-        if (!terrainTestMode)
-            Console.WriteLine($"[Input] AI tanks: {(effectiveEnableAiTanks ? "enabled" : "disabled")}");
         Console.WriteLine("[Render] TerrainVisual=NativeContinuous");
     }
 
@@ -154,6 +134,11 @@ public partial class Game : IDisposable
                 renderBetweenSteps: _interpolateFrames,
                 minRenderInterval: TimeSpan.FromSeconds(1.0 / DesktopScreenTweaks.MaxRenderFps));
             var tanks = _world.TankList.Tanks;
+            // The terrain test runs no simulation: WASD pans the camera and only scripted commands advance.
+            Action updateView = _terrainTestMode ? UpdateTerrainTestCamera : () => UpdateMatchCamera(tanks);
+            Action<FrameInputSnapshot> advanceStep = _terrainTestMode
+                ? _ => AdvanceScriptClock()
+                : frameInput => AdvanceOneSimulationStep(tanks, frameInput);
 
             frameCoordinator.Run(
                 isRunning: () => _isRunning,
@@ -165,22 +150,10 @@ public partial class Game : IDisposable
                 {
                     _terrainAuxUploader.ClearDirtyCells();
                     _audio.SetPaused(_paused);
-                    if (_terrainTestMode)
-                        UpdateTerrainTestCamera();
-                    else
-                        UpdateViewStateForInput(tanks);
+                    updateView();
                 },
                 captureFrameInput: CaptureFrameInput,
-                advanceOneSimulationStep: frameInput =>
-                {
-                    if (_terrainTestMode)
-                    {
-                        _simulationStepper.ProcessScriptedCommands(_simFrameCounter);
-                        _simFrameCounter++;
-                    }
-                    else
-                        AdvanceOneSimulationStep(tanks, frameInput);
-                },
+                advanceOneSimulationStep: advanceStep,
                 composeFrame: () =>
                 {
                     DrawProfile.Measure(ref _drawProfile.ObjectsDraw, () =>
@@ -211,22 +184,29 @@ public partial class Game : IDisposable
         }
     }
 
-    private void UpdateViewStateForInput(IReadOnlyList<Core.Entities.Tank> tanks)
+    /// <summary>A match draws its HUD panels beside the game view; the terrain test gives the view the whole window.</summary>
+    private bool ReservesUiViewport => _renderBackend.SupportsUi && !_terrainTestMode;
+
+    private Size EnsureViewSize()
     {
         var (winW, winH) = _renderer.GetWindowSize();
-        int scale = DesktopScreenTweaks.PixelScale;
-        var viewSize = _renderViewState.ComputeViewSize(winW, winH, _renderBackend.SupportsUi);
+        var viewSize = _renderViewState.ComputeViewSize(winW, winH, ReservesUiViewport);
         _renderViewState.EnsureHiResBuffer(viewSize);
+        return viewSize;
+    }
+
+    private void UpdateMatchCamera(IReadOnlyList<Core.Entities.Tank> tanks)
+    {
+        int scale = DesktopScreenTweaks.PixelScale;
+        var viewSize = EnsureViewSize();
         PositionF? player = tanks.Count > 0 ? new PositionF(tanks[0].Position.X, tanks[0].Position.Y) : null;
         _renderViewState.UpdateCamera(player, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
     private void UpdateTerrainTestCamera()
     {
-        var (winW, winH) = _renderer.GetWindowSize();
         int scale = DesktopScreenTweaks.PixelScale;
-        var viewSize = _renderViewState.ComputeViewSize(winW, winH, supportsUi: false);
-        _renderViewState.EnsureHiResBuffer(viewSize);
+        var viewSize = EnsureViewSize();
 
         // WASD panning: read keyboard state directly through the controller's held keys.
         const int panSpeed = 4;
