@@ -23,6 +23,12 @@ public class Tank
     public int LivesLeft { get; set; }
     public bool IsDead => Reactor.Health <= 0;
     public TankBase? Base { get; }
+
+    /// <summary>
+    /// True while the tank is alive and inside its own base: it builds from the base store, is cooled and
+    /// unloads its dirt there. Bases never overlap, so this is the same as asking which base the tank is in.
+    /// </summary>
+    public bool IsDockedAtOwnBase => !IsDead && Base != null && Base.IsInside(Position);
     public TankTurret Turret { get; }
     public float Heat { get; set; }
 
@@ -221,7 +227,7 @@ public class Tank
             }
             else
             {
-                var payer = BuildPayer(buildType, dockedAtOwnBase: Base != null && ctx.CheckBaseCollision(Position) == Base);
+                var payer = BuildPayer(buildType, IsDockedAtOwnBase);
                 if (payer != null)
                     _machineMaterializer.TryBuild(buildType, Position, payer, ctx.Machines);
             }

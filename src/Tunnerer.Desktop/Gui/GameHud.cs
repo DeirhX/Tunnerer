@@ -35,7 +35,6 @@ public class GameHud
     private bool _hasLeftBase;
     private float _thermalHintUntil = -1f;
     private bool _thermalHintShown;
-    private bool _dockedAtOwnBase;
     private int _lastPoweredRelays;
     private float _relayLinkedUntil = -1f;
     private float _lastHeat = float.NaN;
@@ -242,7 +241,7 @@ public class GameHud
         DrawNumberCentered(dl, player.Resources.Dirt, mPlateX, 166f, mPlateW);
         DrawBar(dl, mPlateX + 40f, 191f, mPlateW - 80f, 5f, materialsFill, 0xFF40B8F0u);
 
-        DrawBuildSlots(dl, player, player.BuildableDirt(_dockedAtOwnBase), buildX);
+        DrawBuildSlots(dl, player, player.BuildableDirt(player.IsDockedAtOwnBase), buildX);
 
         // The COMMAND button has no function yet; dim it like the unavailable build slots.
         dl.AddRectFilled(At(buildX + 77f, 172f), At(buildX + 277f, 212f), 0x90000000u, S(10f));
@@ -948,7 +947,6 @@ public class GameHud
         _engineOutput += (tankBase.EngineOutputPerTick - _engineOutput) * 0.1;
         _radiatorInflow += (inflow - tankBase.EngineOutputPerTick - _radiatorInflow) * 0.1;
         double ventCapacity = Tweaks.Base.HeatCooldown * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
-        _dockedAtOwnBase = !player.IsDead && world.TankBases.CheckBaseCollision(player.Position) == tankBase;
 
         // Exact stored energy (including the sub-unit remainder), so a pumping relay shows progress at once.
         double capacityEnergy = Math.Max(1, (int)tankBase.Reactor.HeatCapacity) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
@@ -961,8 +959,9 @@ public class GameHud
             _relayLinkedUntil = _time + 4f;
         _lastPoweredRelays = powered;
 
-        int dirt = player.BuildableDirt(_dockedAtOwnBase);
-        bool fromBaseStore = _dockedAtOwnBase && player.Resources.Dirt < Tweaks.Machine.RelayDirtCost &&
+        bool docked = player.IsDockedAtOwnBase;
+        int dirt = player.BuildableDirt(docked);
+        bool fromBaseStore = docked && player.Resources.Dirt < Tweaks.Machine.RelayDirtCost &&
                              dirt >= Tweaks.Machine.RelayDirtCost;
         string hint;
         Vector4 hintColor;
@@ -971,7 +970,7 @@ public class GameHud
             hint = string.Empty;
             hintColor = TextDim;
         }
-        else if (!_hasLeftBase && world.TankBases.CheckBaseCollision(player.Position) == tankBase)
+        else if (!_hasLeftBase && docked)
         {
             hint = "WASD to drive - the base exit is at the bottom";
             hintColor = TextInfo;
@@ -1033,7 +1032,7 @@ public class GameHud
                 hint += $"   T: pylon ({Tweaks.Machine.PylonDirtCost})";
             hintColor = TextGood;
         }
-        else if (_dockedAtOwnBase && _hasLeftBase && player.HeatBudget < Tank.HeatBudgetCapacity - 1f)
+        else if (docked && _hasLeftBase && player.HeatBudget < Tank.HeatBudgetCapacity - 1f)
         {
             hint = "Docked: cooling down and storing your dirt";
             hintColor = TextInfo;

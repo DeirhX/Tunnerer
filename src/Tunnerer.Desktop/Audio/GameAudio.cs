@@ -210,7 +210,7 @@ public sealed class GameAudio : IDisposable
         bool dead = tank.IsDead;
         Position position = tank.Position;
         bool carrying = tank.IsCarryingMachine;
-        bool docked = !dead && tank.Base is not null && world.TankBases.CheckBaseCollision(position) == tank.Base;
+        bool docked = tank.IsDockedAtOwnBase;
         bool isPlayer = index == 0;
 
         if (track.Known)
