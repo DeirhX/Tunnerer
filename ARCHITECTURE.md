@@ -59,7 +59,7 @@ while running:
 The simulation always advances in fixed steps. Display frames are not tied to them: the loop draws as often as
 the display allows (vsync, capped by `DesktopScreenTweaks.MaxRenderFps`) and passes each frame its *step
 progress*, the fraction of a step elapsed since the last one. `EntityLayerBuilder` draws tanks, projectiles, machines and links
-at that point between the previous and the latest step, and the camera follows the interpolated player, so
+at that point between the previous and the latest step (`Rendering/Entities/EntityInterpolator`), and the camera follows the interpolated player, so
 motion is smooth at the display rate while the terrain only changes on steps. The cost is that what is shown
 trails the simulation by up to one step.
 

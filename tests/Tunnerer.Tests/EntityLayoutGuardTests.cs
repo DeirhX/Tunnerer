@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using SDL3;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Desktop.Rendering.Entities;
 using Tunnerer.Desktop.Rendering.SdlGpu;
 
 namespace Tunnerer.Tests;
@@ -76,7 +77,7 @@ public class EntityLayoutGuardTests
 
     private static void AssertConstantsMatch(string csharpPrefix, string shaderPrefix)
     {
-        var csharp = typeof(EntityLayerBuilder)
+        var csharp = typeof(EntityShape)
             .GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)
             .Where(f => f.IsLiteral && f.FieldType == typeof(float) && f.Name.StartsWith(csharpPrefix, StringComparison.Ordinal))
             .ToDictionary(f => f.Name[csharpPrefix.Length..], f => (float)f.GetRawConstantValue()!);
