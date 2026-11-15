@@ -41,12 +41,8 @@ public partial class Game : IDisposable
     private readonly RenderViewState _renderViewState = new();
     private readonly TerrainAuxBuilder _terrainAuxBuilder = new();
     private readonly GameCommandController _commandController = new();
-    private readonly List<Position> _terrainDirtyCells = new();
     private readonly float[] _gpuTankHeatGlow = new float[Tweaks.World.MaxPlayers * 4];
-    private readonly byte[] _gpuTerrainAux;
-    private readonly byte[] _gpuMaterialCoverage;
-    private bool _gpuAuxFullUploadPending = true;
-    private int _heatAuxFrameCounter;
+    private readonly TerrainAuxUploader _terrainAuxUploader;
     private bool _compositeChanged = true;
     private bool _steppedSinceRender = true;
     private readonly Stopwatch _renderClock = Stopwatch.StartNew();
@@ -99,8 +95,7 @@ public partial class Game : IDisposable
 
         _worldPixels = new uint[_terrainSize.Area];
         _compositePixels = new uint[_terrainSize.Area];
-        _gpuTerrainAux = new byte[_terrainSize.Area * 4];
-        _gpuMaterialCoverage = new byte[_terrainSize.Area * 4];
+        _terrainAuxUploader = new TerrainAuxUploader(_terrainSize, _terrainAuxBuilder, _drawProfile);
         if (built.Parallel)
             _world.Terrain.DrawAllToSurfaceParallel(_worldPixels);
         else
@@ -168,7 +163,7 @@ public partial class Game : IDisposable
                 onPausedFrame: AdvancePausedFrame,
                 onBeforeSimulationBatch: () =>
                 {
-                    _terrainDirtyCells.Clear();
+                    _terrainAuxUploader.ClearDirtyCells();
                     _audio.SetPaused(_paused);
                     if (_terrainTestMode)
                         UpdateTerrainTestCamera();
@@ -188,7 +183,7 @@ public partial class Game : IDisposable
                 },
                 composeFrame: () =>
                 {
-                    ProfileSection(ref _drawProfile.ObjectsDraw, () =>
+                    DrawProfile.Measure(ref _drawProfile.ObjectsDraw, () =>
                     {
                         _compositeRenderer.Compose(_world, _worldPixels, _compositePixels);
                         MarkEntityPixels(_worldPixels, _compositePixels);
@@ -259,13 +254,9 @@ public partial class Game : IDisposable
 
         var changedCells = _world.Terrain.GetChangeList();
         _audio.AfterStep(_world, changedCells);
-        if (changedCells.Count > 0)
-        {
-            _terrainDirtyCells.AddRange(changedCells);
-            _terrainAuxBuilder.GrowthFade.ObserveChanges(_world.Terrain, changedCells, VisualTime);
-        }
+        _terrainAuxUploader.ObserveTerrainChanges(_world.Terrain, changedCells, VisualTime);
 
-        ProfileSection(ref _drawProfile.TerrainDraw,
+        DrawProfile.Measure(ref _drawProfile.TerrainDraw,
             () => _world.Terrain.DrawChangesToSurface(_worldPixels));
     }
 
@@ -304,13 +295,6 @@ public partial class Game : IDisposable
             if (composite[i] != terrain[i])
                 composite[i] = RenderingPixels.MarkEntity(composite[i]);
         }
-    }
-
-    private static void ProfileSection(ref TimeSpan accumulator, Action action)
-    {
-        var w = Stopwatch.StartNew();
-        action();
-        accumulator += w.Elapsed;
     }
 
 }

@@ -22,6 +22,14 @@ public class DrawProfile
     public TimeSpan TotalFrame;
     public int FrameCount;
 
+    /// <summary>Runs <paramref name="action"/> and adds how long it took to <paramref name="accumulator"/>.</summary>
+    public static void Measure(ref TimeSpan accumulator, Action action)
+    {
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
+        action();
+        accumulator += System.Diagnostics.Stopwatch.GetElapsedTime(start);
+    }
+
     public void Report()
     {
         if (FrameCount == 0) return;
