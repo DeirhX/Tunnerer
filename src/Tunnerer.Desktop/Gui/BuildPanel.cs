@@ -4,6 +4,7 @@ using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Desktop.Presentation;
 using static Tunnerer.Desktop.Gui.HudDraw;
 
 /// <summary>The build slots of the BUILD STRUCTURES panel: one per machine, filling up as dirt is dug.</summary>
@@ -19,8 +20,8 @@ public sealed class BuildPanel(HudLayout layout)
 
     public void Draw(ImDrawListPtr dl, Tank player, int dirt, float panelX, float time)
     {
-        // Slot 0 builds a relay (E), slot 1 a harvester (R), slot 2 a pylon (T). While a machine is in hand only its own slot is lit:
-        // pressing the key again plants it.
+        // Each machine has a slot in the top row (MachinePresentation.BuildSlot). While a machine is in hand only its
+        // own slot is lit: pressing the key again plants it.
         var carried = player.CarriedMachineType;
 
         for (int row = 0; row < SlotY.Length; row++)
@@ -34,15 +35,16 @@ public sealed class BuildPanel(HudLayout layout)
             }
         }
 
-        DrawSlot(dl, panelX, col: 0, MachineType.Relay, "RELAY", "E", dirt, carried, time);
-        DrawSlot(dl, panelX, col: 1, MachineType.Harvester, "HARVEST", "R", dirt, carried, time);
-        DrawSlot(dl, panelX, col: 2, MachineType.Pylon, "PYLON", "T", dirt, carried, time);
+        foreach (var machine in MachinePresentations.InSlotOrder)
+            DrawSlot(dl, panelX, machine, dirt, carried, time);
     }
 
-    private void DrawSlot(ImDrawListPtr dl, float panelX, int col, MachineType type,
-        string name, string key, int dirt, MachineType? carried, float time)
+    private void DrawSlot(ImDrawListPtr dl, float panelX, MachinePresentation machine, int dirt, MachineType? carried, float time)
     {
-        int cost = MachineBehaviors.Get(type).BuildCost.Dirt;
+        MachineType type = machine.Type;
+        int col = machine.BuildSlot;
+        string name = machine.SlotLabel, key = machine.KeyLabel;
+        int cost = machine.DirtCost;
         float progress = Math.Clamp(dirt / (float)cost, 0f, 1f);
         bool ready = progress >= 1f;
         bool carryingThis = carried == type;

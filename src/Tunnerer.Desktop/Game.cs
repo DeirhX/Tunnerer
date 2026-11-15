@@ -151,10 +151,7 @@ public partial class Game : IDisposable
         _p1Controller = new KeyboardController(new KeyBindings(
             Left: Scancode.A, Right: Scancode.D,
             Up: Scancode.W, Down: Scancode.S,
-            Shoot: Scancode.Space,
-            Build: Scancode.E,
-            BuildHarvester: Scancode.R,
-            BuildPylon: Scancode.T));
+            Shoot: Scancode.Space));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         if (!terrainTestMode)
         {

@@ -2,6 +2,7 @@ namespace Tunnerer.Desktop.Gui;
 
 using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Desktop.Presentation;
 
 /// <summary>How a hint line is coloured.</summary>
 public enum HintTone { Dim, Info, Good, Warn, Bad }
@@ -43,13 +44,12 @@ public readonly record struct HintInputs(
 /// </summary>
 public static class HintSelector
 {
-    private static int DirtCost(MachineType type) => MachineBehaviors.Get(type).BuildCost.Dirt;
-
     public static (string Text, HintTone Tone) Select(in HintInputs s)
     {
-        int relayCost = DirtCost(MachineType.Relay);
-        int harvesterCost = DirtCost(MachineType.Harvester);
-        int pylonCost = DirtCost(MachineType.Pylon);
+        var relay = MachinePresentations.Relay;
+        var harvester = MachinePresentations.Harvester;
+        var pylon = MachinePresentations.Pylon;
+        int relayCost = relay.DirtCost;
         int dirt = s.BuildableDirt;
 
         if (s.IsDead)
@@ -64,18 +64,15 @@ public static class HintSelector
             return ("Not planted: it would not link - find a clear line", HintTone.Bad);
         if (s.Carried is MachineType carried)
         {
-            bool carryingHarvester = carried == MachineType.Harvester;
-            bool carryingPylon = carried == MachineType.Pylon;
-            string carriedName = carryingHarvester ? "harvester" : carryingPylon ? "pylon" : "relay";
+            var machine = MachinePresentations.Get(carried);
+            string plant = $"{machine.KeyLabel}: {machine.PlantHint}";
             if (s.InsideBase)
-                return ($"Carrying {carriedName} - leave the base to plant it", HintTone.Info);
-            if (carryingHarvester)
-                return ("R: plant harvester here - it mines nearby dirt into your base store", HintTone.Good);
+                return ($"Carrying {machine.Name} - leave the base to plant it", HintTone.Info);
+            if (!machine.Behavior.RequiresLinkToPlant)
+                return (plant, HintTone.Good);
             return s.CarriedLink switch
             {
-                LinkPreviewStatus.Live => (carryingPylon
-                    ? "T: plant pylon here - it charges harvesters it can see"
-                    : "E: plant relay here - it will link (green line)", HintTone.Good),
+                LinkPreviewStatus.Live => (plant, HintTone.Good),
                 LinkPreviewStatus.Blocked => ("Line to network blocked (red X) - dig it clear", HintTone.Bad),
                 LinkPreviewStatus.TooFar => ("Too far from the network - move closer", HintTone.Warn),
                 _ => ("No powered network to link to", HintTone.Warn),
@@ -87,12 +84,13 @@ public static class HintSelector
         {
             bool fromBaseStore = s.Docked && s.HoldDirt < relayCost;
             string hint = fromBaseStore
-                ? $"E: build relay from the base store ({relayCost} dirt)"
-                : $"E: build relay ({relayCost} dirt)";
-            if (dirt >= harvesterCost)
-                hint += $"   R: build harvester ({harvesterCost} dirt)";
-            if (dirt >= pylonCost && s.Harvesters > 0)
-                hint += $"   T: pylon ({pylonCost})";
+                ? $"{relay.KeyLabel}: build relay from the base store ({relayCost} dirt)"
+                : $"{relay.KeyLabel}: build relay ({relayCost} dirt)";
+            if (dirt >= harvester.DirtCost)
+                hint += $"   {harvester.KeyLabel}: build harvester ({harvester.DirtCost} dirt)";
+            // A pylon only helps once there is a harvester to charge.
+            if (dirt >= pylon.DirtCost && s.Harvesters > 0)
+                hint += $"   {pylon.KeyLabel}: pylon ({pylon.DirtCost})";
             return (hint, HintTone.Good);
         }
         if (s.Docked && s.HasLeftBase && s.CoolingDown)
