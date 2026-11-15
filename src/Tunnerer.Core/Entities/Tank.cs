@@ -282,7 +282,10 @@ public class Tank
         }
     }
 
-    /// <summary>Coverage of the tank's own network at its position, as of its last tick.</summary>
+    /// <summary>
+    /// The network node cooling the tank, as of its last tick. None while it is inside a base (the base cools it there,
+    /// not the network) or off network.
+    /// </summary>
     public Links.TankCoverage Coverage { get; private set; }
 
     /// <summary>True when the coverage rule is on and the tank is outside its network: its reactor is heating up.</summary>
@@ -313,7 +316,9 @@ public class Tank
         Coverage = ctx.CoverageFor(this);
         if (ctx.CheckBaseCollision(Position) != null)
         {
-            OffNetworkFloor = Math.Min(Heat, 0f); // docked or passing through a base: the base itself handles cooling
+            // Docked or passing through a base: the base itself handles cooling, so the network is not cooling the tank.
+            Coverage = Links.TankCoverage.None;
+            OffNetworkFloor = Math.Min(Heat, 0f);
             return;
         }
 

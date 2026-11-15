@@ -44,6 +44,18 @@ public class NetworkCoverageTests
     }
 
     [Fact]
+    public void InsideTheBase_TheNetworkIsNotWhatCoolsTheTank()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        Park(s, s.Base.Position + new Offset(8, 8), heat: 10f);   // docked, away from the base centre
+
+        Advance(s, 4);
+
+        Assert.False(s.Tank.Coverage.Covered, "the base cools a docked tank, so no network tether should show");
+        Assert.False(s.Tank.IsOffNetwork);
+    }
+
+    [Fact]
     public void Cooling_NeverDipsIntoCoolant_OnlyDockingRefillsIt()
     {
         var s = RelayHeatTests.CreateScenario();
