@@ -172,7 +172,7 @@ public class HotRockTests
     {
         (World world, Tank tank, Position pocket) Setup(bool withPocket)
         {
-            var (world, tank) = CreateWorldWithPrimaryTank(seed: 6161);
+            var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 6161);
             var center = GetWorldCenter(world);
             ClearArea(world.Terrain, center, radius: 6);
             var pocketCenter = center + new Offset(11, 0); // pocket edge (radius 4) at dx=7, next to the cavity wall

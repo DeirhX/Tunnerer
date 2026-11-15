@@ -28,19 +28,40 @@ internal static class TestSimulation
             world.Advance(tankIndex => tankIndex == 0 ? inputForTank0 : Idle);
     }
 
-    public static void Advance(World world, int frames, Func<int, ControllerOutput> inputForTank0ByFrame)
+    /// <summary>
+    /// Advances <paramref name="frames"/> frames with a per-frame input for tank 0 (others idle). When
+    /// <paramref name="captureEvery"/> is positive, every that-many frames is captured to <paramref name="visual"/>.
+    /// </summary>
+    public static void Advance(
+        World world,
+        int frames,
+        Func<int, ControllerOutput> inputForTank0ByFrame,
+        TestVisualTrace? visual = null,
+        string phase = "advance",
+        int captureEvery = 0)
     {
         for (int i = 0; i < frames; i++)
         {
             var input = inputForTank0ByFrame(i);
             world.Advance(tankIndex => tankIndex == 0 ? input : Idle);
+            if (captureEvery > 0 && (i % captureEvery) == 0)
+                visual?.Capture(world, $"{phase}_{i:D3}");
         }
     }
 
-    public static void AdvanceIdle(World world, int frames)
+    public static void AdvanceIdle(
+        World world,
+        int frames,
+        TestVisualTrace? visual = null,
+        string phase = "advance",
+        int captureEvery = 0)
     {
         for (int i = 0; i < frames; i++)
+        {
             world.Advance(_ => Idle);
+            if (captureEvery > 0 && (i % captureEvery) == 0)
+                visual?.Capture(world, $"{phase}_{i:D3}");
+        }
     }
 
     public static ulong ComputeWorldStateHash(World world)

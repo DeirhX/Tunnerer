@@ -23,18 +23,6 @@ internal static class TankHeatTestHelpers
         PlantMachine = world.PlantMachine,
     };
 
-    internal static (World world, Tank tank) CreateWorldWithPrimaryTank()
-    {
-        var world = TestHelpers.CreateSeededWorld();
-        return (world, world.TankList.Tanks[0]);
-    }
-
-    internal static (World world, Tank tank) CreateWorldWithPrimaryTank(int seed, bool enableTerrainRegrowth = true)
-    {
-        var world = TestHelpers.CreateSeededWorld(seed: seed, enableTerrainRegrowth: enableTerrainRegrowth);
-        return (world, world.TankList.Tanks[0]);
-    }
-
     internal static Position GetWorldCenter(World world) =>
         new(world.Terrain.Width / 2, world.Terrain.Height / 2);
 
@@ -49,13 +37,6 @@ internal static class TankHeatTestHelpers
         tank.Heat = heat;
         tank.Reactor.Current.Heat = new Core.Resources.Heat((int)MathF.Round(heat));
     }
-
-    internal static ControllerOutput MoveAndAim(int moveX, int moveY, float aimX, float aimY) =>
-        new()
-        {
-            MoveSpeed = new Offset(moveX, moveY),
-            AimDirection = new DirectionF(aimX, aimY),
-        };
 
     internal static void CarveVerticalLine(TerrainGrid terrain, Position anchor, int startDy, int endDyInclusive)
     {
@@ -85,38 +66,6 @@ internal static class TankHeatTestHelpers
             if (captureEvery > 0 && (i % captureEvery) == 0)
                 visual?.Capture(world, $"{phase}_{i:D3}");
             afterStep?.Invoke(i);
-        }
-    }
-
-    internal static void AdvanceWorld(
-        World world,
-        int frames,
-        TestVisualTrace? visual = null,
-        string phase = "advance",
-        int captureEvery = 0)
-    {
-        for (int i = 0; i < frames; i++)
-        {
-            world.Advance(_ => IdleInput);
-            if (captureEvery > 0 && (i % captureEvery) == 0)
-                visual?.Capture(world, $"{phase}_{i:D3}");
-        }
-    }
-
-    internal static void AdvanceWorld(
-        World world,
-        int frames,
-        Func<int, ControllerOutput> frameInputForTank0,
-        TestVisualTrace? visual = null,
-        string phase = "advance",
-        int captureEvery = 0)
-    {
-        for (int i = 0; i < frames; i++)
-        {
-            var input = frameInputForTank0(i);
-            world.Advance(idx => idx == 0 ? input : IdleInput);
-            if (captureEvery > 0 && (i % captureEvery) == 0)
-                visual?.Capture(world, $"{phase}_{i:D3}");
         }
     }
 
