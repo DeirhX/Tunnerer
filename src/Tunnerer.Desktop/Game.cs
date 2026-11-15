@@ -1,7 +1,6 @@
 namespace Tunnerer.Desktop;
 
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using static SDL3.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
@@ -80,8 +79,6 @@ public partial class Game : IDisposable
             string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
         Seed = ResolveSeed(_automatedRun, terrainTestMode);
         var windowSize = DesktopScreenTweaks.WindowSize;
-        bool deterministicSimulation = genMode == LevelGenMode.Deterministic;
-        bool parallel = genMode == LevelGenMode.Optimized;
         _perfSession = PerfCaptureSession.Create(perfCapture);
 
         _renderer = new SdlRenderer(Tweaks.System.WindowTitle + (terrainTestMode ? " [Terrain Test]" : ""), windowSize);
@@ -94,56 +91,17 @@ public partial class Game : IDisposable
         // Automated runs (and the terrain test, which has no match) make no sound.
         _audio = GameAudio.Create(_automatedRun || terrainTestMode);
 
-        if (terrainTestMode)
-        {
-            _terrainSize = terrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize;
-            Console.WriteLine($"[TerrainTest] Generating test patterns {_terrainSize.X}x{_terrainSize.Y}...");
-            var testTerrain = TerrainTestPatternGenerator.Generate(_terrainSize);
-
-            _world = new World(_terrainSize, deterministicSimulation: true, simulationSeed: DefaultSeed,
-                enableTerrainRegrowth: false);
-            _world.Profile.ReportSink = static line => Console.WriteLine(line);
-            // Copy pixels directly -- test patterns use final pixel values, skip materialization.
-            for (int i = 0; i < testTerrain.Size.Area; i++)
-            {
-                _world.Terrain[i] = testTerrain[i];
-                // Propagate scorch intensity from the pattern grid.
-                _world.Terrain.SetScorchIntensity(i, testTerrain.GetScorchIntensity(i));
-            }
-            Console.WriteLine("[TerrainTest] Static terrain loaded. No simulation, WASD to pan camera.");
-        }
-        else
-        {
-            _terrainSize = terrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize;
-            var modeLabel = parallel ? "optimized" : "deterministic";
-            Console.WriteLine($"Generating terrain {_terrainSize.X}x{_terrainSize.Y} ({modeLabel}, seed={(deterministicSimulation ? Seed.ToString(CultureInfo.InvariantCulture) : "random")})...");
-            var genWatch = Stopwatch.StartNew();
-            var generator = new ToastGenerator();
-            int? seed = deterministicSimulation ? Seed : null;
-            var (terrain, spawns) = generator.Generate(_terrainSize, seed, genMode);
-            Console.WriteLine($"Level generated in {genWatch.Elapsed.TotalMilliseconds:F0} ms, {spawns.Length} spawns");
-
-            _world = new World(
-                _terrainSize,
-                deterministicSimulation: deterministicSimulation,
-                simulationSeed: deterministicSimulation ? Seed : 0,
-                hotRockPocketCount: Tweaks.World.HotRockPocketCount);
-            _world.Profile.ReportSink = static line => Console.WriteLine(line);
-            int? decorationSeed = deterministicSimulation ? Seed + 1 : null;
-            _world.Initialize(terrain, spawns, decorationSeed: decorationSeed, parallelMaterialize: parallel);
-            if (_world.HotRockPockets.Count > 0)
-                Console.WriteLine($"[HotRock] {_world.HotRockPockets.Count} pocket(s) at " +
-                    string.Join(", ", _world.HotRockPockets.Select(p => $"({p.X},{p.Y})")));
-        }
-
-        _p2AI = new BotTankAI(seed: deterministicSimulation ? Seed + 2 : null);
+        var built = WorldFactory.Build(new WorldLaunchOptions(terrainTestMode, terrainSizeOverride, genMode, Seed));
+        _world = built.World;
+        _terrainSize = built.TerrainSize;
+        _p2AI = new BotTankAI(seed: built.BotSeed);
         _entityLayer.CaptureStep(_world);
 
         _worldPixels = new uint[_terrainSize.Area];
         _compositePixels = new uint[_terrainSize.Area];
         _gpuTerrainAux = new byte[_terrainSize.Area * 4];
         _gpuMaterialCoverage = new byte[_terrainSize.Area * 4];
-        if (parallel)
+        if (built.Parallel)
             _world.Terrain.DrawAllToSurfaceParallel(_worldPixels);
         else
             _world.Terrain.DrawAllToSurface(_worldPixels);
