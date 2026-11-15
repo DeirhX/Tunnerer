@@ -47,7 +47,10 @@ Tunnerer.Core/
 │   └── WorldSectors.cs         # Spatial partitioning (64px buckets)
 ├── Input/
 │   ├── Controller.cs           # ControllerOutput struct
-│   └── BotTankAI.cs             # AI state machine
+│   ├── BotTankAI.cs            # AI mode machine
+│   ├── BotNavigator.cs         # AI move scoring, unstuck, evasive retreat
+│   ├── BotGunner.cs            # AI fire decisions, fairness limits, bursts
+│   └── BotBehaviorProfile.cs   # AI play styles and their cycle
 ├── Rendering/
 │   └── TankSprites.cs          # 9-direction tank bitmaps and color palettes
 ├── Resources/
@@ -467,7 +470,8 @@ State machine for AI-controlled tanks:
 - **Return**: Navigate back toward base
 - **Recharge**: Wait at base to refill reactor
 
-Accepts optional `int? seed` for deterministic behavior in tests.
+`BotNavigator` chooses moves and `BotGunner` decides fire; all three share one `Random`, so their call order
+ within a tick is part of the behaviour. Accepts optional `int? seed` for deterministic behavior in tests.
 
 ## GUI
 
