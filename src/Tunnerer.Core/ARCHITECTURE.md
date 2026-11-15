@@ -246,6 +246,20 @@ otherwise:
 - A pylon moves charge from the base to batteries.
 - A destroyed machine releases its charge into the ground as heat.
 
+### Sector goal and base upgrades (DESIGN.md §4.8)
+
+`TankBase.Upgrades` (`BaseUpgrades`) holds a level per `BaseUpgrade` (Radiator, Reach, Engine, Insulation);
+`TankBase.TryBuyUpgrade` pays `NextCost` from the base dirt store. The tank buys with `ControllerOutput.Upgrade`
+(edge triggered, only while docked at its own base; a refusal sets `Tank.UpgradeRefusedTicks`). The effects are read
+where they apply: the radiator in `TankBase.Advance` (`RadiatorUnits`), reach in `NetworkCoverage.CollectNodes`,
+the engine in `TankBase.UpgradedEngineEfficiency`, insulation in `Tank.OffNetworkHeatPerSecond`.
+
+`LevelGen.HotRockPockets.Place` also returns the core (the map centre, or the nearest ring spot clear of the bases);
+`World.CorePocket` keeps it. After the bases advance, `World.AdvanceSectorGoal` sums `Machine.LastChargeMade` (the
+charge the engine made from each relay's heat this tick) over each base's relays within `Goal.CoreTapRadius` of the
+core into `TankBase.CoreTapPerTick`, steps `CoreHoldSeconds` with `World.NextCoreHold`, and sets `HasTappedCore` once
+the hold reaches `Goal.GoalHoldSeconds`.
+
 ### Network coverage (DESIGN.md §4.6)
 
 `NetworkCoverage.CollectNodes` lists a base's coverage nodes: the base (radius `Coverage.BaseRadius`) and its powered,
@@ -271,20 +285,30 @@ harvester and `BuildTertiary` for a pylon. With nothing in hand, `Tank` builds t
 again outside a base, it plants it (`World.PlantMachine` registers the link point). Relays and pylons are only
 planted where they would link. A tank that dies drops what it carried.
 
-### Tank heat budget and pre-cooling
+### Tank temperature (DESIGN.md §4.7)
 
-`Tank.Heat` is measured from ambient and may go **negative**, down to `-Tank.CoolantCapacity`: that is the coolant
-charge. Overheat damage still starts above `Tank.HeatSafeMax`, so a fully pre-cooled tank has
-`HeatSafeMax + CoolantCapacity` of budget (`Tank.HeatBudget`, shown by the status bar and the "Tank coolant" line of
-the heat overlay). The HUD's TEMP gauge shows `Tank.Heat` itself, so a pre-cooled tank reads below zero.
+`Tank.Heat` is measured from ambient. Overheat damage starts above `Tank.HeatSafeMax`; frostbite damage below
+`Tank.FrostbiteTemperature` (`TankHeatModel.ComputeFrostbiteDamage`, `DamageCause.Frostbite`, `Tank.IsFreezing`).
+Below `ColdSlowStart` the tank moves at `Tank.SpeedFactor` (`TankHeatModel.ColdSpeedFactor`): `HandleMove` keeps a
+fractional move credit, so a cold tank only moves and digs on some ticks.
 
-- **Charging:** a tank docked at its *own* base is refrigerated by `Tank.DockCoolingPerTick` heat units per tick
-  toward the full charge. The energy goes into the base reservoir (`TankBase.AcceptTankHeat`), so it is an exact
-  transfer (tank colder, reservoir fuller) and a full reservoir blocks pre-cooling. A foreign base does not charge.
-- **Keeping the charge:** tank <-> grid flows are driven only by heat *above* ambient (`TankHeatEngine`), and a tank
-  can only take heat that is really in the cells (`TerrainGrid.ExtractEnergyInRadiusArea`, never below ambient). Ambient
-  air therefore neither warms a cold tank nor is chilled by it; the charge is spent only by absorbing real heat.
-- **Respawn:** a new tank starts at ambient and is pre-cooled again while it sits at its base.
+- **Exchange:** `TankHeatEngine` drives tank <-> grid flows by the signed temperature difference, and
+  `Tank.ExchangeWithGrid` applies them with `AddEnergyInRadiusArea` in both directions, so a cold tank warms by
+  chilling the cells under it (exact transfers; the flow is capped by the difference, so it cannot overshoot).
+- **Docking:** a tank docked at its *own* base has `Tank.DockHeatPumpRate` of its heat above the base temperature
+  pumped into the base reservoir each tick (`TankBase.AcceptTankHeat`, an exact transfer that a full reservoir stops),
+  on top of conduction with the pinned base floor. It settles near 0 and never below; a foreign base does not pump.
+- **Pickups:** gold cooling only removes heat, never below 0.
+- **Respawn:** a new tank starts at 0.
+
+### Frost pockets
+
+`TerrainPixel.FrostRock` / `ThermalMaterial.FrostRock` is the cold twin of hot rock: solid, not diggable, pinned at
+`World.ThermalFixedFrostRockTemperature`, conducting like stone, and excluded from extraction. `TerrainGrid.
+PlaceFrostRockPocket` shares `PlacePinnedPocket` with hot rock; `LevelGen.FrostRockPockets.Place` scatters
+`World.FrostRockPocketCount` of them (opt-in per world, after the hot pockets, at least `FrostRockMinDistanceFromBase`
+from bases and `FrostRockMinDistanceFromHot` from hot pockets). The heat render texture encodes temperature signed
+(`TerrainGrid.HeatToByte`, offset `HeatByteOffset`), and the terrain shader draws ground below 0 as frost.
 
 ### Hot rock pockets
 

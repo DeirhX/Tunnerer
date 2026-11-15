@@ -50,6 +50,34 @@ public class TankBase
 
     public double ChargeCapacity => Tweaks.Base.ChargeCapacity;
 
+    /// <summary>What this base has bought with its dirt store (DESIGN.md §4.8).</summary>
+    public BaseUpgrades Upgrades { get; } = new();
+
+    /// <summary>
+    /// Buys the next level of <paramref name="upgrade"/> from the dirt store. False when it is maxed out or the store
+    /// cannot pay.
+    /// </summary>
+    public bool TryBuyUpgrade(BaseUpgrade upgrade)
+    {
+        if (Upgrades.IsMaxed(upgrade))
+            return false;
+        var cost = new MaterialAmount(Upgrades.NextCost(upgrade), 0);
+        if (!Materials.CanPay(cost))
+            return false;
+        Materials.Pay(cost);
+        Upgrades.Raise(upgrade);
+        return true;
+    }
+
+    /// <summary>Charge the relays tapping the map's hot core made for this base during the last tick.</summary>
+    public double CoreTapPerTick { get; internal set; }
+
+    /// <summary>Seconds the core tap has held the goal rate (DESIGN.md §4.8); the sector is won at the goal hold.</summary>
+    public double CoreHoldSeconds { get; internal set; }
+
+    /// <summary>True once this base has tapped the core at the goal rate for long enough.</summary>
+    public bool HasTappedCore { get; internal set; }
+
     /// <summary>Charge the engine made from relay heat during the last tick.</summary>
     public double EngineOutputPerTick { get; private set; }
 
@@ -63,12 +91,19 @@ public class TankBase
     /// Fraction of delivered heat the base engine turns into charge, from how far the source is above the base's
     /// own temperature: hot sources are worth far more than warm ones.
     /// </summary>
-    public static double EngineEfficiency(double sourceTemperature)
+    public static double EngineEfficiency(double sourceTemperature) =>
+        EngineEfficiency(sourceTemperature, Tweaks.Base.EngineMaxEfficiency, Tweaks.Base.EngineTemperatureScale);
+
+    /// <summary>This base's engine efficiency, with its engine upgrades.</summary>
+    public double UpgradedEngineEfficiency(double sourceTemperature) =>
+        EngineEfficiency(sourceTemperature, Upgrades.EngineMaxEfficiency, Upgrades.EngineTemperatureScale);
+
+    private static double EngineEfficiency(double sourceTemperature, double maxEfficiency, double temperatureScale)
     {
         double dT = sourceTemperature - Tweaks.World.ThermalFixedBaseTemperature;
         if (dT <= 0.0)
             return 0.0;
-        return Math.Min(Tweaks.Base.EngineMaxEfficiency, dT / (dT + Tweaks.Base.EngineTemperatureScale));
+        return Math.Min(maxEfficiency, dT / (dT + temperatureScale));
     }
 
     /// <summary>
@@ -81,9 +116,10 @@ public class TankBase
     /// (reactor room after the engine's share), whatever the ground had to give.
     /// </summary>
     public double AbsorbHeatFrom(ITerrainHeatSource terrain, Position center, int radius, double maxEnergy,
-        out bool limitedByBase)
+        out bool limitedByBase, out double chargeMade)
     {
-        double eta = EngineEfficiency(terrain.ExtractableHeatTemperature(center, radius, TerrainGrid.ThermalField.Terrain));
+        chargeMade = 0.0;
+        double eta = UpgradedEngineEfficiency(terrain.ExtractableHeatTemperature(center, radius, TerrainGrid.ThermalField.Terrain));
         double chargeRoom = Math.Max(0.0, ChargeCapacity - Charge);
         double reactorRoom = ReactorRoomEnergy;
         // Take only what the reactor can hold after the engine's share: (1 - eta) E fits while the charge store has
@@ -105,6 +141,7 @@ public class TankBase
             terrain.Ledger.RecordToCharge(toCharge);
         }
         CreditReactor(absorbed - toCharge);
+        chargeMade = toCharge;
         _engineInputThisTick += absorbed;
         _engineOutputThisTick += toCharge;
         return absorbed;
@@ -181,7 +218,7 @@ public class TankBase
         // Radiator: the reactor vents HeatCooldown units per tick out of the system. This is the base's finite
         // sink rate; heat pumped in faster than this fills the reactor and the pumping stops.
         int beforeHeat = Reactor.Heat;
-        Reactor.Exhaust(new ReactorState(Tweaks.Base.HeatCooldown, 0));
+        Reactor.Exhaust(new ReactorState(Upgrades.RadiatorUnits, 0));
         int ventedUnits = Math.Max(0, beforeHeat - (int)Reactor.Heat);
         if (ventedUnits > 0)
             terrain.Ledger.RecordSunkBase(ventedUnits * energyPerUnit);

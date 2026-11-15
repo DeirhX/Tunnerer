@@ -37,7 +37,7 @@ public class SimulationTableGuardTests
         string[] reviewed =
         {
             "LevelGenDirt", "LevelGenRock", "LevelGenMark", "Blank", "Dirt", "DirtGrow", "Rock", "Decal",
-            "BaseMin", "BaseMax", "BaseBarrier", "BaseCore", "HotRock", "Concrete", "Gold",
+            "BaseMin", "BaseMax", "BaseBarrier", "BaseCore", "HotRock", "FrostRock", "Concrete", "Gold",
         };
         string[] actual = Enum.GetNames<TerrainPixel>();
         Assert.Equal(reviewed.Order(), actual.Order());
@@ -45,6 +45,7 @@ public class SimulationTableGuardTests
 
     [Theory]
     [InlineData(TerrainPixel.HotRock)]
+    [InlineData(TerrainPixel.FrostRock)]
     [InlineData(TerrainPixel.BaseBarrier)]
     [InlineData(TerrainPixel.BaseCore)]
     public void FixedTemperatureCells_StayPinned_AndTheLedgerAccountsForIt(TerrainPixel pinned)

@@ -258,7 +258,7 @@ public sealed class GameAudio : IDisposable
             {
                 // Recharging is audible only while the base is actually doing something for the tank.
                 bool serviced = docked && (tank.Reactor.Health > track.Health ||
-                    tank.Heat < track.Heat - 0.25f * Tweaks.Tank.DockCoolingPerTick ||
+                    tank.Heat < track.Heat - 0.05f ||
                     tank.Resources.Dirt < track.Dirt);
                 _serviceHold = serviced ? AudioTweaks.LoopHoldSteps * 2 : Math.Max(0, _serviceHold - 1);
             }

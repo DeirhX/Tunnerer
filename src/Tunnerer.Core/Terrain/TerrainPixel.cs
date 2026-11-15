@@ -18,6 +18,7 @@ public enum TerrainPixel : byte
     BaseBarrier = (byte)'8',
     BaseCore = (byte)'9',
     HotRock = (byte)'h',
+    FrostRock = (byte)'f',
     Concrete = (byte)'C',
     Gold = (byte)'E',
 }
@@ -30,6 +31,7 @@ public enum ThermalMaterial : byte
     Base = 3,
     ConstantEnergy = 4,
     HotRock = 5,
+    FrostRock = 6,
 }
 
 /// <summary>
@@ -103,6 +105,10 @@ public static class Pixel
             BlocksMovement: true, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
             DisplayColor: new Color(0xd0, 0x40, 0x10)));
+        Set(TerrainPixel.FrostRock, new(
+            BlocksMovement: true, SoftCollision: false, Diggable: false,
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0x9c, 0xd8, 0xf0)));
         Set(TerrainPixel.BaseCore, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
@@ -160,6 +166,7 @@ public static class Pixel
         return p switch
         {
             TerrainPixel.HotRock => ThermalMaterial.HotRock,
+            TerrainPixel.FrostRock => ThermalMaterial.FrostRock,
             TerrainPixel.BaseCore or TerrainPixel.Gold => ThermalMaterial.ConstantEnergy,
             TerrainPixel.BaseBarrier => ThermalMaterial.Base,
             _ when b.Base => ThermalMaterial.Base,

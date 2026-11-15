@@ -63,14 +63,16 @@ public static class MachineBehaviors
     {
         var terrain = ctx.Terrain;
         machine.LastPumpedEnergy = 0.0;
+        machine.LastChargeMade = 0.0;
         machine.LastPumpLimitedByBase = false;
         if (machine.OwnerBase == null || machine.LinkPoint is not { IsPowered: true })
             return;
 
         machine.LastPumpedEnergy = machine.OwnerBase.AbsorbHeatFrom(
             terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick,
-            out bool limited);
+            out bool limited, out double chargeMade);
         machine.LastPumpLimitedByBase = limited;
+        machine.LastChargeMade = chargeMade;
         Links.LinkMap.CarryHeat(machine.LinkPoint, machine.LastPumpedEnergy);
     }
 

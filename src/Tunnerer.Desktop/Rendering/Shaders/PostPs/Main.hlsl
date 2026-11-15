@@ -13,7 +13,7 @@
 //
 // Inputs:
 //   sceneTex (t0) — composited scene (terrain + entities)
-//   auxTex   (t1) — per-cell terrain data (.r = heat, .g = solid field, .b = exact material code, .a = scorch)
+//   auxTex   (t1) — per-cell terrain data (.r = signed heat, see kHeatZero, .g = solid field, .b = exact material code, .a = scorch)
 //   coverageTex (t2) — per-cell blurred natural-material coverage (.r stone, .g concrete, .b dirt)
 //
 // Terrain vs entity discrimination:

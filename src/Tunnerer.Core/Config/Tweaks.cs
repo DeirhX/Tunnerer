@@ -151,6 +151,17 @@ public static class Tweaks
         public const int HotRockMinDistanceFromBase = 60;
         public const int HotRockMinDistanceBetween = 50;
         public const int HotRockPrewarmTicks = 240;
+
+        // Frost pockets: indestructible rock pinned far below ambient. A tank beside one cools fast, a good place to
+        // shed heat, but stay too long and it gets cold enough to slow down and then take frostbite. Placed at middle
+        // distances from the bases, away from hot pockets. Starting values; tune in play.
+        public const float ThermalFixedFrostRockTemperature = -60f;
+        public const int FrostRockPocketCount = 5;
+        public const int FrostRockMinRadius = 2;
+        public const int FrostRockMaxRadius = 4;
+        public const int FrostRockMinDistanceFromBase = 45;
+        public const int FrostRockMinDistanceFromHot = 35;
+        public const int FrostRockMinDistanceBetween = 40;
         public const float ThermalKAmbientAir = 0.0120f;
         public const float ThermalKAmbientDirt = 0.0120f;
         public const float ThermalKAmbientStone = 0.0100f;
@@ -213,6 +224,33 @@ public static class Tweaks
         public const float InitialCharge = 300_000f;
     }
 
+    /// <summary>Base upgrades bought with the dirt store (DESIGN.md §4.8). Starting values; tune in play.</summary>
+    public static class Upgrades
+    {
+        public const int MaxLevel = 3;
+        // Level n costs CostPerLevel * n dirt from the base store.
+        public const int CostPerLevel = 600;
+        public const int RadiatorUnitsPerLevel = 1;
+        public const int ReachCellsPerLevel = 6;
+        public const double EngineEfficiencyPerLevel = 0.1;
+        // Each engine level multiplies the temperature scale by this, so warm sources convert better too.
+        public const double EngineScalePerLevel = 0.8;
+        public const float InsulationPerLevel = 0.25f;
+    }
+
+    /// <summary>
+    /// The sector goal (DESIGN.md §4.8): tap the hot core at the map centre. Relays within CoreTapRadius of it must
+    /// make at least GoalChargePerSecond of charge, held for GoalHoldSeconds (falling short drains the hold timer at
+    /// GoalHoldDecay times real time).
+    /// </summary>
+    public static class Goal
+    {
+        public const int CoreTapRadius = 22;
+        public const double GoalChargePerSecond = 5000;
+        public const double GoalHoldSeconds = 60;
+        public const double GoalHoldDecay = 2;
+    }
+
     public static class Tank
     {
         public const int MaxLives = 3;
@@ -243,12 +281,18 @@ public static class Tweaks
         public const int TorchRockHeatRadius = 3;
         public const float HeatAmbientOutsideBase = 0f;
         public const float TankHeatCapacity = 20f;
-        // Pre-cooling: a tank docked at its own base is refrigerated below ambient, down to -CoolantCapacity heat,
-        // at DockCoolingPerTick heat units per tick. The tank can then absorb CoolantCapacity more heat than
-        // HeatSafeMax before it overheats. The removed energy goes into the base reservoir (so a full reservoir
-        // blocks pre-cooling).
-        public const float CoolantCapacity = 50f;
-        public const float DockCoolingPerTick = 1.0f;
+        // Docked at its own base, the tank's heat above the base temperature (0) is pumped into the base reservoir at
+        // DockHeatPumpRate of that excess per tick, on top of ordinary conduction with the pinned base floor: a hot
+        // tank cools quickly at first and then levels off near 0, never below it (a full reservoir stops the pump).
+        public const float DockHeatPumpRate = 0.04f;
+        // Cold (DESIGN.md §4.7). Below ColdSlowStart the tank slows, down to ColdMinSpeed of its speed at
+        // ColdSlowFull; below FrostbiteTemperature it takes FrostbiteDamagePerDegree per degree per tick, as
+        // overheating does above HeatSafeMax.
+        public const float ColdSlowStart = 0f;
+        public const float ColdSlowFull = -40f;
+        public const float ColdMinSpeed = 0.35f;
+        public const float FrostbiteTemperature = -25f;
+        public const float FrostbiteDamagePerDegree = 0.5f;
         public const float TankTerrainConductance = 2.0f;
         public const float TankAmbientConductance = 0.2f;
         public const float TankBaseConductance = 0.4f;
@@ -257,9 +301,9 @@ public static class Tweaks
 
         // Network coverage (DESIGN.md §4.6): outside it the tank's heat floor rises at OffNetworkHeatPerSecond and the
         // tank cannot cool below it; inside it the tank sheds up to NetworkCoolingPerSecond (times the coverage
-        // strength) down the links into its base's reactor, never below zero (coolant is only refilled by docking), and
-        // the floor falls at that rate. From a full coolant charge, idle off network lasts
-        // (HeatSafeMax + CoolantCapacity) / OffNetworkHeatPerSecond = 150 s; digging near the end shortens it.
+        // strength) down the links into its base's reactor, never below zero, and the floor falls at that rate.
+        // From 0, idle off network lasts HeatSafeMax / OffNetworkHeatPerSecond = 100 s (longer for a tank that left
+        // cold, after a frost pocket); digging near the end shortens it.
         public const float OffNetworkHeatPerSecond = 1.0f;
         public const float NetworkCoolingPerSecond = 6.0f;
     }

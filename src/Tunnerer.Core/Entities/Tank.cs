@@ -26,14 +26,17 @@ public class Tank
     public TankTurret Turret { get; }
     public float Heat { get; set; }
 
-    /// <summary>Heat the tank can still take before it overheats (<c>HeatSafeMax - Heat</c>); more than HeatSafeMax when pre-cooled.</summary>
+    /// <summary>Heat the tank can still take before it overheats (<c>HeatSafeMax - Heat</c>).</summary>
     public float HeatBudget => Tweaks.Tank.HeatSafeMax - Heat;
 
-    /// <summary>Largest possible <see cref="HeatBudget"/>: a full coolant charge on top of the safe heat range.</summary>
-    public static float HeatBudgetCapacity => Tweaks.Tank.HeatSafeMax + Tweaks.Tank.CoolantCapacity;
+    /// <summary>Fraction of its normal speed the tank moves at; below 1 when it is cold (DESIGN.md §4.7).</summary>
+    public float SpeedFactor => TankHeatModel.ColdSpeedFactor(Heat);
 
-    /// <summary>Fraction of the coolant charge left (1 = fully pre-cooled, 0 = at ambient or warmer).</summary>
-    public float CoolantFraction => Math.Clamp(-Heat / Tweaks.Tank.CoolantCapacity, 0f, 1f);
+    /// <summary>True while the tank took frostbite damage during its last tick.</summary>
+    public bool IsFreezing { get; private set; }
+
+    // Fractional moves carried between ticks while the cold slows the tank.
+    private float _moveCredit;
 
     /// <summary>Ticks a hit flash lasts after the tank is struck by enemy fire.</summary>
     public const int HitFlashDuration = 18;
@@ -158,6 +161,7 @@ public class Tank
         if (PlantRefusedTicks > 0)
             PlantRefusedTicks--;
         IsOverheating = false;
+        IsFreezing = false;
 
         if (IsDead)
         {
@@ -177,6 +181,7 @@ public class Tank
         AdvanceShooting(input, ctx.Projectiles);
         CollectItems(ctx.Terrain, ctx.Heat, ctx.Settings);
         AdvanceBuilding(in ctx, input);
+        AdvanceUpgrades(in ctx, input);
         AdvanceHeat(ctx.Heat, ctx.Settings);
     }
 
@@ -225,6 +230,28 @@ public class Tank
         }
 
         _machineMaterializer.UpdatePosition(Position);
+    }
+
+    /// <summary>Ticks left on the "could not buy that upgrade" feedback after a refused purchase.</summary>
+    public int UpgradeRefusedTicks { get; private set; }
+
+    private int _upgradeHeld;
+
+    /// <summary>
+    /// Upgrade keys (edge triggered): docked at its own base, the tank buys the next level of the chosen upgrade from
+    /// the base's dirt store. Anywhere else, or when the store cannot pay, the press is refused.
+    /// </summary>
+    private void AdvanceUpgrades(in SimulationContext ctx, ControllerOutput input)
+    {
+        if (UpgradeRefusedTicks > 0)
+            UpgradeRefusedTicks--;
+        bool pressed = input.Upgrade != 0 && input.Upgrade != _upgradeHeld;
+        _upgradeHeld = input.Upgrade;
+        if (!pressed || input.Upgrade < 1 || input.Upgrade > BaseUpgrades.Count)
+            return;
+        bool docked = Base != null && ctx.CheckBaseCollision(Position) == Base;
+        if (!docked || !Base!.TryBuyUpgrade((BaseUpgrade)(input.Upgrade - 1)))
+            UpgradeRefusedTicks = 48;
     }
 
     /// <summary>
@@ -278,7 +305,7 @@ public class Tank
         if (atOwnBase)
         {
             baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
-            RefrigerateAtBase(baseColl);
+            PumpHeatAtBase(baseColl);
         }
     }
 
@@ -298,9 +325,15 @@ public class Tank
     /// </summary>
     public float OffNetworkFloor { get; private set; }
 
+    /// <summary>How fast the off-network floor rises for this tank, per second (its base's insulation slows it).</summary>
+    public float OffNetworkHeatPerSecond => Tweaks.Tank.OffNetworkHeatPerSecond * (Base?.Upgrades.OffNetworkHeatFactor ?? 1f);
+
+    private float OffNetworkHeatPerTick(SimulationSettings settings) =>
+        settings.TankOffNetworkHeatPerTick * (Base?.Upgrades.OffNetworkHeatFactor ?? 1f);
+
     /// <summary>
     /// Network coverage (DESIGN.md §4.6). Inside its base's coverage the tank sheds heat down the links into the base
-    /// reactor (an exact transfer, limited by the reactor's room, never below zero heat: only docking refills coolant),
+    /// reactor (an exact transfer, limited by the reactor's room, never below zero heat),
     /// and its heat floor falls at the same rate. Outside it, the floor rises at a steady rate and the tank cannot cool
     /// below it (<see cref="AdvanceHeat"/>), so the time it can stay out is set by how far the floor has to climb.
     /// </summary>
@@ -327,7 +360,7 @@ public class Tank
         {
             float cooling = ctx.Settings.TankNetworkCoolingPerTick * Coverage.Strength;
             // The floor falls at the network's cooling rate (so a moment in coverage is not a full reset), but never
-            // below the tank's coolant level: coverage only takes heat away, it does not bank coolant.
+            // below the tank's own sub-zero heat: coverage only takes heat away, it does not bank cold.
             OffNetworkFloor = Math.Min(Math.Max(OffNetworkFloor - cooling, Math.Min(Heat, 0f)), Heat);
             if (Heat <= 0f)
                 return;
@@ -338,22 +371,23 @@ public class Tank
         else
         {
             IsOffNetwork = true;
-            OffNetworkFloor = Math.Min(OffNetworkFloor, Heat) + ctx.Settings.TankOffNetworkHeatPerTick;
+            OffNetworkFloor = Math.Min(OffNetworkFloor, Heat) + OffNetworkHeatPerTick(ctx.Settings);
         }
     }
 
     /// <summary>
-    /// Pre-cooling: a tank docked at its own base is chilled toward a full coolant charge, handing its heat to the
-    /// base reservoir. This is an exact transfer (the tank goes colder, the reservoir fills), and it stops when the
-    /// reservoir is full.
+    /// A tank docked at its own base has a share of its heat above the base temperature pumped into the base reservoir
+    /// each tick (<c>DockHeatPumpRate</c>), so it cools fast while hot and levels off near 0, never below. This is an
+    /// exact transfer (the tank cools, the reservoir fills), and it stops when the reservoir is full. A cold tank is
+    /// warmed back toward 0 by ordinary conduction with the pinned base floor.
     /// </summary>
-    private void RefrigerateAtBase(TankBase tankBase)
+    private void PumpHeatAtBase(TankBase tankBase)
     {
-        float target = -Tweaks.Tank.CoolantCapacity;
-        if (Heat <= target)
+        float excess = Heat - Tweaks.World.ThermalFixedBaseTemperature;
+        if (excess <= 0f)
             return;
 
-        double wanted = Math.Min(Tweaks.Tank.DockCoolingPerTick, Heat - target) * (double)Tweaks.Tank.TankHeatCapacity;
+        double wanted = excess * Tweaks.Tank.DockHeatPumpRate * (double)Tweaks.Tank.TankHeatCapacity;
         double accepted = tankBase.AcceptTankHeat(wanted);
         Heat -= (float)(accepted / Tweaks.Tank.TankHeatCapacity);
     }
@@ -385,7 +419,17 @@ public class Tank
 
     private void HandleMove(in SimulationContext ctx, Offset speed, DirectionF torchHeading, bool torchUse)
     {
-        if (speed.X == 0 && speed.Y == 0) return;
+        if (speed.X == 0 && speed.Y == 0)
+        {
+            _moveCredit = 0f;
+            return;
+        }
+
+        // A cold tank only gets to act on some ticks (moving and digging alike), so it crawls.
+        _moveCredit = Math.Min(_moveCredit + SpeedFactor, 1f);
+        if (_moveCredit < 1f)
+            return;
+        _moveCredit -= 1f;
 
         int dir = OffsetToDirection(speed);
         var newPos = Position + speed;
@@ -474,7 +518,8 @@ public class Tank
             {
                 terrain.SetPixel(worldPos, TerrainPixel.Blank);
                 int cooling = Tweaks.Tank.CoolingPickupGold;
-                float cooledHeat = TankHeatModel.ClampHeat(in settings, Heat - cooling);
+                // A pickup only takes heat away; it never chills the tank below ambient.
+                float cooledHeat = Math.Max(Heat - cooling, Math.Min(Heat, 0f));
                 heat.Ledger.RecordSunkTank((Heat - cooledHeat) * Tweaks.Tank.TankHeatCapacity);
                 Heat = cooledHeat;
             }
@@ -502,18 +547,26 @@ public class Tank
         nextHeatAfterExchange -= ExchangeWithGrid(heat, radius, step.EnergyToTerrain, TerrainGrid.ThermalField.Terrain);
         nextHeatAfterExchange -= ExchangeWithGrid(heat, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
 
-        // Digging and shooting create heat from nothing; the heat floor can also create a little.
+        // Digging and shooting create heat from nothing.
         heat.Ledger.RecordInjected(step.ActionHeat * Tweaks.Tank.TankHeatCapacity);
-        float nextHeat = TankHeatModel.ClampHeat(in settings, nextHeatAfterExchange);
-        heat.Ledger.RecordSunkTank((nextHeatAfterExchange - nextHeat) * Tweaks.Tank.TankHeatCapacity);
+        float nextHeat = nextHeatAfterExchange;
 
         if (step.OverheatDamage > 0)
         {
             IsOverheating = true;
             TakeDamage(step.OverheatDamage, DamageCause.Overheat);
         }
+        if (step.FrostbiteDamage > 0)
+        {
+            IsFreezing = true;
+            TakeDamage(step.FrostbiteDamage, DamageCause.Frostbite);
+        }
 
-        // Off network the tank cannot cool below its rising heat floor; holding it there is reactor heat, created here.
+        // Off network the tank cannot cool below its rising heat floor by shedding into ordinary ground; holding it there
+        // is reactor heat, created here. Sub-zero surroundings (a frost pocket) are a real cold sink, though: there the
+        // floor follows the tank down, so cooling off at a frost pocket buys back time.
+        if (IsOffNetwork && (sampledTerrainTemperature < 0f || sampledAirTemperature < 0f))
+            OffNetworkFloor = Math.Min(OffNetworkFloor, nextHeat);
         if (IsOffNetwork && nextHeat < OffNetworkFloor)
         {
             heat.Ledger.RecordInjected((OffNetworkFloor - nextHeat) * (double)Tweaks.Tank.TankHeatCapacity);
@@ -528,26 +581,18 @@ public class Tank
     }
 
     /// <summary>
-    /// Moves heat between the tank and the grid for one field. A positive <paramref name="energyToField"/> is given to
-    /// the cells; a negative one is taken from the cells' heat above ambient, and if they hold less than wanted the
-    /// tank gets less. Returns how much tank heat must be taken back for that shortfall (0 when everything moved).
+    /// Moves heat between the tank and the grid for one field: a positive <paramref name="energyToField"/> is given to
+    /// the cells, a negative one taken from them (which can chill them below ambient: a cold tank draws heat from its
+    /// surroundings). The flow is bounded by the temperature difference, so this is an exact transfer. Returns how
+    /// much tank heat must be taken back because the area had no cells to exchange with (0 when everything moved).
     /// </summary>
     private float ExchangeWithGrid(ITerrainHeatSource terrain, int radius, double energyToField, TerrainGrid.ThermalField field)
     {
-        if (energyToField > 0.0)
-        {
-            terrain.AddEnergyInRadiusArea(Position, radius, energyToField, field);
+        if (energyToField == 0.0)
             return 0f;
-        }
-
-        if (energyToField < 0.0)
-        {
-            double wanted = -energyToField;
-            double taken = terrain.ExtractEnergyInRadiusArea(Position, radius, wanted, field);
-            return (float)((wanted - taken) / Tweaks.Tank.TankHeatCapacity);
-        }
-
-        return 0f;
+        double moved = terrain.AddEnergyInRadiusArea(Position, radius, energyToField, field);
+        // The tank already changed by -energyToField; whatever did not move goes back to it (the caller subtracts).
+        return (float)((moved - energyToField) / Tweaks.Tank.TankHeatCapacity);
     }
 
     public void Spawn(ThermalLedger? ledger = null)

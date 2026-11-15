@@ -438,7 +438,7 @@ public partial class TerrainGrid
     /// instead of the tunnel. Everything else, including the air and pinned cells of a base, can be drawn from.
     /// </summary>
     private bool CannotExtractFrom(int offset, ThermalField field)
-        => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.HotRock;
+        => Pixel.GetThermalMaterial(_data[offset]) is ThermalMaterial.HotRock or ThermalMaterial.FrostRock;
 
     /// <summary>
     /// Adds a temperature delta to the terrain field of a cell. In an air cell the terrain field is only a
@@ -682,10 +682,18 @@ public partial class TerrainGrid
         return HeatToByte(oldTemperature) != HeatToByte(newTemperature);
     }
 
+    /// <summary>Degrees per step of the one-byte heat encoding used for render uploads and dirty tracking.</summary>
     public const float HeatByteScale = 4.0f;
 
-    private static byte HeatToByte(float temperature)
+    /// <summary>
+    /// Degrees below ambient the byte encoding can still show: byte 0 is <c>-HeatByteOffset</c>, so frost reads as
+    /// well as heat. Renderers subtract <c>HeatByteOffset / (HeatByteScale * 255)</c> from the normalised value.
+    /// </summary>
+    public const float HeatByteOffset = 80.0f;
+
+    /// <summary>The one-byte encoding of a temperature: <c>(t + HeatByteOffset) / HeatByteScale</c>, clamped.</summary>
+    public static byte HeatToByte(float temperature)
     {
-        return (byte)Math.Clamp((int)MathF.Round(temperature / HeatByteScale), 0, 255);
+        return (byte)Math.Clamp((int)MathF.Round((temperature + HeatByteOffset) / HeatByteScale), 0, 255);
     }
 }

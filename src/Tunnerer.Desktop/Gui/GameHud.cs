@@ -11,7 +11,7 @@ using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Desktop.Rendering;
 
-public class GameHud
+public partial class GameHud
 {
     /// <summary>Height of the HUD art in its own pixels; on screen it is multiplied by the HUD scale.</summary>
     private const float StripH = 223f;
@@ -48,9 +48,9 @@ public class GameHud
     private static readonly Vector2 HeatOrbCenter = new(168f, 72f);
     private const float HeatOrbRadius = 47f;
 
-    // Temperature scale of the heat orb and bar, in tank heat units (0 = ambient): from a full coolant charge at
-    // the cold end, through the safe range, to a margin past the point where overheating starts burning the shield.
-    private static float HeatScaleMin => -Tweaks.Tank.CoolantCapacity;
+    // Temperature scale of the heat orb and bar, in tank heat units (0 = ambient): from past the point where frostbite
+    // starts at the cold end, through the safe range, to a margin past the point where overheating burns the shield.
+    private static float HeatScaleMin => Tweaks.Tank.FrostbiteTemperature * 1.6f;
     private static float HeatScaleMax => Tweaks.Tank.HeatSafeMax * 1.25f;
     private const float HeatDialStartAngle = MathF.PI * 150f / 180f; // lower left, sweeping clockwise over the top
     private const float HeatDialSweep = MathF.PI * 240f / 180f;
@@ -86,11 +86,12 @@ public class GameHud
     private static readonly float[] BuildSlotY = [44f, 105f];
     private const float BuildSlotW = 80f, BuildSlotH = 56f;
 
-    private static readonly Vector4 TextGood = new(0.55f, 1.0f, 0.55f, 1f);
-    private static readonly Vector4 TextWarn = new(1.0f, 0.82f, 0.30f, 1f);
-    private static readonly Vector4 TextBad = new(1.0f, 0.40f, 0.35f, 1f);
-    private static readonly Vector4 TextInfo = new(0.55f, 0.85f, 1.0f, 1f);
-    private static readonly Vector4 TextDim = new(0.80f, 0.80f, 0.80f, 1f);
+    // Text colours, from the shared HUD palette.
+    private static readonly Vector4 TextGood = HudTheme.ToVector(HudTheme.Good);
+    private static readonly Vector4 TextWarn = HudTheme.ToVector(HudTheme.Warn);
+    private static readonly Vector4 TextBad = HudTheme.ToVector(HudTheme.Danger);
+    private static readonly Vector4 TextInfo = HudTheme.ToVector(HudTheme.Teal);
+    private static readonly Vector4 TextDim = HudTheme.ToVector(HudTheme.Text);
 
     public (float x, float y, float w, float h) ViewportRect { get; private set; }
     public (float x, float y)? CrosshairScreenPos { get; set; }
@@ -141,6 +142,9 @@ public class GameHud
         DrawBottomPanel(player);
         DrawHeatNetworkOverlay(player, world);
         DrawWarnings(player, heatDebugOverlayEnabled);
+        DrawGuidance(player, world);
+        DrawUpgradePanel(player);
+        DrawSectorComplete(player);
         DrawDeathOverlay(player, world);
         if (showPostPassOverlay)
             DrawPostPassOverlay(heatDebugOverlayEnabled, postPassFlags);
@@ -244,8 +248,12 @@ public class GameHud
 
         DrawBuildSlots(dl, player, player.BuildableDirt(_dockedAtOwnBase), buildX);
 
-        // The COMMAND button has no function yet; dim it like the unavailable build slots.
-        dl.AddRectFilled(At(buildX + 77f, 172f), At(buildX + 277f, 212f), 0x90000000u, S(10f));
+        // The COMMAND button stands for the base upgrades: lit while docked (keys 1-4 buy), dimmed elsewhere.
+        if (!_dockedAtOwnBase)
+            dl.AddRectFilled(At(buildX + 77f, 172f), At(buildX + 277f, 212f), 0x90000000u, S(10f));
+        else
+            dl.AddRect(At(buildX + 77f, 172f), At(buildX + 277f, 212f),
+                (int)(_time * 2f) % 2 == 0 ? 0xFF40FF60u : 0xFF208030u, S(10f), ImDrawFlags.None, S(2.5f));
     }
 
     /// <summary>
@@ -309,16 +317,28 @@ public class GameHud
         if (player.IsDead || !player.IsOffNetwork)
             return;
 
-        float seconds = MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - player.OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
+        float seconds = MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - player.OffNetworkFloor) / player.OffNetworkHeatPerSecond);
         string text = seconds > 0f ? $"OFF NETWORK  ~{(int)MathF.Ceiling(seconds)}s" : "OFF NETWORK  OVERHEATING";
         bool urgent = seconds < 20f;
-        uint color = urgent
-            ? ((int)(_time * 4f) % 2 == 0 ? 0xFF3040FFu : 0xFF60A0FFu)
-            : 0xFF40C8FFu;
         float size = S(20f);
-        float width = ImGui.GetFont().CalcTextSizeA(size, float.MaxValue, 0f, text).X;
-        var pos = At(centerX, -30f);
-        DrawOutlinedText(dl, size, new Vector2(MathF.Floor(pos.X - width * 0.5f), pos.Y), text, color);
+        var pos = At(centerX, -24f);
+        HudTheme.DrawTag(dl, pos, text, urgent && (int)(_time * 4f) % 2 == 0 ? HudTheme.Danger : HudTheme.Warn, size);
+    }
+
+    /// <summary>A warning banner at the top of the view: a themed plate with a title and an optional second line.</summary>
+    private static void DrawBanner(ImDrawListPtr dl, float cx, float y, string title, float titleSize, string? sub, uint accent, bool blink)
+    {
+        const float subSize = 17f;
+        var titleSz = HudTheme.Measure(titleSize, title);
+        var subSz = sub != null ? HudTheme.Measure(subSize, sub) : Vector2.Zero;
+        float w = MathF.Max(titleSz.X, subSz.X) + 56f;
+        float h = titleSz.Y + (sub != null ? subSz.Y + 6f : 0f) + 22f;
+        var min = new Vector2(MathF.Floor(cx - w * 0.5f), y - 8f);
+        HudTheme.DrawPanel(dl, min, min + new Vector2(w, h), accent);
+        uint titleColor = blink ? accent : (accent & 0x00FFFFFFu) | 0xC0000000u;
+        HudTheme.TextAt(dl, titleSize, new Vector2(MathF.Floor(cx - titleSz.X * 0.5f), y + 3f), title, titleColor);
+        if (sub != null)
+            HudTheme.TextAt(dl, subSize, new Vector2(MathF.Floor(cx - subSz.X * 0.5f), y + 9f + titleSz.Y), sub, HudTheme.Text);
     }
 
     /// <summary>Where a temperature lies on the heat scale, 0 (full coolant charge) to 1 (well past overheating).</summary>
@@ -399,7 +419,7 @@ public class GameHud
         float inner = r - 9f * k;
         HeatOrb = new HeatOrbState(
             LiquidColor: alive ? HeatColorRgb(shown) : new Vector3(0.12f, 0.13f, 0.14f),
-            Frozen: alive ? Math.Clamp(-shown / (0.6f * Tweaks.Tank.CoolantCapacity), 0f, 1f) : 0f,
+            Frozen: alive ? Math.Clamp(shown / Tweaks.Tank.FrostbiteTemperature, 0f, 1f) : 0f,
             Boil: alive ? Math.Clamp((shown - 0.4f * safe) / (0.6f * safe), 0f, 1f) : 0f,
             Burning: burning ? 0.6f + 0.4f * pulse : 0f,
             Time: _time);
@@ -714,26 +734,32 @@ public class GameHud
 
         if (player.IsOverheating)
         {
-            DrawCenteredText(dl, 30f, cx, y, "OVERHEATING - SHIELD BURNING", blink ? 0xFF3030FFu : 0xFF8080FFu);
-            DrawCenteredText(dl, 18f, cx, y + 34f, "Stop digging and firing, or return to base to cool down", 0xFFFFFFFFu);
+            DrawBanner(dl, cx, y, "OVERHEATING - SHIELD BURNING", 30f, "Stop digging and firing, or return to base to cool down", HudTheme.Danger, blink);
+        }
+        else if (player.IsFreezing)
+        {
+            DrawBanner(dl, cx, y, "FROSTBITE - SHIELD CRACKING", 30f, "Get away from the frost, or return to base to warm up", HudTheme.Teal, blink);
+        }
+        else if (!player.IsDead && player.SpeedFactor < 0.999f)
+        {
+            int percent = (int)MathF.Round(player.SpeedFactor * 100f);
+            DrawBanner(dl, cx, y, $"CHILLED - {percent}% SPEED", 24f, null, HudTheme.Teal, false);
         }
         else if (_shieldLowLatched)
         {
-            DrawCenteredText(dl, 26f, cx, y, "SHIELD LOW", blink ? 0xFF3040FFu : 0xFF8080FFu);
-            DrawCenteredText(dl, 18f, cx, y + 30f, "Your base repairs the shield", 0xFFFFFFFFu);
+            DrawBanner(dl, cx, y, "SHIELD LOW", 26f, "Your base repairs the shield", HudTheme.Danger, blink);
         }
         else if (_runningHotLatched)
         {
-            DrawCenteredText(dl, 26f, cx, y, "RUNNING HOT", blink ? 0xFF30A0FFu : 0xFF80D0FFu);
-            DrawCenteredText(dl, 18f, cx, y + 30f, "Digging and firing heat the tank - return to base to cool down", 0xFFFFFFFFu);
+            DrawBanner(dl, cx, y, "RUNNING HOT", 26f, "Digging and firing heat the tank - return to base to cool down", HudTheme.Warn, blink);
         }
         else if (player.SpawnProtectionTicks > 0)
         {
-            DrawCenteredText(dl, 20f, cx, y, "Respawn shield active", 0xFFFFE65Au);
+            DrawBanner(dl, cx, y, "Respawn shield active", 20f, null, HudTheme.Teal, false);
         }
         else if (_time < _thermalHintUntil)
         {
-            DrawCenteredText(dl, 20f, cx, y, "Press H for thermal view - enemy tunnels glow hot", 0xFF80E0FFu);
+            DrawBanner(dl, cx, y, "Press H for thermal view - enemy tunnels glow hot", 20f, null, HudTheme.Amber, false);
         }
     }
 
@@ -771,6 +797,7 @@ public class GameHud
         {
             DamageCause.EnemyFire => "Destroyed by enemy fire",
             DamageCause.Overheat => "Destroyed by overheating",
+            DamageCause.Frostbite => "Destroyed by frostbite",
             _ => "Destroyed",
         };
 
@@ -978,7 +1005,7 @@ public class GameHud
         // The engine turns part of the relay heat into charge; only the rest reaches the radiator.
         _engineOutput += (tankBase.EngineOutputPerTick - _engineOutput) * 0.1;
         _radiatorInflow += (inflow - tankBase.EngineOutputPerTick - _radiatorInflow) * 0.1;
-        double ventCapacity = Tweaks.Base.HeatCooldown * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
+        double ventCapacity = tankBase.Upgrades.RadiatorUnits * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
         _dockedAtOwnBase = !player.IsDead && world.TankBases.CheckBaseCollision(player.Position) == tankBase;
 
         // Exact stored energy (including the sub-unit remainder), so a pumping relay shows progress at once.
@@ -1064,7 +1091,7 @@ public class GameHud
                 hint += $"   T: pylon ({Tweaks.Machine.PylonDirtCost})";
             hintColor = TextGood;
         }
-        else if (_dockedAtOwnBase && _hasLeftBase && player.HeatBudget < Tank.HeatBudgetCapacity - 1f)
+        else if (_dockedAtOwnBase && _hasLeftBase && player.Heat > 1f)
         {
             hint = "Docked: cooling down and storing your dirt";
             hintColor = TextInfo;
@@ -1078,18 +1105,10 @@ public class GameHud
             hintColor = TextDim;
         }
 
-        ImGui.SetNextWindowPos(new Vector2(vp.x + vp.w - 10f, vp.y + 10f), ImGuiCond.Always, new Vector2(1f, 0f));
-        ImGui.SetNextWindowBgAlpha(0.55f);
-        var flags = ImGuiWindowFlags.NoDecoration |
-                    ImGuiWindowFlags.NoInputs |
-                    ImGuiWindowFlags.NoMove |
-                    ImGuiWindowFlags.AlwaysAutoResize |
-                    ImGuiWindowFlags.NoSavedSettings;
-
-        if (ImGui.Begin("##HeatNetworkOverlay", flags))
+        if (HudTheme.BeginWindow("##HeatNetworkOverlay", new Vector2(vp.x + vp.w - 14f, vp.y + 14f), new Vector2(1f, 0f), 400f))
         {
-            ImGui.SetWindowFontScale(1.25f);
-            ColoredText(player.LivesLeft > 1 ? TextDim : TextBad, $"Lives {player.LivesLeft}");
+            HudTheme.TitleRow($"BASE        lives {player.LivesLeft}", 18f, player.LivesLeft > 1 ? HudTheme.Amber : HudTheme.Danger);
+            DrawGoalLines(world, tankBase);
             ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Dirt}/{tankBase.Materials.DirtCapacity}");
 
             // Power: the charge store and what the engine is making from relay heat right now.
@@ -1098,7 +1117,7 @@ public class GameHud
             ColoredText(chargeFill < 0.1f ? TextBad : chargeFill < 0.3f ? TextWarn : TextInfo,
                 $"Charge {tankBase.Charge / 1000.0:0}k / {tankBase.ChargeCapacity / 1000.0:0}k" +
                 (perSecond >= 1.0 ? $"   engine +{perSecond / 1000.0:0.0}k/s" : "   engine idle"));
-            ImGui.ProgressBar(chargeFill, new Vector2(180f, 8f), string.Empty);
+            HudTheme.BarRow(chargeFill, HudTheme.Teal, null, 10f);
 
             if (harvesters > 0)
             {
@@ -1125,26 +1144,22 @@ public class GameHud
                 var loadColor = load < 0.8f ? TextGood : load <= 1.0f ? TextWarn : TextBad;
                 ColoredText(loadColor,
                     $"Radiator {(int)Math.Round(_radiatorInflow)} in / {(int)ventCapacity} out per tick");
-                ImGui.ProgressBar(Math.Clamp(load / 1.5f, 0f, 1f), new Vector2(180f, 8f), string.Empty);
+                HudTheme.BarRow(Math.Clamp(load / 1.5f, 0f, 1f),
+                    load < 0.8f ? HudTheme.Good : load <= 1.0f ? HudTheme.Warn : HudTheme.Danger, null, 10f);
             }
             if (hint.Length > 0)
             {
                 ImGui.Separator();
-                ColoredText(hintColor, hint);
+                HudTheme.WrappedRow(hint, ImGui.ColorConvertFloat4ToU32(hintColor), 16f);
             }
-            ColoredText(TextDim, "H: heat view");
-            ImGui.SetWindowFontScale(1.0f);
+            HudTheme.KeyRow("H", "heat view", HudTheme.TextDim, 15f);
         }
-        ImGui.End();
+        HudTheme.EndWindow();
     }
 
-    /// <summary>Colored text that is never treated as a format string (so a literal '%' is shown).</summary>
-    private static void ColoredText(Vector4 color, string text)
-    {
-        ImGui.PushStyleColor(ImGuiCol.Text, color);
-        ImGui.TextUnformatted(text);
-        ImGui.PopStyleColor();
-    }
+    /// <summary>A line of HUD text (outlined, never treated as a format string, so a literal '%' is shown).</summary>
+    private static void ColoredText(Vector4 color, string text) =>
+        HudTheme.LineRow(text, ImGui.ColorConvertFloat4ToU32(color), 16.5f);
 
     private void DrawPostPassOverlay(bool heatDebugOverlayEnabled, PostProcessPassFlags passFlags)
     {

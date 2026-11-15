@@ -76,7 +76,7 @@ void ApplyTerrainHeatAndScorch(
         a0.r * hwC +
         ax1.r * hwX1 + ax2.r * hwX2 +
         ay1.r * hwY1 + ay2.r * hwY2 +
-        ad1.r * hwD1 + ad2.r * hwD2 + ad3.r * hwD3 + ad4.r * hwD4) / hwSum;
+        ad1.r * hwD1 + ad2.r * hwD2 + ad3.r * hwD3 + ad4.r * hwD4) / hwSum - kHeatZero;
 
     float swC = 0.50;
     float swX1 = 0.10 * sX1; float swX2 = 0.10 * sX2;
@@ -104,14 +104,16 @@ void ApplyTerrainHeatAndScorch(
     float sW2 = 1.0 - abs(sideC - HeatSide(wide2.g));
     float sW3 = 1.0 - abs(sideC - HeatSide(wide3.g));
     float wSum = max(1e-4, sW0 + sW1 + sW2 + sW3);
-    float heatWide = (wide0.r * sW0 + wide1.r * sW1 + wide2.r * sW2 + wide3.r * sW3) / wSum;
+    float heatWide = (wide0.r * sW0 + wide1.r * sW1 + wide2.r * sW2 + wide3.r * sW3) / wSum - kHeatZero;
     float scorchWide = (wide0.a * sW0 + wide1.a * sW1 + wide2.a * sW2 + wide3.a * sW3) / wSum;
 
     // Blend toward the wider kernel where gradients are steep.
     float heatGrad = abs(ax1.r - ax2.r) + abs(ay1.r - ay2.r);
     float heatEdge = saturate(heatGrad * 1.80);
     float heatBlend = lerp(0.35, 0.75, heatEdge);
-    float heat = lerp(heatLocal, heatWide, heatBlend);
+    float heatSigned = lerp(heatLocal, heatWide, heatBlend);
+    float heat = max(heatSigned, 0.0);
+    float cold = saturate(-heatSigned / kFrostFullHeat);
 
     float scorchGrad = abs(ax1.a - ax2.a) + abs(ay1.a - ay2.a);
     float scorchEdge = saturate(scorchGrad * 1.80);
@@ -138,6 +140,28 @@ void ApplyTerrainHeatAndScorch(
     float ashDarken = lerp(0.88, ScorchTint.y, scorchBody);
     color *= lerp(1.0, ashDarken, ashMask);
     color = lerp(color, kAshTintColor, ashMask * (ScorchTint.z * 0.85));
+
+    // ---- Frost: ground below ambient ---------------------------------------
+    // Pale icy tint that grows with the cold, plus a fine crystalline sparkle that twinkles slowly, so cold places
+    // read at a glance (they are both a hazard and a place to cool down).
+    if (cold > 0.001)
+    {
+        static const float3 kFrostColor = float3(0.62, 0.84, 1.00);
+        static const float3 kFrostDeep = float3(0.30, 0.55, 0.95);
+        float coldVisible = smoothstep(0.04, 0.55, cold);
+        float3 iced = lerp(dot(color, float3(0.30, 0.59, 0.11)).xxx, color, 0.45);
+        float3 tint = lerp(kFrostColor, kFrostDeep, smoothstep(0.6, 1.0, cold));
+        color = lerp(color, iced * 0.55 + tint * 0.55, coldVisible * 0.65 * heatMask);
+
+        float2 crystalCell = floor(worldCell * 1.7);
+        float crystalHash = frac(sin(dot(crystalCell, float2(91.7, 237.3))) * 43758.5453);
+        float2 crystalLocal = frac(worldCell * 1.7) - 0.5;
+        float star = max(1.0 - abs(crystalLocal.x) * 9.0 - abs(crystalLocal.y) * 2.2,
+                         1.0 - abs(crystalLocal.y) * 9.0 - abs(crystalLocal.x) * 2.2);
+        float twinkle = 0.55 + 0.45 * sin(Time * 1.7 + crystalHash * 40.0);
+        float sparkle = saturate(star) * step(0.82, crystalHash) * twinkle * smoothstep(0.25, 0.9, cold);
+        color += float3(0.80, 0.92, 1.00) * sparkle * 0.55 * heatMask;
+    }
 
     // ---- Anti-aliased heat onset -------------------------------------------
     float edgeSoft = max(0.008, fwidth(heat) * (4.0 + 4.0 * heatEdge));
@@ -378,7 +402,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
 
             // Contact shadow on the cave floor just outside the edge.
             // Faded out on hot ground, where a dark rim would outline every island against the heat glow.
-            float hotGround = saturate(a0.r * 6.0);
+            float hotGround = saturate((a0.r - kHeatZero) * 6.0);
             float caveShadow = 1.0 - smoothstep(-1.0, 0.0, edge.distCells) * TerrainMaskCaveDarken * 4.0 * (1.0 - hotGround);
             float3 caveColor = kTerrainCaveColor * saturate(caveShadow);
 
@@ -402,9 +426,12 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
     // ---- Heat debug overlay (optional) ------------------------------------
     if (HeatDebugOverlay > 0.5)
     {
-        float temperature = a0.r * kHeatDebugTemperatureScale;
+        float temperature = (a0.r - kHeatZero) * kHeatDebugTemperatureScale;
         float heat01 = saturate(temperature / 100.0);
-        color = lerp(color, HeatDebugRamp(heat01), 0.5);
+        float3 debugColor = temperature < 0.0
+            ? lerp(float3(0.35, 0.45, 0.55), float3(0.45, 0.80, 1.00), saturate(-temperature / 60.0))
+            : HeatDebugRamp(heat01);
+        color = lerp(color, debugColor, 0.5);
     }
 
     if (thermalRegionsEnabled && ThermalTileSizeCells > 0.5)
@@ -427,7 +454,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         float h2 = auxTex.Sample(s1, tileCenterUv - float2(tileSampleOffset.x, 0.0)).r;
         float h3 = auxTex.Sample(s1, tileCenterUv + float2(0.0, tileSampleOffset.y)).r;
         float h4 = auxTex.Sample(s1, tileCenterUv - float2(0.0, tileSampleOffset.y)).r;
-        float heatProxy = (h0 * 0.40) + ((h1 + h2 + h3 + h4) * 0.15);
+        float heatProxy = (h0 * 0.40) + ((h1 + h2 + h3 + h4) * 0.15) - kHeatZero;
         float active = step(ThermalTileHeatThreshold01, heatProxy);
 
         float3 inactiveTint = float3(35.0 / 255.0, 110.0 / 255.0, 220.0 / 255.0);

@@ -191,6 +191,7 @@ public partial class Game
                 else
                     _hud.CrosshairScreenPos = null;
 
+                _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, DesktopScreenTweaks.PixelScale);
                 var gameTextureSize = _renderBackend.GameTextureSize;
                 ProfileSection(ref _drawProfile.ScreenHudDraw, () =>
                     _hud.Draw(

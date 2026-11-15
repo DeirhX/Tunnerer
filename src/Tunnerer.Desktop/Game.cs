@@ -124,13 +124,17 @@ public partial class Game : IDisposable
                 _terrainSize,
                 deterministicSimulation: deterministicSimulation,
                 simulationSeed: deterministicSimulation ? Seed : 0,
-                hotRockPocketCount: Tweaks.World.HotRockPocketCount);
+                hotRockPocketCount: Tweaks.World.HotRockPocketCount,
+                frostRockPocketCount: Tweaks.World.FrostRockPocketCount);
             _world.Profile.ReportSink = static line => Console.WriteLine(line);
             int? decorationSeed = deterministicSimulation ? Seed + 1 : null;
             _world.Initialize(terrain, spawns, decorationSeed: decorationSeed, parallelMaterialize: parallel);
             if (_world.HotRockPockets.Count > 0)
                 Console.WriteLine($"[HotRock] {_world.HotRockPockets.Count} pocket(s) at " +
                     string.Join(", ", _world.HotRockPockets.Select(p => $"({p.X},{p.Y})")));
+            if (_world.FrostRockPockets.Count > 0)
+                Console.WriteLine($"[FrostRock] {_world.FrostRockPockets.Count} pocket(s) at " +
+                    string.Join(", ", _world.FrostRockPockets.Select(p => $"({p.X},{p.Y})")));
         }
 
         _p2AI = new BotTankAI(seed: deterministicSimulation ? Seed + 2 : null);

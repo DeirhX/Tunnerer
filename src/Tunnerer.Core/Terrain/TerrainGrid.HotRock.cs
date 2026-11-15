@@ -9,15 +9,29 @@ public partial class TerrainGrid
     /// <summary>
     /// Turns the dirt and rock inside a circle into a hot rock pocket: indestructible, solid, and pinned at
     /// <see cref="Tweaks.World.ThermalFixedHotRockTemperature"/>, so it is a permanent heat source for any air or
-    /// tunnel it touches. Open air, bases and concrete are left alone. The initial heat is recorded in the
-    /// <see cref="Ledger"/> as injected; the energy the pocket keeps emitting afterwards shows up as negative
-    /// fixed-temperature sink (the pin re-creates what flowed out).
-    /// Returns the number of cells converted.
+    /// tunnel it touches. Returns the number of cells converted (see <see cref="PlacePinnedPocket"/>).
     /// </summary>
-    public int PlaceHotRockPocket(Position center, int radius)
+    public int PlaceHotRockPocket(Position center, int radius) =>
+        PlacePinnedPocket(center, radius, TerrainPixel.HotRock, ThermalMaterial.HotRock);
+
+    /// <summary>
+    /// Turns the dirt and rock inside a circle into a frost pocket: indestructible, solid, and pinned at
+    /// <see cref="Tweaks.World.ThermalFixedFrostRockTemperature"/>, a permanent cold source for anything nearby.
+    /// Returns the number of cells converted (see <see cref="PlacePinnedPocket"/>).
+    /// </summary>
+    public int PlaceFrostRockPocket(Position center, int radius) =>
+        PlacePinnedPocket(center, radius, TerrainPixel.FrostRock, ThermalMaterial.FrostRock);
+
+    /// <summary>
+    /// Converts the dirt and rock inside a circle into <paramref name="pixel"/>, a fixed-temperature material. Open air,
+    /// bases and concrete are left alone. The cells' change to the pinned temperature is recorded in the
+    /// <see cref="Ledger"/> as injected; what the pocket keeps emitting or absorbing afterwards shows up as the
+    /// fixed-temperature sink (the pin re-creates what flowed out or destroys what flowed in).
+    /// </summary>
+    private int PlacePinnedPocket(Position center, int radius, TerrainPixel pixel, ThermalMaterial material)
     {
-        float hot = _heatEngine.GetFixedTemperature(ThermalMaterial.HotRock);
-        double capacity = _heatEngine.GetHeatCapacity(ThermalMaterial.HotRock);
+        float pinned = _heatEngine.GetFixedTemperature(material);
+        double capacity = _heatEngine.GetHeatCapacity(material);
         int radiusSq = radius * radius;
         int converted = 0;
 
@@ -33,14 +47,14 @@ public partial class TerrainGrid
                     continue;
 
                 int offset = pos.X + pos.Y * Width;
-                TerrainPixel pixel = _data[offset];
-                if (!(Pixel.IsDirt(pixel) || pixel == TerrainPixel.DirtGrow || Pixel.IsRock(pixel)))
+                TerrainPixel existing = _data[offset];
+                if (!(Pixel.IsDirt(existing) || existing == TerrainPixel.DirtGrow || Pixel.IsRock(existing)))
                     continue;
 
-                SetPixel(pos, TerrainPixel.HotRock);
+                SetPixel(pos, pixel);
                 float old = _heatTemperature[offset];
-                _heatTemperature[offset] = hot;
-                Ledger.RecordInjected((hot - old) * capacity);
+                _heatTemperature[offset] = pinned;
+                Ledger.RecordInjected((pinned - old) * capacity);
                 MarkHeatDirty(pos.X, pos.Y);
                 ActivateTileByCell(pos.X, pos.Y);
                 converted++;

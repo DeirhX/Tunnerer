@@ -43,6 +43,8 @@ public class KeyboardController
             BuildPrimary = IsHeld(_keys.Build),
             BuildSecondary = IsHeld(_keys.BuildHarvester),
             BuildTertiary = IsHeld(_keys.BuildPylon),
+            Upgrade = IsHeld(Scancode.Alpha1) ? 1 : IsHeld(Scancode.Alpha2) ? 2
+                : IsHeld(Scancode.Alpha3) ? 3 : IsHeld(Scancode.Alpha4) ? 4 : 0,
         };
     }
 }

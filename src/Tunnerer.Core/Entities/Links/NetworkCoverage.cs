@@ -26,14 +26,15 @@ public static class NetworkCoverage
     public static void CollectNodes(TankBase owner, IReadOnlyList<Machine> machines, List<CoverageNode> into)
     {
         into.Clear();
-        into.Add(new CoverageNode(owner.Position, Tweaks.Coverage.BaseRadius, 1f));
+        int bonus = owner.Upgrades.CoverageBonusCells;
+        into.Add(new CoverageNode(owner.Position, Tweaks.Coverage.BaseRadius + bonus, 1f));
         foreach (var machine in machines)
         {
             if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner ||
                 machine.Type is not (MachineType.Relay or MachineType.Pylon) ||
                 machine.LinkPoint is not { IsPowered: true, Hops: >= 0 } point)
                 continue;
-            into.Add(new CoverageNode(machine.Position, Tweaks.Coverage.NodeRadius, StrengthForHops(point.Hops)));
+            into.Add(new CoverageNode(machine.Position, Tweaks.Coverage.NodeRadius + bonus, StrengthForHops(point.Hops)));
         }
     }
 

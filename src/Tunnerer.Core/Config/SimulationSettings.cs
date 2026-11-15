@@ -58,12 +58,14 @@ public readonly record struct SimulationSettings
     public float ThermalFixedBaseTemperature { get; init; }
     public float ThermalFixedConstantEnergyTemperature { get; init; }
     public float ThermalFixedHotRockTemperature { get; init; }
+    public float ThermalFixedFrostRockTemperature { get; init; }
 
     // --- Tank heat model ---
     public float TankHeatDigPerPixel { get; init; }
     public float TankHeatShootPerShot { get; init; }
     public float TankHeatCapacity { get; init; }
-    public float TankCoolantCapacity { get; init; }
+    public float TankFrostbiteTemperature { get; init; }
+    public float TankFrostbiteDamagePerDegree { get; init; }
     public float TankTerrainConductance { get; init; }
     public float TankAmbientConductance { get; init; }
     public float TankHeatSafeMax { get; init; }
@@ -137,10 +139,12 @@ public readonly record struct SimulationSettings
         ThermalFixedBaseTemperature = Tweaks.World.ThermalFixedBaseTemperature,
         ThermalFixedConstantEnergyTemperature = Tweaks.World.ThermalFixedConstantEnergyTemperature,
         ThermalFixedHotRockTemperature = Tweaks.World.ThermalFixedHotRockTemperature,
+        ThermalFixedFrostRockTemperature = Tweaks.World.ThermalFixedFrostRockTemperature,
         TankHeatDigPerPixel = Tweaks.Tank.HeatDigPerPixel,
         TankHeatShootPerShot = Tweaks.Tank.HeatShootPerShot,
         TankHeatCapacity = Tweaks.Tank.TankHeatCapacity,
-        TankCoolantCapacity = Tweaks.Tank.CoolantCapacity,
+        TankFrostbiteTemperature = Tweaks.Tank.FrostbiteTemperature,
+        TankFrostbiteDamagePerDegree = Tweaks.Tank.FrostbiteDamagePerDegree,
         TankTerrainConductance = Tweaks.Tank.TankTerrainConductance,
         TankAmbientConductance = Tweaks.Tank.TankAmbientConductance,
         TankHeatSafeMax = Tweaks.Tank.HeatSafeMax,

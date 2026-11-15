@@ -65,5 +65,12 @@ static const float kStoneBevelCells = 0.55;           // stone-side bevel width 
 static const float kStoneBevelLit = 0.30;             // brightening on the light-facing bevel
 static const float kStoneBevelShade = 0.28;           // darkening on the shaded bevel
 
+// ---- Heat encoding ---------------------------------------------------------
+// auxTex.r = (temperature + 80) / 4 / 255 (TerrainGrid.HeatToByte). Subtract kHeatZero for the signed heat in the
+// shader's units (1.0 = 1020 degrees); negative is below ambient.
+static const float kHeatZero = 80.0 / 4.0 / 255.0;
+// Degrees at which frost is drawn at full strength, in the same units (frost rock is pinned at -60).
+static const float kFrostFullHeat = 60.0 / (4.0 * 255.0);
+
 // ---- Heat debug overlay ---------------------------------------------------
 static const float kHeatDebugTemperatureScale = 255.0 * 4.0;

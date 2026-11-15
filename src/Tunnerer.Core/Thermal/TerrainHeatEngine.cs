@@ -248,7 +248,7 @@ public sealed class TerrainHeatEngine
     }
 
     // Must equal the number of ThermalMaterial values; ThermalTableGuardTests fails if the two drift apart.
-    private const int MaterialCount = 6; // Air, Dirt, Stone, Base, ConstantEnergy, HotRock
+    private const int MaterialCount = 7; // Air, Dirt, Stone, Base, ConstantEnergy, HotRock, FrostRock
 
     // Per-instance lookup tables, built once from the injected settings so tests can run the engine with custom values.
     private readonly float[] _heatCapacity;
@@ -282,16 +282,16 @@ public sealed class TerrainHeatEngine
         ThermalMaterial.Air => _settings.ThermalCapacityAir,
         ThermalMaterial.Dirt => _settings.ThermalCapacityDirt,
         ThermalMaterial.Stone => _settings.ThermalCapacityStone,
-        ThermalMaterial.HotRock => _settings.ThermalCapacityStone,
+        ThermalMaterial.HotRock or ThermalMaterial.FrostRock => _settings.ThermalCapacityStone,
         ThermalMaterial.ConstantEnergy => _settings.ThermalCapacityConstantEnergy,
         _ => _settings.ThermalCapacityBase,
     };
 
     private float ComputeConductance(ThermalMaterial a, ThermalMaterial b)
     {
-        // Hot rock conducts like stone.
-        if (a == ThermalMaterial.HotRock) a = ThermalMaterial.Stone;
-        if (b == ThermalMaterial.HotRock) b = ThermalMaterial.Stone;
+        // Hot and frost rock conduct like stone.
+        if (a is ThermalMaterial.HotRock or ThermalMaterial.FrostRock) a = ThermalMaterial.Stone;
+        if (b is ThermalMaterial.HotRock or ThermalMaterial.FrostRock) b = ThermalMaterial.Stone;
         if (a > b) (a, b) = (b, a);
         return (a, b) switch
         {
@@ -315,10 +315,12 @@ public sealed class TerrainHeatEngine
 
     /// <summary>
     /// Fixed-temperature materials hold their temperature whatever flows in or out: base cells are heat sinks
-    /// (pinned at ambient) and hot rock is a heat source. They are not storage, so sinks and relays never draw from them.
+    /// (pinned at ambient), hot rock is a heat source and frost rock a cold source. They are not storage, so sinks and
+    /// relays never draw from them.
     /// </summary>
     public static bool IsFixedTemperatureMaterial(ThermalMaterial material)
-        => material == ThermalMaterial.Base || material == ThermalMaterial.ConstantEnergy || material == ThermalMaterial.HotRock;
+        => material is ThermalMaterial.Base or ThermalMaterial.ConstantEnergy or ThermalMaterial.HotRock
+            or ThermalMaterial.FrostRock;
 
     public float GetFixedTemperature(ThermalMaterial material)
         => material switch
@@ -326,6 +328,7 @@ public sealed class TerrainHeatEngine
             ThermalMaterial.Base => _settings.ThermalFixedBaseTemperature,
             ThermalMaterial.ConstantEnergy => _settings.ThermalFixedConstantEnergyTemperature,
             ThermalMaterial.HotRock => _settings.ThermalFixedHotRockTemperature,
+            ThermalMaterial.FrostRock => _settings.ThermalFixedFrostRockTemperature,
             _ => 0f,
         };
 }

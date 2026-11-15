@@ -117,7 +117,6 @@ public sealed class TerrainAuxBuilder
         RectMath.GetMinMaxInclusive(dirtyRect, out int minX, out int minY, out int maxX, out int maxY);
         int w = terrain.Width;
 
-        const float scale = TerrainGrid.HeatByteScale;
         RowParallel.For(minY, maxY + 1, maxX - minX + 1, (from, to) =>
         {
             for (int y = from; y < to; y++)
@@ -126,8 +125,7 @@ public sealed class TerrainAuxBuilder
                 for (int x = minX; x <= maxX; x++)
                 {
                     int idx = row + x;
-                    float heat = terrain.GetHeatTemperature(idx);
-                    target[idx * 4] = (byte)Math.Clamp((int)MathF.Round(heat / scale), 0, 255);
+                    target[idx * 4] = TerrainGrid.HeatToByte(terrain.GetHeatTemperature(idx));
                 }
             }
         });
@@ -136,7 +134,7 @@ public sealed class TerrainAuxBuilder
     private static void WriteTerrainAux(TerrainGrid terrain, int idx, TerrainPixel pixel, byte sdfValue, byte[] target, int writeIndex)
     {
         // Aux channel layout:
-        // R = heat, G = solid field (TerrainSolidField, cave edge at 0.5), B = material class, A = scorch damage level.
+        // R = heat (signed: TerrainGrid.HeatToByte), G = solid field (TerrainSolidField, cave edge at 0.5), B = material class, A = scorch damage level.
         // B is read by nearest-cell Load only (never interpolated). Natural materials are told apart by the
         // material coverage texture; B just marks them solid. Gold has its own code so the shader can draw the vein
         // from the exact cells. Base cells keep their exact code:
@@ -151,7 +149,7 @@ public sealed class TerrainAuxBuilder
         byte material = pixel switch
         {
             TerrainPixel.Dirt or TerrainPixel.DirtGrow or TerrainPixel.Rock
-                or TerrainPixel.HotRock or TerrainPixel.Concrete => materialNatural,
+                or TerrainPixel.HotRock or TerrainPixel.FrostRock or TerrainPixel.Concrete => materialNatural,
             TerrainPixel.Gold => materialGold,
             TerrainPixel.BaseCore => materialBaseFloor,
             TerrainPixel.BaseBarrier => materialBaseDoor,
@@ -160,8 +158,7 @@ public sealed class TerrainAuxBuilder
             _ => materialNone,
         };
 
-        float heat = terrain.GetHeatTemperature(idx);
-        target[writeIndex] = (byte)Math.Clamp((int)MathF.Round(heat / TerrainGrid.HeatByteScale), 0, 255);
+        target[writeIndex] = TerrainGrid.HeatToByte(terrain.GetHeatTemperature(idx));
         target[writeIndex + 1] = sdfValue;
         target[writeIndex + 2] = material;
         target[writeIndex + 3] = terrain.GetScorchIntensity(idx);

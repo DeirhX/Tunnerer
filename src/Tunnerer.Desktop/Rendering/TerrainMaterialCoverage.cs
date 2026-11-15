@@ -48,6 +48,7 @@ public static class TerrainMaterialCoverage
         Array.Fill(table, (sbyte)GroupNone);
         table[(int)TerrainPixel.Rock] = 0;
         table[(int)TerrainPixel.HotRock] = 0;
+        table[(int)TerrainPixel.FrostRock] = 0;
         table[(int)TerrainPixel.Concrete] = 1;
         table[(int)TerrainPixel.Gold] = 0;
         table[(int)TerrainPixel.Dirt] = 2;
