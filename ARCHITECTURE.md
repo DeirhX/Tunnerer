@@ -16,7 +16,7 @@ src/
   Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
 tests/
-  Tunnerer.Tests/          xUnit tests for Core, plus source rules for the renderers
+  Tunnerer.Tests/          xUnit tests for Core and Desktop logic, plus guard tests for both
 tools/
   Tunnerer.ShaderCompiler/ Build step: compiles the HLSL to DXIL, SPIR-V and MSL for SDL_GPU
 ```
@@ -89,10 +89,13 @@ and Escape quits at once.
 3. **Regrowth** - dirt recovery by cellular automaton
 4. **Projectiles** - movement, impacts, explosions
 5. **Tanks** - input, turret, movement, digging, shooting, building, heat exchange with terrain and base
-6. **Machines** - relays pump heat to their base
+6. **Machines** - relays pump heat to their base, harvesters mine and roam, pylons charge batteries
 7. **Sprites** - lifetime
-8. **Bases** - reactor cooling, repair
-9. **LinkMap** - which machines are connected to a powered base (line of sight, range)
+8. **Bases** - reactor heat sink and radiator
+9. **LinkMap** - which machines are connected to a powered base (line of sight, range); rebuilt every 200 ms
+
+Detail, and recipes for adding machines, projectiles, materials and collidable entities, are in
+`src/Tunnerer.Core/ARCHITECTURE.md`.
 
 ## Rendering pipeline
 
@@ -113,7 +116,7 @@ compositePixels[w*h]                  terrain aux data (heat, solid field, mater
 ```
 
 The composite buffer keeps entity drawing from corrupting the terrain surface. It holds only the cell-resolution
-entities; links, relays, harvesters, tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
+entities; links, relays, pylons, harvesters, tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
 in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 ## Sound
@@ -129,8 +132,16 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 ## Tests
 
-`dotnet test Tunnerer.slnx`. The suite covers terrain and pixels, collision, level generation, tank movement and
-heat, relays, hot rock, coolant, the thermal ledger and whole-world thermal behaviour, determinism and replays, and
-the bot. Desktop code (loop, input, HUD, renderer, sound) has no unit tests; it is checked with scripted hidden runs
-that save final-frame screenshots and, for sound, a WAV capture and an event log (see "Automated runs" in
-`README.md`).
+`dotnet test Tunnerer.slnx` runs one xUnit project, `tests/Tunnerer.Tests`, which references both Core and Desktop.
+
+- **Core**: terrain and pixels, collision, level generation, tank movement, heat and coolant, relays, the power
+  loop, network coverage, hot rock, the thermal ledger and whole-world thermal behaviour, determinism, replays and
+  recorded fingerprints, match outcome, network status, placement preview and the bot.
+- **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, layout), entity
+  interpolation (`EntityInterpolatorTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
+  planning (`TerrainAuxUploaderTests`), world construction (`WorldFactoryTests`), and the solid field and material
+  coverage the terrain shader samples.
+- **Guard tests** keep the structure in place; `AGENTS.md` lists them.
+
+The window, GPU backend and sound device have no unit tests. They are checked with scripted hidden runs that save
+final-frame screenshots and, for sound, a WAV capture and an event log (see "Automated runs" in `README.md`).
