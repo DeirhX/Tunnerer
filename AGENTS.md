@@ -58,7 +58,7 @@ Adding a machine:
    `IsLinkNode`, `RequiresLinkToPlant`, `IsCharger`). `MachineBehaviorTableTests` must pass.
 3. Cost, interval, colour and battery size in `Config/Tweaks.cs`.
 4. Desktop still names machines by type: the HUD build slots and hints (`Gui/GameHud.cs`), the build sound
-   (`Audio/GameAudio.cs`) and the sprite and placement preview (`Rendering/EntityLayerBuilder.cs`). Only three build
+   (`Audio/GameAudio.cs`) and the sprite and placement preview (`Rendering/Entities/MachineQuads.cs`, `PreviewQuads.cs`). Only three build
    keys exist (`BuildKey`, `ControllerOutput.Build*`), so a fourth machine also needs a new key.
 
 Adding a shader:
