@@ -278,6 +278,7 @@ public class TerrainTests
         AssertClosedRockSystemConverges(width: 1, height: 64, hotIndex: 0, hotTemperature: 220f, steps: 30000, tolerance: 3f);
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void TerrainHeatEngine_SquareClosedSystem_ConvergesToInitialEnergyMean()
     {

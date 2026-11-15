@@ -250,6 +250,7 @@ public class HotRockTests
 
 public class HotRockGradientTests
 {
+    [Trait("Category", "Slow")]
     [Fact]
     public void Pockets_FormAGradient_CoreAtTheCentre_AndPocketsClusterNearIt()
     {

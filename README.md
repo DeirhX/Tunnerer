@@ -29,6 +29,10 @@ dotnet test Tunnerer.slnx
 The tests cover `Tunnerer.Core` only and need neither a GPU nor the shader compiler when run per project:
 `dotnet test tests/Tunnerer.Tests`.
 
+Tests that take more than about five seconds carry `[Trait("Category", "Slow")]`. For a quick run while
+working, skip them with `dotnet test Tunnerer.slnx --filter "Category!=Slow"`; CI and the pre-commit run use the
+full suite.
+
 ## Controls
 
 | Key | Action |

@@ -68,6 +68,7 @@ public class HarvesterHeatTests
         return (dirtBefore - DirtAround(s, Tweaks.Machine.HarvestRange), s.World.SumSystemThermalEnergy() - heatBefore);
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void Harvester_WithoutACoolingPath_StallsAndKeepsItsHeatBounded()
     {
@@ -136,6 +137,7 @@ public class HarvesterHeatTests
         Assert.Equal(dirtBefore, DirtAround(s, Tweaks.Machine.HarvestRange));
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void Harvester_WithALinkedRelay_KeepsWorkingBecauseTheHeatLeaves()
     {

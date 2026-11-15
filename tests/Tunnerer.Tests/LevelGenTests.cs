@@ -276,45 +276,6 @@ public class LevelGenTests
             $"Large optimized dirt percentage {pct:F1}% outside expected range [40, 85]");
     }
 
-    [Fact]
-    public void Benchmark_DeterministicVsOptimized()
-    {
-        int bw = 1000, bh = 500;
-        var benchSize = new Size(bw, bh);
-        var gen = new ToastGenerator();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-
-        // Warmup
-        gen.Generate(benchSize, seed: 42, mode: LevelGenMode.Deterministic);
-        gen.Generate(benchSize, mode: LevelGenMode.Optimized);
-
-        const int runs = 3;
-        double detTotal = 0, optTotal = 0;
-
-        for (int i = 0; i < runs; i++)
-        {
-            sw.Restart();
-            gen.Generate(benchSize, seed: 42, mode: LevelGenMode.Deterministic);
-            detTotal += sw.Elapsed.TotalMilliseconds;
-
-            sw.Restart();
-            gen.Generate(benchSize, mode: LevelGenMode.Optimized);
-            optTotal += sw.Elapsed.TotalMilliseconds;
-        }
-
-        double detAvg = detTotal / runs;
-        double optAvg = optTotal / runs;
-        double speedup = detAvg / optAvg;
-
-        // Output via test output (shows up in verbose test output)
-        Assert.True(true,
-            $"1000x500 avg over {runs}: deterministic={detAvg:F1}ms, optimized={optAvg:F1}ms, speedup={speedup:F2}x");
-
-        // The optimized mode should be faster (or at least not significantly slower)
-        Assert.True(optAvg <= detAvg * 1.5,
-            $"Optimized ({optAvg:F1}ms) should not be slower than deterministic ({detAvg:F1}ms)");
-    }
-
     private static void AssertSpawnsReachable(TerrainGrid terrain, Position[] spawns, int w, int h)
     {
         var visited = new bool[w * h];

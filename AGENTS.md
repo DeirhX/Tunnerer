@@ -9,6 +9,8 @@ Run from the repository root.
 
 - Build: `dotnet build Tunnerer.slnx`
 - Test: `dotnet test Tunnerer.slnx` (about 20 seconds; run it before every commit)
+- Fast tests: `dotnet test Tunnerer.slnx --filter "Category!=Slow"` skips tests marked
+  `[Trait("Category", "Slow")]` (over ~5 s each). Use it while iterating; mark new tests over ~5 s `Slow`.
 - Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)
 
 ## Layout
