@@ -76,6 +76,4 @@ public class MachineList
         }
         return count;
     }
-
-    public void RemoveAll() => _machines.Clear();
 }

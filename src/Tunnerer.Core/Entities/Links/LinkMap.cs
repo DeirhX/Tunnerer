@@ -37,15 +37,6 @@ public class LinkMap
         return point;
     }
 
-    public void RemoveAll()
-    {
-        _points.Clear();
-        _links.Clear();
-        _nextPointIndex = 0;
-        _elapsed = TimeSpan.Zero;
-        _nextRelink = TimeSpan.Zero;
-    }
-
     public void Advance(ITerrainPixelReadOnly terrain, TimeSpan dt)
     {
         _elapsed += dt;

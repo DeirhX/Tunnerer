@@ -12,10 +12,7 @@ using Tunnerer.Core.Terrain;
 /// </param>
 /// <param name="Machines">Every machine in the world, in a fixed order: pylons look for batteries, harvesters for pylons.</param>
 public readonly record struct MachineContext(
-    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines)
-{
-    public static MachineContext ForTerrain(ITerrainAccess terrain) => new(terrain, static (_, _) => false, []);
-}
+    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines);
 
 /// <summary>
 /// Defines per-type machine behavior in one place.

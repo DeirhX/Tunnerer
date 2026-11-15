@@ -93,6 +93,4 @@ public class SpriteList
         }
         return count;
     }
-
-    public void RemoveAll() => _sprites.Clear();
 }
