@@ -43,7 +43,7 @@ public sealed class PreviewQuads
         if (_preview.Type == MachineType.Harvester)
         {
             float r = Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f;
-            quads.Add(cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f, Tweaks.Colors.Harvester,
+            quads.Add(cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f,
                 EntityShape.KindSenseRing, _preview.SenseHeat, r, phase, 0f);
             return;
         }
@@ -75,7 +75,7 @@ public sealed class PreviewQuads
         }
         // Too far: only a short fading feeler toward the network, not a full line across the map.
         float drawn = link.Status == LinkPreviewStatus.TooFar ? MathF.Min(length, 24f) : length;
-        quads.Add(cx, cy, dx / length, dy / length, -1.5f, drawn + 1.5f, -3f, 3f, new Color(120, 255, 150),
+        quads.Add(cx, cy, dx / length, dy / length, -1.5f, drawn + 1.5f, -3f, 3f,
             EntityShape.KindPreviewBeam, drawn, status, phase, blockedAt);
     }
 }

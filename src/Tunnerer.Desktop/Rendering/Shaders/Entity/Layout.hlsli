@@ -27,6 +27,10 @@
 //  13 network coverage — .x = radius (cells), .y = cooling strength (0..1), .z = phase, .w = 1 while the tank is off network
 //  14 tether      — .x = length (cells, toward the node at +x), .y = cooling strength, .z = phase
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
+//
+// color.rgb is the team colour (tank hull, turret), the body colour (hot shot,
+// foam) or the tint (reach area, coverage). Every other kind owns its colours
+// here in the shader; the C# side sends black for them.
 // ============================================================================
 
 #ifndef TUNNERER_ENTITY_LAYOUT_HLSLI

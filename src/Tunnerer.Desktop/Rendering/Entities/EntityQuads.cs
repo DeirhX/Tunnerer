@@ -42,6 +42,16 @@ public sealed class EntityQuads
         x < -margin || y < -margin || x > View.ViewSize.X + margin || y > View.ViewSize.Y + margin;
 
     /// <summary>
+    /// Adds a quad for a shape whose colours the entity shader owns (machines, beams, the sense ring): its vertex
+    /// colour is black and unused. Only tanks, shots, the reach area and the coverage field take a colour from here.
+    /// </summary>
+    public void Add(
+        float cx, float cy, float axisX, float axisY,
+        float minX, float maxX, float minY, float maxY,
+        float kind, float p0, float p1, float p2, float p3) =>
+        Add(cx, cy, axisX, axisY, minX, maxX, minY, maxY, default, kind, p0, p1, p2, p3);
+
+    /// <summary>
     /// Adds a quad centred on screen pixel (<paramref name="cx"/>, <paramref name="cy"/>), whose local +x axis points
     /// along (<paramref name="axisX"/>, <paramref name="axisY"/>) and which spans the given local rectangle in cells.
     /// </summary>

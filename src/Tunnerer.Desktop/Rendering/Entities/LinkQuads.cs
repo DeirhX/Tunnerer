@@ -1,7 +1,6 @@
 namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core;
-using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Types;
@@ -50,7 +49,7 @@ public sealed class LinkQuads
             float type = link.Type == LinkType.Live ? 0f : 1f;
             // Room for the glow, which the shader grows with the flow.
             float halfWidth = heat > 0.01f ? 4.5f : 1.2f;
-            quads.Add(fx, fy, ax, ay, -1.5f, length + 1.5f, -halfWidth, halfWidth, Tweaks.Colors.LinkLive,
+            quads.Add(fx, fy, ax, ay, -1.5f, length + 1.5f, -halfWidth, halfWidth,
                 EntityShape.KindLink, length, heat, phase, type);
 
             // Charge going out to pylons: a second, blue beam whose pulses run the other way, toward the pylon.
@@ -75,7 +74,7 @@ public sealed class LinkQuads
         float fy = quads.ScreenY(y0);
         if (quads.IsOffScreen(fx + dx * 0.5f * scale, fy + dy * 0.5f * scale, (length * 0.5f + 3f) * scale))
             return;
-        quads.Add(fx, fy, dx / length, dy / length, -1.5f, length + 1.5f, -3.5f, 3.5f, Tweaks.Colors.Pylon,
+        quads.Add(fx, fy, dx / length, dy / length, -1.5f, length + 1.5f, -3.5f, 3.5f,
             EntityShape.KindChargeBeam, length, flow, quads.Phase, 0f);
     }
 }

@@ -54,7 +54,7 @@ public sealed class CoverageQuads
         // Oriented from the tank toward the node: heat flows that way.
         float tx = quads.ScreenX(player.X);
         float ty = quads.ScreenY(player.Y);
-        quads.Add(tx, ty, -dx / length, -dy / length, -1.5f, length + 1.5f, -2.5f, 2.5f, Tweaks.Colors.Relay,
+        quads.Add(tx, ty, -dx / length, -dy / length, -1.5f, length + 1.5f, -2.5f, 2.5f,
             EntityShape.KindTether, length, _playerCoverage.Strength, phase, 0f);
     }
 }
