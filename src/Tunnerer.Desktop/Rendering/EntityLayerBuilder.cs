@@ -26,7 +26,7 @@ public struct EntityVertex
 /// </summary>
 public sealed class EntityLayerBuilder
 {
-    // Shape kinds; must match EntityPs.hlsl.
+    // Shape kinds; must match the kKind* constants in EntityPs.hlsl (EntityLayoutGuardTests).
     private const float KindTankHull = 0f;
     private const float KindTankTurret = 1f;
     private const float KindHotShot = 2f;
@@ -52,7 +52,7 @@ public sealed class EntityLayerBuilder
     private readonly record struct PlacementPreview(bool Active, MachineType Type, LinkPreview Link, float SenseHeat);
     private PlacementPreview _preview;
 
-    // Machine flags (params.w), must match EntityPs.hlsl.
+    // Machine flags (params.w); must match the kMachineFlag* constants in EntityPs.hlsl (EntityLayoutGuardTests).
     private const float MachineFlagStalled = 1f;
     private const float MachineFlagCarried = 2f;
     private const float MachineFlagLimited = 4f;
