@@ -31,7 +31,6 @@ public class World
 
     private int _advanceCount;
     private TimeSpan _elapsed;
-    private bool _gameOver;
     private double _lastThermalEnergy;
     private double _lastNetExternalEnergy;
 
@@ -73,7 +72,6 @@ public class World
     public SpriteList Sprites => _sprites;
     public CollisionSolver CollisionSolver => _collisionSolver;
     public int AdvanceCount => _advanceCount;
-    public bool IsGameOver => _gameOver;
     public SimulationSettings Settings => _simulationSettings;
 
     public SimulationProfile Profile { get; } = new();
@@ -186,8 +184,6 @@ public class World
 
     public void Advance(Func<int, ControllerOutput> getInput)
     {
-        if (_gameOver) return;
-
         var frameWatch = Stopwatch.StartNew();
 
         _advanceCount++;
@@ -266,7 +262,32 @@ public class World
     public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
         NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
-    public void SetGameOver() => _gameOver = true;
+    /// <summary>A match is over once any tank has died with no lives left.</summary>
+    public bool IsMatchOver
+    {
+        get
+        {
+            foreach (var tank in _tankList.Tanks)
+                if (IsOutOfLives(tank))
+                    return true;
+            return false;
+        }
+    }
+
+    /// <summary>How the match stands for <paramref name="player"/>.</summary>
+    public MatchOutcome MatchOutcomeFor(Tank player)
+    {
+        if (IsOutOfLives(player))
+            return MatchOutcome.Defeat;
+        if (player.IsDead)
+            return MatchOutcome.InProgress;
+        foreach (var tank in _tankList.Tanks)
+            if (tank != player && IsOutOfLives(tank))
+                return MatchOutcome.Victory;
+        return MatchOutcome.InProgress;
+    }
+
+    private static bool IsOutOfLives(Tank tank) => tank.IsDead && tank.LivesLeft <= 0;
 
     private static void ProfileSection(ref TimeSpan accumulator, Action action)
     {

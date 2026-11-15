@@ -206,7 +206,6 @@ public partial class Game : IDisposable
                 isRunning: () => _isRunning,
                 requestStop: () => _isRunning = false,
                 pollEvents: () => _renderer.PollEvents(HandleEvent),
-                isGameOver: () => _terrainTestMode ? false : _world.IsGameOver,
                 isPaused: () => _paused,
                 onPausedFrame: AdvancePausedFrame,
                 onBeforeSimulationBatch: () =>
@@ -291,7 +290,7 @@ public partial class Game : IDisposable
         var aimDir = ComputeAimDirection(tanks, frameInput);
         bool mouseShoot = IsMouseInViewport(frameInput, out _, out _) && frameInput.IsLeftMouseDown;
         _audio.BeforeStep(_world);
-        SimulationStepResult stepResult = _simulationStepper.AdvanceOneStep(
+        _simulationStepper.AdvanceOneStep(
             simFrame: _simFrameCounter,
             tanks: tanks,
             aimDirection: aimDir,
@@ -310,9 +309,6 @@ public partial class Game : IDisposable
 
         ProfileSection(ref _drawProfile.TerrainDraw,
             () => _world.Terrain.DrawChangesToSurface(_worldPixels));
-
-        if (stepResult.IsGameOver)
-            _isRunning = false;
     }
 
     private void LoadHudSprites()

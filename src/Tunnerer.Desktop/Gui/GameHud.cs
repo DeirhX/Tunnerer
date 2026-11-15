@@ -744,18 +744,13 @@ public class GameHud
         if (vp.w <= 0)
             return;
 
-        bool enemyOut = false;
-        foreach (var tank in world.TankList.Tanks)
-        {
-            if (tank != player && tank.IsDead && tank.LivesLeft <= 0)
-                enemyOut = true;
-        }
+        MatchOutcome outcome = world.MatchOutcomeFor(player);
 
         var dl = ImGui.GetForegroundDrawList();
         float cx = vp.x + vp.w * 0.5f;
         float cy = vp.y + vp.h * 0.24f;
 
-        if (enemyOut && !player.IsDead)
+        if (outcome == MatchOutcome.Victory)
         {
             DrawCenteredText(dl, 44f, cx, cy - 30f, "VICTORY", 0xFF40FF80u);
             DrawCenteredText(dl, 20f, cx, cy + 20f, "The enemy tank is out of lives", 0xFFFFFFFFu);
@@ -774,7 +769,7 @@ public class GameHud
             _ => "Destroyed",
         };
 
-        if (player.LivesLeft <= 0)
+        if (outcome == MatchOutcome.Defeat)
         {
             DrawCenteredText(dl, 44f, cx, cy - 30f, "DEFEAT", 0xFF4040FFu);
             DrawCenteredText(dl, 20f, cx, cy + 20f, cause + " - no lives left", 0xFFFFFFFFu);
