@@ -51,7 +51,6 @@ public class SourceGuardTests
     // Files already over the limit, capped at their size when the rule was added. Split them; never raise a cap.
     private static readonly Dictionary<string, int> LongFilesAllowed = new()
     {
-        ["src/Tunnerer.Desktop/Gui/GameHud.cs"] = 1203,
     };
 
     [Fact]
