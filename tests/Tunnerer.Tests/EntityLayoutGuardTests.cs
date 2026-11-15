@@ -12,12 +12,13 @@ namespace Tunnerer.Tests;
 /// <summary>
 /// The entity layer is described twice, once in C# and once in HLSL. These tests fail when the two drift apart:
 /// the vertex struct against the pipeline's attribute table, and the shape kinds and machine flags against
-/// EntityPs.hlsl.
+/// the entity shader (constants in Entity/Layout.hlsli, dispatch in EntityPs.hlsl).
 /// </summary>
 public class EntityLayoutGuardTests
 {
-    private static readonly string EntityPsPath = Path.Combine(
-        FindRepositoryRoot(), "src", "Tunnerer.Desktop", "Rendering", "Shaders", "EntityPs.hlsl");
+    private static readonly string ShaderDir = Path.Combine(FindRepositoryRoot(), "src", "Tunnerer.Desktop", "Rendering", "Shaders");
+    private static readonly string EntityPsPath = Path.Combine(ShaderDir, "EntityPs.hlsl");
+    private static readonly string LayoutPath = Path.Combine(ShaderDir, "Entity", "Layout.hlsli");
 
     [Fact]
     public void EntityVertex_MatchesVertexAttributeTable()
@@ -66,10 +67,11 @@ public class EntityLayoutGuardTests
     public void EntityPs_DispatchesEveryShapeKind()
     {
         string shader = File.ReadAllText(EntityPsPath);
+        Assert.Contains("#include \"Entity/Layout.hlsli\"", shader, StringComparison.Ordinal);
         int main = shader.IndexOf("float4 main(", StringComparison.Ordinal);
         Assert.True(main >= 0, "EntityPs.hlsl has no main()");
         string body = shader[main..];
-        var missing = ReadShaderConstants(shader, "kKind").Keys
+        var missing = ReadShaderConstants(File.ReadAllText(LayoutPath), "kKind").Keys
             .Where(name => !Regex.IsMatch(body, $@"\bkKind{name}\b"))
             .ToList();
         Assert.True(missing.Count == 0, "EntityPs main() never dispatches: " + string.Join(", ", missing));
@@ -81,12 +83,12 @@ public class EntityLayoutGuardTests
             .GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)
             .Where(f => f.IsLiteral && f.FieldType == typeof(float) && f.Name.StartsWith(csharpPrefix, StringComparison.Ordinal))
             .ToDictionary(f => f.Name[csharpPrefix.Length..], f => (float)f.GetRawConstantValue()!);
-        var shader = ReadShaderConstants(File.ReadAllText(EntityPsPath), shaderPrefix);
+        var shader = ReadShaderConstants(File.ReadAllText(LayoutPath), shaderPrefix);
 
         Assert.NotEmpty(csharp);
         Assert.Equal(csharp.Keys.Order(), shader.Keys.Order());
         foreach (var (name, value) in csharp)
-            Assert.True(value == shader[name], $"{csharpPrefix}{name} is {value} in C# but {shader[name]} in EntityPs.hlsl");
+            Assert.True(value == shader[name], $"{csharpPrefix}{name} is {value} in C# but {shader[name]} in Entity/Layout.hlsli");
     }
 
     private static Dictionary<string, float> ReadShaderConstants(string shader, string prefix) =>

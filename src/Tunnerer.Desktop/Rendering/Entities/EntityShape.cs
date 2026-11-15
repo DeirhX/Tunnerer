@@ -2,7 +2,7 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 
 /// <summary>
 /// The shape kinds (vertex <c>Kind</c>) and machine flags (<c>P3</c>) the entity shader understands. Each must match
-/// the <c>kKind*</c> / <c>kMachineFlag*</c> constant of the same name in <c>Shaders/EntityPs.hlsl</c>
+/// the <c>kKind*</c> / <c>kMachineFlag*</c> constant of the same name in <c>Shaders/Entity/Layout.hlsli</c>
 /// (EntityLayoutGuardTests).
 /// </summary>
 public static class EntityShape
