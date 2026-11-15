@@ -10,6 +10,9 @@ charset = utf-8
 indent_size = 2
 
 [*.cs]
+# Braces of a case block line up with the case label, as the code already does.
+csharp_indent_case_contents_when_block = false
+
 # Public struct fields are deliberate (hot simulation data).
 dotnet_diagnostic.CA1051.severity = none
 # Making a public instance member static changes every call site and the type's shape; flag private and internal only.
