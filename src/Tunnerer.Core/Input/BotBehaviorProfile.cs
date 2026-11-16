@@ -2,11 +2,15 @@ namespace Tunnerer.Core.Input;
 
 using Tunnerer.Core.Config;
 
-/// <summary>One of the bot's play styles: when it retreats, how readily it fires, how often it replans and how it rates tiles.</summary>
+/// <summary>
+/// One of the bot's play styles: when it retreats, how readily it fires, how often it replans and how it rates tiles.
+/// <see cref="RetreatHeatBudgetFraction"/> is a share of <c>Tank.HeatBudgetCapacity</c>: in a fight the bot backs off
+/// once its heat budget (room left before it overheats, coolant included) falls below it.
+/// </summary>
 internal readonly record struct BotBehaviorProfile(
     string Name,
     float LowHealthRatio,
-    float HighHeatRatio,
+    float RetreatHeatBudgetFraction,
     int OutgunnedHealthGap,
     int ShootChanceLosPermille,
     int ShootChanceDigPermille,
@@ -29,7 +33,7 @@ internal sealed class BotProfileCycle
         new(
             Name: "cautious",
             LowHealthRatio: 0.70f,
-            HighHeatRatio: 0.55f,
+            RetreatHeatBudgetFraction: 0.30f,
             OutgunnedHealthGap: 40,
             ShootChanceLosPermille: 500,
             ShootChanceDigPermille: 250,
@@ -44,7 +48,7 @@ internal sealed class BotProfileCycle
         new(
             Name: "balanced",
             LowHealthRatio: 0.50f,
-            HighHeatRatio: 0.67f,
+            RetreatHeatBudgetFraction: 0.22f,
             OutgunnedHealthGap: 100,
             ShootChanceLosPermille: 700,
             ShootChanceDigPermille: 450,
@@ -59,7 +63,7 @@ internal sealed class BotProfileCycle
         new(
             Name: "rush",
             LowHealthRatio: 0.30f,
-            HighHeatRatio: 0.80f,
+            RetreatHeatBudgetFraction: 0.13f,
             OutgunnedHealthGap: 220,
             ShootChanceLosPermille: 900,
             ShootChanceDigPermille: 700,
