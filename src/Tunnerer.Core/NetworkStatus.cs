@@ -80,7 +80,7 @@ public readonly record struct NetworkStatus(
             relays, powered, pumping,
             RelayInflow: inflow,
             RadiatorInflow: inflow - tankBase.EngineOutputPerTick,
-            VentCapacity: TankBase.VentCapacityPerTick,
+            VentCapacity: tankBase.VentCapacityPerTick,
             HeatStoreFill: tankBase.HeatStoreFill);
     }
 }

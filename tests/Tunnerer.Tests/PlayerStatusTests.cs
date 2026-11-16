@@ -81,14 +81,14 @@ public class PlayerStatusTests
     }
 
     [Fact]
-    public void CoolingDown_UntilTheCoolantChargeIsFull()
+    public void CoolingDown_UntilTheTankIsBackNearZero()
     {
         var (_, tank) = Create();
-        tank.Heat = 0f;
+        tank.Heat = 10f;
         Assert.True(tank.IsCoolingDown);
-        tank.Heat = -Tweaks.Tank.CoolantCapacity + 0.5f * Tweaks.Tank.FullyCooledMargin;
+        tank.Heat = 0.5f * Tweaks.Tank.FullyCooledMargin;
         Assert.False(tank.IsCoolingDown);
-        tank.Heat = -Tweaks.Tank.CoolantCapacity;
+        tank.Heat = -10f;
         Assert.False(tank.IsCoolingDown);
     }
 
@@ -112,9 +112,10 @@ public class PlayerStatusTests
     }
 
     [Fact]
-    public void HeatGauge_RunsFromFullCoolantToPastTheSafeMaximum()
+    public void HeatGauge_RunsFromPastFrostbiteToPastTheSafeMaximum()
     {
-        Assert.Equal(-Tweaks.Tank.CoolantCapacity, Tank.HeatGaugeMin);
+        Assert.Equal(Tweaks.Tank.FrostbiteTemperature * Tweaks.Tank.HeatGaugeFrostMargin, Tank.HeatGaugeMin);
+        Assert.True(Tank.HeatGaugeMin < Tweaks.Tank.FrostbiteTemperature);
         Assert.Equal(Tweaks.Tank.HeatSafeMax * Tweaks.Tank.HeatGaugeOverheatMargin, Tank.HeatGaugeMax);
         Assert.True(Tank.HeatGaugeMax > Tweaks.Tank.HeatSafeMax);
     }
@@ -207,7 +208,7 @@ public class PlayerStatusTests
     public void HeatStoreFullWithRelays_NeedsAPoweredRelay()
     {
         var full = new NetworkStatus(0, 0, 0, 0, Relays: 1, PoweredRelays: 0, PumpingRelays: 0,
-            RelayInflow: 0, RadiatorInflow: 0, VentCapacity: TankBase.VentCapacityPerTick, HeatStoreFill: 0.95);
+            RelayInflow: 0, RadiatorInflow: 0, VentCapacity: RelayHeatTests.CreateScenario().Base.VentCapacityPerTick, HeatStoreFill: 0.95);
         Assert.Equal(StatusLevel.Bad, full.HeatStoreLevel);
         Assert.False(full.IsHeatStoreFullWithRelays);
         Assert.True((full with { PoweredRelays = 1 }).IsHeatStoreFullWithRelays);
@@ -217,12 +218,13 @@ public class PlayerStatusTests
     [Fact]
     public void RadiatorLoad_IsInflowOverVentCapacity_BadPastOne()
     {
-        double vent = TankBase.VentCapacityPerTick;
-        Assert.Equal(0f, TankBase.RadiatorLoad(0.0));
-        Assert.Equal(1f, TankBase.RadiatorLoad(vent));
-        Assert.Equal(StatusLevel.Ok, TankBase.RadiatorLoadLevel(TankBase.RadiatorLoad(0.5 * vent)));
-        Assert.Equal(StatusLevel.Warn, TankBase.RadiatorLoadLevel(TankBase.RadiatorLoad(0.8 * vent)));
+        var tankBase = RelayHeatTests.CreateScenario().Base;
+        double vent = tankBase.VentCapacityPerTick;
+        Assert.Equal(0f, tankBase.RadiatorLoad(0.0));
+        Assert.Equal(1f, tankBase.RadiatorLoad(vent));
+        Assert.Equal(StatusLevel.Ok, TankBase.RadiatorLoadLevel(tankBase.RadiatorLoad(0.5 * vent)));
+        Assert.Equal(StatusLevel.Warn, TankBase.RadiatorLoadLevel(tankBase.RadiatorLoad(0.8 * vent)));
         Assert.Equal(StatusLevel.Warn, TankBase.RadiatorLoadLevel(1.0f));
-        Assert.Equal(StatusLevel.Bad, TankBase.RadiatorLoadLevel(TankBase.RadiatorLoad(1.2 * vent)));
+        Assert.Equal(StatusLevel.Bad, TankBase.RadiatorLoadLevel(tankBase.RadiatorLoad(1.2 * vent)));
     }
 }

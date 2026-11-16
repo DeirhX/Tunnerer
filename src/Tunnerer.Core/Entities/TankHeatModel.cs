@@ -2,7 +2,7 @@ namespace Tunnerer.Core.Entities;
 
 using Tunnerer.Core.Config;
 
-internal static class TankHeatModel
+public static class TankHeatModel
 {
     public static float ComputeActionHeat(in SimulationSettings s, int frameDugPixels, bool frameShotFired)
     {
@@ -38,9 +38,23 @@ internal static class TankHeatModel
         return (int)(excess * s.TankOverheatDamagePerDegree);
     }
 
-    /// <summary>Heat cannot drop below the full coolant charge.</summary>
-    public static float ClampHeat(in SimulationSettings s, float heat)
+    /// <summary>Damage from deep cold: below the frostbite temperature, per degree, like overheating.</summary>
+    public static int ComputeFrostbiteDamage(in SimulationSettings s, float heat)
     {
-        return Math.Max(-s.TankCoolantCapacity, heat);
+        if (heat >= s.TankFrostbiteTemperature) return 0;
+        float deficit = s.TankFrostbiteTemperature - heat;
+        return (int)(deficit * s.TankFrostbiteDamagePerDegree);
+    }
+
+    /// <summary>
+    /// Fraction of its normal speed a tank at <paramref name="heat"/> moves at: full speed at or above
+    /// <c>ColdSlowStart</c>, falling linearly to <c>ColdMinSpeed</c> at <c>ColdSlowFull</c> and below.
+    /// </summary>
+    public static float ColdSpeedFactor(float heat)
+    {
+        float start = Tweaks.Tank.ColdSlowStart, full = Tweaks.Tank.ColdSlowFull;
+        if (heat >= start) return 1f;
+        float t = Math.Clamp((start - heat) / (start - full), 0f, 1f);
+        return 1f - (1f - Tweaks.Tank.ColdMinSpeed) * t;
     }
 }

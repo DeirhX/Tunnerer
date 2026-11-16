@@ -18,11 +18,83 @@ public static class ImGuiPlatform
         io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard;
         io.BackendFlags |= ImGuiBackendFlags.HasMouseCursors;
         io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
-        io.DisplaySize = new Vector2(windowW, windowH);
-        io.DisplayFramebufferScale = Vector2.One;
+        ApplyUiScale(io, windowW, windowH);
 
         ImGui.StyleColorsDark();
+        LoadUiFont(io);
     }
+
+    /// <summary>Window height the UI is laid out for; larger windows draw it proportionally bigger.</summary>
+    public const float ReferenceHeight = 1080f;
+    private const float ReferenceWidth = 1920f;
+
+    /// <summary>
+    /// Window pixels per UI unit: 1 up to 1920×1080, in proportion above it (2 at 4K). The whole UI is laid out in
+    /// UI units (<c>DisplaySize</c> is the window divided by this) and drawn scaled up, so every panel, text and
+    /// menu keeps its size relative to the screen.
+    /// </summary>
+    public static float UiScale { get; private set; } = 1f;
+
+    public static float ComputeUiScale(int windowW, int windowH) =>
+        MathF.Max(1f, MathF.Min(windowH / ReferenceHeight, windowW / ReferenceWidth));
+
+    private static void ApplyUiScale(ImGuiIOPtr io, int windowW, int windowH)
+    {
+        UiScale = ComputeUiScale(windowW, windowH);
+        io.DisplaySize = new Vector2(windowW, windowH) / UiScale;
+        io.DisplayFramebufferScale = new Vector2(UiScale);
+    }
+
+    /// <summary>
+    /// The UI font (Chakra Petch, SIL OFL) used unless <c>TUNNERER_UI_FONT</c> names another file in
+    /// <c>resources/fonts</c>; setting it to "default" keeps ImGui's built-in font.
+    /// </summary>
+    public const string DefaultUiFont = "ChakraPetch-Medium.ttf";
+
+    // Baked large and scaled down for plain widget text, so the bigger sizes the HUD draws stay sharp.
+    private const float UiFontBakeSize = 32f;
+    private const float UiFontWidgetSize = 16f;
+
+    /// <summary>
+    /// Loads the UI font from <c>resources/fonts</c>: the file named by <c>TUNNERER_UI_FONT</c>, else
+    /// <see cref="DefaultUiFont"/>. Falls back to ImGui's built-in font when the file is missing.
+    /// </summary>
+    private static unsafe void LoadUiFont(ImGuiIOPtr io)
+    {
+        string name = Environment.GetEnvironmentVariable("TUNNERER_UI_FONT") is { Length: > 0 } chosen ? chosen : DefaultUiFont;
+        if (string.Equals(name, "default", StringComparison.OrdinalIgnoreCase))
+            return;
+        string path = Path.Combine(AppContext.BaseDirectory, "resources", "fonts", name);
+        if (!File.Exists(path))
+        {
+            Console.WriteLine($"[UI] Font '{name}' not found in resources/fonts; using the built-in font.");
+            return;
+        }
+
+        var config = ImGuiNative.ImFontConfig_ImFontConfig();
+        config->OversampleH = 3;
+        config->OversampleV = 2;
+        config->PixelSnapH = 0;
+        io.Fonts.AddFontFromFileTTF(path, UiFontBakeSize, config, io.Fonts.GetGlyphRangesDefault());
+        config->OversampleH = 2;
+        config->OversampleV = 1;
+        LargeFont = io.Fonts.AddFontFromFileTTF(path, LargeFontBakeSize, config, io.Fonts.GetGlyphRangesDefault());
+        ImGuiNative.ImFontConfig_destroy(config);
+        io.FontGlobalScale = UiFontWidgetSize / UiFontBakeSize;
+        Console.WriteLine($"[UI] Font {name}");
+    }
+
+    private const float LargeFontBakeSize = 72f;
+
+    /// <summary>
+    /// The UI font baked again at a large size, for text drawn far above the regular bake (the HUD strip's labels and
+    /// numbers at 4K). Null with ImGui's built-in font.
+    /// </summary>
+    public static ImFontPtr? LargeFont { get; private set; }
+
+    /// <summary>The font that stays sharp for text <paramref name="windowPixels"/> high on screen.</summary>
+    public static ImFontPtr FontFor(float windowPixels) =>
+        LargeFont is { } large && windowPixels > UiFontBakeSize * 1.1f ? large : ImGui.GetFont();
 
     public static void DestroyContext() => ImGui.DestroyContext();
 
@@ -32,7 +104,7 @@ public static class ImGuiPlatform
         switch (ev.Type)
         {
             case RenderInputEventType.MouseMove:
-                io.AddMousePosEvent(ev.MouseX, ev.MouseY);
+                io.AddMousePosEvent(ev.MouseX / UiScale, ev.MouseY / UiScale);
                 break;
             case RenderInputEventType.MouseButton:
             {
@@ -74,8 +146,7 @@ public static class ImGuiPlatform
     public static void NewFrame(int windowW, int windowH, float deltaTime)
     {
         var io = ImGui.GetIO();
-        io.DisplaySize = new Vector2(windowW, windowH);
-        io.DisplayFramebufferScale = Vector2.One;
+        ApplyUiScale(io, windowW, windowH);
         io.DeltaTime = deltaTime > 0 ? deltaTime : 1f / 60f;
         ImGui.NewFrame();
     }

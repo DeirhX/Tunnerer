@@ -79,18 +79,10 @@ public sealed class NetworkPanel
             CoolingDown: player.IsCoolingDown));
         var hintColor = ToneColor(tone);
 
-        ImGui.SetNextWindowPos(new Vector2(vp.x + vp.w - 10f, vp.y + 10f), ImGuiCond.Always, new Vector2(1f, 0f));
-        ImGui.SetNextWindowBgAlpha(0.55f);
-        var flags = ImGuiWindowFlags.NoDecoration |
-                    ImGuiWindowFlags.NoInputs |
-                    ImGuiWindowFlags.NoMove |
-                    ImGuiWindowFlags.AlwaysAutoResize |
-                    ImGuiWindowFlags.NoSavedSettings;
-
-        if (ImGui.Begin("##HeatNetworkOverlay", flags))
+        if (HudTheme.BeginWindow("##HeatNetworkOverlay", new Vector2(vp.x + vp.w - 14f, vp.y + 14f), new Vector2(1f, 0f), 400f))
         {
-            ImGui.SetWindowFontScale(1.25f);
-            ColoredText(player.LivesLeft > 1 ? TextDim : TextBad, $"Lives {player.LivesLeft}");
+            HudTheme.TitleRow($"BASE        lives {player.LivesLeft}", 18f, player.LivesLeft > 1 ? HudTheme.Amber : HudTheme.Danger);
+            GoalLines.Draw(world, tankBase);
             ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Dirt}/{tankBase.Materials.DirtCapacity}");
 
             // Power: the charge store and what the engine is making from relay heat right now.
@@ -99,7 +91,7 @@ public sealed class NetworkPanel
             ColoredText(LevelColor(tankBase.ChargeLevel, TextInfo),
                 $"Charge {tankBase.Charge / 1000.0:0}k / {tankBase.ChargeCapacity / 1000.0:0}k" +
                 (perSecond >= 1.0 ? $"   engine +{perSecond / 1000.0:0.0}k/s" : "   engine idle"));
-            ImGui.ProgressBar(chargeFill, new Vector2(180f, 8f), string.Empty);
+            HudTheme.BarRow(chargeFill, HudTheme.Teal, null, 10f);
 
             if (harvesters > 0)
             {
@@ -122,20 +114,20 @@ public sealed class NetworkPanel
 
                 // Radiator load: heat arriving through relays against the rate the base can vent. Past 100% the
                 // store fills, and once it is full the relays are throttled.
-                float load = TankBase.RadiatorLoad(_radiatorInflow);
+                float load = tankBase.RadiatorLoad(_radiatorInflow);
                 var loadColor = LevelColor(TankBase.RadiatorLoadLevel(load), TextGood);
                 ColoredText(loadColor,
                     $"Radiator {(int)Math.Round(_radiatorInflow)} in / {(int)ventCapacity} out per tick");
-                ImGui.ProgressBar(Math.Clamp(load / 1.5f, 0f, 1f), new Vector2(180f, 8f), string.Empty);
+                HudTheme.BarRow(Math.Clamp(load / 1.5f, 0f, 1f),
+                    load < 0.8f ? HudTheme.Good : load <= 1.0f ? HudTheme.Warn : HudTheme.Danger, null, 10f);
             }
             if (hint.Length > 0)
             {
                 ImGui.Separator();
-                ColoredText(hintColor, hint);
+                HudTheme.WrappedRow(hint, ImGui.ColorConvertFloat4ToU32(hintColor), 16f);
             }
-            ColoredText(TextDim, "H: heat view");
-            ImGui.SetWindowFontScale(1.0f);
+            HudTheme.KeyRow("H", "heat view", HudTheme.TextDim, 15f);
         }
-        ImGui.End();
+        HudTheme.EndWindow();
     }
 }

@@ -42,7 +42,8 @@ public readonly record struct SimulationSettings
     public float TankHeatDigPerPixel { get; init; }
     public float TankHeatShootPerShot { get; init; }
     public float TankHeatCapacity { get; init; }
-    public float TankCoolantCapacity { get; init; }
+    public float TankFrostbiteTemperature { get; init; }
+    public float TankFrostbiteDamagePerDegree { get; init; }
     public float TankTerrainConductance { get; init; }
     public float TankAmbientConductance { get; init; }
     public float TankHeatSafeMax { get; init; }
@@ -55,10 +56,10 @@ public readonly record struct SimulationSettings
     // --- Base ---
     public int BaseSize { get; init; }
 
-    // --- Tank thermals (TankThermals): work heat, base sinks and dock refrigeration ---
+    // --- Tank thermals (TankThermals): work heat, base sinks and the dock heat pump ---
     public int TankIdleHeatGain { get; init; }
     public int TankMoveHeatGain { get; init; }
-    public float TankDockCoolingPerTick { get; init; }
+    public float TankDockHeatPumpRate { get; init; }
     public int TankDigRadius { get; init; }
     public float TankHeatBaseCoolBonus { get; init; }
     public int BaseHomeCooldownHeat { get; init; }
@@ -86,7 +87,8 @@ public readonly record struct SimulationSettings
         TankHeatDigPerPixel = Tweaks.Tank.HeatDigPerPixel,
         TankHeatShootPerShot = Tweaks.Tank.HeatShootPerShot,
         TankHeatCapacity = Tweaks.Tank.TankHeatCapacity,
-        TankCoolantCapacity = Tweaks.Tank.CoolantCapacity,
+        TankFrostbiteTemperature = Tweaks.Tank.FrostbiteTemperature,
+        TankFrostbiteDamagePerDegree = Tweaks.Tank.FrostbiteDamagePerDegree,
         TankTerrainConductance = Tweaks.Tank.TankTerrainConductance,
         TankAmbientConductance = Tweaks.Tank.TankAmbientConductance,
         TankHeatSafeMax = Tweaks.Tank.HeatSafeMax,
@@ -98,7 +100,7 @@ public readonly record struct SimulationSettings
         // Tank thermals
         TankIdleHeatGain = Tweaks.Tank.IdleHeatGain,
         TankMoveHeatGain = Tweaks.Tank.MoveHeatGain,
-        TankDockCoolingPerTick = Tweaks.Tank.DockCoolingPerTick,
+        TankDockHeatPumpRate = Tweaks.Tank.DockHeatPumpRate,
         TankDigRadius = Tweaks.Tank.DigRadius,
         TankHeatBaseCoolBonus = Tweaks.Tank.HeatBaseCoolBonus,
         BaseHomeCooldownHeat = Tweaks.Base.HomeCooldownHeat,

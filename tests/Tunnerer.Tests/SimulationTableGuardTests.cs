@@ -80,23 +80,25 @@ public class SimulationTableGuardTests
     public void MaterialTable_ReproducesTheTunedConductances()
     {
         // The table replaced hand-tuned pairwise constants and reproduces every one that can carry heat. These are
-        // those values (hot rock conducts like stone); terrain-air exchange is the AirExchange column, and air-air
+        // those values (hot and frost rock conduct like stone); terrain-air exchange is the AirExchange column, and air-air
         // the air row's own pair. Base-base, base-core and core-core are left to the rule: both cells are pinned to
         // the same temperature, so whatever flows between them is pinned away in the same step.
         const ThermalMaterial D = ThermalMaterial.Dirt, S = ThermalMaterial.Stone, B = ThermalMaterial.Base,
-            E = ThermalMaterial.ConstantEnergy, H = ThermalMaterial.HotRock, A = ThermalMaterial.Air;
+            E = ThermalMaterial.ConstantEnergy, H = ThermalMaterial.HotRock, F = ThermalMaterial.FrostRock,
+            A = ThermalMaterial.Air;
         (ThermalMaterial, ThermalMaterial, float)[] tuned =
         [
             (A, A, 0.240f), (D, D, 0.045f), (D, S, 0.070f), (D, B, 0.090f), (D, E, 0.100f), (D, H, 0.070f),
             (S, S, 0.300f), (S, B, 0.450f), (S, E, 0.450f), (S, H, 0.300f), (H, H, 0.300f), (H, B, 0.450f),
-            (H, E, 0.450f),
+            (H, E, 0.450f), (D, F, 0.070f), (S, F, 0.300f), (F, F, 0.300f), (F, H, 0.300f), (F, B, 0.450f),
+            (F, E, 0.450f),
         ];
         var table = Tweaks.World.ThermalMaterials;
         var wrong = tuned
             .Where(p => p.Item3 != table.PairConductance(p.Item1, p.Item2))
             .Select(p => $"{p.Item1}-{p.Item2}: expected {p.Item3:R}, got {table.PairConductance(p.Item1, p.Item2):R}");
         Assert.Empty(wrong);
-        float[] airExchange = [0f, 0.035f, 0.220f, 0.450f, 0.550f, 0.220f];
+        float[] airExchange = [0f, 0.035f, 0.220f, 0.450f, 0.550f, 0.220f, 0.220f];
         foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
             Assert.Equal(airExchange[(int)m], table[m].AirExchange);
     }
@@ -121,7 +123,7 @@ public class SimulationTableGuardTests
         string[] reviewed =
         {
             "LevelGenDirt", "LevelGenRock", "LevelGenMark", "Blank", "Dirt", "DirtGrow", "Rock", "Decal",
-            "BaseMin", "BaseMax", "BaseBarrier", "BaseCore", "HotRock", "Concrete", "Gold",
+            "BaseMin", "BaseMax", "BaseBarrier", "BaseCore", "HotRock", "FrostRock", "Concrete", "Gold",
         };
         string[] actual = Enum.GetNames<TerrainPixel>();
         Assert.Equal(reviewed.Order(), actual.Order());
@@ -129,6 +131,7 @@ public class SimulationTableGuardTests
 
     [Theory]
     [InlineData(TerrainPixel.HotRock)]
+    [InlineData(TerrainPixel.FrostRock)]
     [InlineData(TerrainPixel.BaseBarrier)]
     [InlineData(TerrainPixel.BaseCore)]
     public void FixedTemperatureCells_StayPinned_AndTheLedgerAccountsForIt(TerrainPixel pinned)

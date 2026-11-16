@@ -6,4 +6,5 @@ public enum DamageCause
     None,
     EnemyFire,
     Overheat,
+    Frostbite,
 }

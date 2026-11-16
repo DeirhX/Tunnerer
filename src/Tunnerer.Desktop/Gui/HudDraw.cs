@@ -6,11 +6,12 @@ using ImGuiNET;
 /// <summary>Drawing helpers the HUD pieces share: outlined text, colour packing, arcs and convex polygon bands.</summary>
 public static class HudDraw
 {
-    public static readonly Vector4 TextGood = new(0.55f, 1.0f, 0.55f, 1f);
-    public static readonly Vector4 TextWarn = new(1.0f, 0.82f, 0.30f, 1f);
-    public static readonly Vector4 TextBad = new(1.0f, 0.40f, 0.35f, 1f);
-    public static readonly Vector4 TextInfo = new(0.55f, 0.85f, 1.0f, 1f);
-    public static readonly Vector4 TextDim = new(0.80f, 0.80f, 0.80f, 1f);
+    // Text colours, from the shared HUD palette.
+    public static readonly Vector4 TextGood = HudTheme.ToVector(HudTheme.Good);
+    public static readonly Vector4 TextWarn = HudTheme.ToVector(HudTheme.Warn);
+    public static readonly Vector4 TextBad = HudTheme.ToVector(HudTheme.Danger);
+    public static readonly Vector4 TextInfo = HudTheme.ToVector(HudTheme.Teal);
+    public static readonly Vector4 TextDim = HudTheme.ToVector(HudTheme.Text);
 
     /// <summary>An RGB colour (0-1) and alpha packed as ImGui's ABGR.</summary>
     public static uint PackColor(Vector3 rgb, float alpha) =>
@@ -37,13 +38,9 @@ public static class HudDraw
         DrawOutlinedText(dl, size, new Vector2(MathF.Floor(centerX - w * 0.5f), y), text, color);
     }
 
-    /// <summary>Colored text that is never treated as a format string (so a literal '%' is shown).</summary>
-    public static void ColoredText(Vector4 color, string text)
-    {
-        ImGui.PushStyleColor(ImGuiCol.Text, color);
-        ImGui.TextUnformatted(text);
-        ImGui.PopStyleColor();
-    }
+    /// <summary>A line of HUD text (outlined, never treated as a format string, so a literal '%' is shown).</summary>
+    public static void ColoredText(Vector4 color, string text) =>
+        HudTheme.LineRow(text, ImGui.ColorConvertFloat4ToU32(color), 16.5f);
 
     public static void StrokeArc(ImDrawListPtr dl, Vector2 c, float r, float a0, float a1, uint color, float thickness)
     {

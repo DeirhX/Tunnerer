@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <Content Include="resources\hud\**\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="resources\fonts\*.ttf;resources\fonts\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Shader sources live in Rendering\Shaders; includes are inputs of the shader build step. -->

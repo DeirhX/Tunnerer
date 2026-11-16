@@ -11,9 +11,10 @@ using Tunnerer.Desktop.Rendering;
 /// <summary>
 /// Draws the in-game HUD each frame: the game view, crosshair and hit feedback here, and the pieces in their own
 /// files (<see cref="HudStrip"/>, <see cref="NetworkPanel"/>, <see cref="WarningBanner"/>, <see cref="MatchOverlay"/>,
-/// <see cref="PostPassOverlay"/>, <see cref="TerrainTestPanel"/>).
+/// <see cref="PostPassOverlay"/>, <see cref="TerrainTestPanel"/>), plus the tutorial and notifications
+/// (<c>GameHud.Guidance.cs</c>) and the upgrade panel and goal banner (<c>GameHud.Goal.cs</c>).
 /// </summary>
-public class GameHud
+public partial class GameHud
 {
     private readonly HudStrip _strip = new();
     private readonly NetworkPanel _network = new();
@@ -26,8 +27,11 @@ public class GameHud
     /// <summary>State of the temperature orb shader for the frame just drawn; the game passes it to the backend.</summary>
     public HeatOrbState HeatOrb => _strip.HeatOrb;
 
-    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel, nint digitStrip) =>
-        _strip.Init(heatIcon, shieldIcon, panelFrame, buildPanel, digitStrip);
+    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel) =>
+        _strip.Init(heatIcon, shieldIcon, panelFrame, buildPanel);
+
+    /// <summary>Window pixel (the mouse, the game texture, the camera) to UI units (see <see cref="ImGuiPlatform.UiScale"/>).</summary>
+    private static float ToUi(float windowPixels) => windowPixels / ImGuiPlatform.UiScale;
 
     public void Draw(
         nint gameTextureId,
@@ -47,6 +51,9 @@ public class GameHud
         _strip.Draw(player, _time);
         _network.Draw(ViewportRect, player, world, _time);
         _warnings.Draw(ViewportRect, player, heatDebugOverlayEnabled, _time);
+        DrawGuidance(player, world);
+        DrawUpgradePanel(player);
+        DrawSectorComplete(player);
         MatchOverlay.Draw(ViewportRect, player, world);
         if (showPostPassOverlay)
             PostPassOverlay.Draw(ViewportRect, heatDebugOverlayEnabled, postPassFlags);
@@ -84,16 +91,21 @@ public class GameHud
         {
             var cursorPos = ImGui.GetCursorScreenPos();
             ImGui.SetCursorPos(Vector2.Zero);
-            ImGui.Image(gameTextureId, new Vector2(texW, texH));
-            ViewportRect = (cursorPos.X, cursorPos.Y, texW, texH);
+            ImGui.Image(gameTextureId, new Vector2(ToUi(texW), ToUi(texH)));
+            ViewportRect = (cursorPos.X, cursorPos.Y, ToUi(texW), ToUi(texH));
         }
         ImGui.End();
         ImGui.PopStyleVar(2);
     }
 
+    /// <summary>Bottom of the visible game view: the top of the HUD strip, or the view's own bottom if that is higher.</summary>
+    private float ViewBottom((float x, float y, float w, float h) vp) =>
+        _strip.Top > vp.y ? MathF.Min(_strip.Top, vp.y + vp.h) : vp.y + vp.h;
+
     private void DrawCrosshair()
     {
-        if (CrosshairScreenPos is not { } pos) return;
+        if (CrosshairScreenPos is not { } window) return;
+        var pos = (x: ToUi(window.x), y: ToUi(window.y));
         var vp = ViewportRect;
         if (pos.x < vp.x || pos.y < vp.y || pos.x >= vp.x + vp.w || pos.y >= vp.y + vp.h) return;
 

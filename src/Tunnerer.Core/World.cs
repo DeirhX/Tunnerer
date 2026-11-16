@@ -26,6 +26,9 @@ public class World
     private readonly TerrainRegrowth _terrainRegrowth;
     private readonly int _hotRockPocketCount;
     private readonly List<Position> _hotRockPockets = new();
+    private Position? _corePocket;
+    private readonly int _frostRockPocketCount;
+    private readonly List<Position> _frostRockPockets = new();
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
     private readonly StepEventLog _stepEvents = new();
@@ -87,6 +90,9 @@ public class World
     /// <summary>Centres of the hot rock pockets placed at initialisation (empty unless the world was created with some).</summary>
     public IReadOnlyList<Position> HotRockPockets => _hotRockPockets;
 
+    /// <summary>Centres of the frost pockets placed at initialisation (empty unless the world was created with some).</summary>
+    public IReadOnlyList<Position> FrostRockPockets => _frostRockPockets;
+
     /// <summary>
     /// Whether <paramref name="machine"/> centred on <paramref name="center"/> would overlap a live tank or another
     /// planted machine: the machine's square against the tank's shape (<see cref="TankSpriteShape"/>) or the other
@@ -133,9 +139,11 @@ public class World
         int simulationSeed = 0,
         bool enableTerrainRegrowth = true,
         int hotRockPocketCount = 0,
-        SimulationSettings? simulationSettings = null)
+        SimulationSettings? simulationSettings = null,
+        int frostRockPocketCount = 0)
     {
         _hotRockPocketCount = hotRockPocketCount;
+        _frostRockPocketCount = frostRockPocketCount;
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
@@ -165,11 +173,16 @@ public class World
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
-        if (_hotRockPocketCount > 0)
+        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0)
         {
-            _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, seed + 200));
+            int pocketSeed = seed + 200;
+            if (_hotRockPocketCount > 0)
+                _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, pocketSeed, out _corePocket));
+            if (_frostRockPocketCount > 0)
+                _frostRockPockets.AddRange(LevelGen.FrostRockPockets.Place(
+                    _terrain, spawns, _hotRockPockets, _frostRockPocketCount, pocketSeed + 1));
 
-            // Let the heat spread a little before play starts so the pockets do not begin as isolated hot dots.
+            // Let the heat (and cold) spread a little before play starts so the pockets do not begin as isolated dots.
             for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
                 _terrain.CoolDown(Tweaks.World.ThermalArtificialCoolingPerFrame);
         }
@@ -254,6 +267,7 @@ public class World
                 LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
+        AdvanceSectorGoal();
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
         foreach (var tank in _tankList.Tanks)
         {
@@ -333,6 +347,47 @@ public class World
     }
 
     private static bool IsOutOfLives(Tank tank) => tank.IsDead && tank.LivesLeft <= 0;
+
+    /// <summary>
+    /// The hot core, the sector goal (DESIGN.md §4.8): the large hot rock pocket at the map centre, or the nearest
+    /// spot to it clear of the bases. Null when the world has no hot rock.
+    /// </summary>
+    public Position? CorePocket => _corePocket;
+
+    /// <summary>
+    /// Sums the charge each base's relays near the core made this tick and advances that base's hold timer: it grows
+    /// while the tap meets the goal rate and drains faster while it falls short. The base that holds it long enough
+    /// has tapped the core.
+    /// </summary>
+    private void AdvanceSectorGoal()
+    {
+        if (CorePocket is not Position core)
+            return;
+        int radiusSq = Tweaks.Goal.CoreTapRadius * Tweaks.Goal.CoreTapRadius;
+        double dt = _simulationSettings.AdvanceStep.TotalSeconds;
+        foreach (var tankBase in _tankBases.Bases)
+        {
+            double tap = 0.0;
+            foreach (var machine in _machines.Machines)
+                if (machine.IsAlive && machine.Type == MachineType.Relay && machine.OwnerBase == tankBase &&
+                    Position.DistanceSquared(machine.Position, core) <= radiusSq)
+                    tap += machine.LastChargeMade;
+            tankBase.CoreTapPerTick = tap;
+            tankBase.CoreHoldSeconds = NextCoreHold(tankBase.CoreHoldSeconds, tap, dt);
+            if (tankBase.CoreHoldSeconds >= Tweaks.Goal.GoalHoldSeconds)
+                tankBase.HasTappedCore = true;
+        }
+    }
+
+    /// <summary>
+    /// One step of the core-tap hold timer: it grows by <paramref name="dt"/> while the tap meets the goal rate and
+    /// drains <c>GoalHoldDecay</c> times as fast (never below zero) while it falls short.
+    /// </summary>
+    public static double NextCoreHold(double hold, double tapPerTick, double dt)
+    {
+        double goalPerTick = Tweaks.Goal.GoalChargePerSecond * dt;
+        return tapPerTick >= goalPerTick ? hold + dt : Math.Max(0.0, hold - dt * Tweaks.Goal.GoalHoldDecay);
+    }
 
     private static void ProfileSection(ref TimeSpan accumulator, Action action)
     {

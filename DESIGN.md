@@ -33,18 +33,18 @@ There are four nested loops. Each should be satisfying without the one above it.
 
 | Timescale | Loop | Ends when |
 |---|---|---|
-| Minutes | Pre-cool at base, dive, reach something valuable, get home | The coolant charge runs out or the cargo is full |
+| Minutes | Cool down at base, dive, reach something valuable, get home | The heat budget runs out or the cargo is full |
 | A session | Make one sector autonomous | The sector reaches thermal steady state at its quota |
 | The campaign | Work inward, sector by sector, toward the core | The core is tapped |
 | Endless | Replay sectors for a better score or under harder modifiers | Never |
 
 The session loop in detail:
 
-1. Pre-cool at base and dive.
-2. Hit an obstacle that one coolant charge cannot brute-force.
+1. Cool down at base and dive.
+2. Hit an obstacle that one dive's heat budget cannot brute-force.
 3. Build infrastructure that makes that spot workable.
 4. Extract what is behind it and haul it home.
-5. Spend it on reach: more coolant, better relays, a bigger radiator.
+5. Spend it on reach: better relays, a wider network, a bigger radiator.
 6. Replace each manual job with a structure until the sector runs unattended.
 
 ## 4. Heat
@@ -56,10 +56,10 @@ The session loop in detail:
 - **The base is the main heat sink.** *(Decided.)* It has a finite reservoir and a radiator that vents at a fixed
   rate. The radiator is the shared constraint that everything competes for.
 - **Heat reaches the base in two ways.** *(Decided.)*
-  - **Tanks** carry it. A tank docked at its own base is refrigerated below ambient; that coolant charge is spent
-    by absorbing heat in the field.
+  - **Tanks** carry it. A docked tank's heat is pumped into its base, settling it near 0 (§4.7).
   - **Relays** pipe it. A relay pulls heat from the ground around it and sends it to the base.
-- **Tanks and relays have different jobs.** *(Proposed.)* Coolant decides how long you can stay somewhere hot.
+- **Tanks and relays have different jobs.** *(Proposed.)* The tank's heat budget decides how long you can stay
+  somewhere hot.
   Relays decide whether a hot place becomes permanently workable. A tank is not a meaningful way to cool the
   world, and should not be tuned to become one.
 
@@ -134,7 +134,7 @@ never tracks two resources at once.
 
 ### 4.6 Network coverage: the leash *(Prototype)*
 
-Exploring should be planned, not free. The network you have built is your coolant line: inside its coverage the
+Exploring should be planned, not free. The network you have built is your cooling line: inside its coverage the
 tank is cooled through the links; outside it, the tank heats up. How far you can go is how long your heat lasts
 off the network. There is no new meter: the TEMP gauge is the only thing to watch.
 
@@ -142,17 +142,58 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
   when it is inside a node's circle and in direct line of sight through open ground, the same rule links use, so
   coverage follows your tunnels.
 - **Inside coverage** the tank's heat goes down the links into the base reactor, so it competes with the relays for
-  the same radiator. Coverage takes heat away but never refills coolant; only docking does that.
+  the same radiator. Coverage only takes heat away; it never chills the tank below 0.
 - **Outside coverage** the tank's heat floor climbs steadily. Work heat from digging and firing still sheds into the
-  ground as usual, but the tank can never cool below the floor. From a full coolant charge an idle tank lasts about
-  150 seconds out; every burst of digging spends some of what is left once the floor is high. Back in coverage the
-  floor falls at the network's cooling rate, so a moment's dip is not a full reset.
+  ground as usual, but the tank can never cool below the floor. Leaving at 0, an idle tank lasts about 100 seconds
+  out; every burst of digging spends some of what is left once the floor is high. Back in coverage the floor falls at
+  the network's cooling rate, so a moment's dip is not a full reset. Sub-zero ground (a frost pocket, §4.7) is a real
+  cold sink: there the floor follows the tank down, so cooling off at one buys back time.
 - **What stops spamming relays.** A relay is only useful where it can see the network. Cooling strength falls with
   each link hop from the base, so the far end of a long chain barely holds the tank. Every node also loads the
   shared radiator. Going much further means a forward base: a big, planned decision.
 - **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
   the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node. Off network an
   "OFF NETWORK ~Ns" tag above the TEMP gauge shows how long until the floor reaches the safe maximum.
+
+### 4.7 Temperature: too hot, too cold *(Prototype)*
+
+The tank lives in a band around 0. Both ends hurt, and the world has places at both ends.
+
+- **Above 100 the tank burns.** Overheating takes shield damage per degree over the limit, every tick.
+- **Below 0 the tank is chilled.** It slows down, linearly to about a third of its speed at -40, and below -25 it
+  takes frostbite damage per degree, the same way overheating does. Negative temperatures are unusual, never a
+  reserve to stock up on.
+- **The base settles the tank near 0.** Docked at its own base, a share of the tank's heat above 0 is pumped into the
+  base reservoir every tick, on top of conduction with the base floor. A hot tank cools fast at first and levels off
+  near 0; a cold tank is warmed back by the floor. A full reservoir stops the pump.
+- **Heat exchange follows the temperature difference.** A tank drifts toward the temperature of whatever it stands in,
+  in both directions: hot ground warms it, cold ground chills it, and it warms or chills the cells under it in turn.
+- **Frost pockets** are indestructible rock pinned at -60, scattered at middle distances from the bases and away from
+  hot pockets. Beside one, a hot tank sheds heat quickly, which makes it a place to cool down on a dive (and, off
+  network, a way to buy back time, §4.6). Stay too long and the tank gets chilled, then frostbitten. Frost is drawn as
+  an icy tint with a slow sparkle on any ground below 0, so cold places read at a glance.
+
+### 4.8 The sector goal and base upgrades *(Prototype)*
+
+Building has to pay off, and exploring has to lead somewhere.
+
+- **The goal: tap the core.** Every map with hot rock has a large hot core at its centre (moved to the nearest spot
+  clear of the bases when a base spawns too close). The sector is won when relays within about 22 cells of the core
+  make at least 5k charge/s for the player's base, held for 60 seconds. Falling short drains the hold timer at twice
+  real time, so the tap has to be steady, not a lucky burst.
+- **Why it needs everything.** The core is far from both bases, so reaching it means a relay chain (the network
+  leash, §4.6). By the numbers one relay by the core falls well short of the goal rate (a relay pumps 300 a tick and the engine converts at most half), so it takes several, and their heat loads
+  the radiator. Hauling the dirt for all of that is what harvesters are for.
+- **Upgrades: what the dirt store buys.** Docked at its own base, the tank spends the base dirt store with keys 1-4.
+  Each upgrade has three levels; level n costs 600 x n dirt.
+  - **Radiator:** vents one more unit (500 energy) per tick per level, so more relays and more tank cooling fit.
+  - **Network reach:** +6 cells on every coverage circle per level.
+  - **Engine:** +10% maximum efficiency per level, and warm sources convert better.
+  - **Insulation:** the off-network clock runs 25% slower per level.
+- **Harvesters are income.** Their dirt goes straight into the store that buys upgrades, so a camp of harvesters
+  near the base turns into a bigger radiator and a longer reach.
+- **The HUD** shows the goal (core tap rate and hold timer) at the top of the base panel, an upgrade list above the
+  bottom panel while docked, and a banner when the sector is complete.
 
 ## 5. The player *(Decided: mainly a builder that can also fight, as in Factorio)*
 
@@ -164,7 +205,7 @@ A sector only completes when it runs without the player, so nothing may depend o
 |---|---|
 | Dig | Harvester or drill |
 | Haul ore home | Hauler or conveyor |
-| Carry heat out on the coolant charge | Relays and conductor lines |
+| Carry heat home in the tank | Relays and conductor lines |
 | Shoot what attacks | Turrets |
 
 ### 5.2 Combat
@@ -208,7 +249,7 @@ rules and combat tuning.
 
 Rare minerals and metals sit in the terrain, and the player has reasons to collect and use them:
 
-- Each has a thermal job (see 4.2), plus a coolant mineral that adds reservoir or tank capacity.
+- Each has a thermal job (see 4.2), plus a mineral that adds reservoir capacity.
 - The best deposits are in the hottest ground.
 - Each sector's minerals unlock the technology for the next, so sectors cannot be skipped.
 
@@ -278,7 +319,7 @@ player is trying to tap. Every tunnel, relay and upgrade is a step toward it.
 
 | Ring | What heat is | What the player learns to build |
 |---|---|---|
-| 1 | A personal timer | Coolant charge, short dives |
+| 1 | A personal timer | Heat budget, short dives |
 | 2 | A logistics problem | Relay and conductor networks with limited throughput |
 | 3 | Hotter than the sink absorbs passively | Active heat pumps, which cost power and make more heat |
 | 4 | Hot enough to destroy the player's own structures | Insulation and alloys from deeper minerals |
@@ -325,8 +366,8 @@ On the thermal integration work (branch `integrate/thermal-ledger-and-visuals` a
 - A base with a finite reservoir and a radiator.
 - Relays that pump heat from a radius into the base when linked by direct line of sight through open tunnel.
 - Harvesters that roam near where they were planted, mining dirt into the base store; a relay keeps them cool.
-- Tank coolant: pre-cooling at the home base, spent by absorbing heat.
-- Hot rock pockets as permanent heat sources, opt-in per world.
+- Tank temperature in a band around 0: docking settles it near 0, cold slows it, both extremes damage it.
+- Hot rock pockets as permanent heat sources and frost pockets as cold ones, opt-in per world.
 - Harvester, relay and pylon machines, gold as a pickup, and one bot opponent.
 
 Gaps between that and this design, using the constants in `Tweaks.cs` in the working copy on 2026-11-14:
@@ -335,7 +376,7 @@ Gaps between that and this design, using the constants in `Tweaks.cs` in the wor
    limit of 100.
 2. **The base is not a bottleneck.** The radiator vents about 1,000 energy per tick against a 50,000 reservoir; a
    relay pumps 300.
-3. **Tanks carry little.** A fully pre-cooled tank holds about 3,000 energy.
+3. **Tanks carry little.** A tank's whole safe range is about 2,000 energy.
 4. **Relays teleport heat.** There is no line capacity and no route to choose or cut.
 5. **Heat leaks outside the loop** (see 4.3).
 6. **There is one map, one generator and no world map, save format or sector state.**
@@ -386,6 +427,7 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Everything useful makes heat; the radiator is the shared bottleneck | Proposed |
 | Power is converted relay heat; machines run on charge and refuel at pylons | Prototype |
 | The tank's range is set by network coverage and its heat; no second meter on the tank | Prototype |
+| The sector goal is tapping the core; the dirt store buys base upgrades | Prototype |
 | Heat-seeking mobs; threat scales with heat rejected | Proposed |
 | Quenchable hot rock as the first hazard | Proposed |
 | Alerts are caused by the player's actions; headroom buys time | Proposed |

@@ -78,9 +78,10 @@ Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, Dir
 ## World
 
 `new World(size, parallelRegrowth, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
-spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot rock pockets (if asked)
-and adds one tank per spawn. Every RNG World owns (projectiles, link map, regrowth, each tank) is seeded from
-`simulationSeed`, and decorations and hot rock pockets from the decoration seed (or, without one, from the spawns and
+spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot and frost rock pockets (if
+asked; the hot ones also give the core, `World.CorePocket`) and adds one tank per spawn. Every RNG World owns
+(projectiles, link map, regrowth, each tank) is seeded from `simulationSeed`, and decorations and rock pockets from
+the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
 picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in parallel, with the same result. The bot takes its own seed, also from `WorldFactory`.
 
@@ -92,10 +93,12 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
 4. **Projectiles**: `ProjectileList.Advance`.
 5. **Tanks**: `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`): idle heat, base
    interaction (recharge, heat sink, docking), network coverage, turret aim and fire, `TankDigger.Move`, spawn
-   shield, shooting, pickups, `TankBuildController.Advance`, then `TankThermals.Advance` (exchange with the grid).
+   shield, shooting, pickups, `TankBuildController.Advance`, the upgrade keys, then `TankThermals.Advance` (exchange
+   with the grid).
 6. **Machines**: `MachineList.Advance`, then each pylon's last hand-out is booked on its route (`LinkMap.CarryCharge`).
 7. **Sprites**: lifetime.
-8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters).
+8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then `World.AdvanceSectorGoal` (the
+   core tap and its hold timer).
 9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
    every tick.
 
@@ -130,13 +133,14 @@ terrain field only mirrors the air field, so such a cell holds one store.
 Each tick `TerrainGrid.CoolDown` asks `ThermalScheduler.Decide` what to do: sleep (nothing active, or the last step
 was quiet), step the full grid, or step only the regions around active tiles (`ThermalActivityTracker`), in
 parallel when there are many regions. Both paths use `TerrainHeatEngine.ComputeRegionDeltaConservative` and
-`ResolveTerrainTemperature`, which pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock) and
+`ResolveTerrainTemperature`, which pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock) and
 books what the pin removes or adds as `SunkFixedTemperature`.
 
 Entities exchange energy through the `ITerrainHeatSource` API, never by writing temperatures:
 `AddEnergyInRadiusArea` / `ExtractEnergyInRadiusArea` for transfers the entity books itself, `AddHeat` /
 `AddHeatRadius` / `AddHeatTotalInRadiusArea` for heat that enters from outside (booked as injected). Extraction
-takes only heat above ambient and never from hot rock. `SetPixel` books the capacity change when a cell changes
+takes only heat above ambient and never from hot or frost rock. A tank exchanges with the grid in both directions
+(`AddEnergyInRadiusArea` with a signed amount), so a cold tank warms by chilling the cells under it. `SetPixel` books the capacity change when a cell changes
 material; `SetPixelRaw` is unmetered and only for level generation.
 
 `ThermalLedger` keeps `Injected`, the `Sunk*` totals and `ConvertedToCharge` (heat the base engine turned into
@@ -144,8 +148,11 @@ charge, or charge spent back as heat). `World.SumSystemThermalEnergy` (grid, tan
 `World.SumSystemCharge` (base stores, batteries) changes by exactly `Injected - TotalSunk` each tick.
 
 The mechanics built on this (base reservoir and radiator, relays pumping heat home, the base engine and charge,
-pylons and batteries, network coverage, tank coolant, hot rock pockets) are specified in `DESIGN.md` §4; the code
-is in `TankBase`, `MachineBehaviors`, `TankThermals`, `NetworkCoverage` and `HotRockPockets`.
+pylons and batteries, network coverage, the tank's temperature band, hot and frost rock pockets, the sector goal and
+base upgrades) are specified in `DESIGN.md` §4; the code is in `TankBase`, `BaseUpgrades`, `MachineBehaviors`,
+`TankThermals`, `TankHeatModel`, `NetworkCoverage`, `HotRockPockets`, `FrostRockPockets` and `World.AdvanceSectorGoal`.
+The heat render texture encodes temperature signed (`TerrainGrid.HeatToByte`), so the terrain shader can draw ground
+below 0 as frost.
 
 ## Links
 

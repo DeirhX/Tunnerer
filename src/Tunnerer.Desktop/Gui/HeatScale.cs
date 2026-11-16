@@ -5,8 +5,8 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 
 /// <summary>
-/// Temperature scale of the heat orb and bar, in tank heat units (0 = ambient): from a full coolant charge at the cold
-/// end, through the safe range, to a margin past the point where overheating starts burning the shield. The range is
+/// Temperature scale of the heat orb and bar, in tank heat units (0 = ambient): from past the point where frostbite
+/// starts at the cold end, through the safe range, to a margin past the point where overheating burns the shield. The range is
 /// Core's (<see cref="Tank.HeatGaugeMin"/>, <see cref="Tank.HeatGaugeMax"/>); the colours are the HUD's.
 /// </summary>
 public static class HeatScale
@@ -14,12 +14,12 @@ public static class HeatScale
     public static float Min => Tank.HeatGaugeMin;
     public static float Max => Tank.HeatGaugeMax;
 
-    /// <summary>Where a temperature lies on the heat scale, 0 (full coolant charge) to 1 (well past overheating).</summary>
+    /// <summary>Where a temperature lies on the heat scale, 0 (deep frost) to 1 (well past overheating).</summary>
     public static float Fraction(float heat) =>
         Math.Clamp((heat - Min) / (Max - Min), 0f, 1f);
 
     /// <summary>
-    /// Colour for a temperature: icy blue with coolant, green around ambient, then amber, orange and red as the
+    /// Colour for a temperature: icy blue below freezing, green around ambient, then amber, orange and red as the
     /// tank approaches and passes the safe maximum.
     /// </summary>
     public static uint Color(float heat) => HudDraw.PackColor(ColorRgb(heat), 1f);

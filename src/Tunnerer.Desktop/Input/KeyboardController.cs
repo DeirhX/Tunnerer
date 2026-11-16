@@ -58,6 +58,8 @@ public class KeyboardController
             BuildPrimary = primary,
             BuildSecondary = secondary,
             BuildTertiary = tertiary,
+            Upgrade = IsHeld(Scancode.Alpha1) ? 1 : IsHeld(Scancode.Alpha2) ? 2
+                : IsHeld(Scancode.Alpha3) ? 3 : IsHeld(Scancode.Alpha4) ? 4 : 0,
         };
     }
 }

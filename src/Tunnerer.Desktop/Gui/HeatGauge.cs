@@ -33,10 +33,10 @@ public sealed class HeatGauge(HudLayout layout)
         DrawOrb(dl, player, layout.At(OrbCenter), layout.S(OrbRadius), time);
 
     /// <summary>
-    /// The temperature orb. A dial runs round the rim, coloured from cold (blue, the coolant charge) over green and
+    /// The temperature orb. A dial runs round the rim, coloured from cold (blue, frost) over green and
     /// amber to red past the safe maximum, lit up to the current temperature with a needle at its tip. Inside, a
     /// glass sphere always full of liquid is drawn by a shader (HeatOrbPs, see <see cref="HeatOrbEffect"/>): the
-    /// liquid takes the temperature's colour and its state follows it, frozen to ice when pre-cooled, calm around
+    /// liquid takes the temperature's colour and its state follows it, frozen to ice in the cold, calm around
     /// ambient, bubbling as it heats and boiling once overheating burns the shield.
     /// </summary>
     private void DrawOrb(ImDrawListPtr dl, Tank player, Vector2 c, float r, float time)
@@ -57,7 +57,7 @@ public sealed class HeatGauge(HudLayout layout)
         float inner = r - 9f * k;
         HeatOrb = new HeatOrbState(
             LiquidColor: alive ? HeatScale.ColorRgb(shown) : new Vector3(0.12f, 0.13f, 0.14f),
-            Frozen: alive ? Math.Clamp(-shown / (0.6f * Tweaks.Tank.CoolantCapacity), 0f, 1f) : 0f,
+            Frozen: alive ? Math.Clamp(shown / Tweaks.Tank.FrostbiteTemperature, 0f, 1f) : 0f,
             Boil: alive ? Math.Clamp((shown - 0.4f * safe) / (0.6f * safe), 0f, 1f) : 0f,
             Burning: burning ? 0.6f + 0.4f * pulse : 0f,
             Time: time);
@@ -139,17 +139,13 @@ public sealed class HeatGauge(HudLayout layout)
         float seconds = player.OffNetworkSecondsToOverheat;
         string text = seconds > 0f ? $"OFF NETWORK  ~{(int)MathF.Ceiling(seconds)}s" : "OFF NETWORK  OVERHEATING";
         bool urgent = player.IsOffNetworkUrgent;
-        uint color = urgent
-            ? ((int)(time * 4f) % 2 == 0 ? 0xFF3040FFu : 0xFF60A0FFu)
-            : 0xFF40C8FFu;
         float size = S(20f);
-        float width = ImGui.GetFont().CalcTextSizeA(size, float.MaxValue, 0f, text).X;
-        var pos = At(centerX, -30f);
-        DrawOutlinedText(dl, size, new Vector2(MathF.Floor(pos.X - width * 0.5f), pos.Y), text, color);
+        var pos = At(centerX, -24f);
+        HudTheme.DrawTag(dl, pos, text, urgent && (int)(time * 4f) % 2 == 0 ? HudTheme.Danger : HudTheme.Warn, size);
     }
 
     /// <summary>
-    /// Temperature bar under the readout, on the same scale as the orb: a blue coolant zone left of the ambient
+    /// Temperature bar under the readout, on the same scale as the orb: a blue frost zone left of the ambient
     /// mark, green to amber up to the safe-maximum mark, and red beyond it.
     /// </summary>
     public void DrawBar(ImDrawListPtr dl, Tank player, float x, float y, float w, float time)

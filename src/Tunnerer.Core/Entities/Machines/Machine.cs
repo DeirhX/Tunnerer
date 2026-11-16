@@ -29,6 +29,12 @@ public class Machine
     /// <summary>Energy a relay moved into its base during its last action (0 when unpowered or the base is full).</summary>
     public double LastPumpedEnergy { get; set; }
 
+    /// <summary>
+    /// Charge the base engine made from this relay's heat during its last action, counted even when the charge store
+    /// was full and could not keep it.
+    /// </summary>
+    public double LastChargeMade { get; set; }
+
     /// <summary>True when a relay could not pump its full rate because the base reservoir was nearly full.</summary>
     public bool LastPumpLimitedByBase { get; set; }
 

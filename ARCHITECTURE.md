@@ -118,6 +118,27 @@ The composite buffer keeps entity drawing from corrupting the terrain surface. I
 entities; links, relays, pylons, harvesters, tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
 in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
+## Guidance: tutorial and notifications
+
+`Tunnerer.Desktop/Gui/Guidance` tells the player what to do next without touching the simulation. It only reads Core
+state once per displayed frame.
+
+- `TutorialDirector` is an ordered list of next logical steps (leave the base, dig, unload, build and link a relay,
+  stay on the network, power from hot rock, harvester, relay beside it, pylon, frost). Each step knows from the world
+  when it is done, so a player who acts early skips ahead; explainer steps also finish after a few seconds on screen.
+  A step can name a world cell to point at.
+- `GameEventWatcher` compares the player's side of the world with the previous frame and posts toasts to a
+  `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, stores
+  full, charge low, off network, engine running, harvester deliveries). The feed de-duplicates by key with a cooldown.
+- `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
+  an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
+  docked and the sector-complete banner.
+
+Every overlay (tutorial card, toasts, status and upgrade panels, warning banners, pause and controls menus, tags) is
+drawn with `HudTheme`, which follows the bottom HUD art: chamfered gunmetal plates, a bronze frame with an amber inner
+line, amber corner brackets, amber titles, segmented bars and key caps. `HudTheme.BeginWindow` turns an ImGui window
+into such a plate, so new panels match by default.
+
 ## Sound
 
 `Tunnerer.Desktop/Audio` turns the simulation into sound without the simulation knowing. `GameAudio` runs once
@@ -132,10 +153,11 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 `dotnet test Tunnerer.slnx` runs one xUnit project, `tests/Tunnerer.Tests`, which references both Core and Desktop.
 
-- **Core**: terrain and pixels, collision, level generation, tank movement, heat and coolant, relays, the power
-  loop, network coverage, hot rock, the thermal ledger and whole-world thermal behaviour, determinism, replays and
+- **Core**: terrain and pixels, collision, level generation, tank movement, heat and the temperature band, relays,
+  the power loop, network coverage, hot and frost rock, the sector goal and base upgrades, the thermal ledger and whole-world thermal behaviour, determinism, replays and
   recorded fingerprints, match outcome, network status, placement preview and the bot.
-- **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, layout), entity
+- **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, layout), the tutorial and
+  event notifications (`GuidanceTests`), entity
   interpolation (`EntityInterpolatorTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
   planning (`TerrainAuxUploaderTests`), world construction (`WorldFactoryTests`), and the solid field and material
   coverage the terrain shader samples.

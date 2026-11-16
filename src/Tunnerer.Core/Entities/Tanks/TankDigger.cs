@@ -16,6 +16,9 @@ internal sealed class TankDigger
     private readonly TankThermals _thermals;
     private FastRandom _rng;
 
+    // Fractional moves carried between ticks while the cold slows the tank.
+    private float _moveCredit;
+
     public TankDigger(Tank tank, TankThermals thermals, int seed)
     {
         _tank = tank;
@@ -29,7 +32,18 @@ internal sealed class TankDigger
     /// </summary>
     public void Move(in SimulationContext ctx, Offset speed, DirectionF torchHeading, bool torchUse)
     {
-        if (speed.X == 0 && speed.Y == 0) return;
+        if (speed.X == 0 && speed.Y == 0)
+        {
+            _moveCredit = 0f;
+            return;
+        }
+
+        // A cold tank only gets to act on some ticks (moving and digging alike), so it crawls (DESIGN.md §4.7).
+        // The remainder carries over (credit stays below 1 after a move), so a factor of 0.8 moves 4 ticks in 5.
+        _moveCredit += _tank.SpeedFactor;
+        if (_moveCredit < 1f)
+            return;
+        _moveCredit -= 1f;
 
         int dir = OffsetToDirection(speed);
         var newPos = _tank.Position + speed;
@@ -58,8 +72,7 @@ internal sealed class TankDigger
     }
 
     /// <summary>Picks up items under the tank's sprite shape: gold cools the tank.</summary>
-    public void CollectPickups(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, SimulationSettings settings,
-        StepEventLog? events)
+    public void CollectPickups(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, StepEventLog? events)
     {
         TankSpriteShape.ForEachPixel(_tank.Direction, _tank.Position, (_, worldPos) =>
         {
@@ -69,7 +82,7 @@ internal sealed class TankDigger
             if (Pixel.IsGold(pix))
             {
                 terrain.SetPixel(worldPos, TerrainPixel.Blank);
-                _thermals.CoolFromPickup(Tweaks.Tank.CoolingPickupGold, settings, heat.Ledger);
+                _thermals.CoolFromPickup(Tweaks.Tank.CoolingPickupGold, heat.Ledger);
                 events?.Record(new StepEvent(StepEventKind.GoldCollected, worldPos, _tank.Color));
             }
             return true;

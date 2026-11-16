@@ -120,7 +120,9 @@ public class TankHeatBehaviorTests
         });
 
         visual.Capture(world, "end");
-        Assert.InRange(tank.Heat, 0f, 6f);
+        // Only the tank is stepped (no heat diffusion), so the cells under it warm up and it settles between its start
+        // and ambient rather than at ambient.
+        Assert.InRange(tank.Heat, 0f, 40f);
     }
 
     [Fact]

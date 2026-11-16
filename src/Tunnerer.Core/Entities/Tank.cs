@@ -38,14 +38,20 @@ public class Tank
     public TankTurret Turret { get; }
     public float Heat { get; set; }
 
-    /// <summary>Heat the tank can still take before it overheats (<c>HeatSafeMax - Heat</c>); more than HeatSafeMax when pre-cooled.</summary>
+    /// <summary>Heat the tank can still take before it overheats (<c>HeatSafeMax - Heat</c>).</summary>
     public float HeatBudget => Tweaks.Tank.HeatSafeMax - Heat;
 
-    /// <summary>Largest possible <see cref="HeatBudget"/>: a full coolant charge on top of the safe heat range.</summary>
-    public static float HeatBudgetCapacity => Tweaks.Tank.HeatSafeMax + Tweaks.Tank.CoolantCapacity;
+    /// <summary>
+    /// <see cref="HeatBudget"/> of a tank fully cooled at its base (at 0). A colder tank has more room, but docking never
+    /// cools below 0, so this is the room the bot plans with.
+    /// </summary>
+    public static float HeatBudgetCapacity => Tweaks.Tank.HeatSafeMax;
 
-    /// <summary>Fraction of the coolant charge left (1 = fully pre-cooled, 0 = at ambient or warmer).</summary>
-    public float CoolantFraction => Math.Clamp(-Heat / Tweaks.Tank.CoolantCapacity, 0f, 1f);
+    /// <summary>Fraction of its normal speed the tank moves at; below 1 when it is cold (DESIGN.md §4.7).</summary>
+    public float SpeedFactor => TankHeatModel.ColdSpeedFactor(Heat);
+
+    /// <summary>True while the tank took frostbite damage during its last tick.</summary>
+    public bool IsFreezing => _thermals.IsFreezing;
 
     /// <summary>Heat capacity of the tank, from the settings its heat engine uses: tank energy is <c>Heat * ThermalCapacity</c>.</summary>
     public float ThermalCapacity => _thermals.ThermalCapacity;
@@ -71,7 +77,10 @@ public class Tank
 
     /// <summary>Seconds until the rising off-network heat floor reaches the safe maximum (zero once it has).</summary>
     public float OffNetworkSecondsToOverheat =>
-        MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
+        MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - OffNetworkFloor) / OffNetworkHeatPerSecond);
+
+    /// <summary>How fast the off-network floor rises for this tank, per second (its base's insulation slows it).</summary>
+    public float OffNetworkHeatPerSecond => Tweaks.Tank.OffNetworkHeatPerSecond * (Base?.Upgrades.OffNetworkHeatFactor ?? 1f);
 
     /// <summary>Off network and close enough to overheating that the warning should be urgent.</summary>
     public bool IsOffNetworkUrgent => OffNetworkSecondsToOverheat < Tweaks.Tank.OffNetworkUrgentSeconds;
@@ -79,13 +88,11 @@ public class Tank
     /// <summary>Hotter than the safe maximum: overheating burns the shield.</summary>
     public bool IsAboveSafeHeat => Heat > Tweaks.Tank.HeatSafeMax;
 
-    /// <summary>
-    /// The heat budget is not yet full: a docked tank is still being pre-cooled towards a full coolant charge.
-    /// </summary>
-    public bool IsCoolingDown => HeatBudget < HeatBudgetCapacity - Tweaks.Tank.FullyCooledMargin;
+    /// <summary>Still warmer than the base cools it to: a docked tank is still being cooled down toward 0.</summary>
+    public bool IsCoolingDown => Heat > Tweaks.Tank.FullyCooledMargin;
 
-    /// <summary>Coldest heat on the heat gauge: a full coolant charge.</summary>
-    public static float HeatGaugeMin => -Tweaks.Tank.CoolantCapacity;
+    /// <summary>Coldest heat on the heat gauge: past the point where frostbite starts.</summary>
+    public static float HeatGaugeMin => Tweaks.Tank.FrostbiteTemperature * Tweaks.Tank.HeatGaugeFrostMargin;
 
     /// <summary>Hottest heat on the heat gauge: a margin past the safe maximum.</summary>
     public static float HeatGaugeMax => Tweaks.Tank.HeatSafeMax * Tweaks.Tank.HeatGaugeOverheatMargin;
@@ -213,9 +220,10 @@ public class Tank
         _digger.Move(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
         _lifecycle.UpdateSpawnProtection(ctx.CheckBaseCollision(Position) == Base, input.ShootPrimary);
         AdvanceShooting(input, in ctx);
-        _digger.CollectPickups(ctx.Terrain, ctx.Heat, ctx.Settings, ctx.Events);
+        _digger.CollectPickups(ctx.Terrain, ctx.Heat, ctx.Events);
         _build.Advance(in ctx, input);
-        _thermals.Advance(ctx.Heat, ctx.Settings);
+        AdvanceUpgrades(input);
+        _thermals.Advance(ctx.Heat);
     }
 
     /// <summary>
@@ -224,6 +232,37 @@ public class Tank
     /// </summary>
     public bool TakeDamage(int amount, DamageCause cause, VectorF hitVelocity = default) =>
         _lifecycle.TakeDamage(amount, cause, hitVelocity);
+
+    /// <summary>Ticks left on the "could not buy that upgrade" feedback after a refused purchase.</summary>
+    public int UpgradeRefusedTicks { get; private set; }
+
+    /// <summary>Why the last refused upgrade press bought nothing (valid while <see cref="UpgradeRefusedTicks"/> runs).</summary>
+    public UpgradeRefusal LastUpgradeRefusal { get; private set; }
+
+    private int _upgradeHeld;
+
+    /// <summary>
+    /// Upgrade keys (edge triggered): docked at its own base, the tank buys the next level of the chosen upgrade from
+    /// the base's dirt store. Anywhere else, for a maxed upgrade, or when the store cannot pay, the press is refused
+    /// and <see cref="LastUpgradeRefusal"/> says why.
+    /// </summary>
+    private void AdvanceUpgrades(ControllerOutput input)
+    {
+        if (UpgradeRefusedTicks > 0)
+            UpgradeRefusedTicks--;
+        bool pressed = input.Upgrade != 0 && input.Upgrade != _upgradeHeld;
+        _upgradeHeld = input.Upgrade;
+        if (!pressed || input.Upgrade < 1 || input.Upgrade > BaseUpgrades.Count)
+            return;
+        var upgrade = (BaseUpgrade)(input.Upgrade - 1);
+        UpgradeRefusal refusal = !IsDockedAtOwnBase ? UpgradeRefusal.NotDocked
+            : Base!.Upgrades.IsMaxed(upgrade) ? UpgradeRefusal.Maxed
+            : Base.TryBuyUpgrade(upgrade) ? UpgradeRefusal.None
+            : UpgradeRefusal.CannotPay;
+        // A successful press clears any earlier refusal, so its message does not linger over the purchase.
+        LastUpgradeRefusal = refusal;
+        UpgradeRefusedTicks = refusal != UpgradeRefusal.None ? 48 : 0;
+    }
 
     /// <summary>
     /// Dirt available to build with: the tank's own, or the base store if that is larger while docked at the own
@@ -261,8 +300,10 @@ public class Tank
 
     /// <summary>
     /// Any base the tank is in recharges it and sinks heat around it; its own base also takes its dirt and
-    /// refrigerates it.
+    /// pumps its heat into the base reservoir.
     /// </summary>
+    private const float BaseServicedHeatDrop = 0.05f;
+
     private void AdvanceBaseInteraction(in SimulationContext ctx)
     {
         var baseColl = ctx.CheckBaseCollision(Position);
@@ -276,8 +317,9 @@ public class Tank
         if (atOwnBase)
         {
             baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
-            _thermals.RefrigerateAtBase(baseColl);
-            if (Reactor.Health > health || Heat < heat - 0.25f * ctx.Settings.TankDockCoolingPerTick || Resources.Dirt < dirt)
+            _thermals.PumpHeatAtBase(baseColl);
+            // A tank that is only shedding the last fraction of a degree near 0 is not being serviced any more.
+            if (Reactor.Health > health || Heat < heat - BaseServicedHeatDrop || Resources.Dirt < dirt)
                 ctx.Events?.Record(new StepEvent(StepEventKind.BaseServiced, Position, Color));
         }
     }

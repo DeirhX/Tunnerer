@@ -255,6 +255,25 @@ public class TerrainTests
     }
 
     [Fact]
+    public void CoolDown_ArtificialCooling_LeavesSubZeroDirtCold()
+    {
+        var t = MakeTerrain(4, 4);
+        for (int i = 0; i < 16; i++)
+            t[i] = TerrainPixel.Dirt;
+        var cold = new Position(1, 1);
+        t.AddEnergyInRadiusArea(cold, 0, -20.0 * t.SumHeatCapacityInRadiusArea(cold, 0, TerrainGrid.ThermalField.Terrain),
+            TerrainGrid.ThermalField.Terrain);
+        Assert.True(t.GetHeatTemperature(cold) < 0f);
+        double sunkBefore = t.Ledger.SunkArtificialCooling;
+
+        t.CoolDown(artificialCoolingPerFrame: 1000f);
+
+        // The sink only removes heat above ambient: the chilled cell is still below zero and nothing was booked.
+        Assert.True(t.GetHeatTemperature(cold) < 0f);
+        Assert.Equal(sunkBefore, t.Ledger.SunkArtificialCooling);
+    }
+
+    [Fact]
     public void CoolDown_ArtificialCooling_DoesNotCoolNonDirtMaterial()
     {
         var t = MakeTerrain(4, 4);

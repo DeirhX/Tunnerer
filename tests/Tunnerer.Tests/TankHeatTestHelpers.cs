@@ -87,7 +87,9 @@ internal static class TankHeatTestHelpers
                 var pos = new Position(x, y);
                 if (!terrain.IsInside(pos))
                     continue;
-                terrain.AddHeat(pos, -255);
+                // Exactly ambient: a tank now exchanges with sub-zero cells too, so overshooting would freeze it.
+                terrain.SinkCellToAmbient(pos, TerrainGrid.ThermalField.Terrain);
+                terrain.SinkCellToAmbient(pos, TerrainGrid.ThermalField.Air);
             }
     }
 

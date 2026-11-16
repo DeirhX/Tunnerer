@@ -191,7 +191,7 @@ public class BotTankAI
         return new ControllerOutput { MoveSpeed = new Offset(sx, sy) };
     }
 
-    /// <summary>Room left before the tank overheats, as a share of a pre-cooled tank's room (the player's heat gauge).</summary>
+    /// <summary>Room left before the tank overheats, as a share of a fully cooled tank's room.</summary>
     private static float HeatBudgetFraction(Tank tank) => tank.HeatBudget / Tank.HeatBudgetCapacity;
 
     /// <summary>
@@ -205,7 +205,7 @@ public class BotTankAI
     }
 
     /// <summary>
-    /// Docked, the bot leaves once it is fully pre-cooled. If its heat has stopped falling (the base's reservoir is
+    /// Docked, the bot leaves once it is fully cooled. If its heat has stopped falling (the base's reservoir is
     /// full) it settles for a reasonable budget instead of waiting forever.
     /// </summary>
     private bool IsRecharged(Tank tank)

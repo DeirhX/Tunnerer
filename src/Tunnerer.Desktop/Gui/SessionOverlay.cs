@@ -28,15 +28,12 @@ public sealed class SessionOverlay
 {
     private const float KeyReminderSeconds = 10f;
 
+    // Colours from the shared HUD theme (HudTheme), so menus match the HUD.
     private const uint Dim = 0xA0000000u;
-    private const uint PanelFill = 0xF0201A16u;
-    private const uint PanelBorder = 0xFF6A8CA8u;
-    private const uint TitleColor = 0xFFFFFFFFu;
-    private const uint TextColor = 0xFFE0E0E0u;
-    private const uint KeyColor = 0xFF5AE6FFu;
-    private const uint DimTextColor = 0xFFA0A0A0u;
-    private const uint ButtonFill = 0xFF3A3028u;
-    private const uint ButtonHover = 0xFF7A5A30u;
+    private static readonly uint TitleColor = HudTheme.Amber;
+    private static readonly uint TextColor = HudTheme.Text;
+    private static readonly uint KeyColor = HudTheme.Amber;
+    private static readonly uint DimTextColor = HudTheme.TextDim;
 
     private static readonly (string Keys, string Action)[] Controls =
     [
@@ -48,6 +45,7 @@ public sealed class SessionOverlay
         ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("Esc / P", "Pause"),
         ("F1", "This screen"),
+        ("F2", "Show or hide the tutorial"),
         ("M, - / =", "Mute sound, volume down / up"),
         ("F10", "Screenshot"),
         ("F11", "Renderer debug overlay (then 1-7 toggle passes)"),
@@ -59,7 +57,9 @@ public sealed class SessionOverlay
         "Digging and firing heat your tank. Past the limit the heat burns your shield.",
         "Park in your base to cool down and repair.",
         "A relay planted in sight of your base network pumps nearby heat back to the base.",
-        "Dirt you bring home goes into the base store; a docked tank can build relays from it.",
+        "Dirt you bring home goes into the base store; a docked tank can build machines from it.",
+        "Stay inside your network's pale circles: outside them the tank heats up. Relays widen the network.",
+        "Harvesters mine dirt for you; relays keep them cool and pylons keep them charged.",
         $"Each tank has {Tweaks.Tank.MaxLives} lives. Destroy the enemy tank until it has none left.",
     ];
 
@@ -119,6 +119,7 @@ public sealed class SessionOverlay
 
         float cx = min.X + panelW * 0.5f;
         DrawCentered(dl, 38f, cx, min.Y + 22f, "PAUSED", TitleColor);
+        HudTheme.DrawTitle(dl, new Vector2(min.X + 30f, min.Y + 56f), panelW - 60f, "", 1f);
 
         var action = SessionOverlayAction.None;
         float bx = cx - buttonW * 0.5f;
@@ -152,6 +153,7 @@ public sealed class SessionOverlay
 
         float cx = min.X + panelW * 0.5f;
         DrawCentered(dl, 30f, cx, min.Y + 20f, "CONTROLS", TitleColor);
+        HudTheme.DrawTitle(dl, new Vector2(min.X + 30f, min.Y + 52f), panelW - 60f, "", 1f);
 
         float y = min.Y + 78f;
         foreach (var (keys, actionText) in Controls)
@@ -184,11 +186,8 @@ public sealed class SessionOverlay
         return new Vector2(MathF.Floor(x), MathF.Floor(y));
     }
 
-    private static void DrawPanel(ImDrawListPtr dl, Vector2 min, Vector2 size)
-    {
-        dl.AddRectFilled(min, min + size, PanelFill, 10f);
-        dl.AddRect(min, min + size, PanelBorder, 10f, ImDrawFlags.None, 2f);
-    }
+    private static void DrawPanel(ImDrawListPtr dl, Vector2 min, Vector2 size) =>
+        HudTheme.DrawPanel(dl, min, min + size);
 
     /// <summary>
     /// A button that reports a click when the left mouse button is released over it, provided the press also
@@ -202,14 +201,7 @@ public sealed class SessionOverlay
         bool hovered = enabled && !_draggingVolume &&
             mouse.X >= min.X && mouse.Y >= min.Y && mouse.X < max.X && mouse.Y < max.Y;
 
-        dl.AddRectFilled(min, max, hovered ? ButtonHover : ButtonFill, 6f);
-        dl.AddRect(min, max, PanelBorder, 6f, ImDrawFlags.None, 1.5f);
-
-        const float textSize = 20f;
-        float textY = min.Y + (size.Y - textSize) * 0.5f;
-        DrawText(dl, textSize, new Vector2(min.X + 18f, textY), label, enabled ? TitleColor : DimTextColor);
-        float keyW = Measure(textSize, key);
-        DrawText(dl, textSize, new Vector2(max.X - 18f - keyW, textY), key, KeyColor);
+        HudTheme.DrawButton(dl, min, max, label, key, hovered, enabled);
 
         if (!hovered || !_pressArmed || !ImGui.IsMouseReleased(ImGuiMouseButton.Left))
             return false;
@@ -249,20 +241,15 @@ public sealed class SessionOverlay
             }
         }
 
-        dl.AddRectFilled(min, max, hovered || _draggingVolume ? ButtonHover : ButtonFill, 6f);
-        dl.AddRect(min, max, PanelBorder, 6f, ImDrawFlags.None, 1.5f);
-
+        HudTheme.DrawButton(dl, min, max, "Volume", "", hovered || _draggingVolume, active);
         float textY = min.Y + (size.Y - textSize) * 0.5f;
-        DrawText(dl, textSize, new Vector2(min.X + 18f, textY), "Volume", active ? TitleColor : DimTextColor);
 
         bool audible = active && !sound.Muted;
         float knobX = MathF.Floor(trackLeft + (trackRight - trackLeft) * Math.Clamp(sound.Volume, 0f, 1f));
-        dl.AddRectFilled(new Vector2(trackLeft, trackY - 3f), new Vector2(trackRight, trackY + 3f), 0xFF18120Eu, 3f);
-        if (knobX > trackLeft)
-            dl.AddRectFilled(new Vector2(trackLeft, trackY - 3f), new Vector2(knobX, trackY + 3f),
-                audible ? KeyColor : DimTextColor, 3f);
-        dl.AddCircleFilled(new Vector2(knobX, trackY), knobRadius, audible ? TitleColor : DimTextColor);
-        dl.AddCircle(new Vector2(knobX, trackY), knobRadius, 0xFF000000u, 0, 1.5f);
+        HudTheme.DrawBar(dl, new Vector2(trackLeft, trackY - 6f), new Vector2(trackRight, trackY + 6f),
+            Math.Clamp(sound.Volume, 0f, 1f), audible ? HudTheme.Amber : HudTheme.AmberDim);
+        dl.AddCircleFilled(new Vector2(knobX, trackY), knobRadius, audible ? HudTheme.Text : DimTextColor);
+        dl.AddCircle(new Vector2(knobX, trackY), knobRadius, HudTheme.Bronze, 0, 2f);
 
         string level = !active ? "-" : sound.Muted ? "off" : $"{(int)MathF.Round(sound.Volume * 100f)}%";
         float levelW = Measure(textSize, level);
@@ -275,10 +262,6 @@ public sealed class SessionOverlay
     private static void DrawCentered(ImDrawListPtr dl, float size, float centerX, float y, string text, uint color) =>
         DrawText(dl, size, new Vector2(MathF.Floor(centerX - Measure(size, text) * 0.5f), y), text, color);
 
-    private static void DrawText(ImDrawListPtr dl, float size, Vector2 pos, string text, uint color)
-    {
-        var font = ImGui.GetFont();
-        dl.AddText(font, size, pos + new Vector2(1f, 1f), 0xE0000000u, text);
-        dl.AddText(font, size, pos, color, text);
-    }
+    private static void DrawText(ImDrawListPtr dl, float size, Vector2 pos, string text, uint color) =>
+        HudTheme.TextAt(dl, size, pos, text, color);
 }

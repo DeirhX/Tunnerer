@@ -133,11 +133,11 @@ public class HudLogicTests
     }
 
     [Fact]
-    public void HeatScale_RunsFromFullCoolantToPastTheSafeMaximum()
+    public void HeatScale_RunsFromDeepFrostToPastTheSafeMaximum()
     {
-        Assert.Equal(0f, HeatScale.Fraction(-Tweaks.Tank.CoolantCapacity));
+        Assert.Equal(0f, HeatScale.Fraction(HeatScale.Min));
         Assert.Equal(1f, HeatScale.Fraction(Tweaks.Tank.HeatSafeMax * 1.25f));
-        Assert.Equal(0f, HeatScale.Fraction(-10f * Tweaks.Tank.CoolantCapacity));
+        Assert.Equal(0f, HeatScale.Fraction(10f * HeatScale.Min));
         Assert.Equal(1f, HeatScale.Fraction(10f * Tweaks.Tank.HeatSafeMax));
         Assert.True(HeatScale.Fraction(0f) > 0f && HeatScale.Fraction(0f) < HeatScale.Fraction(Tweaks.Tank.HeatSafeMax));
     }
@@ -145,7 +145,7 @@ public class HudLogicTests
     [Fact]
     public void HeatColor_IsBlueCold_GreenAtAmbient_RedPastSafe()
     {
-        Assert.Equal(new Vector3(0.35f, 0.75f, 1.00f), HeatScale.ColorRgb(-Tweaks.Tank.CoolantCapacity));
+        Assert.Equal(new Vector3(0.35f, 0.75f, 1.00f), HeatScale.ColorRgb(HeatScale.Min));
         Assert.Equal(new Vector3(0.40f, 0.90f, 0.40f), HeatScale.ColorRgb(0f));
         Assert.Equal(new Vector3(1.00f, 0.15f, 0.10f), HeatScale.ColorRgb(Tweaks.Tank.HeatSafeMax));
         Assert.Equal(new Vector3(1.00f, 0.15f, 0.10f), HeatScale.ColorRgb(2f * Tweaks.Tank.HeatSafeMax));

@@ -249,7 +249,8 @@ public sealed class TerrainHeatEngine
 
     /// <summary>
     /// Fixed-temperature materials hold their temperature whatever flows in or out: base cells are heat sinks
-    /// (pinned at ambient) and hot rock is a heat source. They are not storage, so sinks and relays never draw from them.
+    /// (pinned at ambient), hot rock is a heat source and frost rock a cold source. They are not storage, so sinks and
+    /// relays never draw from them.
     /// </summary>
     public bool IsFixedTemperatureMaterial(ThermalMaterial material) => _isFixedTemperature[(int)material];
 

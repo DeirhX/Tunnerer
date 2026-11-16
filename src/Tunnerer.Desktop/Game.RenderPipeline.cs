@@ -121,6 +121,7 @@ public partial class Game
                     ? (mouseX, mouseY)
                     : null;
 
+                _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, DesktopScreenTweaks.PixelScale);
                 var gameTextureSize = _renderBackend.GameTextureSize;
                 DrawProfile.Measure(ref _drawProfile.ScreenHudDraw, () =>
                     _hud.Draw(

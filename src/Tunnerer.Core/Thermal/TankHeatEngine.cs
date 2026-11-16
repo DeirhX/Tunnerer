@@ -11,13 +11,15 @@ using Tunnerer.Core.Entities;
 /// <param name="EnergyToTerrain">Energy the tank hands to the terrain field of its footprint (negative: it takes energy).</param>
 /// <param name="EnergyToAir">Energy the tank hands to the air field of its footprint (negative: it takes energy).</param>
 /// <param name="ActionHeat">Heat created by digging/shooting this frame, in tank heat units. This is an external source.</param>
-/// <param name="OverheatDamage">Reactor damage caused by the resulting temperature.</param>
+/// <param name="OverheatDamage">Reactor damage caused by the resulting temperature being too hot.</param>
+/// <param name="FrostbiteDamage">Reactor damage caused by the resulting temperature being too cold.</param>
 public readonly record struct TankHeatStep(
     float NextHeat,
     double EnergyToTerrain,
     double EnergyToAir,
     float ActionHeat,
-    int OverheatDamage);
+    int OverheatDamage,
+    int FrostbiteDamage = 0);
 
 /// <summary>
 /// Computes a full tank heat step against terrain + air.
@@ -28,9 +30,8 @@ public readonly record struct TankHeatStep(
 /// Only <see cref="TankHeatStep.ActionHeat"/> is created from nothing.
 /// </para>
 /// <para>
-/// Heat below ambient is the tank's coolant charge. Flows are driven by the heat <i>above</i> ambient only (both the
-/// tank's and the surroundings'), so ambient air neither warms a cold tank nor is chilled by it: the charge is
-/// spent only by absorbing real heat, and refrigeration happens at the base.
+/// Exchange follows the temperature difference in both directions: a hot tank warms its surroundings, a cold one is
+/// warmed by them (chilling the cells under it), so a tank always drifts toward the temperature of where it stands.
 /// </para>
 /// </summary>
 public sealed class TankHeatEngine
@@ -68,7 +69,7 @@ public sealed class TankHeatEngine
         if (terrainCapacity > 0.0)
         {
             float dQTerrain = TankHeatModel.ComputeHeatFlowIntoTank(in _settings, _settings.TankTerrainConductance,
-                MathF.Max(nextHeat, 0f), MathF.Max(sampledTerrainTemperature, 0f));
+                nextHeat, sampledTerrainTemperature);
             nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, dQTerrain);
             energyToTerrain = -dQTerrain;
         }
@@ -77,12 +78,13 @@ public sealed class TankHeatEngine
         if (airCapacity > 0.0)
         {
             float dQAir = TankHeatModel.ComputeHeatFlowIntoTank(in _settings, _settings.TankAmbientConductance,
-                MathF.Max(nextHeat, 0f), MathF.Max(sampledAirTemperature, 0f));
+                nextHeat, sampledAirTemperature);
             nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, dQAir);
             energyToAir = -dQAir;
         }
 
         int overheatDamage = TankHeatModel.ComputeOverheatDamage(in _settings, nextHeat);
-        return new TankHeatStep(nextHeat, energyToTerrain, energyToAir, actionHeat, overheatDamage);
+        int frostbiteDamage = TankHeatModel.ComputeFrostbiteDamage(in _settings, nextHeat);
+        return new TankHeatStep(nextHeat, energyToTerrain, energyToAir, actionHeat, overheatDamage, frostbiteDamage);
     }
 }

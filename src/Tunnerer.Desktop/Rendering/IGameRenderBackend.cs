@@ -61,7 +61,7 @@ public static class HeatOrbEffect
 }
 
 /// <param name="LiquidColor">Colour of the liquid for the temperature (rgb 0..1).</param>
-/// <param name="Frozen">0 at ambient, 1 deep in the coolant charge: the liquid turns to ice.</param>
+/// <param name="Frozen">0 at ambient, 1 at the frostbite temperature: the liquid turns to ice.</param>
 /// <param name="Boil">0 calm, 1 at the safe maximum: bubbles, churn and a glowing core.</param>
 /// <param name="Burning">0 normally; pulses up to 1 while overheating burns the shield.</param>
 /// <param name="Time">Seconds, for the animation.</param>
