@@ -293,16 +293,12 @@ public static class Tweaks
 
     public static class Colors
     {
-        public static readonly Color BaseOutline = new(40, 40, 40);
-        public static readonly Color TurretBarrelTip = new(0xf3, 0xeb, 0x1c);
         public static readonly Color FireHot = new(0xff, 0x34, 0x08);
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
         public static readonly Color Pylon = new(0x4f, 0x8f, 0xff);
         public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
         public static readonly Color FailedInteraction = new(0xff, 0x34, 0x08);
         public static readonly Color InfoMarker = new(0xff, 0xff, 0x4a);
-        public static readonly Color LinkLive = new(0xa0, 0xa0, 0x19);
-        public static readonly Color LinkBlocked = new(0xa0, 0x30, 0x30);
     }
 
     public static class LevelGen

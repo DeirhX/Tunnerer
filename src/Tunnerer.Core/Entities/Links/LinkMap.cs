@@ -170,25 +170,6 @@ public class LinkMap
         }
     }
 
-    public void Draw(Surface surface)
-    {
-        var liveColor = Tweaks.Colors.LinkLive.ToArgb();
-        var blockedColor = Tweaks.Colors.LinkBlocked.ToArgb();
-
-        foreach (var link in _links)
-        {
-            if (link.Type == LinkType.Theoretical) continue;
-
-            uint color = link.Type == LinkType.Live ? liveColor : blockedColor;
-
-            Raycaster.BresenhamLine(link.From.Position, link.To.Position, pos =>
-            {
-                if (surface.IsInside(pos.X, pos.Y))
-                    surface.Pixels[pos.X + pos.Y * surface.Width] = color;
-            });
-        }
-    }
-
     /// <summary>
     /// Predicts whether a relay planted at <paramref name="at"/> would join a powered network: the nearest powered
     /// point in live range with a clear line of sight wins; otherwise the nearest powered point in range is

@@ -172,18 +172,6 @@ public class ProjectileList
         return true;
     }
 
-    public void Draw(Surface surface)
-    {
-        foreach (var p in _projectiles)
-        {
-            if (!p.IsAlive) continue;
-            var ipos = (Position)p.Position;
-            if (!surface.IsInside(ipos.X, ipos.Y)) continue;
-
-            surface.Pixels[ipos.X + ipos.Y * surface.Width] = Behaviors[(int)p.Type].DrawColor.ToArgb();
-        }
-    }
-
     public int CopyRenderStates(Span<ProjectileRenderState> destination)
     {
         int count = Math.Min(destination.Length, _projectiles.Count);

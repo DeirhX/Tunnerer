@@ -1,7 +1,6 @@
 namespace Tunnerer.Core.Entities;
 
 using Tunnerer.Core.Types;
-using Tunnerer.Core.Config;
 using Tunnerer.Core.Rendering;
 
 public class Sprite
@@ -24,36 +23,6 @@ public class Sprite
         if (Lifetime <= TimeSpan.Zero)
             IsAlive = false;
     }
-
-    public void Draw(Surface surface)
-    {
-        if (!IsAlive) return;
-
-        uint color = Type switch
-        {
-            SpriteType.FailedInteraction => Tweaks.Colors.FailedInteraction.ToArgb(),
-            SpriteType.InfoMarker => Tweaks.Colors.InfoMarker.ToArgb(),
-            _ => Color.White.ToArgb(),
-        };
-
-        int x = Position.X, y = Position.Y;
-        void SetPx(int px, int py)
-        {
-            if (surface.IsInside(px, py))
-                surface.Pixels[px + py * surface.Width] = color;
-        }
-
-        if (Type == SpriteType.FailedInteraction)
-        {
-            SetPx(x - 1, y - 1); SetPx(x + 1, y - 1);
-            SetPx(x, y);
-            SetPx(x - 1, y + 1); SetPx(x + 1, y + 1);
-        }
-        else
-        {
-            SetPx(x, y);
-        }
-    }
 }
 
 public enum SpriteType { FailedInteraction, InfoMarker }
@@ -73,12 +42,6 @@ public class SpriteList
             if (!_sprites[i].IsAlive)
                 _sprites.RemoveAt(i);
         }
-    }
-
-    public void Draw(Surface surface)
-    {
-        foreach (var sprite in _sprites)
-            sprite.Draw(surface);
     }
 
     public int CopyRenderStates(Span<SpriteRenderState> destination)

@@ -4,7 +4,6 @@ using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Input;
-using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Entities.Machines;
@@ -309,22 +308,6 @@ public class Tank
 
     /// <summary>Destroys the tank: it loses a life, drops what it carries and explodes.</summary>
     public void Die(ProjectileList? projectiles = null) => _lifecycle.Die(projectiles);
-
-    /// <summary>CPU drawing of the tank's sprite shape and turret.</summary>
-    public void Draw(Surface surface)
-    {
-        if (IsDead) return;
-
-        TankSpriteShape.ForEachPixel(Direction, Position, (spriteVal, worldPos) =>
-        {
-            if (!surface.IsInside(worldPos.X, worldPos.Y))
-                return true;
-            surface.Pixels[worldPos.X + worldPos.Y * surface.Width] = TankSprites.GetPixelColor(spriteVal, Color).ToArgb();
-            return true;
-        });
-
-        Turret.Draw(surface, Position);
-    }
 
     private static int HashSeed(int color, Position pos)
     {

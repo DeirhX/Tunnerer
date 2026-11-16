@@ -142,8 +142,7 @@ internal static class TestSimulation
 
         int w = world.Terrain.Width, h = world.Terrain.Height;
         var pix = new uint[w * h];
-        var surface = new Surface(pix, w, h);
-        world.LinkMap.Draw(surface);
+        EntityRaster.Links(world, pix, w, h);
         foreach (var m in world.Machines.Machines)
         {
             hash = Mix(hash, (uint)m.Position.X);
@@ -152,9 +151,9 @@ internal static class TestSimulation
             hash = Mix(hash, (uint)m.State);
             hash = Mix(hash, m.IsAlive ? 1u : 0u);
         }
-        world.Projectiles.Draw(surface);
-        world.Sprites.Draw(surface);
-        world.TankList.Draw(surface);
+        EntityRaster.Projectiles(world, pix, w, h);
+        EntityRaster.Sprites(world, pix, w, h);
+        EntityRaster.Tanks(world, pix, w, h);
         for (int i = 0; i < pix.Length; i++)
             hash = Mix(hash, pix[i]);
 
