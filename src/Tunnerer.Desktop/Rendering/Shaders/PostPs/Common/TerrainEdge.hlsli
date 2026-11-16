@@ -17,7 +17,8 @@
 // flow control.
 // ============================================================================
 
-static const float3 kTerrainCaveColor = float3(0.055, 0.055, 0.063);
+// Flat cave colour drawn by TerrainPs; TerrainAuxPass replaces it with the tunnel floor.
+static const float3 kTerrainCaveColor = float3(0.085, 0.078, 0.070);
 
 // Must match TerrainGrowthFade.
 static const float kGrowTicksPerSecond = 32.0;

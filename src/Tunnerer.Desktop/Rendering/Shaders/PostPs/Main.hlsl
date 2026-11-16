@@ -34,6 +34,7 @@
 #include "Materials/ConcreteMaterial.hlsli"
 #include "Materials/DirtMaterial.hlsli"
 #include "Materials/GoldMaterial.hlsli"
+#include "Materials/TunnelFloorMaterial.hlsli"
 #include "Materials/BaseMaterial.hlsli"
 
 #include "Passes/DistortionPass.hlsli"
