@@ -2,6 +2,7 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Presentation;
 
@@ -13,7 +14,7 @@ using Tunnerer.Desktop.Presentation;
 public static class MachineQuads
 {
     /// <summary>A charge beam from each pylon to the planted machine whose battery it is filling.</summary>
-    public static void SubmitChargeBeams(BeamFader beams, EntityInterpolator interpolator, float alpha)
+    public static void SubmitChargeBeams(BeamFader beams, EntityInterpolator interpolator, float alpha, VisionMap? vision)
     {
         ReadOnlySpan<MachineRenderState> machines = interpolator.Machines;
         for (int i = 0; i < machines.Length; i++)
@@ -22,6 +23,8 @@ public static class MachineQuads
             if (!machine.IsAlive || !machine.IsCharging || machine.State != MachineState.Planted ||
                 !MachinePresentations.Get(machine.Type).Sprite.ShowsBattery)
                 continue;
+            if (!Sight.Sees(vision, machine.Position))
+                continue;
             PositionF at = interpolator.MachinePosition(i, alpha);
             // Keyed by the anchor, where the machine was planted, so the beam follows a harvester as it crawls.
             LinkQuads.SubmitChargeBeam(beams, machine.ChargingFrom, machine.Anchor,
@@ -29,7 +32,8 @@ public static class MachineQuads
         }
     }
 
-    public static void Emit(EntityQuads quads, EntityInterpolator interpolator, float turnSeconds, bool snapHeadings)
+    public static void Emit(
+        EntityQuads quads, EntityInterpolator interpolator, float turnSeconds, bool snapHeadings, VisionMap? vision)
     {
         float scale = quads.View.PixelScale;
         float phase = quads.Phase;
@@ -38,7 +42,7 @@ public static class MachineQuads
         for (int i = 0; i < machines.Length; i++)
         {
             ref readonly MachineRenderState machine = ref machines[i];
-            if (!machine.IsAlive)
+            if (!machine.IsAlive || !Sight.Sees(vision, machine.Position))
                 continue;
 
             PositionF at = interpolator.MachinePosition(i, quads.Alpha);

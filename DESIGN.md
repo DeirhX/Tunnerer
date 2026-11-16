@@ -263,6 +263,32 @@ field. Planned: conductor lines, insulating walls, haulers, turrets, props, heat
 The opposing tank stops being the centre of the game. It becomes one possible sector twist: a competitor for the
 same deposits.
 
+### 6.6 Fog of war and radar *(Fog: Prototype. Radar: Proposed)*
+
+The player sees only what their side sees, so that learning the shape of the world takes travelling through it.
+
+- **Three kinds of ground.** *In sight*: shown live. *Remembered*: seen before, shown as it was last seen, drained
+  toward a cool blue-grey and dimmed, with no entities and no live heat. *Unknown*: never seen, black.
+- **What sees.** The tank sees along open tunnel (about 45 cells) and a little through solid ground around itself.
+  The base and powered relays and pylons see their coverage circles; every machine sees a few cells around itself.
+  The network is therefore the player's eyes as well as its cooling line (§4.6): a place stays lit, with its live
+  heat, only while something of yours stands there, and a relay that loses its link goes nearly blind.
+- **Radar** *(Proposed)*. A beam sweeps round the tank and reaches well past sight (about 150 cells). Dirt and
+  open ground let it through; rock, hot and frost rock, minerals, base walls, machines and tanks reflect it and
+  stop it. Each return is a single blip at the point that reflected, fading over some seconds. What lies behind
+  a reflector is in shadow, so the outline of a thing is only learned by pinging it from several sides. Blips do
+  not follow what made them: a moving enemy leaves a stale trail. Open questions: whether tunnel walls give a weak
+  return, and whether hot ground weakens the beam, which would make hot zones radar-dark until they are cooled and
+  tie the radar to heat (pillar 2).
+- **It is information, not physics.** Vision never changes the simulation: heat, machines and mobs run the same
+  seen or unseen. Whether unseen ground may be simulated more cheaply is a separate question (below).
+
+**Larger maps.** Sectors are meant to grow well beyond today's largest map (1500 by 750), so the cost of a step
+has to follow what is active, not the area of the map. Vision already works that way. The heat solver steps only
+active regions but still does bookkeeping over the grid, and that is the first thing to make proportional to
+activity. Simulating unseen ground more coarsely is the option after that; it would have to keep energy conserved
+and results deterministic, and the freeze rule (§7.3) already covers whole sectors the player has left.
+
 ## 7. World structure: sectors
 
 ### 7.1 Separate maps in one persistent world *(Proposed; the freeze rule in 7.3 builds on it)*
@@ -433,6 +459,9 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Alerts are caused by the player's actions; headroom buys time | Proposed |
 | No skill tree across saves | Proposed |
 | Rival tank becomes an optional sector twist | Proposed |
+| Fog of war: the player sees what their tank, base and machines see; the rest is remembered or unknown | Prototype |
+| Radar: blips where a sweeping beam reflects, well beyond sight | Proposed |
+| Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
 
 ## 14. Open questions
 
@@ -443,3 +472,6 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 - How is the output drop under alert calculated?
 - What exactly is at the core?
 - Is there multiplayer, and if so is it cooperative or competitive?
+- Should the bot (and later mobs) be limited to what it could see, or stay all-knowing?
+- What makes a step cheap on a very large map: bookkeeping that follows activity, or coarser simulation of ground
+  nobody sees?

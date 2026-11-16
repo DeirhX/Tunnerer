@@ -265,6 +265,25 @@ public static class Tweaks
         public const float HopFalloff = 0.85f;
     }
 
+    /// <summary>
+    /// Fog of war: what a side sees (<c>Sensing/VisionMap</c>). Presentation only; the simulation never reads vision.
+    /// </summary>
+    public static class Vision
+    {
+        // A tank sees this far along open tunnel...
+        public const int TankRadius = 45;
+        // ...and everything this close, through solid ground too, so digging is not blind.
+        public const int TankNearRadius = 7;
+        // A machine sees this close around itself. A powered link node also sees its coverage circle (Coverage).
+        public const int MachineNearRadius = 6;
+        // The walls around open ground in sight are seen this many cells deep.
+        public const int WallSkin = 3;
+        // The level falls from full to nothing over the last cells of a source's reach.
+        public const int EdgeFade = 6;
+        // Bases and machines stay put: their vision is recast every this many ticks, the tank's every tick.
+        public const int FixedSourceRefreshTicks = 6;
+    }
+
     public static class Weapon
     {
         public const int CannonBulletSpeed = 3;

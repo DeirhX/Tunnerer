@@ -10,11 +10,13 @@
 //   2. Vignette (ApplyVignettePass)
 //   3. Terrain aux: edge shading, material overlays, heat glow (ApplyTerrainAuxPass)
 //   4. Tank heat glow (ApplyTankHeatGlowPass)
+//   5. Fog of war (ApplyFogPass)
 //
 // Inputs:
 //   sceneTex (t0) — composited scene (terrain + entities)
 //   auxTex   (t1) — per-cell terrain data (.r = signed heat, see kHeatZero, .g = solid field, .b = exact material code, .a = scorch)
 //   coverageTex (t2) — per-cell blurred natural-material coverage (.r stone, .g concrete, .b dirt)
+//   fogTex   (t3) — per-cell fog of war (.r = how well the cell is seen, .g = explored)
 //
 // Terrain vs entity discrimination:
 //   sceneSample.a >= 1.0 → terrain pixel   (terrainFactor = 1)
@@ -41,6 +43,7 @@
 #include "Passes/VignettePass.hlsli"
 #include "Passes/TerrainAuxPass.hlsli"
 #include "Passes/TankGlowPass.hlsli"
+#include "Passes/FogPass.hlsli"
 
 float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
 {
@@ -74,6 +77,8 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
         ApplyTerrainAuxPass(uv, terrainFactor, PostTerrainAuxEnabled > 0.5, PostTerrainHeatEnabled > 0.5, PostThermalRegionsEnabled > 0.5, color);
     if (PostTankGlowEnabled > 0.5)
         ApplyTankHeatGlowPass(uv, color);
+    if (PostFogEnabled > 0.5)
+        ApplyFogPass(uv, color);
 
     return float4(color, 1.0);
 }

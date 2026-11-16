@@ -64,6 +64,7 @@ Run `Tunnerer.Desktop --help` for the full list. The common ones:
 | `--display=N` | Open on display N (or `secondary`) |
 | `--size=WxH`, `--large` | Terrain size |
 | `--no-ai` | No enemy tank |
+| `--no-fog` | No fog of war: the whole map is shown live |
 | `--volume=N` | Master volume, 0 to 100 (default 70); `TUNNERER_VOLUME` does the same |
 | `--mute` | Start with the sound off; `TUNNERER_MUTE=1` does the same |
 | `--hidden` | Never show the window (automated runs) |

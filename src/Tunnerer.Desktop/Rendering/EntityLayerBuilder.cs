@@ -3,6 +3,7 @@ namespace Tunnerer.Desktop.Rendering;
 using System.Runtime.InteropServices;
 using Tunnerer.Core;
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Rendering.Entities;
 
@@ -73,8 +74,12 @@ public sealed class EntityLayerBuilder
     /// displayed frame, used to swing hulls round to a new heading (zero while paused, so they hold still);
     /// <paramref name="snapHeadings"/> puts them on the new heading at once (step-locked automated runs).
     /// <paramref name="visualSeconds"/> is the game's visual clock, which drives every animation (pulses, blinking).
+    /// With fog of war, <paramref name="vision"/> is the player's: tanks, machines, shots and links out of its sight
+    /// are left out.
     /// </summary>
-    public void Build(in RenderView view, float alpha, float turnSeconds, bool snapHeadings, float visualSeconds)
+    public void Build(
+        in RenderView view, float alpha, float turnSeconds, bool snapHeadings, float visualSeconds,
+        VisionMap? vision = null)
     {
         _quads.Begin(view, visualSeconds % AnimationPhaseWrapSeconds, alpha);
         bool protectedBlinkOn = (long)(visualSeconds * 1000f) / ProtectedBlinkMilliseconds % 2 == 0;
@@ -85,13 +90,13 @@ public sealed class EntityLayerBuilder
         _beams.Begin(visualSeconds);
         if (tankPositions.Length > 0)
             _coverage.SubmitTether(_beams, tankPositions[0]);
-        _links.Submit(_beams);
-        MachineQuads.SubmitChargeBeams(_beams, _interpolator, alpha);
+        _links.Submit(_beams, vision);
+        MachineQuads.SubmitChargeBeams(_beams, _interpolator, alpha, vision);
         _beams.Emit(_quads);
         if (tankPositions.Length > 0)
             _preview.Emit(_quads, tankPositions[0]);
-        MachineQuads.Emit(_quads, _interpolator, turnSeconds, snapHeadings);
-        TankQuads.Emit(_quads, _interpolator, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn);
-        _projectiles.Emit(_quads);
+        MachineQuads.Emit(_quads, _interpolator, turnSeconds, snapHeadings, vision);
+        TankQuads.Emit(_quads, _interpolator, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn, vision);
+        _projectiles.Emit(_quads, vision);
     }
 }

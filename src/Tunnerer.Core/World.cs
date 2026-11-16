@@ -12,6 +12,7 @@ using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Tanks;
 using System.Diagnostics;
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Sensing;
 
 public class World
 {
@@ -274,12 +275,70 @@ public class World
             tank.ObserveBaseExit(_tankBases);
             tank.ObserveDocking(_stepEvents);
         }
+        if (_trackedVisions.Count > 0)
+            ProfileSection(ref Profile.Vision, UpdateVisions);
 
         Profile.Total += frameWatch.Elapsed;
         Profile.FrameCount++;
 
         if (Profile.FrameCount >= 100)
             Profile.Report();
+    }
+
+    private readonly List<(Tank Tank, VisionMap Map)> _trackedVisions = new();
+    private readonly List<VisionSource> _fixedVisionSources = new();
+    private readonly List<VisionSource> _movingVisionSources = new();
+
+    /// <summary>
+    /// Starts tracking what <paramref name="tank"/>'s side sees (fog of war) and returns the map, which every
+    /// <see cref="Advance"/> then keeps up to date. The side sees through its tank, its base and its machines:
+    /// the tank along open tunnel, the base and powered link nodes over their coverage circles, every machine a
+    /// little around itself. Vision is output only: nothing in the simulation reads it, and a world nobody asks
+    /// pays nothing for it.
+    /// </summary>
+    public VisionMap TrackVision(Tank tank)
+    {
+        foreach (var tracked in _trackedVisions)
+            if (tracked.Tank == tank)
+                return tracked.Map;
+        var map = new VisionMap(_terrain);
+        _trackedVisions.Add((tank, map));
+        UpdateVision(tank, map, recastFixed: true);
+        return map;
+    }
+
+    private void UpdateVisions()
+    {
+        bool recastFixed = _advanceCount % Tweaks.Vision.FixedSourceRefreshTicks == 0;
+        foreach (var (tank, map) in _trackedVisions)
+            UpdateVision(tank, map, recastFixed);
+    }
+
+    private void UpdateVision(Tank tank, VisionMap map, bool recastFixed)
+    {
+        _movingVisionSources.Clear();
+        if (!tank.IsDead)
+            _movingVisionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius, Tweaks.Vision.TankNearRadius));
+
+        if (recastFixed)
+        {
+            _fixedVisionSources.Clear();
+            if (tank.Base is TankBase owner)
+            {
+                int bonus = owner.Upgrades.CoverageBonusCells;
+                const int near = Tweaks.Vision.MachineNearRadius;
+                _fixedVisionSources.Add(new VisionSource(owner.Position, Tweaks.Coverage.BaseRadius + bonus, near));
+                foreach (var machine in _machines.Machines)
+                {
+                    if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner)
+                        continue;
+                    bool poweredNode = machine.Behavior.IsLinkNode && machine.LinkPoint is { IsPowered: true };
+                    _fixedVisionSources.Add(new VisionSource(
+                        machine.Position, poweredNode ? Tweaks.Coverage.NodeRadius + bonus : near, near));
+                }
+            }
+        }
+        map.Update(_terrain, recastFixed ? _fixedVisionSources : null, _movingVisionSources);
     }
 
     private readonly List<CoverageNode> _coverageNodes = new();
@@ -420,6 +479,7 @@ public class SimulationProfile
     public TimeSpan Sprites;
     public TimeSpan Bases;
     public TimeSpan Links;
+    public TimeSpan Vision;
     public TimeSpan Total;
     public int FrameCount;
 
@@ -434,7 +494,7 @@ public class SimulationProfile
 
         ReportSink($"[Profile] coll={Avg(Collision):F3} cool={Avg(Cooldown):F3} regrow={Avg(Regrow):F3} " +
             $"bases={Avg(Bases):F3} proj={Avg(Projectiles):F3} tanks={Avg(Tanks):F3} harv={Avg(Harvesters):F3} " +
-            $"spr={Avg(Sprites):F3} links={Avg(Links):F3} " +
+            $"spr={Avg(Sprites):F3} links={Avg(Links):F3} vision={Avg(Vision):F3} " +
             $"| total={Avg(Total):F3} ms (avg over {FrameCount} frames)");
         ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolMark={Avg(CooldownMark):F3} ms");
         ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
@@ -451,7 +511,7 @@ public class SimulationProfile
     public void Reset()
     {
         Collision = Cooldown = CooldownSim = CooldownMark
-            = Regrow = Projectiles = Tanks = Harvesters = Sprites = Bases = Links = Total = TimeSpan.Zero;
+            = Regrow = Projectiles = Tanks = Harvesters = Sprites = Bases = Links = Vision = Total = TimeSpan.Zero;
         CooldownActiveTiles = 0;
         CooldownRegionCount = 0;
         CooldownSparseFrames = 0;

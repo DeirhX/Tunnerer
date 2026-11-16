@@ -16,7 +16,8 @@ public readonly record struct GamePixelsUpload(
     TankGlowUpload TankGlow,
     TerrainAuxUpload TerrainAux,
     NativeContinuousUpload NativeContinuous,
-    EntityLayerUpload Entities);
+    EntityLayerUpload Entities,
+    FogUpload Fog = default);
 
 /// <param name="TimeSeconds">The shaders' animation clock; also the clock regrow stamps are written in.</param>
 public readonly record struct PostProcessUploadOptions(
@@ -38,6 +39,14 @@ public readonly record struct TerrainAuxUpload(
     Rect? DirtyRect,
     byte[]? MaterialCoverage,
     Rect? MaterialCoverageDirtyRect);
+
+/// <summary>
+/// The fog of war texture, one RGBA texel per terrain cell (see <see cref="FogLayer"/>). Null <paramref name="Data"/>
+/// means no fog: everything is drawn in plain sight.
+/// </summary>
+public readonly record struct FogUpload(
+    byte[]? Data,
+    Rect? DirtyRect);
 
 /// <param name="SourceChanged">False when <paramref name="SourcePixels"/> is the same image as the last upload.</param>
 public readonly record struct NativeContinuousUpload(

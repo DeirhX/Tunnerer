@@ -3,6 +3,7 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 
 /// <summary>Projectiles: glowing shots with a trail.</summary>
@@ -19,14 +20,14 @@ public sealed class ProjectileQuads
         _projectileCount = world.Projectiles.CopyRenderStates(_projectiles);
     }
 
-    public void Emit(EntityQuads quads)
+    public void Emit(EntityQuads quads, VisionMap? vision)
     {
         float scale = quads.View.PixelScale;
         float alpha = quads.Alpha;
         for (int i = 0; i < _projectileCount; i++)
         {
             ref readonly ProjectileRenderState projectile = ref _projectiles[i];
-            if (!projectile.IsAlive)
+            if (!projectile.IsAlive || !Sight.Sees(vision, projectile.Position.X, projectile.Position.Y))
                 continue;
 
             // The snapshot is where the shot is after the latest step; it got there along its velocity.

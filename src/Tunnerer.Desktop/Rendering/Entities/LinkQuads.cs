@@ -3,6 +3,7 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 
 /// <summary>Network links as beams: heat flowing to the base, and charge flowing out to pylons and batteries.</summary>
@@ -21,13 +22,16 @@ public sealed class LinkQuads
     /// <summary>
     /// Live and blocked links as beams, handed to <paramref name="beams"/>, which fades them in and out. A link
     /// carrying heat is oriented so its +x runs toward the base, which is the way the shader's heat pulses flow.
+    /// With fog of war a link shows while either of its ends is in sight.
     /// </summary>
-    public void Submit(BeamFader beams)
+    public void Submit(BeamFader beams, VisionMap? vision)
     {
         for (int i = 0; i < _linkCount; i++)
         {
             ref readonly LinkRenderState link = ref _links[i];
             if (!link.IsAlive || link.Type == LinkType.Theoretical)
+                continue;
+            if (!Sight.Sees(vision, link.From) && !Sight.Sees(vision, link.To))
                 continue;
 
             // Keyed by the link's own ends, so a flow that changes direction does not break and regrow the beam.

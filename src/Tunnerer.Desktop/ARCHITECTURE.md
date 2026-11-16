@@ -29,7 +29,7 @@ One HLSL source in `Rendering/Shaders`. `tools/Tunnerer.ShaderCompiler` runs bef
   fails the build where it is edited. It also fails when a texture has no sampler at its index.
 
 SDL_GPU wants fragment textures and samplers in space2, fragment uniforms in space3 and vertex uniforms in space1, so every resource is declared through the macros in
-`PostPs/Common/Registers.hlsli`. Each texture has its own sampler at the same index (`s0`-`s2`); on the CPU all are
+`PostPs/Common/Registers.hlsli`. Each texture has its own sampler at the same index (`s0`-`s3`); on the CPU all are
 the same linear-clamp sampler.
 
 ## SDL_GPU Backend
@@ -68,6 +68,27 @@ Upload payload (`GamePixelsUpload`) includes:
 - the composed world image the terrain pass samples (`NativeContinuousUpload`)
 - tank glow array
 - terrain auxiliary mask texture data + dirty rect, and the material coverage texture data + dirty rect
+- the fog of war texture data + dirty rect (`FogUpload`; null data means no fog)
+
+## Fog of war
+
+In a match (unless `--no-fog`) `Game` asks Core for the player's `VisionMap` (`World.TrackVision`) and draws from it.
+Core decides what is seen; the renderer only shows it.
+
+- **Remembered terrain.** `TerrainView` says where the renderer reads terrain from. With fog its pixels are
+  `VisionMap.Known`, the terrain as the player last saw it, so the world pixel buffer, the solid field, the aux
+  material channel and the material coverage all show last-seen ground with no special cases. After a step `Game`
+  feeds them `VisionMap.KnownChanges` in place of the terrain's change list. Heat and scorch come from the live
+  grid, so `TerrainAuxBuilder` writes them only for cells in sight; ground that comes into sight gets them through
+  the `sightChanged` rect of `TerrainAuxUploader.Prepare`.
+- **Fog texture.** `FogLayer` keeps one RGBA texel per cell (R = visibility level, G = explored) and repacks the
+  rectangle in which vision changed. It is the post pass's fourth texture (`fogTex`, t3).
+- **Fog pass.** `Passes/FogPass.hlsli` runs last in `PostPs`: cells in sight are left alone, explored cells out of
+  sight are drained toward a cool blue-grey and dimmed, cells never seen are near black. A small blur softens the
+  cell steps. `PostFogEnabled` turns it off when there is no fog data.
+- **Entities.** The entity layer is drawn after the post pass, so the emitters leave out what is out of sight
+  (`Rendering/Entities/Sight.cs`): tanks, machines, shots, and links with neither end in sight. The player's own
+  tank and machines always show, because each sees the ground it stands on. A tank out of sight casts no heat glow.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
 
@@ -77,6 +98,7 @@ The loop around it (polling, fixed simulation steps, composing) is described in 
 1. Sizes the game view (`RenderViewState`; a match leaves room for the HUD panels) and moves the camera to the
    interpolated player.
 2. Builds the entity layer quads at the frame's step progress (`EntityLayerBuilder.Build`).
+   With fog of war, `FogLayer.Prepare` then repacks the fog texture where the player's vision changed.
 3. Asks `TerrainAuxUploader.Prepare` which part of the terrain aux and material coverage textures to repack:
    - on the first frame, everything;
    - after that, the cells the simulation changed (and growth fades that ended) plus the strip the camera

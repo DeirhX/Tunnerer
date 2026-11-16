@@ -16,7 +16,7 @@ public class TerrainAuxUploaderTests
 
     private TerrainAuxFrame Frame(bool stepped = false)
     {
-        var frame = _uploader.Prepare(_terrain, _view, Viewport, stepped, visualTime: 0f);
+        var frame = _uploader.Prepare(TerrainView.Live(_terrain), _view, Viewport, stepped, visualTime: 0f);
         _uploader.Commit(_terrain, frame);
         return frame;
     }

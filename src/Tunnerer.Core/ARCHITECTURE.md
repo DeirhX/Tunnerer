@@ -56,6 +56,8 @@ Entities/
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
   Links/LinkPoint.cs, Link.cs, LinkMap.cs   Link network: nodes, edges, rebuild, power and flow
   Links/NetworkCoverage.cs   Coverage nodes and the coverage a tank gets at a position
+Sensing/
+  VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
 Collision/
   CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
   WorldSectors.cs            Sector buckets for the tank broad phase
@@ -101,6 +103,7 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
    core tap and its hold timer).
 9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
    every tick.
+10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date (see "Vision" below).
 
 `SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per section
 above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / parallel ticks) and `[ProfileE]`
@@ -108,7 +111,7 @@ above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / 
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
 `Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
-`World.CollectCoverageNodes`, and the `CopyRenderStates` snapshot of each entity list.
+`World.CollectCoverageNodes`, `World.TrackVision`, and the `CopyRenderStates` snapshot of each entity list.
 
 ### Step events
 
@@ -153,6 +156,34 @@ base upgrades) are specified in `DESIGN.md` §4; the code is in `TankBase`, `Bas
 `TankThermals`, `TankHeatModel`, `NetworkCoverage`, `HotRockPockets`, `FrostRockPockets` and `World.AdvanceSectorGoal`.
 The heat render texture encodes temperature signed (`TerrainGrid.HeatToByte`), so the terrain shader can draw ground
 below 0 as frost.
+
+## Vision
+
+`World.TrackVision(tank)` returns a `VisionMap` for that tank's side and keeps it up to date at the end of every
+`Advance`. A world nobody asked pays nothing. The map is output only: nothing in the simulation reads it, so
+tracking cannot change a result (`VisionMapTests.TrackingVision_DoesNotChangeTheSimulation`, and the recorded
+fingerprints do not move).
+
+A side sees through `VisionSource`s (numbers in `Tweaks.Vision`):
+
+- its tank, along open lines of sight to `TankRadius`, and everything within `TankNearRadius`, through solid ground
+  too, so digging is not blind;
+- its base and its powered link nodes, over their coverage circles (the radii of `NetworkCoverage`);
+- every planted machine of its base, `MachineNearRadius` around itself. An unpowered relay sees no further.
+
+A source casts a Bresenham ray to each cell on the edge of its square, cut to a circle. A ray stops at the first
+cell that blocks a link (`Pixel.BlocksLink`, the rule links and coverage use). The walls around the open cells in
+sight are then lit `WallSkin` cells deep. Each cell gets a level, 255 in plain sight and fading over the last
+`EdgeFade` cells of the source's reach.
+
+The map holds, per cell: the level (`LevelAt`, `IsVisible`), whether it was ever seen (`IsExplored`), and `Known`,
+the pixel the side last saw there (an `ITerrainPixelReadOnly`; it starts as a copy of the terrain). After each
+update `KnownChanges` lists the cells whose known pixel changed, either because the terrain changed in sight or
+because a cell that changed out of sight came back into it. `TryGetDirtyRect` bounds the cells whose level changed.
+
+Cost follows the cells in sight, never the size of the map: every pass walks lists of lit cells, and no pass sweeps
+the grid. The tank is recast every tick; bases and machines, which stay put, every
+`FixedSourceRefreshTicks` ticks into their own layer. Keep it that way: maps are meant to grow.
 
 ## Links
 
