@@ -38,9 +38,8 @@ Entities/
   Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, pickups; owns the tank's RNG
   Tanks/TankBuildController.cs   Build keys: build, carry, plant
   Tanks/TankLifecycle.cs     Damage, death, respawn, spawn shield
-  Tanks/TankSpriteShape.cs   The sprite bitmap used as the terrain-contact and pickup shape
+  Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
   TankTurret.cs              Aim, cooldown, bullet spawn
-  TankCollisionMask.cs       Shape bullets hit (separate from the sprite shape)
   TankHeatModel.cs           Heat-flow formula shared by tank contact with terrain and air
   TankList.cs, TankBase.cs, TankBases.cs   Tank collection; bases (reactor, radiator, engine, charge, stores)
   SimulationContext.cs       The slice of World a tank sees during Advance

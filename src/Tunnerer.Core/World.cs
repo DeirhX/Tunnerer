@@ -9,6 +9,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Links;
+using Tunnerer.Core.Entities.Tanks;
 using System.Diagnostics;
 using Tunnerer.Core.Rendering;
 
@@ -80,7 +81,8 @@ public class World
 
     /// <summary>
     /// Whether <paramref name="machine"/> centred on <paramref name="center"/> would overlap a live tank or another
-    /// planted machine (footprints compared as squares).
+    /// planted machine: the machine's square against the tank's shape (<see cref="TankSpriteShape"/>) or the other
+    /// machine's square.
     /// </summary>
     private bool IsMachineSpotOccupied(Machine machine, Position center)
     {
@@ -88,8 +90,7 @@ public class World
         foreach (var tank in _tankList.Tanks)
         {
             if (tank.IsDead) continue;
-            int reach = half + TankFootprintHalf;
-            if (Math.Abs(tank.Position.X - center.X) <= reach && Math.Abs(tank.Position.Y - center.Y) <= reach)
+            if (TankSpriteShape.OverlapsSquare(tank.Direction, tank.Position, center, half))
                 return true;
         }
         foreach (var other in _machines.Machines)
@@ -101,10 +102,6 @@ public class World
         }
         return false;
     }
-
-    // Tank footprint for machine placement: a 7x7 square around the tank. Not the sprite shape (TankSpriteShape) nor
-    // the projectile collision mask (TankCollisionMask); the three are kept apart on purpose.
-    private const int TankFootprintHalf = 3;
 
     /// <summary>
     /// Plants a carried machine where it stands: it becomes solid, joins the link network and belongs to
