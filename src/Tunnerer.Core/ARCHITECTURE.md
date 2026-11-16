@@ -11,6 +11,7 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 World.cs                     World: owns every subsystem, runs Advance; SimulationProfile (per-section timings)
 MatchOutcome.cs              Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
 NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
+StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
 Config/
   Tweaks.cs                  Every gameplay and simulation constant (const / static readonly only)
   SimulationSettings.cs      The thermal and tank-heat constants, copied from Tweaks; tests inject their own

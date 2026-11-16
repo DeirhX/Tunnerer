@@ -67,6 +67,42 @@ public class TankBase
 
     public double ChargeCapacity => Tweaks.Base.ChargeCapacity;
 
+    /// <summary>How full the charge store is, 0 to 1.</summary>
+    public double ChargeFill => Math.Clamp(Charge / ChargeCapacity, 0.0, 1.0);
+
+    /// <summary>The charge gauge: Warn when running low, Bad when nearly empty.</summary>
+    public StatusLevel ChargeLevel
+    {
+        get
+        {
+            float fill = (float)ChargeFill;
+            return fill < Tweaks.Base.ChargeLowFill ? StatusLevel.Bad
+                : fill < Tweaks.Base.ChargeWarnFill ? StatusLevel.Warn
+                : StatusLevel.Ok;
+        }
+    }
+
+    /// <summary>
+    /// Radiator load for a heat inflow (energy per tick reaching the radiator): the inflow against what the radiator
+    /// vents. Past 1 the heat store fills, and once it is full the relays are throttled.
+    /// </summary>
+    public static float RadiatorLoad(double inflowPerTick) => (float)(inflowPerTick / VentCapacityPerTick);
+
+    /// <summary>The radiator gauge for a <see cref="RadiatorLoad"/>: Warn near capacity, Bad past it.</summary>
+    public static StatusLevel RadiatorLoadLevel(float load) =>
+        load < Tweaks.Base.RadiatorWarnLoad ? StatusLevel.Ok
+        : load <= 1.0f ? StatusLevel.Warn
+        : StatusLevel.Bad;
+
+    /// <summary>The heat-store gauge for a <see cref="HeatStoreFill"/>: Warn when filling, Bad (full) near the top.</summary>
+    public static StatusLevel HeatStoreLevelOf(double heatStoreFill)
+    {
+        float fill = (float)heatStoreFill;
+        return fill < Tweaks.Base.HeatStoreWarnFill ? StatusLevel.Ok
+            : fill < Tweaks.Base.HeatStoreFullFill ? StatusLevel.Warn
+            : StatusLevel.Bad;
+    }
+
     /// <summary>Charge the engine made from relay heat during the last tick.</summary>
     public double EngineOutputPerTick { get; private set; }
 

@@ -27,13 +27,9 @@ public sealed class LiquidGauges(HudLayout layout)
     private float _shownShieldFill = -1f;
     private float _shownMaterialsFill = -1f;
 
-    /// <summary>How full the tank's dirt hold is, 0 to 1.</summary>
-    public static float MaterialsFill(Tank player) =>
-        Math.Clamp(player.Resources.Dirt / (float)Math.Max(1, player.Resources.DirtCapacity), 0f, 1f);
-
     public void Draw(ImDrawListPtr dl, Tank player, float shieldPanelX, float materialsPanelX, float time)
     {
-        float shieldFill = Math.Clamp(Math.Max(0, player.Reactor.Health) / (float)Math.Max(1, player.Reactor.HealthCapacity), 0f, 1f);
+        float shieldFill = player.ShieldFraction;
         // Ease the shown levels toward the real ones so the liquid moves rather than jumps.
         _shownShieldFill = _shownShieldFill < 0f ? shieldFill : _shownShieldFill + (shieldFill - _shownShieldFill) * 0.20f;
 
@@ -52,7 +48,7 @@ public sealed class LiquidGauges(HudLayout layout)
         float sLevel = sBottom - (sBottom - sTop) * _shownShieldFill;
         if (player.HitFlashTicks > Tank.HitFlashDuration - 6)
             FillPolygonBand(dl, poly, sLevel, sBottom, 0x90FFFFFFu);         // hit flash
-        else if (shieldFill < 0.25f && shieldFill > 0f && pulse)
+        else if (player.IsShieldLow(latched: false) && shieldFill > 0f && pulse)
             FillPolygonBand(dl, poly, sLevel, sBottom, 0x703030FFu);         // low shield (red pulse)
         FillPolygonBand(dl, poly, sTop, sLevel, 0xC8080808u);                // empty part
         var (sx0, sx1) = PolygonSpanAtY(poly, sLevel);
@@ -60,7 +56,7 @@ public sealed class LiquidGauges(HudLayout layout)
             DrawSurface(dl, sLevel, (sx1 - sx0) * 0.5f, (sx0 + sx1) * 0.5f, shieldFill > 0f ? 0xFFFFE0A0u : 0u, time);
 
         // Materials chest.
-        float materialsFill = MaterialsFill(player);
+        float materialsFill = player.HoldFill;
         _shownMaterialsFill = _shownMaterialsFill < 0f
             ? materialsFill
             : _shownMaterialsFill + (materialsFill - _shownMaterialsFill) * 0.15f;

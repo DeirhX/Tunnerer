@@ -74,6 +74,70 @@ public class Tank
     public float OffNetworkSecondsToOverheat =>
         MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - OffNetworkFloor) / Tweaks.Tank.OffNetworkHeatPerSecond);
 
+    /// <summary>Off network and close enough to overheating that the warning should be urgent.</summary>
+    public bool IsOffNetworkUrgent => OffNetworkSecondsToOverheat < Tweaks.Tank.OffNetworkUrgentSeconds;
+
+    /// <summary>Hotter than the safe maximum: overheating burns the shield.</summary>
+    public bool IsAboveSafeHeat => Heat > Tweaks.Tank.HeatSafeMax;
+
+    /// <summary>
+    /// The heat budget is not yet full: a docked tank is still being pre-cooled towards a full coolant charge.
+    /// </summary>
+    public bool IsCoolingDown => HeatBudget < HeatBudgetCapacity - Tweaks.Tank.FullyCooledMargin;
+
+    /// <summary>Coldest heat on the heat gauge: a full coolant charge.</summary>
+    public static float HeatGaugeMin => -Tweaks.Tank.CoolantCapacity;
+
+    /// <summary>Hottest heat on the heat gauge: a margin past the safe maximum.</summary>
+    public static float HeatGaugeMax => Tweaks.Tank.HeatSafeMax * Tweaks.Tank.HeatGaugeOverheatMargin;
+
+    /// <summary>
+    /// The running-hot warning, latched: on above <see cref="Tweaks.Tank.RunningHotOnFraction"/> of the safe maximum,
+    /// off again only below <see cref="Tweaks.Tank.RunningHotOffFraction"/>. <paramref name="latched"/> is the
+    /// caller's previous answer.
+    /// </summary>
+    public bool IsRunningHot(bool latched)
+    {
+        float heat = Heat / Tweaks.Tank.HeatSafeMax;
+        return latched ? heat > Tweaks.Tank.RunningHotOffFraction : heat > Tweaks.Tank.RunningHotOnFraction;
+    }
+
+    /// <summary>
+    /// The low-shield warning, latched: on below <see cref="Tweaks.Tank.ShieldLowOnFraction"/> of capacity, off again
+    /// only above <see cref="Tweaks.Tank.ShieldLowOffFraction"/>. <paramref name="latched"/> is the caller's previous
+    /// answer.
+    /// </summary>
+    public bool IsShieldLow(bool latched)
+    {
+        float shield = ShieldFraction;
+        return latched ? shield < Tweaks.Tank.ShieldLowOffFraction : shield < Tweaks.Tank.ShieldLowOnFraction;
+    }
+
+    /// <summary>How full the shield (reactor health) is, 0 to 1.</summary>
+    public float ShieldFraction =>
+        Math.Clamp(Math.Max(0, (int)Reactor.Health) / (float)Math.Max(1, (int)Reactor.HealthCapacity), 0f, 1f);
+
+    /// <summary>The shield gauge: Ok above half, Bad at or below the low-shield threshold.</summary>
+    public StatusLevel ShieldLevel
+    {
+        get
+        {
+            float shield = ShieldFraction;
+            return shield > Tweaks.Tank.ShieldWarnFraction ? StatusLevel.Ok
+                : shield > Tweaks.Tank.ShieldLowOnFraction ? StatusLevel.Warn
+                : StatusLevel.Bad;
+        }
+    }
+
+    /// <summary>How full the tank's dirt hold is, 0 to 1.</summary>
+    public float HoldFill => Math.Clamp(Resources.Dirt / (float)Math.Max(1, Resources.DirtCapacity), 0f, 1f);
+
+    /// <summary>
+    /// True once the live tank has been outside every base at the end of a tick: the player has driven out of the
+    /// base at least once this match.
+    /// </summary>
+    public bool HasLeftBase { get; private set; }
+
     /// <summary>Ticks a hit flash lasts after the tank is struck by enemy fire.</summary>
     public const int HitFlashDuration = 18;
 
@@ -173,6 +237,20 @@ public class Tank
 
     /// <summary>The store that pays for <paramref name="type"/>, or null if neither can.</summary>
     public MaterialContainer? BuildPayer(MachineType type, bool dockedAtOwnBase) => _build.BuildPayer(type, dockedAtOwnBase);
+
+    /// <summary>
+    /// True when building <paramref name="type"/> now would be paid from the base store: docked at the own base and
+    /// the tank's hold cannot pay but the store can.
+    /// </summary>
+    public bool BuildsFromBaseStore(MachineType type) =>
+        IsDockedAtOwnBase && Base != null && ReferenceEquals(BuildPayer(type, dockedAtOwnBase: true), Base.Materials);
+
+    /// <summary>End of a world tick: latches <see cref="HasLeftBase"/> once the live tank is outside every base.</summary>
+    internal void ObserveBaseExit(TankBases bases)
+    {
+        if (!IsDead && bases.CheckBaseCollision(Position) == null)
+            HasLeftBase = true;
+    }
 
     /// <summary>
     /// Any base the tank is in recharges it and sinks heat around it; its own base also takes its dirt and
