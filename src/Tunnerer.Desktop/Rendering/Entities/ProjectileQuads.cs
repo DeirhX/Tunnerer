@@ -27,13 +27,19 @@ public sealed class ProjectileQuads
         for (int i = 0; i < _projectileCount; i++)
         {
             ref readonly ProjectileRenderState projectile = ref _projectiles[i];
-            if (!projectile.IsAlive || !Sight.Sees(vision, projectile.Position.X, projectile.Position.Y))
+            if (!projectile.IsAlive)
                 continue;
 
             // The snapshot is where the shot is after the latest step; it got there along its velocity.
             float back = 1f - alpha;
-            float px = (projectile.Position.X - projectile.Velocity.X * back) * scale - quads.View.CameraPixels.X;
-            float py = (projectile.Position.Y - projectile.Velocity.Y * back) * scale - quads.View.CameraPixels.Y;
+            float drawnX = projectile.Position.X - projectile.Velocity.X * back;
+            float drawnY = projectile.Position.Y - projectile.Velocity.Y * back;
+            // Sight is tested where the shot is drawn, not where the step left it: a fast shot that has just
+            // entered sight is still drawn a few cells back, and must not show in the fog there.
+            if (!Sight.Sees(vision, drawnX, drawnY))
+                continue;
+            float px = drawnX * scale - quads.View.CameraPixels.X;
+            float py = drawnY * scale - quads.View.CameraPixels.Y;
             if (quads.IsOffScreen(px, py, 6f * scale))
                 continue;
 
