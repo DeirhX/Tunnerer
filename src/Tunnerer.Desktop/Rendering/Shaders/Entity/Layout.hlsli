@@ -11,7 +11,7 @@
 //                   .w = state (0 normal, 1 hit flash, 2 spawn protection)
 //   1 tank turret — .xy = barrel direction (cos, sin), .w = state as above
 //   2 hot shot    — .x = trail length (cells), .y = core radius (cells)
-//   3 foam blob   — .y = radius (cells)
+//   3 (unused)
 //   4 relay       — .x = powered (0/1), .y = pump fraction, .z = animation phase (s), .w = machine flags
 //   5 harvester   — .xy = facing (cos, sin), .z = drum/tread phase, .w = machine flags
 //   6 sense ring  — .x = ground heat / stall temperature, .y = radius (cells), .z = phase, .w = machine flags
@@ -28,8 +28,8 @@
 //  14 tether      — .x = length (cells, toward the node at +x), .y = cooling strength, .z = phase
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
 //
-// color.rgb is the team colour (tank hull, turret), the body colour (hot shot,
-// foam) or the tint (reach area, coverage). Every other kind owns its colours
+// color.rgb is the team colour (tank hull, turret), the body colour (hot shot)
+// or the tint (reach area, coverage). Every other kind owns its colours
 // here in the shader; the C# side sends black for them.
 // ============================================================================
 
@@ -40,7 +40,6 @@
 static const float kKindTankHull = 0.0;
 static const float kKindTankTurret = 1.0;
 static const float kKindHotShot = 2.0;
-static const float kKindFoam = 3.0;
 static const float kKindRelay = 4.0;
 static const float kKindHarvester = 5.0;
 static const float kKindSenseRing = 6.0;

@@ -195,8 +195,8 @@ Desktop:
    and a draw colour. Use `CollisionSolver.TestPoint` to hit tanks or terrain, `ProjectileList`'s RNG for chance,
    and the heat API (`AddHeat`, `AddHeatRadius`) for heat, so the ledger stays balanced.
 3. Something has to spawn it: today only `TankTurret` (bullets) and `ExplosionFactory` (shrapnel) do.
-4. Desktop: `Rendering/Entities/ProjectileQuads.cs` draws bullets and shrapnel as hot shots and anything else with
-   the foam shape; add a case for a new look. `Audio/GameAudio.cs` plays impacts for bullets and shrapnel only.
+4. Desktop: `Rendering/Entities/ProjectileQuads.cs` draws bullets and shrapnel as hot shots and throws for any
+   other type; add a case for a new projectile. `Audio/GameAudio.cs` plays impacts for bullets and shrapnel only.
 
 ### Adding a thermal material
 

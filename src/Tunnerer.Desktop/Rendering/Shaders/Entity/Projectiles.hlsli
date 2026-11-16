@@ -30,15 +30,4 @@ float4 HotShot(float2 p, float3 body, float4 params, float aa)
     return float4(coreColor * core + glow, core);
 }
 
-float4 FoamBlob(float2 p, float3 body, float4 params, float aa)
-{
-    float radius = params.y;
-    float dist = length(p) - radius;
-    float4 result = float4(0.0, 0.0, 0.0, 0.0);
-    Over(result, kOutlineColor, FillAlpha(dist - 0.12, aa) * 0.8);
-    float3 lit = body * (0.85 + 0.35 * saturate(dot(p / max(radius, 1e-4), kLightDir)));
-    Over(result, lit, FillAlpha(dist, aa));
-    return result;
-}
-
 #endif // TUNNERER_ENTITY_PROJECTILES_HLSLI
