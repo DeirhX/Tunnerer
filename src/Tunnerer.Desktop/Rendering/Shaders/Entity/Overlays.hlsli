@@ -1,9 +1,10 @@
 // ============================================================================
-// Entity/Overlays.hlsli — Ground areas: sense ring, reach area, coverage
+// Entity/Overlays.hlsli — Ground areas: sense ring, reach area, coverage; radar blips
 // ============================================================================
 //
 // Faint fields drawn on the ground around a machine, the carried machine or a
-// network node, under machines and tanks.
+// network node, under machines and tanks. Radar blips are drawn over the fog,
+// on ground the player cannot see.
 // ============================================================================
 
 #ifndef TUNNERER_ENTITY_OVERLAYS_HLSLI
@@ -79,6 +80,30 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
     float3 cool = lerp(tint, float3(0.70, 0.95, 1.0), 0.3);
     float glow = (rim * 0.16 + inside * 0.025) * level * quadFade;
     return float4(cool * glow, (rim * 0.04 + inside * 0.02) * level * quadFade);
+}
+
+// One radar return: a small dot with a soft glow, on ground out of the player's sight. It flares when the beam
+// finds it and then fades over its life. Green for rock and walls, amber for metal (gold, machines, tanks), a dim
+// blue-green for the weak return of a cave.
+float4 RadarBlip(float2 p, float4 params, float aa)
+{
+    float life = saturate(params.x);
+    float echo = params.y;
+    float flash = saturate(params.w);
+
+    float3 color = echo < 0.5 ? float3(0.30, 1.00, 0.50)
+        : echo < 1.5 ? float3(1.00, 0.80, 0.30)
+        : float3(0.25, 0.70, 0.80);
+    float strength = echo > 1.5 ? 0.55 : 1.0;
+
+    float r = length(p);
+    float core = FillAlpha(r - (0.30 + 0.22 * flash), aa);
+    float glow = exp(-r * r * (1.8 - 1.0 * flash));
+    // Hold most of the brightness for the first half of the life, then let go.
+    float fade = smoothstep(0.0, 0.55, life) * strength;
+
+    float3 light = color * (core * (0.75 + 0.6 * flash) + glow * (0.22 + 0.75 * flash));
+    return float4(light * fade, core * fade * 0.5);
 }
 
 #endif // TUNNERER_ENTITY_OVERLAYS_HLSLI

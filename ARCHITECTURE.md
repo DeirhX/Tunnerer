@@ -96,7 +96,8 @@ and Escape quits at once.
 8. **Bases** - reactor heat sink and radiator
 9. **LinkMap** - which machines are connected to a powered base (line of sight, range); rebuilt every 200 ms
 10. **Vision** - fog of war for each side someone asked to track (`World.TrackVision`): what its tank, base and
-    machines see, and the terrain as it last saw it. Output only; the steps above never read it
+    machines see, and the terrain as it last saw it; and the tank's radar (`World.TrackRadar`), whose turning beam
+    leaves fading contacts where it reflects beyond sight. Output only; the steps above never read them
 
 Detail, and recipes for adding machines, projectiles, materials and collidable entities, are in
 `src/Tunnerer.Core/ARCHITECTURE.md`.
@@ -123,7 +124,8 @@ compositePixels[w*h]                  terrain aux data (heat, solid field, mater
 
 With fog of war (on in a match unless `--no-fog`) the terrain drawn is the terrain the player last saw: the world
 pixels, aux and coverage data are built from `VisionMap.Known` through a `TerrainView`, and heat is only repacked
-for cells in sight. The fog pass then only tones the frame, and the entity layer leaves out what is out of sight.
+for cells in sight. The fog pass then only tones the frame, and the entity layer leaves out what is out of sight
+and draws the radar's blips on the ground the player cannot see.
 
 The composite buffer keeps entity drawing from corrupting the terrain surface. It holds only the cell-resolution
 entities; links, relays, pylons, harvesters, tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
@@ -166,7 +168,7 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 - **Core**: terrain and pixels, collision, level generation, tank movement, heat and the temperature band, relays,
   the power loop, network coverage, hot and frost rock, the sector goal and base upgrades, the thermal ledger and whole-world thermal behaviour, determinism, replays and
-  recorded fingerprints, match outcome, network status, placement preview, fog of war (`VisionMapTests`) and the bot.
+  recorded fingerprints, match outcome, network status, placement preview, fog of war and radar (`VisionMapTests`, `RadarTests`) and the bot.
 - **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, layout), the tutorial and
   event notifications (`GuidanceTests`), entity
   interpolation (`EntityInterpolatorTests`), machine presentation (`MachinePresentationTests`), terrain aux upload

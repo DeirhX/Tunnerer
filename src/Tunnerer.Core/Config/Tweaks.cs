@@ -284,6 +284,25 @@ public static class Tweaks
         public const int FixedSourceRefreshTicks = 6;
     }
 
+    /// <summary>
+    /// The tank's radar (<c>Sensing/Radar</c>): blips where a turning beam reflects, well beyond sight. Presentation
+    /// only, like vision.
+    /// </summary>
+    public static class Radar
+    {
+        // How far a ray reaches, in cells.
+        public const int Range = 150;
+        // The beam casts this many rays a tick; a revolution is RaysPerRevolution of them (64 ticks, 2.7 s).
+        public const int RaysPerTick = 4;
+        public const int RaysPerRevolution = 256;
+        // A blip fades out over this many ticks (10 s), a little under four revolutions.
+        public const int ContactLifetimeTicks = 10 * Perf.TargetFps;
+        // Open ground behind dirt (a tunnel, a cave) gives a weak return and lets the ray on, this many times a ray.
+        public const int WeakReturnsPerRay = 3;
+        // A tank reflects as a square this many cells either side of its centre.
+        public const int TankHalfSize = 3;
+    }
+
     public static class Weapon
     {
         public const int CannonBulletSpeed = 3;

@@ -26,6 +26,8 @@
 //  12 reach area  — .x = reach (cells), .y = 0 square (relay cooling), 1 circle (pylon), .z = phase
 //  13 network coverage — .x = radius (cells), .y = cooling strength (0..1), .z = phase, .w = 1 while the tank is off network
 //  14 tether      — .x = length (cells, toward the node at +x), .y = cooling strength, .z = phase
+//  15 radar blip  — .x = life (1 just found, 0 gone), .y = echo (0 solid, 1 metal, 2 cavity), .z = phase,
+//                   .w = flash (1 just found, 0 after a few ticks)
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
 //
 // color.rgb is the team colour (tank hull, turret), the body colour (hot shot)
@@ -51,6 +53,7 @@ static const float kKindPreviewBeam = 11.0;
 static const float kKindReachArea = 12.0;
 static const float kKindCoverage = 13.0;
 static const float kKindTether = 14.0;
+static const float kKindRadarBlip = 15.0;
 
 // Machine flags (params.w); EntityShape's MachineFlag* constants must match.
 static const float kMachineFlagStalled = 1.0;

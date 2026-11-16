@@ -48,6 +48,8 @@ public partial class Game : IDisposable
     /// <summary>The player's vision and the fog texture built from it; both null when fog of war is off.</summary>
     private readonly VisionMap? _vision;
     private readonly FogLayer? _fogLayer;
+    /// <summary>The player's radar, which shows blips on ground out of sight; null when fog of war is off.</summary>
+    private readonly Radar? _radar;
     /// <summary>What the renderer draws the terrain from: the world, or with fog what the player last saw of it.</summary>
     private readonly TerrainView _terrainView;
     private bool _compositeChanged = true;
@@ -108,6 +110,7 @@ public partial class Game : IDisposable
         {
             _vision = _world.TrackVision(_world.TankList.Tanks[0]);
             _fogLayer = new FogLayer(_terrainSize);
+            _radar = _world.TrackRadar(_world.TankList.Tanks[0]);
         }
         _terrainView = _vision != null ? TerrainView.Fogged(_world.Terrain, _vision) : TerrainView.Live(_world.Terrain);
 

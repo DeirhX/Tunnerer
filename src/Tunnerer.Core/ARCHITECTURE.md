@@ -58,6 +58,7 @@ Entities/
   Links/NetworkCoverage.cs   Coverage nodes and the coverage a tank gets at a position
 Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
+  Radar.cs                   A tank's radar: a turning beam and the fading contacts where its rays reflected
 Collision/
   CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
   WorldSectors.cs            Sector buckets for the tank broad phase
@@ -103,7 +104,8 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
    core tap and its hold timer).
 9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
    every tick.
-10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date (see "Vision" below).
+10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
+    out by `World.TrackRadar` casts its next rays (see "Vision" below).
 
 `SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per section
 above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / parallel ticks) and `[ProfileE]`
@@ -111,7 +113,7 @@ above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / 
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
 `Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
-`World.CollectCoverageNodes`, `World.TrackVision`, and the `CopyRenderStates` snapshot of each entity list.
+`World.CollectCoverageNodes`, `World.TrackVision`, `World.TrackRadar`, and the `CopyRenderStates` snapshot of each entity list.
 
 ### Step events
 
@@ -184,6 +186,27 @@ because a cell that changed out of sight came back into it. `TryGetDirtyRect` bo
 Cost follows the cells in sight, never the size of the map: every pass walks lists of lit cells, and no pass sweeps
 the grid. The tank is recast every tick; bases and machines, which stay put, every
 `FixedSourceRefreshTicks` ticks into their own layer. Keep it that way: maps are meant to grow.
+
+### Radar
+
+`World.TrackRadar(tank)` returns that tank's `Radar` (and tracks its side's vision, which the radar needs). It is
+output only, like vision (`RadarTests.AWorld_TurnsTheRadar_WithoutChangingTheSimulation`). Numbers are in
+`Tweaks.Radar`.
+
+Every tick the tank is alive the beam casts `RaysPerTick` Bresenham rays to `Range`, `RaysPerRevolution` to a
+turn; each revolution starts a fraction of a ray spacing further round, so later sweeps fill the gaps of earlier
+ones. Along a ray:
+
+- dirt and open ground let it through, and so do the walls of the tank's own base;
+- a machine or another tank (`RadarTarget`), or gold, reflects as `Metal` and stops it;
+- rock, concrete, hot and frost rock and another side's base walls reflect as `Solid` and stop it;
+- stepping from dirt into open ground (a tunnel, a cave) gives a `Cavity` return and the ray goes on, at most
+  `WeakReturnsPerRay` times.
+
+A return becomes a `RadarContact` (cell, echo, birth tick) unless it tells the side nothing: the cell is in sight,
+or it is terrain the side has explored and remembers as it is now. So remembered ground only shows where it has
+changed. Contacts live `ContactLifetimeTicks` in a fixed ring (`ContactCount`, `ContactAt`), and never move: what
+made them may have gone. A tick costs a few rays, whatever the size of the map.
 
 ## Links
 

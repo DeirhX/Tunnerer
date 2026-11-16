@@ -89,6 +89,11 @@ Core decides what is seen; the renderer only shows it.
 - **Entities.** The entity layer is drawn after the post pass, so the emitters leave out what is out of sight
   (`Rendering/Entities/Sight.cs`): tanks, machines, shots, and links with neither end in sight. The player's own
   tank and machines always show, because each sees the ground it stands on. A tank out of sight casts no heat glow.
+- **Radar blips.** `Game` also asks for the player's `Radar` (`World.TrackRadar`). `RadarQuads` draws one small
+  quad per contact (`KindRadarBlip`, `RadarBlip` in `Shaders/Entity/Overlays.hlsli`), first in the entity layer so
+  everything else is on top: green for rock and walls, amber for metal, dim blue-green for a cave. A blip flares
+  for a few ticks when the beam finds it, which is what shows the sweep, then fades over the contact's life. A blip
+  whose cell has come into sight is not drawn.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
 

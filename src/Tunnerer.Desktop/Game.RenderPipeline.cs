@@ -38,7 +38,7 @@ public partial class Game
         float visualTime = VisualTime;
         _entityLayer.Build(
             renderView, stepProgress, turnSeconds: _paused ? 0f : dt, snapHeadings: !_interpolateFrames,
-            visualSeconds: visualTime, vision: _vision);
+            visualSeconds: visualTime, vision: _vision, radar: _radar);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
 

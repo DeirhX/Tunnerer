@@ -307,11 +307,47 @@ public class World
         return map;
     }
 
+    private readonly List<(Tank Tank, Radar Radar)> _trackedRadars = new();
+    private readonly List<RadarTarget> _radarTargets = new();
+
+    /// <summary>
+    /// Starts <paramref name="tank"/>'s radar and returns it; every <see cref="Advance"/> then turns its beam while
+    /// the tank lives. It reports only what the tank's side cannot already see, so it tracks that side's vision too
+    /// (<see cref="TrackVision"/>). Output only, like vision.
+    /// </summary>
+    public Radar TrackRadar(Tank tank)
+    {
+        foreach (var tracked in _trackedRadars)
+            if (tracked.Tank == tank)
+                return tracked.Radar;
+        var radar = new Radar(TrackVision(tank));
+        _trackedRadars.Add((tank, radar));
+        return radar;
+    }
+
     private void UpdateVisions()
     {
         bool recastFixed = _advanceCount % Tweaks.Vision.FixedSourceRefreshTicks == 0;
         foreach (var (tank, map) in _trackedVisions)
             UpdateVision(tank, map, recastFixed);
+
+        foreach (var (tank, radar) in _trackedRadars)
+        {
+            if (tank.IsDead)
+            {
+                radar.Idle();
+                continue;
+            }
+            // Everything that is not terrain and reflects: planted machines and the other tanks.
+            _radarTargets.Clear();
+            foreach (var machine in _machines.Machines)
+                if (machine.IsAlive && machine.State == MachineState.Planted)
+                    _radarTargets.Add(new RadarTarget(machine.Position, machine.BoundingBox.HalfWidth));
+            foreach (var other in _tankList.Tanks)
+                if (other != tank && !other.IsDead)
+                    _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize));
+            radar.Sweep(_terrain, tank.Position, tank.Color, _radarTargets);
+        }
     }
 
     private void UpdateVision(Tank tank, VisionMap map, bool recastFixed)

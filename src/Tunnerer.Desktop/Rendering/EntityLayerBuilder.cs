@@ -18,7 +18,7 @@ public struct EntityVertex
 }
 
 /// <summary>
-/// Turns simulation snapshots into the entity layer's quads: network coverage, links, the placement preview,
+/// Turns simulation snapshots into the entity layer's quads: radar blips, network coverage, links, the placement preview,
 /// machines, tanks and projectiles, in that order (later ones draw on top). <see cref="EntityInterpolator"/> places
 /// tanks and machines between the last two simulation steps; each family's emitter in <c>Rendering/Entities</c>
 /// writes its quads. It only reads render snapshots; nothing here feeds back into the simulation.
@@ -75,15 +75,18 @@ public sealed class EntityLayerBuilder
     /// <paramref name="snapHeadings"/> puts them on the new heading at once (step-locked automated runs).
     /// <paramref name="visualSeconds"/> is the game's visual clock, which drives every animation (pulses, blinking).
     /// With fog of war, <paramref name="vision"/> is the player's: tanks, machines, shots and links out of its sight
-    /// are left out.
+    /// are left out, and <paramref name="radar"/>'s blips are drawn on the ground it cannot see.
     /// </summary>
     public void Build(
         in RenderView view, float alpha, float turnSeconds, bool snapHeadings, float visualSeconds,
-        VisionMap? vision = null)
+        VisionMap? vision = null, Radar? radar = null)
     {
         _quads.Begin(view, visualSeconds % AnimationPhaseWrapSeconds, alpha);
         bool protectedBlinkOn = (long)(visualSeconds * 1000f) / ProtectedBlinkMilliseconds % 2 == 0;
         ReadOnlySpan<PositionF> tankPositions = _interpolator.InterpolateTankPositions(alpha);
+
+        if (radar != null && vision != null)
+            RadarQuads.Emit(_quads, radar, vision);
 
         // Beams (links, charge, the tether) under machines, machines under tanks (a tank carrying one draws on top).
         _coverage.Emit(_quads);

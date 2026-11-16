@@ -263,7 +263,7 @@ field. Planned: conductor lines, insulating walls, haulers, turrets, props, heat
 The opposing tank stops being the centre of the game. It becomes one possible sector twist: a competitor for the
 same deposits.
 
-### 6.6 Fog of war and radar *(Fog: Prototype. Radar: Proposed)*
+### 6.6 Fog of war and radar *(Prototype)*
 
 The player sees only what their side sees, so that learning the shape of the world takes travelling through it.
 
@@ -273,13 +273,16 @@ The player sees only what their side sees, so that learning the shape of the wor
   The base and powered relays and pylons see their coverage circles; every machine sees a few cells around itself.
   The network is therefore the player's eyes as well as its cooling line (§4.6): a place stays lit, with its live
   heat, only while something of yours stands there, and a relay that loses its link goes nearly blind.
-- **Radar** *(Proposed)*. A beam sweeps round the tank and reaches well past sight (about 150 cells). Dirt and
-  open ground let it through; rock, hot and frost rock, minerals, base walls, machines and tanks reflect it and
-  stop it. Each return is a single blip at the point that reflected, fading over some seconds. What lies behind
-  a reflector is in shadow, so the outline of a thing is only learned by pinging it from several sides. Blips do
-  not follow what made them: a moving enemy leaves a stale trail. Open questions: whether tunnel walls give a weak
-  return, and whether hot ground weakens the beam, which would make hot zones radar-dark until they are cooled and
-  tie the radar to heat (pillar 2).
+- **Radar** *(Prototype)*. A beam sweeps round the tank about every 2.7 seconds and reaches well past sight
+  (150 cells). Dirt and open ground let it through; rock, hot and frost rock, gold, another side's base walls,
+  machines and tanks reflect it and stop it. Each return is a single blip at the cell that reflected, flaring as
+  the beam finds it and fading over 10 seconds: green for rock, amber for metal. What lies behind a reflector is
+  in its shadow, so the outline of a thing is only learned by pinging it from several sides, and successive sweeps
+  hit slightly different points, so a shape fills in while you wait. Blips do not follow what made them: a moving
+  enemy leaves a stale trail. A tunnel or cave behind dirt gives a weak blue return and lets the beam on. The
+  radar reports only news: nothing in sight, and nothing in remembered ground unless it has changed since.
+  Still open: whether hot ground should weaken the beam, which would make hot zones radar-dark until they are
+  cooled and tie the radar to heat (pillar 2); and whether pinging should cost heat.
 - **It is information, not physics.** Vision never changes the simulation: heat, machines and mobs run the same
   seen or unseen. Whether unseen ground may be simulated more cheaply is a separate question (below).
 
@@ -460,7 +463,7 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | No skill tree across saves | Proposed |
 | Rival tank becomes an optional sector twist | Proposed |
 | Fog of war: the player sees what their tank, base and machines see; the rest is remembered or unknown | Prototype |
-| Radar: blips where a sweeping beam reflects, well beyond sight | Proposed |
+| Radar: blips where a sweeping beam reflects, well beyond sight | Prototype |
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
 
 ## 14. Open questions
