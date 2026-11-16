@@ -30,8 +30,11 @@ public partial class GameHud
     public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel) =>
         _strip.Init(heatIcon, shieldIcon, panelFrame, buildPanel);
 
-    /// <summary>Window pixel (the mouse, the game texture, the camera) to UI units (see <see cref="ImGuiPlatform.UiScale"/>).</summary>
-    private static float ToUi(float windowPixels) => windowPixels / ImGuiPlatform.UiScale;
+    /// <summary>
+    /// Device pixel (the game texture, the camera, the mouse over the view) to UI units. A UI unit is
+    /// <see cref="ImGuiPlatform.DeviceScale"/> device pixels, so the game texture is drawn 1:1 with no resampling.
+    /// </summary>
+    private static float ToUi(float devicePixels) => devicePixels / ImGuiPlatform.DeviceScale;
 
     public void Draw(
         nint gameTextureId,
@@ -54,7 +57,7 @@ public partial class GameHud
         DrawGuidance(player, world);
         DrawUpgradePanel(player);
         DrawSectorComplete(player);
-        MatchOverlay.Draw(ViewportRect, player, world);
+        MatchOverlay.Draw(PlayRect, player, world);
         if (showPostPassOverlay)
             PostPassOverlay.Draw(ViewportRect, heatDebugOverlayEnabled, postPassFlags);
     }
@@ -98,6 +101,19 @@ public partial class GameHud
         ImGui.PopStyleVar(2);
     }
 
+    /// <summary>
+    /// The part of the view above the HUD strip. Overlays that cover the whole view (the death veil, the hit vignette,
+    /// the key reminder) use it, so they do not sit on the HUD plates.
+    /// </summary>
+    public (float x, float y, float w, float h) PlayRect
+    {
+        get
+        {
+            var vp = ViewportRect;
+            return (vp.x, vp.y, vp.w, ViewBottom(vp) - vp.y);
+        }
+    }
+
     /// <summary>Bottom of the visible game view: the top of the HUD strip, or the view's own bottom if that is higher.</summary>
     private float ViewBottom((float x, float y, float w, float h) vp) =>
         _strip.Top > vp.y ? MathF.Min(_strip.Top, vp.y + vp.h) : vp.y + vp.h;
@@ -122,7 +138,7 @@ public partial class GameHud
     /// <summary>Red edge vignette after a hit, with a wedge pointing back towards where the shot came from.</summary>
     private void DrawHitFeedback(Tank player)
     {
-        var vp = ViewportRect;
+        var vp = PlayRect;
         if (vp.w <= 0 || player.IsDead || player.HitFlashTicks <= 0)
             return;
 

@@ -9,19 +9,53 @@ public sealed class RenderViewState
     private int _nativeOverBudgetFrames;
     private int _nativeUnderBudgetFrames;
 
+    /// <summary>Size of the game view in device pixels.</summary>
     public Size HiResSize { get; private set; }
+    /// <summary>Camera position of the view's top-left corner, in device pixels.</summary>
     public int CamPixelX { get; private set; }
     public int CamPixelY { get; private set; }
     public Rect LastAuxViewport { get; private set; }
     public int NativeContinuousSampleCount { get; private set; } = DesktopScreenTweaks.NativeContinuousSampleHigh;
 
-    public Size ComputeViewSize(int windowW, int windowH, bool supportsUi)
+    /// <summary>Device pixels per point of the window: 2 on Retina, 1 on a standard display.</summary>
+    public float PixelDensity { get; private set; } = 1f;
+
+    /// <summary>
+    /// Device pixels per terrain cell. The design is <see cref="DesktopScreenTweaks.PixelScale"/> points per cell; on a
+    /// denser display that is scaled and rounded to whole pixels, so each cell is an exact block and nothing is resampled.
+    /// </summary>
+    public int CellPixels { get; private set; } = DesktopScreenTweaks.PixelScale;
+
+    /// <summary>Takes the window's pixel density for this frame; call before sizing the view or the camera.</summary>
+    public void SetPixelDensity(float pixelDensity)
     {
-        int viewportHeight = supportsUi
-            ? Math.Max(1, windowH - HudLayout.BottomPanelHeight(windowW, windowH))
-            : Math.Max(1, windowH);
-        return new Size(Math.Max(1, windowW), viewportHeight);
+        PixelDensity = pixelDensity > 0f ? pixelDensity : 1f;
+        CellPixels = Math.Max(1, (int)MathF.Round(DesktopScreenTweaks.PixelScale * PixelDensity));
     }
+
+    private Size _windowPoints;
+    private bool _hudShown;
+
+    /// <summary>
+    /// The game view in device pixels: the whole window. The HUD is drawn over its bottom corners, so the map shows
+    /// through between its two parts and wherever its art is see-through.
+    /// </summary>
+    /// <param name="windowPixels">Window size in device pixels.</param>
+    /// <param name="windowPoints">Window size in points.</param>
+    /// <param name="supportsUi">Whether the HUD is shown, which takes its parts out of the play area.</param>
+    public Size ComputeViewSize(Size windowPixels, Size windowPoints, bool supportsUi)
+    {
+        _windowPoints = windowPoints;
+        _hudShown = supportsUi;
+        return new Size(Math.Max(1, windowPixels.X), Math.Max(1, windowPixels.Y));
+    }
+
+    /// <summary>
+    /// Whether a point of the view (device pixels) is under the HUD, where aiming and clicks stop so the HUD does not
+    /// fire. The gap between the HUD's two parts is play area.
+    /// </summary>
+    public bool IsUnderHud(float x, float y) =>
+        _hudShown && HudLayout.Covers(_windowPoints.X, _windowPoints.Y, PixelDensity, x / PixelDensity, y / PixelDensity);
 
     public void EnsureHiResBuffer(Size size)
     {

@@ -43,6 +43,10 @@ public sealed class SdlRenderer : IDisposable
             windowFlags = SDL.WindowFlags.Borderless | SDL.WindowFlags.Fullscreen;
         }
 
+        // Ask for a surface in device pixels. Without this a Retina display gets a point-sized surface that the OS
+        // stretches 2x, which is where the soft, upscaled look came from.
+        windowFlags |= SDL.WindowFlags.HighPixelDensity;
+
         _window = SDL.CreateWindow(title, windowSize.X, windowSize.Y, windowFlags);
         if (_window == nint.Zero)
             throw new InvalidOperationException($"SDL_CreateWindow failed: {SDL.GetError()}");
@@ -88,10 +92,28 @@ public sealed class SdlRenderer : IDisposable
         return SDL.GetPrimaryDisplay();
     }
 
+    /// <summary>Window size in points: the unit SDL reports mouse positions in, and the unit the UI is laid out in.</summary>
     public (int w, int h) GetWindowSize()
     {
         SDL.GetWindowSize(_window, out int w, out int h);
         return (w, h);
+    }
+
+    /// <summary>Window size in device pixels: the size of the surface the frame is drawn into.</summary>
+    public (int w, int h) GetWindowSizeInPixels()
+    {
+        SDL.GetWindowSizeInPixels(_window, out int w, out int h);
+        return (w, h);
+    }
+
+    /// <summary>Device pixels per point: 2 on a Retina display, 1 on a standard one.</summary>
+    public float PixelDensity
+    {
+        get
+        {
+            float density = SDL.GetWindowPixelDensity(_window);
+            return density > 0f ? density : 1f;
+        }
     }
 
     public (int x, int y, uint buttons) GetMouseState()

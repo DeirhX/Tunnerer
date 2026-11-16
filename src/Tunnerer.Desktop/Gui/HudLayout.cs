@@ -4,8 +4,10 @@ using System.Numerics;
 using Tunnerer.Desktop.Rendering;
 
 /// <summary>
-/// Size and placement of the bottom HUD strip: the art's own dimensions, how much it is enlarged for the display, and
-/// where it sits on screen this frame. Art pixel (x, y) is drawn at <see cref="Origin"/> + (x, y) * <see cref="Scale"/>.
+/// Size and placement of the bottom HUD: the art's own dimensions, how much it is enlarged for the display, and where
+/// it sits on screen this frame. The strip is split in two so the middle of the view stays clear: the TEMP, SHIELD and
+/// MATERIALS panels sit in the bottom-left corner and BUILD STRUCTURES in the bottom-right. Art coordinates still run
+/// across the whole strip (0 to <see cref="StripW"/>); <see cref="At(float, float)"/> moves the right part over.
 /// </summary>
 public sealed class HudLayout
 {
@@ -24,41 +26,99 @@ public sealed class HudLayout
     public const float MaterialsX = ShieldX + ShieldPanelW;
     public const float BuildX = MaterialsX + MaterialsPanelW;
 
-    /// <summary>Where the strip's top-left corner is on screen this frame.</summary>
+    /// <summary>
+    /// Widths of the two parts, in art pixels: the left one ends where BUILD STRUCTURES begins. The art was painted as
+    /// one strip, so the facing ends of MATERIALS and BUILD STRUCTURES are cut along their frames, with a bevel.
+    /// </summary>
+    public const float LeftW = BuildX, RightW = BuildPanelW;
+
+    /// <summary>The narrowest clear gap between the two parts, in art pixels; narrower displays shrink the HUD.</summary>
+    public const float MinCenterGap = 192f;
+
+    /// <summary>Where the left part's top-left corner is on screen this frame: the bottom-left corner of the display.</summary>
     public Vector2 Origin { get; private set; }
+
+    /// <summary>How far right the right part is moved, in screen units, so it ends at the display's right edge.</summary>
+    public float RightShift { get; private set; }
 
     /// <summary>Screen pixels per art pixel this frame.</summary>
     public float Scale { get; private set; } = 1f;
 
     /// <summary>
     /// How much the HUD art is enlarged, in UI units (<see cref="ImGuiPlatform.UiScale"/> does the rest): 1 up to a
-    /// 1080-unit-high display, in proportion above it, and shrunk only when the display is narrower than the art.
+    /// 1080-unit-high display, in proportion above it, and shrunk only when the display is too narrow for both parts
+    /// and the <see cref="MinCenterGap"/> between them.
     /// </summary>
     public static float HudScale(float displayW, float displayH) =>
-        MathF.Min(displayW / StripW, MathF.Max(1f, displayH / ReferenceDisplayHeight));
+        MathF.Min(displayW / (LeftW + RightW + MinCenterGap), MathF.Max(1f, displayH / ReferenceDisplayHeight));
 
-    /// <summary>Window pixels at the bottom of the window covered by the HUD; the game view is drawn above them.</summary>
-    public static int BottomPanelHeight(int windowW, int windowH)
+    /// <summary>
+    /// Screen pixels per art pixel, in UI units. On a high-density display this is snapped to a whole number of device
+    /// pixels, so the art is drawn 1:1 with no resampling blur. Displays at 1x keep the fractional scale.
+    /// </summary>
+    /// <param name="uiScale">Points per UI unit.</param>
+    /// <param name="pixelDensity">Device pixels per point.</param>
+    public static float ArtScale(float displayW, float displayH, float uiScale, float pixelDensity)
+    {
+        float scale = HudScale(displayW, displayH);
+        if (pixelDensity <= 1f)
+            return scale;
+
+        float devicePerUnit = uiScale * pixelDensity;
+        float devicePerArtPixel = MathF.Max(1f, MathF.Floor(scale * devicePerUnit));
+        return devicePerArtPixel / devicePerUnit;
+    }
+
+    /// <summary>Points at the bottom of the window covered by the HUD; the game view is drawn above them.</summary>
+    /// <param name="windowW">Window width in points.</param>
+    /// <param name="windowH">Window height in points.</param>
+    /// <param name="pixelDensity">Device pixels per point.</param>
+    public static int BottomPanelHeight(int windowW, int windowH, float pixelDensity)
     {
         float ui = ImGuiPlatform.ComputeUiScale(windowW, windowH);
-        return (int)MathF.Ceiling(StripH * HudScale(windowW / ui, windowH / ui) * ui);
+        float scale = ArtScale(windowW / ui, windowH / ui, ui, pixelDensity);
+        return (int)MathF.Ceiling(StripH * scale * ui);
     }
 
-    /// <summary>Centres the strip at the bottom of a display of this size (in UI units).</summary>
+    /// <summary>
+    /// Whether a point of the window is under the HUD, where the mouse works the HUD and does not aim: the two parts,
+    /// each taken as a rectangle from the strip's top edge down. The gap between them is part of the view.
+    /// </summary>
+    /// <param name="windowW">Window width in points.</param>
+    /// <param name="windowH">Window height in points.</param>
+    /// <param name="pixelDensity">Device pixels per point.</param>
+    /// <param name="x">Point x, in points.</param>
+    /// <param name="y">Point y, in points.</param>
+    public static bool Covers(int windowW, int windowH, float pixelDensity, float x, float y)
+    {
+        if (y < windowH - BottomPanelHeight(windowW, windowH, pixelDensity))
+            return false;
+        float ui = ImGuiPlatform.ComputeUiScale(windowW, windowH);
+        float pointsPerArtPixel = ArtScale(windowW / ui, windowH / ui, ui, pixelDensity) * ui;
+        return x < LeftW * pointsPerArtPixel || x >= windowW - RightW * pointsPerArtPixel;
+    }
+
+    /// <summary>Places the two parts in the bottom corners of a display of this size (in UI units).</summary>
     public void Update(Vector2 displaySize)
     {
-        Scale = HudScale(displaySize.X, displaySize.Y);
-        float stripScreenW = StripW * Scale;
         float ui = ImGuiPlatform.UiScale;
+        float density = ImGuiPlatform.PixelDensity;
+        Scale = ArtScale(displaySize.X, displaySize.Y, ui, density);
         int windowW = (int)MathF.Round(displaySize.X * ui), windowH = (int)MathF.Round(displaySize.Y * ui);
-        Origin = new Vector2(
-            MathF.Floor((displaySize.X - stripScreenW) * 0.5f),
-            displaySize.Y - BottomPanelHeight(windowW, windowH) / ui);
+        Origin = new Vector2(0f, displaySize.Y - BottomPanelHeight(windowW, windowH, density) / ui);
+        // Snapped to whole device pixels, like the art scale, so the right part is not resampled either.
+        float deviceScale = ImGuiPlatform.DeviceScale;
+        float rightX = MathF.Round((displaySize.X - RightW * Scale) * deviceScale) / deviceScale;
+        RightShift = rightX - BuildX * Scale;
     }
 
-    /// <summary>Art pixel to screen position, for the HUD drawn at the current scale.</summary>
-    public Vector2 At(float x, float y) => Origin + new Vector2(x, y) * Scale;
-    public Vector2 At(Vector2 p) => Origin + p * Scale;
+    /// <summary>
+    /// Art pixel to screen position, for the HUD drawn at the current scale. Points from <see cref="BuildX"/> on belong
+    /// to the right part.
+    /// </summary>
+    public Vector2 At(float x, float y) =>
+        Origin + new Vector2(x, y) * Scale + new Vector2(x >= BuildX ? RightShift : 0f, 0f);
+    public Vector2 At(Vector2 p) => At(p.X, p.Y);
 
     /// <summary>An art length in screen pixels.</summary>
     public float S(float v) => v * Scale;

@@ -24,6 +24,7 @@ public readonly record struct ProjectileRenderState(
 /// <param name="Charge">Battery fill, 0..1 (always 0 for machines without a battery).</param>
 /// <param name="IsCharging">True while a pylon at <paramref name="ChargingFrom"/> is filling this battery.</param>
 /// <param name="IsGivingCharge">True for a pylon that handed out charge at its last action.</param>
+/// <param name="Anchor">Where the machine was planted. Unlike <paramref name="Position"/>, it does not change while a harvester crawls.</param>
 public readonly record struct MachineRenderState(
     Position Position,
     MachineType Type,
@@ -40,7 +41,8 @@ public readonly record struct MachineRenderState(
     bool IsReturning = false,
     bool IsCharging = false,
     Position ChargingFrom = default,
-    bool IsGivingCharge = false);
+    bool IsGivingCharge = false,
+    Position Anchor = default);
 
 /// <param name="HeatFlow">Heat carried in the last tick, in full relay pump rates (2 = two relays' worth).</param>
 /// <param name="ChargeFlow">Charge carried out to pylons, in full pylon hand-outs (1 = one pylon at full rate).</param>

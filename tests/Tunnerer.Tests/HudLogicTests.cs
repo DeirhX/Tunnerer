@@ -5,6 +5,7 @@ using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
+using Tunnerer.Desktop.Rendering;
 
 namespace Tunnerer.Tests;
 
@@ -157,14 +158,49 @@ public class HudLogicTests
     [InlineData(1920, 1080, 1f)]
     [InlineData(1280, 720, 1f)]
     [InlineData(3840, 2160, 2f)]
-    [InlineData(512, 1080, 0.5f)]
     public void HudScale_EnlargesOnTallDisplays_ShrinksOnlyWhenNarrow(int w, int h, float expected) =>
         Assert.Equal(expected, HudLayout.HudScale(w, h));
 
     [Fact]
+    public void HudScale_OnANarrowDisplay_KeepsTheGapBetweenTheParts()
+    {
+        float scale = HudLayout.HudScale(623, 1080);
+        Assert.Equal(623f, (HudLayout.LeftW + HudLayout.RightW + HudLayout.MinCenterGap) * scale, 3);
+    }
+
+    [Theory]
+    [InlineData(10f, 1070f, true)]     // bottom-left: TEMP
+    [InlineData(1910f, 1070f, true)]   // bottom-right: BUILD STRUCTURES
+    [InlineData(960f, 1070f, false)]   // the gap in the middle is view
+    [InlineData(10f, 800f, false)]     // above the strip
+    public void Covers_IsTheTwoCornerParts_NotTheGapBetweenThem(float x, float y, bool expected) =>
+        Assert.Equal(expected, HudLayout.Covers(1920, 1080, pixelDensity: 1f, x, y));
+
+    [Fact]
     public void BottomPanelHeight_IsTheStripAtHudScale()
     {
-        Assert.Equal(223, HudLayout.BottomPanelHeight(1920, 1080));
-        Assert.Equal(446, HudLayout.BottomPanelHeight(3840, 2160));
+        Assert.Equal(223, HudLayout.BottomPanelHeight(1920, 1080, pixelDensity: 1f));
+        Assert.Equal(446, HudLayout.BottomPanelHeight(3840, 2160, pixelDensity: 1f));
+    }
+
+    [Theory]
+    [InlineData(1728, 1117, 2f)] // MacBook Pro 16" default: 1.03 UI units high, 2 device pixels per point
+    [InlineData(1512, 982, 2f)]
+    [InlineData(2560, 1440, 2f)]
+    [InlineData(1920, 1080, 1.5f)]
+    public void ArtScale_SnapsToWholeDevicePixelsOnDenseDisplays(int pointsW, int pointsH, float density)
+    {
+        float ui = ImGuiPlatform.ComputeUiScale(pointsW, pointsH);
+        float scale = HudLayout.ArtScale(pointsW / ui, pointsH / ui, ui, density);
+        float devicePerArtPixel = scale * ui * density;
+
+        Assert.True(MathF.Abs(devicePerArtPixel - MathF.Round(devicePerArtPixel)) < 1e-3f, $"{devicePerArtPixel} device px per art px");
+        Assert.True(devicePerArtPixel >= 1f);
+    }
+
+    [Fact]
+    public void ArtScale_KeepsTheFractionalScaleOnStandardDisplays()
+    {
+        Assert.Equal(HudLayout.HudScale(1728, 1117), HudLayout.ArtScale(1728, 1117, 1f, 1f));
     }
 }

@@ -89,7 +89,8 @@ public class MachineList
                 IsReturning: m.IsReturning,
                 IsCharging: m.ChargingFrom is { IsAlive: true },
                 ChargingFrom: m.ChargingFrom?.Position ?? default,
-                IsGivingCharge: m.LastChargeGiven > 0.0);
+                IsGivingCharge: m.LastChargeGiven > 0.0,
+                Anchor: m.Anchor);
         }
         return count;
     }

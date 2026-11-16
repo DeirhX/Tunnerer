@@ -73,9 +73,13 @@ public sealed unsafe partial class SdlGpuBackend : IGameRenderBackend
             _blitPipeline = CreateFullscreenPipeline("BlitPs");
             CreateScenePipelines();
 
+            SDL.GetWindowSize(_window, out int pointsW, out int pointsH);
             SDL.GetWindowSizeInPixels(_window, out int winW, out int winH);
-            _imgui = new SdlGpuImGuiRenderer(this, ColorFormat, winW, winH);
-            Console.WriteLine($"[Render] SDL_GPU ready (driver={SDL.GetGPUDeviceDriver(_device)}, {winW}x{winH}).");
+            float density = PixelDensity;
+            _imgui = new SdlGpuImGuiRenderer(this, ColorFormat, pointsW, pointsH, density);
+            Console.WriteLine(
+                $"[Render] SDL_GPU ready (driver={SDL.GetGPUDeviceDriver(_device)}, {winW}x{winH} pixels, " +
+                $"{pointsW}x{pointsH} points, {density:0.##}x density).");
         }
         catch
         {
@@ -99,7 +103,17 @@ public sealed unsafe partial class SdlGpuBackend : IGameRenderBackend
     public void NewFrame(int windowW, int windowH, float deltaTime)
     {
         if (SupportsUi)
-            ImGuiPlatform.NewFrame(windowW, windowH, deltaTime);
+            ImGuiPlatform.NewFrame(windowW, windowH, PixelDensity, deltaTime);
+    }
+
+    /// <summary>Device pixels per point for the window; the UI and the game view are both drawn at this density.</summary>
+    private float PixelDensity
+    {
+        get
+        {
+            float density = SDL.GetWindowPixelDensity(_window);
+            return density > 0f ? density : 1f;
+        }
     }
 
     public void SetHeatOrb(in HeatOrbState state) => _imgui?.SetHeatOrb(state);
