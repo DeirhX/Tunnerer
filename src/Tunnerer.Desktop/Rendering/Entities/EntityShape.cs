@@ -23,6 +23,7 @@ public static class EntityShape
     public const float KindCoverage = 13f;
     public const float KindTether = 14f;
     public const float KindRadarBlip = 15f;
+    public const float KindRadarPulse = 16f;
 
     public const float MachineFlagStalled = 1f;
     public const float MachineFlagCarried = 2f;

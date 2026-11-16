@@ -5,14 +5,14 @@ using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 
 /// <summary>
-/// The player's radar blips: one small glowing dot per <see cref="RadarContact"/>, bright when the beam has just
-/// found it and fading over its lifetime. A return that crossed warm ground is dimmer, and where heat swallowed
-/// the beam the blip is a flickering orange smudge instead. A blip is dropped once the player can see its cell,
-/// where sight shows the real thing.
+/// The player's radar: the faint ring of a pulse in flight, and one small glowing dot per <see cref="RadarContact"/>,
+/// bright when the pulse has just found it and fading over its lifetime. A return that crossed warm ground is dimmer,
+/// and where heat swallowed a ray the blip is a flickering orange smudge instead. A blip is dropped once the player
+/// can see its cell, where sight shows the real thing.
 /// </summary>
 public static class RadarQuads
 {
-    /// <summary>A fresh blip flares for this many ticks, which is what shows the beam passing.</summary>
+    /// <summary>A fresh blip flares for this many ticks, which is what shows the pulse passing.</summary>
     private const float FlashTicks = 8f;
 
     /// <summary>Half the side of a blip's quad, in cells: room for its glow.</summary>
@@ -23,6 +23,7 @@ public static class RadarQuads
         float scale = quads.View.PixelScale;
         // Radar.Tick is the latest step; the frame shows a point up to one step before it.
         float now = radar.Tick - (1f - quads.Alpha);
+        EmitPulse(quads, radar);
         for (int i = 0; i < radar.ContactCount; i++)
         {
             RadarContact contact = radar.ContactAt(i);
@@ -44,5 +45,20 @@ public static class RadarQuads
             quads.Add(cx, cy, 1f, 0f, -HalfSize, HalfSize, -HalfSize, HalfSize, new Color(strength, seed, 0),
                 EntityShape.KindRadarBlip, life, (float)contact.Echo, quads.Phase, flash);
         }
+    }
+
+    /// <summary>The front of the pulse in flight, between where it was at the last step and where it is now.</summary>
+    private static void EmitPulse(EntityQuads quads, Radar radar)
+    {
+        if (!radar.PulseInFlight)
+            return;
+        float radius = radar.PulseRadius - Tweaks.Radar.FrontCellsPerTick * (1f - quads.Alpha);
+        if (radius <= 0f)
+            return;
+        // Room for the line's glow beyond the front.
+        float extent = radius + 3f;
+        float fade = 1f - radius / Tweaks.Radar.Range;
+        quads.Add(quads.ScreenX(radar.PulseOrigin.X), quads.ScreenY(radar.PulseOrigin.Y), 1f, 0f,
+            -extent, extent, -extent, extent, EntityShape.KindRadarPulse, radius, fade, 0f, 0f);
     }
 }

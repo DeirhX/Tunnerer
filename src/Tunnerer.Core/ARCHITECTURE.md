@@ -58,7 +58,7 @@ Entities/
   Links/NetworkCoverage.cs   Coverage nodes and the coverage a tank gets at a position
 Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
-  Radar.cs                   A tank's radar: a turning beam and the fading contacts where its rays reflected
+  Radar.cs                   A tank's radar: pulses running out from the tank and the fading contacts where they reflected
 Collision/
   CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
   WorldSectors.cs            Sector buckets for the tank broad phase
@@ -105,7 +105,7 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
 9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
    every tick.
 10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
-    out by `World.TrackRadar` casts its next rays (see "Vision" below).
+    out by `World.TrackRadar` runs its pulse on (see "Radar" below).
 
 `SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per section
 above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / parallel ticks) and `[ProfileE]`
@@ -190,12 +190,16 @@ the grid. The tank is recast every tick; bases and machines, which stay put, eve
 ### Radar
 
 `World.TrackRadar(tank)` returns that tank's `Radar` (and tracks its side's vision, which the radar needs). It is
-output only, like vision (`RadarTests.AWorld_TurnsTheRadar_WithoutChangingTheSimulation`). Numbers are in
+output only, like vision (`RadarTests.AWorld_RunsTheRadar_WithoutChangingTheSimulation`). Numbers are in
 `Tweaks.Radar`.
 
-Every tick the tank is alive the beam casts `RaysPerTick` Bresenham rays to `Range`, `RaysPerRevolution` to a
-turn; each revolution starts a fraction of a ray spacing further round, so later sweeps fill the gaps of earlier
-ones. Along a ray:
+Every `PulsePeriodTicks` the radar sends a pulse from the tank's cell, which stays the pulse's origin however the
+tank moves. The pulse is a fan of `RaysPerPulse` rays, turned a fraction of a ray spacing each pulse so later pulses
+fill the gaps of earlier ones. Its front runs `FrontCellsPerTick` outward a tick to `Range`, and each ray walks only
+the cells the front crossed that tick, so a return appears when the front reaches it, near ones first. One pulse is
+in flight at a time; `PulseInFlight`, `PulseOrigin` and `PulseRadius` let Desktop draw its ring. A ray is a
+Bresenham line that never cuts a corner: a diagonal step goes through the side cell the line crosses first, so it
+cannot slip between two cells that touch only at a corner. Along a ray:
 
 - dirt and open ground let it through, and so do the walls of the tank's own base;
 - a machine or another tank (`RadarTarget`), or gold, reflects as `Metal` and stops it;
@@ -203,17 +207,28 @@ ones. Along a ray:
 - stepping from dirt into open ground (a tunnel, a cave) gives a `Cavity` return and the ray goes on, at most
   `WeakReturnsPerRay` times.
 
-Heat weakens the beam. A ray starts at strength 1 and loses `HeatLossPerDegree` for every degree a cell is above
-`HeatThreshold`, before anything in that cell can reflect it. What it then finds is recorded with the strength
-left (`RadarContact.Strength`). A ray that runs out leaves a `Heat` contact where it died, and a reflector at or
-above `HeatScrambleTemperature` returns `Heat` instead of what it is. So hot rock and the ground around it are dark
-to the radar and ringed with noise until they are cooled. `Radar.HeatLoss` is the share of the last revolution's
-rays that heat absorbed. Cold does nothing to the beam. This is the radar reading the heat field, not changing it.
+A ray stops at the first thing that reflects it whether or not the return is kept, so nothing behind it answers.
 
-A return becomes a `RadarContact` (cell, echo, birth tick, strength) unless it tells the side nothing: the cell is in sight,
-or it is terrain the side has explored and remembers as it is now. So remembered ground only shows where it has
-changed. Contacts live `ContactLifetimeTicks` in a fixed ring (`ContactCount`, `ContactAt`), and never move: what
-made them may have gone. A tick costs a few rays, whatever the size of the map.
+Heat weakens the rays. A ray starts at strength 1 and loses `HeatLossPerDegree` for every degree a cell is above
+`HeatThreshold`, scaled by the length of path a cell stands for along that ray (so the loss per distance is the same
+in every direction), before anything in that cell can reflect it. What it then finds is recorded with the strength
+left (`RadarContact.Strength`). A ray that runs out leaves a `Heat` contact on the first cell of the run of hot ground
+it died in, the edge where it entered: that is a property of the ground, so pulses from anywhere mark the same
+outline. A reflector at or above `HeatScrambleTemperature` returns `Heat` instead of what it is. So hot rock and the
+ground around it are dark to the radar and outlined in noise until they are cooled. `Radar.HeatLoss` is the share of
+the last finished pulse's rays that heat absorbed. Cold does nothing to the rays. This is the radar reading the heat
+field, not changing it.
+
+A return becomes a `RadarContact` (cell, echo, birth tick, strength) unless it tells the side nothing: the cell is in
+sight, or it is terrain the side has explored and remembers as it is now. So remembered ground only shows where it
+has changed. Contacts live at most `ContactLifetimeTicks` in a fixed ring (`ContactCount`, `ContactAt`), oldest
+first, and never move. Each tick of a pulse, after the rays have walked, the radar reconciles the older contacts: a
+new return in a cell replaces the old contact there, and a contact the front has just passed, on the nearest ray,
+when that ray got at least that far, is checked against the world and dropped unless it still holds (the rock is
+still there, the ground still hot, a target still covers the cell) and is still news. A contact in the shadow of
+whatever its ray stopped at is not checked, so the radar never learns what it could not reach; it fades instead.
+A tick of a pulse walks about `RaysPerPulse * FrontCellsPerTick` cells and looks at each contact once; ticks
+between pulses only age contacts. Neither depends on the size of the map.
 
 ## Links
 

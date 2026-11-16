@@ -311,8 +311,8 @@ public class World
     private readonly List<RadarTarget> _radarTargets = new();
 
     /// <summary>
-    /// Starts <paramref name="tank"/>'s radar and returns it; every <see cref="Advance"/> then turns its beam while
-    /// the tank lives. It reports only what the tank's side cannot already see, so it tracks that side's vision too
+    /// Starts <paramref name="tank"/>'s radar and returns it; every <see cref="Advance"/> then runs its pulses
+    /// while the tank lives. It reports only what the tank's side cannot already see, so it tracks that side's vision too
     /// (<see cref="TrackVision"/>). Output only, like vision.
     /// </summary>
     public Radar TrackRadar(Tank tank)
@@ -355,7 +355,7 @@ public class World
             foreach (var other in _tankList.Tanks)
                 if (other != tank && !other.IsDead)
                     _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize));
-            radar.Sweep(_terrain, _terrain, tank.Position, tank.Color, _radarTargets);
+            radar.Advance(_terrain, _terrain, tank.Position, tank.Color, _radarTargets);
         }
     }
 

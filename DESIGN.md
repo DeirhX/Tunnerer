@@ -273,19 +273,22 @@ The player sees only what their side sees, so that learning the shape of the wor
   The base and powered relays and pylons see their coverage circles; every machine sees a few cells around itself.
   The network is therefore the player's eyes as well as its cooling line (§4.6): a place stays lit, with its live
   heat, only while something of yours stands there, and a relay that loses its link goes nearly blind.
-- **Radar** *(Prototype)*. A beam sweeps round the tank about every 2.7 seconds and reaches well past sight
-  (150 cells). Dirt and open ground let it through; rock, hot and frost rock, gold, another side's base walls,
-  machines and tanks reflect it and stop it. Each return is a single blip at the cell that reflected, flaring as
-  the beam finds it and fading over 10 seconds: green for rock, amber for metal. What lies behind a reflector is
-  in its shadow, so the outline of a thing is only learned by pinging it from several sides, and successive sweeps
-  hit slightly different points, so a shape fills in while you wait. Blips do not follow what made them: a moving
-  enemy leaves a stale trail. A tunnel or cave behind dirt gives a weak blue return and lets the beam on. The
+- **Radar** *(Prototype)*. Every 4 seconds the tank sends a pulse: a faint ring that runs outward from where the
+  tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
+  it through; rock, hot and frost rock, gold, another side's base walls, machines and tanks reflect it and stop it.
+  Each return is a single blip at the first cell that reflected, flaring the moment the ring reaches it (near
+  things first) and fading over 10 seconds: green for rock, amber for metal. What lies behind a reflector is in its
+  shadow, so the outline of a thing is only learned by pinging it from several sides, and successive pulses hit
+  slightly different points, so a shape fills in while you wait. When a later pulse passes an old blip it checks it
+  again: a blip of an enemy that has driven off, or of ground that has changed, goes out; one hidden in a new
+  shadow stays until it fades. A tunnel or cave behind dirt gives a weak blue return and lets the pulse on. The
   radar reports only news: nothing in sight, and nothing in remembered ground unless it has changed since.
-- **Heat blinds the radar** *(Prototype)*. Hot ground absorbs the beam: every hot cell a ray crosses takes some of
+- **Heat blinds the radar** *(Prototype)*. Hot ground absorbs the pulse: every hot cell a ray crosses takes some of
   it, more the hotter it is. A return that got through warm ground is fainter. A ray that runs out leaves orange
-  static where it died, and so does a return off anything too hot to read, hot rock included. So a hot zone is a
-  dark patch ringed with static: the radar tells you that it is hot there and nothing about what is inside, until
-  relays have cooled it. This is the radar's tie to heat (pillar 2). Still open: whether pinging should cost heat,
+  static on the edge where it entered the hot ground, and so does a return off anything too hot to read, hot rock
+  included. So a hot zone is a dark patch outlined in static, in the same place from wherever you look: the radar
+  tells you that it is hot there and nothing about what is inside, until relays have cooled it, and the next pulse
+  then clears the static. This is the radar's tie to heat (pillar 2). Still open: whether pinging should cost heat,
   and whether the tank's own heat should weaken its radar.
 - **It is information, not physics.** Vision never changes the simulation: heat, machines and mobs run the same
   seen or unseen. Whether unseen ground may be simulated more cheaply is a separate question (below).
@@ -467,8 +470,8 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | No skill tree across saves | Proposed |
 | Rival tank becomes an optional sector twist | Proposed |
 | Fog of war: the player sees what their tank, base and machines see; the rest is remembered or unknown | Prototype |
-| Radar: blips where a sweeping beam reflects, well beyond sight | Prototype |
-| Hot ground absorbs the radar beam; hot zones show as static until cooled | Prototype |
+| Radar: pulses from the tank leave blips where they reflect, well beyond sight | Prototype |
+| Hot ground absorbs the radar pulse; hot zones show outlined in static until cooled | Prototype |
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
 
 ## 14. Open questions

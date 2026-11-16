@@ -17,8 +17,8 @@ public enum RadarEcho : byte
     Cavity,
 
     /// <summary>
-    /// Noise from heat: the cell where hot ground finished absorbing the ray, or a reflector too hot to tell what
-    /// it is. Either way the radar learned only that it is hot there.
+    /// Noise from heat: the near edge of hot ground that went on to absorb the ray, or a reflector too hot to tell
+    /// what it is. Either way the radar learned only that it is hot there.
     /// </summary>
     Heat,
 }
@@ -34,87 +34,150 @@ public readonly record struct RadarContact(Position Position, RadarEcho Echo, in
 public readonly record struct RadarTarget(Position Position, int HalfSize);
 
 /// <summary>
-/// A tank's radar. A beam turns round the tank, a few rays every tick, and reaches well beyond sight. Dirt and open
+/// A tank's radar. Every <see cref="Tweaks.Radar.PulsePeriodTicks"/> the tank sends a pulse: a ring that runs
+/// outward from where the tank stood, <see cref="Tweaks.Radar.FrontCellsPerTick"/> cells a tick, to
+/// <see cref="Tweaks.Radar.Range"/>. The pulse is a fan of rays that all advance with the front. Dirt and open
 /// ground let a ray through; the first hard thing reflects it and stops it, and that one cell becomes a
-/// <see cref="RadarContact"/> which lives for <see cref="Tweaks.Radar.ContactLifetimeTicks"/>. What lies behind a
-/// reflector is in its shadow, so a shape is only learned from several sides. A contact stays where it was made:
-/// something that moves leaves a stale trail.
+/// <see cref="RadarContact"/> the moment the front reaches it, near things first. A contact lives for
+/// <see cref="Tweaks.Radar.ContactLifetimeTicks"/>. What lies behind a reflector is in its shadow, so a shape is only
+/// learned from several sides.
 /// <para>
-/// Heat weakens the beam (<see cref="Tweaks.Radar.HeatLossPerDegree"/>). A ray loses strength in every hot cell it
+/// When a later pulse's front passes an old contact, the ray nearest it checks it again: a contact that no longer
+/// holds (the tank has driven off, the ground has cooled) goes, and a new return in the same cell replaces the old
+/// one. A contact in the shadow of whatever the ray stopped at is not checked; it stays until it fades.
+/// </para>
+/// <para>
+/// Heat weakens the rays (<see cref="Tweaks.Radar.HeatLossPerDegree"/>). A ray loses strength in every hot cell it
 /// crosses; what it then finds comes back fainter, and a ray that runs out leaves a <see cref="RadarEcho.Heat"/>
-/// contact where it died. Hot ground is therefore dark to the radar and ringed with noise until it is cooled.
+/// contact where it entered the hot ground that stopped it. That edge belongs to the ground, not to the ray, so seen
+/// from anywhere a hot zone is a dark patch outlined in noise until it is cooled.
 /// </para>
 /// </summary>
 /// <remarks>
 /// Like <see cref="VisionMap"/> it only observes: nothing in the simulation reads it. It reports only news: returns
-/// from cells the side can see are dropped, and so are returns from terrain it remembers correctly. The cost per
-/// tick is a few rays, whatever the size of the map.
+/// from cells the side can see are dropped, and so are returns from terrain it remembers correctly. While a pulse
+/// travels a tick walks the cells its front crossed, about <c>RaysPerPulse * FrontCellsPerTick</c>, and looks at
+/// each live contact once; neither depends on the size of the map.
 /// </remarks>
 public sealed class Radar
 {
-    /// <summary>Each revolution starts this fraction of a ray spacing further round, so sweeps fill each other's gaps.</summary>
-    private const double RevolutionOffset = 0.6180339887498949;
+    /// <summary>Each pulse's fan is turned this fraction of a ray spacing further round, so pulses fill each other's gaps.</summary>
+    private const double PulseOffset = 0.6180339887498949;
+
+    private const int RayCount = Tweaks.Radar.RaysPerPulse;
+
+    /// <summary>One ray of the pulse in flight: a Bresenham walk that resumes where the front left it.</summary>
+    private struct Ray
+    {
+        public double DirX, DirY;
+        /// <summary>Heat taken per hot cell scales by this, the length of path a cell stands for along this ray.</summary>
+        public float CellLength;
+        public int X, Y, EndX, EndY, Dx, Dy, Sx, Sy, Err;
+        /// <summary>0, or the axis (1 x, 2 y) of the second half of a diagonal step still to take.</summary>
+        public byte Owed;
+        public bool Live, WasDirt;
+        public int WeakLeft;
+        public float Strength;
+        /// <summary>The first cell of the run of hot ground the ray is in, or X = -1 outside hot ground.</summary>
+        public int HotX, HotY;
+        /// <summary>Squared distance from the pulse origin of the last cell reached, now and at the start of the tick.</summary>
+        public int ReachSq, PrevReachSq;
+    }
 
     private readonly VisionMap _vision;
+    private readonly Ray[] _rays = new Ray[RayCount];
     private readonly RadarContact[] _contacts;
+    private readonly bool[] _keep;
+    private readonly HashSet<int> _newCells;
     private readonly List<RadarTarget> _onRay = new();
     private int _head;
     private int _count;
-    private int _rayCounter;
+    private int _newFrom;
+    private int _pulseCount;
+    private double _fanOffset;
+    private int _nextPulseTick;
     private int _lostToHeat;
 
     public Radar(VisionMap vision)
     {
         _vision = vision;
-        _contacts = new RadarContact[
-            Tweaks.Radar.RaysPerTick * (1 + Tweaks.Radar.WeakReturnsPerRay) * Tweaks.Radar.ContactLifetimeTicks];
+        // At most this many pulses have live contacts at once, each at most a return and the weak ones per ray.
+        const int pulsesAlive = Tweaks.Radar.ContactLifetimeTicks / Tweaks.Radar.PulsePeriodTicks + 2;
+        _contacts = new RadarContact[RayCount * (1 + Tweaks.Radar.WeakReturnsPerRay) * pulsesAlive];
+        _keep = new bool[_contacts.Length];
+        _newCells = new HashSet<int>(RayCount * (1 + Tweaks.Radar.WeakReturnsPerRay));
     }
 
     /// <summary>Ticks this radar has run; a contact's age is <c>Tick - BornTick</c>.</summary>
     public int Tick { get; private set; }
 
-    /// <summary>The direction the beam points after the last sweep, in radians (0 = +x, turning toward +y).</summary>
-    public float BeamAngle { get; private set; }
+    /// <summary>Whether a pulse is travelling.</summary>
+    public bool PulseInFlight { get; private set; }
 
-    /// <summary>The share of the last full revolution's rays that hot ground absorbed, 0..1.</summary>
+    /// <summary>The cell the pulse in flight (or the last one) was sent from.</summary>
+    public Position PulseOrigin { get; private set; }
+
+    /// <summary>How far the front of the pulse in flight has run from <see cref="PulseOrigin"/>, in cells.</summary>
+    public int PulseRadius { get; private set; }
+
+    /// <summary>The share of the last finished pulse's rays that hot ground absorbed, 0..1.</summary>
     public float HeatLoss { get; private set; }
 
     /// <summary>Contacts still alive, oldest first.</summary>
     public int ContactCount => _count;
 
-    public RadarContact ContactAt(int index) => _contacts[(_head + index) % _contacts.Length];
+    public RadarContact ContactAt(int index) => _contacts[Slot(index)];
+
+    private int Slot(int index) => (_head + index) % _contacts.Length;
 
     /// <summary>
-    /// One tick with the radar running from <paramref name="origin"/>: old contacts expire and the beam casts its
-    /// next rays. <paramref name="ownColor"/>'s base walls do not reflect, so a tank at home is not blinded.
+    /// One tick with the radar on and its tank at <paramref name="origin"/>: old contacts expire, a pulse is sent if
+    /// one is due, and the front of the pulse in flight runs on. <paramref name="ownColor"/>'s base walls do not
+    /// reflect, so a tank at home is not blinded.
     /// </summary>
-    public void Sweep(
+    public void Advance(
         ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, Position origin, int ownColor,
         IReadOnlyList<RadarTarget> targets)
     {
-        Idle();
-        for (int i = 0; i < Tweaks.Radar.RaysPerTick; i++)
+        Age();
+        if (!PulseInFlight)
         {
-            int ray = _rayCounter % Tweaks.Radar.RaysPerRevolution;
-            if (ray == 0 && _rayCounter != 0)
-            {
-                HeatLoss = _lostToHeat / (float)Tweaks.Radar.RaysPerRevolution;
-                _lostToHeat = 0;
-            }
-            int revolution = _rayCounter / Tweaks.Radar.RaysPerRevolution;
-            _rayCounter = _rayCounter + 1 < Tweaks.Radar.RaysPerRevolution * 1024
-                ? _rayCounter + 1
-                : Tweaks.Radar.RaysPerRevolution;
-            double offset = revolution * RevolutionOffset;
-            offset -= Math.Floor(offset);
-            double angle = 2.0 * Math.PI * (ray + offset) / Tweaks.Radar.RaysPerRevolution;
-            BeamAngle = (float)angle;
-            CastRay(terrain, heat, origin, DeterministicMath.Cos(angle), DeterministicMath.Sin(angle), ownColor, targets);
+            if (Tick < _nextPulseTick)
+                return;
+            Emit(origin);
+        }
+
+        int previousFront = PulseRadius;
+        PulseRadius += Tweaks.Radar.FrontCellsPerTick;
+        _newFrom = _count;
+        var ownWall = (TerrainPixel)((int)TerrainPixel.BaseMin + ownColor);
+        bool anyLive = false;
+        for (int i = 0; i < _rays.Length; i++)
+        {
+            ref Ray ray = ref _rays[i];
+            ray.PrevReachSq = ray.ReachSq;
+            if (!ray.Live)
+                continue;
+            Walk(ref ray, terrain, heat, ownWall, targets, previousFront);
+            anyLive |= ray.Live;
+        }
+        Reconcile(terrain, heat, ownWall, targets, previousFront);
+
+        if (!anyLive)
+        {
+            PulseInFlight = false;
+            HeatLoss = _lostToHeat / (float)RayCount;
         }
     }
 
-    /// <summary>One tick with the radar off (its tank is dead): contacts keep ageing, nothing new is found.</summary>
+    /// <summary>One tick with the radar off (its tank is dead): contacts keep ageing, a pulse in flight is lost.</summary>
     public void Idle()
+    {
+        Age();
+        PulseInFlight = false;
+    }
+
+    private void Age()
     {
         Tick++;
         while (_count > 0 && Tick - _contacts[_head].BornTick >= Tweaks.Radar.ContactLifetimeTicks)
@@ -124,107 +187,219 @@ public sealed class Radar
         }
     }
 
-    private void CastRay(
-        ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, Position origin, double dirX, double dirY, int ownColor,
-        IReadOnlyList<RadarTarget> targets)
+    private void Emit(Position origin)
     {
+        PulseInFlight = true;
+        PulseOrigin = origin;
+        PulseRadius = 0;
+        _lostToHeat = 0;
+        _nextPulseTick = Tick + Tweaks.Radar.PulsePeriodTicks;
+        double offset = _pulseCount * PulseOffset;
+        _fanOffset = offset - Math.Floor(offset);
+        _pulseCount = (_pulseCount + 1) & 0xFFFF;
+
         const int range = Tweaks.Radar.Range;
-        int width = terrain.Width, height = terrain.Height;
-        ReadOnlySpan<TerrainPixel> pixels = terrain.Data;
-        CollectTargetsOnRay(origin, dirX, dirY, targets);
-        var ownWall = (TerrainPixel)((int)TerrainPixel.BaseMin + ownColor);
-
-        int x0 = origin.X, y0 = origin.Y;
-        int x1 = x0 + (int)Math.Round(dirX * range), y1 = y0 + (int)Math.Round(dirY * range);
-        int dx = Math.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-        int dy = -Math.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-        int err = dx + dy;
-        int x = x0, y = y0;
-        bool wasDirt = false;
-        int weakLeft = Tweaks.Radar.WeakReturnsPerRay;
-        float strength = 1f;
-
-        while (true)
+        for (int i = 0; i < _rays.Length; i++)
         {
-            if ((uint)x >= (uint)width || (uint)y >= (uint)height)
-                return;
-            if (x != x0 || y != y0)
+            double angle = 2.0 * Math.PI * (i + _fanOffset) / RayCount;
+            double dirX = DeterministicMath.Cos(angle), dirY = DeterministicMath.Sin(angle);
+            int endX = origin.X + (int)Math.Round(dirX * range), endY = origin.Y + (int)Math.Round(dirY * range);
+            int dx = Math.Abs(endX - origin.X), dy = -Math.Abs(endY - origin.Y);
+            _rays[i] = new Ray
             {
-                var cell = new Position(x, y);
-                // Heat first: it takes its share of the ray before anything in the cell can reflect it.
-                float temperature = heat.GetHeatTemperature(x + y * width);
-                if (temperature > Tweaks.Radar.HeatThreshold)
-                {
-                    strength -= (temperature - Tweaks.Radar.HeatThreshold) * Tweaks.Radar.HeatLossPerDegree;
-                    if (strength <= 0f)
-                    {
-                        _lostToHeat++;
-                        Record(cell, RadarEcho.Heat, 1f, width, pixels, isTerrain: false);
-                        return;
-                    }
-                }
-                bool scrambled = temperature >= Tweaks.Radar.HeatScrambleTemperature;
-
-                if (HitsTarget(cell))
-                {
-                    Reflect(cell, RadarEcho.Metal, scrambled, strength, width, pixels, isTerrain: false);
-                    return;
-                }
-
-                TerrainPixel pixel = pixels[x + y * width];
-                if (Pixel.IsGold(pixel))
-                {
-                    Reflect(cell, RadarEcho.Metal, scrambled, strength, width, pixels, isTerrain: true);
-                    return;
-                }
-                if (Pixel.IsBlockingCollision(pixel) && pixel != ownWall)
-                {
-                    Reflect(cell, RadarEcho.Solid, scrambled, strength, width, pixels, isTerrain: true);
-                    return;
-                }
-
-                // The tank's own base is no discovery: its wall neither reflects nor counts as a cave's edge.
-                bool dirt = Pixel.IsSoftCollision(pixel);
-                if (pixel == ownWall)
-                    wasDirt = false;
-                if (wasDirt && !dirt && weakLeft > 0)
-                {
-                    weakLeft--;
-                    Record(cell, RadarEcho.Cavity, strength, width, pixels, isTerrain: true);
-                }
-                wasDirt = dirt;
-            }
-
-            if (x == x1 && y == y1)
-                return;
-            int e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x += sx; }
-            if (e2 <= dx) { err += dx; y += sy; }
+                DirX = dirX,
+                DirY = dirY,
+                CellLength = (float)(1.0 / (Math.Abs(dirX) + Math.Abs(dirY))),
+                X = origin.X,
+                Y = origin.Y,
+                EndX = endX,
+                EndY = endY,
+                Dx = dx,
+                Dy = dy,
+                Sx = origin.X < endX ? 1 : -1,
+                Sy = origin.Y < endY ? 1 : -1,
+                Err = dx + dy,
+                Live = true,
+                WeakLeft = Tweaks.Radar.WeakReturnsPerRay,
+                Strength = 1f,
+                HotX = -1,
+            };
         }
     }
 
-    /// <summary>Keeps the targets a ray along (<paramref name="dirX"/>, <paramref name="dirY"/>) could touch, so the walk tests few or none.</summary>
-    private void CollectTargetsOnRay(Position origin, double dirX, double dirY, IReadOnlyList<RadarTarget> targets)
+    /// <summary>Walks <paramref name="ray"/> through the cells the front reached this tick, until it stops or catches up.</summary>
+    private void Walk(
+        ref Ray ray, ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, TerrainPixel ownWall,
+        IReadOnlyList<RadarTarget> targets, int previousFront)
+    {
+        int width = terrain.Width, height = terrain.Height;
+        ReadOnlySpan<TerrainPixel> pixels = terrain.Data;
+        Position origin = PulseOrigin;
+        int frontSq = PulseRadius * PulseRadius;
+        CollectTargetsOnRay(ray.DirX, ray.DirY, previousFront, targets);
+
+        while (true)
+        {
+            if (!NextCell(ray, out int x, out int y, out int err, out byte owed))
+            {
+                ray.Live = false;
+                return;
+            }
+            int distanceSq = (x - origin.X) * (x - origin.X) + (y - origin.Y) * (y - origin.Y);
+            if (distanceSq > frontSq)
+                return;
+            if ((uint)x >= (uint)width || (uint)y >= (uint)height)
+            {
+                ray.Live = false;
+                return;
+            }
+            ray.X = x;
+            ray.Y = y;
+            ray.Err = err;
+            ray.Owed = owed;
+            ray.ReachSq = distanceSq;
+            if (Visit(ref ray, x, y, width, pixels, heat, ownWall))
+            {
+                ray.Live = false;
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The cell after the ray's last one, or false at the end of its range. A diagonal step goes through the side
+    /// cell the line crosses first, so a ray cannot slip between two cells that touch only at a corner.
+    /// </summary>
+    private static bool NextCell(in Ray ray, out int x, out int y, out int err, out byte owed)
+    {
+        x = ray.X;
+        y = ray.Y;
+        err = ray.Err;
+        owed = 0;
+        if (ray.Owed == 1)
+        {
+            x += ray.Sx;
+            err += ray.Dy;
+            return true;
+        }
+        if (ray.Owed == 2)
+        {
+            y += ray.Sy;
+            err += ray.Dx;
+            return true;
+        }
+        if (x == ray.EndX && y == ray.EndY)
+            return false;
+        int e2 = 2 * err;
+        bool stepX = e2 >= ray.Dy, stepY = e2 <= ray.Dx;
+        if (stepX && (!stepY || e2 - ray.Dy >= ray.Dx - e2))
+        {
+            x += ray.Sx;
+            err += ray.Dy;
+            owed = stepY ? (byte)2 : (byte)0;
+        }
+        else
+        {
+            y += ray.Sy;
+            err += ray.Dx;
+            owed = stepX ? (byte)1 : (byte)0;
+        }
+        return true;
+    }
+
+    /// <summary>What the ray meets in cell (<paramref name="x"/>, <paramref name="y"/>); true if that stops it.</summary>
+    private bool Visit(
+        ref Ray ray, int x, int y, int width, ReadOnlySpan<TerrainPixel> pixels, ITerrainHeatSource heat,
+        TerrainPixel ownWall)
+    {
+        var cell = new Position(x, y);
+        int offset = x + y * width;
+        // Heat first: it takes its share of the ray before anything in the cell can reflect it.
+        float temperature = heat.GetHeatTemperature(offset);
+        if (temperature > Tweaks.Radar.HeatThreshold)
+        {
+            if (ray.HotX < 0)
+            {
+                ray.HotX = x;
+                ray.HotY = y;
+            }
+            ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * Tweaks.Radar.HeatLossPerDegree * ray.CellLength;
+            if (ray.Strength <= 0f)
+            {
+                _lostToHeat++;
+                Record(new Position(ray.HotX, ray.HotY), RadarEcho.Heat, 1f, width, pixels, isTerrain: false);
+                return true;
+            }
+        }
+        else
+        {
+            ray.HotX = -1;
+        }
+        bool scrambled = temperature >= Tweaks.Radar.HeatScrambleTemperature;
+
+        if (HitsTarget(cell, _onRay))
+        {
+            Reflect(cell, RadarEcho.Metal, scrambled, ray.Strength, width, pixels, isTerrain: false);
+            return true;
+        }
+
+        TerrainPixel pixel = pixels[offset];
+        if (Pixel.IsGold(pixel))
+        {
+            Reflect(cell, RadarEcho.Metal, scrambled, ray.Strength, width, pixels, isTerrain: true);
+            return true;
+        }
+        if (Pixel.IsBlockingCollision(pixel) && pixel != ownWall)
+        {
+            Reflect(cell, RadarEcho.Solid, scrambled, ray.Strength, width, pixels, isTerrain: true);
+            return true;
+        }
+
+        // The tank's own base is no discovery: its wall neither reflects nor counts as a cave's edge.
+        bool dirt = Pixel.IsSoftCollision(pixel);
+        if (pixel == ownWall)
+            ray.WasDirt = false;
+        if (ray.WasDirt && !dirt && ray.WeakLeft > 0)
+        {
+            ray.WeakLeft--;
+            Record(cell, RadarEcho.Cavity, ray.Strength, width, pixels, isTerrain: true);
+        }
+        ray.WasDirt = dirt;
+        return false;
+    }
+
+    /// <summary>
+    /// Keeps the targets a ray along (<paramref name="dirX"/>, <paramref name="dirY"/>) could touch between the
+    /// front's last radius and its new one, so the walk tests few or none.
+    /// </summary>
+    private void CollectTargetsOnRay(double dirX, double dirY, int previousFront, IReadOnlyList<RadarTarget> targets)
     {
         _onRay.Clear();
+        Position origin = PulseOrigin;
         for (int i = 0; i < targets.Count; i++)
         {
             RadarTarget target = targets[i];
             double tx = target.Position.X - origin.X, ty = target.Position.Y - origin.Y;
-            // A square of half-size h reaches at most h * sqrt(2) from its centre; one more cell for the ray's steps.
-            double reach = target.HalfSize * 1.5 + 1.0;
-            if (tx * dirX + ty * dirY < -reach || Math.Abs(tx * dirY - ty * dirX) > reach)
+            // A square of half-size h reaches h * sqrt(2) from its centre. A cell the walk visits lies within
+            // about 1.5 cells of the exact ray: half a cell from its Bresenham line, a little more for the side cell
+            // of a diagonal step, and the line itself ends at a rounded cell.
+            double reach = target.HalfSize * 1.5 + 2.0;
+            double along = tx * dirX + ty * dirY;
+            if (along < previousFront - reach || along > PulseRadius + reach || Math.Abs(tx * dirY - ty * dirX) > reach)
                 continue;
             _onRay.Add(target);
         }
     }
 
-    private bool HitsTarget(Position cell)
+    private static bool HitsTarget(Position cell, IReadOnlyList<RadarTarget> targets)
     {
-        foreach (RadarTarget target in _onRay)
+        for (int i = 0; i < targets.Count; i++)
+        {
+            RadarTarget target = targets[i];
             if (Math.Abs(cell.X - target.Position.X) <= target.HalfSize &&
                 Math.Abs(cell.Y - target.Position.Y) <= target.HalfSize)
                 return true;
+        }
         return false;
     }
 
@@ -239,24 +414,118 @@ public sealed class Radar
             Record(cell, echo, strength, width, pixels, isTerrain);
     }
 
-    /// <summary>
-    /// Keeps a return unless it tells the side nothing: the cell is in sight, or it is terrain the side has
-    /// explored and remembers as it is now. Remembered ground therefore only blips where it has changed since.
-    /// </summary>
+    /// <summary>Keeps a return unless it tells the side nothing (<see cref="IsNews"/>).</summary>
     private void Record(
         Position cell, RadarEcho echo, float strength, int width, ReadOnlySpan<TerrainPixel> pixels, bool isTerrain)
     {
-        int offset = cell.X + cell.Y * width;
-        if (_vision.IsVisible(offset))
-            return;
-        if (isTerrain && _vision.IsExplored(offset) && _vision.Known.GetPixelRaw(offset) == pixels[offset])
+        if (!IsNews(cell.X + cell.Y * width, isTerrain, pixels))
             return;
         if (_count == _contacts.Length)
         {
             _head = (_head + 1) % _contacts.Length;
             _count--;
+            if (_newFrom > 0)
+                _newFrom--;
         }
-        _contacts[(_head + _count) % _contacts.Length] = new RadarContact(cell, echo, Tick, strength);
+        _contacts[Slot(_count)] = new RadarContact(cell, echo, Tick, strength);
         _count++;
+    }
+
+    /// <summary>
+    /// A return tells the side something unless the cell is in sight, or it is terrain the side has explored and
+    /// remembers as it is now. Remembered ground therefore only blips where it has changed since.
+    /// </summary>
+    private bool IsNews(int offset, bool isTerrain, ReadOnlySpan<TerrainPixel> pixels) =>
+        !_vision.IsVisible(offset) &&
+        !(isTerrain && _vision.IsExplored(offset) && _vision.Known.GetPixelRaw(offset) == pixels[offset]);
+
+    /// <summary>
+    /// Brings the older contacts up to date with this tick's front: one in a cell that has just returned again is
+    /// replaced by the new return, and one the front has just passed on a ray that got that far is kept only if it
+    /// still holds and is still news. Contacts in a ray's shadow are left alone.
+    /// </summary>
+    private void Reconcile(
+        ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, TerrainPixel ownWall,
+        IReadOnlyList<RadarTarget> targets, int previousFront)
+    {
+        if (_count == 0)
+            return;
+        int width = terrain.Width;
+        ReadOnlySpan<TerrainPixel> pixels = terrain.Data;
+        Position origin = PulseOrigin;
+        int frontSq = PulseRadius * PulseRadius;
+        // A ray's last cell is less than one step behind the front, so nothing nearer than this was passed now.
+        int passedFromSq = previousFront > 0 ? (previousFront - 1) * (previousFront - 1) : -1;
+        _newCells.Clear();
+        bool removed = false;
+
+        for (int i = _count - 1; i >= 0; i--)
+        {
+            RadarContact contact = _contacts[Slot(i)];
+            Position cell = contact.Position;
+            int offset = cell.X + cell.Y * width;
+            bool keep;
+            if (i >= _newFrom)
+            {
+                keep = _newCells.Add(offset);
+            }
+            else if (_newCells.Contains(offset))
+            {
+                keep = false;
+            }
+            else
+            {
+                keep = true;
+                int dx = cell.X - origin.X, dy = cell.Y - origin.Y;
+                int distanceSq = dx * dx + dy * dy;
+                if (distanceSq > passedFromSq && distanceSq <= frontSq)
+                {
+                    ref readonly Ray ray = ref _rays[NearestRay(dx, dy)];
+                    if (distanceSq > ray.PrevReachSq && distanceSq <= ray.ReachSq)
+                        keep = StillHolds(contact, offset, pixels, heat, ownWall, targets);
+                }
+            }
+            _keep[i] = keep;
+            removed |= !keep;
+        }
+
+        if (!removed)
+            return;
+        int kept = 0;
+        for (int i = 0; i < _count; i++)
+        {
+            if (!_keep[i])
+                continue;
+            if (kept != i)
+                _contacts[Slot(kept)] = _contacts[Slot(i)];
+            kept++;
+        }
+        _count = kept;
+    }
+
+    /// <summary>The ray of the pulse in flight whose direction is closest to the offset (<paramref name="dx"/>, <paramref name="dy"/>).</summary>
+    private int NearestRay(int dx, int dy)
+    {
+        double angle = DeterministicMath.Atan2((double)dy, dx);
+        int ray = (int)Math.Round(angle * RayCount / (2.0 * Math.PI) - _fanOffset) % RayCount;
+        return ray < 0 ? ray + RayCount : ray;
+    }
+
+    /// <summary>Whether what <paramref name="contact"/> says about its cell is still so, and still news.</summary>
+    private bool StillHolds(
+        RadarContact contact, int offset, ReadOnlySpan<TerrainPixel> pixels, ITerrainHeatSource heat,
+        TerrainPixel ownWall, IReadOnlyList<RadarTarget> targets)
+    {
+        TerrainPixel pixel = pixels[offset];
+        bool holds = contact.Echo switch
+        {
+            RadarEcho.Solid => Pixel.IsBlockingCollision(pixel) && !Pixel.IsGold(pixel) && pixel != ownWall,
+            RadarEcho.Metal => Pixel.IsGold(pixel) || HitsTarget(contact.Position, targets),
+            RadarEcho.Cavity => !Pixel.IsSoftCollision(pixel) && !Pixel.IsBlockingCollision(pixel),
+            _ => heat.GetHeatTemperature(offset) > Tweaks.Radar.HeatThreshold,
+        };
+        bool isTerrain = contact.Echo is RadarEcho.Solid or RadarEcho.Cavity ||
+            (contact.Echo == RadarEcho.Metal && Pixel.IsGold(pixel));
+        return holds && IsNews(offset, isTerrain, pixels);
     }
 }

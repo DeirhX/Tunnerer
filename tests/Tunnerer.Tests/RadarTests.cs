@@ -6,7 +6,7 @@ using Tunnerer.Core.Types;
 namespace Tunnerer.Tests;
 
 /// <summary>
-/// The tank's radar: a turning beam whose rays pass through dirt and open ground and leave a fading blip on the
+/// The tank's radar: pulses whose rays run outward through dirt and open ground and leave a fading blip on the
 /// first hard thing they meet, which hides whatever is behind it.
 /// </summary>
 public class RadarTests
@@ -32,11 +32,14 @@ public class RadarTests
     /// <summary>A radar whose side sees nothing, so every return is kept.</summary>
     private static Radar Blind(TerrainGrid terrain) => new(new VisionMap(terrain));
 
-    private static void Revolve(Radar radar, TerrainGrid terrain, Position origin, RadarTarget[]? targets = null, int revolutions = 1)
+    /// <summary>Runs the radar for <paramref name="pulses"/> whole pulse periods: each sends a pulse that finishes.</summary>
+    private static void Pulse(Radar radar, TerrainGrid terrain, Position origin, RadarTarget[]? targets = null, int pulses = 1) =>
+        Run(radar, terrain, origin, pulses * Tweaks.Radar.PulsePeriodTicks, targets);
+
+    private static void Run(Radar radar, TerrainGrid terrain, Position origin, int ticks, RadarTarget[]? targets = null)
     {
-        int ticks = revolutions * Tweaks.Radar.RaysPerRevolution / Tweaks.Radar.RaysPerTick;
         for (int i = 0; i < ticks; i++)
-            radar.Sweep(terrain, terrain, origin, ownColor: 0, targets ?? NoTargets);
+            radar.Advance(terrain, terrain, origin, ownColor: 0, targets ?? NoTargets);
     }
 
     private static List<RadarContact> Contacts(Radar radar)
@@ -53,7 +56,7 @@ public class RadarTests
         var terrain = Dirt();
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
 
         Assert.Equal(0, radar.ContactCount);
     }
@@ -65,7 +68,7 @@ public class RadarTests
         Box(terrain, 260, 180, 290, 220, TerrainPixel.Rock);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
 
         var contacts = Contacts(radar);
         Assert.True(contacts.Count >= 8, $"the near face should return several blips, got {contacts.Count}");
@@ -85,11 +88,11 @@ public class RadarTests
         Box(terrain, 280, 198, 284, 202, TerrainPixel.Gold);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
         Assert.DoesNotContain(Contacts(radar), c => c.Echo == RadarEcho.Metal);
 
         // From below, the gold is in the clear.
-        Revolve(radar, terrain, new Position(282, 290));
+        Pulse(radar, terrain, new Position(282, 290));
         Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Metal && c.Position.Y == 202);
     }
 
@@ -101,7 +104,7 @@ public class RadarTests
         Box(terrain, 270, 180, 280, 220, TerrainPixel.Rock);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
 
         var contacts = Contacts(radar);
         Assert.Contains(contacts, c => c.Echo == RadarEcho.Cavity && c.Position.X == 230);
@@ -115,7 +118,7 @@ public class RadarTests
         var radar = Blind(terrain);
         RadarTarget[] targets = [new RadarTarget(new Position(200, 120), 2)];
 
-        Revolve(radar, terrain, Origin, targets);
+        Pulse(radar, terrain, Origin, targets);
 
         var contacts = Contacts(radar);
         Assert.NotEmpty(contacts);
@@ -135,7 +138,7 @@ public class RadarTests
         Box(terrain, beyond, 0, beyond + 5, 400, TerrainPixel.Rock);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
 
         Assert.Equal(0, radar.ContactCount);
     }
@@ -147,12 +150,12 @@ public class RadarTests
         Box(terrain, 220, 180, 222, 220, TerrainPixel.BaseMin);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
         Assert.Equal(0, radar.ContactCount);
 
         var other = Blind(terrain);
-        for (int i = 0; i < Tweaks.Radar.RaysPerRevolution / Tweaks.Radar.RaysPerTick; i++)
-            other.Sweep(terrain, terrain, Origin, ownColor: 1, NoTargets);
+        for (int i = 0; i < Tweaks.Radar.PulsePeriodTicks; i++)
+            other.Advance(terrain, terrain, Origin, ownColor: 1, NoTargets);
         Assert.True(other.ContactCount > 0);
     }
 
@@ -168,7 +171,7 @@ public class RadarTests
         Assert.True(vision.IsVisible(new Position(230, 200)));
         var radar = new Radar(vision);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
 
         Assert.DoesNotContain(Contacts(radar), c => vision.IsVisible(c.Position));
     }
@@ -185,50 +188,216 @@ public class RadarTests
         Assert.True(vision.IsExplored(new Position(300, 200)) && !vision.IsVisible(new Position(300, 200)));
         var radar = new Radar(vision);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
         Assert.Equal(0, radar.ContactCount);
 
         // Something tunnels through the remembered dirt in front of it: news.
         Box(terrain, 285, 190, 290, 210, TerrainPixel.Blank);
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
         var contacts = Contacts(radar);
         Assert.NotEmpty(contacts);
         Assert.All(contacts, c => Assert.Equal(RadarEcho.Cavity, c.Echo));
     }
 
     [Fact]
-    public void Blips_FadeAway_AndStayWhereTheyWereMade()
+    public void APulse_RunsOutward_FindingNearThingsFirst()
+    {
+        var terrain = Dirt();
+        Box(terrain, 190, 175, 210, 177, TerrainPixel.Rock);
+        Box(terrain, 320, 180, 330, 220, TerrainPixel.Rock);
+        var radar = Blind(terrain);
+
+        Run(radar, terrain, Origin, 1);
+        Assert.True(radar.PulseInFlight);
+        Assert.Equal(Origin, radar.PulseOrigin);
+        Assert.Equal(Tweaks.Radar.FrontCellsPerTick, radar.PulseRadius);
+
+        // The front has run 30 cells: the rock 23 cells away has answered, the one 120 away has not.
+        Run(radar, terrain, Origin, 30 / Tweaks.Radar.FrontCellsPerTick - 1);
+        Assert.Equal(30, radar.PulseRadius);
+        var early = Contacts(radar);
+        Assert.NotEmpty(early);
+        Assert.All(early, c => Assert.Equal(177, c.Position.Y));
+
+        Run(radar, terrain, Origin, 110 / Tweaks.Radar.FrontCellsPerTick);
+        Assert.Contains(Contacts(radar), c => c.Position.X == 320);
+    }
+
+    [Fact]
+    public void Pulses_FinishBeforeTheNextIsSent()
+    {
+        var terrain = Dirt();
+        var radar = Blind(terrain);
+        int trip = (Tweaks.Radar.Range + 1) / Tweaks.Radar.FrontCellsPerTick + 1;
+        Assert.True(trip < Tweaks.Radar.PulsePeriodTicks, "a pulse must reach full range before the next is due");
+        Assert.True(Tweaks.Radar.ContactLifetimeTicks > Tweaks.Radar.PulsePeriodTicks,
+            "a blip must last until the next pulse can refresh it");
+
+        Run(radar, terrain, Origin, trip);
+        Assert.False(radar.PulseInFlight);
+        Run(radar, terrain, Origin, Tweaks.Radar.PulsePeriodTicks - trip);
+        Assert.False(radar.PulseInFlight);
+        Run(radar, terrain, Origin, 1);
+        Assert.True(radar.PulseInFlight);
+    }
+
+    [Fact]
+    public void APulse_KeepsTheOriginItWasSentFrom_WhileTheTankDrivesOn()
+    {
+        var terrain = Dirt();
+        Box(terrain, 260, 180, 290, 220, TerrainPixel.Rock);
+        var radar = Blind(terrain);
+        var elsewhere = new Position(120, 120);
+
+        Run(radar, terrain, Origin, 5);
+        Run(radar, terrain, elsewhere, Tweaks.Radar.PulsePeriodTicks - 5);
+
+        var contacts = Contacts(radar);
+        Assert.NotEmpty(contacts);
+        Assert.All(contacts, c => Assert.Equal(260, c.Position.X));
+        Run(radar, terrain, elsewhere, 1);
+        Assert.Equal(elsewhere, radar.PulseOrigin);
+    }
+
+    [Fact]
+    public void ABlip_OfSomethingThatLeft_IsClearedByTheNextPulse()
     {
         var terrain = Dirt();
         var radar = Blind(terrain);
         RadarTarget[] there = [new RadarTarget(new Position(260, 200), 2)];
-        Revolve(radar, terrain, Origin, there);
-        var first = Contacts(radar);
-        Assert.NotEmpty(first);
+        Pulse(radar, terrain, Origin, there);
+        Assert.NotEmpty(Contacts(radar));
 
-        // The target leaves; its blips stay put until they expire.
-        Revolve(radar, terrain, Origin);
-        Assert.Equal(first, Contacts(radar));
+        Pulse(radar, terrain, Origin);
 
-        for (int i = 0; i < Tweaks.Radar.ContactLifetimeTicks; i++)
-            radar.Idle();
         Assert.Equal(0, radar.ContactCount);
     }
 
     [Fact]
-    public void LaterRevolutions_HitDifferentCells_SoAShapeFillsIn()
+    public void ABlip_InTheShadowOfANewReflector_StaysUntilItFades()
+    {
+        var terrain = Dirt();
+        var radar = Blind(terrain);
+        RadarTarget[] there = [new RadarTarget(new Position(260, 200), 2)];
+        Pulse(radar, terrain, Origin, there);
+        var metal = Contacts(radar);
+        Assert.NotEmpty(metal);
+
+        // The target leaves behind a rock: the next pulse cannot see that it has gone.
+        Box(terrain, 230, 185, 232, 215, TerrainPixel.Rock);
+        Pulse(radar, terrain, Origin);
+        Assert.Equal(metal, Contacts(radar).Where(c => c.Echo == RadarEcho.Metal));
+
+        for (int i = 0; i < Tweaks.Radar.ContactLifetimeTicks; i++)
+            radar.Idle();
+        Assert.Equal(0, radar.ContactCount);
+        Assert.False(radar.PulseInFlight);
+    }
+
+    [Fact]
+    public void AReturnInTheSameCell_ReplacesTheOldOne()
+    {
+        var terrain = Dirt();
+        Box(terrain, 260, 180, 290, 220, TerrainPixel.Rock);
+        var radar = Blind(terrain);
+
+        Pulse(radar, terrain, Origin, pulses: 2);
+
+        var contacts = Contacts(radar);
+        Assert.Equal(contacts.Count, contacts.Select(c => c.Position).Distinct().Count());
+    }
+
+    [Fact]
+    public void LaterPulses_HitDifferentCells_SoAShapeFillsIn()
     {
         var terrain = Dirt();
         Box(terrain, 320, 100, 330, 300, TerrainPixel.Rock);
         var once = Blind(terrain);
         var thrice = Blind(terrain);
 
-        Revolve(once, terrain, Origin);
-        Revolve(thrice, terrain, Origin, revolutions: 3);
+        Pulse(once, terrain, Origin);
+        Pulse(thrice, terrain, Origin, pulses: 3);
 
         int Distinct(Radar radar) => Contacts(radar).Select(c => c.Position).Distinct().Count();
         Assert.True(Distinct(thrice) > Distinct(once) * 2,
-            $"three sweeps should hit far more cells than one: {Distinct(once)} then {Distinct(thrice)}");
+            $"three pulses should hit far more cells than one: {Distinct(once)} then {Distinct(thrice)}");
+    }
+
+    [Fact]
+    public void ARay_CannotSlipBetweenCellsThatTouchAtACorner()
+    {
+        var terrain = Dirt();
+        // A rock line one cell thick whose cells touch only at their corners, and more rock behind it.
+        for (int x = 170; x <= 270; x++)
+            terrain.SetPixelRaw(new Position(x, 440 - x), TerrainPixel.Rock);
+        Box(terrain, 232, 232, 260, 260, TerrainPixel.Rock);
+        var radar = Blind(terrain);
+
+        Pulse(radar, terrain, Origin, pulses: 4);
+
+        var contacts = Contacts(radar);
+        Assert.NotEmpty(contacts);
+        Assert.All(contacts, c => Assert.Equal(440, c.Position.X + c.Position.Y));
+    }
+
+    [Fact]
+    public void AReturnThatIsNotNews_StillStopsTheRay()
+    {
+        var terrain = Dirt();
+        Box(terrain, 300, 60, 300, 340, TerrainPixel.Rock);
+        Box(terrain, 303, 150, 306, 250, TerrainPixel.Gold);
+        var vision = new VisionMap(terrain);
+        // The side has seen the rock wall, and only the wall, then looked away.
+        var wall = Enumerable.Range(60, 281).Select(y => new VisionSource(new Position(299, y), 0, 1)).ToArray();
+        vision.Update(terrain, None, wall);
+        vision.Update(terrain, None, None);
+        Assert.True(vision.IsExplored(new Position(300, 200)) && !vision.IsExplored(new Position(303, 200)));
+        var radar = new Radar(vision);
+
+        Pulse(radar, terrain, Origin);
+
+        Assert.Equal(0, radar.ContactCount);
+    }
+
+    [Fact]
+    public void ACave_InTheShadowOfAReflector_GivesNoReturn()
+    {
+        var terrain = Dirt();
+        Box(terrain, 230, 180, 233, 220, TerrainPixel.Rock);
+        Box(terrain, 250, 195, 260, 205, TerrainPixel.Blank);
+        var radar = Blind(terrain);
+
+        Pulse(radar, terrain, Origin, pulses: 3);
+
+        var contacts = Contacts(radar);
+        Assert.NotEmpty(contacts);
+        Assert.All(contacts, c => Assert.Equal((RadarEcho.Solid, 230), (c.Echo, c.Position.X)));
+    }
+
+    [Fact]
+    public void ATarget_ReflectsExactlyLikeGoldInTheSameCells()
+    {
+        // Small targets scattered round the tank, seen from a dozen nearby places: a ray that grazes one must
+        // still find it, whatever culling picks the targets a ray can touch.
+        RadarTarget[] targets = Enumerable.Range(0, 60)
+            .Select(i => new RadarTarget(new Position(60 + i * 97 % 280, 60 + i * 53 % 280), i % 3))
+            .ToArray();
+        var plain = Dirt();
+        var gilded = Dirt();
+        foreach (var t in targets)
+            Box(gilded, t.Position.X - t.HalfSize, t.Position.Y - t.HalfSize,
+                t.Position.X + t.HalfSize, t.Position.Y + t.HalfSize, TerrainPixel.Gold);
+        var byTarget = Blind(plain);
+        var byGold = Blind(gilded);
+
+        foreach (var origin in Enumerable.Range(0, 12).Select(k => new Position(185 + k * 3, 190 + k * 7 % 25)))
+        {
+            Pulse(byTarget, plain, origin, targets);
+            Pulse(byGold, gilded, origin);
+        }
+
+        Assert.NotEmpty(Contacts(byTarget));
+        Assert.Equal(Contacts(byGold), Contacts(byTarget));
     }
 
     /// <summary>Brings the ground in the box, which starts at 0, to <paramref name="temperature"/> degrees.</summary>
@@ -241,44 +410,84 @@ public class RadarTests
     }
 
     [Fact]
-    public void HotGround_AbsorbsTheBeam_AndLeavesHeatNoiseWhereItDied()
+    public void HotGround_AbsorbsTheRays_AndMarksTheEdgeWhereTheyEnteredIt()
     {
         var terrain = Dirt();
         Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
         Warm(terrain, 240, 150, 270, 250, temperature: 60);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Run(radar, terrain, Origin, Tweaks.Radar.PulsePeriodTicks / 2);
+        Assert.True(radar.HeatLoss is 0f, "the loss is reported once a pulse has finished");
+        Run(radar, terrain, Origin, Tweaks.Radar.PulsePeriodTicks - Tweaks.Radar.PulsePeriodTicks / 2);
 
         var contacts = Contacts(radar);
         Assert.DoesNotContain(contacts, c => c.Echo == RadarEcho.Solid);
         Assert.NotEmpty(contacts);
-        // 60 degrees takes 0.2 a cell: the ray dies on its fifth hot cell, well short of the rock.
+        // 60 degrees takes 0.2 a cell: the rays die on their fifth hot cell, but the mark is on the near edge.
         Assert.All(contacts, c =>
         {
             Assert.Equal(RadarEcho.Heat, c.Echo);
-            Assert.InRange(c.Position.X, 240, 250);
+            Assert.Equal(240, c.Position.X);
             Assert.Equal(1f, c.Strength);
         });
-        Assert.True(radar.HeatLoss is 0f, "the loss is reported once a revolution has finished");
-        Revolve(radar, terrain, Origin);
         Assert.InRange(radar.HeatLoss, 0.05f, 0.5f);
     }
 
     [Fact]
-    public void WarmGround_LetsTheBeamThroughWeaker()
+    public void HeatMarks_SeenFromDifferentPlaces_LieOnTheSameEdge()
+    {
+        var terrain = Dirt();
+        Warm(terrain, 240, 180, 270, 220, temperature: 60);
+        bool OnEdge(Position p) =>
+            p.X is >= 240 and <= 270 && p.Y is >= 180 and <= 220 && (p.X == 240 || p.Y == 180 || p.Y == 220);
+
+        foreach (var origin in new[] { Origin, new Position(205, 150), new Position(200, 260), new Position(250, 120) })
+        {
+            var radar = Blind(terrain);
+            Pulse(radar, terrain, origin);
+            var contacts = Contacts(radar);
+            Assert.NotEmpty(contacts);
+            Assert.All(contacts, c => Assert.True(c.Echo == RadarEcho.Heat && OnEdge(c.Position),
+                $"from {origin} a heat mark at {c.Position} is not on the hot ground's edge"));
+        }
+    }
+
+    [Fact]
+    public void HeatMarks_OfGroundThatHasCooled_AreClearedByTheNextPulse()
+    {
+        var terrain = Dirt();
+        Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
+        Warm(terrain, 240, 150, 270, 250, temperature: 60);
+        var radar = Blind(terrain);
+        Pulse(radar, terrain, Origin);
+        Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Heat);
+
+        for (int y = 150; y <= 250; y++)
+            for (int x = 240; x <= 270; x++)
+                terrain.AddHeat(new Position(x, y), -60);
+        Pulse(radar, terrain, Origin);
+
+        var contacts = Contacts(radar);
+        Assert.DoesNotContain(contacts, c => c.Echo == RadarEcho.Heat);
+        Assert.Contains(contacts, c => c.Echo == RadarEcho.Solid);
+        Assert.Equal(0f, radar.HeatLoss);
+    }
+
+    [Fact]
+    public void WarmGround_LetsTheRaysThroughWeaker()
     {
         var terrain = Dirt();
         Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
         Warm(terrain, 240, 199, 250, 201, temperature: 20);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
 
         var contacts = Contacts(radar);
         Assert.All(contacts, c => Assert.Equal(RadarEcho.Solid, c.Echo));
         RadarContact throughWarm = contacts.Single(c => c.Position == new Position(300, 200));
-        RadarContact throughCool = contacts.First(c => c.Position.Y == 185);
+        RadarContact throughCool = contacts.First(c => c.Position.Y < 195);
         // 11 cells at 10 degrees over the threshold: 11 * 10 * 0.004 = 0.44 lost.
         Assert.InRange(throughWarm.Strength, 0.5f, 0.62f);
         Assert.Equal(1f, throughCool.Strength);
@@ -293,7 +502,7 @@ public class RadarTests
         Warm(terrain, 260, 190, 270, 210, temperature: 100);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
 
         var contacts = Contacts(radar);
         Assert.NotEmpty(contacts);
@@ -305,14 +514,14 @@ public class RadarTests
     }
 
     [Fact]
-    public void ColdGround_DoesNotWeakenTheBeam()
+    public void ColdGround_DoesNotWeakenTheRays()
     {
         var terrain = Dirt();
         Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
         Warm(terrain, 240, 150, 270, 250, temperature: -60);
         var radar = Blind(terrain);
 
-        Revolve(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin);
 
         var contacts = Contacts(radar);
         Assert.NotEmpty(contacts);
@@ -320,7 +529,7 @@ public class RadarTests
     }
 
     [Fact]
-    public void AWorld_TurnsTheRadar_WithoutChangingTheSimulation()
+    public void AWorld_RunsTheRadar_WithoutChangingTheSimulation()
     {
         static ulong Run(bool track, out int contacts)
         {

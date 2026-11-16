@@ -285,24 +285,32 @@ public static class Tweaks
     }
 
     /// <summary>
-    /// The tank's radar (<c>Sensing/Radar</c>): blips where a turning beam reflects, well beyond sight. Presentation
-    /// only, like vision.
+    /// The tank's radar (<c>Sensing/Radar</c>): pulses that run outward from the tank and leave blips where they
+    /// reflect, well beyond sight. Presentation only, like vision.
     /// </summary>
     public static class Radar
     {
-        // How far a ray reaches, in cells.
+        // How far a pulse reaches, in cells.
         public const int Range = 150;
-        // The beam casts this many rays a tick; a revolution is RaysPerRevolution of them (64 ticks, 2.7 s).
-        public const int RaysPerTick = 4;
-        public const int RaysPerRevolution = 256;
-        // A blip fades out over this many ticks (10 s), a little under four revolutions.
+        // The tank sends a pulse every PulsePeriodTicks (4 s). Its front runs FrontCellsPerTick outward a tick, so
+        // it reaches Range in 75 ticks (3.1 s) and the radar is quiet for the rest of the period. The period must
+        // outlast the trip: one pulse is in flight at a time.
+        public const int PulsePeriodTicks = 4 * Perf.TargetFps;
+        public const int FrontCellsPerTick = 2;
+        // A pulse is a fan of this many rays, turned a fraction of a ray spacing each pulse so pulses fill each
+        // other's gaps. While a pulse travels each ray walks the cells the front crossed: about
+        // RaysPerPulse * FrontCellsPerTick * 1.27 = 285 cells a tick (1.27 is the mean cells per cell of distance of
+        // a walk that never cuts a corner), against 600 for the beam this replaced.
+        public const int RaysPerPulse = 112;
+        // A blip fades out over this many ticks (10 s): two and a half pulses, so the next pulse checks it first.
         public const int ContactLifetimeTicks = 10 * Perf.TargetFps;
         // Open ground behind dirt (a tunnel, a cave) gives a weak return and lets the ray on, this many times a ray.
         public const int WeakReturnsPerRay = 3;
         // A tank reflects as a square this many cells either side of its centre.
         public const int TankHalfSize = 3;
-        // Heat weakens the beam. A ray starts at strength 1 and every cell hotter than HeatThreshold takes
-        // HeatLossPerDegree per degree above it: ground at 50 stops a ray in about 6 cells, ground at 20 in about 25.
+        // Heat weakens the pulse. A ray starts at strength 1 and every cell hotter than HeatThreshold takes
+        // HeatLossPerDegree per degree above it, per cell of path: ground at 50 stops a ray in about 6 cells, ground
+        // at 20 in about 25. A ray that runs out marks where it entered the hot ground that stopped it.
         public const float HeatThreshold = 10f;
         public const float HeatLossPerDegree = 0.004f;
         // A reflector this hot returns only noise: the blip says "heat", not what the thing is.

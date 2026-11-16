@@ -1,5 +1,5 @@
 // ============================================================================
-// Entity/Overlays.hlsli — Ground areas: sense ring, reach area, coverage; radar blips
+// Entity/Overlays.hlsli — Ground areas: sense ring, reach area, coverage; radar blips and pulse
 // ============================================================================
 //
 // Faint fields drawn on the ground around a machine, the carried machine or a
@@ -82,10 +82,11 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
     return float4(cool * glow, (rim * 0.04 + inside * 0.02) * level * quadFade);
 }
 
-// One radar return, on ground out of the player's sight. It flares when the beam finds it and then fades over its
+// One radar return, on ground out of the player's sight. It flares when the pulse finds it and then fades over its
 // life. Green for rock and walls, amber for metal (gold, machines, tanks), a dim blue-green for the weak return of a
-// cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Where heat swallowed the beam,
-// or the thing that reflected was too hot to read, there is no dot: a ragged orange smudge that flickers like static.
+// cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Where hot ground swallowed the
+// ray (marked at the edge where it entered that ground), or the thing that reflected was too hot to read, there is
+// no dot: a ragged orange smudge that flickers like static.
 float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {
     float life = saturate(params.x);
@@ -118,6 +119,19 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
     float glow = exp(-r * r * (1.8 - 1.0 * flash));
     float3 light = color * (core * (0.75 + 0.6 * flash) + glow * (0.22 + 0.75 * flash));
     return float4(light * fade * strength, core * fade * strength * 0.5);
+}
+
+// The front of the radar pulse running out from where the tank sent it: a thin, faint green line with a fainter wake
+// behind it, fading as it nears full range. Pure glow (zero alpha), so the terrain under it shows through.
+float4 RadarPulse(float2 p, float4 params, float aa)
+{
+    float radius = params.x;
+    float fade = saturate(params.y);
+    float d = length(p) - radius;
+    float edge = exp(-d * d * 1.5);
+    float wake = d < 0.0 ? exp(d * 0.25) : 0.0;
+    float glow = (edge * 0.16 + wake * 0.035) * fade;
+    return float4(float3(0.35, 1.00, 0.60) * glow, 0.0);
 }
 
 #endif // TUNNERER_ENTITY_OVERLAYS_HLSLI

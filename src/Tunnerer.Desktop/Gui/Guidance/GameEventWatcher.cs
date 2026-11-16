@@ -33,7 +33,7 @@ public sealed class GameEventWatcher
     private int _harvestedSinceReport;
     private float _lastHarvestReport;
 
-    /// <summary>The player is told the radar is being scattered once heat takes this share of a revolution's rays.</summary>
+    /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
     public const float RadarScatteredShare = 0.08f;
 
     public void Reset() => _primed = false;
@@ -157,7 +157,7 @@ public sealed class GameEventWatcher
                     NotificationKind.Warning, cooldown: 90f);
             if (radarScattered && !_radarScattered)
                 feed.Post(now, "radar-heat", "Radar scattered by heat",
-                    "Hot ground swallows the beam: orange static marks where it was lost. Cool that ground to see past it.",
+                    "Hot ground swallows the pulse: orange static marks its edge. Cool that ground to see past it.",
                     NotificationKind.Warning, cooldown: 60f);
             if (engineRunning && !_engineRunning)
                 feed.Post(now, "engine-running", "Base engine making charge",

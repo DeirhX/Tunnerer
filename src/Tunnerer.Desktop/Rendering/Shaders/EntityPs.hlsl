@@ -57,5 +57,7 @@ float4 main(PSIn input) : SV_Target
         return NetworkCoverage(p, input.color.rgb, input.params, aa);
     if (kind < kKindTether + 0.5)
         return Tether(p, input.params, aa);
-    return RadarBlip(p, input.color.rgb, input.params, aa); // kKindRadarBlip
+    if (kind < kKindRadarBlip + 0.5)
+        return RadarBlip(p, input.color.rgb, input.params, aa);
+    return RadarPulse(p, input.params, aa); // kKindRadarPulse
 }

@@ -29,6 +29,7 @@
 //  15 radar blip  — .x = life (1 just found, 0 gone), .y = echo (0 solid, 1 metal, 2 cavity, 3 heat noise),
 //                   .z = phase, .w = flash (1 just found, 0 after a few ticks);
 //                   color.r = what heat left of the ray (0..1), color.g = a per-cell seed
+//  16 radar pulse — .x = front radius (cells), .y = fade (1 just sent, 0 at full range)
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
 //
 // color.rgb is the team colour (tank hull, turret), the body colour (hot shot),
@@ -55,6 +56,7 @@ static const float kKindReachArea = 12.0;
 static const float kKindCoverage = 13.0;
 static const float kKindTether = 14.0;
 static const float kKindRadarBlip = 15.0;
+static const float kKindRadarPulse = 16.0;
 
 // Machine flags (params.w); EntityShape's MachineFlag* constants must match.
 static const float kMachineFlagStalled = 1.0;
