@@ -48,9 +48,8 @@ public partial class Game : IDisposable
     private bool _steppedSinceRender = true;
     private readonly Stopwatch _renderClock = Stopwatch.StartNew();
     private readonly bool _interpolateFrames;
-    /// <summary>Shader animation clock (seconds); regrow stamps are written in it too.</summary>
-    private readonly Stopwatch _visualClock = Stopwatch.StartNew();
-    private float VisualTime => (float)_visualClock.Elapsed.TotalSeconds;
+    private readonly VisualClock _visualClock;
+    private float VisualTime => _visualClock.SecondsAt(_simFrameCounter);
 
     public const int DefaultSeed = 42;
 
@@ -74,6 +73,7 @@ public partial class Game : IDisposable
         // reproducible; TUNNERER_INTERPOLATE=1 turns the in-between frames back on for them.
         _interpolateFrames = !_automatedRun ||
             string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
+        _visualClock = _automatedRun ? VisualClock.StepLocked(Tweaks.World.AdvanceStep) : VisualClock.RealTime();
         Seed = ResolveSeed(IsInteractiveSession);
         var windowSize = DesktopScreenTweaks.WindowSize;
         _perfSession = PerfCaptureSession.Create(perfCapture);

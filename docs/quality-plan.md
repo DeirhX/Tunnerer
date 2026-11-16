@@ -131,7 +131,6 @@ After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; f
 Behaviour-preserving:
 - `TerrainGrid` keeps thin thermal forwards for `TerrainGrid.cs`/`HotRock.cs`.
 - HintSelector and BuildPanel compare `dirt >= cost` themselves; a `Tank.CanBuild(type)` query would own it.
-- `VisualTime` is a real-time stopwatch, so step-locked screenshot runs are not reproducible; derive it from steps in automated runs.
 - `EntityPs_DispatchesEveryShapeKind` and the thermal ratchet were tightened after review; `Machine.Advance` relay ignores `dt` (same result while `AdvanceStep` is the default).
 
 Change results (owner's call, add to Decisions):
