@@ -22,6 +22,7 @@ public class SimulationFingerprintTests
     // only means something platform-dependent has crept back into the simulation.
     private const ulong ExpectedPlayerDrivesAndShoots = 0x901AD40E3DF6F29BUL;
     private const ulong ExpectedRelayPylonHarvesterNetwork = 0xCC67A68447AE4216UL;
+    private const ulong ExpectedEnemyMachinesShotToPieces = 0xC7314900722E1437UL;
     private const ulong ExpectedBotVsBot = 0x78032631EFDBB20AUL;
 
     [Fact]
@@ -75,6 +76,36 @@ public class SimulationFingerprintTests
             world.Advance(i => bots[i].GetInput(tanks[i], tanks[1 - i], world.Terrain));
 
         AssertFingerprint(ExpectedBotVsBot, world);
+    }
+
+    [Fact]
+    public void EnemyMachinesShotToPieces_MatchesRecordedFingerprint()
+    {
+        // The player shoots down the tunnel into an enemy relay and harvester: hits, wrecks, scorch, wreck shrapnel
+        // and the network rebuilding all feed the hash.
+        var s = RelayHeatTests.CreateScenario();
+        var enemy = s.World.TankBases.Bases.First(b => b.Color != s.Tank.Color);
+        var relay = new Machine(s.RelayPos, MachineType.Relay, enemy.Color);
+        var harvester = new Machine(s.RelayPos + new Offset(0, s.DirY * 10), MachineType.Harvester, enemy.Color);
+        foreach (var machine in new[] { relay, harvester })
+        {
+            s.World.Machines.Add(machine);
+            s.World.PlantMachine(machine, enemy);
+        }
+
+        for (int frame = 0; frame < 400; frame++)
+        {
+            var input = new ControllerOutput
+            {
+                MoveSpeed = new Offset(0, frame < 60 ? s.DirY : 0),
+                ShootPrimary = frame % 5 == 0,
+                AimDirection = new DirectionF(0, s.DirY),
+            };
+            s.World.Advance(i => i == 0 ? input : TestSimulation.Idle);
+        }
+
+        Assert.False(relay.IsAlive, "the scenario must wreck at least the relay");
+        AssertFingerprint(ExpectedEnemyMachinesShotToPieces, s.World);
     }
 
     private static void Plant(RelayHeatTests.Scenario s, MachineType type, int distanceFromBase)
