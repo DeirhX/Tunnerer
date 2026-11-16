@@ -15,26 +15,23 @@ using static Tunnerer.Desktop.Gui.HudLayout;
 /// </summary>
 public sealed class HudStrip
 {
-    // The readout numbers' green and size (art pixels), and the bars' height and gap from the plate's bottom edge.
+    // The readout numbers' green and size (art pixels).
     private const uint ReadoutColor = 0xFFAAFACDu;
     private const float ReadoutSize = 22f;
-    private const float BarH = 3f, BarInset = 1.5f;
 
     /// <summary>
-    /// A panel's plates, measured on the art (art pixels): the centre both lines share, the title plate's centre, the
-    /// readout plate's top and bottom edges, and the span of the bar along the readout plate's bottom.
+    /// A panel's plates, measured on the art (art pixels): the centre both lines share, the title plate's centre, and
+    /// the readout plate's inner edges. The readout is centred in its plate; the plate's own fill behind it is the
+    /// panel's bar.
     /// </summary>
-    private readonly record struct Plate(float CenterX, float TitleY, float ReadoutTop, float ReadoutBottom, float BarX0, float BarX1)
+    private readonly record struct Plate(float CenterX, float TitleY, float ReadoutLeft, float ReadoutTop, float ReadoutRight, float ReadoutBottom)
     {
-        public float BarY => ReadoutBottom - BarInset - BarH;
-
-        /// <summary>The readout's centre: the middle of the plate above the bar.</summary>
-        public float ReadoutY => (ReadoutTop + BarY) * 0.5f;
+        public float ReadoutY => (ReadoutTop + ReadoutBottom) * 0.5f;
     }
 
-    private static readonly Plate TempPlate = new(HeatX + 170f, 151.5f, 168f, 190f, HeatX + 112f, HeatX + 228f);
-    private static readonly Plate ShieldPlate = new(ShieldX + 80.5f, 153.5f, 169f, 191f, ShieldX + 25.5f, ShieldX + 135.5f);
-    private static readonly Plate MaterialsPlate = new(MaterialsX + 120f, 154f, 174f, 194f, MaterialsX + 55f, MaterialsX + 185f);
+    private static readonly Plate TempPlate = new(HeatX + 170f, 151.5f, HeatX + 101f, 168f, HeatX + 239f, 190f);
+    private static readonly Plate ShieldPlate = new(ShieldX + 80.5f, 153.5f, ShieldX + 11f, 169f, ShieldX + 148f, 191f);
+    private static readonly Plate MaterialsPlate = new(MaterialsX + 120f, 154f, MaterialsX + 27f, 174f, MaterialsX + 213f, 194f);
 
     private readonly HudLayout _layout = new();
     private readonly HeatGauge _heat;
@@ -90,25 +87,25 @@ public sealed class HudStrip
         // TEMP: the tank's temperature in degrees above ambient. Digging and firing heat it; past the safe maximum
         // the heat burns the shield. A tank docked at its own base is pre-cooled below ambient (negative degrees).
         int degrees = player.IsDead ? 0 : (int)MathF.Round(player.Heat);
-        DrawReadout(dl, TempPlate, degrees.ToString(System.Globalization.CultureInfo.InvariantCulture) + "°");
-        _heat.DrawTrend(dl, player, TempPlate.BarX1 - 7f, TempPlate.ReadoutY);
         if (!player.IsDead)
-            _heat.DrawBar(dl, player, TempPlate.BarX0, TempPlate.BarY, TempPlate.BarX1 - TempPlate.BarX0, BarH, time);
+            _heat.DrawPlateFill(dl, player, TempPlate.ReadoutLeft, TempPlate.ReadoutTop, TempPlate.ReadoutRight, TempPlate.ReadoutBottom, time);
+        DrawReadout(dl, TempPlate, degrees.ToString(System.Globalization.CultureInfo.InvariantCulture) + "°");
+        _heat.DrawTrend(dl, player, TempPlate.ReadoutRight - 12f, TempPlate.ReadoutY);
         _heat.DrawOffNetworkTag(dl, player, HeatX + HeatPanelW * 0.5f, time);
 
         // SHIELD: the tank's armor.
         int health = Math.Max(0, player.Reactor.Health);
-        DrawReadout(dl, ShieldPlate, health.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        DrawPlateBar(dl, ShieldPlate, player.ShieldFraction, player.ShieldLevel switch
+        DrawPlateFill(dl, ShieldPlate, player.ShieldFraction, player.ShieldLevel switch
         {
             StatusLevel.Ok => 0xFFFFC040u,
             StatusLevel.Warn => 0xFF30C0FFu,
             _ => 0xFF3040FFu,
         });
+        DrawReadout(dl, ShieldPlate, health.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-        // MATERIALS: the dirt in the tank's hold, which is what structures are built from; the bar is how full it is.
+        // MATERIALS: the dirt in the tank's hold, which is what structures are built from; the fill is how full it is.
+        DrawPlateFill(dl, MaterialsPlate, player.HoldFill, 0xFF40B8F0u);
         DrawReadout(dl, MaterialsPlate, player.Resources.Dirt.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        DrawPlateBar(dl, MaterialsPlate, player.HoldFill, 0xFF40B8F0u);
 
         _build.Draw(dl, player, player.BuildableDirt(player.IsDockedAtOwnBase), BuildX, time);
 
@@ -128,13 +125,23 @@ public sealed class HudStrip
         dl.AddImage(texture, min, min + new Vector2(S(w), S(StripH)));
     }
 
-    /// <summary>A bar along the bottom of a plate's readout, filled to <paramref name="fill"/>.</summary>
-    private void DrawPlateBar(ImDrawListPtr dl, Plate plate, float fill, uint color)
+    /// <summary>
+    /// A plate's bar: its readout plate lit from the left up to <paramref name="fill"/>, translucent so the number
+    /// stays readable over it, with a bright leading edge.
+    /// </summary>
+    private void DrawPlateFill(ImDrawListPtr dl, Plate plate, float fill, uint color) =>
+        PlateFill(dl, _layout, plate.ReadoutLeft, plate.ReadoutTop, plate.ReadoutRight, plate.ReadoutBottom, fill, color);
+
+    /// <summary>A readout plate (art pixels) lit from the left up to <paramref name="fill"/> in <paramref name="color"/>.</summary>
+    internal static void PlateFill(ImDrawListPtr dl, HudLayout layout, float left, float top, float right, float bottom, float fill, uint color)
     {
         fill = Math.Clamp(fill, 0f, 1f);
-        float x = plate.BarX0, y = plate.BarY, w = plate.BarX1 - plate.BarX0;
-        dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + BarH + 1f), 0xC0000000u);
-        dl.AddRectFilled(At(x, y), At(x + w * fill, y + BarH), color);
+        if (fill <= 0f)
+            return;
+        float x = left + (right - left) * fill;
+        uint rgb = color & 0x00FFFFFFu;
+        dl.AddRectFilledMultiColor(layout.At(left, top), layout.At(x, bottom), 0x18000000u | rgb, 0x50000000u | rgb, 0x50000000u | rgb, 0x18000000u | rgb);
+        dl.AddLine(layout.At(x, top), layout.At(x, bottom), 0xC0000000u | rgb, layout.S(1.5f));
     }
 
     /// <summary>

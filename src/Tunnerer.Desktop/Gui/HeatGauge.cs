@@ -145,20 +145,21 @@ public sealed class HeatGauge(HudLayout layout)
     }
 
     /// <summary>
-    /// Temperature bar under the readout, on the same scale as the orb: a blue frost zone left of the ambient
-    /// mark, green to amber up to the safe-maximum mark, and red beyond it.
+    /// The TEMP readout plate as a heat bar (art pixels): lit from the left in the heat colour up to the tank's heat,
+    /// a red tint past the safe maximum, a faint line at ambient and a red line at the safe maximum. It blinks when the
+    /// tank is above the safe maximum.
     /// </summary>
-    public void DrawBar(ImDrawListPtr dl, Tank player, float x, float y, float w, float barH, float time)
+    public void DrawPlateFill(ImDrawListPtr dl, Tank player, float left, float top, float right, float bottom, float time)
     {
         float heat = player.Heat;
-        float X(float t) => x + w * HeatScale.Fraction(t);
-        dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + barH + 1f), 0xC0000000u);
-        dl.AddRectFilled(At(X(Tweaks.Tank.HeatSafeMax), y), At(x + w, y + barH), 0x503040FFu); // danger zone
+        float w = right - left;
+        float X(float t) => left + w * HeatScale.Fraction(t);
+        dl.AddRectFilled(At(X(Tweaks.Tank.HeatSafeMax), top), At(right, bottom), 0x283040FFu); // danger zone
         uint col = HeatScale.Color(heat);
         if (player.IsAboveSafeHeat && (int)(time * 4f) % 2 == 0)
             col = 0xFF8080FFu;
-        dl.AddRectFilled(At(x, y), At(X(heat), y + barH), col);
-        dl.AddLine(At(X(0f), y - 1f), At(X(0f), y + barH + 1f), 0x80FFFFFFu, S(1f));
-        dl.AddLine(At(X(Tweaks.Tank.HeatSafeMax), y - 2f), At(X(Tweaks.Tank.HeatSafeMax), y + barH + 2f), 0xFF4060FFu, S(1f));
+        HudStrip.PlateFill(dl, layout, left, top, right, bottom, HeatScale.Fraction(heat), col);
+        dl.AddLine(At(X(0f), top), At(X(0f), bottom), 0x50FFFFFFu, S(1f));
+        dl.AddLine(At(X(Tweaks.Tank.HeatSafeMax), top), At(X(Tweaks.Tank.HeatSafeMax), bottom), 0xC04060FFu, S(1f));
     }
 }
