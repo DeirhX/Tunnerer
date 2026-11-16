@@ -308,7 +308,7 @@ public class TerrainTests
         double maxAbsDrift = 0.0;
         for (int step = 0; step < steps; step++)
         {
-            engine.StepConservative(terrain, air, pixels, width, height);
+            FullGridHeatStep.Step(engine, terrain, air, pixels, width, height);
             maxAbsDrift = Math.Max(maxAbsDrift, Math.Abs(engine.SumTotalEnergy(terrain, air, pixels) - startEnergy));
         }
 
@@ -338,7 +338,7 @@ public class TerrainTests
         double maxAbsDrift = 0.0;
         for (int step = 0; step < 20000; step++)
         {
-            engine.StepConservative(terrain, air, pixels, width, height);
+            FullGridHeatStep.Step(engine, terrain, air, pixels, width, height);
             double now = engine.SumTotalEnergy(terrain, air, pixels);
             double drift = Math.Abs(now - startEnergy);
             if (drift > maxAbsDrift)
