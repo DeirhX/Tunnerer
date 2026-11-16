@@ -79,6 +79,15 @@ public readonly record struct SimulationSettings
     // --- Base ---
     public int BaseSize { get; init; }
 
+    // --- Tank thermals (TankThermals): work heat, base sinks and dock refrigeration ---
+    public int TankIdleHeatGain { get; init; }
+    public int TankMoveHeatGain { get; init; }
+    public float TankDockCoolingPerTick { get; init; }
+    public int TankDigRadius { get; init; }
+    public float TankHeatBaseCoolBonus { get; init; }
+    public int BaseHomeCooldownHeat { get; init; }
+    public int BaseForeignCooldownHeat { get; init; }
+
     public static SimulationSettings FromTweaks() => new()
     {
         AdvanceStep = Tweaks.World.AdvanceStep,
@@ -131,5 +140,14 @@ public readonly record struct SimulationSettings
         TankOffNetworkHeatPerTick = Tweaks.Tank.OffNetworkHeatPerSecond / Tweaks.Perf.TargetFps,
         TankNetworkCoolingPerTick = Tweaks.Tank.NetworkCoolingPerSecond / Tweaks.Perf.TargetFps,
         BaseSize = Tweaks.Base.BaseSize,
+
+        // Tank thermals
+        TankIdleHeatGain = Tweaks.Tank.IdleHeatGain,
+        TankMoveHeatGain = Tweaks.Tank.MoveHeatGain,
+        TankDockCoolingPerTick = Tweaks.Tank.DockCoolingPerTick,
+        TankDigRadius = Tweaks.Tank.DigRadius,
+        TankHeatBaseCoolBonus = Tweaks.Tank.HeatBaseCoolBonus,
+        BaseHomeCooldownHeat = Tweaks.Base.HomeCooldownHeat,
+        BaseForeignCooldownHeat = Tweaks.Base.ForeignCooldownHeat,
     };
 }

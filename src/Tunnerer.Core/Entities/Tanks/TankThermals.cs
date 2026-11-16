@@ -15,6 +15,7 @@ using Tunnerer.Core.Types;
 internal sealed class TankThermals
 {
     private readonly Tank _tank;
+    private readonly SimulationSettings _settings;
     private readonly TankHeatEngine _heatEngine;
     private int _frameDugPixels;
     private bool _frameShotFired;
@@ -22,6 +23,7 @@ internal sealed class TankThermals
     public TankThermals(Tank tank, SimulationSettings settings)
     {
         _tank = tank;
+        _settings = settings;
         _heatEngine = new TankHeatEngine(settings);
     }
 
@@ -41,15 +43,15 @@ internal sealed class TankThermals
 
     public void AddIdleHeat(ThermalLedger ledger)
     {
-        _tank.Heat += Tweaks.Tank.IdleHeatGain;
-        ledger.RecordInjected(Tweaks.Tank.IdleHeatGain * ThermalCapacity);
+        _tank.Heat += _settings.TankIdleHeatGain;
+        ledger.RecordInjected(_settings.TankIdleHeatGain * ThermalCapacity);
         SyncReactorHeat();
     }
 
     public void AddMoveHeat(ThermalLedger ledger)
     {
-        _tank.Heat += Tweaks.Tank.MoveHeatGain;
-        ledger.RecordInjected(Tweaks.Tank.MoveHeatGain * ThermalCapacity);
+        _tank.Heat += _settings.TankMoveHeatGain;
+        ledger.RecordInjected(_settings.TankMoveHeatGain * ThermalCapacity);
     }
 
     /// <summary>
@@ -59,21 +61,21 @@ internal sealed class TankThermals
     public void SinkAtBase(ITerrainHeatSource heat, TankBase baseColl, bool atOwnBase)
     {
         var position = _tank.Position;
-        int baseCooldown = atOwnBase ? Tweaks.Base.HomeCooldownHeat : Tweaks.Base.ForeignCooldownHeat;
+        int baseCooldown = atOwnBase ? _settings.BaseHomeCooldownHeat : _settings.BaseForeignCooldownHeat;
         if (baseCooldown <= 0)
             return;
 
-        int half = Math.Max(1, Tweaks.Base.BaseSize / 2);
+        int half = Math.Max(1, _settings.BaseSize / 2);
         int dist2 = Position.DistanceSquared(position, baseColl.Position);
         float radial = 1f - MathF.Sqrt(dist2) / half;
         float centerWeight = Math.Clamp(radial, 0f, 1f);
-        float centerBonus = 1f + Tweaks.Tank.HeatBaseCoolBonus * centerWeight;
+        float centerBonus = 1f + _settings.TankHeatBaseCoolBonus * centerWeight;
         int sinkAmount = (int)MathF.Round(Math.Max(0f, baseCooldown * centerBonus));
         if (sinkAmount > 0)
         {
             double terrainShare = Math.Round(sinkAmount * 0.40);
             double airShare = sinkAmount - terrainShare;
-            int radius = Math.Max(1, Tweaks.Tank.DigRadius);
+            int radius = Math.Max(1, _settings.TankDigRadius);
             double removed =
                 heat.ExtractEnergyInRadiusArea(position, radius, terrainShare, TerrainGrid.ThermalField.Terrain) +
                 heat.ExtractEnergyInRadiusArea(position, radius, airShare, TerrainGrid.ThermalField.Air);
@@ -88,11 +90,11 @@ internal sealed class TankThermals
     /// </summary>
     public void RefrigerateAtBase(TankBase tankBase)
     {
-        float target = -Tweaks.Tank.CoolantCapacity;
+        float target = -_settings.TankCoolantCapacity;
         if (_tank.Heat <= target)
             return;
 
-        double wanted = Math.Min(Tweaks.Tank.DockCoolingPerTick, _tank.Heat - target) * (double)ThermalCapacity;
+        double wanted = Math.Min(_settings.TankDockCoolingPerTick, _tank.Heat - target) * (double)ThermalCapacity;
         double accepted = tankBase.AcceptTankHeat(wanted);
         _tank.Heat -= (float)(accepted / ThermalCapacity);
     }
@@ -157,7 +159,7 @@ internal sealed class TankThermals
     public void Advance(ITerrainHeatSource heat, SimulationSettings settings)
     {
         var position = _tank.Position;
-        int radius = Tweaks.Tank.DigRadius;
+        int radius = _settings.TankDigRadius;
         float sampledTerrainTemperature = heat.SampleAverageHeat(position, radius) * 255f;
         float sampledAirTemperature = heat.SampleAverageAirTemperature(position, radius);
         var step = _heatEngine.Advance(
