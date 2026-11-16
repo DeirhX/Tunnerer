@@ -109,6 +109,10 @@ public sealed class BeamFader
         }
     }
 
+    /// <summary>The transition <see cref="Emit"/> would draw <paramref name="key"/> with, or null if it is not tracked.</summary>
+    public float? TransitionOf(in BeamKey key) =>
+        _index.TryGetValue(key, out int i) ? Transition(_tracks[i].Connect, _tracks[i].Dissolve) : null;
+
     /// <summary>
     /// The transition the beam shaders read (Entity/Beams.hlsli, <c>BeamTransition</c>): in (0, 1] a beam growing
     /// toward its end (1 = whole and steady); in [-1, 0) one dissolving (-1 = just broken, near 0 = almost gone).
