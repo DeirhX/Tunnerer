@@ -99,11 +99,11 @@ public sealed class GameEventWatcher
             }
             if (player.UpgradeRefusedTicks > _upgradeRefused)
                 feed.Post(now, "upgrade-refused", "Can't buy that upgrade", player.LastUpgradeRefusal switch
-                    {
-                        UpgradeRefusal.NotDocked => "Upgrades are bought while docked at your base.",
-                        UpgradeRefusal.Maxed => "That upgrade is already at its top level.",
-                        _ => "Not enough dirt in the base store. Harvesters fill it for you.",
-                    }, NotificationKind.Warning, cooldown: 2f);
+                {
+                    UpgradeRefusal.NotDocked => "Upgrades are bought while docked at your base.",
+                    UpgradeRefusal.Maxed => "That upgrade is already at its top level.",
+                    _ => "Not enough dirt in the base store. Harvesters fill it for you.",
+                }, NotificationKind.Warning, cooldown: 2f);
 
             if (tappingCore && !_tappingCore)
                 feed.Post(now, "core-tap", "Tapping the core",

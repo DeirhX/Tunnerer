@@ -12,48 +12,141 @@ using Tunnerer.Core.Terrain;
 /// </param>
 /// <param name="Machines">Every machine in the world, in a fixed order: pylons look for batteries, harvesters for pylons.</param>
 public readonly record struct MachineContext(
-    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines)
-{
-    public static MachineContext ForTerrain(ITerrainAccess terrain) => new(terrain, static (_, _) => false, []);
-}
+    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines);
+
+/// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> BuildPrimary, BuildSecondary, BuildTertiary).</summary>
+public enum BuildKey { Primary, Secondary, Tertiary }
 
 /// <summary>
-/// Defines per-type machine behavior in one place.
-/// Adding a new machine type = one entry in <see cref="MachineBehaviors.Get"/>.
+/// Defines per-type machine behavior and traits in one place: Core code asks the behavior, never the type.
+/// Adding a new machine type = a <see cref="MachineType"/> value and one entry in <see cref="MachineBehaviors.All"/>.
 /// </summary>
+/// <param name="ActionInterval">Time between actions; <see cref="TimeSpan.Zero"/> acts on every world tick.</param>
+/// <param name="Key">The build key that builds it while the tank carries nothing.</param>
 public record MachineBehavior(
+    MachineType Type,
     TimeSpan ActionInterval,
     Action<Machine, MachineContext>? PerformAction,
     Color ActiveColor,
-    MaterialAmount BuildCost);
+    MaterialAmount BuildCost,
+    BuildKey Key)
+{
+    /// <summary>Battery size it is built with (empty); zero for machines without a battery.</summary>
+    public double BatteryCapacity { get; init; }
+
+    public bool HasBattery => BatteryCapacity > 0.0;
+
+    /// <summary>
+    /// Planted, it becomes a fixed node of the link network: it links to its base, is powered through it and, while
+    /// powered, cools tanks around it (network coverage). A roaming machine is not a node.
+    /// </summary>
+    public bool IsLinkNode { get; init; }
+
+    /// <summary>It works through the link network, so the tank refuses to plant it where it would not link.</summary>
+    public bool RequiresLinkToPlant { get; init; }
+
+    /// <summary>It charges batteries in its reach; a low battery heads for the nearest one.</summary>
+    public bool IsCharger { get; init; }
+}
+
+/// <summary>What a planted harvester is doing, as of its last action.</summary>
+public enum HarvesterState
+{
+    Working,
+
+    /// <summary>Heading back to a pylon to recharge.</summary>
+    Returning,
+
+    /// <summary>Its battery cannot pay for another harvest.</summary>
+    OutOfCharge,
+
+    /// <summary>Stalled: the ground around it is too hot.</summary>
+    TooHot,
+}
 
 public static class MachineBehaviors
 {
     public static readonly MachineBehavior Harvester = new(
+        MachineType.Harvester,
         TimeSpan.FromMilliseconds(Tweaks.Machine.HarvesterIntervalMs),
         CrawlAndHarvest,
         Tweaks.Colors.Harvester,
-        new MaterialAmount(Tweaks.Machine.HarvesterDirtCost, 0));
+        new MaterialAmount(Tweaks.Machine.HarvesterDirtCost, 0),
+        BuildKey.Secondary)
+    {
+        BatteryCapacity = Tweaks.Machine.HarvesterBatteryCapacity,
+    };
 
     public static readonly MachineBehavior Pylon = new(
+        MachineType.Pylon,
         TimeSpan.FromMilliseconds(Tweaks.Machine.PylonIntervalMs),
         ChargeBatteries,
         Tweaks.Colors.Pylon,
-        new MaterialAmount(Tweaks.Machine.PylonDirtCost, 0));
+        new MaterialAmount(Tweaks.Machine.PylonDirtCost, 0),
+        BuildKey.Tertiary)
+    {
+        IsLinkNode = true,
+        RequiresLinkToPlant = true,
+        IsCharger = true,
+    };
 
     public static readonly MachineBehavior Relay = new(
-        Tweaks.World.AdvanceStep,
+        MachineType.Relay,
+        TimeSpan.Zero,
         PumpHeat,
         Tweaks.Colors.Relay,
-        new MaterialAmount(Tweaks.Machine.RelayDirtCost, 0));
-
-    public static MachineBehavior Get(MachineType type) => type switch
+        new MaterialAmount(Tweaks.Machine.RelayDirtCost, 0),
+        BuildKey.Primary)
     {
-        MachineType.Harvester => Harvester,
-        MachineType.Pylon => Pylon,
-        MachineType.Relay => Relay,
-        _ => throw new ArgumentOutOfRangeException(nameof(type)),
+        IsLinkNode = true,
+        RequiresLinkToPlant = true,
     };
+
+    /// <summary>Every machine's behavior, indexed by <see cref="MachineType"/>.</summary>
+    public static readonly IReadOnlyList<MachineBehavior> All = BuildTable(Harvester, Pylon, Relay);
+
+    public static MachineBehavior Get(MachineType type) =>
+        (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));
+
+    /// <summary>The machine <paramref name="key"/> builds.</summary>
+    public static MachineBehavior ForKey(BuildKey key)
+    {
+        foreach (var behavior in All)
+            if (behavior.Key == key)
+                return behavior;
+        throw new ArgumentOutOfRangeException(nameof(key));
+    }
+
+    private static MachineBehavior[] BuildTable(params MachineBehavior[] behaviors)
+    {
+        var table = new MachineBehavior[Enum.GetValues<MachineType>().Length];
+        foreach (var behavior in behaviors)
+            table[(int)behavior.Type] = behavior;
+        if (Array.IndexOf(table, null) >= 0)
+            throw new InvalidOperationException("Every MachineType needs a MachineBehavior.");
+        return table;
+    }
+
+    /// <summary>The ground temperature a harvester at <paramref name="at"/> senses (averaged over its sense radius).</summary>
+    public static float HarvesterSenseTemperature(ITerrainHeatSource heat, Position at) =>
+        // SampleAverageHeat is normalised (temperature / 255).
+        heat.SampleAverageHeat(at, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f;
+
+    /// <summary>A sensed ground temperature as a fraction of the harvester's stall temperature (1 = stalled).</summary>
+    public static float HarvesterSenseHeat(float temperature) => temperature / Tweaks.Machine.HarvesterStallTemperature;
+
+    /// <summary>True when a harvester's battery cannot pay for another harvest.</summary>
+    public static bool IsOutOfCharge(Machine harvester) => harvester.Charge < Tweaks.Machine.HarvesterHeatPerHarvest;
+
+    /// <summary>
+    /// A harvester's state, each harvester in exactly one, in this order: heading to a pylon, out of charge, too hot,
+    /// otherwise working.
+    /// </summary>
+    public static HarvesterState HarvesterStateOf(Machine harvester) =>
+        harvester.IsReturning ? HarvesterState.Returning
+        : IsOutOfCharge(harvester) ? HarvesterState.OutOfCharge
+        : harvester.IsStalled ? HarvesterState.TooHot
+        : HarvesterState.Working;
 
     /// <summary>
     /// Heat pipe: when the relay is connected to a powered link network it pulls heat out of the area around it
@@ -88,9 +181,8 @@ public static class MachineBehaviors
     {
         var terrain = ctx.Terrain;
 
-        // SampleAverageHeat is normalised (temperature / 255).
-        float temperature = terrain.SampleAverageHeat(machine.Position, Tweaks.Machine.HarvesterHeatSenseRadius) * 255f;
-        machine.SenseHeat = temperature / Tweaks.Machine.HarvesterStallTemperature;
+        float temperature = HarvesterSenseTemperature(terrain, machine.Position);
+        machine.SenseHeat = HarvesterSenseHeat(temperature);
         machine.IsStalled = temperature >= Tweaks.Machine.HarvesterStallTemperature;
 
         var store = machine.OwnerBase?.Materials;
@@ -105,7 +197,7 @@ public static class MachineBehaviors
         if (machine.IsStalled)
             return;
         // With the store full there is nowhere to put the dirt; with a flat battery there is nothing to dig with.
-        if (room <= 0 || machine.Charge < Tweaks.Machine.HarvesterHeatPerHarvest)
+        if (room <= 0 || IsOutOfCharge(machine))
             return;
 
         int mined = MineAround(machine, terrain, room);
@@ -210,7 +302,7 @@ public static class MachineBehaviors
         int bestDist = int.MaxValue;
         foreach (var other in ctx.Machines)
         {
-            if (other.Type != MachineType.Pylon || !other.IsAlive || other.State != MachineState.Planted ||
+            if (!other.Behavior.IsCharger || !other.IsAlive || other.State != MachineState.Planted ||
                 other.OwnerBase != machine.OwnerBase || other.LinkPoint is not { IsPowered: true })
                 continue;
             int d = Position.DistanceSquared(other.Position, machine.Position);
@@ -229,8 +321,7 @@ public static class MachineBehaviors
         int range = Tweaks.Machine.PylonRange;
         if (Position.DistanceSquared(pylon.Position, battery.Position) > range * range)
             return false;
-        return !Collision.Raycaster.BresenhamLineAny(pylon.Position, battery.Position,
-            pos => Pixel.BlocksLink(terrain.GetPixel(pos)));
+        return Collision.Raycaster.HasOpenLine(terrain, pylon.Position, battery.Position);
     }
 
     /// <summary>

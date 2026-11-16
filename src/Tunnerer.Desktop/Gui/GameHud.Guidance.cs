@@ -66,7 +66,7 @@ public partial class GameHud
     }
 
     /// <summary>Draws the tutorial card and returns its bottom edge.</summary>
-    private float DrawTutorialCard(in TutorialPrompt prompt, float x, float y)
+    private static float DrawTutorialCard(in TutorialPrompt prompt, float x, float y)
     {
         float bottom = y;
         if (HudTheme.BeginWindow("##Tutorial", new Vector2(x, y), Vector2.Zero, CardWidth))
@@ -133,7 +133,7 @@ public partial class GameHud
         var cam = Camera;
         float sx = vp.x + (target.X + 0.5f) * cam.Scale - cam.X;
         float sy = vp.y + (target.Y + 0.5f) * cam.Scale - cam.Y;
-        float viewBottom = _hudOrigin.Y > vp.y ? _hudOrigin.Y : vp.y + vp.h;
+        float viewBottom = ViewBottom(vp);
         const float margin = 40f;
         float pulse = 0.5f + 0.5f * MathF.Sin(_time * 5f);
         uint color = HudTheme.Amber;

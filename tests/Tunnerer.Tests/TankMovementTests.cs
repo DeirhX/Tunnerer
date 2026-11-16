@@ -18,7 +18,7 @@ public class TankMovementTests
     /// region (which ends at y=47) so <c>CreateBasesInTerrain</c> does not
     /// overwrite the manually placed dirt.
     /// </summary>
-    private (World world, Position spawn) CreateControlledWorld()
+    private static (World world, Position spawn) CreateControlledWorld()
     {
         var size = new Size(150, 150);
         var terrain = new TerrainGrid(size);
@@ -51,7 +51,7 @@ public class TankMovementTests
         // Base centered at (50,30) keeps its 35x35 footprint inside y=13..47,
         // well above the corridor at y=75+.
         var spawn = new Position(50, 30);
-        var world = new World(size, enableTerrainRegrowth: false);
+        var world = new World(size, deterministicSimulation: true, simulationSeed: TestHelpers.DefaultSeed, enableTerrainRegrowth: false);
 
         for (int i = 0; i < size.Area; i++)
             world.Terrain[i] = terrain[i];
@@ -155,7 +155,7 @@ public class TankMovementTests
             for (int x = 90; x <= 110; x++)
                 terrain[x + y * size.X] = TerrainPixel.Dirt;
 
-        var world = new World(size);
+        var world = new World(size, deterministicSimulation: true, simulationSeed: TestHelpers.DefaultSeed);
         for (int i = 0; i < size.Area; i++)
             world.Terrain[i] = terrain[i];
 
@@ -290,7 +290,7 @@ public class TankMovementTests
             $"Shooting tank should be hotter from terrain feedback: noShoot={tank1.Heat:F1}, shootAhead={tank2.Heat:F1}");
     }
 
-    [Fact(Skip = "Flaky under RNG/collision variance; disabled temporarily pending deterministic rewrite.")]
+    [Fact]
     public void TorchDig_ShootingSideways_SlowerThanShootingAhead()
     {
         // Shooting perpendicular should be slower than shooting in movement direction
@@ -324,7 +324,7 @@ public class TankMovementTests
     {
         // Set up terrain with rock in path, verify it's only destroyed when shooting
         var size = new Size(200, 200);
-        var world = new World(size);
+        var world = new World(size, deterministicSimulation: true, simulationSeed: TestHelpers.DefaultSeed);
         for (int i = 0; i < size.Area; i++)
             world.Terrain[i] = TerrainPixel.Blank;
 

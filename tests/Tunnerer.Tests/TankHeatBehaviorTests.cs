@@ -13,7 +13,7 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_PassivelyCools_WhenNoHeatSource()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank();
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank();
         using var visual = TestVisualTrace.Start(nameof(TankHeat_PassivelyCools_WhenNoHeatSource));
         var pos = GetWorldCenter(world);
 
@@ -31,7 +31,7 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_SingleShot_UsesModelShotHeatOnce()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 7777);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 7777);
         // Measure the shot in open ground: at its own base the tank is refrigerated below ambient every tick.
         var pos = GetWorldCenter(world);
         tank.Position = pos;
@@ -51,7 +51,7 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_OutsideBase_DriftsTowardAmbientZero()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 2222);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 2222);
         using var visual = TestVisualTrace.Start(nameof(TankHeat_OutsideBase_DriftsTowardAmbientZero));
         var pos = GetWorldCenter(world);
 
@@ -69,7 +69,7 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_OutsideBase_StartingHot_DoesNotRunAwayUpward()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 2233);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 2233);
         using var visual = TestVisualTrace.Start(nameof(TankHeat_OutsideBase_StartingHot_DoesNotRunAwayUpward));
         var pos = GetWorldCenter(world);
 
@@ -101,7 +101,7 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_OutsideBase_IdleCooling_IsMonotoneTowardAmbient()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 2244);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 2244);
         using var visual = TestVisualTrace.Start(nameof(TankHeat_OutsideBase_IdleCooling_IsMonotoneTowardAmbient));
         var pos = GetWorldCenter(world);
 
@@ -170,7 +170,7 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_AboveSafeMax_DamagesTank()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 2026);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 2026);
         using var visual = TestVisualTrace.Start(nameof(TankHeat_AboveSafeMax_DamagesTank));
         var zonePos = new Position(world.Terrain.Width / 2, world.Terrain.Height / 2);
 
@@ -190,7 +190,7 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_ExplosionZone_RaisesHeatWellAboveTwentyFive()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 8080);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 8080);
         using var visual = TestVisualTrace.Start(nameof(TankHeat_ExplosionZone_RaisesHeatWellAboveTwentyFive));
         var zonePos = new Position(world.Terrain.Width / 2, world.Terrain.Height / 2);
 
@@ -218,7 +218,7 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_AtOwnBase_DoesNotHeatFillBaseInterior()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9090);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9090);
         using var visual = TestVisualTrace.Start(nameof(TankHeat_AtOwnBase_DoesNotHeatFillBaseInterior));
         var basePos = RequireBasePosition(tank);
 
@@ -241,8 +241,8 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_AtOwnBase_CenterCoolsFasterThanEdge()
     {
-        var (worldCenter, tankCenter) = CreateWorldWithPrimaryTank(seed: 9191);
-        var (worldEdge, tankEdge) = CreateWorldWithPrimaryTank(seed: 9191);
+        var (worldCenter, tankCenter) = TestHelpers.CreateSeededWorldWithTank(seed: 9191);
+        var (worldEdge, tankEdge) = TestHelpers.CreateSeededWorldWithTank(seed: 9191);
 
         var baseCenter = RequireBasePosition(tankCenter);
         int insideOffset = Math.Max(1, Tweaks.Base.BaseSize / 2 - 2);
@@ -263,8 +263,8 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_AtForeignBase_CoolsButLessThanOwnBase()
     {
-        var (worldOwn, tankOwn) = CreateWorldWithPrimaryTank(seed: 9292);
-        var (worldForeign, tankForeign) = CreateWorldWithPrimaryTank(seed: 9292);
+        var (worldOwn, tankOwn) = TestHelpers.CreateSeededWorldWithTank(seed: 9292);
+        var (worldForeign, tankForeign) = TestHelpers.CreateSeededWorldWithTank(seed: 9292);
 
         var ownBasePos = RequireBasePosition(tankOwn);
         var foreignBasePos = worldForeign.TankBases.Bases[1].Position;
@@ -289,8 +289,8 @@ public class TankHeatBehaviorTests
     [Fact]
     public void TankHeat_AtBase_CoolsLocalTerrainAndAirMoreThanOutsideBase()
     {
-        var (worldInBase, tankInBase) = CreateWorldWithPrimaryTank(seed: 9393);
-        var (worldOutside, tankOutside) = CreateWorldWithPrimaryTank(seed: 9393);
+        var (worldInBase, tankInBase) = TestHelpers.CreateSeededWorldWithTank(seed: 9393);
+        var (worldOutside, tankOutside) = TestHelpers.CreateSeededWorldWithTank(seed: 9393);
 
         var basePos = RequireBasePosition(tankInBase);
         int outsideOffset = Tweaks.Base.BaseSize / 2 + 8;

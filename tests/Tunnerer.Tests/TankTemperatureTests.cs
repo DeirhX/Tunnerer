@@ -24,7 +24,7 @@ public class TankTemperatureTests
 
     private static (World world, Tank tank, Position pos) OpenGroundScenario(int seed, float startHeat)
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed);
         var pos = GetWorldCenter(world);
         tank.Position = pos;
         ClearArea(world.Terrain, pos, radius: 8);
@@ -35,7 +35,7 @@ public class TankTemperatureTests
     [Fact]
     public void DockedHotTank_CoolsTowardZero_FastAtFirst_NeverBelow_AndEnergyBalances()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
         SetTankHeat(tank, 80f);
 
         double start = world.SumSystemThermalEnergy();
@@ -59,7 +59,7 @@ public class TankTemperatureTests
     [Fact]
     public void DockedTank_DoesNotGetColdAtTheBase()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
         SetTankHeat(tank, 0f);
 
         Advance(world, Tweaks.Perf.TargetFps * 6);
@@ -72,7 +72,7 @@ public class TankTemperatureTests
     {
         float HeatAfter(bool own)
         {
-            var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+            var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
             if (!own)
                 tank.Position = world.TankBases.Bases.First(b => b != tank.Base).Position;
             SetTankHeat(tank, 60f);
@@ -88,7 +88,7 @@ public class TankTemperatureTests
     {
         float HeatAfter(bool full)
         {
-            var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+            var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
             SetTankHeat(tank, 60f);
             if (full)
                 tank.Base!.Reactor.Current.Heat = tank.Base.Reactor.HeatCapacity;
@@ -102,7 +102,7 @@ public class TankTemperatureTests
     [Fact]
     public void AcceptTankHeat_IsLimitedByTheReservoirRoom()
     {
-        var (_, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+        var (_, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
         var tankBase = tank.Base!;
         double perUnit = Tweaks.Base.ReactorEnergyPerHeatUnit;
 

@@ -17,7 +17,7 @@ public sealed class SdlRenderer : IDisposable
     public SdlRenderer(string title, Size windowSize)
     {
         if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Events))
-            throw new Exception($"SDL_Init failed: {SDL.GetError()}");
+            throw new InvalidOperationException($"SDL_Init failed: {SDL.GetError()}");
 
         // Fullscreen-desktop borderless by default; a plain resizable window when --windowed is requested, and a
         // hidden borderless window at full display resolution when --hidden is requested (automated runs and
@@ -45,7 +45,7 @@ public sealed class SdlRenderer : IDisposable
 
         _window = SDL.CreateWindow(title, windowSize.X, windowSize.Y, windowFlags);
         if (_window == nint.Zero)
-            throw new Exception($"SDL_CreateWindow failed: {SDL.GetError()}");
+            throw new InvalidOperationException($"SDL_CreateWindow failed: {SDL.GetError()}");
 
         int centered = (int)(SDL.WindowPosCenteredMask | displayId);
         SDL.SetWindowPosition(_window, centered, centered);

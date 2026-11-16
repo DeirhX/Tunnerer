@@ -18,7 +18,7 @@ public static class ExplosionFactory
             float angle = rng.NextSingle() * MathF.Tau;
             float s = rng.NextSingle() * p.Speed * Tweaks.Explosion.SpeedVarianceRange
                     + p.Speed * Tweaks.Explosion.SpeedVarianceBase;
-            var dir = new VectorF(MathF.Cos(angle) * s, MathF.Sin(angle) * s);
+            var dir = new VectorF(DeterministicMath.Cos(angle) * s, DeterministicMath.Sin(angle) * s);
             int life = rng.NextInt(0, p.Frames);
             result.Add(Projectile.CreateShrapnel(center, dir, life, shrapnelHeatScale));
         }

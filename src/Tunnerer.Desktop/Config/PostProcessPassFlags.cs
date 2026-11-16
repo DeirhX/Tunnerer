@@ -1,6 +1,9 @@
 namespace Tunnerer.Desktop.Config;
 
+using System.Diagnostics.CodeAnalysis;
+
 [Flags]
+[SuppressMessage("Naming", "CA1711", Justification = "A [Flags] enum of pass bits; the name says so and is used throughout Desktop.")]
 public enum PostProcessPassFlags : byte
 {
     None = 0,

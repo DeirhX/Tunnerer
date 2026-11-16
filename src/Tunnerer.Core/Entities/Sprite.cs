@@ -37,7 +37,8 @@ public class Sprite
         };
 
         int x = Position.X, y = Position.Y;
-        void SetPx(int px, int py) {
+        void SetPx(int px, int py)
+        {
             if (surface.IsInside(px, py))
                 surface.Pixels[px + py * surface.Width] = color;
         }
@@ -93,6 +94,4 @@ public class SpriteList
         }
         return count;
     }
-
-    public void RemoveAll() => _sprites.Clear();
 }

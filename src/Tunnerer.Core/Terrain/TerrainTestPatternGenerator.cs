@@ -397,8 +397,8 @@ public static class TerrainTestPatternGenerator
     static void DrawDiagonalStrip(TerrainGrid grid, int startX, int startY, double angleDeg, int length, int thickness, TerrainPixel value)
     {
         double rad = angleDeg * Math.PI / 180.0;
-        double cosA = Math.Cos(rad);
-        double sinA = Math.Sin(rad);
+        double cosA = DeterministicMath.Cos(rad);
+        double sinA = DeterministicMath.Sin(rad);
         double perpX = -sinA;
         double perpY = cosA;
 

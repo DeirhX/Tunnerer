@@ -1,11 +1,39 @@
 namespace Tunnerer.Desktop;
 
+using System.Globalization;
 using System.Text;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Input;
 
 public partial class Game
 {
+    /// <summary>
+    /// Logs which scripted input, commands, screenshots and recording the environment asked for, starts an
+    /// autostarted recording, and returns whether the enemy tank is driven by its AI.
+    /// </summary>
+    private bool StartMatchInput(bool enableAiTanks)
+    {
+        if (_scriptedInput.HasScriptedController())
+            Console.WriteLine("[Input] Scripted controller enabled via TUNNERER_SCRIPTED_INPUT.");
+        if (_scriptedInput.ScreenshotFrameCount > 0)
+            Console.WriteLine($"[Input] Scripted screenshot frames enabled ({_scriptedInput.ScreenshotFrameCount} frame(s)).");
+        if (_scriptedInput.CommandFrameCount > 0)
+            Console.WriteLine($"[Input] Scripted commands enabled via TUNNERER_COMMAND_SCRIPT ({_scriptedInput.CommandFrameCount} frame slot(s)).");
+        if (_scriptedInput.RecordPath is not null)
+            Console.WriteLine($"[Input] Scripted input recording path: {_scriptedInput.RecordPath}");
+        if (_scriptedInput.RecordAutoStart)
+        {
+            Console.WriteLine("[Input] Scripted input recording autostart enabled.");
+            _inputRecorder.Start();
+        }
+
+        bool aiTanks = enableAiTanks && (!_scriptedInput.HasScriptedController() || _scriptedInput.KeepAi);
+        if (enableAiTanks && !aiTanks)
+            Console.WriteLine("[Input] AI tanks forced OFF during scripted replay.");
+        Console.WriteLine($"[Input] AI tanks: {(aiTanks ? "enabled" : "disabled")}");
+        return aiTanks;
+    }
+
     private void ToggleInputRecording(string source)
     {
         if (_inputRecorder.IsRecording)
@@ -37,7 +65,7 @@ public partial class Game
         if (!string.IsNullOrWhiteSpace(_scriptedInput.RecordPath))
             return _scriptedInput.RecordPath;
 
-        string ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        string ts = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
         return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "artifacts", "debug", $"scripted_input_{ts}.txt"));
     }
 
@@ -49,11 +77,11 @@ public partial class Game
 
         var text = new StringBuilder();
         text.AppendLine("# Scripted input recording");
-        text.AppendLine($"# Generated: {DateTime.Now:O}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"# Generated: {DateTime.Now:O}");
         if (!string.IsNullOrWhiteSpace(capture.InputScript))
-            text.AppendLine($"TUNNERER_SCRIPTED_INPUT={capture.InputScript}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"TUNNERER_SCRIPTED_INPUT={capture.InputScript}");
         if (!string.IsNullOrWhiteSpace(capture.CommandScript))
-            text.AppendLine($"TUNNERER_COMMAND_SCRIPT={capture.CommandScript}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"TUNNERER_COMMAND_SCRIPT={capture.CommandScript}");
         File.WriteAllText(path, text.ToString());
     }
 

@@ -42,10 +42,6 @@ public class Link
             return;
         }
 
-        Type = IsPathBlocked(terrain) ? LinkType.Blocked : LinkType.Live;
+        Type = Raycaster.HasOpenLine(terrain, From.Position, To.Position) ? LinkType.Live : LinkType.Blocked;
     }
-
-    private bool IsPathBlocked(ITerrainPixelReadOnly terrain) =>
-        Raycaster.BresenhamLineAny(From.Position, To.Position,
-            pos => Pixel.BlocksLink(terrain.GetPixel(pos)));
 }

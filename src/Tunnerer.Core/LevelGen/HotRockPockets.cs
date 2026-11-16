@@ -53,11 +53,11 @@ public static class HotRockPockets
         {
             // Distance from the centre as a fraction of the half-extent. Raising a uniform sample to a power > 1
             // pulls the pockets toward the centre; the angle is uniform.
-            double fraction = Math.Pow(rng.NextDouble(), Tweaks.World.HotRockCentreBias);
+            double fraction = DeterministicMath.Pow(rng.NextDouble(), Tweaks.World.HotRockCentreBias);
             double angle = rng.NextDouble() * Math.PI * 2.0;
             var pos = new Position(
-                middle.X + (int)(Math.Cos(angle) * fraction * (terrain.Width / 2 - margin)),
-                middle.Y + (int)(Math.Sin(angle) * fraction * (terrain.Height / 2 - margin)));
+                middle.X + (int)(DeterministicMath.Cos(angle) * fraction * (terrain.Width / 2 - margin)),
+                middle.Y + (int)(DeterministicMath.Sin(angle) * fraction * (terrain.Height / 2 - margin)));
             // Pockets grow toward the centre.
             int radius = Tweaks.World.HotRockMinRadius
                 + (int)Math.Round((Tweaks.World.HotRockMaxRadius - Tweaks.World.HotRockMinRadius) * (1.0 - fraction));
@@ -84,7 +84,7 @@ public static class HotRockPockets
             for (int k = 0; k < 24; k++)
             {
                 double angle = k * Math.PI * 2.0 / 24.0;
-                var p = new Position(middle.X + (int)Math.Round(Math.Cos(angle) * r), middle.Y + (int)Math.Round(Math.Sin(angle) * r));
+                var p = new Position(middle.X + (int)Math.Round(DeterministicMath.Cos(angle) * r), middle.Y + (int)Math.Round(DeterministicMath.Sin(angle) * r));
                 if (p.X < margin || p.Y < margin || p.X >= terrain.Width - margin || p.Y >= terrain.Height - margin)
                     continue;
                 if (!TooClose(p, bases, minFromBaseSq))

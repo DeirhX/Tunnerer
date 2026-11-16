@@ -65,19 +65,19 @@ foreach (var arg in args)
         perfMode = true;
     else if (arg == "--terrain-test")
         terrainTestMode = true;
-    else if (arg.StartsWith("--perf-warmup=") && int.TryParse(arg[14..], out int warmup))
+    else if (arg.StartsWith("--perf-warmup=", StringComparison.Ordinal) && int.TryParse(arg[14..], out int warmup))
         perfWarmupFrames = Math.Max(0, warmup);
-    else if (arg.StartsWith("--perf-frames=") && int.TryParse(arg[14..], out int frames))
+    else if (arg.StartsWith("--perf-frames=", StringComparison.Ordinal) && int.TryParse(arg[14..], out int frames))
         perfMeasureFrames = Math.Max(1, frames);
-    else if (arg.StartsWith("--perf-csv="))
+    else if (arg.StartsWith("--perf-csv=", StringComparison.Ordinal))
         perfCsvPath = arg[11..];
-    else if (arg.StartsWith("--size="))
+    else if (arg.StartsWith("--size=", StringComparison.Ordinal))
     {
         var parts = arg[7..].Split('x');
         if (parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h))
             terrainSize = new Size(w, h);
     }
-    else if (arg == "--windowed" || arg.StartsWith("--windowed="))
+    else if (arg == "--windowed" || arg.StartsWith("--windowed=", StringComparison.Ordinal))
     {
         string value = arg.Length > "--windowed".Length ? arg["--windowed=".Length..] : string.Empty;
         var parsed = DesktopDisplayOptions.ParseWindowed(value, flagPresent: true);
@@ -90,7 +90,7 @@ foreach (var arg in args)
     {
         hiddenWindow = true;
     }
-    else if (arg.StartsWith("--display="))
+    else if (arg.StartsWith("--display=", StringComparison.Ordinal))
     {
         var parsed = DesktopDisplayOptions.Parse(arg[10..]);
         if (parsed is null)
@@ -98,7 +98,7 @@ foreach (var arg in args)
         else
             displayIndex = parsed;
     }
-    else if (arg.StartsWith("--volume="))
+    else if (arg.StartsWith("--volume=", StringComparison.Ordinal))
     {
         var parsed = AudioOptions.ParseVolume(arg[9..]);
         if (parsed is null)
@@ -110,7 +110,7 @@ foreach (var arg in args)
     {
         mute = true;
     }
-    else if (arg.StartsWith("--dump-sounds="))
+    else if (arg.StartsWith("--dump-sounds=", StringComparison.Ordinal))
     {
         dumpSoundsDirectory = arg[14..];
     }
@@ -118,7 +118,7 @@ foreach (var arg in args)
     {
         enableAiTanks = false;
     }
-    else if (arg.StartsWith("--seed="))
+    else if (arg.StartsWith("--seed=", StringComparison.Ordinal))
     {
         if (int.TryParse(arg[7..], out int seedValue) && seedValue != 0)
             GameLaunchOptions.Seed = seedValue;

@@ -12,13 +12,13 @@ public enum LevelGenMode
 
 public class ToastGenerator
 {
-    public (TerrainGrid terrain, Position[] spawns) Generate(Size size, int? seed = null,
+    public (TerrainGrid terrain, Position[] spawns) Generate(Size size, int seed,
         LevelGenMode mode = LevelGenMode.Deterministic)
     {
         var terrain = new TerrainGrid(size);
         terrain.Fill(TerrainPixel.LevelGenRock);
 
-        int effectiveSeed = seed ?? Environment.TickCount;
+        int effectiveSeed = seed;
         var rng = new Random(effectiveSeed);
         var spawns = GenerateTree(terrain, rng);
 

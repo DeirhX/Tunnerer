@@ -1,11 +1,13 @@
 namespace Tunnerer.Desktop.Input;
 
 using Tunnerer.Core.Input;
+using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Types;
+using Tunnerer.Desktop.Presentation;
 using static SDL3.SDL;
 
-public readonly record struct KeyBindings(
-    Scancode Left, Scancode Right, Scancode Up, Scancode Down, Scancode Shoot, Scancode Build, Scancode BuildHarvester, Scancode BuildPylon);
+/// <summary>Driving and firing keys; each machine's build key comes from <see cref="MachinePresentation.Key"/>.</summary>
+public readonly record struct KeyBindings(Scancode Left, Scancode Right, Scancode Up, Scancode Down, Scancode Shoot);
 
 public class KeyboardController
 {
@@ -36,13 +38,26 @@ public class KeyboardController
         if (IsHeld(_keys.Up)) dy -= 1;
         if (IsHeld(_keys.Down)) dy += 1;
 
+        bool primary = false, secondary = false, tertiary = false;
+        foreach (var machine in MachinePresentations.All)
+        {
+            if (!IsHeld(machine.Key))
+                continue;
+            switch (machine.BuildKey)
+            {
+                case BuildKey.Primary: primary = true; break;
+                case BuildKey.Secondary: secondary = true; break;
+                case BuildKey.Tertiary: tertiary = true; break;
+            }
+        }
+
         return new ControllerOutput
         {
             MoveSpeed = new Offset(dx, dy),
             ShootPrimary = IsHeld(_keys.Shoot),
-            BuildPrimary = IsHeld(_keys.Build),
-            BuildSecondary = IsHeld(_keys.BuildHarvester),
-            BuildTertiary = IsHeld(_keys.BuildPylon),
+            BuildPrimary = primary,
+            BuildSecondary = secondary,
+            BuildTertiary = tertiary,
             Upgrade = IsHeld(Scancode.Alpha1) ? 1 : IsHeld(Scancode.Alpha2) ? 2
                 : IsHeld(Scancode.Alpha3) ? 3 : IsHeld(Scancode.Alpha4) ? 4 : 0,
         };

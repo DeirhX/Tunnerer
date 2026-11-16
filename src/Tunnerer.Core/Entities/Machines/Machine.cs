@@ -76,7 +76,7 @@ public class Machine
         Behavior = MachineBehaviors.Get(type);
         OwnerColor = ownerColor;
         // Built empty: planting fills it from the owner base's store (World.PlantMachine), so no charge appears from nothing.
-        ChargeCapacity = type == MachineType.Harvester ? Tweaks.Machine.HarvesterBatteryCapacity : 0.0;
+        ChargeCapacity = Behavior.BatteryCapacity;
         Reactor = new Reactor(
             initial: new ReactorState(0, Tweaks.Machine.ReactorHealthCapacity),
             capacity: new ReactorState(Tweaks.Machine.ReactorHeatCapacity, Tweaks.Machine.ReactorHealthCapacity));
@@ -90,9 +90,13 @@ public class Machine
         if (!IsAlive || State != MachineState.Planted) return;
         if (Reactor.Health <= 0) { IsAlive = false; return; }
 
-        _actionAccumulator += dt;
-        if (_actionAccumulator < Behavior.ActionInterval) return;
-        _actionAccumulator -= Behavior.ActionInterval;
+        var interval = Behavior.ActionInterval;
+        if (interval > TimeSpan.Zero)
+        {
+            _actionAccumulator += dt;
+            if (_actionAccumulator < interval) return;
+            _actionAccumulator -= interval;
+        }
 
         Behavior.PerformAction?.Invoke(this, ctx);
     }

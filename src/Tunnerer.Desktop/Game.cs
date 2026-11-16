@@ -1,5 +1,7 @@
 namespace Tunnerer.Desktop;
 
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using static SDL3.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
@@ -19,7 +21,9 @@ using System.Runtime.InteropServices;
 public partial class Game : IDisposable
 {
     private readonly SdlRenderer _renderer;
+    [SuppressMessage("Performance", "CA1859", Justification = "Game talks to the backend through its interface, not SDL_GPU types.")]
     private readonly IGameRenderBackend _renderBackend;
+    [SuppressMessage("Performance", "CA1859", Justification = "Game talks to the backend through its interface, not SDL_GPU types.")]
     private readonly ITextureLoader _textures;
     private readonly GameHud _hud;
     private readonly WorldCompositeRenderer _compositeRenderer = new();
@@ -38,17 +42,12 @@ public partial class Game : IDisposable
     private readonly RenderViewState _renderViewState = new();
     private readonly TerrainAuxBuilder _terrainAuxBuilder = new();
     private readonly GameCommandController _commandController = new();
-    private readonly List<Position> _terrainDirtyCells = new();
     private readonly float[] _gpuTankHeatGlow = new float[Tweaks.World.MaxPlayers * 4];
-    private readonly byte[] _gpuTerrainAux;
-    private readonly byte[] _gpuMaterialCoverage;
-    private bool _gpuAuxFullUploadPending = true;
-    private int _heatAuxFrameCounter;
+    private readonly TerrainAuxUploader _terrainAuxUploader;
     private bool _compositeChanged = true;
     private bool _steppedSinceRender = true;
     private readonly Stopwatch _renderClock = Stopwatch.StartNew();
     private readonly bool _interpolateFrames;
-    private readonly Stopwatch _gameTimer = Stopwatch.StartNew();
     /// <summary>Shader animation clock (seconds); regrow stamps are written in it too.</summary>
     private readonly Stopwatch _visualClock = Stopwatch.StartNew();
     private float VisualTime => (float)_visualClock.Elapsed.TotalSeconds;
@@ -75,10 +74,8 @@ public partial class Game : IDisposable
         // reproducible; TUNNERER_INTERPOLATE=1 turns the in-between frames back on for them.
         _interpolateFrames = !_automatedRun ||
             string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
-        Seed = ResolveSeed(_automatedRun, terrainTestMode);
+        Seed = ResolveSeed(IsInteractiveSession);
         var windowSize = DesktopScreenTweaks.WindowSize;
-        bool deterministicSimulation = genMode == LevelGenMode.Deterministic;
-        bool parallel = genMode == LevelGenMode.Optimized;
         _perfSession = PerfCaptureSession.Create(perfCapture);
 
         _renderer = new SdlRenderer(Tweaks.System.WindowTitle + (terrainTestMode ? " [Terrain Test]" : ""), windowSize);
@@ -88,63 +85,22 @@ public partial class Game : IDisposable
         _textures = new SdlGpuTextureLoader(sdlGpuBackend);
         _hud = new GameHud();
         LoadHudSprites();
-        // Automated runs (and the terrain test, which has no match) make no sound.
-        _audio = GameAudio.Create(_automatedRun || terrainTestMode);
+        // Only a person playing a match hears sound.
+        _audio = GameAudio.Create(!IsInteractiveSession);
 
-        if (terrainTestMode)
-        {
-            _terrainSize = terrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize;
-            Console.WriteLine($"[TerrainTest] Generating test patterns {_terrainSize.X}x{_terrainSize.Y}...");
-            var testTerrain = TerrainTestPatternGenerator.Generate(_terrainSize);
-
-            _world = new World(_terrainSize, deterministicSimulation: true, simulationSeed: DefaultSeed,
-                enableTerrainRegrowth: false);
-            _world.Profile.ReportSink = static line => Console.WriteLine(line);
-            // Copy pixels directly -- test patterns use final pixel values, skip materialization.
-            for (int i = 0; i < testTerrain.Size.Area; i++)
-            {
-                _world.Terrain[i] = testTerrain[i];
-                // Propagate scorch intensity from the pattern grid.
-                _world.Terrain.SetScorchIntensity(i, testTerrain.GetScorchIntensity(i));
-            }
-            Console.WriteLine("[TerrainTest] Static terrain loaded. No simulation, WASD to pan camera.");
-        }
-        else
-        {
-            _terrainSize = terrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize;
-            var modeLabel = parallel ? "optimized" : "deterministic";
-            Console.WriteLine($"Generating terrain {_terrainSize.X}x{_terrainSize.Y} ({modeLabel}, seed={(deterministicSimulation ? Seed.ToString() : "random")})...");
-            var genWatch = Stopwatch.StartNew();
-            var generator = new ToastGenerator();
-            int? seed = deterministicSimulation ? Seed : null;
-            var (terrain, spawns) = generator.Generate(_terrainSize, seed, genMode);
-            Console.WriteLine($"Level generated in {genWatch.Elapsed.TotalMilliseconds:F0} ms, {spawns.Length} spawns");
-
-            _world = new World(
-                _terrainSize,
-                deterministicSimulation: deterministicSimulation,
-                simulationSeed: deterministicSimulation ? Seed : 0,
-                hotRockPocketCount: Tweaks.World.HotRockPocketCount,
-                frostRockPocketCount: Tweaks.World.FrostRockPocketCount);
-            _world.Profile.ReportSink = static line => Console.WriteLine(line);
-            int? decorationSeed = deterministicSimulation ? Seed + 1 : null;
-            _world.Initialize(terrain, spawns, decorationSeed: decorationSeed, parallelMaterialize: parallel);
-            if (_world.HotRockPockets.Count > 0)
-                Console.WriteLine($"[HotRock] {_world.HotRockPockets.Count} pocket(s) at " +
-                    string.Join(", ", _world.HotRockPockets.Select(p => $"({p.X},{p.Y})")));
-            if (_world.FrostRockPockets.Count > 0)
-                Console.WriteLine($"[FrostRock] {_world.FrostRockPockets.Count} pocket(s) at " +
-                    string.Join(", ", _world.FrostRockPockets.Select(p => $"({p.X},{p.Y})")));
-        }
-
-        _p2AI = new BotTankAI(seed: deterministicSimulation ? Seed + 2 : null);
+        ReplayArguments = genMode == LevelGenMode.Optimized
+            ? $"--fast --seed={Seed.ToString(CultureInfo.InvariantCulture)}"
+            : $"--seed={Seed.ToString(CultureInfo.InvariantCulture)}";
+        var built = WorldFactory.Build(new WorldLaunchOptions(terrainTestMode, terrainSizeOverride, genMode, Seed));
+        _world = built.World;
+        _terrainSize = built.TerrainSize;
+        _p2AI = new BotTankAI(seed: built.BotSeed);
         _entityLayer.CaptureStep(_world);
 
         _worldPixels = new uint[_terrainSize.Area];
         _compositePixels = new uint[_terrainSize.Area];
-        _gpuTerrainAux = new byte[_terrainSize.Area * 4];
-        _gpuMaterialCoverage = new byte[_terrainSize.Area * 4];
-        if (parallel)
+        _terrainAuxUploader = new TerrainAuxUploader(_terrainSize, _terrainAuxBuilder, _drawProfile);
+        if (built.Parallel)
             _world.Terrain.DrawAllToSurfaceParallel(_worldPixels);
         else
             _world.Terrain.DrawAllToSurface(_worldPixels);
@@ -152,42 +108,19 @@ public partial class Game : IDisposable
         _p1Controller = new KeyboardController(new KeyBindings(
             Left: Scancode.A, Right: Scancode.D,
             Up: Scancode.W, Down: Scancode.S,
-            Shoot: Scancode.Space,
-            Build: Scancode.E,
-            BuildHarvester: Scancode.R,
-            BuildPylon: Scancode.T));
+            Shoot: Scancode.Space));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
-        if (!terrainTestMode)
-        {
-            if (_scriptedInput.HasScriptedController())
-                Console.WriteLine("[Input] Scripted controller enabled via TUNNERER_SCRIPTED_INPUT.");
-            if (_scriptedInput.ScreenshotFrameCount > 0)
-                Console.WriteLine($"[Input] Scripted screenshot frames enabled ({_scriptedInput.ScreenshotFrameCount} frame(s)).");
-            if (_scriptedInput.CommandFrameCount > 0)
-                Console.WriteLine($"[Input] Scripted commands enabled via TUNNERER_COMMAND_SCRIPT ({_scriptedInput.CommandFrameCount} frame slot(s)).");
-            if (_scriptedInput.RecordPath is not null)
-                Console.WriteLine($"[Input] Scripted input recording path: {_scriptedInput.RecordPath}");
-            if (_scriptedInput.RecordAutoStart)
-            {
-                Console.WriteLine("[Input] Scripted input recording autostart enabled.");
-                _inputRecorder.Start();
-            }
-        }
-        bool effectiveEnableAiTanks = !terrainTestMode && enableAiTanks &&
-            (!_scriptedInput.HasScriptedController() || _scriptedInput.KeepAi);
-        if (enableAiTanks && !effectiveEnableAiTanks && !terrainTestMode)
-            Console.WriteLine("[Input] AI tanks forced OFF during scripted replay.");
+        // The terrain test has no match: no player input to script or record, and no enemy tank.
+        bool aiTanks = !terrainTestMode && StartMatchInput(enableAiTanks);
         _simulationStepper = new GameSimulationStepper(
             world: _world,
             p1Controller: _p1Controller,
             p2AI: _p2AI,
-            enableAiTanks: effectiveEnableAiTanks,
+            enableAiTanks: aiTanks,
             scriptedInput: _scriptedInput,
             inputRecorder: _inputRecorder,
             executeCommand: ExecuteGameCommand,
             requestScreenshot: label => _renderBackend.RequestScreenshot(label));
-        if (!terrainTestMode)
-            Console.WriteLine($"[Input] AI tanks: {(effectiveEnableAiTanks ? "enabled" : "disabled")}");
         Console.WriteLine("[Render] TerrainVisual=NativeContinuous");
     }
 
@@ -202,37 +135,29 @@ public partial class Game : IDisposable
                 renderBetweenSteps: _interpolateFrames,
                 minRenderInterval: TimeSpan.FromSeconds(1.0 / DesktopScreenTweaks.MaxRenderFps));
             var tanks = _world.TankList.Tanks;
+            // The terrain test runs no simulation: WASD pans the camera and only scripted commands advance.
+            Action updateView = _terrainTestMode ? UpdateTerrainTestCamera : () => UpdateMatchCamera(tanks);
+            Action<FrameInputSnapshot> advanceStep = _terrainTestMode
+                ? _ => AdvanceScriptClock()
+                : frameInput => AdvanceOneSimulationStep(tanks, frameInput);
 
             frameCoordinator.Run(
                 isRunning: () => _isRunning,
                 requestStop: () => _isRunning = false,
                 pollEvents: () => _renderer.PollEvents(HandleEvent),
-                isGameOver: () => _terrainTestMode ? false : _world.IsGameOver,
                 isPaused: () => _paused,
                 onPausedFrame: AdvancePausedFrame,
                 onBeforeSimulationBatch: () =>
                 {
-                    _terrainDirtyCells.Clear();
+                    _terrainAuxUploader.ClearDirtyCells();
                     _audio.SetPaused(_paused);
-                    if (_terrainTestMode)
-                        UpdateTerrainTestCamera();
-                    else
-                        UpdateViewStateForInput(tanks);
+                    updateView();
                 },
                 captureFrameInput: CaptureFrameInput,
-                advanceOneSimulationStep: frameInput =>
-                {
-                    if (_terrainTestMode)
-                    {
-                        _simulationStepper.ProcessScriptedCommands(_simFrameCounter);
-                        _simFrameCounter++;
-                    }
-                    else
-                        AdvanceOneSimulationStep(tanks, frameInput);
-                },
+                advanceOneSimulationStep: advanceStep,
                 composeFrame: () =>
                 {
-                    ProfileSection(ref _drawProfile.ObjectsDraw, () =>
+                    DrawProfile.Measure(ref _drawProfile.ObjectsDraw, () =>
                     {
                         _compositeRenderer.Compose(_world, _worldPixels, _compositePixels);
                         MarkEntityPixels(_worldPixels, _compositePixels);
@@ -260,22 +185,29 @@ public partial class Game : IDisposable
         }
     }
 
-    private void UpdateViewStateForInput(IReadOnlyList<Core.Entities.Tank> tanks)
+    /// <summary>A match draws its HUD panels beside the game view; the terrain test gives the view the whole window.</summary>
+    private bool ReservesUiViewport => _renderBackend.SupportsUi && !_terrainTestMode;
+
+    private Size EnsureViewSize()
     {
         var (winW, winH) = _renderer.GetWindowSize();
-        int scale = DesktopScreenTweaks.PixelScale;
-        var viewSize = _renderViewState.ComputeViewSize(winW, winH, _renderBackend.SupportsUi);
+        var viewSize = _renderViewState.ComputeViewSize(winW, winH, ReservesUiViewport);
         _renderViewState.EnsureHiResBuffer(viewSize);
+        return viewSize;
+    }
+
+    private void UpdateMatchCamera(IReadOnlyList<Core.Entities.Tank> tanks)
+    {
+        int scale = DesktopScreenTweaks.PixelScale;
+        var viewSize = EnsureViewSize();
         PositionF? player = tanks.Count > 0 ? new PositionF(tanks[0].Position.X, tanks[0].Position.Y) : null;
         _renderViewState.UpdateCamera(player, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
     private void UpdateTerrainTestCamera()
     {
-        var (winW, winH) = _renderer.GetWindowSize();
         int scale = DesktopScreenTweaks.PixelScale;
-        var viewSize = _renderViewState.ComputeViewSize(winW, winH, supportsUi: false);
-        _renderViewState.EnsureHiResBuffer(viewSize);
+        var viewSize = EnsureViewSize();
 
         // WASD panning: read keyboard state directly through the controller's held keys.
         const int panSpeed = 4;
@@ -292,7 +224,7 @@ public partial class Game : IDisposable
         var aimDir = ComputeAimDirection(tanks, frameInput);
         bool mouseShoot = IsMouseInViewport(frameInput, out _, out _) && frameInput.IsLeftMouseDown;
         _audio.BeforeStep(_world);
-        SimulationStepResult stepResult = _simulationStepper.AdvanceOneStep(
+        _simulationStepper.AdvanceOneStep(
             simFrame: _simFrameCounter,
             tanks: tanks,
             aimDirection: aimDir,
@@ -303,17 +235,10 @@ public partial class Game : IDisposable
 
         var changedCells = _world.Terrain.GetChangeList();
         _audio.AfterStep(_world, changedCells);
-        if (changedCells.Count > 0)
-        {
-            _terrainDirtyCells.AddRange(changedCells);
-            _terrainAuxBuilder.GrowthFade.ObserveChanges(_world.Terrain, changedCells, VisualTime);
-        }
+        _terrainAuxUploader.ObserveTerrainChanges(_world.Terrain, changedCells, VisualTime);
 
-        ProfileSection(ref _drawProfile.TerrainDraw,
+        DrawProfile.Measure(ref _drawProfile.TerrainDraw,
             () => _world.Terrain.DrawChangesToSurface(_worldPixels));
-
-        if (stepResult.IsGameOver)
-            _isRunning = false;
     }
 
     private void LoadHudSprites()
@@ -351,13 +276,6 @@ public partial class Game : IDisposable
             if (composite[i] != terrain[i])
                 composite[i] = RenderingPixels.MarkEntity(composite[i]);
         }
-    }
-
-    private static void ProfileSection(ref TimeSpan accumulator, Action action)
-    {
-        var w = Stopwatch.StartNew();
-        action();
-        accumulator += w.Elapsed;
     }
 
 }

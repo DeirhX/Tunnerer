@@ -1,6 +1,7 @@
 namespace Tunnerer.Core.Entities;
 
 using Tunnerer.Core.Config;
+using Tunnerer.Core.Types;
 
 /// <summary>What a base can spend its dirt store on (DESIGN.md §4.8).</summary>
 public enum BaseUpgrade
@@ -43,7 +44,7 @@ public sealed class BaseUpgrades
         Tweaks.Base.EngineMaxEfficiency + Level(BaseUpgrade.Engine) * Tweaks.Upgrades.EngineEfficiencyPerLevel;
 
     public double EngineTemperatureScale =>
-        Tweaks.Base.EngineTemperatureScale * Math.Pow(Tweaks.Upgrades.EngineScalePerLevel, Level(BaseUpgrade.Engine));
+        Tweaks.Base.EngineTemperatureScale * DeterministicMath.Pow(Tweaks.Upgrades.EngineScalePerLevel, (double)Level(BaseUpgrade.Engine));
 
     public float OffNetworkHeatFactor =>
         Math.Max(0.1f, 1f - Level(BaseUpgrade.Insulation) * Tweaks.Upgrades.InsulationPerLevel);

@@ -46,8 +46,8 @@ public readonly record struct VectorF(float X, float Y)
 
 public readonly record struct DirectionF(float X, float Y)
 {
-    public static DirectionF FromAngle(float radians) => new(MathF.Cos(radians), MathF.Sin(radians));
-    public float ToAngle() => MathF.Atan2(Y, X);
+    public static DirectionF FromAngle(float radians) => new(DeterministicMath.Cos(radians), DeterministicMath.Sin(radians));
+    public float ToAngle() => DeterministicMath.Atan2(Y, X);
     public VectorF ToVector(float speed) => new(X * speed, Y * speed);
 }
 

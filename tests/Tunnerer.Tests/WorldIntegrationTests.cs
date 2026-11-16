@@ -11,7 +11,7 @@ public class WorldIntegrationTests
 {
     private static readonly Size TestSize = new(320, 200);
 
-    private (World world, uint[] terrainPixels) SetupWorld()
+    private static (World world, uint[] terrainPixels) SetupWorld()
     {
         var world = TestHelpers.CreateSeededWorld(TestSize);
         var terrainPixels = new uint[TestSize.Area];
@@ -33,7 +33,7 @@ public class WorldIntegrationTests
         TestSimulation.AdvanceIdle(world, frames: 100);
 
         Assert.Equal(100, world.AdvanceCount);
-        Assert.False(world.IsGameOver);
+        Assert.False(world.IsMatchOver);
     }
 
     [Fact]

@@ -1,0 +1,81 @@
+namespace Tunnerer.Desktop.Rendering.Entities;
+
+using Tunnerer.Core;
+using Tunnerer.Core.Config;
+using Tunnerer.Core.Entities.Links;
+using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Types;
+
+/// <summary>
+/// What the player's carried machine would do if planted now, drawn from the player tank: the ground a relay would
+/// cool or a pylon would reach, and the link it would make. A carried harvester shows the ground it would sense.
+/// </summary>
+public sealed class PreviewQuads
+{
+    private readonly record struct PlacementPreview(bool Active, MachineType Type, LinkPreview Link, float SenseHeat);
+    private PlacementPreview _preview;
+
+    /// <summary>The player is tank 0: while it carries a machine, record where that machine would link or what it would sense.</summary>
+    public void Capture(World world)
+    {
+        _preview = default;
+        if (world.TankList.Count == 0)
+            return;
+        var player = world.TankList.Tanks[0];
+        if (player.IsDead || !player.IsCarryingMachine || player.CarriedMachineType is not MachineType type)
+            return;
+        var preview = world.PreviewPlacement(type, player.Position);
+        _preview = new PlacementPreview(true, type, preview.Link, preview.SenseHeat);
+    }
+
+    /// <summary>
+    /// The carried machine's preview, anchored on the (interpolated) <paramref name="player"/> tank: the reach area,
+    /// and a translucent energy stream to the network point it would link to (red past whatever blocks the line).
+    /// </summary>
+    public void Emit(EntityQuads quads, PositionF player)
+    {
+        if (!_preview.Active)
+            return;
+        float phase = quads.Phase;
+        float cx = quads.ScreenX(player.X);
+        float cy = quads.ScreenY(player.Y);
+
+        if (_preview.Type == MachineType.Harvester)
+        {
+            float r = Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f;
+            quads.Add(cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f,
+                EntityShape.KindSenseRing, _preview.SenseHeat, r, phase, 0f);
+            return;
+        }
+
+        bool pylon = _preview.Type == MachineType.Pylon;
+        float reach = pylon ? Tweaks.Machine.PylonRange : Tweaks.Machine.RelayCoolingRadius;
+        Color areaColor = pylon ? Tweaks.Colors.Pylon : Tweaks.Colors.Relay;
+        quads.Add(cx, cy, 1f, 0f, -reach - 6f, reach + 6f, -reach - 6f, reach + 6f, areaColor, EntityShape.KindReachArea,
+            reach, pylon ? 1f : 0f, phase, 0f);
+
+        var link = _preview.Link;
+        if (link.Status is LinkPreviewStatus.NoNetwork)
+            return;
+        float dx = link.Target.X - player.X, dy = link.Target.Y - player.Y;
+        float length = MathF.Sqrt(dx * dx + dy * dy);
+        if (length < 0.5f)
+            return;
+        float status = link.Status switch
+        {
+            LinkPreviewStatus.Live => 0f,
+            LinkPreviewStatus.Blocked => 1f,
+            _ => 2f,
+        };
+        float blockedAt = length;
+        if (link.Status == LinkPreviewStatus.Blocked)
+        {
+            float bx = link.BlockedAt.X - player.X, by = link.BlockedAt.Y - player.Y;
+            blockedAt = MathF.Sqrt(bx * bx + by * by);
+        }
+        // Too far: only a short fading feeler toward the network, not a full line across the map.
+        float drawn = link.Status == LinkPreviewStatus.TooFar ? MathF.Min(length, 24f) : length;
+        quads.Add(cx, cy, dx / length, dy / length, -1.5f, drawn + 1.5f, -3f, 3f,
+            EntityShape.KindPreviewBeam, drawn, status, phase, blockedAt);
+    }
+}

@@ -1,6 +1,7 @@
 namespace Tunnerer.Tests;
 
 using Tunnerer.Core;
+using Tunnerer.Core.Entities;
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
@@ -29,6 +30,13 @@ internal static class TestHelpers
             frostRockPocketCount: frostRockPocketCount);
         world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;
+    }
+
+    /// <summary><see cref="CreateSeededWorld"/> plus the world's first tank.</summary>
+    public static (World world, Tank tank) CreateSeededWorldWithTank(int seed = DefaultSeed, bool enableTerrainRegrowth = true)
+    {
+        var world = CreateSeededWorld(seed: seed, enableTerrainRegrowth: enableTerrainRegrowth);
+        return (world, world.TankList.Tanks[0]);
     }
 
     public static double CountDirtPercentage(TerrainGrid terrain, Size size)
