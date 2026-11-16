@@ -132,7 +132,7 @@ public partial class GameHud
     {
         var dl = ImGui.GetForegroundDrawList();
         var cam = Camera;
-        // The camera is in window pixels; the view rectangle is in UI units.
+        // The camera is in device pixels; the view rectangle is in UI units.
         float sx = vp.x + ToUi((target.X + 0.5f) * cam.Scale - cam.X);
         float sy = vp.y + ToUi((target.Y + 0.5f) * cam.Scale - cam.Y);
         float viewBottom = ViewBottom(vp);
@@ -166,7 +166,7 @@ public partial class GameHud
         var head = at + dir * 18f;
         dl.AddTriangleFilled(head, at - dir * 6f + side * 14f, at - dir * 6f - side * 14f, (uint)(0xB0 + 0x4F * pulse) << 24 | (HudTheme.Amber & 0x00FFFFFFu));
         dl.AddTriangle(head, at - dir * 6f + side * 14f, at - dir * 6f - side * 14f, HudTheme.BronzeDark, 1.5f);
-        int cells = (int)MathF.Round(len * ImGuiPlatform.UiScale / MathF.Max(1, cam.Scale));
+        int cells = (int)MathF.Round(len * ImGuiPlatform.DeviceScale / MathF.Max(1, cam.Scale));
         HudTheme.DrawTag(dl, at - dir * 40f, $"{cells} m", HudTheme.Amber);
     }
 }

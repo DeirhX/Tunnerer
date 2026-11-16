@@ -23,8 +23,8 @@ public partial class Game
             ? Math.Clamp((float)_renderClock.Elapsed.TotalSeconds, 0.001f, 0.1f)
             : 1f / Tweaks.Perf.TargetFps;
         _renderClock.Restart();
-        int scale = DesktopScreenTweaks.PixelScale;
         var viewSize = EnsureViewSize();
+        int scale = _renderViewState.CellPixels;
 
         var player = tanks.Count > 0 ? tanks[0] : null;
         ReadOnlySpan<PositionF> drawnTankPositions = _entityLayer.InterpolateTankPositions(stepProgress);
@@ -121,7 +121,7 @@ public partial class Game
                     ? (mouseX, mouseY)
                     : null;
 
-                _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, DesktopScreenTweaks.PixelScale);
+                _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, _renderViewState.CellPixels);
                 var gameTextureSize = _renderBackend.GameTextureSize;
                 DrawProfile.Measure(ref _drawProfile.ScreenHudDraw, () =>
                     _hud.Draw(

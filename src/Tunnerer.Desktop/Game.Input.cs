@@ -168,7 +168,7 @@ public partial class Game
         if (!IsMouseInViewport(frameInput, out float relX, out float relY))
             return null;
 
-        int scale = DesktopScreenTweaks.PixelScale;
+        int scale = _renderViewState.CellPixels;
         float aimWorldX = (_renderViewState.CamPixelX + relX) / scale;
         float aimWorldY = (_renderViewState.CamPixelY + relY) / scale;
 
@@ -182,12 +182,15 @@ public partial class Game
     private bool IsMouseInViewport(in FrameInputSnapshot frameInput, out float relX, out float relY)
     {
         relX = 0; relY = 0;
+        // The play area stops above the HUD strip, which is drawn over the bottom of the view.
         float vpW = _renderViewState.HiResSize.X;
-        float vpH = _renderViewState.HiResSize.Y;
+        float vpH = _renderViewState.PlayAreaHeight;
         if (vpW <= 0 || vpH <= 0) return false;
 
-        relX = frameInput.MouseX;
-        relY = frameInput.MouseY;
+        // The mouse is in points; the view is in device pixels.
+        float density = _renderViewState.PixelDensity;
+        relX = frameInput.MouseX * density;
+        relY = frameInput.MouseY * density;
         if (relX < 0 || relY < 0 || relX >= vpW || relY >= vpH)
             return false;
 

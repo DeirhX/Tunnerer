@@ -30,8 +30,11 @@ public partial class GameHud
     public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel) =>
         _strip.Init(heatIcon, shieldIcon, panelFrame, buildPanel);
 
-    /// <summary>Window pixel (the mouse, the game texture, the camera) to UI units (see <see cref="ImGuiPlatform.UiScale"/>).</summary>
-    private static float ToUi(float windowPixels) => windowPixels / ImGuiPlatform.UiScale;
+    /// <summary>
+    /// Device pixel (the game texture, the camera, the mouse over the view) to UI units. A UI unit is
+    /// <see cref="ImGuiPlatform.DeviceScale"/> device pixels, so the game texture is drawn 1:1 with no resampling.
+    /// </summary>
+    private static float ToUi(float devicePixels) => devicePixels / ImGuiPlatform.DeviceScale;
 
     public void Draw(
         nint gameTextureId,

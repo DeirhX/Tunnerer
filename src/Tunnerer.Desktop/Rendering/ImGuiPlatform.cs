@@ -9,7 +9,10 @@ using ImGuiNET;
 /// </summary>
 public static class ImGuiPlatform
 {
-    public static void CreateContext(int windowW, int windowH)
+    /// <param name="windowW">Window width in points.</param>
+    /// <param name="windowH">Window height in points.</param>
+    /// <param name="pixelDensity">Device pixels per point (2 on Retina).</param>
+    public static void CreateContext(int windowW, int windowH, float pixelDensity)
     {
         var imguiContext = ImGui.CreateContext();
         ImGui.SetCurrentContext(imguiContext);
@@ -18,7 +21,7 @@ public static class ImGuiPlatform
         io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard;
         io.BackendFlags |= ImGuiBackendFlags.HasMouseCursors;
         io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
-        ApplyUiScale(io, windowW, windowH);
+        ApplyUiScale(io, windowW, windowH, pixelDensity);
 
         ImGui.StyleColorsDark();
         LoadUiFont(io);
@@ -29,20 +32,35 @@ public static class ImGuiPlatform
     private const float ReferenceWidth = 1920f;
 
     /// <summary>
-    /// Window pixels per UI unit: 1 up to 1920×1080, in proportion above it (2 at 4K). The whole UI is laid out in
-    /// UI units (<c>DisplaySize</c> is the window divided by this) and drawn scaled up, so every panel, text and
-    /// menu keeps its size relative to the screen.
+    /// Window points per UI unit: 1 up to 1920×1080, in proportion above it (2 at 4K). The whole UI is laid out in
+    /// UI units (<c>DisplaySize</c> is the window in points divided by this) and drawn scaled up, so every panel, text
+    /// and menu keeps its size relative to the screen.
     /// </summary>
     public static float UiScale { get; private set; } = 1f;
 
+    /// <summary>
+    /// Device pixels per point: 2 on a Retina display, 1 on a standard one. The UI is drawn at this density, so text and
+    /// art land on device pixels instead of being stretched by the OS.
+    /// </summary>
+    public static float PixelDensity { get; private set; } = 1f;
+
+    /// <summary>
+    /// Device pixels per UI unit. The game view and everything measured in it (camera, cells, the game texture) is in
+    /// device pixels; divide by this to get UI units.
+    /// </summary>
+    public static float DeviceScale => UiScale * PixelDensity;
+
+    /// <param name="windowW">Window width in points.</param>
+    /// <param name="windowH">Window height in points.</param>
     public static float ComputeUiScale(int windowW, int windowH) =>
         MathF.Max(1f, MathF.Min(windowH / ReferenceHeight, windowW / ReferenceWidth));
 
-    private static void ApplyUiScale(ImGuiIOPtr io, int windowW, int windowH)
+    private static void ApplyUiScale(ImGuiIOPtr io, int windowW, int windowH, float pixelDensity)
     {
         UiScale = ComputeUiScale(windowW, windowH);
+        PixelDensity = pixelDensity > 0f ? pixelDensity : 1f;
         io.DisplaySize = new Vector2(windowW, windowH) / UiScale;
-        io.DisplayFramebufferScale = new Vector2(UiScale);
+        io.DisplayFramebufferScale = new Vector2(DeviceScale);
     }
 
     /// <summary>
@@ -143,10 +161,13 @@ public static class ImGuiPlatform
         }
     }
 
-    public static void NewFrame(int windowW, int windowH, float deltaTime)
+    /// <param name="windowW">Window width in points.</param>
+    /// <param name="windowH">Window height in points.</param>
+    /// <param name="pixelDensity">Device pixels per point (2 on Retina).</param>
+    public static void NewFrame(int windowW, int windowH, float pixelDensity, float deltaTime)
     {
         var io = ImGui.GetIO();
-        ApplyUiScale(io, windowW, windowH);
+        ApplyUiScale(io, windowW, windowH, pixelDensity);
         io.DeltaTime = deltaTime > 0 ? deltaTime : 1f / 60f;
         ImGui.NewFrame();
     }

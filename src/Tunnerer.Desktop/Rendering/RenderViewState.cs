@@ -9,18 +9,50 @@ public sealed class RenderViewState
     private int _nativeOverBudgetFrames;
     private int _nativeUnderBudgetFrames;
 
+    /// <summary>Size of the game view in device pixels.</summary>
     public Size HiResSize { get; private set; }
+    /// <summary>Camera position of the view's top-left corner, in device pixels.</summary>
     public int CamPixelX { get; private set; }
     public int CamPixelY { get; private set; }
     public Rect LastAuxViewport { get; private set; }
     public int NativeContinuousSampleCount { get; private set; } = DesktopScreenTweaks.NativeContinuousSampleHigh;
 
-    public Size ComputeViewSize(int windowW, int windowH, bool supportsUi)
+    /// <summary>Device pixels per point of the window: 2 on Retina, 1 on a standard display.</summary>
+    public float PixelDensity { get; private set; } = 1f;
+
+    /// <summary>
+    /// Device pixels per terrain cell. The design is <see cref="DesktopScreenTweaks.PixelScale"/> points per cell; on a
+    /// denser display that is scaled and rounded to whole pixels, so each cell is an exact block and nothing is resampled.
+    /// </summary>
+    public int CellPixels { get; private set; } = DesktopScreenTweaks.PixelScale;
+
+    /// <summary>Takes the window's pixel density for this frame; call before sizing the view or the camera.</summary>
+    public void SetPixelDensity(float pixelDensity)
     {
-        int viewportHeight = supportsUi
-            ? Math.Max(1, windowH - HudLayout.BottomPanelHeight(windowW, windowH))
-            : Math.Max(1, windowH);
-        return new Size(Math.Max(1, windowW), viewportHeight);
+        PixelDensity = pixelDensity > 0f ? pixelDensity : 1f;
+        CellPixels = Math.Max(1, (int)MathF.Round(DesktopScreenTweaks.PixelScale * PixelDensity));
+    }
+
+    /// <summary>
+    /// Height in device pixels of the play area: the part of the view above the HUD strip. The map is drawn behind the
+    /// whole window, but aiming and clicks stop at this line, so the HUD does not fire.
+    /// </summary>
+    public int PlayAreaHeight { get; private set; }
+
+    /// <summary>
+    /// The game view in device pixels: the whole window. The HUD strip is drawn over its bottom edge, so the map
+    /// shows through wherever the strip's art is see-through.
+    /// </summary>
+    /// <param name="windowPixels">Window size in device pixels.</param>
+    /// <param name="windowPoints">Window size in points.</param>
+    /// <param name="supportsUi">Whether the HUD strip is shown, which sets the play area's bottom edge.</param>
+    public Size ComputeViewSize(Size windowPixels, Size windowPoints, bool supportsUi)
+    {
+        int hudPixels = supportsUi
+            ? (int)MathF.Round(HudLayout.BottomPanelHeight(windowPoints.X, windowPoints.Y, PixelDensity) * PixelDensity)
+            : 0;
+        PlayAreaHeight = Math.Max(1, windowPixels.Y - hudPixels);
+        return new Size(Math.Max(1, windowPixels.X), Math.Max(1, windowPixels.Y));
     }
 
     public void EnsureHiResBuffer(Size size)

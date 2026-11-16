@@ -37,23 +37,45 @@ public sealed class HudLayout
     public static float HudScale(float displayW, float displayH) =>
         MathF.Min(displayW / StripW, MathF.Max(1f, displayH / ReferenceDisplayHeight));
 
-    /// <summary>Window pixels at the bottom of the window covered by the HUD; the game view is drawn above them.</summary>
-    public static int BottomPanelHeight(int windowW, int windowH)
+    /// <summary>
+    /// Screen pixels per art pixel, in UI units. On a high-density display this is snapped to a whole number of device
+    /// pixels, so the art is drawn 1:1 with no resampling blur. Displays at 1x keep the fractional scale.
+    /// </summary>
+    /// <param name="uiScale">Points per UI unit.</param>
+    /// <param name="pixelDensity">Device pixels per point.</param>
+    public static float ArtScale(float displayW, float displayH, float uiScale, float pixelDensity)
+    {
+        float scale = HudScale(displayW, displayH);
+        if (pixelDensity <= 1f)
+            return scale;
+
+        float devicePerUnit = uiScale * pixelDensity;
+        float devicePerArtPixel = MathF.Max(1f, MathF.Floor(scale * devicePerUnit));
+        return devicePerArtPixel / devicePerUnit;
+    }
+
+    /// <summary>Points at the bottom of the window covered by the HUD; the game view is drawn above them.</summary>
+    /// <param name="windowW">Window width in points.</param>
+    /// <param name="windowH">Window height in points.</param>
+    /// <param name="pixelDensity">Device pixels per point.</param>
+    public static int BottomPanelHeight(int windowW, int windowH, float pixelDensity)
     {
         float ui = ImGuiPlatform.ComputeUiScale(windowW, windowH);
-        return (int)MathF.Ceiling(StripH * HudScale(windowW / ui, windowH / ui) * ui);
+        float scale = ArtScale(windowW / ui, windowH / ui, ui, pixelDensity);
+        return (int)MathF.Ceiling(StripH * scale * ui);
     }
 
     /// <summary>Centres the strip at the bottom of a display of this size (in UI units).</summary>
     public void Update(Vector2 displaySize)
     {
-        Scale = HudScale(displaySize.X, displaySize.Y);
-        float stripScreenW = StripW * Scale;
         float ui = ImGuiPlatform.UiScale;
+        float density = ImGuiPlatform.PixelDensity;
+        Scale = ArtScale(displaySize.X, displaySize.Y, ui, density);
+        float stripScreenW = StripW * Scale;
         int windowW = (int)MathF.Round(displaySize.X * ui), windowH = (int)MathF.Round(displaySize.Y * ui);
         Origin = new Vector2(
             MathF.Floor((displaySize.X - stripScreenW) * 0.5f),
-            displaySize.Y - BottomPanelHeight(windowW, windowH) / ui);
+            displaySize.Y - BottomPanelHeight(windowW, windowH, density) / ui);
     }
 
     /// <summary>Art pixel to screen position, for the HUD drawn at the current scale.</summary>

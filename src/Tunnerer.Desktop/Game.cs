@@ -188,26 +188,33 @@ public partial class Game : IDisposable
     /// <summary>A match draws its HUD panels beside the game view; the terrain test gives the view the whole window.</summary>
     private bool ReservesUiViewport => _renderBackend.SupportsUi && !_terrainTestMode;
 
+    /// <summary>
+    /// Sizes the game view for this frame, in device pixels, and takes the display's pixel density. Call it before
+    /// reading <see cref="RenderViewState.CellPixels"/>.
+    /// </summary>
     private Size EnsureViewSize()
     {
-        var (winW, winH) = _renderer.GetWindowSize();
-        var viewSize = _renderViewState.ComputeViewSize(winW, winH, ReservesUiViewport);
+        _renderViewState.SetPixelDensity(_renderer.PixelDensity);
+        var (pointsW, pointsH) = _renderer.GetWindowSize();
+        var (pixelsW, pixelsH) = _renderer.GetWindowSizeInPixels();
+        var viewSize = _renderViewState.ComputeViewSize(
+            new Size(pixelsW, pixelsH), new Size(pointsW, pointsH), ReservesUiViewport);
         _renderViewState.EnsureHiResBuffer(viewSize);
         return viewSize;
     }
 
     private void UpdateMatchCamera(IReadOnlyList<Core.Entities.Tank> tanks)
     {
-        int scale = DesktopScreenTweaks.PixelScale;
         var viewSize = EnsureViewSize();
+        int scale = _renderViewState.CellPixels;
         PositionF? player = tanks.Count > 0 ? new PositionF(tanks[0].Position.X, tanks[0].Position.Y) : null;
         _renderViewState.UpdateCamera(player, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
     private void UpdateTerrainTestCamera()
     {
-        int scale = DesktopScreenTweaks.PixelScale;
         var viewSize = EnsureViewSize();
+        int scale = _renderViewState.CellPixels;
 
         // WASD panning: read keyboard state directly through the controller's held keys.
         const int panSpeed = 4;

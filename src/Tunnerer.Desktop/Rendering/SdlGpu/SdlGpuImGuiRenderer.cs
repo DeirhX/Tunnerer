@@ -36,11 +36,12 @@ internal sealed unsafe class SdlGpuImGuiRenderer : IDisposable
         public Vector4 State;
     }
 
-    public SdlGpuImGuiRenderer(SdlGpuBackend backend, SDL.GPUTextureFormat targetFormat, int windowW, int windowH)
+    public SdlGpuImGuiRenderer(
+        SdlGpuBackend backend, SDL.GPUTextureFormat targetFormat, int windowW, int windowH, float pixelDensity)
     {
         _backend = backend;
         _device = backend.Device;
-        ImGuiPlatform.CreateContext(windowW, windowH);
+        ImGuiPlatform.CreateContext(windowW, windowH, pixelDensity);
 
         // Must match ImDrawVert and VSIn in ImGuiVs.hlsl.
         SDL.GPUVertexBufferDescription[] buffers =

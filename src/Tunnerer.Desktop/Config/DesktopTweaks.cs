@@ -177,6 +177,7 @@ public static class DesktopScreenTweaks
 {
     public static readonly Size WindowSize = new(1920, 1080);
     public static readonly Size RenderSurfaceSize = new(320, 200);
+    /// <summary>Terrain cell size in points, at a standard (1x) display. <c>RenderViewState.CellPixels</c> scales it to device pixels.</summary>
     public const int PixelScale = 6;
     public const int NativeContinuousSampleLow = 1;
     public const int NativeContinuousSampleMedium = 2;
