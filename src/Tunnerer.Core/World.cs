@@ -249,6 +249,8 @@ public class World
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
+        foreach (var tank in _tankList.Tanks)
+            tank.ObserveBaseExit(_tankBases);
 
         Profile.Total += frameWatch.Elapsed;
         Profile.FrameCount++;
@@ -274,6 +276,20 @@ public class World
             ? new MachinePlacementPreview(_linkMap.PreviewLink(at, _terrain), 0f)
             : new MachinePlacementPreview(default,
                 MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)));
+
+    /// <summary>True when <paramref name="at"/> lies inside any base, the tank's own or another.</summary>
+    public bool IsInsideAnyBase(Position at) => _tankBases.CheckBaseCollision(at) != null;
+
+    /// <summary>
+    /// Where the machine <paramref name="tank"/> carries would link if planted where it stands. A machine that needs
+    /// no link, an empty hand, or a tank inside a base (where nothing plants) reports
+    /// <see cref="LinkPreviewStatus.NoNetwork"/>.
+    /// </summary>
+    public LinkPreviewStatus CarriedPlantLink(Tank tank) =>
+        tank.CarriedMachineType is MachineType type && !IsInsideAnyBase(tank.Position) &&
+        MachineBehaviors.Get(type).RequiresLinkToPlant
+            ? PreviewPlacement(type, tank.Position).Link.Status
+            : LinkPreviewStatus.NoNetwork;
 
     /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
     public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines);

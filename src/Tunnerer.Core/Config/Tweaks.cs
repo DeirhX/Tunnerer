@@ -143,6 +143,13 @@ public static class Tweaks
         public const float ChargeCapacity = 1_000_000f;
         // Enough to run the first harvester and pylon before any engine output.
         public const float InitialCharge = 300_000f;
+
+        // Base status (TankBase.ChargeLevel, NetworkStatus.HeatStoreLevel, TankBase.RadiatorLoadLevel), as fractions.
+        public const float ChargeWarnFill = 0.3f;           // Warn below, Bad below ChargeLowFill
+        public const float ChargeLowFill = 0.1f;
+        public const float HeatStoreWarnFill = 0.6f;        // Warn from here, Bad (full) from HeatStoreFullFill
+        public const float HeatStoreFullFill = 0.9f;
+        public const float RadiatorWarnLoad = 0.8f;         // Warn from here; Bad past 1, when the store fills
     }
 
     public static class Tank
@@ -194,6 +201,19 @@ public static class Tweaks
         // (HeatSafeMax + CoolantCapacity) / OffNetworkHeatPerSecond = 150 s; digging near the end shortens it.
         public const float OffNetworkHeatPerSecond = 1.0f;
         public const float NetworkCoolingPerSecond = 6.0f;
+
+        // Player status (Tank.IsRunningHot, IsShieldLow, ShieldLevel, ...). Warnings latch: on past the first
+        // threshold, off again only past the gentler second one, so they do not flicker around it.
+        public const float RunningHotOnFraction = 0.80f;    // of HeatSafeMax
+        public const float RunningHotOffFraction = 0.70f;
+        public const float ShieldLowOnFraction = 0.25f;     // of the shield's capacity
+        public const float ShieldLowOffFraction = 0.30f;
+        public const float ShieldWarnFraction = 0.5f;       // ShieldLevel: Ok above this, Bad at or below ShieldLowOnFraction
+        public const float OffNetworkUrgentSeconds = 20f;   // off network, this close to overheating is urgent
+        // Heat a tank must still shed before it counts as fully pre-cooled (Tank.IsCoolingDown).
+        public const float FullyCooledMargin = 1f;
+        // The heat gauge runs from a full coolant charge to this multiple of HeatSafeMax.
+        public const float HeatGaugeOverheatMargin = 1.25f;
     }
 
     /// <summary>Network coverage: the ground the base and its powered relays and pylons cool for their tanks.</summary>
