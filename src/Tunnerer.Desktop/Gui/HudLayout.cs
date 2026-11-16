@@ -50,10 +50,15 @@ public sealed class HudLayout
     /// <summary>
     /// How much the HUD art is enlarged, in UI units (<see cref="ImGuiPlatform.UiScale"/> does the rest): 1 up to a
     /// 1080-unit-high display, in proportion above it, and shrunk only when the display is too narrow for both parts
-    /// and the <see cref="MinCenterGap"/> between them.
+    /// and the <see cref="MinCenterGap"/> between them. A display narrower than twice that gap gives half its width to
+    /// the gap, so the scale stays positive however narrow the window is.
     /// </summary>
-    public static float HudScale(float displayW, float displayH) =>
-        MathF.Min((displayW - MinCenterGap) / (LeftW + RightW), MathF.Max(1f, displayH / ReferenceDisplayHeight));
+    public static float HudScale(float displayW, float displayH)
+    {
+        float gap = MathF.Min(MinCenterGap, displayW * 0.5f);
+        float fitWidth = MathF.Max(0f, displayW - gap) / (LeftW + RightW);
+        return MathF.Min(fitWidth, MathF.Max(1f, displayH / ReferenceDisplayHeight));
+    }
 
     /// <summary>
     /// Screen pixels per art pixel, in UI units. On a high-density display this is snapped down to a whole number of

@@ -171,6 +171,18 @@ public class HudLogicTests
     }
 
     [Theory]
+    [InlineData(800)]
+    [InlineData(404)]
+    [InlineData(320)]
+    [InlineData(1)]
+    public void HudScale_StaysPositiveOnVeryNarrowDisplays_HalfTheWidthBeingTheGap(int w)
+    {
+        float scale = HudLayout.HudScale(w, 1080);
+        Assert.True(scale > 0f);
+        Assert.Equal(w * 0.5f, (HudLayout.LeftW + HudLayout.RightW) * scale, 3);
+    }
+
+    [Theory]
     [InlineData(10f, 1070f, true)]     // bottom-left: TEMP
     [InlineData(1910f, 1070f, true)]   // bottom-right: BUILD STRUCTURES
     [InlineData(960f, 1070f, false)]   // the gap in the middle is view

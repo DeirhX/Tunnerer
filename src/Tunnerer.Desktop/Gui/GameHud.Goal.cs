@@ -15,7 +15,7 @@ public partial class GameHud
 
     // The upgrade panel's margin from the HUD parts and the bottom edge, and its widest. The HUD always leaves a gap of
     // at least HudLayout.MinCenterGap, so the panel is at least that less the margins wide.
-    private const float UpgradePanelMargin = 12f, UpgradePanelMaxW = 460f;
+    private const float UpgradePanelMargin = 12f, UpgradePanelMinW = 300f, UpgradePanelMaxW = 460f;
 
     /// <summary>
     /// The upgrade list while the tank is docked at its own base, at the bottom of the screen in the gap between the
@@ -27,7 +27,8 @@ public partial class GameHud
             return;
 
         var (gapMinX, gapMaxX) = _strip.Gap;
-        float width = MathF.Min(gapMaxX - gapMinX - 2f * UpgradePanelMargin, UpgradePanelMaxW);
+        // On a display too narrow for the gap the panel keeps a readable width and overlaps the HUD parts.
+        float width = Math.Clamp(gapMaxX - gapMinX - 2f * UpgradePanelMargin, UpgradePanelMinW, UpgradePanelMaxW);
         var anchor = new Vector2(MathF.Floor((gapMinX + gapMaxX) * 0.5f), ImGui.GetIO().DisplaySize.Y - UpgradePanelMargin);
         if (HudTheme.BeginWindow("##Upgrades", anchor, new Vector2(0.5f, 1f), width))
         {
