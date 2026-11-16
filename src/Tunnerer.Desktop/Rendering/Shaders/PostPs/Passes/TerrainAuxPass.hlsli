@@ -12,7 +12,8 @@
 //      interpolated material codes. Stone/dirt edges get a contact shadow and
 //      bevel. The result is composited over the cave by the shared cave/solid
 //      edge (Common/TerrainEdge.hlsli), with a rim light on the solid side and
-//      a contact shadow on the cave side. The tank base (wall, floor, door) is
+//      a contact shadow on the cave side; the cave itself gets the tunnel
+//      floor (Materials/TunnelFloorMaterial.hlsli). The tank base (wall, floor, door) is
 //      drawn pixel-exact from the nearest cell's exact code.
 //   2. Heat & scorch glow — auxTex.r (heat) and auxTex.a (scorch) drive
 //      emissive overlays with multi-scale thermal blur.
@@ -367,6 +368,22 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         // Each material is evaluated in full and blended by mask weight, then
         // the result replaces the scene colour on the solid side of the edge.
         float3 lightDir = normalize(float3(LightDir.xy, max(0.35, LightDir.z)));
+
+        // ---- Tunnel floor on the cave side of the edge ---------------------
+        // TerrainPs drew the cave flat; replace it with the floor material plus
+        // a contact shadow just outside the edge. The contact shadow fades on
+        // hot ground, where a dark rim would outline every island against the heat glow.
+        float3 floorColor = color;
+        if (natural > 0.0 && edge.coverage < 0.999)
+        {
+            // Keep whatever the vignette did to the flat cave colour.
+            float vignetteGain = saturate(dot(color, kLumaWeights) / dot(kTerrainCaveColor, kLumaWeights));
+            float hotGround = saturate((a0.r - kHeatZero) * 6.0);
+            float caveShadow = 1.0 - smoothstep(-1.0, 0.0, edge.distCells) * TerrainMaskCaveDarken * 4.0 * (1.0 - hotGround);
+            floorColor = TunnelFloorColor(worldCell) * saturate(caveShadow) * vignetteGain;
+            color = lerp(color, floorColor, natural * (1.0 - edge.coverage));
+        }
+
         if (naturalTotal > 0.001 && natural > 0.0)
         {
             float3 blended = float3(0.0, 0.0, 0.0);
@@ -400,13 +417,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             float rimLift = terrainAuxOnlyMode ? 0.0 : TerrainMaskRimLift;
             materialColor += rim * (solidLift + rimLift * saturate(0.5 + 0.5 * facing));
 
-            // Contact shadow on the cave floor just outside the edge.
-            // Faded out on hot ground, where a dark rim would outline every island against the heat glow.
-            float hotGround = saturate((a0.r - kHeatZero) * 6.0);
-            float caveShadow = 1.0 - smoothstep(-1.0, 0.0, edge.distCells) * TerrainMaskCaveDarken * 4.0 * (1.0 - hotGround);
-            float3 caveColor = kTerrainCaveColor * saturate(caveShadow);
-
-            color = lerp(color, lerp(caveColor, materialColor, edge.coverage), natural * saturate(naturalTotal));
+            color = lerp(color, lerp(floorColor, materialColor, edge.coverage), natural * saturate(naturalTotal));
         }
 
         // Gold is a pickup the tank drives through, so it stays visible whatever
