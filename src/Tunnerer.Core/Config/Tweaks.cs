@@ -9,7 +9,6 @@ public static class Tweaks
     public static class System
     {
         public const string WindowTitle = "Tunnerer";
-        public const string Version = "0.1 alpha";
     }
 
     public static class Perf
@@ -17,7 +16,6 @@ public static class Tweaks
         public const int TargetFps = 24;
         public const int SectorSize = 64;
         public const int ProjectileCompactThreshold = 5000;
-        public static int ParallelismDegree => Math.Max(1, Environment.ProcessorCount);
     }
 
     public static class World
@@ -29,7 +27,6 @@ public static class Tweaks
         public const int DirtRegrowSpeed = 4;
         public const int DirtRegrowBlankModifier = 4;
         public const int DirtRegrowScorchedModifier = 1;
-        public const int DecalDecaySpeed = 40;
         public const int DecalIntensityDecay = 3;
         public const int DigThroughRockChance = 250;
         public static readonly TimeSpan RefreshLinkMapInterval = TimeSpan.FromMilliseconds(200);
@@ -83,11 +80,6 @@ public static class Tweaks
         public const int HotRockMinDistanceFromBase = 60;
         public const int HotRockMinDistanceBetween = 50;
         public const int HotRockPrewarmTicks = 240;
-        public const float ThermalKAmbientAir = 0.0120f;
-        public const float ThermalKAmbientDirt = 0.0120f;
-        public const float ThermalKAmbientStone = 0.0100f;
-        public const float ThermalKAmbientBase = 0.0000f;
-        public const float ThermalKAmbientConstantEnergy = 0.0000f;
         public const int ThermalActiveTileSize = 32;
         public const float ThermalSparseFallbackCoverage = 0.45f;
         public const int ThermalParallelRegionThreshold = 4;
@@ -160,20 +152,15 @@ public static class Tweaks
         public const int ResourceMineralsCapacity = 10000;
         public const int IdleHeatGain = 0;
         public const int MoveHeatGain = 0;
-        public const float ShootHeatGain = 2.0f;
         public const int CoolingPickupGold = 14;
 
         public const float HeatMax = 100f;
         public const float HeatDigPerPixel = 0.008f;
         public const float HeatShootPerShot = 0.25f;
-        public const float HeatTerrainAbsorb = 0.004f;
-        public const float HeatCoolPerFrame = 0.12f;
         public const float HeatBaseCoolBonus = 0.20f;
-        public const float HeatColdCoolingBoost = 0.60f;
         public const int TorchTerrainHeatAmount = 8;
         public const int TorchRockHeatAmount = 14;
         public const int TorchRockHeatRadius = 3;
-        public const float HeatAmbientOutsideBase = 0f;
         public const float TankHeatCapacity = 20f;
         // Pre-cooling: a tank docked at its own base is refrigerated below ambient, down to -CoolantCapacity heat,
         // at DockCoolingPerTick heat units per tick. The tank can then absorb CoolantCapacity more heat than
@@ -183,7 +170,6 @@ public static class Tweaks
         public const float DockCoolingPerTick = 1.0f;
         public const float TankTerrainConductance = 2.0f;
         public const float TankAmbientConductance = 0.2f;
-        public const float TankBaseConductance = 0.4f;
         public const float HeatSafeMax = 100f;
         public const float OverheatDamagePerDegree = 0.5f;
 
@@ -257,7 +243,6 @@ public static class Tweaks
 
     public static class Explosion
     {
-        public const float MadnessLevel = 1f;
         public const int ChanceToDestroyConcrete = 50;
         public const int ChanceToDestroyRock = 50;
         public const float SpeedVarianceBase = 0.1f;
