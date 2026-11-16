@@ -15,14 +15,26 @@ using static Tunnerer.Desktop.Gui.HudLayout;
 /// </summary>
 public sealed class HudStrip
 {
-    // The readout numbers' green, and the height of the line they sit in (art pixels).
+    // The readout numbers' green and size (art pixels), and the bars' height and gap from the plate's bottom edge.
     private const uint ReadoutColor = 0xFFAAFACDu;
-    private const float ReadoutLineH = 20f;
+    private const float ReadoutSize = 22f;
+    private const float BarH = 3f, BarInset = 1.5f;
 
-    // Centre of each plate, in art pixels. The panel's title and its readout both centre on it, so they line up.
-    private const float TempCenterX = HeatX + 168f;
-    private const float ShieldCenterX = ShieldX + 80f;
-    private const float MaterialsCenterX = MaterialsX + 120f;
+    /// <summary>
+    /// A panel's plates, measured on the art (art pixels): the centre both lines share, the title plate's centre, the
+    /// readout plate's top and bottom edges, and the span of the bar along the readout plate's bottom.
+    /// </summary>
+    private readonly record struct Plate(float CenterX, float TitleY, float ReadoutTop, float ReadoutBottom, float BarX0, float BarX1)
+    {
+        public float BarY => ReadoutBottom - BarInset - BarH;
+
+        /// <summary>The readout's centre: the middle of the plate above the bar.</summary>
+        public float ReadoutY => (ReadoutTop + BarY) * 0.5f;
+    }
+
+    private static readonly Plate TempPlate = new(HeatX + 170f, 151.5f, 168f, 190f, HeatX + 112f, HeatX + 228f);
+    private static readonly Plate ShieldPlate = new(ShieldX + 80.5f, 153.5f, 169f, 191f, ShieldX + 25.5f, ShieldX + 135.5f);
+    private static readonly Plate MaterialsPlate = new(MaterialsX + 120f, 154f, 174f, 194f, MaterialsX + 55f, MaterialsX + 185f);
 
     private readonly HudLayout _layout = new();
     private readonly HeatGauge _heat;
@@ -77,22 +89,17 @@ public sealed class HudStrip
 
         // TEMP: the tank's temperature in degrees above ambient. Digging and firing heat it; past the safe maximum
         // the heat burns the shield. A tank docked at its own base is pre-cooled below ambient (negative degrees).
-        const float plateX = HeatX + 105f;
-        const float plateW = 130f;
-        const float plateY = 168f;
         int degrees = player.IsDead ? 0 : (int)MathF.Round(player.Heat);
-        DrawNumberCentered(dl, degrees, TempCenterX, plateY, degreeSign: true);
-        _heat.DrawTrend(dl, player, plateX + plateW - 14f, plateY + 10f);
+        DrawReadout(dl, TempPlate, degrees.ToString(System.Globalization.CultureInfo.InvariantCulture) + "°");
+        _heat.DrawTrend(dl, player, TempPlate.BarX1 - 7f, TempPlate.ReadoutY);
         if (!player.IsDead)
-            _heat.DrawBar(dl, player, plateX + 8f, 192f, plateW - 16f, time);
+            _heat.DrawBar(dl, player, TempPlate.BarX0, TempPlate.BarY, TempPlate.BarX1 - TempPlate.BarX0, BarH, time);
         _heat.DrawOffNetworkTag(dl, player, HeatX + HeatPanelW * 0.5f, time);
 
         // SHIELD: the tank's armor.
         int health = Math.Max(0, player.Reactor.Health);
-        const float sPlateX = ShieldX + 10f;
-        const float sPlateW = 125f;
-        DrawNumberCentered(dl, health, ShieldCenterX, 166f);
-        DrawBar(dl, sPlateX + 8f, 191f, sPlateW - 16f, 5f, player.ShieldFraction, player.ShieldLevel switch
+        DrawReadout(dl, ShieldPlate, health.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        DrawPlateBar(dl, ShieldPlate, player.ShieldFraction, player.ShieldLevel switch
         {
             StatusLevel.Ok => 0xFFFFC040u,
             StatusLevel.Warn => 0xFF30C0FFu,
@@ -100,11 +107,8 @@ public sealed class HudStrip
         });
 
         // MATERIALS: the dirt in the tank's hold, which is what structures are built from; the bar is how full it is.
-        float materialsFill = player.HoldFill;
-        const float mPlateX = MaterialsX + 15f;
-        const float mPlateW = MaterialsPanelW - 30f;
-        DrawNumberCentered(dl, player.Resources.Dirt, MaterialsCenterX, 166f);
-        DrawBar(dl, mPlateX + 40f, 191f, mPlateW - 80f, 5f, materialsFill, 0xFF40B8F0u);
+        DrawReadout(dl, MaterialsPlate, player.Resources.Dirt.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        DrawPlateBar(dl, MaterialsPlate, player.HoldFill, 0xFF40B8F0u);
 
         _build.Draw(dl, player, player.BuildableDirt(player.IsDockedAtOwnBase), BuildX, time);
 
@@ -124,11 +128,13 @@ public sealed class HudStrip
         dl.AddImage(texture, min, min + new Vector2(S(w), S(StripH)));
     }
 
-    private void DrawBar(ImDrawListPtr dl, float x, float y, float w, float h, float fill, uint color)
+    /// <summary>A bar along the bottom of a plate's readout, filled to <paramref name="fill"/>.</summary>
+    private void DrawPlateBar(ImDrawListPtr dl, Plate plate, float fill, uint color)
     {
         fill = Math.Clamp(fill, 0f, 1f);
-        dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + h + 1f), 0xC0000000u);
-        dl.AddRectFilled(At(x, y), At(x + w * fill, y + h), color);
+        float x = plate.BarX0, y = plate.BarY, w = plate.BarX1 - plate.BarX0;
+        dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + BarH + 1f), 0xC0000000u);
+        dl.AddRectFilled(At(x, y), At(x + w * fill, y + BarH), color);
     }
 
     /// <summary>
@@ -137,19 +143,16 @@ public sealed class HudStrip
     /// </summary>
     private void DrawPanelLabels(ImDrawListPtr dl)
     {
-        DrawStripText(dl, "TEMP", TempCenterX, 152f, 19f, 0xFF78C8FFu, glow: 0x181880FFu);
-        DrawStripText(dl, "SHIELD", ShieldCenterX, 153.5f, 20f, 0xFFF8E890u, glow: 0x20FFA030u);
-        DrawStripText(dl, "MATERIALS", MaterialsCenterX, 156.5f, 21f, 0xFF68E0FFu, glow: 0x282090FFu);
+        DrawStripText(dl, "TEMP", TempPlate.CenterX, TempPlate.TitleY, 19f, 0xFF78C8FFu, glow: 0x181880FFu);
+        DrawStripText(dl, "SHIELD", ShieldPlate.CenterX, ShieldPlate.TitleY, 20f, 0xFFF8E890u, glow: 0x20FFA030u);
+        DrawStripText(dl, "MATERIALS", MaterialsPlate.CenterX, MaterialsPlate.TitleY, 21f, 0xFF68E0FFu, glow: 0x282090FFu);
         DrawStripText(dl, "BUILD STRUCTURES", BuildX + 162f, 23.5f, 17f, 0xFFB0E4F8u, glow: 0x181880FFu);
         DrawStripText(dl, "COMMAND", BuildX + 171f, 191.5f, 21f, 0xFF98E8FFu, glow: 0x202080FFu);
     }
 
-    /// <param name="degreeSign">Add a degree sign after the number.</param>
-    private void DrawNumberCentered(ImDrawListPtr dl, int value, float centerX, float lineY, bool degreeSign = false)
-    {
-        string text = value.ToString(System.Globalization.CultureInfo.InvariantCulture) + (degreeSign ? "°" : "");
-        DrawStripText(dl, text, centerX, lineY + ReadoutLineH * 0.5f, 24f, ReadoutColor, glow: 0x2830FF60u);
-    }
+    /// <summary>A plate's number, centred in its readout plate above the bar.</summary>
+    private void DrawReadout(ImDrawListPtr dl, Plate plate, string text) =>
+        DrawStripText(dl, text, plate.CenterX, plate.ReadoutY, ReadoutSize, ReadoutColor, glow: 0x2830FF60u);
 
     /// <summary>
     /// Text in the strip, centred on art pixel (<paramref name="cx"/>, <paramref name="cy"/>) and sized in art pixels,
@@ -164,8 +167,11 @@ public sealed class HudStrip
         var extent = font.CalcTextSizeA(px, float.MaxValue, 0f, text);
         // The bold pass is drawn bold px to the right, so start half of that to the left to keep the ink centred.
         float bold = S(0.6f);
+        // Centre the ink, not the line box: capitals and digits sit between the top and bottom of '0', which is
+        // not the middle of the line (that includes room for descenders).
+        float inkMidY = InkMiddle(font) * px;
         // Snap to whole device pixels so the glyphs are not resampled between texels.
-        var pos = At(cx, cy) - extent * 0.5f - new Vector2(bold * 0.5f, 0f);
+        var pos = At(cx, cy) - new Vector2(extent.X * 0.5f + bold * 0.5f, inkMidY);
         pos = new Vector2(MathF.Round(pos.X * deviceScale) / deviceScale, MathF.Round(pos.Y * deviceScale) / deviceScale);
 
         if (glow != 0)
@@ -185,5 +191,16 @@ public sealed class HudStrip
             dl.AddText(font, px, pos + d, outline, text);
         dl.AddText(font, px, pos, color, text);
         dl.AddText(font, px, pos + new Vector2(bold, 0f), color, text);
+    }
+
+    /// <summary>
+    /// Where the middle of a capital or digit sits below the top of the line, as a fraction of the font size: the
+    /// centre of the '0' glyph's box.
+    /// </summary>
+    private static float InkMiddle(ImFontPtr font)
+    {
+        // FindGlyph falls back to the font's fallback glyph, so it always returns one.
+        var glyph = font.FindGlyph('0');
+        return (glyph.Y0 + glyph.Y1) * 0.5f / font.FontSize;
     }
 }

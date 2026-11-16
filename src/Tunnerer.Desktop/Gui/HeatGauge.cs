@@ -148,10 +148,9 @@ public sealed class HeatGauge(HudLayout layout)
     /// Temperature bar under the readout, on the same scale as the orb: a blue frost zone left of the ambient
     /// mark, green to amber up to the safe-maximum mark, and red beyond it.
     /// </summary>
-    public void DrawBar(ImDrawListPtr dl, Tank player, float x, float y, float w, float time)
+    public void DrawBar(ImDrawListPtr dl, Tank player, float x, float y, float w, float barH, float time)
     {
         float heat = player.Heat;
-        const float barH = 5f;
         float X(float t) => x + w * HeatScale.Fraction(t);
         dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + barH + 1f), 0xC0000000u);
         dl.AddRectFilled(At(X(Tweaks.Tank.HeatSafeMax), y), At(x + w, y + barH), 0x503040FFu); // danger zone
