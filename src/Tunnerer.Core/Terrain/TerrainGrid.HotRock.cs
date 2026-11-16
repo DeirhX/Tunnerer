@@ -8,7 +8,7 @@ public partial class TerrainGrid
 {
     /// <summary>
     /// Turns the dirt and rock inside a circle into a hot rock pocket: indestructible, solid, and pinned at
-    /// <see cref="Tweaks.World.ThermalFixedHotRockTemperature"/>, so it is a permanent heat source for any air or
+    /// the hot rock row of <see cref="Tweaks.World.ThermalMaterials"/>, so it is a permanent heat source for any air or
     /// tunnel it touches. Open air, bases and concrete are left alone. The initial heat is recorded in the
     /// <see cref="Ledger"/> as injected; the energy the pocket keeps emitting afterwards shows up as negative
     /// fixed-temperature sink (the pin re-creates what flowed out).
