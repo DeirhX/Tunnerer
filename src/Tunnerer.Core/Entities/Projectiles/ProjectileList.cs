@@ -49,22 +49,14 @@ public class ProjectileList
         return behaviors;
     }
 
-    public ProjectileList(int? seed = null)
+    public ProjectileList(int seed)
     {
-        _rng = seed.HasValue
-            ? new FastRandom(seed.Value)
-            : new FastRandom((uint)Environment.TickCount);
+        _rng = new FastRandom(seed);
     }
 
     public int Count => _projectiles.Count + _pending.Count;
     public void Add(Projectile p) => _pending.Add(p);
     public void AddRange(IEnumerable<Projectile> items) => _pending.AddRange(items);
-
-    public void RemoveAll()
-    {
-        _projectiles.Clear();
-        _pending.Clear();
-    }
 
     public void Advance(CollisionSolver solver)
     {

@@ -30,14 +30,14 @@ public static class NetworkCoverage
         foreach (var machine in machines)
         {
             if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner ||
-                machine.Type is not (MachineType.Relay or MachineType.Pylon) ||
+                !machine.Behavior.IsLinkNode ||
                 machine.LinkPoint is not { IsPowered: true, Hops: >= 0 } point)
                 continue;
             into.Add(new CoverageNode(machine.Position, Tweaks.Coverage.NodeRadius, StrengthForHops(point.Hops)));
         }
     }
 
-    public static float StrengthForHops(int hops) => MathF.Pow(Tweaks.Coverage.HopFalloff, Math.Max(0, hops));
+    public static float StrengthForHops(int hops) => DeterministicMath.Pow(Tweaks.Coverage.HopFalloff, Math.Max(0, hops));
 
     public static TankCoverage At(Position position, IReadOnlyList<CoverageNode> nodes, ITerrainPixelReadOnly terrain)
     {
@@ -48,7 +48,7 @@ public static class NetworkCoverage
                 continue;
             if (Position.DistanceSquared(position, node.Position) > node.Radius * node.Radius)
                 continue;
-            if (Raycaster.BresenhamLineAny(node.Position, position, p => Pixel.BlocksLink(terrain.GetPixel(p))))
+            if (!Raycaster.HasOpenLine(terrain, node.Position, position))
                 continue;
             best = new TankCoverage(true, node.Strength, node.Position);
         }

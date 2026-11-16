@@ -28,7 +28,7 @@ public partial class Game
         bool shiftHeld = (ev.Key.Mod & Keymod.Shift) != 0;
 
         // After a match ends, Enter starts a new one.
-        if (scancode == Scancode.Return && !_terrainTestMode && IsMatchOver())
+        if (scancode == Scancode.Return && CanRestartMatch)
         {
             ExecuteGameCommand(GameCommand.RestartMatch, InputCommandSources.Input);
             return;
@@ -38,19 +38,11 @@ public partial class Game
             ExecuteGameCommand(command, InputCommandSources.Input);
     }
 
+    /// <summary>A match is running and has ended, so Enter (or a RestartMatch command) starts a new one.</summary>
+    private bool CanRestartMatch => !_terrainTestMode && _world.IsMatchOver;
+
     /// <summary>True when the player asked for a new match (Enter after a match ended).</summary>
     public bool RestartRequested { get; private set; }
-
-    /// <summary>A match is over once any tank has died with no lives left.</summary>
-    private bool IsMatchOver()
-    {
-        foreach (var tank in _world.TankList.Tanks)
-        {
-            if (tank.IsDead && tank.LivesLeft <= 0)
-                return true;
-        }
-        return false;
-    }
 
     private static unsafe bool TryMapRenderInputEvent(Event ev, out RenderInputEvent renderEvent)
     {
@@ -143,7 +135,7 @@ public partial class Game
     {
         if (command == GameCommand.RestartMatch)
         {
-            if (!_terrainTestMode && IsMatchOver())
+            if (CanRestartMatch)
             {
                 Console.WriteLine($"[Game] Restarting match [source={source}]");
                 RestartRequested = true;

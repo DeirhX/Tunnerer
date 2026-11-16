@@ -18,7 +18,7 @@ public sealed class RenderViewState
     public Size ComputeViewSize(int windowW, int windowH, bool supportsUi)
     {
         int viewportHeight = supportsUi
-            ? Math.Max(1, windowH - GameHud.BottomPanelHeight(windowW, windowH))
+            ? Math.Max(1, windowH - HudLayout.BottomPanelHeight(windowW, windowH))
             : Math.Max(1, windowH);
         return new Size(Math.Max(1, windowW), viewportHeight);
     }

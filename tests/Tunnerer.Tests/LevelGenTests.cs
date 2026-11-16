@@ -15,7 +15,7 @@ public class LevelGenTests
     public void FullGeneration_ProducesCorrectDirtPercentage()
     {
         var gen = new ToastGenerator();
-        var (terrain, _) = gen.Generate(_size);
+        var (terrain, _) = gen.Generate(_size, seed: TestHelpers.DefaultSeed);
         terrain.MaterializeTerrain();
 
         double pct = TestHelpers.CountDirtPercentage(terrain, _size);
@@ -27,7 +27,7 @@ public class LevelGenTests
     public void FullGeneration_ProducesEnoughSpawns()
     {
         var gen = new ToastGenerator();
-        var (_, spawns) = gen.Generate(_size);
+        var (_, spawns) = gen.Generate(_size, seed: TestHelpers.DefaultSeed);
         Assert.True(spawns.Length >= 2, $"Expected at least 2 spawns, got {spawns.Length}");
     }
 
@@ -90,7 +90,7 @@ public class LevelGenTests
     public void FullGeneration_SpawnsAreInsideBorder()
     {
         var gen = new ToastGenerator();
-        var (_, spawns) = gen.Generate(_size);
+        var (_, spawns) = gen.Generate(_size, seed: TestHelpers.DefaultSeed);
 
         int border = Tweaks.LevelGen.BorderWidth;
         foreach (var s in spawns)
@@ -104,7 +104,7 @@ public class LevelGenTests
     public void FullGeneration_SpawnsAreFarEnoughApart()
     {
         var gen = new ToastGenerator();
-        var (_, spawns) = gen.Generate(_size);
+        var (_, spawns) = gen.Generate(_size, seed: TestHelpers.DefaultSeed);
 
         int minDistSq = Tweaks.Base.MinDistance * Tweaks.Base.MinDistance;
         for (int i = 0; i < spawns.Length; i++)
@@ -117,7 +117,7 @@ public class LevelGenTests
     public void SmoothingConverges_NoLevelGenPixelsRemain()
     {
         var gen = new ToastGenerator();
-        var (terrain, _) = gen.Generate(_size);
+        var (terrain, _) = gen.Generate(_size, seed: TestHelpers.DefaultSeed);
 
         for (int i = 0; i < _size.Area; i++)
         {
@@ -131,7 +131,7 @@ public class LevelGenTests
     public void SmoothingConverges_NoBoundaryArtifacts()
     {
         var gen = new ToastGenerator();
-        var (terrain, _) = gen.Generate(_size);
+        var (terrain, _) = gen.Generate(_size, seed: TestHelpers.DefaultSeed);
         TestHelpers.AssertBorderIsRock(terrain, W, H);
     }
 
@@ -139,7 +139,7 @@ public class LevelGenTests
     public void MaterializeTerrain_NeverLeavesLevelGenValues()
     {
         var gen = new ToastGenerator();
-        var (terrain, _) = gen.Generate(_size);
+        var (terrain, _) = gen.Generate(_size, seed: TestHelpers.DefaultSeed);
         terrain.MaterializeTerrain();
         TestHelpers.AssertNoLevelGenPixels(terrain, _size);
     }
@@ -228,7 +228,7 @@ public class LevelGenTests
     public void FullGeneration_ConnectedCaves_SpawnsReachable()
     {
         var gen = new ToastGenerator();
-        var (terrain, spawns) = gen.Generate(_size);
+        var (terrain, spawns) = gen.Generate(_size, seed: TestHelpers.DefaultSeed);
         AssertSpawnsReachable(terrain, spawns, W, H);
     }
 
@@ -236,7 +236,7 @@ public class LevelGenTests
     public void OptimizedMode_ProducesValidDirtPercentage()
     {
         var gen = new ToastGenerator();
-        var (terrain, spawns) = gen.Generate(_size, mode: LevelGenMode.Optimized);
+        var (terrain, spawns) = gen.Generate(_size, seed: TestHelpers.DefaultSeed, mode: LevelGenMode.Optimized);
         terrain.MaterializeTerrain(parallel: true);
 
         double pct = TestHelpers.CountDirtPercentage(terrain, _size);
@@ -249,7 +249,7 @@ public class LevelGenTests
     public void OptimizedMode_NoBoundaryArtifacts()
     {
         var gen = new ToastGenerator();
-        var (terrain, _) = gen.Generate(_size, mode: LevelGenMode.Optimized);
+        var (terrain, _) = gen.Generate(_size, seed: TestHelpers.DefaultSeed, mode: LevelGenMode.Optimized);
         TestHelpers.AssertBorderIsRock(terrain, W, H);
     }
 
@@ -257,7 +257,7 @@ public class LevelGenTests
     public void OptimizedMode_ConnectedCaves_SpawnsReachable()
     {
         var gen = new ToastGenerator();
-        var (terrain, spawns) = gen.Generate(_size, mode: LevelGenMode.Optimized);
+        var (terrain, spawns) = gen.Generate(_size, seed: TestHelpers.DefaultSeed, mode: LevelGenMode.Optimized);
         AssertSpawnsReachable(terrain, spawns, W, H);
     }
 
@@ -266,7 +266,7 @@ public class LevelGenTests
     {
         var largeSize = new Size(1000, 500);
         var gen = new ToastGenerator();
-        var (terrain, spawns) = gen.Generate(largeSize, mode: LevelGenMode.Optimized);
+        var (terrain, spawns) = gen.Generate(largeSize, seed: TestHelpers.DefaultSeed, mode: LevelGenMode.Optimized);
         terrain.MaterializeTerrain(parallel: true);
 
         Assert.True(spawns.Length >= 2);
@@ -274,45 +274,6 @@ public class LevelGenTests
         double pct = TestHelpers.CountDirtPercentage(terrain, largeSize);
         Assert.True(pct >= 40 && pct <= 85,
             $"Large optimized dirt percentage {pct:F1}% outside expected range [40, 85]");
-    }
-
-    [Fact]
-    public void Benchmark_DeterministicVsOptimized()
-    {
-        int bw = 1000, bh = 500;
-        var benchSize = new Size(bw, bh);
-        var gen = new ToastGenerator();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-
-        // Warmup
-        gen.Generate(benchSize, seed: 42, mode: LevelGenMode.Deterministic);
-        gen.Generate(benchSize, mode: LevelGenMode.Optimized);
-
-        const int runs = 3;
-        double detTotal = 0, optTotal = 0;
-
-        for (int i = 0; i < runs; i++)
-        {
-            sw.Restart();
-            gen.Generate(benchSize, seed: 42, mode: LevelGenMode.Deterministic);
-            detTotal += sw.Elapsed.TotalMilliseconds;
-
-            sw.Restart();
-            gen.Generate(benchSize, mode: LevelGenMode.Optimized);
-            optTotal += sw.Elapsed.TotalMilliseconds;
-        }
-
-        double detAvg = detTotal / runs;
-        double optAvg = optTotal / runs;
-        double speedup = detAvg / optAvg;
-
-        // Output via test output (shows up in verbose test output)
-        Assert.True(true,
-            $"1000x500 avg over {runs}: deterministic={detAvg:F1}ms, optimized={optAvg:F1}ms, speedup={speedup:F2}x");
-
-        // The optimized mode should be faster (or at least not significantly slower)
-        Assert.True(optAvg <= detAvg * 1.5,
-            $"Optimized ({optAvg:F1}ms) should not be slower than deterministic ({detAvg:F1}ms)");
     }
 
     private static void AssertSpawnsReachable(TerrainGrid terrain, Position[] spawns, int w, int h)

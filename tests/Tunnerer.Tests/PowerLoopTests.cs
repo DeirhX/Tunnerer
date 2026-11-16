@@ -31,9 +31,10 @@ public class PowerLoopTests
     [Fact]
     public void EngineEfficiency_RisesWithSourceTemperature_AndIsCapped()
     {
-        Assert.Equal(0.0, TankBase.EngineEfficiency(Tweaks.World.ThermalFixedBaseTemperature));
-        Assert.Equal(0.0, TankBase.EngineEfficiency(-20));
-        double warm = TankBase.EngineEfficiency(30), hot = TankBase.EngineEfficiency(100), extreme = TankBase.EngineEfficiency(10_000);
+        var tankBase = new TankBase(new Position(0, 0), 0);
+        Assert.Equal(0.0, tankBase.EngineEfficiency(Tweaks.World.ThermalFixedBaseTemperature));
+        Assert.Equal(0.0, tankBase.EngineEfficiency(-20));
+        double warm = tankBase.EngineEfficiency(30), hot = tankBase.EngineEfficiency(100), extreme = tankBase.EngineEfficiency(10_000);
         Assert.True(warm > 0.0 && warm < hot, $"warm={warm}, hot={hot}");
         Assert.Equal(Tweaks.Base.EngineMaxEfficiency, extreme, precision: 6);
     }

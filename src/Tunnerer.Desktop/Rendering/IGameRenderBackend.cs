@@ -11,7 +11,6 @@ public readonly record struct RenderView(
     int PixelScale);
 
 public readonly record struct GamePixelsUpload(
-    uint[] Pixels,
     RenderView View,
     PostProcessUploadOptions PostProcess,
     TankGlowUpload TankGlow,
@@ -21,7 +20,6 @@ public readonly record struct GamePixelsUpload(
 
 /// <param name="TimeSeconds">The shaders' animation clock; also the clock regrow stamps are written in.</param>
 public readonly record struct PostProcessUploadOptions(
-    HiResRenderQuality Quality,
     bool HeatDebugOverlayEnabled,
     PostProcessPassFlags PassFlags,
     ThermalRegionOverlayUpload ThermalRegions,
@@ -43,7 +41,6 @@ public readonly record struct TerrainAuxUpload(
 
 /// <param name="SourceChanged">False when <paramref name="SourcePixels"/> is the same image as the last upload.</param>
 public readonly record struct NativeContinuousUpload(
-    bool Enabled,
     uint[]? SourcePixels,
     bool SourceChanged,
     int SampleCount);

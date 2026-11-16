@@ -1,5 +1,6 @@
 namespace Tunnerer.Desktop.Audio;
 
+using System.Globalization;
 using System.Runtime.InteropServices;
 using SDL3;
 using Tunnerer.Desktop.Config;
@@ -28,7 +29,7 @@ public sealed class SdlAudioOutput : IDisposable
     public static SdlAudioOutput? TryOpen(SoundMixer mixer)
     {
         // Ask for small device buffers; the default can add tens of milliseconds between a shot and its sound.
-        SDL.SetHint(SDL.Hints.AudioDeviceSampleFrames, AudioTweaks.DeviceBufferSamples.ToString());
+        SDL.SetHint(SDL.Hints.AudioDeviceSampleFrames, AudioTweaks.DeviceBufferSamples.ToString(CultureInfo.InvariantCulture));
         if (!SDL.InitSubSystem(SDL.InitFlags.Audio))
         {
             Console.WriteLine($"[Audio] No sound: SDL audio did not start ({SDL.GetError()}).");

@@ -41,7 +41,6 @@ public sealed class GameFrameCoordinator
         Func<bool> isRunning,
         Action requestStop,
         Func<bool> pollEvents,
-        Func<bool> isGameOver,
         Action onBeforeSimulationBatch,
         Func<FrameInputSnapshot> captureFrameInput,
         Action<FrameInputSnapshot> advanceOneSimulationStep,
@@ -57,12 +56,6 @@ public sealed class GameFrameCoordinator
             _frameTimer.Restart();
 
             if (!pollEvents())
-            {
-                requestStop();
-                break;
-            }
-
-            if (isGameOver())
             {
                 requestStop();
                 break;

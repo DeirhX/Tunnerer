@@ -7,13 +7,16 @@ on:
 
 jobs:
   test:
-    # Both OSes build the whole solution. The build compiles every shader to DXIL, SPIR-V and MSL
-    # (tools/Tunnerer.ShaderCompiler), so a shader change one GPU API cannot take fails on either runner.
+    # Every OS builds the whole solution. The build compiles every shader to DXIL, SPIR-V and MSL
+    # (tools/Tunnerer.ShaderCompiler), so a shader change one GPU API cannot take fails on any runner.
+    # Ubuntu is new and has not been seen green yet (the shader compiler's Linux natives are untested), so it does not
+    # block; make it blocking once it has passed.
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.os == 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -25,6 +28,10 @@ jobs:
         run: dotnet build "Tunnerer.slnx" -c Release --no-restore
       - name: Test
         run: dotnet test "Tunnerer.slnx" -c Release --no-build
+      # Formatting and analyzer rules from .editorconfig; one OS is enough.
+      - name: Check formatting
+        if: runner.os == 'Windows'
+        run: dotnet format "Tunnerer.slnx" --verify-no-changes --no-restore
 
       # Runs the game on the SDL_GPU backend (Metal) in a hidden window for ~120 frames and checks it exits cleanly
       # and writes a screenshot. Non-blocking for now: hosted macOS runners expose a virtual Metal device that is

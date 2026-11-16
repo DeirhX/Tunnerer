@@ -22,7 +22,7 @@ public class TankCoolantTests
 
     private static (World world, Tank tank, Position pos) OpenGroundScenario(int seed, float startHeat)
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed);
         var pos = GetWorldCenter(world);
         tank.Position = pos;
         ClearArea(world.Terrain, pos, radius: 8);
@@ -33,7 +33,7 @@ public class TankCoolantTests
     [Fact]
     public void Tank_DockedAtOwnBase_IsPreCooledToFullCoolant_AndEnergyBalances()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
         SetTankHeat(tank, 0f);
 
         double start = world.SumSystemThermalEnergy();
@@ -55,7 +55,7 @@ public class TankCoolantTests
     [Fact]
     public void Tank_AtForeignBase_IsNotRefrigerated()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
         var foreignBase = world.TankBases.Bases.First(b => b != tank.Base);
         tank.Position = foreignBase.Position;
         SetTankHeat(tank, 0f);
@@ -68,7 +68,7 @@ public class TankCoolantTests
     [Fact]
     public void Refrigeration_StopsWhenTheBaseReservoirIsFull()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
         SetTankHeat(tank, 0f);
         tank.Base!.Reactor.Current.Heat = tank.Base.Reactor.HeatCapacity; // reservoir full
 
@@ -81,7 +81,7 @@ public class TankCoolantTests
     [Fact]
     public void AcceptTankHeat_IsLimitedByTheReservoirRoom()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
         var tankBase = tank.Base!;
         double perUnit = Tweaks.Base.ReactorEnergyPerHeatUnit;
 
@@ -178,7 +178,7 @@ public class TankCoolantTests
     [Fact]
     public void HeatBudget_RunsFromFullCoolantDownToTheOverheatThreshold()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 5151);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
 
         SetTankHeat(tank, -Tweaks.Tank.CoolantCapacity);
         Assert.Equal(Tweaks.Tank.HeatSafeMax + Tweaks.Tank.CoolantCapacity, tank.HeatBudget, precision: 3);

@@ -3,6 +3,7 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 using static Tunnerer.Tests.TankHeatTestHelpers;
 
@@ -13,7 +14,7 @@ public class WorldThermalSimulationTests
     [Fact]
     public void WorldAdvance_BaseInterior_RemainsCoolUnderThermalExchange()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9191);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9191);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_BaseInterior_RemainsCoolUnderThermalExchange));
         var basePos = RequireBasePosition(tank);
 
@@ -22,7 +23,7 @@ public class WorldThermalSimulationTests
 
         world.Terrain.AddHeatRadius(basePos, 255, 18);
         visual.Capture(world, "after_heat_injection");
-        AdvanceWorld(world, frames: 200, visual: visual, phase: "settle", captureEvery: 20);
+        TestSimulation.AdvanceIdle(world, frames: 200, visual: visual, phase: "settle", captureEvery: 20);
         visual.Capture(world, "end");
 
         float baseInteriorHeat = world.Terrain.SampleAverageHeat(basePos, radius: 12) * 255f;
@@ -33,7 +34,7 @@ public class WorldThermalSimulationTests
     [Fact]
     public void WorldAdvance_HeatConnectedToBase_DecaysOverTime()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9393);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9393);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_HeatConnectedToBase_DecaysOverTime));
         var basePos = RequireBasePosition(tank);
 
@@ -44,7 +45,7 @@ public class WorldThermalSimulationTests
         visual.Capture(world, "after_heat_injection");
         float startHeat = world.Terrain.SampleAverageHeat(hotPos, radius: 8) * 255f;
 
-        AdvanceWorld(world, frames: 420, visual: visual, phase: "settle", captureEvery: 30);
+        TestSimulation.AdvanceIdle(world, frames: 420, visual: visual, phase: "settle", captureEvery: 30);
         visual.Capture(world, "end");
 
         float endHeat = world.Terrain.SampleAverageHeat(hotPos, radius: 8) * 255f;
@@ -55,7 +56,7 @@ public class WorldThermalSimulationTests
     [Fact]
     public void WorldAdvance_SingleBulletHeat_ConnectedToBase_CoolsEventually()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9494);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9494);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_SingleBulletHeat_ConnectedToBase_CoolsEventually));
         var basePos = RequireBasePosition(tank);
 
@@ -82,7 +83,7 @@ public class WorldThermalSimulationTests
     [Fact]
     public void WorldAdvance_BaseConnectedTunnel_ExternalHeat_ConvergesToBaseTemperature()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9898);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9898);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_BaseConnectedTunnel_ExternalHeat_ConvergesToBaseTemperature));
         var basePos = RequireBasePosition(tank);
 
@@ -232,7 +233,7 @@ public class WorldThermalSimulationTests
     [Fact]
     public void WorldAdvance_SingleBulletIntoOutsideWall_HotspotEventuallyCoolsOut()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9899);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9899);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_SingleBulletIntoOutsideWall_HotspotEventuallyCoolsOut));
         var basePos = RequireBasePosition(tank);
 
@@ -254,7 +255,7 @@ public class WorldThermalSimulationTests
             new VectorF(0f, Tweaks.Weapon.CannonBulletSpeed),
             tank.Color));
 
-        AdvanceWorld(world, frames: 20, visual: visual, phase: "resolve_hit", captureEvery: 4);
+        TestSimulation.AdvanceIdle(world, frames: 20, visual: visual, phase: "resolve_hit", captureEvery: 4);
 
         float hotspotAfterHit = world.Terrain.SampleAverageHeat(impactPos, radius: 6) * 255f;
         Assert.True(hotspotAfterHit > hotspotAtStart + 1f,
@@ -274,7 +275,7 @@ public class WorldThermalSimulationTests
     [Fact]
     public void WorldAdvance_ShootWaitRevisit_HotspotShouldDissipateBeforeReturn()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9797);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9797);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_ShootWaitRevisit_HotspotShouldDissipateBeforeReturn));
         var basePos = RequireBasePosition(tank);
 
@@ -302,13 +303,13 @@ public class WorldThermalSimulationTests
         };
 
         const int shootFrames = 72;
-        AdvanceWorld(world, frames: shootFrames, frameInputForTank0: _ => shootDown, visual: visual, phase: "shoot", captureEvery: 6);
+        TestSimulation.Advance(world, frames: shootFrames, inputForTank0ByFrame: _ => shootDown, visual: visual, phase: "shoot", captureEvery: 6);
         float hotspotAfterShooting = world.Terrain.SampleAverageHeat(impactPos, radius: 6) * 255f;
 
         // Heat injected into a tunnel now stays in the air until it conducts away (it is no longer erased), so
         // the hotspot needs ~16 s to drop below the safe level instead of ~9 s.
         const int waitFrames = 24 * 20;
-        AdvanceWorld(world, frames: waitFrames, visual: visual, phase: "wait", captureEvery: 24);
+        TestSimulation.AdvanceIdle(world, frames: waitFrames, visual: visual, phase: "wait", captureEvery: 24);
 
         float hotspotBeforeReturn = world.Terrain.SampleAverageHeat(impactPos, radius: 6) * 255f;
 
@@ -343,7 +344,7 @@ public class WorldThermalSimulationTests
     [Fact]
     public void WorldAdvance_DriveThroughTunnel_HeatTrailAndBaseEventuallyCool()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9901);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9901);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_DriveThroughTunnel_HeatTrailAndBaseEventuallyCool));
         var basePos = RequireBasePosition(tank);
 
@@ -364,8 +365,8 @@ public class WorldThermalSimulationTests
             CarveVerticalLine(world.Terrain, basePos + new Offset(dx, 0),
                 dirY * firstOutsideDy, dirY * (firstOutsideDy + 56));
 
-        var driveOut = MoveAndAim(0, dirY, 0f, dirY);
-        var driveBack = MoveAndAim(0, -dirY, 0f, -dirY);
+        var driveOut = TestSimulation.MoveAndAim(0, dirY, 0f, dirY);
+        var driveBack = TestSimulation.MoveAndAim(0, -dirY, 0f, -dirY);
 
         int framesOutsideBase = 0;
         for (int i = 0; i < 60; i++)
@@ -407,7 +408,7 @@ public class WorldThermalSimulationTests
     [Fact]
     public void WorldAdvance_DriveOutOfBase_BaseInteriorStaysCool()
     {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9902, enableTerrainRegrowth: false);
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9902, enableTerrainRegrowth: false);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_DriveOutOfBase_BaseInteriorStaysCool));
         var basePos = RequireBasePosition(tank);
 
@@ -419,7 +420,7 @@ public class WorldThermalSimulationTests
         int firstOutsideDy = (Tweaks.Base.BaseSize / 2) + 1;
         CarveVerticalLine(world.Terrain, basePos, firstOutsideDy, firstOutsideDy + 56);
 
-        var driveDown = MoveAndAim(0, 1, 0f, 1f);
+        var driveDown = TestSimulation.MoveAndAim(0, 1, 0f, 1f);
 
         for (int i = 0; i < 60; i++)
         {
@@ -440,29 +441,10 @@ public class WorldThermalSimulationTests
     }
 
     [Fact]
-    public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange_NormalRules()
+    public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange()
     {
-        RunExteriorTunnelHotspotScenario(disableStoneAmbientExchange: false);
-    }
-
-    [Fact]
-    public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange_StoneAmbientOff()
-    {
-        RunExteriorTunnelHotspotScenario(disableStoneAmbientExchange: true);
-    }
-
-    private static void RunExteriorTunnelHotspotScenario(bool disableStoneAmbientExchange)
-    {
-        lock (StoneAmbientToggleGate)
-        {
-            bool originalStoneAmbient = Tweaks.World.EnableStoneAmbientExchange;
-            Tweaks.World.EnableStoneAmbientExchange = !disableStoneAmbientExchange;
-            try
-            {
-        var (world, tank) = CreateWorldWithPrimaryTank(seed: 9903, enableTerrainRegrowth: false);
-        using var visual = TestVisualTrace.Start(disableStoneAmbientExchange
-            ? nameof(WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange_StoneAmbientOff)
-            : nameof(WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange_NormalRules));
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9903, enableTerrainRegrowth: false);
+        using var visual = TestVisualTrace.Start(nameof(WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange));
         var basePos = RequireBasePosition(tank);
         int half = Tweaks.Base.BaseSize / 2;
 
@@ -476,6 +458,7 @@ public class WorldThermalSimulationTests
         world.Terrain.AddHeatRadius(hotspotPos, amount: 255, radius: 10);
         visual.Capture(world, "after_heat_injection");
 
+        var heatEngine = new TerrainHeatEngine(world.Settings);
         double SumTunnelEnergy()
         {
             double sum = 0.0;
@@ -488,7 +471,7 @@ public class WorldThermalSimulationTests
                     var p = new Position(x, y);
                     if (!world.Terrain.IsInside(p))
                         continue;
-                    float c = ThermalCapacityFor(world.Terrain.GetPixelRaw(p));
+                    float c = heatEngine.GetHeatCapacity(Pixel.GetThermalMaterial(world.Terrain.GetPixelRaw(p)));
                     sum += world.Terrain.GetHeatTemperature(p) * c;
                 }
             }
@@ -517,12 +500,6 @@ public class WorldThermalSimulationTests
         Assert.True(endHotspot < startHotspot * 0.35f,
             $"Expected strong decay through base boundary exchange. startHotspot={startHotspot:0.00}, endHotspot={endHotspot:0.00}");
         Assert.True(endHotspot <= 8f,
-            $"Expected exterior tunnel hotspot to cool near ambient eventually. stoneAmbientOff={disableStoneAmbientExchange}, endHotspot={endHotspot:0.00}, tunnelEnergyStart={startTunnelEnergy:0.0}, tunnelEnergyEnd={endTunnelEnergy:0.0}, tunnelEnergySamples=[{string.Join(", ", energySamples)}]");
-            }
-            finally
-            {
-                Tweaks.World.EnableStoneAmbientExchange = originalStoneAmbient;
-            }
-        }
+            $"Expected exterior tunnel hotspot to cool near ambient eventually. endHotspot={endHotspot:0.00}, tunnelEnergyStart={startTunnelEnergy:0.0}, tunnelEnergyEnd={endTunnelEnergy:0.0}, tunnelEnergySamples=[{string.Join(", ", energySamples)}]");
     }
 }

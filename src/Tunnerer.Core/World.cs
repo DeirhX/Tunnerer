@@ -15,7 +15,7 @@ using Tunnerer.Core.Rendering;
 public class World
 {
     private readonly TerrainGrid _terrain;
-    private readonly TankBases _tankBases = new();
+    private readonly TankBases _tankBases;
     private readonly TankList _tankList = new();
     private readonly ProjectileList _projectiles;
     private readonly MachineList _machines = new();
@@ -23,7 +23,6 @@ public class World
     private readonly SpriteList _sprites = new();
     private readonly CollisionSolver _collisionSolver;
     private readonly TerrainRegrowth _terrainRegrowth;
-    private readonly bool _deterministicSimulation;
     private readonly int _hotRockPocketCount;
     private readonly List<Position> _hotRockPockets = new();
     private readonly int _simulationSeed;
@@ -31,7 +30,6 @@ public class World
 
     private int _advanceCount;
     private TimeSpan _elapsed;
-    private bool _gameOver;
     private double _lastThermalEnergy;
     private double _lastNetExternalEnergy;
 
@@ -47,7 +45,7 @@ public class World
     {
         double total = _terrain.SumTotalThermalEnergy();
         foreach (var tank in _tankList.Tanks)
-            total += tank.Heat * Tweaks.Tank.TankHeatCapacity;
+            total += tank.Heat * tank.ThermalCapacity;
         foreach (var tankBase in _tankBases.Bases)
             total += tankBase.ReactorHeatEnergy;
         return total;
@@ -73,7 +71,6 @@ public class World
     public SpriteList Sprites => _sprites;
     public CollisionSolver CollisionSolver => _collisionSolver;
     public int AdvanceCount => _advanceCount;
-    public bool IsGameOver => _gameOver;
     public SimulationSettings Settings => _simulationSettings;
 
     public SimulationProfile Profile { get; } = new();
@@ -81,10 +78,6 @@ public class World
     /// <summary>Centres of the hot rock pockets placed at initialisation (empty unless the world was created with some).</summary>
     public IReadOnlyList<Position> HotRockPockets => _hotRockPockets;
 
-    /// <summary>
-    /// Plants a carried machine where it stands: it becomes solid, joins the link network and belongs to
-    /// <paramref name="owner"/> (the base it delivers to).
-    /// </summary>
     /// <summary>
     /// Whether <paramref name="machine"/> centred on <paramref name="center"/> would overlap a live tank or another
     /// planted machine (footprints compared as squares).
@@ -109,9 +102,14 @@ public class World
         return false;
     }
 
-    // Tanks are 7x7 cells around their position.
+    // Tank footprint for machine placement: a 7x7 square around the tank. Not the sprite shape (TankSpriteShape) nor
+    // the projectile collision mask (TankCollisionMask); the three are kept apart on purpose.
     private const int TankFootprintHalf = 3;
 
+    /// <summary>
+    /// Plants a carried machine where it stands: it becomes solid, joins the link network and belongs to
+    /// <paramref name="owner"/> (the base it delivers to).
+    /// </summary>
     public void PlantMachine(Machine machine, TankBase? owner)
     {
         machine.State = MachineState.Planted;
@@ -119,8 +117,7 @@ public class World
         machine.Anchor = machine.Position;
         if (owner != null)
             machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
-        // A harvester roams, so it is not a fixed node of the link network.
-        if (machine.Type != MachineType.Harvester)
+        if (machine.Behavior.IsLinkNode)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
     }
 
@@ -132,12 +129,12 @@ public class World
         int hotRockPocketCount = 0,
         SimulationSettings? simulationSettings = null)
     {
-        _deterministicSimulation = deterministicSimulation;
         _hotRockPocketCount = hotRockPocketCount;
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
-        _projectiles = new ProjectileList(deterministicSimulation ? _simulationSeed ^ 0x5f3759df : null);
+        _tankBases = new TankBases(_simulationSettings);
+        _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df);
         _linkMap = new LinkMap(deterministicSimulation, _simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
         _terrainRegrowth = new TerrainRegrowth(deterministicSimulation, enableTerrainRegrowth, _simulationSeed);
@@ -150,7 +147,10 @@ public class World
             _terrain[i] = generatedTerrain[i];
 
         _terrain.MaterializeTerrain(parallel: parallelMaterialize);
-        _terrain.DecorateTerrain(decorationSeed.HasValue ? decorationSeed.Value + 100 : null);
+        // Without a decoration seed, decorations and pockets follow the generated level (its spawns) and the
+        // simulation seed, so the same inputs always give the same world while different levels still differ.
+        int seed = decorationSeed ?? SeedFromSpawns(spawns) ^ _simulationSeed;
+        _terrain.DecorateTerrain(seed + 100);
 
         for (int i = 0; i < spawns.Length; i++)
             _tankBases.AddBase(spawns[i], i);
@@ -161,8 +161,7 @@ public class World
 
         if (_hotRockPocketCount > 0)
         {
-            int pocketSeed = decorationSeed.HasValue ? decorationSeed.Value + 200 : Environment.TickCount;
-            _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, pocketSeed));
+            _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, seed + 200));
 
             // Let the heat spread a little before play starts so the pockets do not begin as isolated hot dots.
             for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
@@ -176,17 +175,24 @@ public class World
             {
                 uint mixed = (uint)_simulationSeed ^ (uint)(i + 1) * 0x9e3779b9u;
                 int tankSeed = unchecked((int)mixed);
-                _tankList.AddTank(i, tankBase,
-                    _deterministicSimulation ? tankSeed : 0,
-                    _simulationSettings);
+                _tankList.AddTank(i, tankBase, tankSeed, _simulationSettings);
             }
         }
     }
 
+    private static int SeedFromSpawns(Position[] spawns)
+    {
+        uint hash = 2166136261;
+        foreach (var spawn in spawns)
+        {
+            hash = (hash ^ (uint)spawn.X) * 16777619;
+            hash = (hash ^ (uint)spawn.Y) * 16777619;
+        }
+        return (int)hash;
+    }
+
     public void Advance(Func<int, ControllerOutput> getInput)
     {
-        if (_gameOver) return;
-
         var frameWatch = Stopwatch.StartNew();
 
         _advanceCount++;
@@ -236,8 +242,9 @@ public class World
             new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines), _simulationSettings.AdvanceStep));
         // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
         _linkMap.ClearChargeFlow();
+        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
         foreach (var machine in _machines.Machines)
-            if (machine.Type == MachineType.Pylon && machine.IsAlive)
+            if (machine.IsAlive)
                 LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
@@ -261,13 +268,46 @@ public class World
         return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
     }
 
+    /// <summary>What a machine of <paramref name="type"/> would do if planted at <paramref name="at"/>.</summary>
+    public MachinePlacementPreview PreviewPlacement(MachineType type, Position at) =>
+        MachineBehaviors.Get(type).RequiresLinkToPlant
+            ? new MachinePlacementPreview(_linkMap.PreviewLink(at, _terrain), 0f)
+            : new MachinePlacementPreview(default,
+                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)));
+
+    /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
+    public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines);
+
     /// <summary>Fills <paramref name="into"/> with the coverage nodes of <paramref name="owner"/>'s network.</summary>
     public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
         NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
-    public void SetGameOver() => _gameOver = true;
+    /// <summary>A match is over once any tank has died with no lives left.</summary>
+    public bool IsMatchOver
+    {
+        get
+        {
+            foreach (var tank in _tankList.Tanks)
+                if (IsOutOfLives(tank))
+                    return true;
+            return false;
+        }
+    }
 
-    public TerrainRenderSnapshot CaptureTerrainRenderSnapshot() => new(_terrain);
+    /// <summary>How the match stands for <paramref name="player"/>.</summary>
+    public MatchOutcome MatchOutcomeFor(Tank player)
+    {
+        if (IsOutOfLives(player))
+            return MatchOutcome.Defeat;
+        if (player.IsDead)
+            return MatchOutcome.InProgress;
+        foreach (var tank in _tankList.Tanks)
+            if (tank != player && IsOutOfLives(tank))
+                return MatchOutcome.Victory;
+        return MatchOutcome.InProgress;
+    }
+
+    private static bool IsOutOfLives(Tank tank) => tank.IsDead && tank.LivesLeft <= 0;
 
     private static void ProfileSection(ref TimeSpan accumulator, Action action)
     {

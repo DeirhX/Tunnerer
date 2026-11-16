@@ -7,7 +7,7 @@ namespace Tunnerer.Tests;
 
 public class TerrainTests
 {
-    private TerrainGrid MakeTerrain(int w, int h) => new(new Size(w, h));
+    private static TerrainGrid MakeTerrain(int w, int h) => new(new Size(w, h));
 
     [Fact]
     public void SetPixelRaw_GetPixelRaw_Roundtrip()
@@ -278,6 +278,7 @@ public class TerrainTests
         AssertClosedRockSystemConverges(width: 1, height: 64, hotIndex: 0, hotTemperature: 220f, steps: 30000, tolerance: 3f);
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void TerrainHeatEngine_SquareClosedSystem_ConvergesToInitialEnergyMean()
     {

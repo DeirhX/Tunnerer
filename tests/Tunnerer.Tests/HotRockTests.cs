@@ -1,6 +1,7 @@
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
+using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
@@ -172,7 +173,7 @@ public class HotRockTests
     {
         (World world, Tank tank, Position pocket) Setup(bool withPocket)
         {
-            var (world, tank) = CreateWorldWithPrimaryTank(seed: 6161);
+            var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 6161);
             var center = GetWorldCenter(world);
             ClearArea(world.Terrain, center, radius: 6);
             var pocketCenter = center + new Offset(11, 0); // pocket edge (radius 4) at dx=7, next to the cavity wall
@@ -223,6 +224,24 @@ public class HotRockTests
     }
 
     [Fact]
+    public void WorldPockets_WithoutDecorationSeed_FollowTheLevelNotTheClock()
+    {
+        static IReadOnlyList<Position> Pockets(int seed)
+        {
+            var (terrain, spawns) = new ToastGenerator().Generate(TestHelpers.DefaultMapSize, seed: seed);
+            var world = new World(TestHelpers.DefaultMapSize, deterministicSimulation: true, simulationSeed: seed,
+                hotRockPocketCount: 4);
+            world.Initialize(terrain, spawns);
+            return world.HotRockPockets;
+        }
+
+        var first = Pockets(8181);
+        Assert.NotEmpty(first);
+        Assert.Equal(first, Pockets(8181));
+        Assert.NotEqual(first, Pockets(9292));
+    }
+
+    [Fact]
     public void WorldWithPockets_StartsWarmAroundThem_AndKeepsTheLedgerBalanced()
     {
         var world = TestHelpers.CreateSeededWorld(seed: 8181, enableTerrainRegrowth: false, hotRockPocketCount: 4);
@@ -250,6 +269,7 @@ public class HotRockTests
 
 public class HotRockGradientTests
 {
+    [Trait("Category", "Slow")]
     [Fact]
     public void Pockets_FormAGradient_CoreAtTheCentre_AndPocketsClusterNearIt()
     {

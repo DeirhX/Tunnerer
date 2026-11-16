@@ -189,6 +189,7 @@ public class ThermalLedgerTests(ITestOutputHelper output)
         Assert.True(maxResidual < 0.5, $"Grid energy must balance with the ledger. maxResidual={maxResidual:0.0000}");
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void World_RandomPlay_EnergyBalancesWithLedger()
     {

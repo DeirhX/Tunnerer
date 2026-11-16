@@ -18,6 +18,9 @@ public partial class Game
     /// <summary>Seed of the current map and simulation. Pass it back with --seed=N to replay the same map.</summary>
     public int Seed { get; private set; } = DefaultSeed;
 
+    /// <summary>Command-line arguments that rebuild the current map (the seed, plus --fast if it was used).</summary>
+    public string ReplayArguments { get; private set; } = "";
+
     /// <summary>
     /// A person is playing: not a scripted, perf-capture, hidden or terrain-test run. Only then does Escape open the
     /// pause menu and losing window focus pause the game; automated runs must never stop and wait for input.
@@ -47,14 +50,14 @@ public partial class Game
     }
 
     /// <summary>
-    /// An explicit --seed always wins. Automated runs keep the fixed <see cref="DefaultSeed"/> so replays, perf
-    /// captures and screenshots stay comparable. A normal match gets a fresh map every time.
+    /// An explicit --seed always wins. Automated runs and the terrain test keep the fixed <see cref="DefaultSeed"/>
+    /// so replays, perf captures and screenshots stay comparable. A normal match gets a fresh map every time.
     /// </summary>
-    private static int ResolveSeed(bool automatedRun, bool terrainTestMode)
+    private static int ResolveSeed(bool interactiveSession)
     {
         if (GameLaunchOptions.Seed is int requested)
             return requested;
-        if (automatedRun || terrainTestMode)
+        if (!interactiveSession)
             return DefaultSeed;
         return Random.Shared.Next(1, int.MaxValue);
     }
@@ -157,6 +160,12 @@ public partial class Game
         if (!_automatedRun)
             return;
 
+        AdvanceScriptClock();
+    }
+
+    /// <summary>Runs the scripted commands and screenshots due this frame without stepping the simulation.</summary>
+    private void AdvanceScriptClock()
+    {
         _simulationStepper.ProcessScriptedCommands(_simFrameCounter);
         _simFrameCounter++;
     }
@@ -168,7 +177,7 @@ public partial class Game
 
         var sound = new SoundMenuState(_audio.Enabled, AudioOptions.Volume, AudioOptions.Muted);
         SessionOverlayAction action = _sessionOverlay.Draw(
-            _hud.ViewportRect, _paused, _showControls, Seed, deltaTime, ref sound,
+            _hud.ViewportRect, _paused, _showControls, Seed, ReplayArguments, deltaTime, ref sound,
             showKeyReminder: IsInteractiveSession);
         // The menu only says what the player asked for; GameAudio owns the setting.
         if (sound.Muted != AudioOptions.Muted)

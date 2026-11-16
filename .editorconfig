@@ -1,0 +1,23 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+charset = utf-8
+
+[*.{csproj,props,targets,slnx,xml,json,yml,yaml}]
+indent_size = 2
+
+[*.cs]
+# Braces of a case block line up with the case label, as the code already does.
+csharp_indent_case_contents_when_block = false
+
+# Public struct fields are deliberate (hot simulation data).
+dotnet_diagnostic.CA1051.severity = none
+# Making a public instance member static changes every call site and the type's shape; flag private and internal only.
+dotnet_code_quality.CA1822.api_surface = private, internal
+
+[tests/**.cs]
+# xUnit test names use underscores.
+dotnet_diagnostic.CA1707.severity = none

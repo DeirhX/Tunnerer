@@ -20,10 +20,14 @@ public class TankBase
     private static int Half => Tweaks.Base.BaseSize / 2;
     private static int DoorHalf => Tweaks.Base.DoorSize / 2;
 
-    public TankBase(Position position, int color)
+    // The base's own temperature, which the engine's efficiency is measured from.
+    private readonly float _baseTemperature;
+
+    public TankBase(Position position, int color, SimulationSettings? settings = null)
     {
         Position = position;
         Color = color;
+        _baseTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalFixedBaseTemperature;
     }
 
     public bool IsInside(Position tested) => BoundingBox.IsInside(tested, Position);
@@ -37,6 +41,19 @@ public class TankBase
     /// so absorption is exact.
     /// </summary>
     public double ReactorHeatEnergy => (int)Reactor.Heat * (double)Tweaks.Base.ReactorEnergyPerHeatUnit + _reactorHeatRemainder;
+
+    /// <summary>How full the reactor (the base's heat store) is, 0 to 1, from its exact stored energy.</summary>
+    public double HeatStoreFill
+    {
+        get
+        {
+            double capacityEnergy = Math.Max(1, (int)Reactor.HeatCapacity) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
+            return Math.Clamp(ReactorHeatEnergy / capacityEnergy, 0.0, 1.0);
+        }
+    }
+
+    /// <summary>Energy the radiator vents out of the reactor per tick while it holds heat (see <see cref="Advance"/>).</summary>
+    public static double VentCapacityPerTick => Tweaks.Base.HeatCooldown * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
 
     /// <summary>Link-network node of this base; relays are powered through it.</summary>
     public Links.LinkPoint? LinkPoint { get; set; }
@@ -63,9 +80,9 @@ public class TankBase
     /// Fraction of delivered heat the base engine turns into charge, from how far the source is above the base's
     /// own temperature: hot sources are worth far more than warm ones.
     /// </summary>
-    public static double EngineEfficiency(double sourceTemperature)
+    public double EngineEfficiency(double sourceTemperature)
     {
-        double dT = sourceTemperature - Tweaks.World.ThermalFixedBaseTemperature;
+        double dT = sourceTemperature - _baseTemperature;
         if (dT <= 0.0)
             return 0.0;
         return Math.Min(Tweaks.Base.EngineMaxEfficiency, dT / (dT + Tweaks.Base.EngineTemperatureScale));

@@ -9,6 +9,7 @@ using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Desktop.Presentation;
 
 /// <summary>
 /// Turns what happens in the simulation into sound. It is called once around every simulation step (never per
@@ -210,7 +211,7 @@ public sealed class GameAudio : IDisposable
         bool dead = tank.IsDead;
         Position position = tank.Position;
         bool carrying = tank.IsCarryingMachine;
-        bool docked = !dead && tank.Base is not null && world.TankBases.CheckBaseCollision(position) == tank.Base;
+        bool docked = tank.IsDockedAtOwnBase;
         bool isPlayer = index == 0;
 
         if (track.Known)
@@ -224,13 +225,8 @@ public sealed class GameAudio : IDisposable
             if (!dead && track.Dead)
                 Play(SoundEffect.Respawn, position, AudioTweaks.RespawnGain, 1f, index);
 
-            if (carrying && !track.Carrying)
-            {
-                var built = tank.CarriedMachineType == MachineType.Harvester
-                    ? SoundEffect.BuildHarvester
-                    : SoundEffect.BuildRelay;
-                Play(built, position, AudioTweaks.BuildGain, 1f, index);
-            }
+            if (tank.CarriedMachineType is MachineType built && !track.Carrying)
+                Play(MachinePresentations.Get(built).BuildSound, position, AudioTweaks.BuildGain, 1f, index);
             // A tank that dies drops what it carried; that is not a planting.
             if (!carrying && track.Carrying && !dead && !track.Dead)
                 Play(SoundEffect.Plant, position, AudioTweaks.PlantGain, 1f, index);

@@ -20,68 +20,6 @@ public static class Tweaks
         public static int ParallelismDegree => Math.Max(1, Environment.ProcessorCount);
     }
 
-    public static class Screen
-    {
-        public static readonly Size WindowSize = new(1920, 1080);
-        public static readonly Size RenderSurfaceSize = new(320, 200);
-        public const float DrawStaticFuelThreshold = 0.2f;
-        public const int PixelScale = 6;
-        public const int NativeContinuousSampleLow = 1;
-        public const int NativeContinuousSampleMedium = 2;
-        public const int NativeContinuousSampleHigh = 4;
-        public const float NativeContinuousRenderBudgetMs = 5.0f;
-        public const int NativeContinuousBudgetHysteresisFrames = 10;
-        public const float NativeContinuousBudgetUnderThreshold = 0.65f;
-        public const int NativeContinuousRecoveryFramesMultiplier = 20;
-
-        public const float ScorchTintDarken = 0.35f;
-        public const float ScorchTintStrength = 0.50f;
-
-        // GPU post-processing / lighting tuning
-        public const float PostVignetteStrength = 0.18f;
-        public const float PostVignetteInnerRadius = 0.35f;
-        public const float PostVignetteOuterRadius = 0.95f;
-        public const float PostTerrainHeatThreshold = 0.10f;
-        public const float PostTerrainMaskCaveDarken = 0.12f;
-        public const float PostTerrainMaskSolidLift = 0.04f;
-        public const float PostTerrainMaskRimLift = 0.07f;
-        public const float PostMaterialEmissiveGoldR = 0.95f;
-        public const float PostMaterialEmissiveGoldG = 0.75f;
-        public const float PostMaterialEmissiveGoldB = 0.20f;
-        public const float PostMaterialEmissiveScorchedR = 0.7059f;
-        public const float PostMaterialEmissiveScorchedG = 0.3137f;
-        public const float PostMaterialEmissiveScorchedB = 0.1176f;
-        public const float PostMaterialEmissiveGoldStrength = 0.95f;
-        public const float PostMaterialEmissiveScorchedStrength = 0.32f;
-        public const float PostMaterialEmissivePulseFreq = 3.0f;
-        public const float PostMaterialEmissivePulseMin = 0.8f;
-        public const float PostMaterialEmissivePulseRange = 0.2f;
-        public const float PostTankHeatGlowR = 0.78f;
-        public const float PostTankHeatGlowG = 0.24f;
-        public const float PostTankHeatGlowB = 0.04f;
-        public const bool PostTankHeatDistortionEnabled = false;
-        public const float PostTankHeatGlowMinHeat = 1.5f;
-        public const float PostTankHeatGlowBaseRadius = 2.5f;
-        public const float PostTankHeatGlowScaleRadius = 2.5f;
-        public const float PostTerrainHeatGlowR = 1.0000f;
-        public const float PostTerrainHeatGlowG = 0.4500f;
-        public const float PostTerrainHeatGlowB = 0.0500f;
-        public const byte PostEmissiveGold = 190;
-        public const byte PostEmissiveScorchedHigh = 64;
-        public const byte PostEmissiveScorchedLow = 32;
-
-        // Directional lighting (matches CPU path: top-left, slightly forward)
-        public const float LightDirX = -0.35f;
-        public const float LightDirY = -0.55f;
-        public const float LightDirZ = 0.70f;
-        public const float LightAmbient = 0.22f;
-        public const float LightDiffuseWeight = 0.68f;
-        public const float LightNormalStrength = 2.2f;
-        public const float LightShininess = 8f;
-        public const float LightSpecularIntensity = 0.10f;
-        public const float LightMicroNormalStrength = 0.35f;
-    }
-
     public static class World
     {
         public static readonly TimeSpan AdvanceStep = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / Perf.TargetFps);
@@ -98,12 +36,6 @@ public static class Tweaks
         public const float MaximumLiveLinkDistance = 100f;
         public const float MaximumTheoreticalLinkDistance = 170f;
 
-        // Physically-inspired material heat exchange model.
-        public static bool EnableMaterialHeatExchange => true;
-        // Ambient sink toggle; conservative mode keeps this off.
-        public static bool EnableThermalAmbientExchange => false;
-        public static bool EnableStoneAmbientExchange { get; set; } = true;
-        public static bool EnableConservativeAirField => true;
         public const float ThermalDt = 2.0f;
         public const float ThermalAmbientTemperature = 0f;
 
@@ -356,8 +288,6 @@ public static class Tweaks
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
         public static readonly Color Pylon = new(0x4f, 0x8f, 0xff);
         public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
-        public static readonly Color RelayIdle = new(0x40, 0x68, 0x70);
-        public static readonly Color MachineTemplate = new(0x66, 0x66, 0x66, 0x80);
         public static readonly Color FailedInteraction = new(0xff, 0x34, 0x08);
         public static readonly Color InfoMarker = new(0xff, 0xff, 0x4a);
         public static readonly Color LinkLive = new(0xa0, 0xa0, 0x19);

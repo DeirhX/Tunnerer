@@ -28,6 +28,7 @@ public class ArchitectureGuardTests
     }
 }
 
+[Collection(ConsoleTestGroup.Name)]
 public class SimulationProfileTests
 {
     [Fact]
