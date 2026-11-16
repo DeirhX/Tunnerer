@@ -34,6 +34,14 @@ public readonly record struct NetworkStatus(
     /// <summary>Harvesters that are none of returning, out of charge or too hot.</summary>
     public int HarvestersWorking => Harvesters - HarvestersTooHot - HarvestersReturning - HarvestersOutOfCharge;
 
+    /// <summary>The heat-store gauge: Warn while it fills, Bad once it is (nearly) full.</summary>
+    public StatusLevel HeatStoreLevel => TankBase.HeatStoreLevelOf(HeatStoreFill);
+
+    /// <summary>
+    /// The heat store is full while relays are linked: relays and docking cool less until the radiator catches up.
+    /// </summary>
+    public bool IsHeatStoreFullWithRelays => HeatStoreLevel == StatusLevel.Bad && PoweredRelays > 0;
+
     /// <summary>A relay counts as pumping once its last action moved more than this much heat.</summary>
     public const double PumpingThreshold = 1.0;
 
@@ -46,7 +54,7 @@ public readonly record struct NetworkStatus(
         {
             if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != tankBase)
                 continue;
-            if (machine.Type == MachineType.Harvester)
+            if (machine.Behavior.IsMiner)
             {
                 harvesters++;
                 switch (MachineBehaviors.HarvesterStateOf(machine))
@@ -56,7 +64,7 @@ public readonly record struct NetworkStatus(
                     case HarvesterState.TooHot: tooHot++; break;
                 }
             }
-            else if (machine.Type == MachineType.Relay)
+            else if (machine.Behavior.IsHeatPump)
             {
                 relays++;
                 if (machine.LinkPoint?.IsPowered == true)

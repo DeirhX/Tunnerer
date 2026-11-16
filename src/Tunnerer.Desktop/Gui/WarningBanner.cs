@@ -2,12 +2,12 @@ namespace Tunnerer.Desktop.Gui;
 
 using ImGuiNET;
 using Tunnerer.Core.Entities;
-using Tunnerer.Desktop.Config;
 using static Tunnerer.Desktop.Gui.HudDraw;
 
 /// <summary>
 /// One banner at a time at the top of the game view, most urgent first: overheating, then low shield, then running
-/// hot. When each warning is on is decided by <see cref="PlayerWarnings"/>, which the warning sounds share.
+/// hot. When each warning is on is decided by Core (<see cref="Tank.IsRunningHot"/>, <see cref="Tank.IsShieldLow"/>),
+/// which the warning sounds also ask.
 /// </summary>
 public sealed class WarningBanner
 {
@@ -24,8 +24,8 @@ public sealed class WarningBanner
             return;
         }
 
-        _runningHotLatched = PlayerWarnings.RunningHot(_runningHotLatched, player);
-        _shieldLowLatched = PlayerWarnings.LowShield(_shieldLowLatched, player);
+        _runningHotLatched = player.IsRunningHot(_runningHotLatched);
+        _shieldLowLatched = player.IsShieldLow(_shieldLowLatched);
 
         // After the first hit, teach the thermal view once: enemy tunnels glow in it.
         if (!_thermalHintShown && player.HitFlashTicks > 0 && !heatDebugOverlayEnabled)

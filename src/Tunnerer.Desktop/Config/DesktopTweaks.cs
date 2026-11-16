@@ -172,26 +172,6 @@ public static class AudioTweaks
     public const int LoopHoldSteps = 4;
 }
 
-/// <summary>
-/// When the running-hot and low-shield warnings are on. They latch: on past one threshold, off again only past a
-/// gentler one, so they do not flicker around it. The HUD banners and the warning sounds both ask here.
-/// </summary>
-public static class PlayerWarnings
-{
-    /// <summary>On above 80% of the safe maximum temperature, off again below 70%.</summary>
-    public static bool RunningHot(bool latched, Tunnerer.Core.Entities.Tank player)
-    {
-        float heat = player.Heat / Tweaks.Tank.HeatSafeMax;
-        return latched ? heat > 0.70f : heat > 0.80f;
-    }
-
-    public static bool LowShield(bool latched, Tunnerer.Core.Entities.Tank player)
-    {
-        float shield = player.Reactor.Health / (float)Math.Max(1, player.Reactor.HealthCapacity);
-        return latched ? shield < 0.30f : shield < 0.25f;
-    }
-}
-
 /// <summary>Window, render-surface and GPU post-processing / lighting tuning for the desktop client.</summary>
 public static class DesktopScreenTweaks
 {

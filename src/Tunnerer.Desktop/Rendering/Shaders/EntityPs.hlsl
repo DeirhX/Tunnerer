@@ -35,8 +35,6 @@ float4 main(PSIn input) : SV_Target
         return TankTurret(p, input.color.rgb, input.params, aa);
     if (kind < kKindHotShot + 0.5)
         return HotShot(p, input.color.rgb, input.params, aa);
-    if (kind < kKindFoam + 0.5)
-        return FoamBlob(p, input.color.rgb, input.params, aa);
     if (kind < kKindRelay + 0.5)
         return Relay(p, input.params, aa);
     if (kind < kKindHarvester + 0.5)

@@ -47,6 +47,12 @@ public record MachineBehavior(
 
     /// <summary>It charges batteries in its reach; a low battery heads for the nearest one.</summary>
     public bool IsCharger { get; init; }
+
+    /// <summary>It mines dirt into its base's store; its state is a <see cref="HarvesterState"/>.</summary>
+    public bool IsMiner { get; init; }
+
+    /// <summary>It pumps heat out of the ground into its base (<see cref="Machine.LastPumpedEnergy"/>).</summary>
+    public bool IsHeatPump { get; init; }
 }
 
 /// <summary>What a planted harvester is doing, as of its last action.</summary>
@@ -75,6 +81,7 @@ public static class MachineBehaviors
         BuildKey.Secondary)
     {
         BatteryCapacity = Tweaks.Machine.HarvesterBatteryCapacity,
+        IsMiner = true,
     };
 
     public static readonly MachineBehavior Pylon = new(
@@ -100,6 +107,7 @@ public static class MachineBehaviors
     {
         IsLinkNode = true,
         RequiresLinkToPlant = true,
+        IsHeatPump = true,
     };
 
     /// <summary>Every machine's behavior, indexed by <see cref="MachineType"/>.</summary>

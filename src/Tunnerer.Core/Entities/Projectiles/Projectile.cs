@@ -4,7 +4,7 @@ using Tunnerer.Core.Types;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Config;
 
-public enum ProjectileType { Bullet, Shrapnel, ConcreteFoam, DirtFoam }
+public enum ProjectileType { Bullet, Shrapnel }
 
 public class Projectile
 {
@@ -35,21 +35,4 @@ public class Projectile
         HeatScale = heatScale,
     };
 
-    public static Projectile CreateConcreteFoam(Position pos, VectorF speed, int life) => new()
-    {
-        Position = (PositionF)pos,
-        Speed = speed,
-        Type = ProjectileType.ConcreteFoam,
-        Life = life,
-        IsAlive = true,
-    };
-
-    public static Projectile CreateDirtFoam(Position pos, VectorF speed, int life) => new()
-    {
-        Position = (PositionF)pos,
-        Speed = speed,
-        Type = ProjectileType.DirtFoam,
-        Life = life,
-        IsAlive = true,
-    };
 }
