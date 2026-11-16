@@ -91,17 +91,15 @@ public sealed class RenderViewState
         ClampCamera(worldPixelW, worldPixelH, viewW, viewH);
     }
 
+    /// <summary>
+    /// Keeps the view's centre over the world. The view may run past the world's edges by up to half its size, so the
+    /// tank stays in the middle of the screen (clear of the HUD in the corners and the panels along the edges) even at
+    /// the edge of the map.
+    /// </summary>
     private void ClampCamera(int worldPixelW, int worldPixelH, int viewW, int viewH)
     {
-        if (viewW >= worldPixelW)
-            CamPixelX = -(viewW - worldPixelW) / 2;
-        else
-            CamPixelX = Math.Clamp(CamPixelX, 0, worldPixelW - viewW);
-
-        if (viewH >= worldPixelH)
-            CamPixelY = -(viewH - worldPixelH) / 2;
-        else
-            CamPixelY = Math.Clamp(CamPixelY, 0, worldPixelH - viewH);
+        CamPixelX = Math.Clamp(CamPixelX, -viewW / 2, worldPixelW - viewW / 2);
+        CamPixelY = Math.Clamp(CamPixelY, -viewH / 2, worldPixelH - viewH / 2);
     }
 
     public Rect ComputeVisibleWorldRect(Size terrainSize, int scale)

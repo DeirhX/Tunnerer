@@ -32,8 +32,11 @@ public sealed class HudLayout
     /// </summary>
     public const float LeftW = BuildX, RightW = BuildPanelW;
 
-    /// <summary>The narrowest clear gap between the two parts, in art pixels; narrower displays shrink the HUD.</summary>
-    public const float MinCenterGap = 192f;
+    /// <summary>
+    /// The narrowest clear gap between the two parts, in UI units (not scaled with the art): room for the base upgrade
+    /// panel and its margins. Displays too narrow for it shrink the HUD.
+    /// </summary>
+    public const float MinCenterGap = 404f;
 
     /// <summary>Where the left part's top-left corner is on screen this frame: the bottom-left corner of the display.</summary>
     public Vector2 Origin { get; private set; }
@@ -47,14 +50,21 @@ public sealed class HudLayout
     /// <summary>
     /// How much the HUD art is enlarged, in UI units (<see cref="ImGuiPlatform.UiScale"/> does the rest): 1 up to a
     /// 1080-unit-high display, in proportion above it, and shrunk only when the display is too narrow for both parts
-    /// and the <see cref="MinCenterGap"/> between them.
+    /// and the <see cref="MinCenterGap"/> between them. A display narrower than twice that gap gives half its width to
+    /// the gap, so the scale stays positive however narrow the window is.
     /// </summary>
-    public static float HudScale(float displayW, float displayH) =>
-        MathF.Min(displayW / (LeftW + RightW + MinCenterGap), MathF.Max(1f, displayH / ReferenceDisplayHeight));
+    public static float HudScale(float displayW, float displayH)
+    {
+        float gap = MathF.Min(MinCenterGap, displayW * 0.5f);
+        float fitWidth = MathF.Max(0f, displayW - gap) / (LeftW + RightW);
+        return MathF.Min(fitWidth, MathF.Max(1f, displayH / ReferenceDisplayHeight));
+    }
 
     /// <summary>
-    /// Screen pixels per art pixel, in UI units. On a high-density display this is snapped to a whole number of device
-    /// pixels, so the art is drawn 1:1 with no resampling blur. Displays at 1x keep the fractional scale.
+    /// Screen pixels per art pixel, in UI units. On a high-density display this is snapped down to a whole number of
+    /// device pixels, so the art lands on whole pixels with no resampling blur. Below <see cref="ArtTextureDensity"/>
+    /// device pixels per art pixel the textures are scaled down anyway, so snapping would only shrink the HUD (to half
+    /// size on a 2x display narrow enough to scale it below 1): there, and on 1x displays, the fractional scale is kept.
     /// </summary>
     /// <param name="uiScale">Points per UI unit.</param>
     /// <param name="pixelDensity">Device pixels per point.</param>
@@ -65,9 +75,12 @@ public sealed class HudLayout
             return scale;
 
         float devicePerUnit = uiScale * pixelDensity;
-        float devicePerArtPixel = MathF.Max(1f, MathF.Floor(scale * devicePerUnit));
-        return devicePerArtPixel / devicePerUnit;
+        float exact = scale * devicePerUnit;
+        return exact < ArtTextureDensity ? scale : MathF.Floor(exact) / devicePerUnit;
     }
+
+    /// <summary>Texture pixels per art pixel: the HUD PNGs are drawn at twice their layout size.</summary>
+    public const float ArtTextureDensity = 2f;
 
     /// <summary>Points at the bottom of the window covered by the HUD; the game view is drawn above them.</summary>
     /// <param name="windowW">Window width in points.</param>
@@ -119,6 +132,9 @@ public sealed class HudLayout
     public Vector2 At(float x, float y) =>
         Origin + new Vector2(x, y) * Scale + new Vector2(x >= BuildX ? RightShift : 0f, 0f);
     public Vector2 At(Vector2 p) => At(p.X, p.Y);
+
+    /// <summary>The open gap between the two parts this frame: screen x from the left part's end to the right part's start.</summary>
+    public (float MinX, float MaxX) Gap => (Origin.X + LeftW * Scale, At(BuildX, 0f).X);
 
     /// <summary>An art length in screen pixels.</summary>
     public float S(float v) => v * Scale;

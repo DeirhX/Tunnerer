@@ -156,16 +156,30 @@ public class HudLogicTests
 
     [Theory]
     [InlineData(1920, 1080, 1f)]
-    [InlineData(1280, 720, 1f)]
     [InlineData(3840, 2160, 2f)]
     public void HudScale_EnlargesOnTallDisplays_ShrinksOnlyWhenNarrow(int w, int h, float expected) =>
         Assert.Equal(expected, HudLayout.HudScale(w, h));
 
-    [Fact]
-    public void HudScale_OnANarrowDisplay_KeepsTheGapBetweenTheParts()
+    [Theory]
+    [InlineData(1280, 720)]
+    [InlineData(900, 1080)]
+    public void HudScale_OnANarrowDisplay_KeepsTheGapBetweenTheParts(int w, int h)
     {
-        float scale = HudLayout.HudScale(623, 1080);
-        Assert.Equal(623f, (HudLayout.LeftW + HudLayout.RightW + HudLayout.MinCenterGap) * scale, 3);
+        float scale = HudLayout.HudScale(w, h);
+        Assert.True(scale < 1f);
+        Assert.Equal(w, (HudLayout.LeftW + HudLayout.RightW) * scale + HudLayout.MinCenterGap, 3);
+    }
+
+    [Theory]
+    [InlineData(800)]
+    [InlineData(404)]
+    [InlineData(320)]
+    [InlineData(1)]
+    public void HudScale_StaysPositiveOnVeryNarrowDisplays_HalfTheWidthBeingTheGap(int w)
+    {
+        float scale = HudLayout.HudScale(w, 1080);
+        Assert.True(scale > 0f);
+        Assert.Equal(w * 0.5f, (HudLayout.LeftW + HudLayout.RightW) * scale, 3);
     }
 
     [Theory]
@@ -187,7 +201,6 @@ public class HudLogicTests
     [InlineData(1728, 1117, 2f)] // MacBook Pro 16" default: 1.03 UI units high, 2 device pixels per point
     [InlineData(1512, 982, 2f)]
     [InlineData(2560, 1440, 2f)]
-    [InlineData(1920, 1080, 1.5f)]
     public void ArtScale_SnapsToWholeDevicePixelsOnDenseDisplays(int pointsW, int pointsH, float density)
     {
         float ui = ImGuiPlatform.ComputeUiScale(pointsW, pointsH);
@@ -196,6 +209,15 @@ public class HudLogicTests
 
         Assert.True(MathF.Abs(devicePerArtPixel - MathF.Round(devicePerArtPixel)) < 1e-3f, $"{devicePerArtPixel} device px per art px");
         Assert.True(devicePerArtPixel >= 1f);
+    }
+
+    [Theory]
+    [InlineData(1920, 1080, 1.5f)] // 1.5 device px per art px would snap to 1, a third smaller
+    [InlineData(1280, 720, 2f)]    // the HUD shrunk to keep the gap: 1.71 would snap to 1, half size
+    public void ArtScale_KeepsTheFractionalScaleBelowTheTextureDensity(int pointsW, int pointsH, float density)
+    {
+        float ui = ImGuiPlatform.ComputeUiScale(pointsW, pointsH);
+        Assert.Equal(HudLayout.HudScale(pointsW / ui, pointsH / ui), HudLayout.ArtScale(pointsW / ui, pointsH / ui, ui, density));
     }
 
     [Fact]
