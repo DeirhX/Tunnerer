@@ -337,11 +337,13 @@ public sealed class Radar
         bool marked = false;
         if (temperature > Tweaks.Radar.HeatThreshold)
         {
-            if (ray.HeatLeft > 0)
+            // Only a mark that is kept counts against the ray's allowance: hot ground in sight must not use it up
+            // and leave the unseen heat beyond unmarked.
+            if (ray.HeatLeft > 0 &&
+                Record(cell, RadarEcho.Heat, HeatIntensity(temperature), width, pixels, isTerrain: false))
             {
                 ray.HeatLeft--;
                 marked = true;
-                Record(cell, RadarEcho.Heat, HeatIntensity(temperature), width, pixels, isTerrain: false);
             }
             ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * Tweaks.Radar.HeatLossPerDegree * ray.CellLength;
             if (ray.Strength <= 0f)
@@ -418,12 +420,12 @@ public sealed class Radar
         (temperature - Tweaks.Radar.HeatThreshold) / (Tweaks.Radar.HeatFullTemperature - Tweaks.Radar.HeatThreshold),
         0f, 1f);
 
-    /// <summary>Keeps a return unless it tells the side nothing (<see cref="IsNews"/>).</summary>
-    private void Record(
+    /// <summary>Keeps a return unless it tells the side nothing (<see cref="IsNews"/>); true if it was kept.</summary>
+    private bool Record(
         Position cell, RadarEcho echo, float strength, int width, ReadOnlySpan<TerrainPixel> pixels, bool isTerrain)
     {
         if (!IsNews(cell.X + cell.Y * width, isTerrain, pixels))
-            return;
+            return false;
         if (_count == _contacts.Length)
         {
             _head = (_head + 1) % _contacts.Length;
@@ -433,6 +435,7 @@ public sealed class Radar
         }
         _contacts[Slot(_count)] = new RadarContact(cell, echo, Tick, strength);
         _count++;
+        return true;
     }
 
     /// <summary>

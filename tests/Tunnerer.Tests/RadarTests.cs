@@ -177,6 +177,24 @@ public class RadarTests
     }
 
     [Fact]
+    public void HotGroundInSight_DoesNotUseUpTheHeatMarks()
+    {
+        var terrain = Dirt();
+        Warm(terrain, 201, 199, 260, 201, temperature: 15);
+        var vision = new VisionMap(terrain);
+        // The side sees the first stretch of the warm strip, more cells than a ray may mark.
+        vision.Update(terrain, None, [new VisionSource(Origin, 0, 30)]);
+        Assert.True(vision.IsVisible(new Position(225, 200)) && !vision.IsVisible(new Position(235, 200)));
+        var radar = new Radar(vision);
+
+        Pulse(radar, terrain, Origin);
+
+        var onAxis = Contacts(radar).Where(c => c.Echo == RadarEcho.Heat && c.Position.Y == Origin.Y).ToList();
+        Assert.Equal(Tweaks.Radar.HeatReturnsPerRay, onAxis.Count);
+        Assert.All(onAxis, c => Assert.False(vision.IsVisible(c.Position)));
+    }
+
+    [Fact]
     public void ABlip_GoesOnceItsCellHasBeenSeen_AndDoesNotComeBack()
     {
         var terrain = Dirt();
