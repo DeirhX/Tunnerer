@@ -129,7 +129,6 @@ Behaviour-preserving:
 - `TerrainHeatEngine.StepConservative` is now called only by tests; `TerrainGrid` keeps thin thermal forwards for `TerrainGrid.cs`/`HotRock.cs`.
 - `VisualTime` is a real-time stopwatch, so step-locked screenshot runs are not reproducible; derive it from steps in automated runs.
 - `RenderingSourceGuardTests`-style guard for `PostParamsBlock` layout vs `PostParams.hlsli` (blocked on the misalignment decision).
-- Ubuntu CI job is non-blocking until it has passed once.
 - `NetworkStatus.Collect` still checks machine types directly instead of asking `MachineBehaviors`.
 - `[Profile+]` `coolPrep`/`coolCopy` are always 0 since the thermal snapshot copy was removed; drop them.
 - Dead or unreachable: foam projectiles and their factories, `MachineList.TestCollide`.
