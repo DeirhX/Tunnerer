@@ -167,8 +167,8 @@ public partial class TerrainGrid
     }
 
     /// <summary>
-    /// A dirt-only gameplay sink: stone, base and hot rock keep their energy, and the ledger meters the sunk energy
-    /// with the dirt capacity. Rebuilds the active tiles; returns the time spent.
+    /// A dirt-only gameplay sink: stone, base and hot rock keep their energy, dirt below ambient keeps its cold, and
+    /// the ledger meters the sunk energy with the dirt capacity. Rebuilds the active tiles; returns the time spent.
     /// </summary>
     private TimeSpan ApplyArtificialCooling(float coolingPerFrame, ref float maxAbsDelta)
     {
@@ -181,7 +181,8 @@ public partial class TerrainGrid
             if (Pixel.GetThermalMaterial(_data[i]) == ThermalMaterial.Dirt)
             {
                 float old = _heatTemperature[i];
-                float next = MathF.Max(0f, old - coolingPerFrame);
+                // A sink only takes heat above ambient: sub-zero dirt (frost, or chilled by a cold tank) keeps its cold.
+                float next = old > 0f ? MathF.Max(0f, old - coolingPerFrame) : old;
                 if (next != old)
                 {
                     _heatTemperature[i] = next;

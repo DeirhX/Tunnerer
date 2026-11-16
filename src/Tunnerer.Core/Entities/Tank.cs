@@ -195,11 +195,9 @@ public class Tank
             : Base!.Upgrades.IsMaxed(upgrade) ? UpgradeRefusal.Maxed
             : Base.TryBuyUpgrade(upgrade) ? UpgradeRefusal.None
             : UpgradeRefusal.CannotPay;
-        if (refusal != UpgradeRefusal.None)
-        {
-            LastUpgradeRefusal = refusal;
-            UpgradeRefusedTicks = 48;
-        }
+        // A successful press clears any earlier refusal, so its message does not linger over the purchase.
+        LastUpgradeRefusal = refusal;
+        UpgradeRefusedTicks = refusal != UpgradeRefusal.None ? 48 : 0;
     }
 
     /// <summary>

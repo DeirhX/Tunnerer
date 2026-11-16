@@ -126,6 +126,12 @@ public class SectorGoalTests
         Press();   // docked, empty store
         Assert.Equal(UpgradeRefusal.CannotPay, s.Tank.LastUpgradeRefusal);
 
+        // A successful press right after clears the refusal, so its message does not linger.
+        Fund(s.Base, s.Base.Materials.DirtCapacity);
+        Press();
+        Assert.Equal(UpgradeRefusal.None, s.Tank.LastUpgradeRefusal);
+        Assert.Equal(0, s.Tank.UpgradeRefusedTicks);
+
         while (!s.Base.Upgrades.IsMaxed(BaseUpgrade.Engine))
         {
             Fund(s.Base, s.Base.Materials.DirtCapacity);

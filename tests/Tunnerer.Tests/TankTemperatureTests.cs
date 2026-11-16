@@ -212,13 +212,16 @@ public class TankTemperatureTests
 
         float minHeat = tank.Heat;
         float afterFive = 0f;
-        for (int i = 0; i < Tweaks.Perf.TargetFps * 40; i++)
+        // 15 s: long enough to get too cold, short of frostbite wearing the shield down (parked there for half a
+        // minute, a tank freezes to death).
+        for (int i = 0; i < Tweaks.Perf.TargetFps * 15; i++)
         {
             world.Advance(_ => default);
             minHeat = Math.Min(minHeat, tank.Heat);
             if (i == Tweaks.Perf.TargetFps * 5)
                 afterFive = tank.Heat;
         }
+        Assert.False(tank.IsDead);
 
         Assert.True(afterFive < 30f, $"a frost pocket is a quick place to shed heat. heat after 5 s={afterFive:0.0}");
         Assert.True(tank.IsOffNetwork, "the scenario is meant to be off network");
