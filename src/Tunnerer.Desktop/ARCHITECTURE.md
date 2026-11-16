@@ -117,11 +117,13 @@ Without these flags the window is borderless fullscreen on the primary display.
 
 ## Sound
 
-Everything is in `Audio/`. Sound only observes the simulation: it reads world state and never writes it.
+Everything is in `Audio/`. Sound only observes the simulation: it reads the step's events and world state and never
+writes either.
 
 | File | Role |
 |------|------|
-| `GameAudio.cs` | Decides what to play. Called before and after every simulation step. |
+| `GameAudio.cs` | Decides what to play. Called after every simulation step. |
+| `StepEventSounds.cs` | Which one-shot effect each simulation event plays, and how loud (tested without a device). |
 | `SoundBank.cs` | Synthesises every effect at start-up (filtered noise, sine partials, envelopes) as mono 48 kHz samples. No sound files; the noise is seeded per effect, so the bank is the same on every run. |
 | `SoundMixer.cs` | Mixes one-shot voices and continuous loops to stereo, applies master volume, pause and a soft limiter. |
 | `SdlAudioOutput.cs` | The SDL audio device. SDL calls back on its own thread for samples and the mixer fills the buffer (512 samples, about 11 ms). |
@@ -129,25 +131,28 @@ Everything is in `Audio/`. Sound only observes the simulation: it reads world st
 
 ### Detecting events
 
-`GameAudio.AfterStep` compares the world with what it recorded after the previous step. Triggering on steps
-rather than displayed frames is what keeps an effect from repeating on the frames drawn between steps.
+Sound does not work out what happened by comparing the world between steps. Core records it: `World.StepEvents`
+lists what happened during the last step (see `src/Tunnerer.Core/ARCHITECTURE.md`), and `Game` calls
+`GameAudio.AfterStep` after every step, so when one display frame runs several steps each step's events are played
+in turn before the next step clears them. Triggering on steps rather than displayed frames is what keeps an effect
+from repeating on the frames drawn between steps.
 
-| Effect | Trigger |
+| Effect | Trigger (`StepEventKind`) |
 |--------|---------|
-| Fire | `Tank.ShotsFired` rose (the one signal Core provides for sound; nothing in the simulation reads it) |
-| Impact | A bullet in the projectile snapshot is dead. A projectile that dies in a step stays in the list, marked dead, until the next step removes it, so each is seen once. At most 2 per step. |
-| Debris | 3 or more shrapnel died in the step: one rattle at their centre, at most every 6 steps, however many there were |
-| Tank hit | `HitFlashTicks` rose |
-| Tank death, respawn | `IsDead` changed |
-| Build relay / harvester, plant | `IsCarryingMachine` changed (a tank that dies drops its machine silently) |
-| Plant refused | `PlantRefusedTicks` rose (player only) |
-| Pickup | A cell that held gold before the step (`BeforeStep` records those near each tank) is empty and under the tank, or the tank's mineral store grew. At most every 3 steps; a run of pickups climbs in pitch. |
-| Dock | The player's tank entered its own base |
-| Warnings | Player only, most urgent first like the HUD banner: overheating, low shield, running hot. The thresholds are shared with the HUD through `PlayerWarnings`. Each repeats at its own interval while it lasts. |
-| Engine loop | Per tank, while alive: idle, or louder and higher while its position changes |
-| Dig loop | Per tank: its dirt store grew, or cells next to it were emptied while it was driving or torching |
-| Torch loop | Per tank: digging while the turret is firing |
-| Recharge loop | Player, docked, and the base is repairing, cooling or unloading it |
+| Fire | `ShotFired` |
+| Impact | `BulletImpact` (terrain, tank or machine). At most 2 per step. |
+| Debris | 3 or more `ShrapnelSpent` within earshot in the step: one rattle at their centre, at most every 6 steps, however many there were |
+| Tank hit | `TankHit` |
+| Tank death, respawn | `TankDied`, `TankRespawned` |
+| Build relay / harvester / pylon, plant | `MachineBuilt` (the machine's own build sound), `MachinePlanted` (a tank that dies drops its machine silently) |
+| Plant refused | `PlantRefused` (player only) |
+| Pickup | `GoldCollected`, `OreCollected`. At most every 3 steps; a run of pickups climbs in pitch. |
+| Dock | `Docked` (player only; a respawn is not a docking) |
+| Warnings | Player only, most urgent first like the HUD banner: overheating, low shield, running hot. The thresholds are shared with the HUD through `PlayerWarnings`. Each repeats at its own interval while it lasts. These follow the tank's state, not events. |
+| Engine loop | Per tank, while alive: idle, or louder and higher on steps with `TankMoved` |
+| Dig loop | Per tank: `TankDug` |
+| Torch loop | Per tank: `TankDug` with `Torch` set |
+| Recharge loop | Player, docked, and `BaseServiced` (the base is repairing, cooling or unloading it) |
 
 Loops are held for a few steps after their last trigger, because a digging tank only clears cells on some steps,
 and the mixer glides loop volume, pan and pitch so nothing clicks.

@@ -9,6 +9,7 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 
 ```
 World.cs                     World: owns every subsystem, runs Advance; SimulationProfile (per-section timings)
+StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
 MatchOutcome.cs              Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
 NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
 StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
@@ -107,6 +108,20 @@ Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsM
 `Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
 `World.CollectCoverageNodes`, and the `CopyRenderStates` snapshot of each entity list.
 
+### Step events
+
+Desktop learns about one-off happenings from `World.StepEvents`, never by comparing state between steps. Each
+`Advance` clears the list first, then the code where something happens records a small `StepEvent` (kind, position,
+the tank or side's colour, and a machine type, impact target, cell count or torch flag where they apply): shots
+fired, bullet impacts, explosions, spent shrapnel, tank hits, deaths and respawns, moving, digging, pickups,
+docking and leaving the base, base service, and machines built, planted, refused, damaged and wrecked. The list
+holds the last step's events until the next step begins, so a caller that runs several steps per frame reads it
+after each one. It is output only: nothing in the simulation reads it, so recording cannot change a result
+(`SimulationFingerprintTests`), and the `StepEventLog` reuses its storage, so recording does not allocate in steady
+state. Tanks record through `SimulationContext.Events`, projectiles through the log `ProjectileList` is built with,
+and `World` itself records plantings and docking. A new kind of happening that presentation needs is a new
+`StepEventKind`, recorded where it happens (`StepEventTests` covers each kind).
+
 ## Heat
 
 Heat lives in two float fields on `TerrainGrid`, terrain and air. Energy is temperature times heat capacity
@@ -196,7 +211,7 @@ Desktop:
    and the heat API (`AddHeat`, `AddHeatRadius`) for heat, so the ledger stays balanced.
 3. Something has to spawn it: today only `TankTurret` (bullets) and `ExplosionFactory` (shrapnel) do.
 4. Desktop: `Rendering/Entities/ProjectileQuads.cs` draws bullets and shrapnel as hot shots and throws for any
-   other type; add a case for a new projectile. `Audio/GameAudio.cs` plays impacts for bullets and shrapnel only.
+   other type; add a case for a new projectile. Record what presentation should hear about in `World.StepEvents` (bullets record `BulletImpact`, shrapnel `ShrapnelSpent`).
 
 ### Adding a thermal material
 

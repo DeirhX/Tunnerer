@@ -223,7 +223,6 @@ public partial class Game : IDisposable
     {
         var aimDir = ComputeAimDirection(tanks, frameInput);
         bool mouseShoot = IsMouseInViewport(frameInput, out _, out _) && frameInput.IsLeftMouseDown;
-        _audio.BeforeStep(_world);
         _simulationStepper.AdvanceOneStep(
             simFrame: _simFrameCounter,
             tanks: tanks,
@@ -234,7 +233,7 @@ public partial class Game : IDisposable
         _entityLayer.CaptureStep(_world);
 
         var changedCells = _world.Terrain.GetChangeList();
-        _audio.AfterStep(_world, changedCells);
+        _audio.AfterStep(_world);
         _terrainAuxUploader.ObserveTerrainChanges(_world.Terrain, changedCells, VisualTime);
 
         DrawProfile.Measure(ref _drawProfile.TerrainDraw,
