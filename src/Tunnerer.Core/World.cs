@@ -28,6 +28,7 @@ public class World
     private readonly List<Position> _hotRockPockets = new();
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
+    private readonly StepEventLog _stepEvents = new();
 
     private int _advanceCount;
     private TimeSpan _elapsed;
@@ -74,6 +75,13 @@ public class World
     public int AdvanceCount => _advanceCount;
     public SimulationSettings Settings => _simulationSettings;
 
+    /// <summary>
+    /// What happened during the last <see cref="Advance"/> step (shots, impacts, deaths, plantings, dockings...),
+    /// valid until the next step begins. Presentation code learns about one-off happenings here instead of
+    /// comparing state between steps; nothing in the simulation reads it.
+    /// </summary>
+    public ReadOnlySpan<StepEvent> StepEvents => _stepEvents.Events;
+
     public SimulationProfile Profile { get; } = new();
 
     /// <summary>Centres of the hot rock pockets placed at initialisation (empty unless the world was created with some).</summary>
@@ -116,6 +124,7 @@ public class World
             machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
         if (machine.Behavior.IsLinkNode)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
+        _stepEvents.Record(new StepEvent(StepEventKind.MachinePlanted, machine.Position, machine.OwnerColor, machine.Type));
     }
 
     public World(
@@ -131,7 +140,7 @@ public class World
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
         _tankBases = new TankBases(_simulationSettings);
-        _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df);
+        _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
         _terrainRegrowth = new TerrainRegrowth(parallelRegrowth, enableTerrainRegrowth, _simulationSeed);
@@ -193,6 +202,7 @@ public class World
         var frameWatch = Stopwatch.StartNew();
 
         _advanceCount++;
+        _stepEvents.Clear();
         _elapsed += _simulationSettings.AdvanceStep;
 
         ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
@@ -230,6 +240,7 @@ public class World
             PlantMachine = PlantMachine,
             CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
             CoverageFor = CoverageFor,
+            Events = _stepEvents,
         };
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         _linkMap.ClearHeatFlow();
@@ -245,7 +256,10 @@ public class World
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
         foreach (var tank in _tankList.Tanks)
+        {
             tank.ObserveBaseExit(_tankBases);
+            tank.ObserveDocking(_stepEvents);
+        }
 
         Profile.Total += frameWatch.Elapsed;
         Profile.FrameCount++;

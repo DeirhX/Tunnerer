@@ -38,12 +38,12 @@ internal sealed class TankLifecycle
             HitFlashTicks--;
     }
 
-    public void TakeDamage(int amount, DamageCause cause, VectorF hitVelocity)
+    public bool TakeDamage(int amount, DamageCause cause, VectorF hitVelocity)
     {
         if (amount <= 0 || _tank.IsDead)
-            return;
+            return false;
         if (cause == DamageCause.EnemyFire && SpawnProtectionTicks > 0)
-            return;
+            return false;
         _tank.Reactor.Exhaust(new ReactorState(0, amount));
         LastDamageCause = cause;
         if (cause == DamageCause.EnemyFire)
@@ -53,6 +53,7 @@ internal sealed class TankLifecycle
         }
         if (_tank.IsDead)
             DeathCause = cause;
+        return true;
     }
 
     /// <summary>
@@ -93,10 +94,13 @@ internal sealed class TankLifecycle
     }
 
     /// <summary>A dead tank's tick: it explodes once, then respawns at its base when the timer runs out and lives remain.</summary>
-    public void AdvanceDeath(ProjectileList projectiles, ThermalLedger ledger)
+    public void AdvanceDeath(ProjectileList projectiles, ThermalLedger ledger, StepEventLog? events)
     {
         if (!_respawning)
+        {
+            events?.Record(new StepEvent(StepEventKind.TankDied, _tank.Position, _tank.Color));
             Die(projectiles);
+        }
 
         if (_tank.LivesLeft <= 0)
             return;
@@ -106,6 +110,7 @@ internal sealed class TankLifecycle
             return;
 
         _tank.Spawn(ledger);
+        events?.Record(new StepEvent(StepEventKind.TankRespawned, _tank.Position, _tank.Color));
     }
 
     /// <summary>Clears the death state and raises the respawn shield.</summary>
