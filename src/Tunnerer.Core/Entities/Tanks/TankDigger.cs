@@ -39,7 +39,8 @@ internal sealed class TankDigger
         }
 
         // A cold tank only gets to act on some ticks (moving and digging alike), so it crawls (DESIGN.md §4.7).
-        _moveCredit = Math.Min(_moveCredit + _tank.SpeedFactor, 1f);
+        // The remainder carries over (credit stays below 1 after a move), so a factor of 0.8 moves 4 ticks in 5.
+        _moveCredit += _tank.SpeedFactor;
         if (_moveCredit < 1f)
             return;
         _moveCredit -= 1f;

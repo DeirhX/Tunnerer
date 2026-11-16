@@ -184,6 +184,12 @@ public class TankTemperatureTests
         int warm = CellsDriven(10f), cold = CellsDriven(-60f);
         Assert.True(warm >= 20, $"warm tank drove {warm}");
         Assert.True(cold <= warm * (Tweaks.Tank.ColdMinSpeed + 0.1f), $"a frozen tank should crawl. warm={warm}, cold={cold}");
+
+        // Slightly chilled, the slowdown is proportional (leftover move credit carries over), not a halving.
+        float chill = -10f;
+        int chilled = CellsDriven(chill);
+        float expected = warm * TankHeatModel.ColdSpeedFactor(chill);
+        Assert.InRange(chilled, (int)MathF.Floor(expected) - 1, (int)MathF.Ceiling(expected) + 1);
     }
 
     [Fact]
