@@ -25,12 +25,6 @@ public class TankList
             _tanks[i].Advance(in ctx, getInput(i));
     }
 
-    public void Draw(Surface surface)
-    {
-        foreach (var tank in _tanks)
-            tank.Draw(surface);
-    }
-
     public int CopyRenderStates(Span<TankRenderState> destination)
     {
         int count = Math.Min(destination.Length, _tanks.Count);

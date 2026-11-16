@@ -53,6 +53,24 @@ public class TankCoolantTests
     }
 
     [Fact]
+    public void PreCooling_ReadsCoolantCapacityAndDockCoolingFromInjectedSettings()
+    {
+        var settings = SimulationSettings.FromTweaks() with { TankCoolantCapacity = 20f, TankDockCoolingPerTick = 0.25f };
+        var size = TestHelpers.DefaultMapSize;
+        var (terrain, spawns) = new Tunnerer.Core.LevelGen.ToastGenerator().Generate(size, seed: 5151);
+        var world = new World(size, simulationSeed: 5151, simulationSettings: settings);
+        world.Initialize(terrain, spawns, decorationSeed: 5152);
+        var tank = world.TankList.Tanks[0];
+        SetTankHeat(tank, 0f);
+
+        Advance(world, 40);
+        Assert.True(Math.Abs(tank.Heat + 10f) < 0.5f, $"docked, the tank cools at the injected 0.25 per tick. heat={tank.Heat:0.00}");
+
+        Advance(world, 110);
+        Assert.True(Math.Abs(tank.Heat + 20f) < 0.5f, $"pre-cooling stops at the injected coolant capacity. heat={tank.Heat:0.00}");
+    }
+
+    [Fact]
     public void Tank_AtForeignBase_IsNotRefrigerated()
     {
         var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);

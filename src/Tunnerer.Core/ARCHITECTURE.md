@@ -9,6 +9,7 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 
 ```
 World.cs                     World: owns every subsystem, runs Advance; SimulationProfile (per-section timings)
+StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
 MatchOutcome.cs              Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
 NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
 StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
@@ -38,9 +39,8 @@ Entities/
   Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, pickups; owns the tank's RNG
   Tanks/TankBuildController.cs   Build keys: build, carry, plant
   Tanks/TankLifecycle.cs     Damage, death, respawn, spawn shield
-  Tanks/TankSpriteShape.cs   The sprite bitmap used as the terrain-contact and pickup shape
+  Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
   TankTurret.cs              Aim, cooldown, bullet spawn
-  TankCollisionMask.cs       Shape bullets hit (separate from the sprite shape)
   TankHeatModel.cs           Heat-flow formula shared by tank contact with terrain and air
   TankList.cs, TankBase.cs, TankBases.cs   Tank collection; bases (reactor, radiator, engine, charge, stores)
   SimulationContext.cs       The slice of World a tank sees during Advance
@@ -49,7 +49,7 @@ Entities/
   DamageCause.cs
   Machines/Machine.cs        MachineType, MachineState, Machine
   Machines/MachineBehavior.cs   MachineBehavior (action, interval, cost, BuildKey, traits), MachineBehaviors table
-  Machines/MachineList.cs    Machine collection; removes dead machines (their charge becomes heat)
+  Machines/MachineList.cs    Machine collection; wrecks dead machines (leave the network, charge to heat, scorch)
   Machines/MachinePlacementPreview.cs   Result of World.PreviewPlacement
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
@@ -72,18 +72,17 @@ Rendering/
   RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
 Resources/Resources.cs       Reactor, ReactorState, MaterialAmount, MaterialContainer
-Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, DirectionF, Color, Rect, BoundingBox, Surface
+Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, DirectionF, Color, Rect, BoundingBox
 ```
 
 ## World
 
-`new World(size, deterministicSimulation, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
+`new World(size, parallelRegrowth, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
 spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot rock pockets (if asked)
 and adds one tank per spawn. Every RNG World owns (projectiles, link map, regrowth, each tank) is seeded from
 `simulationSeed`, and decorations and hot rock pockets from the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
-picks the seed. `deterministicSimulation: false` only lets regrowth run in parallel (same result) and switches the
-link map's id scheme. The bot takes its own seed, also from `WorldFactory`.
+picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in parallel, with the same result. The bot takes its own seed, also from `WorldFactory`.
 
 `World.Advance(getInput)` runs one fixed step, in this order:
 
@@ -108,10 +107,24 @@ Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsM
 `Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
 `World.CollectCoverageNodes`, and the `CopyRenderStates` snapshot of each entity list.
 
+### Step events
+
+Desktop learns about one-off happenings from `World.StepEvents`, never by comparing state between steps. Each
+`Advance` clears the list first, then the code where something happens records a small `StepEvent` (kind, position,
+the tank or side's colour, and a machine type, impact target, cell count or torch flag where they apply): shots
+fired, bullet impacts, explosions, spent shrapnel, tank hits, deaths and respawns, moving, digging, pickups,
+docking and leaving the base, base service, and machines built, planted, refused, damaged and wrecked. The list
+holds the last step's events until the next step begins, so a caller that runs several steps per frame reads it
+after each one. It is output only: nothing in the simulation reads it, so recording cannot change a result
+(`SimulationFingerprintTests`), and the `StepEventLog` reuses its storage, so recording does not allocate in steady
+state. Tanks record through `SimulationContext.Events`, projectiles through the log `ProjectileList` is built with,
+and `World` itself records plantings and docking. A new kind of happening that presentation needs is a new
+`StepEventKind`, recorded where it happens (`StepEventTests` covers each kind).
+
 ## Heat
 
 Heat lives in two float fields on `TerrainGrid`, terrain and air. Energy is temperature times heat capacity
-(`TerrainHeatEngine.GetHeatCapacity` per `ThermalMaterial`, `ThermalCapacityAir` for air). In an air cell the
+(`TerrainHeatEngine.GetHeatCapacity` per `ThermalMaterial`, `AirHeatCapacity` for air). In an air cell the
 terrain field only mirrors the air field, so such a cell holds one store.
 
 Each tick `TerrainGrid.CoolDown` asks `ThermalScheduler.Decide` what to do: sleep (nothing active, or the last step
@@ -193,24 +206,32 @@ Desktop:
 
 1. A value in `ProjectileType` (`Entities/Projectiles/Projectile.cs`) and a factory method on `Projectile`.
 2. An entry in `ProjectileList.BuildBehaviors`: an advance method `(Projectile, CollisionSolver, ProjectileList)`
-   and a draw colour. Use `CollisionSolver.TestPoint` to hit tanks or terrain, `ProjectileList`'s RNG for chance,
+   and a draw colour. Use `CollisionSolver.TestPoint` to hit tanks, machines or terrain (bullets skip their own side's tanks and machines), `ProjectileList`'s RNG for chance,
    and the heat API (`AddHeat`, `AddHeatRadius`) for heat, so the ledger stays balanced.
 3. Something has to spawn it: today only `TankTurret` (bullets) and `ExplosionFactory` (shrapnel) do.
 4. Desktop: `Rendering/Entities/ProjectileQuads.cs` draws bullets and shrapnel as hot shots and throws for any
-   other type; add a case for a new projectile. `Audio/GameAudio.cs` plays impacts for bullets and shrapnel only.
+   other type; add a case for a new projectile. Record what presentation should hear about in `World.StepEvents` (bullets record `BulletImpact`, shrapnel `ShrapnelSpent`).
 
 ### Adding a thermal material
 
 1. A value in `ThermalMaterial` (`Terrain/TerrainPixel.cs`), contiguous from zero.
 2. Map pixels to it in `Pixel.DeriveThermalMaterial`. A new `TerrainPixel` also needs an entry in
    `Pixel.BuildBehaviorTable` and its name in the reviewed list of `SimulationTableGuardTests`.
-3. In `Thermal/TerrainHeatEngine.cs`: raise `MaterialCount`; add a case to `ComputeHeatCapacity` and a pair for
-   every other material in `ComputeConductance` (unlisted pairs silently get the base-to-base value). If it holds
-   a fixed temperature, add it to `IsFixedTemperatureMaterial` and `GetFixedTemperature`; if entities must not
-   draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.
-4. Constants in `Tweaks.World`, a property on `SimulationSettings` and its copy in `SimulationSettings.FromTweaks`.
-   Thermal code reads only the settings (`SourceGuardTests`).
-5. Desktop shades pixels, not materials: a new pixel needs a case in `TerrainAuxBuilder` and
+3. Its row in `Tweaks.World.ThermalMaterials`, a `ThermalMaterialTable` with one `ThermalMaterialProperties` per
+   material (the constructor throws on a missing or doubled row):
+   - `HeatCapacity`: energy per degree.
+   - `Conductivity`: the conductance of half a cell. Two touching cells conduct their halves in series,
+     `ka * kb / (ka + kb)`, so a material against itself conducts half its value and against a much better
+     conductor (a base, a gold core) nearly all of it. Air's value is the air field's, between neighbouring cells.
+     A pair that needs a value the rule cannot produce gets a `ThermalPairOverride` in the table's override list
+     (either order; today dirt against stone, hot rock, base and gold/core). The engine copies the pair table once
+     at construction, so the solver's inner loop pays one array read.
+   - `AirExchange`: conductance between the cell's terrain and the air in the same cell.
+   - `FixedTemperature`: set it for a source or sink; `ResolveTerrainTemperature` pins the cell there each step.
+   If entities must not draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.
+   The table reaches thermal code through `SimulationSettings.ThermalMaterials` (`SourceGuardTests`), so a test can
+   swap a row with `ThermalMaterialTable.With`.
+4. Desktop shades pixels, not materials: a new pixel needs a case in `TerrainAuxBuilder` and
    `TerrainMaterialCoverage`.
 
 ### Adding a collidable entity

@@ -52,9 +52,8 @@ public static class MachinePresentations
         new MachineSprite(EntityShape.KindHarvester, HalfLength: 3.4f, HalfWidth: 3.0f, FacesHeading: true,
             SenseRadius: Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f, ShowsBattery: true));
 
-    // The pylon has no build sound of its own yet and shares the relay's.
     public static readonly MachinePresentation Pylon = new(
-        MachineType.Pylon, "pylon", "PYLON", Scancode.T, "T", BuildSlot: 2, SoundEffect.BuildRelay,
+        MachineType.Pylon, "pylon", "PYLON", Scancode.T, "T", BuildSlot: 2, SoundEffect.BuildPylon,
         "plant pylon here - it charges harvesters it can see",
         new MachineSprite(EntityShape.KindPylon, HalfLength: 3.6f, HalfWidth: 3.6f,
             Gauge: static (in MachineRenderState m) => m.IsGivingCharge ? 1f : 0f,

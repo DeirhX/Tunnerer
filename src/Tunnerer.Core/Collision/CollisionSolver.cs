@@ -4,6 +4,7 @@ using Tunnerer.Core.Types;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Tanks;
 
 public enum CollisionType { None, Dirt, Blocked }
 
@@ -58,16 +59,11 @@ public class CollisionSolver
     {
         if (onTank != null && _tanks != null)
         {
-            int halfW = TankCollisionMask.Width / 2;
-            int halfH = TankCollisionMask.Height / 2;
-
             bool tankHit = _tankSectors.ForEachNearbyEntity(pos, idx =>
             {
                 var tank = _tanks.Tanks[idx];
                 if (tank.IsDead) return false;
-                if (Math.Abs(pos.X - tank.Position.X) > halfW ||
-                    Math.Abs(pos.Y - tank.Position.Y) > halfH) return false;
-                if (!IsTankCollisionMaskSolid(tank, pos)) return false;
+                if (!TankSpriteShape.Contains(tank.Direction, tank.Position, pos)) return false;
                 return onTank(tank);
             });
             if (tankHit) return true;
@@ -90,17 +86,4 @@ public class CollisionSolver
 
         return false;
     }
-
-    private static bool IsTankCollisionMaskSolid(Tank tank, Position pos)
-    {
-        int w = TankCollisionMask.Width;
-        int h = TankCollisionMask.Height;
-        int cx = w / 2;
-        int cy = h / 2;
-
-        int sx = pos.X - tank.Position.X + cx;
-        int sy = pos.Y - tank.Position.Y + cy;
-        return TankCollisionMask.IsSolidPixel(tank.Direction, sx, sy);
-    }
-
 }

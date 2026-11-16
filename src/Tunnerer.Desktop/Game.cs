@@ -48,9 +48,8 @@ public partial class Game : IDisposable
     private bool _steppedSinceRender = true;
     private readonly Stopwatch _renderClock = Stopwatch.StartNew();
     private readonly bool _interpolateFrames;
-    /// <summary>Shader animation clock (seconds); regrow stamps are written in it too.</summary>
-    private readonly Stopwatch _visualClock = Stopwatch.StartNew();
-    private float VisualTime => (float)_visualClock.Elapsed.TotalSeconds;
+    private readonly VisualClock _visualClock;
+    private float VisualTime => _visualClock.SecondsAt(_simFrameCounter);
 
     public const int DefaultSeed = 42;
 
@@ -74,6 +73,7 @@ public partial class Game : IDisposable
         // reproducible; TUNNERER_INTERPOLATE=1 turns the in-between frames back on for them.
         _interpolateFrames = !_automatedRun ||
             string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
+        _visualClock = _automatedRun ? VisualClock.StepLocked(Tweaks.World.AdvanceStep) : VisualClock.RealTime();
         Seed = ResolveSeed(IsInteractiveSession);
         var windowSize = DesktopScreenTweaks.WindowSize;
         _perfSession = PerfCaptureSession.Create(perfCapture);
@@ -223,7 +223,6 @@ public partial class Game : IDisposable
     {
         var aimDir = ComputeAimDirection(tanks, frameInput);
         bool mouseShoot = IsMouseInViewport(frameInput, out _, out _) && frameInput.IsLeftMouseDown;
-        _audio.BeforeStep(_world);
         _simulationStepper.AdvanceOneStep(
             simFrame: _simFrameCounter,
             tanks: tanks,
@@ -234,7 +233,7 @@ public partial class Game : IDisposable
         _entityLayer.CaptureStep(_world);
 
         var changedCells = _world.Terrain.GetChangeList();
-        _audio.AfterStep(_world, changedCells);
+        _audio.AfterStep(_world);
         _terrainAuxUploader.ObserveTerrainChanges(_world.Terrain, changedCells, VisualTime);
 
         DrawProfile.Measure(ref _drawProfile.TerrainDraw,

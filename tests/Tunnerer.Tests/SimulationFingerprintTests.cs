@@ -8,8 +8,8 @@ using Tunnerer.Core.Types;
 namespace Tunnerer.Tests;
 
 /// <summary>
-/// Golden fingerprints of two fixed simulation runs. <see cref="DeterminismTests"/> and <see cref="ReplayTests"/> only
-/// compare a run with itself; these compare today's output with the output recorded when the constants were set, so
+/// Golden fingerprints of fixed simulation runs, one of them two bots playing each other.
+/// <see cref="DeterminismTests"/> and <see cref="ReplayTests"/> only compare a run with itself; these compare today's output with the output recorded when the constants were set, so
 /// a refactor that changes any float in the simulation fails here. The hash covers the raw bits of both temperature
 /// fields, the terrain, the energy ledger and totals, tanks, bases, machines and projectiles.
 /// </summary>
@@ -20,8 +20,10 @@ public class SimulationFingerprintTests
 
     // The same on every OS: Core uses DeterministicMath instead of the platform math library. A failure on one OS
     // only means something platform-dependent has crept back into the simulation.
-    private const ulong ExpectedPlayerDrivesAndShoots = 0x901AD40E3DF6F29BUL;
-    private const ulong ExpectedRelayPylonHarvesterNetwork = 0xCC67A68447AE4216UL;
+    private const ulong ExpectedPlayerDrivesAndShoots = 0x0457253A765AF1CEUL;
+    private const ulong ExpectedRelayPylonHarvesterNetwork = 0x299094BAF415F8C7UL;
+    private const ulong ExpectedEnemyMachinesShotToPieces = 0x8380DC56A6FDA364UL;
+    private const ulong ExpectedBotVsBot = 0xD9D25597937A23C3UL;
 
     [Fact]
     public void PlayerDrivesAndShoots_MatchesRecordedFingerprint()
@@ -62,6 +64,48 @@ public class SimulationFingerprintTests
         }
 
         AssertFingerprint(ExpectedRelayPylonHarvesterNetwork, s.World);
+    }
+
+    [Fact]
+    public void BotVsBot_MatchesRecordedFingerprint()
+    {
+        var world = TestHelpers.CreateSeededWorld();
+        var tanks = world.TankList.Tanks;
+        var bots = new[] { new BotTankAI(seed: 11), new BotTankAI(seed: 22) };
+        for (int frame = 0; frame < 1200; frame++)
+            world.Advance(i => bots[i].GetInput(tanks[i], tanks[1 - i], world.Terrain));
+
+        AssertFingerprint(ExpectedBotVsBot, world);
+    }
+
+    [Fact]
+    public void EnemyMachinesShotToPieces_MatchesRecordedFingerprint()
+    {
+        // The player shoots down the tunnel into an enemy relay and harvester: hits, wrecks, scorch, wreck shrapnel
+        // and the network rebuilding all feed the hash.
+        var s = RelayHeatTests.CreateScenario();
+        var enemy = s.World.TankBases.Bases.First(b => b.Color != s.Tank.Color);
+        var relay = new Machine(s.RelayPos, MachineType.Relay, enemy.Color);
+        var harvester = new Machine(s.RelayPos + new Offset(0, s.DirY * 10), MachineType.Harvester, enemy.Color);
+        foreach (var machine in new[] { relay, harvester })
+        {
+            s.World.Machines.Add(machine);
+            s.World.PlantMachine(machine, enemy);
+        }
+
+        for (int frame = 0; frame < 400; frame++)
+        {
+            var input = new ControllerOutput
+            {
+                MoveSpeed = new Offset(0, frame < 60 ? s.DirY : 0),
+                ShootPrimary = frame % 5 == 0,
+                AimDirection = new DirectionF(0, s.DirY),
+            };
+            s.World.Advance(i => i == 0 ? input : TestSimulation.Idle);
+        }
+
+        Assert.False(relay.IsAlive, "the scenario must wreck at least the relay");
+        AssertFingerprint(ExpectedEnemyMachinesShotToPieces, s.World);
     }
 
     private static void Plant(RelayHeatTests.Scenario s, MachineType type, int distanceFromBase)

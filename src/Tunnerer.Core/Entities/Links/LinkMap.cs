@@ -10,7 +10,6 @@ public class LinkMap
 {
     private readonly List<LinkPoint> _points = new();
     private readonly List<Link> _links = new();
-    private readonly bool _deterministicSimulation;
     private readonly int _idSeed;
     private int _nextPointIndex;
     private TimeSpan _elapsed;
@@ -21,17 +20,14 @@ public class LinkMap
     public int PointCount => _points.Count;
     public int LinkCount => _links.Count;
 
-    public LinkMap(bool deterministicSimulation = false, int idSeed = 0)
+    public LinkMap(int idSeed = 0)
     {
-        _deterministicSimulation = deterministicSimulation;
         _idSeed = idSeed != 0 ? idSeed : 0x6E624EB7;
     }
 
     public LinkPoint RegisterPoint(Position position, LinkPointType type)
     {
-        int id = _deterministicSimulation
-            ? GenerateDeterministicId(_nextPointIndex++)
-            : unchecked(_idSeed ^ ++_nextPointIndex);
+        int id = GeneratePointId(_nextPointIndex++);
         var point = new LinkPoint(position, type, id);
         _points.Add(point);
         return point;
@@ -40,13 +36,23 @@ public class LinkMap
     public void Advance(ITerrainPixelReadOnly terrain, TimeSpan dt)
     {
         _elapsed += dt;
-        if (_elapsed < _nextRelink) return;
-        _nextRelink += Tweaks.World.RefreshLinkMapInterval;
+        if (_elapsed >= _nextRelink)
+            _nextRelink += Tweaks.World.RefreshLinkMapInterval;
+        else if (!HasDisabledMachinePoint())
+            return; // a destroyed machine's point is pruned at once, so the network around it rebuilds that tick
 
         RebuildLinks(terrain);
     }
 
-    private int GenerateDeterministicId(int pointIndex)
+    private bool HasDisabledMachinePoint()
+    {
+        foreach (var p in _points)
+            if (!p.IsEnabled && p.Type != LinkPointType.Base)
+                return true;
+        return false;
+    }
+
+    private int GeneratePointId(int pointIndex)
     {
         uint mixed = (uint)_idSeed ^ (uint)(pointIndex + 1) * 0x9e3779b9u;
         return unchecked((int)FastRandom.Hash32(mixed));
@@ -161,25 +167,6 @@ public class LinkMap
             link.FlowsFromTo = ReferenceEquals(link.From, point);
             link.HeatFlow += energy;
             point = link.FlowsFromTo ? link.To : link.From;
-        }
-    }
-
-    public void Draw(Surface surface)
-    {
-        var liveColor = Tweaks.Colors.LinkLive.ToArgb();
-        var blockedColor = Tweaks.Colors.LinkBlocked.ToArgb();
-
-        foreach (var link in _links)
-        {
-            if (link.Type == LinkType.Theoretical) continue;
-
-            uint color = link.Type == LinkType.Live ? liveColor : blockedColor;
-
-            Raycaster.BresenhamLine(link.From.Position, link.To.Position, pos =>
-            {
-                if (surface.IsInside(pos.X, pos.Y))
-                    surface.Pixels[pos.X + pos.Y * surface.Width] = color;
-            });
         }
     }
 

@@ -25,11 +25,8 @@ public class BotTankAI
     private const int UnstuckReplanMinFrames = 4;
     private const int UnstuckReplanMaxFrames = 8;
 
-    // Roaming ends and the bot heads home when its reactor mirror crosses these.
+    /// <summary>Roaming ends and the bot heads home below this health (heat limits are in <see cref="Tweaks.Bot"/>).</summary>
     private const int ReturnBelowHealth = 500;
-    private const int ReturnAboveReactorHeat = 70;
-    /// <summary>Recharging ends at full health and reactor heat at or below this share of its capacity.</summary>
-    private const float RechargedHeatRatio = 0.1f;
 
     private readonly Random _rng;
     private readonly BotProfileCycle _profiles = new();
@@ -40,6 +37,8 @@ public class BotTankAI
     private bool _shoot;
     private int _timeToChange;
     private DirectionF _aimDirection;
+    private float _rechargeLowestHeat = float.MaxValue;
+    private int _rechargeStallFrames;
 
     public BotTankAI(int seed)
     {
@@ -98,7 +97,7 @@ public class BotTankAI
     private ControllerOutput DoTwitch(Tank tank, Tank? enemy, ITerrainPixelReadOnly terrain)
     {
         var profile = _profiles.Active;
-        if (tank.Reactor.Health < ReturnBelowHealth || tank.Reactor.Heat > ReturnAboveReactorHeat || IsInsideOwnBase(tank))
+        if (tank.Reactor.Health < ReturnBelowHealth || NeedsToCool(tank) || IsInsideOwnBase(tank))
         {
             _mode = TwitchMode.Return;
         }
@@ -179,10 +178,11 @@ public class BotTankAI
 
     private ControllerOutput DoRecharge(Tank tank, int relX, int relY)
     {
-        if (tank.Reactor.Health >= Tweaks.Tank.InitialHealth &&
-            tank.Reactor.Heat <= (int)(Tweaks.Tank.HeatCapacity * RechargedHeatRatio))
+        if (tank.Reactor.Health >= Tweaks.Tank.InitialHealth && IsRecharged(tank))
         {
             _mode = TwitchMode.Start;
+            _rechargeLowestHeat = float.MaxValue;
+            _rechargeStallFrames = 0;
             return default;
         }
 
@@ -191,10 +191,46 @@ public class BotTankAI
         return new ControllerOutput { MoveSpeed = new Offset(sx, sy) };
     }
 
+    /// <summary>Room left before the tank overheats, as a share of a pre-cooled tank's room (the player's heat gauge).</summary>
+    private static float HeatBudgetFraction(Tank tank) => tank.HeatBudget / Tank.HeatBudgetCapacity;
+
+    /// <summary>
+    /// Time to head home: the heat budget is low (sooner off the network, where the tank cannot cool on the way), the
+    /// tank is already overheating, or its rising off-network heat floor will soon reach the safe maximum.
+    /// </summary>
+    private static bool NeedsToCool(Tank tank)
+    {
+        float returnBelow = tank.IsOffNetwork ? Tweaks.Bot.ReturnHeatBudgetFractionOffNetwork : Tweaks.Bot.ReturnHeatBudgetFraction;
+        return HeatBudgetFraction(tank) < returnBelow || tank.IsAboveSafeHeat || tank.IsOffNetworkUrgent;
+    }
+
+    /// <summary>
+    /// Docked, the bot leaves once it is fully pre-cooled. If its heat has stopped falling (the base's reservoir is
+    /// full) it settles for a reasonable budget instead of waiting forever.
+    /// </summary>
+    private bool IsRecharged(Tank tank)
+    {
+        if (!tank.IsCoolingDown)
+            return true;
+
+        if (tank.Heat < _rechargeLowestHeat)
+        {
+            _rechargeLowestHeat = tank.Heat;
+            _rechargeStallFrames = 0;
+        }
+        else
+        {
+            _rechargeStallFrames++;
+        }
+
+        return _rechargeStallFrames >= Tweaks.Bot.RechargeStallFrames &&
+               HeatBudgetFraction(tank) >= Tweaks.Bot.RechargeStalledMinHeatBudgetFraction;
+    }
+
     private static bool ShouldRetreat(Tank self, Tank enemy, BotBehaviorProfile profile)
     {
         bool lowHealth = self.Reactor.Health < (int)(Tweaks.Tank.InitialHealth * profile.LowHealthRatio);
-        bool highHeat = self.Reactor.Heat > (int)(Tweaks.Tank.HeatCapacity * profile.HighHeatRatio);
+        bool highHeat = HeatBudgetFraction(self) < profile.RetreatHeatBudgetFraction;
         bool outgunned = self.Reactor.Health + profile.OutgunnedHealthGap < enemy.Reactor.Health;
         return lowHealth || highHeat || outgunned;
     }

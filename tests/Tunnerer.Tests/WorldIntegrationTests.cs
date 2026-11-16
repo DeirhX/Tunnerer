@@ -68,59 +68,18 @@ public class WorldIntegrationTests
     }
 
     [Fact]
-    public void TerrainBuffer_NotCorrupted_ByEntityDraw()
+    public void TerrainSurface_AfterTankMoves_ShowsTerrainUnderTank()
     {
         var (world, terrainPixels) = SetupWorld();
 
-        // Take a snapshot of the terrain buffer before entity drawing
-        var snapshot = new uint[TestSize.Area];
-        Array.Copy(terrainPixels, snapshot, terrainPixels.Length);
-
-        // Simulate what the old buggy code did: draw entities directly on terrain buffer
-        var composite = new uint[TestSize.Area];
-        Array.Copy(terrainPixels, composite, terrainPixels.Length);
-        world.TankList.Draw(new Surface(composite, TestSize.X, TestSize.Y));
-
-        // The composite buffer should now differ (tanks were drawn on it)
-        bool anyDifference = false;
-        for (int i = 0; i < composite.Length; i++)
-        {
-            if (composite[i] != snapshot[i])
-            { anyDifference = true; break; }
-        }
-        Assert.True(anyDifference, "Tanks should modify the composite buffer");
-
-        // The original terrain buffer should be untouched
-        Assert.Equal(snapshot, terrainPixels);
-    }
-
-    [Fact]
-    public void CompositeBuffer_RebuildEachFrame_NoGhosting()
-    {
-        var (world, terrainPixels) = SetupWorld();
-
-        // Frame 1: copy terrain, draw entities
-        var composite1 = new uint[TestSize.Area];
-        Array.Copy(terrainPixels, composite1, terrainPixels.Length);
-        world.TankList.Draw(new Surface(composite1, TestSize.X, TestSize.Y));
-
-        // Move a tank by advancing with input
         world.Advance(i => i == 0
             ? TestSimulation.Move(1, 0)
             : TestSimulation.Idle);
         world.Terrain.DrawChangesToSurface(terrainPixels);
 
-        // Frame 2: rebuild composite from scratch
-        var composite2 = new uint[TestSize.Area];
-        Array.Copy(terrainPixels, composite2, terrainPixels.Length);
-        world.TankList.Draw(new Surface(composite2, TestSize.X, TestSize.Y));
-
-        // The composites should differ because the tank moved
-        // But the terrain buffer itself should have no tank pixels
-        // (only terrain data from DrawChangesToSurface)
+        // The terrain colour buffer holds terrain only: the tank's cell shows the terrain pixel there, never the tank.
         var tank = world.TankList.Tanks[0];
         var baseColor = Pixel.GetColor(world.Terrain.GetPixelRaw(tank.Position)).ToArgb();
-        // Verify terrain buffer at tank position has terrain color (not tank color)
         int off = tank.Position.X + tank.Position.Y * TestSize.X;
         Assert.Equal(baseColor, terrainPixels[off]);
     }

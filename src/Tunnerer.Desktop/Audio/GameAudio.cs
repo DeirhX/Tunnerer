@@ -3,26 +3,19 @@ namespace Tunnerer.Desktop.Audio;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
-using Tunnerer.Core.Entities.Machines;
-using Tunnerer.Core.Entities.Projectiles;
-using Tunnerer.Core.Rendering;
-using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
-using Tunnerer.Desktop.Presentation;
 
 /// <summary>
-/// Turns what happens in the simulation into sound. It is called once around every simulation step (never per
-/// displayed frame), compares the world with what it saw after the previous step, and starts an effect for each
-/// thing that happened. It only reads simulation state; nothing here feeds back into the simulation.
+/// Turns what happens in the simulation into sound. It is called once after every simulation step (never per
+/// displayed frame) and plays the events that step recorded (<see cref="World.StepEvents"/>): one-shots for shots,
+/// impacts, deaths and the like, and the engine, digging, torch and recharge loops from the tanks' activity. It
+/// only reads simulation output; nothing here feeds back into the simulation.
 /// </summary>
 public sealed class GameAudio : IDisposable
 {
     /// <summary>Tanks beyond this many make no sound of their own (a match has two).</summary>
     private const int MaxTrackedTanks = 4;
-
-    /// <summary>Gold this close to a tank before a step can be picked up during it.</summary>
-    private const int GoldScanRadius = 6;
 
     private const int StepSamples = AudioTweaks.SampleRate / Tweaks.Perf.TargetFps;
 
@@ -31,18 +24,8 @@ public sealed class GameAudio : IDisposable
 
     private struct TankTrack
     {
-        public bool Known;
-        public Position Position;
-        public bool Dead;
-        public int HitFlash;
         public int Shots;
-        public bool Carrying;
-        public int PlantRefused;
-        public bool Docked;
-        public int Health;
-        public float Heat;
-        public int Dirt;
-        public int Minerals;
+        public bool Moved, Dug, Torched;
         public int MoveHold, DigHold, TorchHold;
         public int LastPickupStep, PickupStreak;
         public int EngineLoop, DigLoop, TorchLoop;
@@ -57,8 +40,6 @@ public sealed class GameAudio : IDisposable
     private readonly float[] _captureStep = new float[StepSamples * 2];
     private readonly bool _logEvents;
     private readonly TankTrack[] _tanks = new TankTrack[MaxTrackedTanks];
-    private readonly List<(int Tank, Position Cell)> _goldNearTanks = new();
-    private ProjectileRenderState[] _projectiles = new ProjectileRenderState[256];
     private readonly int _rechargeLoop;
     private bool _rechargeOn;
     private int _serviceHold;
@@ -144,36 +125,9 @@ public sealed class GameAudio : IDisposable
     private void PlayVolumeSample() =>
         _mixer!.Play(SoundEffect.Pickup, _bank![SoundEffect.Pickup], AudioTweaks.PickupGain, menuSound: true);
 
-    /// <summary>
-    /// Call before a simulation step. Remembers the gold lying near each tank, because once the step has run a
-    /// collected nugget is just an empty cell.
-    /// </summary>
-    public void BeforeStep(World world)
-    {
-        if (_mixer is null) return;
 
-        _goldNearTanks.Clear();
-        TerrainGrid terrain = world.Terrain;
-        var tanks = world.TankList.Tanks;
-        for (int i = 0; i < tanks.Count && i < MaxTrackedTanks; i++)
-        {
-            if (tanks[i].IsDead) continue;
-            Position centre = tanks[i].Position;
-            for (int y = centre.Y - GoldScanRadius; y <= centre.Y + GoldScanRadius; y++)
-                for (int x = centre.X - GoldScanRadius; x <= centre.X + GoldScanRadius; x++)
-                {
-                    var cell = new Position(x, y);
-                    if (terrain.IsInside(cell) && Pixel.IsGold(terrain.GetPixelRaw(cell)))
-                        _goldNearTanks.Add((i, cell));
-                }
-        }
-    }
-
-    /// <summary>
-    /// Call after a simulation step, before the terrain change list is cleared. <paramref name="changedCells"/> is
-    /// that list: the cells the step touched.
-    /// </summary>
-    public void AfterStep(World world, IReadOnlyList<Position> changedCells)
+    /// <summary>Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events.</summary>
+    public void AfterStep(World world)
     {
         if (_mixer is null) return;
 
@@ -181,10 +135,73 @@ public sealed class GameAudio : IDisposable
         var tanks = world.TankList.Tanks;
         if (tanks.Count > 0)
             _listener = tanks[0].Position;
+        int playerColor = tanks.Count > 0 ? tanks[0].Color : -1;
 
+        for (int i = 0; i < _tanks.Length; i++)
+            _tanks[i].Moved = _tanks[i].Dug = _tanks[i].Torched = false;
+        bool serviced = false;
+        int impacts = 0, shrapnel = 0;
+        float shrapnelX = 0f, shrapnelY = 0f;
+
+        foreach (ref readonly StepEvent e in world.StepEvents)
+        {
+            int index = TankIndex(tanks, e.Color);
+            switch (e.Kind)
+            {
+                case StepEventKind.TankMoved when index >= 0:
+                    _tanks[index].Moved = true;
+                    break;
+                case StepEventKind.TankDug when index >= 0:
+                    _tanks[index].Dug = true;
+                    _tanks[index].Torched |= e.Torch;
+                    break;
+                case StepEventKind.BaseServiced:
+                    serviced |= e.Color == playerColor;
+                    break;
+                case StepEventKind.ShrapnelSpent:
+                    if (Locate(e.Position, out _, out _))
+                    {
+                        shrapnel++;
+                        shrapnelX += e.Position.X;
+                        shrapnelY += e.Position.Y;
+                    }
+                    break;
+                case StepEventKind.BulletImpact:
+                    // However many bullets burst in a step, only a couple are heard.
+                    if (impacts < AudioTweaks.ImpactsPerStep)
+                        Play(SoundEffect.Impact, e.Position, AudioTweaks.ImpactGain, 0.92f + 0.04f * ((_step + impacts) % 5));
+                    impacts++;
+                    break;
+                case StepEventKind.GoldCollected or StepEventKind.OreCollected when index >= 0:
+                    PlayPickup(index, e);
+                    break;
+                case StepEventKind.ShotFired when index >= 0:
+                    int shots = _tanks[index].Shots++;
+                    Play(SoundEffect.Fire, e.Position, AudioTweaks.FireGain, 0.96f + 0.02f * (shots % 5), index);
+                    break;
+                default:
+                    // A tank's own sounds are heard only for the tracked tanks.
+                    if (IsTankSound(e.Kind) && index < 0)
+                        break;
+                    if (StepEventSounds.TryGetCue(e, playerColor, out SoundEffect effect, out float gain))
+                        Play(effect, e.Position, gain, 1f, index);
+                    break;
+            }
+        }
+
+        _serviceHold = serviced ? AudioTweaks.LoopHoldSteps * 2 : Math.Max(0, _serviceHold - 1);
         for (int i = 0; i < tanks.Count && i < MaxTrackedTanks; i++)
-            ObserveTank(world, i, tanks[i], changedCells);
-        ObserveProjectiles(world);
+            UpdateLoops(i, tanks[i]);
+
+        // However many fragments land in a step, they make one rattle, and not on every step.
+        if (shrapnel >= AudioTweaks.DebrisMinShrapnel && _step - _lastDebrisStep >= AudioTweaks.DebrisIntervalSteps)
+        {
+            _lastDebrisStep = _step;
+            var centre = new Position((int)(shrapnelX / shrapnel), (int)(shrapnelY / shrapnel));
+            Play(SoundEffect.Debris, centre, AudioTweaks.DebrisGain * MathF.Min(1f, shrapnel / 12f),
+                0.9f + 0.05f * (_step % 5));
+        }
+
         if (tanks.Count > 0)
             ObserveWarnings(tanks[0]);
 
@@ -198,6 +215,21 @@ public sealed class GameAudio : IDisposable
         }
     }
 
+    /// <summary>Events about a tank itself (as opposed to a bullet, explosion or machine it was involved with).</summary>
+    private static bool IsTankSound(StepEventKind kind) => kind is StepEventKind.TankHit or StepEventKind.TankDied
+        or StepEventKind.TankRespawned or StepEventKind.MachineBuilt or StepEventKind.MachinePlanted
+        or StepEventKind.PlantRefused or StepEventKind.Docked;
+
+    /// <summary>Index of the tank of <paramref name="color"/> among the tracked ones, or -1.</summary>
+    private static int TankIndex(IReadOnlyList<Tank> tanks, int color)
+    {
+        if (color < 0) return -1;
+        for (int i = 0; i < tanks.Count && i < MaxTrackedTanks; i++)
+            if (tanks[i].Color == color)
+                return i;
+        return -1;
+    }
+
     private (float Peak, float Rms) WriteCapture()
     {
         var samples = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_capture);
@@ -205,65 +237,19 @@ public sealed class GameAudio : IDisposable
         return Levels(samples);
     }
 
-    private void ObserveTank(World world, int index, Tank tank, IReadOnlyList<Position> changedCells)
+    /// <summary>The engine, digging, torch and (for the player) recharge loops, held a few steps past their last cause.</summary>
+    private void UpdateLoops(int index, Tank tank)
     {
         ref TankTrack track = ref _tanks[index];
         bool dead = tank.IsDead;
-        Position position = tank.Position;
-        bool carrying = tank.IsCarryingMachine;
-        bool docked = tank.IsDockedAtOwnBase;
-        bool isPlayer = index == 0;
 
-        if (track.Known)
-        {
-            if (tank.ShotsFired > track.Shots)
-                Play(SoundEffect.Fire, position, AudioTweaks.FireGain, 0.96f + 0.02f * (tank.ShotsFired % 5), index);
-            if (tank.HitFlashTicks > track.HitFlash)
-                Play(SoundEffect.TankHit, position, AudioTweaks.TankHitGain, 1f, index);
-            if (dead && !track.Dead)
-                Play(SoundEffect.TankDeath, track.Position, AudioTweaks.TankDeathGain, 1f, index);
-            if (!dead && track.Dead)
-                Play(SoundEffect.Respawn, position, AudioTweaks.RespawnGain, 1f, index);
-
-            if (tank.CarriedMachineType is MachineType built && !track.Carrying)
-                Play(MachinePresentations.Get(built).BuildSound, position, AudioTweaks.BuildGain, 1f, index);
-            // A tank that dies drops what it carried; that is not a planting.
-            if (!carrying && track.Carrying && !dead && !track.Dead)
-                Play(SoundEffect.Plant, position, AudioTweaks.PlantGain, 1f, index);
-            if (isPlayer && tank.PlantRefusedTicks > track.PlantRefused)
-                Play(SoundEffect.PlantRefused, position, AudioTweaks.RefusedGain, 1f, index);
-
-            // Respawning puts the tank in its base; the respawn sound covers that.
-            if (isPlayer && docked && !track.Docked && !track.Dead)
-                Play(SoundEffect.Dock, position, AudioTweaks.DockGain, 1f, index);
-
-            ObservePickups(world.Terrain, index, tank, ref track);
-
-            int dx = position.X - track.Position.X, dy = position.Y - track.Position.Y;
-            bool drove = !dead && !track.Dead && (dx != 0 || dy != 0) && dx * dx + dy * dy <= 9;
-            track.MoveHold = drove ? 2 : Math.Max(0, track.MoveHold - 1);
-
-            // Cells emptied beside a tank that is neither driving nor torching were cleared by someone else.
-            bool working = track.MoveHold > 0 || tank.Turret.IsShooting;
-            bool dug = !dead && (tank.Resources.Dirt > track.Dirt ||
-                (working && CountDugCells(world.Terrain, position, changedCells) >= 2));
-            track.DigHold = dug ? AudioTweaks.LoopHoldSteps : Math.Max(0, track.DigHold - 1);
-            track.TorchHold = dug && tank.Turret.IsShooting ? AudioTweaks.LoopHoldSteps : Math.Max(0, track.TorchHold - 1);
-
-            if (isPlayer)
-            {
-                // Recharging is audible only while the base is actually doing something for the tank.
-                bool serviced = docked && (tank.Reactor.Health > track.Health ||
-                    tank.Heat < track.Heat - 0.25f * Tweaks.Tank.DockCoolingPerTick ||
-                    tank.Resources.Dirt < track.Dirt);
-                _serviceHold = serviced ? AudioTweaks.LoopHoldSteps * 2 : Math.Max(0, _serviceHold - 1);
-            }
-        }
-
+        track.MoveHold = track.Moved ? 2 : Math.Max(0, track.MoveHold - 1);
+        track.DigHold = track.Dug ? AudioTweaks.LoopHoldSteps : Math.Max(0, track.DigHold - 1);
+        track.TorchHold = track.Torched ? AudioTweaks.LoopHoldSteps : Math.Max(0, track.TorchHold - 1);
         if (dead)
             track.MoveHold = track.DigHold = track.TorchHold = 0;
 
-        bool audible = Locate(position, out float gain, out float pan);
+        bool audible = Locate(tank.Position, out float gain, out float pan);
         bool moving = track.MoveHold > 0;
         // Each tank's engine sits at a slightly different pitch so two tanks do not sound like one.
         float enginePitch = (moving ? 1.2f : 0.8f) * (1f - 0.07f * index);
@@ -279,121 +265,26 @@ public sealed class GameAudio : IDisposable
         LogLoop(SoundEffect.DigLoop, index, ref track.DigOn, digOn);
         LogLoop(SoundEffect.TorchLoop, index, ref track.TorchOn, torchOn);
 
-        if (isPlayer)
+        if (index == 0)
         {
-            bool rechargeOn = docked && _serviceHold > 0;
+            // Recharging is audible only while the base is actually doing something for the tank.
+            bool rechargeOn = tank.IsDockedAtOwnBase && _serviceHold > 0;
             _mixer.SetLoop(_rechargeLoop, rechargeOn ? AudioTweaks.RechargeGain : 0f);
             LogLoop(SoundEffect.RechargeLoop, index, ref _rechargeOn, rechargeOn);
         }
-
-        track.Known = true;
-        track.Position = position;
-        track.Dead = dead;
-        track.HitFlash = tank.HitFlashTicks;
-        track.Shots = tank.ShotsFired;
-        track.Carrying = carrying;
-        track.PlantRefused = tank.PlantRefusedTicks;
-        track.Docked = docked;
-        track.Health = tank.Reactor.Health;
-        track.Heat = tank.Heat;
-        track.Dirt = tank.Resources.Dirt;
-        track.Minerals = tank.Resources.Minerals;
     }
 
-    /// <summary>
-    /// Gold counts as collected when a cell that held gold before the step is empty and under the tank after it;
-    /// ore when the tank's mineral store grew. Runs of pickups climb in pitch.
-    /// </summary>
-    private void ObservePickups(TerrainGrid terrain, int index, Tank tank, ref TankTrack track)
+    /// <summary>A gold nugget or ore picked up; runs of pickups climb in pitch, and a burst of them sounds once.</summary>
+    private void PlayPickup(int index, in StepEvent e)
     {
-        bool gold = false;
-        if (!tank.IsDead)
-        {
-            foreach ((int owner, Position cell) in _goldNearTanks)
-            {
-                if (owner != index || terrain.GetPixelRaw(cell) != TerrainPixel.Blank)
-                    continue;
-                if (Math.Abs(cell.X - tank.Position.X) <= 4 && Math.Abs(cell.Y - tank.Position.Y) <= 4)
-                {
-                    gold = true;
-                    break;
-                }
-            }
-        }
-
-        bool ore = tank.Resources.Minerals > track.Minerals;
-        if (!gold && !ore)
-            return;
-
+        ref TankTrack track = ref _tanks[index];
         int sinceLast = _step - track.LastPickupStep;
         if (track.LastPickupStep != 0 && sinceLast < AudioTweaks.PickupIntervalSteps)
             return;
         track.PickupStreak = track.LastPickupStep != 0 && sinceLast <= 12 ? Math.Min(track.PickupStreak + 1, 8) : 0;
         track.LastPickupStep = _step;
-        float pitch = (gold ? 1f : 0.75f) * (1f + 0.04f * track.PickupStreak);
-        Play(SoundEffect.Pickup, tank.Position, AudioTweaks.PickupGain, pitch, index);
-    }
-
-    /// <summary>Cells the step emptied right around the tank: what its tracks or torch just cleared.</summary>
-    private static int CountDugCells(TerrainGrid terrain, Position tank, IReadOnlyList<Position> changedCells)
-    {
-        int reach = Tweaks.Tank.DigRadius + 2;
-        int count = 0;
-        for (int i = 0; i < changedCells.Count; i++)
-        {
-            Position cell = changedCells[i];
-            if (Math.Abs(cell.X - tank.X) <= reach && Math.Abs(cell.Y - tank.Y) <= reach &&
-                terrain.GetPixelRaw(cell) == TerrainPixel.Blank)
-                count++;
-        }
-        return count;
-    }
-
-    /// <summary>
-    /// A projectile that died during a step stays in the list, marked dead, until the next step removes it, so
-    /// each one is seen here exactly once. A dead bullet burst; dead shrapnel struck something or burnt out.
-    /// </summary>
-    private void ObserveProjectiles(World world)
-    {
-        int total = world.Projectiles.Count;
-        if (_projectiles.Length < total)
-            _projectiles = new ProjectileRenderState[Math.Max(total, _projectiles.Length * 2)];
-        int count = world.Projectiles.CopyRenderStates(_projectiles);
-
-        int impacts = 0, shrapnel = 0;
-        float shrapnelX = 0f, shrapnelY = 0f;
-        for (int i = 0; i < count; i++)
-        {
-            ref readonly ProjectileRenderState projectile = ref _projectiles[i];
-            if (projectile.IsAlive)
-                continue;
-
-            var cell = (Position)projectile.Position;
-            if (!world.Terrain.IsInside(cell))
-                continue; // flew off the map
-
-            if (projectile.Type == ProjectileType.Bullet)
-            {
-                if (impacts < AudioTweaks.ImpactsPerStep)
-                    Play(SoundEffect.Impact, cell, AudioTweaks.ImpactGain, 0.92f + 0.04f * ((_step + impacts) % 5));
-                impacts++;
-            }
-            else if (projectile.Type == ProjectileType.Shrapnel && Locate(cell, out _, out _))
-            {
-                shrapnel++;
-                shrapnelX += cell.X;
-                shrapnelY += cell.Y;
-            }
-        }
-
-        // However many fragments land in a step, they make one rattle, and not on every step.
-        if (shrapnel >= AudioTweaks.DebrisMinShrapnel && _step - _lastDebrisStep >= AudioTweaks.DebrisIntervalSteps)
-        {
-            _lastDebrisStep = _step;
-            var centre = new Position((int)(shrapnelX / shrapnel), (int)(shrapnelY / shrapnel));
-            Play(SoundEffect.Debris, centre, AudioTweaks.DebrisGain * MathF.Min(1f, shrapnel / 12f),
-                0.9f + 0.05f * (_step % 5));
-        }
+        float pitch = (e.Kind == StepEventKind.GoldCollected ? 1f : 0.75f) * (1f + 0.04f * track.PickupStreak);
+        Play(SoundEffect.Pickup, e.Position, AudioTweaks.PickupGain, pitch, index);
     }
 
     /// <summary>

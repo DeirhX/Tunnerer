@@ -86,16 +86,9 @@ tests over 5 s and the level-gen benchmark; fix or delete the skipped flaky test
 Rewrite both `ARCHITECTURE.md` files to match the code, including an honest "adding a machine" recipe.
 Independent review of the whole diff.
 
-## Decisions (owner's call; not started)
+## Decisions
 
-| Item | Effect |
-|---|---|
-| Split `--fast` from determinism (it now only picks a random seed and uses `LinkMap`'s other id scheme; the fallbacks themselves are gone) | changes `--fast` runs only |
-| Fix `PostParamsBlock` one-float misalignment, add layout guard | changes how the game looks |
-| Core per-step event list (`World.StepEvents`) and audio driven by it instead of state diffing | audio timing may shift |
-| One tank collision shape (sprite vs `TankCollisionMask` vs footprint) | changes collision results |
-| Data-driven thermal material table instead of N² conductance constants | refactor of the solver tables |
-| Remove Core `Draw(Surface)` methods used only by tests | needs a test rendering replacement |
+All owner decisions are made and done (2026-11-16); see Status.
 
 ## Status
 
@@ -125,6 +118,31 @@ Behaviour-preserving cleanup (2026-11-16, PR after #24): every rule the HUD comp
 `IsMiner`/`IsHeatPump` traits; dead code deleted (foam projectiles and sprite, `MachineList.TestCollide`,
 `StepConservative`, always-zero profile timings, 18 unused tweaks). Fingerprints unchanged; Ubuntu CI is required.
 
+Owner decisions (2026-11-16, decisions-g3): `PostParamsBlock` matches `cbuffer PostParams` again
+(`PostParamsLayoutGuardTests` packs the .hlsli and compares offsets; gold veins, scorch glow and terrain lighting
+now use their configured values); the pylon has its own build sound; automated runs take visual time from the
+frame count, so repeated screenshot runs are byte-identical; `--fast` only means parallel (level gen,
+materialisation, regrowth), the simulation is always deterministic and `LinkMap` always uses hashed ids.
+Fingerprints unchanged.
+
+Owner decisions, rest (2026-11-16, PR after #25):
+- Bullets hit machines: enemy bullets damage a machine (`Tweaks.Weapon.BulletDamage`), a tank's own bullets pass
+  through its own machines, shrapnel ignores them. At zero health a machine is wrecked: out of the network that
+  tick, battery dumped as booked heat, a 5x5 scorch mark that regrows like any scorch, a small shrapnel burst
+  (`MachineDamageTests`; new fingerprint run `EnemyMachinesShotToPieces`).
+- The bot decides from `Tank.HeatBudget` and the Core heat queries (`Tweaks.Bot`); over 16 bot-vs-bot seeds it
+  overheats ~25% less and dies 35 times instead of 43 (new fingerprint run `BotVsBot`).
+- `TankThermals` reads `SimulationSettings`; the thermal ratchet's allow-list is empty.
+- Thermal materials are one table (`ThermalMaterialTable`): a row per material, series-conductance rule, seven
+  explicit overrides for the tuned pairs. Bit-for-bit.
+- One tank shape (`TankSpriteShape`, the sprite's cells) for terrain contact, bullet hits and harvester avoidance;
+  `TankCollisionMask` and the 7x7 footprint are gone (`TankShapeTests`). Bit-for-bit.
+- `World.StepEvents` records each step's happenings; audio plays them instead of diffing state
+  (`StepEventTests`, `StepEventSoundsTests`).
+- Core's `Draw(Surface)` and `Surface` are gone. The fingerprint hash now reads projectiles, sprites and turret tips
+  straight from Core state instead of rasterising them, so all four fingerprints were re-recorded once (no
+  simulation change).
+
 After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
 
 ## Follow-ups found during the work (not started)
@@ -132,12 +150,11 @@ After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; f
 Behaviour-preserving:
 - `TerrainGrid` keeps thin thermal forwards for `TerrainGrid.cs`/`HotRock.cs`.
 - HintSelector and BuildPanel compare `dirt >= cost` themselves; a `Tank.CanBuild(type)` query would own it.
-- `VisualTime` is a real-time stopwatch, so step-locked screenshot runs are not reproducible; derive it from steps in automated runs.
-- `RenderingSourceGuardTests`-style guard for `PostParamsBlock` layout vs `PostParams.hlsli` (blocked on the misalignment decision).
 - `EntityPs_DispatchesEveryShapeKind` and the thermal ratchet were tightened after review; `Machine.Advance` relay ignores `dt` (same result while `AdvanceStep` is the default).
 
-Change results (owner's call, add to Decisions):
-- `TankThermals` still reads coolant capacity, dock cooling, dig radius and base cooldown from `Tweaks`; routing them through `SimulationSettings` changes tests that inject settings.
-- Bot reads the int `Reactor.Heat` mirror and pre-coolant thresholds instead of `Tank.HeatBudget`.
-- Pylon plays the relay build sound (`SoundBank` has no pylon sound).
-- Bullets never hit machines (nothing passes `onMachine`, nothing lowers machine health), so machines cannot be destroyed. Gameplay decision.
+Found while doing the decisions:
+- Some bots never leave their base (stuck in ExitBase, overheating inside it; e.g. seed 101, tank 1). Predates the
+  heat-budget change.
+- `NetworkPanel` compares the powered-relay count between frames; a Core query or step event would own it.
+- Machines get no hit flash when damaged (needs a render-state field and shader work).
+- `CannotExtractFrom` in `TerrainGrid.Heat.cs` hard-codes hot rock; a table column would own it.

@@ -25,21 +25,46 @@ public class MachineList
             var machine = _machines[i];
             if (!machine.IsAlive)
             {
-                if (machine.LinkPoint != null)
-                    machine.LinkPoint.IsEnabled = false; // the link map prunes disabled points
-                // A destroyed battery dumps its charge into the ground as heat.
-                if (machine.Charge > 0.0)
-                {
-                    double heat = ctx.Terrain.AddEnergyInRadiusArea(machine.Position,
-                        Tweaks.Machine.HarvesterHeatRadius, machine.Charge, TerrainGrid.ThermalField.Terrain);
-                    ctx.Terrain.Ledger.RecordFromCharge(heat);
-                    machine.Charge -= heat;
-                }
+                Wreck(machine, ctx.Terrain);
                 _machines.RemoveAt(i);
                 continue;
             }
             _machines[i].Advance(ctx, dt);
         }
+    }
+
+    /// <summary>
+    /// A destroyed machine leaves the network (the link map rebuilds on its next advance), dumps its battery into the
+    /// ground as heat and scorches the ground it stood on, like an explosion's decal, for regrowth to fade.
+    /// </summary>
+    private static void Wreck(Machine machine, ITerrainAccess terrain)
+    {
+        if (machine.LinkPoint != null)
+            machine.LinkPoint.IsEnabled = false; // the link map prunes disabled points
+        if (machine.Charge > 0.0)
+        {
+            double heat = terrain.AddEnergyInRadiusArea(machine.Position,
+                Tweaks.Machine.HarvesterHeatRadius, machine.Charge, TerrainGrid.ThermalField.Terrain);
+            terrain.Ledger.RecordFromCharge(heat);
+            machine.Charge -= heat;
+        }
+        if (machine.State == MachineState.Planted)
+            Scorch(machine.Position, terrain);
+    }
+
+    private static void Scorch(Position center, ITerrainAccess terrain)
+    {
+        int half = Tweaks.Machine.WreckScorchHalfSize;
+        for (int dy = -half; dy <= half; dy++)
+            for (int dx = -half; dx <= half; dx++)
+            {
+                var pos = new Position(center.X + dx, center.Y + dy);
+                if (!terrain.IsInside(pos)) continue;
+                var pix = terrain.GetPixelRaw(pos);
+                // Open ground and dirt burn; rock, gold and base cells keep their material.
+                if (pix == TerrainPixel.Blank || Pixel.IsScorched(pix) || Pixel.IsDiggable(pix))
+                    terrain.SetPixel(pos, TerrainPixel.Decal); // metered: a dirt cell's heat change is booked
+            }
     }
 
     public int CopyRenderStates(Span<MachineRenderState> destination)

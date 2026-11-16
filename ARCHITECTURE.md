@@ -38,8 +38,8 @@ tools/
 
 `Program.cs` parses the command line and constructs `Game`. The constructor opens the window and GPU backend,
 asks `WorldFactory.Build` for the world (a generated match level, or the static patterns of `--terrain-test`) and
-sets up input. `WorldFactory.IsSimulationDeterministic` is the one place where `--fast` also turns off simulation
-determinism. `Game.Run` hands a set of callbacks to `GameFrameCoordinator`, which owns the loop:
+sets up input. `--fast` only makes level generation, materialisation and regrowth parallel; the simulation is
+deterministic either way. `Game.Run` hands a set of callbacks to `GameFrameCoordinator`, which owns the loop:
 
 ```
 while running:
@@ -49,11 +49,10 @@ while running:
   4. capture mouse state
   5. for each due step (at most 4 to catch up):
        match:
-         GameAudio.BeforeStep              (notes the gold lying near each tank)
          GameSimulationStepper.AdvanceOneStep
            scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
          EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
-         GameAudio.AfterStep               (compares the world with the previous step, starts sound effects)
+         GameAudio.AfterStep               (plays the step's World.StepEvents, sets the loops)
          TerrainAuxUploader.ObserveTerrainChanges (changed cells, to repack on the next frame)
          TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
        terrain test, or paused in an automated run:
@@ -122,11 +121,10 @@ in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 ## Sound
 
 `Tunnerer.Desktop/Audio` turns the simulation into sound without the simulation knowing. `GameAudio` runs once
-around every simulation step, never per displayed frame, so an effect cannot repeat on the frames shown between
-steps. It compares what it reads from the world with what it saw after the previous step (a tank's shot count, hit
-flash, death, carried machine, position; projectiles that died during the step; cells the step emptied next to a
-tank) and starts the matching effect, placed in stereo and attenuated by distance from the player's tank. The one
-thing Core provides for it is `Tank.ShotsFired`, a counter nothing in the simulation reads. All effects are
+after every simulation step, never per displayed frame, so an effect cannot repeat on the frames shown between
+steps. It does not compare the world between steps: Core lists what happened during the step in `World.StepEvents`
+(a shot, an impact, a death, a planting, a docking...) and `GameAudio` starts the matching effect, placed in stereo
+and attenuated by distance from the player's tank. All effects are
 synthesised at start-up (`SoundBank`), mixed by `SoundMixer` and played through an SDL audio device. Automated runs
 open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 

@@ -31,9 +31,6 @@ public class SourceGuardTests
     // Thermal code reads its numbers through SimulationSettings so tests can inject their own.
     private static readonly HashSet<(string File, string Pattern)> ThermalTweaksAllowed =
     [
-        // Coolant capacity, dock cooling, dig radius and base cooldown: routing them through settings changes
-        // results for tests that inject settings, so it waits for a decision (docs/quality-plan.md).
-        ("src/Tunnerer.Core/Entities/Tanks/TankThermals.cs", "Tweaks."),
     ];
 
     // Mutable statics in Tweaks make results depend on what ran before (and on test order).

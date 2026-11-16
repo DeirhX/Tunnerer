@@ -21,6 +21,7 @@ public class ProjectileList
     private readonly List<Projectile> _projectiles = new();
     private readonly List<Projectile> _pending = new();
     private FastRandom _rng;
+    private readonly StepEventLog? _events;
 
     /// <summary>
     /// Single source of truth for per-type projectile behavior.
@@ -41,9 +42,11 @@ public class ProjectileList
         return behaviors;
     }
 
-    public ProjectileList(int seed)
+    /// <param name="events">Where impacts, hits and explosions are recorded (<see cref="World.StepEvents"/>); null records nothing.</param>
+    public ProjectileList(int seed, StepEventLog? events = null)
     {
         _rng = new FastRandom(seed);
+        _events = events;
     }
 
     public int Count => _projectiles.Count + _pending.Count;
@@ -82,10 +85,29 @@ public class ProjectileList
                 onTank: tank =>
                 {
                     if (tank.Color == p.OwnerColor) return false;
-                    tank.TakeDamage(Tweaks.Weapon.BulletDamage, DamageCause.EnemyFire, p.Speed);
+                    if (tank.TakeDamage(Tweaks.Weapon.BulletDamage, DamageCause.EnemyFire, p.Speed))
+                        self._events?.Record(new StepEvent(StepEventKind.TankHit, tank.Position, tank.Color));
+                    self.RecordImpact(ipos, p, ImpactTarget.Tank);
                     return true;
                 },
-                onTerrain: pix => Pixel.IsAnyCollision(pix));
+                // Like tanks, a bullet passes through its own side's machines and stops on the enemy's.
+                onMachine: machine =>
+                {
+                    if (machine.OwnerColor == p.OwnerColor) return false;
+                    bool wrecked = machine.TakeDamage(Tweaks.Weapon.BulletDamage);
+                    self._events?.Record(new StepEvent(wrecked ? StepEventKind.MachineWrecked : StepEventKind.MachineDamaged,
+                        machine.Position, machine.OwnerColor, machine.Type));
+                    if (wrecked)
+                        self.AddExplosion(machine.Position, Tweaks.Explosion.MachineWreck, Tweaks.Explosion.MachineWreckHeatScale);
+                    self.RecordImpact(ipos, p, ImpactTarget.Machine);
+                    return true;
+                },
+                onTerrain: pix =>
+                {
+                    if (!Pixel.IsAnyCollision(pix)) return false;
+                    self.RecordImpact(ipos, p, ImpactTarget.Terrain);
+                    return true;
+                });
 
             if (hit)
             {
@@ -99,8 +121,12 @@ public class ProjectileList
         }
     }
 
+    private void RecordImpact(Position at, Projectile bullet, ImpactTarget target) =>
+        _events?.Record(new StepEvent(StepEventKind.BulletImpact, at, bullet.OwnerColor, Target: target));
+
     private void SpawnNormalExplosion(Position pos)
     {
+        _events?.Record(new StepEvent(StepEventKind.Explosion, pos));
         AddRange(ExplosionFactory.CreateExplosion(
             pos,
             Tweaks.Explosion.Normal,
@@ -110,13 +136,14 @@ public class ProjectileList
 
     public void AddExplosion(Position pos, ExplosionParams p, float shrapnelHeatScale = 1f)
     {
+        _events?.Record(new StepEvent(StepEventKind.Explosion, pos));
         AddRange(ExplosionFactory.CreateExplosion(pos, p, ref _rng, shrapnelHeatScale));
     }
 
     private static void AdvanceShrapnel(Projectile p, CollisionSolver solver, ProjectileList self)
     {
         var terrain = solver.Terrain;
-        if (p.Life-- <= 0) { p.IsAlive = false; return; }
+        if (p.Life-- <= 0) { p.IsAlive = false; self.RecordShrapnelSpent(p); return; }
 
         if (!TryAdvanceInside(terrain, p, out var ipos))
             return;
@@ -132,6 +159,7 @@ public class ProjectileList
             int hitHeat = Math.Max(0, (int)MathF.Round(Tweaks.Explosion.ShrapnelHitHeat * p.HeatScale));
             terrain.AddHeat(ipos, hitHeat);
             p.IsAlive = false;
+            self.RecordShrapnelSpent(p);
             return;
         }
 
@@ -139,6 +167,9 @@ public class ProjectileList
         int digHeat = Math.Max(0, (int)MathF.Round(Tweaks.Explosion.ShrapnelDigHeatAmount * p.HeatScale));
         terrain.AddHeatRadius(ipos, digHeat, Tweaks.Explosion.ShrapnelDigHeatRadius);
     }
+
+    private void RecordShrapnelSpent(Projectile p) =>
+        _events?.Record(new StepEvent(StepEventKind.ShrapnelSpent, (Position)p.Position));
 
     private static bool TryAdvanceInside(TerrainGrid terrain, Projectile p, out Position ipos)
     {
@@ -162,18 +193,6 @@ public class ProjectileList
             return false;
         }
         return true;
-    }
-
-    public void Draw(Surface surface)
-    {
-        foreach (var p in _projectiles)
-        {
-            if (!p.IsAlive) continue;
-            var ipos = (Position)p.Position;
-            if (!surface.IsInside(ipos.X, ipos.Y)) continue;
-
-            surface.Pixels[ipos.X + ipos.Y * surface.Width] = Behaviors[(int)p.Type].DrawColor.ToArgb();
-        }
     }
 
     public int CopyRenderStates(Span<ProjectileRenderState> destination)

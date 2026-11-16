@@ -22,7 +22,6 @@ internal static class TestHelpers
         var (terrain, spawns) = gen.Generate(mapSize, seed: seed);
         var world = new World(
             mapSize,
-            deterministicSimulation: true,
             simulationSeed: seed,
             enableTerrainRegrowth: enableTerrainRegrowth,
             hotRockPocketCount: hotRockPocketCount);
