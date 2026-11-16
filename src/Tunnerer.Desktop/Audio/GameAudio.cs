@@ -408,8 +408,8 @@ public sealed class GameAudio : IDisposable
             return;
         }
 
-        _runningHot = PlayerWarnings.RunningHot(_runningHot, player);
-        _lowShield = PlayerWarnings.LowShield(_lowShield, player);
+        _runningHot = player.IsRunningHot(_runningHot);
+        _lowShield = player.IsShieldLow(_lowShield);
 
         (SoundEffect effect, int rank, int interval) = player.IsOverheating
             ? (SoundEffect.WarnOverheat, 3, AudioTweaks.OverheatWarningIntervalSteps)

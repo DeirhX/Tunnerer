@@ -2,6 +2,7 @@ namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
 using ImGuiNET;
+using Tunnerer.Core;
 using Tunnerer.Core.Entities;
 using Tunnerer.Desktop.Rendering;
 using static Tunnerer.Desktop.Gui.HudLayout;
@@ -82,7 +83,7 @@ public sealed class HudStrip
         DrawNumberCentered(dl, degrees, plateX, plateY, plateW, degreeSign: true);
         _heat.DrawTrend(dl, player, plateX + plateW - 14f, plateY + 10f);
         if (!player.IsDead)
-            _heat.DrawBar(dl, player.Heat, plateX + 8f, 192f, plateW - 16f, time);
+            _heat.DrawBar(dl, player, plateX + 8f, 192f, plateW - 16f, time);
         _heat.DrawOffNetworkTag(dl, player, HeatX + HeatPanelW * 0.5f, time);
 
         // SHIELD: the tank's armor.
@@ -90,12 +91,15 @@ public sealed class HudStrip
         const float sPlateX = ShieldX + 10f;
         const float sPlateW = 125f;
         DrawNumberCentered(dl, health, sPlateX, 166f, sPlateW);
-        float shieldFill = player.Reactor.HealthCapacity > 0 ? health / (float)player.Reactor.HealthCapacity : 0f;
-        DrawBar(dl, sPlateX + 8f, 191f, sPlateW - 16f, 5f, shieldFill,
-            shieldFill > 0.5f ? 0xFFFFC040u : shieldFill > 0.25f ? 0xFF30C0FFu : 0xFF3040FFu);
+        DrawBar(dl, sPlateX + 8f, 191f, sPlateW - 16f, 5f, player.ShieldFraction, player.ShieldLevel switch
+        {
+            StatusLevel.Ok => 0xFFFFC040u,
+            StatusLevel.Warn => 0xFF30C0FFu,
+            _ => 0xFF3040FFu,
+        });
 
         // MATERIALS: the dirt in the tank's hold, which is what structures are built from; the bar is how full it is.
-        float materialsFill = LiquidGauges.MaterialsFill(player);
+        float materialsFill = player.HoldFill;
         const float mPlateX = MaterialsX + 15f;
         const float mPlateW = MaterialsPanelW - 30f;
         DrawNumberCentered(dl, player.Resources.Dirt, mPlateX, 166f, mPlateW);
