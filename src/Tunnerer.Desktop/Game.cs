@@ -1,6 +1,7 @@
 namespace Tunnerer.Desktop;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using static SDL3.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
@@ -87,6 +88,9 @@ public partial class Game : IDisposable
         // Only a person playing a match hears sound.
         _audio = GameAudio.Create(!IsInteractiveSession);
 
+        ReplayArguments = genMode == LevelGenMode.Optimized
+            ? $"--fast --seed={Seed.ToString(CultureInfo.InvariantCulture)}"
+            : $"--seed={Seed.ToString(CultureInfo.InvariantCulture)}";
         var built = WorldFactory.Build(new WorldLaunchOptions(terrainTestMode, terrainSizeOverride, genMode, Seed));
         _world = built.World;
         _terrainSize = built.TerrainSize;

@@ -18,6 +18,9 @@ public partial class Game
     /// <summary>Seed of the current map and simulation. Pass it back with --seed=N to replay the same map.</summary>
     public int Seed { get; private set; } = DefaultSeed;
 
+    /// <summary>Command-line arguments that rebuild the current map (the seed, plus --fast if it was used).</summary>
+    public string ReplayArguments { get; private set; } = "";
+
     /// <summary>
     /// A person is playing: not a scripted, perf-capture, hidden or terrain-test run. Only then does Escape open the
     /// pause menu and losing window focus pause the game; automated runs must never stop and wait for input.
@@ -174,7 +177,7 @@ public partial class Game
 
         var sound = new SoundMenuState(_audio.Enabled, AudioOptions.Volume, AudioOptions.Muted);
         SessionOverlayAction action = _sessionOverlay.Draw(
-            _hud.ViewportRect, _paused, _showControls, Seed, deltaTime, ref sound,
+            _hud.ViewportRect, _paused, _showControls, Seed, ReplayArguments, deltaTime, ref sound,
             showKeyReminder: IsInteractiveSession);
         // The menu only says what the player asked for; GameAudio owns the setting.
         if (sound.Muted != AudioOptions.Muted)

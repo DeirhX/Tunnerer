@@ -77,6 +77,7 @@ public sealed class SessionOverlay
         bool paused,
         bool showControls,
         int seed,
+        string replayArguments,
         float deltaTime,
         ref SoundMenuState sound,
         bool showKeyReminder = true)
@@ -106,11 +107,11 @@ public sealed class SessionOverlay
 
         var displaySize = ImGui.GetIO().DisplaySize;
         dl.AddRectFilled(Vector2.Zero, displaySize, Dim);
-        return showControls ? DrawControls(dl, viewport) : DrawPauseMenu(dl, viewport, seed, ref sound);
+        return showControls ? DrawControls(dl, viewport) : DrawPauseMenu(dl, viewport, seed, replayArguments, ref sound);
     }
 
     private SessionOverlayAction DrawPauseMenu(
-        ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed, ref SoundMenuState sound)
+        ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed, string replayArguments, ref SoundMenuState sound)
     {
         const float panelW = 380f, panelH = 434f, buttonW = 300f, buttonH = 46f, gap = 12f;
         Vector2 min = PanelOrigin(vp, panelW, panelH);
@@ -138,7 +139,7 @@ public sealed class SessionOverlay
         if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), "Quit game", "Q"))
             action = SessionOverlayAction.Quit;
 
-        DrawCentered(dl, 14f, cx, min.Y + panelH - 30f, $"Map seed {seed}  -  replay it with --seed={seed}", DimTextColor);
+        DrawCentered(dl, 14f, cx, min.Y + panelH - 30f, $"Map seed {seed}  -  replay it with {replayArguments}", DimTextColor);
         return action;
     }
 

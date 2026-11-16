@@ -18,7 +18,7 @@ public readonly record struct WorldLaunchOptions(
     bool TerrainTest, Size? TerrainSizeOverride, LevelGenMode GenMode, int Seed);
 
 /// <param name="Parallel">Draw and materialise on several threads (only with <c>--fast</c>).</param>
-/// <param name="Seed">The seed the world was built from (random when the simulation is not deterministic).</param>
+/// <param name="Seed">The seed the world was built from (<see cref="WorldLaunchOptions.Seed"/>).</param>
 public sealed record BuiltWorld(World World, bool Parallel, int Seed)
 {
     public Size TerrainSize => World.Terrain.Size;
@@ -34,8 +34,8 @@ public static class WorldFactory
 {
     /// <summary>
     /// <c>--fast</c> (<see cref="LevelGenMode.Optimized"/>) asks for fast, parallel level generation, and today that
-    /// also turns off simulation determinism: a random seed for the map, decorations and AI, picked here (Core never
-    /// reads the clock or unseeded randomness). Whether the two should be
+    /// also lets regrowth run in parallel and switches the link-id scheme. The seed is always the one passed in
+    /// (<c>Game</c> picks a random one for a normal match), so a --fast match can be replayed with --fast --seed=N. Whether the two should be
     /// split is an open decision (see <c>docs/quality-plan.md</c>, "Decisions"); until it is made, this is the one
     /// place that ties them together.
     /// </summary>
@@ -45,7 +45,7 @@ public static class WorldFactory
     {
         bool deterministic = IsSimulationDeterministic(options.GenMode);
         bool parallel = options.GenMode == LevelGenMode.Optimized;
-        int seed = deterministic ? options.Seed : Random.Shared.Next(1, int.MaxValue);
+        int seed = options.Seed;
         World world = options.TerrainTest
             ? BuildTerrainTest(options.TerrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize)
             : BuildMatch(options.TerrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize,
