@@ -177,14 +177,15 @@ Core:
 Desktop:
 
 7. A `MachinePresentation` in `MachinePresentations` (`Presentation/MachinePresentation.cs`): names, keyboard key,
-   build-panel slot, build sound, plant hint. `MachinePresentationTests` checks keys and slots are distinct and fit
-   the panel.
+   build-panel slot, build sound, plant hint, and its `MachineSprite` (`Rendering/Entities/MachineSprite.cs`): shader
+   shape kind, body size, whether it turns to its heading or stands upright with a gauge, its sense ring, battery
+   gauge and preview reach. `MachineQuads` and `PreviewQuads` draw from it; neither switches on the type.
+   `MachinePresentationTests` checks keys and slots are distinct and fit the panel, and that every sprite is complete.
 8. For a new `BuildKey`: `KeyboardController`, `GameSimulationStepper` (merges keyboard and scripted input) and
    `Game.ScriptedInput.cs` (scripted `Build` numbers).
-9. Drawing: a case in `Rendering/Entities/MachineQuads.cs` and, if its preview differs, `PreviewQuads.cs`. A new
-   shape needs a `Kind*` constant in `EntityShape`, the matching `kKind*` in `Shaders/Entity/Layout.hlsli`, the
-   shape function (e.g. `Shaders/Entity/Machines.hlsli`) and a branch in `EntityPs.hlsl`; `EntityLayoutGuardTests`
-   checks the three agree.
+9. A new shape (one no sprite uses yet) needs a `Kind*` constant in `EntityShape`, the matching `kKind*` in
+   `Shaders/Entity/Layout.hlsli`, the shape function (e.g. `Shaders/Entity/Machines.hlsli`) and a branch in
+   `EntityPs.hlsl`; `EntityLayoutGuardTests` checks the three agree.
 10. `Gui/HintSelector.cs` names the machines in its hints; add one if the player needs telling.
 
 ### Adding a projectile
