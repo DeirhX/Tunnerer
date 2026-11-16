@@ -11,6 +11,7 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 World.cs                     World: owns every subsystem, runs Advance; SimulationProfile (per-section timings)
 MatchOutcome.cs              Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
 NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
+StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
 Config/
   Tweaks.cs                  Every gameplay and simulation constant (const / static readonly only)
   SimulationSettings.cs      The thermal and tank-heat constants, copied from Tweaks; tests inject their own
@@ -172,7 +173,7 @@ Core:
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), added to the
    `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, build cost
    and `BuildKey`, plus the traits Core reads instead of the type: `BatteryCapacity`, `IsLinkNode`,
-   `RequiresLinkToPlant`, `IsCharger`. The action is a static method in `MachineBehaviors` taking
+   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`. The action is a static method in `MachineBehaviors` taking
    `(Machine, MachineContext)`.
 3. Constants (cost, interval, battery) in `Tweaks.Machine`, colour in `Tweaks.Colors`.
 4. Each `BuildKey` builds exactly one machine, so a fourth machine needs a new key: a value in `BuildKey`, a field
@@ -183,14 +184,15 @@ Core:
 Desktop:
 
 7. A `MachinePresentation` in `MachinePresentations` (`Presentation/MachinePresentation.cs`): names, keyboard key,
-   build-panel slot, build sound, plant hint. `MachinePresentationTests` checks keys and slots are distinct and fit
-   the panel.
+   build-panel slot, build sound, plant hint, and its `MachineSprite` (`Rendering/Entities/MachineSprite.cs`): shader
+   shape kind, body size, whether it turns to its heading or stands upright with a gauge, its sense ring, battery
+   gauge and preview reach. `MachineQuads` and `PreviewQuads` draw from it; neither switches on the type.
+   `MachinePresentationTests` checks keys and slots are distinct and fit the panel, and that every sprite is complete.
 8. For a new `BuildKey`: `KeyboardController`, `GameSimulationStepper` (merges keyboard and scripted input) and
    `Game.ScriptedInput.cs` (scripted `Build` numbers).
-9. Drawing: a case in `Rendering/Entities/MachineQuads.cs` and, if its preview differs, `PreviewQuads.cs`. A new
-   shape needs a `Kind*` constant in `EntityShape`, the matching `kKind*` in `Shaders/Entity/Layout.hlsli`, the
-   shape function (e.g. `Shaders/Entity/Machines.hlsli`) and a branch in `EntityPs.hlsl`; `EntityLayoutGuardTests`
-   checks the three agree.
+9. A new shape (one no sprite uses yet) needs a `Kind*` constant in `EntityShape`, the matching `kKind*` in
+   `Shaders/Entity/Layout.hlsli`, the shape function (e.g. `Shaders/Entity/Machines.hlsli`) and a branch in
+   `EntityPs.hlsl`; `EntityLayoutGuardTests` checks the three agree.
 10. `Gui/HintSelector.cs` names the machines in its hints; add one if the player needs telling.
 
 ### Adding a projectile
@@ -200,8 +202,8 @@ Desktop:
    and a draw colour. Use `CollisionSolver.TestPoint` to hit tanks or terrain, `ProjectileList`'s RNG for chance,
    and the heat API (`AddHeat`, `AddHeatRadius`) for heat, so the ledger stays balanced.
 3. Something has to spawn it: today only `TankTurret` (bullets) and `ExplosionFactory` (shrapnel) do.
-4. Desktop: `Rendering/Entities/ProjectileQuads.cs` draws bullets and shrapnel as hot shots and anything else with
-   the foam shape; add a case for a new look. `Audio/GameAudio.cs` plays impacts for bullets and shrapnel only.
+4. Desktop: `Rendering/Entities/ProjectileQuads.cs` draws bullets and shrapnel as hot shots and throws for any
+   other type; add a case for a new projectile. `Audio/GameAudio.cs` plays impacts for bullets and shrapnel only.
 
 ### Adding a thermal material
 

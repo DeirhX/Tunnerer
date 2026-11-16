@@ -213,10 +213,8 @@ public class World
 
         ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
         ProfileSection(ref Profile.Cooldown, () => _terrain.CoolDown(_simulationSettings.ThermalArtificialCoolingPerFrame));
-        Profile.CooldownPrep += _terrain.LastCoolDownProfile.Prep;
         Profile.CooldownSim += _terrain.LastCoolDownProfile.Simulate;
         Profile.CooldownMark += _terrain.LastCoolDownProfile.MarkDirty;
-        Profile.CooldownWriteBack += _terrain.LastCoolDownProfile.WriteBack;
         Profile.CooldownActiveTiles += _terrain.LastCoolDownProfile.ActiveTiles;
         Profile.CooldownRegionCount += _terrain.LastCoolDownProfile.RegionCount;
         if (_terrain.LastCoolDownProfile.UsedSparse) Profile.CooldownSparseFrames++;
@@ -263,6 +261,8 @@ public class World
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
         AdvanceSectorGoal();
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
+        foreach (var tank in _tankList.Tanks)
+            tank.ObserveBaseExit(_tankBases);
 
         Profile.Total += frameWatch.Elapsed;
         Profile.FrameCount++;
@@ -288,6 +288,20 @@ public class World
             ? new MachinePlacementPreview(_linkMap.PreviewLink(at, _terrain), 0f)
             : new MachinePlacementPreview(default,
                 MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)));
+
+    /// <summary>True when <paramref name="at"/> lies inside any base, the tank's own or another.</summary>
+    public bool IsInsideAnyBase(Position at) => _tankBases.CheckBaseCollision(at) != null;
+
+    /// <summary>
+    /// Where the machine <paramref name="tank"/> carries would link if planted where it stands. A machine that needs
+    /// no link, an empty hand, or a tank inside a base (where nothing plants) reports
+    /// <see cref="LinkPreviewStatus.NoNetwork"/>.
+    /// </summary>
+    public LinkPreviewStatus CarriedPlantLink(Tank tank) =>
+        tank.CarriedMachineType is MachineType type && !IsInsideAnyBase(tank.Position) &&
+        MachineBehaviors.Get(type).RequiresLinkToPlant
+            ? PreviewPlacement(type, tank.Position).Link.Status
+            : LinkPreviewStatus.NoNetwork;
 
     /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
     public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines);
@@ -379,10 +393,8 @@ public class SimulationProfile
 
     public TimeSpan Collision;
     public TimeSpan Cooldown;
-    public TimeSpan CooldownPrep;
     public TimeSpan CooldownSim;
     public TimeSpan CooldownMark;
-    public TimeSpan CooldownWriteBack;
     public long CooldownActiveTiles;
     public long CooldownRegionCount;
     public int CooldownSparseFrames;
@@ -413,8 +425,7 @@ public class SimulationProfile
             $"bases={Avg(Bases):F3} proj={Avg(Projectiles):F3} tanks={Avg(Tanks):F3} harv={Avg(Harvesters):F3} " +
             $"spr={Avg(Sprites):F3} links={Avg(Links):F3} " +
             $"| total={Avg(Total):F3} ms (avg over {FrameCount} frames)");
-        ReportSink($"[Profile+] coolPrep={Avg(CooldownPrep):F3} coolSim={Avg(CooldownSim):F3} " +
-            $"coolMark={Avg(CooldownMark):F3} coolCopy={Avg(CooldownWriteBack):F3} ms");
+        ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolMark={Avg(CooldownMark):F3} ms");
         ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
             $"sparseFrames={CooldownSparseFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
         ReportSink($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} ledgerResidualSigned={AvgValue(ThermalLedgerResidualSigned):F5} " +
@@ -428,7 +439,7 @@ public class SimulationProfile
 
     public void Reset()
     {
-        Collision = Cooldown = CooldownPrep = CooldownSim = CooldownMark = CooldownWriteBack
+        Collision = Cooldown = CooldownSim = CooldownMark
             = Regrow = Projectiles = Tanks = Harvesters = Sprites = Bases = Links = Total = TimeSpan.Zero;
         CooldownActiveTiles = 0;
         CooldownRegionCount = 0;

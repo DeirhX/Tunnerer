@@ -5,7 +5,7 @@ using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Types;
 
-/// <summary>Projectiles: glowing shots with a trail, and foam blobs.</summary>
+/// <summary>Projectiles: glowing shots with a trail.</summary>
 public sealed class ProjectileQuads
 {
     private ProjectileRenderState[] _projectiles = [];
@@ -60,12 +60,7 @@ public sealed class ProjectileQuads
                     break;
                 }
                 default:
-                {
-                    const float radius = 0.48f, margin = 0.75f;
-                    quads.Add(px, py, dx, dy, -margin, margin, -margin, margin, body, EntityShape.KindFoam,
-                        0f, radius, 0f, 0f);
-                    break;
-                }
+                    throw new InvalidOperationException($"No sprite for projectile type {projectile.Type}; add a case.");
             }
         }
     }

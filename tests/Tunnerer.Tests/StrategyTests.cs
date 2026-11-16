@@ -47,20 +47,6 @@ public class ProjectileBehaviorTests
     }
 
     [Fact]
-    public void ConcreteFoam_DrawColor_IsConcrete()
-    {
-        var behavior = ProjectileList.Behaviors[(int)ProjectileType.ConcreteFoam];
-        Assert.Equal(Tweaks.Colors.Concrete, behavior.DrawColor);
-    }
-
-    [Fact]
-    public void DirtFoam_DrawColor_IsDirtProjectile()
-    {
-        var behavior = ProjectileList.Behaviors[(int)ProjectileType.DirtFoam];
-        Assert.Equal(Tweaks.Colors.DirtProjectile, behavior.DrawColor);
-    }
-
-    [Fact]
     public void BehaviorArray_HasNoNullGaps()
     {
         for (int i = 0; i < ProjectileList.Behaviors.Length; i++)

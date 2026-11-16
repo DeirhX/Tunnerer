@@ -10,29 +10,23 @@ public partial class TerrainGrid
     public readonly struct CoolDownProfile
     {
         public CoolDownProfile(
-            TimeSpan prep,
             TimeSpan simulate,
             TimeSpan markDirty,
-            TimeSpan writeBack,
             int activeTiles,
             int regionCount,
             bool usedSparse,
             bool usedParallel)
         {
-            Prep = prep;
             Simulate = simulate;
             MarkDirty = markDirty;
-            WriteBack = writeBack;
             ActiveTiles = activeTiles;
             RegionCount = regionCount;
             UsedSparse = usedSparse;
             UsedParallel = usedParallel;
         }
 
-        public TimeSpan Prep { get; }
         public TimeSpan Simulate { get; }
         public TimeSpan MarkDirty { get; }
-        public TimeSpan WriteBack { get; }
         public int ActiveTiles { get; }
         public int RegionCount { get; }
         public bool UsedSparse { get; }
@@ -40,7 +34,7 @@ public partial class TerrainGrid
 
         /// <summary>A tick on which the solver slept.</summary>
         public static CoolDownProfile Idle(int activeTiles)
-            => new(TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, activeTiles, 0, false, false);
+            => new(TimeSpan.Zero, TimeSpan.Zero, activeTiles, 0, false, false);
     }
 
     private readonly float[] _heatTemperature;
@@ -163,7 +157,7 @@ public partial class TerrainGrid
         _thermalScheduler.RecordStep(maxAbsDelta);
         bool sparse = step == ThermalStep.Sparse;
         LastCoolDownProfile = new CoolDownProfile(
-            TimeSpan.Zero, simulate, markDirty, TimeSpan.Zero, activeTiles, sparse ? regions.Count : 0, sparse, parallel);
+            simulate, markDirty, activeTiles, sparse ? regions.Count : 0, sparse, parallel);
     }
 
     /// <summary>

@@ -48,7 +48,7 @@ public sealed class HeatGauge(HudLayout layout)
         float shown = _shownHeat;
         float safe = Tweaks.Tank.HeatSafeMax;
         bool alive = !player.IsDead;
-        bool burning = alive && (player.IsOverheating || heat > safe);
+        bool burning = alive && (player.IsOverheating || player.IsAboveSafeHeat);
         float pulse = 0.5f + 0.5f * MathF.Sin(time * 10f);
         float lit = HeatScale.Fraction(shown);
 
@@ -138,7 +138,7 @@ public sealed class HeatGauge(HudLayout layout)
 
         float seconds = player.OffNetworkSecondsToOverheat;
         string text = seconds > 0f ? $"OFF NETWORK  ~{(int)MathF.Ceiling(seconds)}s" : "OFF NETWORK  OVERHEATING";
-        bool urgent = seconds < 20f;
+        bool urgent = player.IsOffNetworkUrgent;
         float size = S(20f);
         var pos = At(centerX, -24f);
         HudTheme.DrawTag(dl, pos, text, urgent && (int)(time * 4f) % 2 == 0 ? HudTheme.Danger : HudTheme.Warn, size);
@@ -148,14 +148,15 @@ public sealed class HeatGauge(HudLayout layout)
     /// Temperature bar under the readout, on the same scale as the orb: a blue frost zone left of the ambient
     /// mark, green to amber up to the safe-maximum mark, and red beyond it.
     /// </summary>
-    public void DrawBar(ImDrawListPtr dl, float heat, float x, float y, float w, float time)
+    public void DrawBar(ImDrawListPtr dl, Tank player, float x, float y, float w, float time)
     {
+        float heat = player.Heat;
         const float barH = 5f;
         float X(float t) => x + w * HeatScale.Fraction(t);
         dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + barH + 1f), 0xC0000000u);
         dl.AddRectFilled(At(X(Tweaks.Tank.HeatSafeMax), y), At(x + w, y + barH), 0x503040FFu); // danger zone
         uint col = HeatScale.Color(heat);
-        if (heat > Tweaks.Tank.HeatSafeMax && (int)(time * 4f) % 2 == 0)
+        if (player.IsAboveSafeHeat && (int)(time * 4f) % 2 == 0)
             col = 0xFF8080FFu;
         dl.AddRectFilled(At(x, y), At(X(heat), y + barH), col);
         dl.AddLine(At(X(0f), y - 1f), At(X(0f), y + barH + 1f), 0x80FFFFFFu, S(1f));

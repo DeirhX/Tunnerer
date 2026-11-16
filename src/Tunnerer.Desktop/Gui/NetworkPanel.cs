@@ -5,7 +5,6 @@ using ImGuiNET;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using static Tunnerer.Desktop.Gui.HudDraw;
 
@@ -15,11 +14,17 @@ using static Tunnerer.Desktop.Gui.HudDraw;
 /// </summary>
 public sealed class NetworkPanel
 {
-    private bool _hasLeftBase;
     private int _lastPoweredRelays;
     private float _relayLinkedUntil = -1f;
     private double _radiatorInflow;
     private double _engineOutput;
+
+    private static Vector4 LevelColor(StatusLevel level, Vector4 ok) => level switch
+    {
+        StatusLevel.Ok => ok,
+        StatusLevel.Warn => TextWarn,
+        _ => TextBad,
+    };
 
     private static Vector4 ToneColor(HintTone tone) => tone switch
     {
@@ -38,7 +43,7 @@ public sealed class NetworkPanel
 
         var status = world.GetNetworkStatus(tankBase);
         int relays = status.Relays, powered = status.PoweredRelays, pumping = status.PumpingRelays;
-        int harvesters = status.Harvesters, stalled = status.HarvestersTooHot;
+        int harvesters = status.Harvesters, stalled = status.HarvestersTooHot, working = status.HarvestersWorking;
         int recharging = status.HarvestersReturning, flat = status.HarvestersOutOfCharge;
         // Smooth the readout: relays act every tick but the number is read by eye.
         // The engine turns part of the relay heat into charge; only the rest reaches the radiator.
@@ -47,37 +52,31 @@ public sealed class NetworkPanel
         double ventCapacity = status.VentCapacity;
 
         float fill = (float)status.HeatStoreFill;
-        var fillColor = fill < 0.6f ? TextGood : fill < 0.9f ? TextWarn : TextBad;
+        var fillColor = LevelColor(status.HeatStoreLevel, TextGood);
 
-        bool insideBase = world.TankBases.CheckBaseCollision(player.Position) != null;
-        if (!player.IsDead && !insideBase)
-            _hasLeftBase = true;
+        bool insideBase = world.IsInsideAnyBase(player.Position);
         if (powered > _lastPoweredRelays)
             _relayLinkedUntil = time + 4f;
         _lastPoweredRelays = powered;
 
         bool docked = player.IsDockedAtOwnBase;
         var carried = player.CarriedMachineType;
-        var carriedLink = carried is MachineType type && !insideBase && MachineBehaviors.Get(type).RequiresLinkToPlant
-            ? world.PreviewPlacement(type, player.Position).Link.Status
-            : LinkPreviewStatus.NoNetwork;
         var (hint, tone) = HintSelector.Select(new HintInputs(
             IsDead: player.IsDead,
-            HasLeftBase: _hasLeftBase,
+            HasLeftBase: player.HasLeftBase,
             Docked: docked,
             InsideBase: insideBase,
             RelayJustLinked: time < _relayLinkedUntil,
             PumpingRelays: pumping,
             PlantRefused: player.PlantRefusedTicks > 0,
             Carried: carried,
-            CarriedLink: carriedLink,
-            HeatStoreFill: fill,
-            PoweredRelays: powered,
+            CarriedLink: world.CarriedPlantLink(player),
+            HeatStoreFull: status.IsHeatStoreFullWithRelays,
             Harvesters: harvesters,
             BuildableDirt: player.BuildableDirt(docked),
-            HoldDirt: player.Resources.Dirt,
+            RelayFromBaseStore: player.BuildsFromBaseStore(MachineType.Relay),
             BaseStoreDirt: tankBase.Materials.Current.Dirt,
-            CoolingDown: player.Heat > 1f));
+            CoolingDown: player.IsCoolingDown));
         var hintColor = ToneColor(tone);
 
         if (HudTheme.BeginWindow("##HeatNetworkOverlay", new Vector2(vp.x + vp.w - 14f, vp.y + 14f), new Vector2(1f, 0f), 400f))
@@ -87,9 +86,9 @@ public sealed class NetworkPanel
             ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Dirt}/{tankBase.Materials.DirtCapacity}");
 
             // Power: the charge store and what the engine is making from relay heat right now.
-            float chargeFill = (float)Math.Clamp(tankBase.Charge / tankBase.ChargeCapacity, 0.0, 1.0);
+            float chargeFill = (float)tankBase.ChargeFill;
             double perSecond = _engineOutput * Tweaks.Perf.TargetFps;
-            ColoredText(chargeFill < 0.1f ? TextBad : chargeFill < 0.3f ? TextWarn : TextInfo,
+            ColoredText(LevelColor(tankBase.ChargeLevel, TextInfo),
                 $"Charge {tankBase.Charge / 1000.0:0}k / {tankBase.ChargeCapacity / 1000.0:0}k" +
                 (perSecond >= 1.0 ? $"   engine +{perSecond / 1000.0:0.0}k/s" : "   engine idle"));
             HudTheme.BarRow(chargeFill, HudTheme.Teal, null, 10f);
@@ -97,7 +96,7 @@ public sealed class NetworkPanel
             if (harvesters > 0)
             {
                 ColoredText(stalled > 0 ? TextWarn : TextDim,
-                    $"Harvesters working {harvesters - stalled - recharging - flat}/{harvesters}" +
+                    $"Harvesters working {working}/{harvesters}" +
                     (stalled > 0 ? $", {stalled} too hot" : ""));
                 if (recharging > 0 || flat > 0)
                     ColoredText(flat > 0 ? TextBad : TextWarn,
@@ -115,8 +114,8 @@ public sealed class NetworkPanel
 
                 // Radiator load: heat arriving through relays against the rate the base can vent. Past 100% the
                 // store fills, and once it is full the relays are throttled.
-                float load = (float)(_radiatorInflow / ventCapacity);
-                var loadColor = load < 0.8f ? TextGood : load <= 1.0f ? TextWarn : TextBad;
+                float load = tankBase.RadiatorLoad(_radiatorInflow);
+                var loadColor = LevelColor(TankBase.RadiatorLoadLevel(load), TextGood);
                 ColoredText(loadColor,
                     $"Radiator {(int)Math.Round(_radiatorInflow)} in / {(int)ventCapacity} out per tick");
                 HudTheme.BarRow(Math.Clamp(load / 1.5f, 0f, 1f),

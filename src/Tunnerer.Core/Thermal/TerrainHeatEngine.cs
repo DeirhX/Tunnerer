@@ -10,8 +10,6 @@ using Tunnerer.Core.Terrain;
 public sealed class TerrainHeatEngine
 {
     private readonly SimulationSettings _settings;
-    private float[]? _delta;
-    private float[]? _airDelta;
 
     public TerrainHeatEngine()
         : this(SimulationSettings.FromTweaks())
@@ -39,34 +37,6 @@ public sealed class TerrainHeatEngine
         if ((uint)index >= (uint)len)
             return 0f;
         return temperature[index];
-    }
-
-    public void StepConservative(float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels, int width, int height, ThermalLedger? ledger = null)
-    {
-        int len = width * height;
-        if (terrainTemperature.Length < len || airTemperature.Length < len)
-            throw new ArgumentException("temperature lengths must cover simulation grid");
-
-        if (_delta == null || _delta.Length < len)
-            _delta = new float[len];
-        if (_airDelta == null || _airDelta.Length < len)
-            _airDelta = new float[len];
-
-        // The whole grid is one region, so the exchange stencil has a single owner.
-        ComputeRegionDeltaConservative(
-            terrainTemperature, airTemperature, pixels, width, height,
-            0, 0, width - 1, height - 1, _delta, _airDelta);
-
-        double sunkFixed = 0.0;
-        for (int i = 0; i < len; i++)
-        {
-            float nextAir = airTemperature[i] + _airDelta[i];
-            terrainTemperature[i] = ResolveTerrainTemperature(
-                Pixel.GetThermalMaterial(pixels[i]), terrainTemperature[i] + _delta[i], nextAir, ref sunkFixed);
-            airTemperature[i] = nextAir;
-        }
-
-        ledger?.RecordSunkFixedTemperature(sunkFixed);
     }
 
     /// <summary>

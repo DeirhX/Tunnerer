@@ -17,7 +17,7 @@ public class HudLogicTests
     private static HintInputs Field(int dirt = 0) => new(
         IsDead: false, HasLeftBase: true, Docked: false, InsideBase: false, RelayJustLinked: false,
         PumpingRelays: 0, PlantRefused: false, Carried: null, CarriedLink: LinkPreviewStatus.NoNetwork,
-        HeatStoreFill: 0f, PoweredRelays: 0, Harvesters: 0, BuildableDirt: dirt, HoldDirt: dirt,
+        HeatStoreFull: false, Harvesters: 0, BuildableDirt: dirt, RelayFromBaseStore: false,
         BaseStoreDirt: 0, CoolingDown: false);
 
     [Fact]
@@ -88,11 +88,11 @@ public class HudLogicTests
     }
 
     [Fact]
-    public void Hint_FullHeatStore_WarnsOnlyWithPoweredRelays()
+    public void Hint_FullHeatStore_Warns()
     {
-        var full = Field(dirt: 5000) with { HeatStoreFill = 0.95f };
-        Assert.StartsWith("Base heat store full", HintSelector.Select(full with { PoweredRelays = 1 }).Text);
-        Assert.StartsWith("E: build relay", HintSelector.Select(full).Text);
+        var rich = Field(dirt: 5000);
+        Assert.StartsWith("Base heat store full", HintSelector.Select(rich with { HeatStoreFull = true }).Text);
+        Assert.StartsWith("E: build relay", HintSelector.Select(rich).Text);
     }
 
     [Fact]
@@ -108,10 +108,10 @@ public class HudLogicTests
     }
 
     [Fact]
-    public void Hint_DockedWithEmptyHold_BuildsFromBaseStore()
+    public void Hint_RelayFromBaseStore_SaysSo()
     {
         int relay = Cost(MachineType.Relay);
-        var docked = Field() with { Docked = true, BuildableDirt = relay, HoldDirt = 0 };
+        var docked = Field() with { Docked = true, BuildableDirt = relay, RelayFromBaseStore = true };
         Assert.Equal($"E: build relay from the base store ({relay} dirt)", HintSelector.Select(docked).Text);
     }
 
@@ -166,25 +166,5 @@ public class HudLogicTests
     {
         Assert.Equal(223, HudLayout.BottomPanelHeight(1920, 1080));
         Assert.Equal(446, HudLayout.BottomPanelHeight(3840, 2160));
-    }
-
-    [Fact]
-    public void PlayerWarnings_LatchWithHysteresis()
-    {
-        var (_, tank) = TestHelpers.CreateSeededWorldWithTank(enableTerrainRegrowth: false);
-        float safe = Tweaks.Tank.HeatSafeMax;
-
-        tank.Heat = 0.75f * safe;
-        Assert.False(PlayerWarnings.RunningHot(false, tank));
-        Assert.True(PlayerWarnings.RunningHot(true, tank));
-        tank.Heat = 0.85f * safe;
-        Assert.True(PlayerWarnings.RunningHot(false, tank));
-        tank.Heat = 0.65f * safe;
-        Assert.False(PlayerWarnings.RunningHot(true, tank));
-
-        int capacity = tank.Reactor.HealthCapacity;
-        tank.TakeDamage(tank.Reactor.Health - (int)(0.27f * capacity), DamageCause.Overheat);
-        Assert.False(PlayerWarnings.LowShield(false, tank));
-        Assert.True(PlayerWarnings.LowShield(true, tank));
     }
 }

@@ -63,7 +63,7 @@ public class SimulationTableGuardTests
         double start = engine.SumTotalEnergy(terrain, air, pixels);
 
         for (int step = 0; step < 50; step++)
-            engine.StepConservative(terrain, air, pixels, width: 3, height: 1, ledger);
+            FullGridHeatStep.Step(engine, terrain, air, pixels, width: 3, height: 1, ledger);
 
         Assert.Equal(fixedTemperature, terrain[1]);
         double now = engine.SumTotalEnergy(terrain, air, pixels);

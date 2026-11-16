@@ -1,14 +1,15 @@
 namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core;
-using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Types;
+using Tunnerer.Desktop.Presentation;
 
 /// <summary>
-/// What the player's carried machine would do if planted now, drawn from the player tank: the ground a relay would
-/// cool or a pylon would reach, and the link it would make. A carried harvester shows the ground it would sense.
+/// What the player's carried machine would do if planted now, drawn from the player tank as its
+/// <see cref="MachinePresentation.Sprite"/> says: the ground it would sense, or the ground it would reach (a relay
+/// cools, a pylon charges) and the link it would make.
 /// </summary>
 public sealed class PreviewQuads
 {
@@ -40,19 +41,18 @@ public sealed class PreviewQuads
         float cx = quads.ScreenX(player.X);
         float cy = quads.ScreenY(player.Y);
 
-        if (_preview.Type == MachineType.Harvester)
+        MachineSprite sprite = MachinePresentations.Get(_preview.Type).Sprite;
+        if (sprite.SenseRadius is float r)
         {
-            float r = Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f;
             quads.Add(cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f,
                 EntityShape.KindSenseRing, _preview.SenseHeat, r, phase, 0f);
-            return;
         }
+        if (sprite.Reach is not MachineReach area)
+            return;
 
-        bool pylon = _preview.Type == MachineType.Pylon;
-        float reach = pylon ? Tweaks.Machine.PylonRange : Tweaks.Machine.RelayCoolingRadius;
-        Color areaColor = pylon ? Tweaks.Colors.Pylon : Tweaks.Colors.Relay;
-        quads.Add(cx, cy, 1f, 0f, -reach - 6f, reach + 6f, -reach - 6f, reach + 6f, areaColor, EntityShape.KindReachArea,
-            reach, pylon ? 1f : 0f, phase, 0f);
+        float reach = area.Radius;
+        quads.Add(cx, cy, 1f, 0f, -reach - 6f, reach + 6f, -reach - 6f, reach + 6f, area.Color, EntityShape.KindReachArea,
+            reach, area.Circle ? 1f : 0f, phase, 0f);
 
         var link = _preview.Link;
         if (link.Status is LinkPreviewStatus.NoNetwork)

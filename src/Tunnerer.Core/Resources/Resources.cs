@@ -107,7 +107,6 @@ public class MaterialContainer
     public int Dirt => Current.Dirt;
     public int Minerals => Current.Minerals;
     public int DirtCapacity => Capacity.Dirt;
-    public int MineralsCapacity => Capacity.Minerals;
 
     public bool CanPay(MaterialAmount cost) => !(Current - cost).IsNegative;
 
