@@ -139,8 +139,9 @@ Owner decisions, rest (2026-11-16, PR after #25):
   `TankCollisionMask` and the 7x7 footprint are gone (`TankShapeTests`). Bit-for-bit.
 - `World.StepEvents` records each step's happenings; audio plays them instead of diffing state
   (`StepEventTests`, `StepEventSoundsTests`).
-- Core's `Draw(Surface)` and `Surface` are gone; the fingerprint hash rasterises entities from public Core state in
-  the tests (`EntityRaster`). Hashing Core state directly instead would mean re-recording every fingerprint.
+- Core's `Draw(Surface)` and `Surface` are gone. The fingerprint hash now reads projectiles, sprites and turret tips
+  straight from Core state instead of rasterising them, so all four fingerprints were re-recorded once (no
+  simulation change).
 
 After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
 
