@@ -142,7 +142,7 @@ state once per displayed frame.
   A step can name a world cell to point at.
 - `GameEventWatcher` compares the player's side of the world with the previous frame and posts toasts to a
   `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, stores
-  full, charge low, off network, engine running, harvester deliveries). The feed de-duplicates by key with a cooldown.
+  full, charge low, off network, radar scattered by heat, engine running, harvester deliveries). The feed de-duplicates by key with a cooldown.
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
   docked and the sector-complete banner.

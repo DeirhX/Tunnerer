@@ -325,6 +325,15 @@ public class World
         return radar;
     }
 
+    /// <summary>The radar <see cref="TrackRadar"/> started for <paramref name="tank"/>, or null if none was.</summary>
+    public Radar? RadarOf(Tank tank)
+    {
+        foreach (var tracked in _trackedRadars)
+            if (tracked.Tank == tank)
+                return tracked.Radar;
+        return null;
+    }
+
     private void UpdateVisions()
     {
         bool recastFixed = _advanceCount % Tweaks.Vision.FixedSourceRefreshTicks == 0;
@@ -346,7 +355,7 @@ public class World
             foreach (var other in _tankList.Tanks)
                 if (other != tank && !other.IsDead)
                     _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize));
-            radar.Sweep(_terrain, tank.Position, tank.Color, _radarTargets);
+            radar.Sweep(_terrain, _terrain, tank.Position, tank.Color, _radarTargets);
         }
     }
 

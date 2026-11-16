@@ -113,7 +113,7 @@ above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / 
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
 `Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
-`World.CollectCoverageNodes`, `World.TrackVision`, `World.TrackRadar`, and the `CopyRenderStates` snapshot of each entity list.
+`World.CollectCoverageNodes`, `World.TrackVision`, `World.TrackRadar`, `World.RadarOf`, and the `CopyRenderStates` snapshot of each entity list.
 
 ### Step events
 
@@ -203,7 +203,14 @@ ones. Along a ray:
 - stepping from dirt into open ground (a tunnel, a cave) gives a `Cavity` return and the ray goes on, at most
   `WeakReturnsPerRay` times.
 
-A return becomes a `RadarContact` (cell, echo, birth tick) unless it tells the side nothing: the cell is in sight,
+Heat weakens the beam. A ray starts at strength 1 and loses `HeatLossPerDegree` for every degree a cell is above
+`HeatThreshold`, before anything in that cell can reflect it. What it then finds is recorded with the strength
+left (`RadarContact.Strength`). A ray that runs out leaves a `Heat` contact where it died, and a reflector at or
+above `HeatScrambleTemperature` returns `Heat` instead of what it is. So hot rock and the ground around it are dark
+to the radar and ringed with noise until they are cooled. `Radar.HeatLoss` is the share of the last revolution's
+rays that heat absorbed. Cold does nothing to the beam. This is the radar reading the heat field, not changing it.
+
+A return becomes a `RadarContact` (cell, echo, birth tick, strength) unless it tells the side nothing: the cell is in sight,
 or it is terrain the side has explored and remembers as it is now. So remembered ground only shows where it has
 changed. Contacts live `ContactLifetimeTicks` in a fixed ring (`ContactCount`, `ContactAt`), and never move: what
 made them may have gone. A tick costs a few rays, whatever the size of the map.

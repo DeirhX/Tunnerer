@@ -2,11 +2,13 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Sensing;
+using Tunnerer.Core.Types;
 
 /// <summary>
 /// The player's radar blips: one small glowing dot per <see cref="RadarContact"/>, bright when the beam has just
-/// found it and fading over its lifetime. A blip is dropped once the player can see its cell, where sight shows
-/// the real thing.
+/// found it and fading over its lifetime. A return that crossed warm ground is dimmer, and where heat swallowed
+/// the beam the blip is a flickering orange smudge instead. A blip is dropped once the player can see its cell,
+/// where sight shows the real thing.
 /// </summary>
 public static class RadarQuads
 {
@@ -35,7 +37,11 @@ public static class RadarQuads
                 continue;
 
             float flash = Math.Max(0f, 1f - age / FlashTicks);
-            quads.Add(cx, cy, 1f, 0f, -HalfSize, HalfSize, -HalfSize, HalfSize,
+            // The colour carries the ray's remaining strength (red) and a per-cell seed (green) that keeps heat
+            // blips from flickering in step.
+            byte strength = (byte)Math.Clamp((int)MathF.Round(contact.Strength * 255f), 0, 255);
+            byte seed = (byte)((contact.Position.X * 73 + contact.Position.Y * 151) & 0xFF);
+            quads.Add(cx, cy, 1f, 0f, -HalfSize, HalfSize, -HalfSize, HalfSize, new Color(strength, seed, 0),
                 EntityShape.KindRadarBlip, life, (float)contact.Echo, quads.Phase, flash);
         }
     }

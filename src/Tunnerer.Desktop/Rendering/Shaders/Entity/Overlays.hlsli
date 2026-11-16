@@ -82,28 +82,42 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
     return float4(cool * glow, (rim * 0.04 + inside * 0.02) * level * quadFade);
 }
 
-// One radar return: a small dot with a soft glow, on ground out of the player's sight. It flares when the beam
-// finds it and then fades over its life. Green for rock and walls, amber for metal (gold, machines, tanks), a dim
-// blue-green for the weak return of a cave.
-float4 RadarBlip(float2 p, float4 params, float aa)
+// One radar return, on ground out of the player's sight. It flares when the beam finds it and then fades over its
+// life. Green for rock and walls, amber for metal (gold, machines, tanks), a dim blue-green for the weak return of a
+// cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Where heat swallowed the beam,
+// or the thing that reflected was too hot to read, there is no dot: a ragged orange smudge that flickers like static.
+float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {
     float life = saturate(params.x);
     float echo = params.y;
+    float phase = params.z;
     float flash = saturate(params.w);
+    float rayStrength = saturate(data.r);
+    float seed = data.g * 6.2831853;
+    // Hold most of the brightness for the first half of the life, then let go.
+    float fade = smoothstep(0.0, 0.55, life);
+    float r = length(p);
+
+    if (echo > 2.5)
+    {
+        float angle = atan2(p.y, p.x);
+        float ragged = r * (1.0 + 0.30 * sin(angle * 5.0 + seed * 5.0 + phase * 9.0));
+        float flicker = 0.60 + 0.40 * sin(phase * 23.0 + seed * 7.0) * sin(phase * 7.3 + seed * 13.0);
+        float haze = exp(-ragged * ragged * 0.85);
+        float ember = exp(-ragged * ragged * 6.0);
+        float3 hot = float3(1.00, 0.38, 0.08) * haze * 0.55 + float3(1.00, 0.80, 0.35) * ember * 0.5;
+        return float4(hot * (0.75 + 0.6 * flash) * flicker * fade, 0.0);
+    }
 
     float3 color = echo < 0.5 ? float3(0.30, 1.00, 0.50)
         : echo < 1.5 ? float3(1.00, 0.80, 0.30)
         : float3(0.25, 0.70, 0.80);
-    float strength = echo > 1.5 ? 0.55 : 1.0;
+    float strength = (echo > 1.5 ? 0.55 : 1.0) * lerp(0.28, 1.0, rayStrength);
 
-    float r = length(p);
-    float core = FillAlpha(r - (0.30 + 0.22 * flash), aa);
+    float core = FillAlpha(r - (0.30 + 0.22 * flash) * lerp(0.7, 1.0, rayStrength), aa);
     float glow = exp(-r * r * (1.8 - 1.0 * flash));
-    // Hold most of the brightness for the first half of the life, then let go.
-    float fade = smoothstep(0.0, 0.55, life) * strength;
-
     float3 light = color * (core * (0.75 + 0.6 * flash) + glow * (0.22 + 0.75 * flash));
-    return float4(light * fade, core * fade * 0.5);
+    return float4(light * fade * strength, core * fade * strength * 0.5);
 }
 
 #endif // TUNNERER_ENTITY_OVERLAYS_HLSLI

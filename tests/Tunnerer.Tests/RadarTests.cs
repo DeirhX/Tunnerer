@@ -36,7 +36,7 @@ public class RadarTests
     {
         int ticks = revolutions * Tweaks.Radar.RaysPerRevolution / Tweaks.Radar.RaysPerTick;
         for (int i = 0; i < ticks; i++)
-            radar.Sweep(terrain, origin, ownColor: 0, targets ?? NoTargets);
+            radar.Sweep(terrain, terrain, origin, ownColor: 0, targets ?? NoTargets);
     }
 
     private static List<RadarContact> Contacts(Radar radar)
@@ -152,7 +152,7 @@ public class RadarTests
 
         var other = Blind(terrain);
         for (int i = 0; i < Tweaks.Radar.RaysPerRevolution / Tweaks.Radar.RaysPerTick; i++)
-            other.Sweep(terrain, Origin, ownColor: 1, NoTargets);
+            other.Sweep(terrain, terrain, Origin, ownColor: 1, NoTargets);
         Assert.True(other.ContactCount > 0);
     }
 
@@ -229,6 +229,94 @@ public class RadarTests
         int Distinct(Radar radar) => Contacts(radar).Select(c => c.Position).Distinct().Count();
         Assert.True(Distinct(thrice) > Distinct(once) * 2,
             $"three sweeps should hit far more cells than one: {Distinct(once)} then {Distinct(thrice)}");
+    }
+
+    /// <summary>Brings the ground in the box, which starts at 0, to <paramref name="temperature"/> degrees.</summary>
+    private static void Warm(TerrainGrid terrain, int minX, int minY, int maxX, int maxY, int temperature)
+    {
+        for (int y = minY; y <= maxY; y++)
+            for (int x = minX; x <= maxX; x++)
+                terrain.AddHeat(new Position(x, y), temperature);
+        Assert.Equal(temperature, terrain.GetHeatTemperature(new Position(minX, minY)), 3);
+    }
+
+    [Fact]
+    public void HotGround_AbsorbsTheBeam_AndLeavesHeatNoiseWhereItDied()
+    {
+        var terrain = Dirt();
+        Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
+        Warm(terrain, 240, 150, 270, 250, temperature: 60);
+        var radar = Blind(terrain);
+
+        Revolve(radar, terrain, Origin);
+
+        var contacts = Contacts(radar);
+        Assert.DoesNotContain(contacts, c => c.Echo == RadarEcho.Solid);
+        Assert.NotEmpty(contacts);
+        // 60 degrees takes 0.2 a cell: the ray dies on its fifth hot cell, well short of the rock.
+        Assert.All(contacts, c =>
+        {
+            Assert.Equal(RadarEcho.Heat, c.Echo);
+            Assert.InRange(c.Position.X, 240, 250);
+            Assert.Equal(1f, c.Strength);
+        });
+        Assert.True(radar.HeatLoss is 0f, "the loss is reported once a revolution has finished");
+        Revolve(radar, terrain, Origin);
+        Assert.InRange(radar.HeatLoss, 0.05f, 0.5f);
+    }
+
+    [Fact]
+    public void WarmGround_LetsTheBeamThroughWeaker()
+    {
+        var terrain = Dirt();
+        Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
+        Warm(terrain, 240, 199, 250, 201, temperature: 20);
+        var radar = Blind(terrain);
+
+        Revolve(radar, terrain, Origin);
+
+        var contacts = Contacts(radar);
+        Assert.All(contacts, c => Assert.Equal(RadarEcho.Solid, c.Echo));
+        RadarContact throughWarm = contacts.Single(c => c.Position == new Position(300, 200));
+        RadarContact throughCool = contacts.First(c => c.Position.Y == 185);
+        // 11 cells at 10 degrees over the threshold: 11 * 10 * 0.004 = 0.44 lost.
+        Assert.InRange(throughWarm.Strength, 0.5f, 0.62f);
+        Assert.Equal(1f, throughCool.Strength);
+        Assert.Equal(0f, radar.HeatLoss);
+    }
+
+    [Fact]
+    public void AHotReflector_ReturnsOnlyHeatNoise()
+    {
+        var terrain = Dirt();
+        Box(terrain, 260, 190, 270, 210, TerrainPixel.Rock);
+        Warm(terrain, 260, 190, 270, 210, temperature: 100);
+        var radar = Blind(terrain);
+
+        Revolve(radar, terrain, Origin);
+
+        var contacts = Contacts(radar);
+        Assert.NotEmpty(contacts);
+        Assert.All(contacts, c =>
+        {
+            Assert.Equal(RadarEcho.Heat, c.Echo);
+            Assert.Equal(260, c.Position.X);
+        });
+    }
+
+    [Fact]
+    public void ColdGround_DoesNotWeakenTheBeam()
+    {
+        var terrain = Dirt();
+        Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
+        Warm(terrain, 240, 150, 270, 250, temperature: -60);
+        var radar = Blind(terrain);
+
+        Revolve(radar, terrain, Origin);
+
+        var contacts = Contacts(radar);
+        Assert.NotEmpty(contacts);
+        Assert.All(contacts, c => Assert.Equal((RadarEcho.Solid, 1f), (c.Echo, c.Strength)));
     }
 
     [Fact]

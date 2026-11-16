@@ -93,7 +93,9 @@ Core decides what is seen; the renderer only shows it.
   quad per contact (`KindRadarBlip`, `RadarBlip` in `Shaders/Entity/Overlays.hlsli`), first in the entity layer so
   everything else is on top: green for rock and walls, amber for metal, dim blue-green for a cave. A blip flares
   for a few ticks when the beam finds it, which is what shows the sweep, then fades over the contact's life. A blip
-  whose cell has come into sight is not drawn.
+  whose cell has come into sight is not drawn. A return that crossed warm ground is smaller and dimmer (the
+  contact's strength, sent in the vertex colour), and a `Heat` contact is drawn as a ragged, flickering orange
+  smudge. `GameEventWatcher` posts "Radar scattered by heat" when `Radar.HeatLoss` passes `RadarScatteredShare`.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
 

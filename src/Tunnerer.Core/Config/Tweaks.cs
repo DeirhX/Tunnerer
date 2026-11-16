@@ -301,6 +301,12 @@ public static class Tweaks
         public const int WeakReturnsPerRay = 3;
         // A tank reflects as a square this many cells either side of its centre.
         public const int TankHalfSize = 3;
+        // Heat weakens the beam. A ray starts at strength 1 and every cell hotter than HeatThreshold takes
+        // HeatLossPerDegree per degree above it: ground at 50 stops a ray in about 6 cells, ground at 20 in about 25.
+        public const float HeatThreshold = 10f;
+        public const float HeatLossPerDegree = 0.004f;
+        // A reflector this hot returns only noise: the blip says "heat", not what the thing is.
+        public const float HeatScrambleTemperature = 40f;
     }
 
     public static class Weapon

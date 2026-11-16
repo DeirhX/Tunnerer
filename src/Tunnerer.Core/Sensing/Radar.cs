@@ -15,10 +15,20 @@ public enum RadarEcho : byte
 
     /// <summary>Open ground behind dirt: a tunnel or a cave. A weak return; the ray goes on.</summary>
     Cavity,
+
+    /// <summary>
+    /// Noise from heat: the cell where hot ground finished absorbing the ray, or a reflector too hot to tell what
+    /// it is. Either way the radar learned only that it is hot there.
+    /// </summary>
+    Heat,
 }
 
 /// <summary>One radar return: the cell that reflected, what kind of thing it was and when (<see cref="Radar.Tick"/>).</summary>
-public readonly record struct RadarContact(Position Position, RadarEcho Echo, int BornTick);
+/// <param name="Strength">
+/// What was left of the ray when it reflected, 1 for a ray that crossed only cool ground down toward 0 for one
+/// that warm ground nearly absorbed. A <see cref="RadarEcho.Heat"/> contact is always 1.
+/// </param>
+public readonly record struct RadarContact(Position Position, RadarEcho Echo, int BornTick, float Strength = 1f);
 
 /// <summary>Something that is not terrain and reflects radar: a machine or a tank, as a square of cells.</summary>
 public readonly record struct RadarTarget(Position Position, int HalfSize);
@@ -29,6 +39,11 @@ public readonly record struct RadarTarget(Position Position, int HalfSize);
 /// <see cref="RadarContact"/> which lives for <see cref="Tweaks.Radar.ContactLifetimeTicks"/>. What lies behind a
 /// reflector is in its shadow, so a shape is only learned from several sides. A contact stays where it was made:
 /// something that moves leaves a stale trail.
+/// <para>
+/// Heat weakens the beam (<see cref="Tweaks.Radar.HeatLossPerDegree"/>). A ray loses strength in every hot cell it
+/// crosses; what it then finds comes back fainter, and a ray that runs out leaves a <see cref="RadarEcho.Heat"/>
+/// contact where it died. Hot ground is therefore dark to the radar and ringed with noise until it is cooled.
+/// </para>
 /// </summary>
 /// <remarks>
 /// Like <see cref="VisionMap"/> it only observes: nothing in the simulation reads it. It reports only news: returns
@@ -46,6 +61,7 @@ public sealed class Radar
     private int _head;
     private int _count;
     private int _rayCounter;
+    private int _lostToHeat;
 
     public Radar(VisionMap vision)
     {
@@ -60,6 +76,9 @@ public sealed class Radar
     /// <summary>The direction the beam points after the last sweep, in radians (0 = +x, turning toward +y).</summary>
     public float BeamAngle { get; private set; }
 
+    /// <summary>The share of the last full revolution's rays that hot ground absorbed, 0..1.</summary>
+    public float HeatLoss { get; private set; }
+
     /// <summary>Contacts still alive, oldest first.</summary>
     public int ContactCount => _count;
 
@@ -69,19 +88,28 @@ public sealed class Radar
     /// One tick with the radar running from <paramref name="origin"/>: old contacts expire and the beam casts its
     /// next rays. <paramref name="ownColor"/>'s base walls do not reflect, so a tank at home is not blinded.
     /// </summary>
-    public void Sweep(ITerrainPixelReadOnly terrain, Position origin, int ownColor, IReadOnlyList<RadarTarget> targets)
+    public void Sweep(
+        ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, Position origin, int ownColor,
+        IReadOnlyList<RadarTarget> targets)
     {
         Idle();
         for (int i = 0; i < Tweaks.Radar.RaysPerTick; i++)
         {
             int ray = _rayCounter % Tweaks.Radar.RaysPerRevolution;
+            if (ray == 0 && _rayCounter != 0)
+            {
+                HeatLoss = _lostToHeat / (float)Tweaks.Radar.RaysPerRevolution;
+                _lostToHeat = 0;
+            }
             int revolution = _rayCounter / Tweaks.Radar.RaysPerRevolution;
-            _rayCounter = (_rayCounter + 1) % (Tweaks.Radar.RaysPerRevolution * 1024);
+            _rayCounter = _rayCounter + 1 < Tweaks.Radar.RaysPerRevolution * 1024
+                ? _rayCounter + 1
+                : Tweaks.Radar.RaysPerRevolution;
             double offset = revolution * RevolutionOffset;
             offset -= Math.Floor(offset);
             double angle = 2.0 * Math.PI * (ray + offset) / Tweaks.Radar.RaysPerRevolution;
             BeamAngle = (float)angle;
-            CastRay(terrain, origin, DeterministicMath.Cos(angle), DeterministicMath.Sin(angle), ownColor, targets);
+            CastRay(terrain, heat, origin, DeterministicMath.Cos(angle), DeterministicMath.Sin(angle), ownColor, targets);
         }
     }
 
@@ -97,7 +125,7 @@ public sealed class Radar
     }
 
     private void CastRay(
-        ITerrainPixelReadOnly terrain, Position origin, double dirX, double dirY, int ownColor,
+        ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, Position origin, double dirX, double dirY, int ownColor,
         IReadOnlyList<RadarTarget> targets)
     {
         const int range = Tweaks.Radar.Range;
@@ -114,6 +142,7 @@ public sealed class Radar
         int x = x0, y = y0;
         bool wasDirt = false;
         int weakLeft = Tweaks.Radar.WeakReturnsPerRay;
+        float strength = 1f;
 
         while (true)
         {
@@ -122,21 +151,35 @@ public sealed class Radar
             if (x != x0 || y != y0)
             {
                 var cell = new Position(x, y);
+                // Heat first: it takes its share of the ray before anything in the cell can reflect it.
+                float temperature = heat.GetHeatTemperature(x + y * width);
+                if (temperature > Tweaks.Radar.HeatThreshold)
+                {
+                    strength -= (temperature - Tweaks.Radar.HeatThreshold) * Tweaks.Radar.HeatLossPerDegree;
+                    if (strength <= 0f)
+                    {
+                        _lostToHeat++;
+                        Record(cell, RadarEcho.Heat, 1f, width, pixels, isTerrain: false);
+                        return;
+                    }
+                }
+                bool scrambled = temperature >= Tweaks.Radar.HeatScrambleTemperature;
+
                 if (HitsTarget(cell))
                 {
-                    Record(cell, RadarEcho.Metal, width, pixels, isTerrain: false);
+                    Reflect(cell, RadarEcho.Metal, scrambled, strength, width, pixels, isTerrain: false);
                     return;
                 }
 
                 TerrainPixel pixel = pixels[x + y * width];
                 if (Pixel.IsGold(pixel))
                 {
-                    Record(cell, RadarEcho.Metal, width, pixels, isTerrain: true);
+                    Reflect(cell, RadarEcho.Metal, scrambled, strength, width, pixels, isTerrain: true);
                     return;
                 }
                 if (Pixel.IsBlockingCollision(pixel) && pixel != ownWall)
                 {
-                    Record(cell, RadarEcho.Solid, width, pixels, isTerrain: true);
+                    Reflect(cell, RadarEcho.Solid, scrambled, strength, width, pixels, isTerrain: true);
                     return;
                 }
 
@@ -147,7 +190,7 @@ public sealed class Radar
                 if (wasDirt && !dirt && weakLeft > 0)
                 {
                     weakLeft--;
-                    Record(cell, RadarEcho.Cavity, width, pixels, isTerrain: true);
+                    Record(cell, RadarEcho.Cavity, strength, width, pixels, isTerrain: true);
                 }
                 wasDirt = dirt;
             }
@@ -185,11 +228,23 @@ public sealed class Radar
         return false;
     }
 
+    /// <summary>A return off something that stops the ray. One too hot to read comes back as heat noise, and as news.</summary>
+    private void Reflect(
+        Position cell, RadarEcho echo, bool scrambled, float strength, int width, ReadOnlySpan<TerrainPixel> pixels,
+        bool isTerrain)
+    {
+        if (scrambled)
+            Record(cell, RadarEcho.Heat, 1f, width, pixels, isTerrain: false);
+        else
+            Record(cell, echo, strength, width, pixels, isTerrain);
+    }
+
     /// <summary>
     /// Keeps a return unless it tells the side nothing: the cell is in sight, or it is terrain the side has
     /// explored and remembers as it is now. Remembered ground therefore only blips where it has changed since.
     /// </summary>
-    private void Record(Position cell, RadarEcho echo, int width, ReadOnlySpan<TerrainPixel> pixels, bool isTerrain)
+    private void Record(
+        Position cell, RadarEcho echo, float strength, int width, ReadOnlySpan<TerrainPixel> pixels, bool isTerrain)
     {
         int offset = cell.X + cell.Y * width;
         if (_vision.IsVisible(offset))
@@ -201,7 +256,7 @@ public sealed class Radar
             _head = (_head + 1) % _contacts.Length;
             _count--;
         }
-        _contacts[(_head + _count) % _contacts.Length] = new RadarContact(cell, echo, Tick);
+        _contacts[(_head + _count) % _contacts.Length] = new RadarContact(cell, echo, Tick, strength);
         _count++;
     }
 }

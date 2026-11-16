@@ -281,8 +281,12 @@ The player sees only what their side sees, so that learning the shape of the wor
   hit slightly different points, so a shape fills in while you wait. Blips do not follow what made them: a moving
   enemy leaves a stale trail. A tunnel or cave behind dirt gives a weak blue return and lets the beam on. The
   radar reports only news: nothing in sight, and nothing in remembered ground unless it has changed since.
-  Still open: whether hot ground should weaken the beam, which would make hot zones radar-dark until they are
-  cooled and tie the radar to heat (pillar 2); and whether pinging should cost heat.
+- **Heat blinds the radar** *(Prototype)*. Hot ground absorbs the beam: every hot cell a ray crosses takes some of
+  it, more the hotter it is. A return that got through warm ground is fainter. A ray that runs out leaves orange
+  static where it died, and so does a return off anything too hot to read, hot rock included. So a hot zone is a
+  dark patch ringed with static: the radar tells you that it is hot there and nothing about what is inside, until
+  relays have cooled it. This is the radar's tie to heat (pillar 2). Still open: whether pinging should cost heat,
+  and whether the tank's own heat should weaken its radar.
 - **It is information, not physics.** Vision never changes the simulation: heat, machines and mobs run the same
   seen or unseen. Whether unseen ground may be simulated more cheaply is a separate question (below).
 
@@ -464,6 +468,7 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Rival tank becomes an optional sector twist | Proposed |
 | Fog of war: the player sees what their tank, base and machines see; the rest is remembered or unknown | Prototype |
 | Radar: blips where a sweeping beam reflects, well beyond sight | Prototype |
+| Hot ground absorbs the radar beam; hot zones show as static until cooled | Prototype |
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
 
 ## 14. Open questions
