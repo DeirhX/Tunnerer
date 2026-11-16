@@ -13,18 +13,27 @@ public partial class GameHud
 {
     private float _sectorCompleteAt = float.NaN;
 
-    /// <summary>The upgrade list above the bottom panel while the tank is docked at its own base.</summary>
+    // The upgrade panel's margin from the HUD parts and the bottom edge, and its widest. The HUD always leaves a gap of
+    // at least HudLayout.MinCenterGap, so the panel is at least that less the margins wide.
+    private const float UpgradePanelMargin = 12f, UpgradePanelMaxW = 460f;
+
+    /// <summary>
+    /// The upgrade list while the tank is docked at its own base, at the bottom of the screen in the gap between the
+    /// HUD's two parts, so it stays clear of the tank in the middle of the view.
+    /// </summary>
     private void DrawUpgradePanel(Tank player)
     {
         if (!player.IsDockedAtOwnBase || player.Base is not { } home)
             return;
 
-        var vp = ViewportRect;
-        float bottom = ViewBottom(vp);
-        if (HudTheme.BeginWindow("##Upgrades", new Vector2(vp.x + vp.w * 0.5f, bottom - 14f), new Vector2(0.5f, 1f), 760f))
+        var (gapMinX, gapMaxX) = _strip.Gap;
+        float width = MathF.Min(gapMaxX - gapMinX - 2f * UpgradePanelMargin, UpgradePanelMaxW);
+        var anchor = new Vector2(MathF.Floor((gapMinX + gapMaxX) * 0.5f), ImGui.GetIO().DisplaySize.Y - UpgradePanelMargin);
+        if (HudTheme.BeginWindow("##Upgrades", anchor, new Vector2(0.5f, 1f), width))
         {
-            HudTheme.TitleRow($"BASE UPGRADES        dirt store {home.Materials.Dirt}", 20f);
+            HudTheme.TitleRow($"BASE UPGRADES    dirt store {home.Materials.Dirt}", 19f);
             var dl = ImGui.GetWindowDrawList();
+            float rowW = ImGui.GetContentRegionAvail().X;
             for (int i = 0; i < BaseUpgrades.Count; i++)
             {
                 var upgrade = (BaseUpgrade)i;
@@ -33,24 +42,29 @@ public partial class GameHud
                 bool maxed = home.Upgrades.IsMaxed(upgrade);
                 int cost = maxed ? 0 : home.Upgrades.NextCost(upgrade);
                 bool affordable = !maxed && home.Materials.Dirt >= cost;
-                uint color = affordable ? HudTheme.Text : HudTheme.TextDim;
 
+                // First line: key, name, level pips and price (right-aligned). Second line: what it does.
                 var pos = ImGui.GetCursorScreenPos();
                 float capW = HudTheme.DrawKeyCap(dl, pos, (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), 15f, affordable);
-                HudTheme.TextAt(dl, 17f, pos + new Vector2(capW + 10f, 3f), name, affordable ? HudTheme.Amber : HudTheme.TextDim);
-                // Level pips: lit segments for bought levels.
-                float px = pos.X + capW + 160f;
+                float textX = pos.X + capW + 10f;
+                HudTheme.TextAt(dl, 17f, new Vector2(textX, pos.Y + 3f), name, affordable ? HudTheme.Amber : HudTheme.TextDim);
+
+                string price = maxed ? "maxed" : $"{cost} dirt";
+                float priceW = HudTheme.Measure(16f, price).X;
+                float priceX = pos.X + rowW - priceW;
+                HudTheme.TextAt(dl, 16f, new Vector2(priceX, pos.Y + 3f), price,
+                    maxed ? HudTheme.TextDim : affordable ? HudTheme.Good : HudTheme.Danger);
+                // Level pips: lit segments for bought levels, just left of the price.
+                float px = priceX - 14f - BaseUpgrades.MaxLevel * 16f;
                 for (int l = 0; l < BaseUpgrades.MaxLevel; l++)
                 {
                     var pmin = new Vector2(px + l * 16f, pos.Y + 7f);
                     dl.AddRectFilled(pmin, pmin + new Vector2(12f, 10f), l < level ? HudTheme.Amber : HudTheme.Track, 2f);
                     dl.AddRect(pmin, pmin + new Vector2(12f, 10f), HudTheme.BronzeDark, 2f);
                 }
-                string price = maxed ? "maxed" : $"{cost} dirt";
-                HudTheme.TextAt(dl, 16f, pos + new Vector2(capW + 220f, 3f), price,
-                    maxed ? HudTheme.TextDim : affordable ? HudTheme.Good : HudTheme.Danger);
-                HudTheme.TextAt(dl, 15f, pos + new Vector2(capW + 320f, 4f), effect, color);
-                ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, 25f));
+
+                HudTheme.TextAt(dl, 15f, new Vector2(textX, pos.Y + 25f), effect, affordable ? HudTheme.Text : HudTheme.TextDim);
+                ImGui.Dummy(new Vector2(rowW, 46f));
             }
             if (player.UpgradeRefusedTicks > 0)
                 ColoredText(TextBad, player.LastUpgradeRefusal == UpgradeRefusal.Maxed
