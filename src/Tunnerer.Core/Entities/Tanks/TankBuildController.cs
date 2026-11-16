@@ -66,6 +66,7 @@ internal sealed class TankBuildController
                     ctx.CanPlantRelayAt?.Invoke(position) == false)
                 {
                     PlantRefusedTicks = PlantRefusedDuration;
+                    ctx.Events?.Record(new StepEvent(StepEventKind.PlantRefused, position, _tank.Color, carried));
                 }
                 else if (ctx.CheckBaseCollision(position) == null)
                 {
@@ -79,6 +80,8 @@ internal sealed class TankBuildController
                 var payer = BuildPayer(buildType, _tank.IsDockedAtOwnBase);
                 if (payer != null)
                     _materializer.TryBuild(buildType, position, payer, ctx.Machines);
+                if (_materializer.IsCarrying)
+                    ctx.Events?.Record(new StepEvent(StepEventKind.MachineBuilt, position, _tank.Color, buildType));
             }
         }
 

@@ -4,7 +4,6 @@ using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Input;
-using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Entities.Machines;
@@ -41,6 +40,12 @@ public class Tank
 
     /// <summary>Heat the tank can still take before it overheats (<c>HeatSafeMax - Heat</c>).</summary>
     public float HeatBudget => Tweaks.Tank.HeatSafeMax - Heat;
+
+    /// <summary>
+    /// <see cref="HeatBudget"/> of a tank fully cooled at its base (at 0). A colder tank has more room, but docking never
+    /// cools below 0, so this is the room the bot plans with.
+    /// </summary>
+    public static float HeatBudgetCapacity => Tweaks.Tank.HeatSafeMax;
 
     /// <summary>Fraction of its normal speed the tank moves at; below 1 when it is cold (DESIGN.md §4.7).</summary>
     public float SpeedFactor => TankHeatModel.ColdSpeedFactor(Heat);
@@ -166,12 +171,6 @@ public class Tank
     /// <summary>Counts down after a respawn; while positive, enemy fire does no damage.</summary>
     public int SpawnProtectionTicks => _lifecycle.SpawnProtectionTicks;
 
-    /// <summary>
-    /// Shots this tank has fired since the match began. Nothing in the simulation reads it; presentation code
-    /// compares it between ticks to learn that a shot was fired.
-    /// </summary>
-    public int ShotsFired { get; private set; }
-
     /// <summary>Counts down after the tank refused to plant a relay that would not link.</summary>
     public int PlantRefusedTicks => _build.PlantRefusedTicks;
 
@@ -209,7 +208,7 @@ public class Tank
 
         if (IsDead)
         {
-            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Heat.Ledger);
+            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Heat.Ledger, ctx.Events);
             return;
         }
 
@@ -220,15 +219,18 @@ public class Tank
         Turret.Update(input.ShootPrimary);
         _digger.Move(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
         _lifecycle.UpdateSpawnProtection(ctx.CheckBaseCollision(Position) == Base, input.ShootPrimary);
-        AdvanceShooting(input, ctx.Projectiles);
-        _digger.CollectPickups(ctx.Terrain, ctx.Heat);
+        AdvanceShooting(input, in ctx);
+        _digger.CollectPickups(ctx.Terrain, ctx.Heat, ctx.Events);
         _build.Advance(in ctx, input);
         AdvanceUpgrades(input);
         _thermals.Advance(ctx.Heat);
     }
 
-    /// <summary>Takes armor off the tank and records why, so the cause can be shown to the player.</summary>
-    public void TakeDamage(int amount, DamageCause cause, VectorF hitVelocity = default) =>
+    /// <summary>
+    /// Takes armor off the tank and records why, so the cause can be shown to the player. Returns false when nothing
+    /// was taken (no damage, already dead, or enemy fire against the respawn shield).
+    /// </summary>
+    public bool TakeDamage(int amount, DamageCause cause, VectorF hitVelocity = default) =>
         _lifecycle.TakeDamage(amount, cause, hitVelocity);
 
     /// <summary>Ticks left on the "could not buy that upgrade" feedback after a refused purchase.</summary>
@@ -285,15 +287,29 @@ public class Tank
             HasLeftBase = true;
     }
 
+    private bool _wasDocked = true;
+
+    /// <summary>End of a world tick: records docking at and leaving the own base. A respawn is not a docking.</summary>
+    internal void ObserveDocking(StepEventLog events)
+    {
+        bool docked = IsDead || IsDockedAtOwnBase;
+        if (docked != _wasDocked && !IsDead)
+            events.Record(new StepEvent(docked ? StepEventKind.Docked : StepEventKind.Undocked, Position, Color));
+        _wasDocked = docked;
+    }
+
     /// <summary>
     /// Any base the tank is in recharges it and sinks heat around it; its own base also takes its dirt and
     /// pumps its heat into the base reservoir.
     /// </summary>
+    private const float BaseServicedHeatDrop = 0.05f;
+
     private void AdvanceBaseInteraction(in SimulationContext ctx)
     {
         var baseColl = ctx.CheckBaseCollision(Position);
         if (baseColl == null) return;
 
+        (int health, float heat, int dirt) = (Reactor.Health, Heat, Resources.Dirt);
         baseColl.RechargeTank(Reactor, Color);
         bool atOwnBase = baseColl.Color == Color;
         _thermals.SinkAtBase(ctx.Heat, baseColl, atOwnBase);
@@ -302,6 +318,9 @@ public class Tank
         {
             baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
             _thermals.PumpHeatAtBase(baseColl);
+            // A tank that is only shedding the last fraction of a degree near 0 is not being serviced any more.
+            if (Reactor.Health > health || Heat < heat - BaseServicedHeatDrop || Resources.Dirt < dirt)
+                ctx.Events?.Record(new StepEvent(StepEventKind.BaseServiced, Position, Color));
         }
     }
 
@@ -319,14 +338,14 @@ public class Tank
         }
     }
 
-    private void AdvanceShooting(ControllerOutput input, ProjectileList projectiles)
+    private void AdvanceShooting(ControllerOutput input, in SimulationContext ctx)
     {
         if (!input.ShootPrimary) return;
-        var bullet = Turret.TryShoot(Position, projectiles);
+        var bullet = Turret.TryShoot(Position, ctx.Projectiles);
         if (bullet != null)
         {
             _thermals.RecordShot();
-            ShotsFired++;
+            ctx.Events?.Record(new StepEvent(StepEventKind.ShotFired, Position, Color));
         }
     }
 
@@ -342,22 +361,6 @@ public class Tank
 
     /// <summary>Destroys the tank: it loses a life, drops what it carries and explodes.</summary>
     public void Die(ProjectileList? projectiles = null) => _lifecycle.Die(projectiles);
-
-    /// <summary>CPU drawing of the tank's sprite shape and turret.</summary>
-    public void Draw(Surface surface)
-    {
-        if (IsDead) return;
-
-        TankSpriteShape.ForEachPixel(Direction, Position, (spriteVal, worldPos) =>
-        {
-            if (!surface.IsInside(worldPos.X, worldPos.Y))
-                return true;
-            surface.Pixels[worldPos.X + worldPos.Y * surface.Width] = TankSprites.GetPixelColor(spriteVal, Color).ToArgb();
-            return true;
-        });
-
-        Turret.Draw(surface, Position);
-    }
 
     private static int HashSeed(int color, Position pos)
     {

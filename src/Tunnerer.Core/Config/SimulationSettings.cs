@@ -1,5 +1,7 @@
 namespace Tunnerer.Core.Config;
 
+using Tunnerer.Core.Thermal;
+
 /// <summary>
 /// Injectable configuration for the thermal simulation engine and tank heat model.
 /// Tests can construct custom instances to override any parameter.
@@ -29,39 +31,12 @@ public readonly record struct SimulationSettings
     public float ThermalAmbientTemperature { get; init; }
     public float ThermalArtificialCoolingPerFrame { get; init; }
 
-    // --- Material heat capacities ---
-    public float ThermalCapacityAir { get; init; }
-    public float ThermalCapacityDirt { get; init; }
-    public float ThermalCapacityStone { get; init; }
-    public float ThermalCapacityBase { get; init; }
-    public float ThermalCapacityConstantEnergy { get; init; }
-
-    // --- Pairwise conductance ---
-    public float ThermalKAirAir { get; init; }
-    public float ThermalKAirDirt { get; init; }
-    public float ThermalKAirStone { get; init; }
-    public float ThermalKAirBase { get; init; }
-    public float ThermalKDirtDirt { get; init; }
-    public float ThermalKDirtStone { get; init; }
-    public float ThermalKDirtBase { get; init; }
-    public float ThermalKStoneStone { get; init; }
-    public float ThermalKStoneBase { get; init; }
-    public float ThermalKBaseBase { get; init; }
-    public float ThermalKAirConstantEnergy { get; init; }
-    public float ThermalKDirtConstantEnergy { get; init; }
-    public float ThermalKStoneConstantEnergy { get; init; }
-    public float ThermalKBaseConstantEnergy { get; init; }
-    public float ThermalKConstantEnergyConstantEnergy { get; init; }
+    // --- Thermal materials: one row per ThermalMaterial, pair conductances derived from the rows ---
+    public ThermalMaterialTable ThermalMaterials { get; init; }
 
     // --- Air-field coupling ---
     public float ThermalAirCellCoupling { get; init; }
     public float ThermalAirNeighborCoupling { get; init; }
-
-    // --- Fixed temperature materials ---
-    public float ThermalFixedBaseTemperature { get; init; }
-    public float ThermalFixedConstantEnergyTemperature { get; init; }
-    public float ThermalFixedHotRockTemperature { get; init; }
-    public float ThermalFixedFrostRockTemperature { get; init; }
 
     // --- Tank heat model ---
     public float TankHeatDigPerPixel { get; init; }
@@ -81,6 +56,15 @@ public readonly record struct SimulationSettings
     // --- Base ---
     public int BaseSize { get; init; }
 
+    // --- Tank thermals (TankThermals): work heat, base sinks and the dock heat pump ---
+    public int TankIdleHeatGain { get; init; }
+    public int TankMoveHeatGain { get; init; }
+    public float TankDockHeatPumpRate { get; init; }
+    public int TankDigRadius { get; init; }
+    public float TankHeatBaseCoolBonus { get; init; }
+    public int BaseHomeCooldownHeat { get; init; }
+    public int BaseForeignCooldownHeat { get; init; }
+
     public static SimulationSettings FromTweaks() => new()
     {
         AdvanceStep = Tweaks.World.AdvanceStep,
@@ -97,32 +81,9 @@ public readonly record struct SimulationSettings
         ThermalDt = Tweaks.World.ThermalDt,
         ThermalAmbientTemperature = Tweaks.World.ThermalAmbientTemperature,
         ThermalArtificialCoolingPerFrame = Tweaks.World.ThermalArtificialCoolingPerFrame,
-        ThermalCapacityAir = Tweaks.World.ThermalCapacityAir,
-        ThermalCapacityDirt = Tweaks.World.ThermalCapacityDirt,
-        ThermalCapacityStone = Tweaks.World.ThermalCapacityStone,
-        ThermalCapacityBase = Tweaks.World.ThermalCapacityBase,
-        ThermalCapacityConstantEnergy = Tweaks.World.ThermalCapacityConstantEnergy,
-        ThermalKAirAir = Tweaks.World.ThermalKAirAir,
-        ThermalKAirDirt = Tweaks.World.ThermalKAirDirt,
-        ThermalKAirStone = Tweaks.World.ThermalKAirStone,
-        ThermalKAirBase = Tweaks.World.ThermalKAirBase,
-        ThermalKDirtDirt = Tweaks.World.ThermalKDirtDirt,
-        ThermalKDirtStone = Tweaks.World.ThermalKDirtStone,
-        ThermalKDirtBase = Tweaks.World.ThermalKDirtBase,
-        ThermalKStoneStone = Tweaks.World.ThermalKStoneStone,
-        ThermalKStoneBase = Tweaks.World.ThermalKStoneBase,
-        ThermalKBaseBase = Tweaks.World.ThermalKBaseBase,
-        ThermalKAirConstantEnergy = Tweaks.World.ThermalKAirConstantEnergy,
-        ThermalKDirtConstantEnergy = Tweaks.World.ThermalKDirtConstantEnergy,
-        ThermalKStoneConstantEnergy = Tweaks.World.ThermalKStoneConstantEnergy,
-        ThermalKBaseConstantEnergy = Tweaks.World.ThermalKBaseConstantEnergy,
-        ThermalKConstantEnergyConstantEnergy = Tweaks.World.ThermalKConstantEnergyConstantEnergy,
+        ThermalMaterials = Tweaks.World.ThermalMaterials,
         ThermalAirCellCoupling = Tweaks.World.ThermalAirCellCoupling,
         ThermalAirNeighborCoupling = Tweaks.World.ThermalAirNeighborCoupling,
-        ThermalFixedBaseTemperature = Tweaks.World.ThermalFixedBaseTemperature,
-        ThermalFixedConstantEnergyTemperature = Tweaks.World.ThermalFixedConstantEnergyTemperature,
-        ThermalFixedHotRockTemperature = Tweaks.World.ThermalFixedHotRockTemperature,
-        ThermalFixedFrostRockTemperature = Tweaks.World.ThermalFixedFrostRockTemperature,
         TankHeatDigPerPixel = Tweaks.Tank.HeatDigPerPixel,
         TankHeatShootPerShot = Tweaks.Tank.HeatShootPerShot,
         TankHeatCapacity = Tweaks.Tank.TankHeatCapacity,
@@ -135,5 +96,14 @@ public readonly record struct SimulationSettings
         TankOffNetworkHeatPerTick = Tweaks.Tank.OffNetworkHeatPerSecond / Tweaks.Perf.TargetFps,
         TankNetworkCoolingPerTick = Tweaks.Tank.NetworkCoolingPerSecond / Tweaks.Perf.TargetFps,
         BaseSize = Tweaks.Base.BaseSize,
+
+        // Tank thermals
+        TankIdleHeatGain = Tweaks.Tank.IdleHeatGain,
+        TankMoveHeatGain = Tweaks.Tank.MoveHeatGain,
+        TankDockHeatPumpRate = Tweaks.Tank.DockHeatPumpRate,
+        TankDigRadius = Tweaks.Tank.DigRadius,
+        TankHeatBaseCoolBonus = Tweaks.Tank.HeatBaseCoolBonus,
+        BaseHomeCooldownHeat = Tweaks.Base.HomeCooldownHeat,
+        BaseForeignCooldownHeat = Tweaks.Base.ForeignCooldownHeat,
     };
 }

@@ -51,7 +51,7 @@ internal sealed class TankDigger
         var collision = TestCollision(ctx.Terrain, newPos, dir);
         if (collision != CollisionType.None)
         {
-            DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse);
+            DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse, ctx.Events);
 
             int torchDir = OffsetToDirection(new Offset(
                 (int)MathF.Round(torchHeading.X),
@@ -67,11 +67,12 @@ internal sealed class TankDigger
 
         _tank.Direction = dir;
         _tank.Position = newPos;
+        ctx.Events?.Record(new StepEvent(StepEventKind.TankMoved, newPos, _tank.Color));
         _thermals.AddMoveHeat(ctx.Heat.Ledger);
     }
 
     /// <summary>Picks up items under the tank's sprite shape: gold cools the tank.</summary>
-    public void CollectPickups(ITerrainPixelAccessor terrain, ITerrainHeatSource heat)
+    public void CollectPickups(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, StepEventLog? events)
     {
         TankSpriteShape.ForEachPixel(_tank.Direction, _tank.Position, (_, worldPos) =>
         {
@@ -82,6 +83,7 @@ internal sealed class TankDigger
             {
                 terrain.SetPixel(worldPos, TerrainPixel.Blank);
                 _thermals.CoolFromPickup(Tweaks.Tank.CoolingPickupGold, heat.Ledger);
+                events?.Record(new StepEvent(StepEventKind.GoldCollected, worldPos, _tank.Color));
             }
             return true;
         });
@@ -107,9 +109,11 @@ internal sealed class TankDigger
         return result;
     }
 
-    private void DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse)
+    private void DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse,
+        StepEventLog? events)
     {
         var resources = _tank.Resources;
+        int cleared = 0;
         int r = Tweaks.Tank.DigRadius;
         for (int ty = center.Y - r; ty <= center.Y + r; ty++)
             for (int tx = center.X - r; tx <= center.X + r; tx++)
@@ -125,6 +129,7 @@ internal sealed class TankDigger
                 if (Pixel.IsDiggable(pix))
                 {
                     terrain.SetPixel(worldPos, TerrainPixel.Blank);
+                    cleared++;
                     if (torchUse)
                     {
                         _thermals.RecordDugPixels(1);
@@ -137,12 +142,18 @@ internal sealed class TankDigger
                          _rng.Chance1000(Tweaks.World.DigThroughRockChance))
                 {
                     terrain.SetPixel(worldPos, TerrainPixel.Blank);
+                    cleared++;
                     _thermals.RecordDugPixels(2);
                     heat.AddHeatRadius(worldPos, Tweaks.Tank.TorchRockHeatAmount, Tweaks.Tank.TorchRockHeatRadius);
                     if (Pixel.IsMineral(pix))
+                    {
                         resources.Add(new MaterialAmount(0, 1));
+                        events?.Record(new StepEvent(StepEventKind.OreCollected, worldPos, _tank.Color));
+                    }
                 }
             }
+        if (cleared > 0)
+            events?.Record(new StepEvent(StepEventKind.TankDug, center, _tank.Color, Count: cleared, Torch: torchUse));
     }
 
     /// <summary>

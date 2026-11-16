@@ -199,9 +199,12 @@ public class TankTemperatureTests
         Assert.False(Pixel.IsDiggable(TerrainPixel.FrostRock));
         Assert.False(Pixel.IsRock(TerrainPixel.FrostRock), "ordinary rock can be blasted away; a pocket must not be");
         Assert.Equal(ThermalMaterial.FrostRock, Pixel.GetThermalMaterial(TerrainPixel.FrostRock));
-        Assert.True(TerrainHeatEngine.IsFixedTemperatureMaterial(ThermalMaterial.FrostRock));
-        Assert.Equal(Tweaks.World.ThermalFixedFrostRockTemperature,
-            new TerrainHeatEngine().GetFixedTemperature(ThermalMaterial.FrostRock));
+        var engine = new TerrainHeatEngine();
+        Assert.True(engine.IsFixedTemperatureMaterial(ThermalMaterial.FrostRock));
+        float? pinned = Tweaks.World.ThermalMaterials[ThermalMaterial.FrostRock].FixedTemperature;
+        Assert.NotNull(pinned);
+        Assert.True(pinned < Tweaks.Tank.FrostbiteTemperature, "a frost pocket must be cold enough to give frostbite");
+        Assert.Equal(pinned.Value, engine.GetFixedTemperature(ThermalMaterial.FrostRock));
     }
 
     [Fact]

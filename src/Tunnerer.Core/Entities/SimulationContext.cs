@@ -35,4 +35,7 @@ public readonly record struct SimulationContext
     /// it heats up and a tank inside it is cooled down the links; when null the rule is off.
     /// </summary>
     public Func<Tank, Links.TankCoverage>? CoverageFor { get; init; }
+
+    /// <summary>Where the tank records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</summary>
+    public StepEventLog? Events { get; init; }
 }

@@ -27,7 +27,7 @@ public class TankBase
     {
         Position = position;
         Color = color;
-        _baseTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalFixedBaseTemperature;
+        _baseTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalMaterials[ThermalMaterial.Base].FixedTemperature.GetValueOrDefault();
     }
 
     public bool IsInside(Position tested) => BoundingBox.IsInside(tested, Position);
@@ -314,18 +314,6 @@ public class TankBase
         other.Absorb(absorber);
     }
 
-    public void Draw(Surface surface)
-    {
-        var outlineColor = Tweaks.Colors.BaseOutline.ToArgb();
-
-        ForEachEdgePixel(Position, (px, py, isDoor) =>
-        {
-            if (!surface.IsInside(px, py)) return;
-            if (!isDoor)
-                surface.Pixels[px + py * surface.Width] = outlineColor;
-        });
-    }
-
     public void CreateInTerrain(ITerrainPixelAccessor terrain, int color)
     {
         int half = Half;
@@ -352,18 +340,4 @@ public class TankBase
 
     private static bool IsEdge(int dx, int dy) => Math.Abs(dx) == Half || Math.Abs(dy) == Half;
     private static bool IsDoor(int dx) => dx >= -DoorHalf && dx <= DoorHalf;
-
-    /// <summary>
-    /// Iterates edge pixels of the base outline, calling visitor(px, py, isDoor).
-    /// </summary>
-    private static void ForEachEdgePixel(Position center, Action<int, int, bool> visitor)
-    {
-        int half = Half;
-        for (int dy = -half; dy <= half; dy++)
-            for (int dx = -half; dx <= half; dx++)
-            {
-                if (!IsEdge(dx, dy)) continue;
-                visitor(center.X + dx, center.Y + dy, IsDoor(dx));
-            }
-    }
 }

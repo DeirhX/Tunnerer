@@ -17,11 +17,10 @@ public sealed class WorldCompositeRenderer
     public void Compose(World world, uint[] terrainPixels, uint[] compositePixels)
     {
         Array.Copy(terrainPixels, compositePixels, terrainPixels.Length);
-        var surface = new Surface(compositePixels, world.Terrain.Width, world.Terrain.Height);
 
         // Links, machines and the placement preview are drawn by the entity layer (EntityLayerBuilder / EntityPs.hlsl).
         int spriteCount = world.Sprites.CopyRenderStates(EnsureCapacity(ref _spriteStates, world.Sprites.Count));
-        DrawSprites(surface, _spriteStates, spriteCount);
+        DrawSprites(compositePixels, world.Terrain.Width, world.Terrain.Height, _spriteStates, spriteCount);
     }
 
     private static Span<T> EnsureCapacity<T>(ref T[] buffer, int requiredCount)
@@ -31,7 +30,7 @@ public sealed class WorldCompositeRenderer
         return buffer;
     }
 
-    private static void DrawSprites(Surface surface, SpriteRenderState[] states, int count)
+    private static void DrawSprites(uint[] pixels, int width, int height, SpriteRenderState[] states, int count)
     {
         for (int i = 0; i < count; i++)
         {
@@ -50,22 +49,22 @@ public sealed class WorldCompositeRenderer
             int y = sprite.Position.Y;
             if (sprite.Type == SpriteType.FailedInteraction)
             {
-                SetPixel(surface, x - 1, y - 1, color);
-                SetPixel(surface, x + 1, y - 1, color);
-                SetPixel(surface, x, y, color);
-                SetPixel(surface, x - 1, y + 1, color);
-                SetPixel(surface, x + 1, y + 1, color);
+                SetPixel(pixels, width, height, x - 1, y - 1, color);
+                SetPixel(pixels, width, height, x + 1, y - 1, color);
+                SetPixel(pixels, width, height, x, y, color);
+                SetPixel(pixels, width, height, x - 1, y + 1, color);
+                SetPixel(pixels, width, height, x + 1, y + 1, color);
             }
             else
             {
-                SetPixel(surface, x, y, color);
+                SetPixel(pixels, width, height, x, y, color);
             }
         }
     }
 
-    private static void SetPixel(Surface surface, int x, int y, uint color)
+    private static void SetPixel(uint[] pixels, int width, int height, int x, int y, uint color)
     {
-        if (surface.IsInside(x, y))
-            surface.Pixels[x + y * surface.Width] = color;
+        if (x >= 0 && y >= 0 && x < width && y < height)
+            pixels[x + y * width] = color;
     }
 }

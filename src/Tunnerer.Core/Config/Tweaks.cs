@@ -1,5 +1,7 @@
 namespace Tunnerer.Core.Config;
 
+using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 
 public readonly record struct ExplosionParams(int ShrapnelCount, float Speed, int Frames);
@@ -36,40 +38,47 @@ public static class Tweaks
         public const float ThermalDt = 2.0f;
         public const float ThermalAmbientTemperature = 0f;
 
-        // Effective heat capacities (higher means temperature changes slower).
-        public const float ThermalCapacityAir = 0.8f;
-        public const float ThermalCapacityDirt = 1.4f;
-        public const float ThermalCapacityStone = 2.6f;
-        public const float ThermalCapacityBase = 2.6f;
-        public const float ThermalCapacityConstantEnergy = 2.0f;
-
-        // Pairwise transmission speed (conductance).
-        public const float ThermalKAirAir = 0.240f;
-        public const float ThermalKAirDirt = 0.035f;
-        public const float ThermalKAirStone = 0.220f;
-        public const float ThermalKAirBase = 0.450f;
-        public const float ThermalKDirtDirt = 0.045f;
-        public const float ThermalKDirtStone = 0.070f;
-        public const float ThermalKDirtBase = 0.090f;
-        public const float ThermalKStoneStone = 0.300f;
-        public const float ThermalKStoneBase = 0.450f;
-        public const float ThermalKBaseBase = 0.200f;
-        public const float ThermalKAirConstantEnergy = 0.550f;
-        public const float ThermalKDirtConstantEnergy = 0.100f;
-        public const float ThermalKStoneConstantEnergy = 0.450f;
-        public const float ThermalKBaseConstantEnergy = 0.450f;
-        public const float ThermalKConstantEnergyConstantEnergy = 0.300f;
+        // One row per thermal material (see ThermalMaterialProperties):
+        // - capacity: energy per degree (higher means temperature changes slower);
+        // - conductivity: half-cell conductance; two touching cells conduct ka * kb / (ka + kb), so a material
+        //   against itself conducts half its value. Air's value is the air field's, between neighbouring cells;
+        // - air exchange: conductance between a cell's terrain and the air in the same cell;
+        // - fixed: the temperature the cell is pinned to (a source or sink), or none.
+        // A pair the rule cannot reproduce is listed after the rows as an override (either order).
+        // Base and ConstantEnergy cells are heat sinks, so they conduct far better than rock and pull heat out of
+        // whatever touches them. Hot rock conducts like stone and is pinned hot: a permanent heat source for any
+        // tunnel it touches (pocket placement is opt-in per world, World ctor).
+        public static ThermalMaterialTable ThermalMaterials { get; } = new(
+        [
+            (ThermalMaterial.Air, new(HeatCapacity: 0.8f, Conductivity: 0.48f, AirExchange: 0f)),
+            (ThermalMaterial.Dirt, new(HeatCapacity: 1.4f, Conductivity: 0.09f, AirExchange: 0.035f)),
+            (ThermalMaterial.Stone, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f)),
+            (ThermalMaterial.Base, new(HeatCapacity: 2.6f, Conductivity: 1.8f, AirExchange: 0.45f, FixedTemperature: 0f)),
+            (ThermalMaterial.ConstantEnergy, new(HeatCapacity: 2.0f, Conductivity: 1.8f, AirExchange: 0.55f, FixedTemperature: 0f)),
+            (ThermalMaterial.HotRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: 100f)),
+            // Frost rock conducts like stone and is pinned far below ambient: a permanent cold source (see the frost
+            // pocket constants below).
+            (ThermalMaterial.FrostRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: -60f)),
+        ],
+        // Tuned values the series rule cannot produce (it would give dirt-stone 0.0783 and dirt against a sink
+        // 0.0857): dirt stays a poor conductor against rock and a slightly better one against bases and gold.
+        [
+            new(ThermalMaterial.Dirt, ThermalMaterial.Stone, 0.07f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.HotRock, 0.07f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.FrostRock, 0.07f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.Base, 0.09f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy, 0.1f),
+            // Between two pinned sinks: cell temperatures never depend on these, but the ledger's rounding does when
+            // an entity adds heat to a sink cell, so they keep their tuned values.
+            new(ThermalMaterial.Base, ThermalMaterial.Base, 0.2f),
+            new(ThermalMaterial.ConstantEnergy, ThermalMaterial.ConstantEnergy, 0.3f),
+            new(ThermalMaterial.Base, ThermalMaterial.ConstantEnergy, 0.45f),
+        ]);
 
         // Air-field coupling knobs for conservative air/terrain exchange.
         public const float ThermalAirCellCoupling = 0.120f;
         public const float ThermalAirNeighborCoupling = 0.060f;
 
-        public const float ThermalFixedBaseTemperature = 0f;
-        public const float ThermalFixedConstantEnergyTemperature = 0f;
-
-        // Hot rock pockets: indestructible rock pinned at a fixed high temperature. They are permanent heat sources
-        // that push heat into any tunnel they touch. Pocket placement is opt-in per world (World ctor).
-        public const float ThermalFixedHotRockTemperature = 100f;
         public const int HotRockPocketCount = 8;
         // Gradient toward the centre: a large placeholder core at the map centre, and the other pockets biased toward
         // it (uniform sample ^ bias; 1 = uniform scatter) and bigger there. Starting values for the spike.
@@ -83,8 +92,8 @@ public static class Tweaks
 
         // Frost pockets: indestructible rock pinned far below ambient. A tank beside one cools fast, a good place to
         // shed heat, but stay too long and it gets cold enough to slow down and then take frostbite. Placed at middle
-        // distances from the bases, away from hot pockets. Starting values; tune in play.
-        public const float ThermalFixedFrostRockTemperature = -60f;
+        // distances from the bases, away from hot pockets. Their temperature is the FrostRock row of ThermalMaterials.
+        // Starting values; tune in play.
         public const int FrostRockPocketCount = 5;
         public const int FrostRockMinRadius = 2;
         public const int FrostRockMaxRadius = 4;
@@ -298,6 +307,8 @@ public static class Tweaks
         public const int PylonRange = 12;
         public const float PylonChargePerAction = 6000f;
         public const int BoundingBoxHalfSize = 2;
+        // A destroyed machine scorches the open ground and dirt within this half-width of its centre; regrowth fades it.
+        public const int WreckScorchHalfSize = 2;
 
         // Relay: a heat pipe. Planted within line of sight of a powered link network it pulls heat out of the
         // surrounding square (half-width RelayCoolingRadius) and pumps it into its owner's base reactor.
@@ -318,6 +329,9 @@ public static class Tweaks
         public static readonly ExplosionParams Death = new(ShrapnelCount: 100, Speed: 0.25f, Frames: 72);
         public const float BulletExplosionHeatScale = 1.5f;
         public const float DeathHeatScale = 1.0f;
+        // A destroyed machine bursts once, smaller than a tank's death.
+        public static readonly ExplosionParams MachineWreck = new(ShrapnelCount: 24, Speed: 0.4f, Frames: 20);
+        public const float MachineWreckHeatScale = 1.0f;
 
         public const int BulletHeatAmount = 3;
         public const int BulletHeatRadius = 7;
@@ -328,16 +342,12 @@ public static class Tweaks
 
     public static class Colors
     {
-        public static readonly Color BaseOutline = new(40, 40, 40);
-        public static readonly Color TurretBarrelTip = new(0xf3, 0xeb, 0x1c);
         public static readonly Color FireHot = new(0xff, 0x34, 0x08);
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
         public static readonly Color Pylon = new(0x4f, 0x8f, 0xff);
         public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
         public static readonly Color FailedInteraction = new(0xff, 0x34, 0x08);
         public static readonly Color InfoMarker = new(0xff, 0xff, 0x4a);
-        public static readonly Color LinkLive = new(0xa0, 0xa0, 0x19);
-        public static readonly Color LinkBlocked = new(0xa0, 0x30, 0x30);
     }
 
     public static class LevelGen
@@ -358,5 +368,23 @@ public static class Tweaks
         public const int RuinAreaPerRuin = 16000;
         public const int RuinWallMinLength = 2;
         public const int RuinWallMaxLength = 5;
+    }
+
+    /// <summary>
+    /// The computer opponent's heat discipline. It reads the same heat model as the player's gauge: fractions are of
+    /// <c>Tank.HeatBudgetCapacity</c> (the safe heat range plus a full coolant charge), so a pre-cooled tank has more
+    /// room before it heads home than a warm one.
+    /// </summary>
+    public static class Bot
+    {
+        // Roaming ends and the bot heads home when its heat budget falls below this share (heat above 70 of 100).
+        public const float ReturnHeatBudgetFraction = 0.20f;
+        // Off the network the tank cannot cool below its rising heat floor, so the trip home only adds heat: it
+        // turns back earlier (heat above 47.5).
+        public const float ReturnHeatBudgetFractionOffNetwork = 0.35f;
+        // Docked, the bot waits until it is fully pre-cooled (Tank.IsCoolingDown is false). If its heat stops falling
+        // for RechargeStallFrames (the base's reservoir is full), it leaves once it has at least this share.
+        public const float RechargeStalledMinHeatBudgetFraction = 0.60f;
+        public const int RechargeStallFrames = Perf.TargetFps;
     }
 }

@@ -111,7 +111,7 @@ public class EntityLayoutGuardTests
         _ => throw new NotSupportedException($"Add the size of {format} to the guard test."),
     };
 
-    private static string FindRepositoryRoot([CallerFilePath] string thisFile = "")
+    internal static string FindRepositoryRoot([CallerFilePath] string thisFile = "")
     {
         for (var dir = new DirectoryInfo(Path.GetDirectoryName(thisFile)!); dir != null; dir = dir.Parent)
         {

@@ -45,10 +45,12 @@ Run from the repository root.
 
 Adding a thermal material:
 
-1. `ThermalMaterial` in `Terrain/TerrainPixel.cs`, and `Pixel.DeriveThermalMaterial`.
-2. `MaterialCount`, `ComputeHeatCapacity` and `ComputeConductance` in `Thermal/TerrainHeatEngine.cs`.
-3. Constants in `Config/Tweaks.cs`, copied in `SimulationSettings.FromTweaks`.
-4. `SimulationTableGuardTests` must pass.
+1. `ThermalMaterial` in `Terrain/TerrainPixel.cs`, and `Pixel.DeriveThermalMaterial` if pixels map to it.
+2. Its row in `Tweaks.World.ThermalMaterials` (`Config/Tweaks.cs`): heat capacity, conductivity, air exchange and,
+   for a source or sink, a fixed temperature. Pair conductances are derived from the rows (the two conductivities
+   in series, `ThermalMaterialTable.PairConductance`). Add a pair to the table's override list only when the game
+   needs a value the rule cannot produce.
+3. `SimulationTableGuardTests` must pass.
 
 Adding a machine:
 
@@ -74,6 +76,8 @@ that tests can inject their own values.
 
 - **One owner per rule, in Core; Desktop asks.** If the HUD, sound or renderer needs a game answer (docked, match
   over, network status, build cost, placement preview), add a query to Core and call it; do not recompute it.
+  To learn that something happened (a shot, a hit, a death, a planting), read `World.StepEvents` after each step
+  instead of comparing state between steps; a new kind of happening is a new `StepEventKind`.
 - **Refactors keep results bit-for-bit.** `SimulationFingerprintTests` compares two fixed runs with recorded
   hashes. Change a constant only when a change alters results on purpose, and say so in the commit message.
 - **Analyzers are errors.** `Directory.Build.props` turns on nullable, `AnalysisMode=Recommended`, code style in

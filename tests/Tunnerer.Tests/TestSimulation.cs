@@ -2,6 +2,7 @@ namespace Tunnerer.Tests;
 
 using Tunnerer.Core;
 using Tunnerer.Core.Input;
+using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Types;
 
 internal static class TestSimulation
@@ -140,23 +141,37 @@ internal static class TestSimulation
             hash = Mix(hash, l.IsAlive ? 1u : 0u);
         }
 
-        int w = world.Terrain.Width, h = world.Terrain.Height;
-        var pix = new uint[w * h];
-        var surface = new Surface(pix, w, h);
-        world.LinkMap.Draw(surface);
-        foreach (var m in world.Machines.Machines)
+        // Entities the GPU draws, hashed from Core's own state rather than a raster of it.
+        var projectiles = new ProjectileRenderState[world.Projectiles.Count];
+        int projectileCount = world.Projectiles.CopyRenderStates(projectiles);
+        for (int i = 0; i < projectileCount; i++)
         {
-            hash = Mix(hash, (uint)m.Position.X);
-            hash = Mix(hash, (uint)m.Position.Y);
-            hash = Mix(hash, (uint)m.Type);
-            hash = Mix(hash, (uint)m.State);
-            hash = Mix(hash, m.IsAlive ? 1u : 0u);
+            var p = projectiles[i];
+            hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(p.Position.X));
+            hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(p.Position.Y));
+            hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(p.Velocity.X));
+            hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(p.Velocity.Y));
+            hash = Mix(hash, (uint)p.Type);
+            hash = Mix(hash, p.IsAlive ? 1u : 0u);
         }
-        world.Projectiles.Draw(surface);
-        world.Sprites.Draw(surface);
-        world.TankList.Draw(surface);
-        for (int i = 0; i < pix.Length; i++)
-            hash = Mix(hash, pix[i]);
+
+        var sprites = new SpriteRenderState[world.Sprites.Count];
+        int spriteCount = world.Sprites.CopyRenderStates(sprites);
+        for (int i = 0; i < spriteCount; i++)
+        {
+            var s = sprites[i];
+            hash = Mix(hash, (uint)s.Position.X);
+            hash = Mix(hash, (uint)s.Position.Y);
+            hash = Mix(hash, (uint)s.Type);
+            hash = Mix(hash, s.IsAlive ? 1u : 0u);
+        }
+
+        for (int i = 0; i < tanks.Count; i++)
+        {
+            var tip = tanks[i].Turret.GetBarrelTip(tanks[i].Position);
+            hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(tip.X));
+            hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(tip.Y));
+        }
 
         return hash;
     }

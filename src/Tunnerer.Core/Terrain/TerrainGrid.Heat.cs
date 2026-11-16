@@ -304,7 +304,7 @@ public partial class TerrainGrid
             float old = _airTemperature[offset];
             _heatEngine.AddEnergyAt(_airTemperature, offset, delta);
             float next = _airTemperature[offset];
-            Ledger.RecordInjected((double)(next - old) * _simulationSettings.ThermalCapacityAir);
+            Ledger.RecordInjected((double)(next - old) * _heatEngine.AirHeatCapacity);
             MirrorAirIntoTerrainFieldIfAirCell(nx, ny, offset, next);
             if (IsThermallyActive(_heatTemperature[offset], next))
                 ActivateTileByCell(nx, ny);
@@ -325,7 +325,7 @@ public partial class TerrainGrid
         => field == ThermalField.Terrain ? _heatTemperature : _airTemperature;
 
     private float FieldCapacityAt(ThermalField field, int offset)
-        => field == ThermalField.Terrain ? TerrainCapacityAt(offset) : _simulationSettings.ThermalCapacityAir;
+        => field == ThermalField.Terrain ? TerrainCapacityAt(offset) : _heatEngine.AirHeatCapacity;
 
     private bool IsAirCell(int offset)
         => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.Air;

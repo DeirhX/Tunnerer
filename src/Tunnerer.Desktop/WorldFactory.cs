@@ -33,23 +33,19 @@ public sealed record BuiltWorld(World World, bool Parallel, int Seed)
 public static class WorldFactory
 {
     /// <summary>
-    /// <c>--fast</c> (<see cref="LevelGenMode.Optimized"/>) asks for fast, parallel level generation, and today that
-    /// also lets regrowth run in parallel and switches the link-id scheme. The seed is always the one passed in
-    /// (<c>Game</c> picks a random one for a normal match), so a --fast match can be replayed with --fast --seed=N. Whether the two should be
-    /// split is an open decision (see <c>docs/quality-plan.md</c>, "Decisions"); until it is made, this is the one
-    /// place that ties them together.
+    /// <c>--fast</c> (<see cref="LevelGenMode.Optimized"/>) only means fast: parallel level generation,
+    /// materialisation, drawing and regrowth. The simulation is deterministic either way, and the world is built
+    /// from the seed passed in (<c>Game</c> picks a random one for a normal match), so a --fast match replays with
+    /// --fast --seed=N. (The two level generators make different maps from the same seed.)
     /// </summary>
-    public static bool IsSimulationDeterministic(LevelGenMode genMode) => genMode == LevelGenMode.Deterministic;
-
     public static BuiltWorld Build(in WorldLaunchOptions options)
     {
-        bool deterministic = IsSimulationDeterministic(options.GenMode);
         bool parallel = options.GenMode == LevelGenMode.Optimized;
         int seed = options.Seed;
         World world = options.TerrainTest
             ? BuildTerrainTest(options.TerrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize)
             : BuildMatch(options.TerrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize,
-                options.GenMode, seed, deterministic, parallel);
+                options.GenMode, seed, parallel);
         return new BuiltWorld(world, parallel, seed);
     }
 
@@ -58,7 +54,7 @@ public static class WorldFactory
         Console.WriteLine($"[TerrainTest] Generating test patterns {size.X}x{size.Y}...");
         var testTerrain = TerrainTestPatternGenerator.Generate(size);
 
-        var world = new World(size, deterministicSimulation: true, simulationSeed: Game.DefaultSeed,
+        var world = new World(size, simulationSeed: Game.DefaultSeed,
             enableTerrainRegrowth: false);
         world.Profile.ReportSink = static line => Console.WriteLine(line);
         // Copy pixels directly -- test patterns use final pixel values, skip materialization.
@@ -72,10 +68,10 @@ public static class WorldFactory
         return world;
     }
 
-    private static World BuildMatch(Size size, LevelGenMode genMode, int seed, bool deterministic, bool parallel)
+    private static World BuildMatch(Size size, LevelGenMode genMode, int seed, bool parallel)
     {
         var modeLabel = parallel ? "optimized" : "deterministic";
-        Console.WriteLine($"Generating terrain {size.X}x{size.Y} ({modeLabel}, seed={seed.ToString(CultureInfo.InvariantCulture)}{(deterministic ? "" : ", random")})...");
+        Console.WriteLine($"Generating terrain {size.X}x{size.Y} ({modeLabel}, seed={seed.ToString(CultureInfo.InvariantCulture)})...");
         var genWatch = Stopwatch.StartNew();
         var generator = new ToastGenerator();
         var (terrain, spawns) = generator.Generate(size, seed, genMode);
@@ -83,7 +79,7 @@ public static class WorldFactory
 
         var world = new World(
             size,
-            deterministicSimulation: deterministic,
+            parallelRegrowth: parallel,
             simulationSeed: seed,
             hotRockPocketCount: Tweaks.World.HotRockPocketCount,
             frostRockPocketCount: Tweaks.World.FrostRockPocketCount);

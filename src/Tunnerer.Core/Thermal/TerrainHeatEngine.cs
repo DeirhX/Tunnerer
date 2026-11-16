@@ -19,8 +19,28 @@ public sealed class TerrainHeatEngine
     public TerrainHeatEngine(SimulationSettings settings)
     {
         _settings = settings;
-        _heatCapacity = BuildHeatCapacityTable();
-        _conductance = BuildConductanceTable();
+        var materials = settings.ThermalMaterials
+            ?? throw new ArgumentException("settings carry no ThermalMaterials table", nameof(settings));
+        int count = ThermalMaterialTable.Count;
+        _heatCapacity = new float[count];
+        _fixedTemperature = new float[count];
+        _isFixedTemperature = new bool[count];
+        _airExchange = new float[count];
+        _conductance = new float[count * count];
+        for (int a = 0; a < count; a++)
+        {
+            var row = materials[(ThermalMaterial)a];
+            _heatCapacity[a] = row.HeatCapacity;
+            _isFixedTemperature[a] = row.IsFixedTemperature;
+            _fixedTemperature[a] = row.FixedTemperature ?? 0f;
+            _airExchange[a] = row.AirExchange + 0.5f * settings.ThermalAirCellCoupling;
+            for (int b = 0; b < count; b++)
+                _conductance[a * count + b] = materials.PairConductance((ThermalMaterial)a, (ThermalMaterial)b);
+        }
+
+        _airCapacity = _heatCapacity[(int)ThermalMaterial.Air];
+        _airPairConductance = GetConductance(ThermalMaterial.Air, ThermalMaterial.Air) * 0.5f
+            + settings.ThermalAirNeighborCoupling;
     }
 
     public bool AddEnergyAt(float[] temperature, int index, float amount)
@@ -49,10 +69,10 @@ public sealed class TerrainHeatEngine
     {
         if (material == ThermalMaterial.Air)
             return steppedAir;
-        if (!IsFixedTemperatureMaterial(material))
+        if (!_isFixedTemperature[(int)material])
             return steppedTerrain;
 
-        float fixedTemperature = GetFixedTemperature(material);
+        float fixedTemperature = _fixedTemperature[(int)material];
         sunkFixed += FixedCellEnergySunk(material, steppedTerrain, fixedTemperature);
         return fixedTemperature;
     }
@@ -131,7 +151,7 @@ public sealed class TerrainHeatEngine
             ThermalMaterial m = Pixel.GetThermalMaterial(pixels[i]);
             if (m != ThermalMaterial.Air)
                 sum += terrainTemperature[i] * GetHeatCapacity(m);
-            sum += airTemperature[i] * _settings.ThermalCapacityAir;
+            sum += airTemperature[i] * _airCapacity;
         }
 
         return sum;
@@ -170,8 +190,8 @@ public sealed class TerrainHeatEngine
         if (MathF.Abs(delta) < 0.0001f)
             return;
 
-        float c = _settings.ThermalCapacityAir;
-        float dQ = StablePairHeatFlow(delta, c, c, _settings.ThermalKAirAir * 0.5f + _settings.ThermalAirNeighborCoupling);
+        float c = _airCapacity;
+        float dQ = StablePairHeatFlow(delta, c, c, _airPairConductance);
         if (MathF.Abs(dQ) < 0.0001f)
             return;
 
@@ -190,8 +210,8 @@ public sealed class TerrainHeatEngine
             return;
 
         float cTerrain = GetHeatCapacity(material);
-        float cAir = _settings.ThermalCapacityAir;
-        float k = GetConductance(material, ThermalMaterial.Air) + 0.5f * _settings.ThermalAirCellCoupling;
+        float cAir = _airCapacity;
+        float k = _airExchange[(int)material];
         float dQ = StablePairHeatFlow(delta, cTerrain, cAir, k);
         if (MathF.Abs(dQ) < 0.0001f)
             return;
@@ -209,88 +229,31 @@ public sealed class TerrainHeatEngine
         return dQ;
     }
 
-    // Must equal the number of ThermalMaterial values; SimulationTableGuardTests fails if the two drift apart.
-    private const int MaterialCount = 7; // Air, Dirt, Stone, Base, ConstantEnergy, HotRock, FrostRock
-
-    // Per-instance lookup tables, built once from the injected settings so tests can run the engine with custom values.
+    // Lookup tables, copied once from the injected settings' material table so the inner loop pays one array read.
     private readonly float[] _heatCapacity;
     private readonly float[] _conductance;
-
-    private float[] BuildHeatCapacityTable()
-    {
-        var table = new float[MaterialCount];
-        for (int m = 0; m < MaterialCount; m++)
-            table[m] = ComputeHeatCapacity((ThermalMaterial)m);
-        return table;
-    }
-
-    private float[] BuildConductanceTable()
-    {
-        var table = new float[MaterialCount * MaterialCount];
-        for (int a = 0; a < MaterialCount; a++)
-            for (int b = 0; b < MaterialCount; b++)
-                table[a * MaterialCount + b] = ComputeConductance((ThermalMaterial)a, (ThermalMaterial)b);
-        return table;
-    }
+    private readonly float[] _airExchange;
+    private readonly bool[] _isFixedTemperature;
+    private readonly float[] _fixedTemperature;
+    private readonly float _airCapacity;
+    private readonly float _airPairConductance;
 
     /// <summary>Heat capacity of the terrain field of a cell made of <paramref name="material"/>.</summary>
     public float GetHeatCapacity(ThermalMaterial material) => _heatCapacity[(int)material];
 
+    /// <summary>Heat capacity of a cell's air field.</summary>
+    public float AirHeatCapacity => _airCapacity;
+
     private float GetConductance(ThermalMaterial a, ThermalMaterial b)
-        => _conductance[(int)a * MaterialCount + (int)b];
-
-    private float ComputeHeatCapacity(ThermalMaterial material) => material switch
-    {
-        ThermalMaterial.Air => _settings.ThermalCapacityAir,
-        ThermalMaterial.Dirt => _settings.ThermalCapacityDirt,
-        ThermalMaterial.Stone => _settings.ThermalCapacityStone,
-        ThermalMaterial.HotRock or ThermalMaterial.FrostRock => _settings.ThermalCapacityStone,
-        ThermalMaterial.ConstantEnergy => _settings.ThermalCapacityConstantEnergy,
-        _ => _settings.ThermalCapacityBase,
-    };
-
-    private float ComputeConductance(ThermalMaterial a, ThermalMaterial b)
-    {
-        // Hot and frost rock conduct like stone.
-        if (a is ThermalMaterial.HotRock or ThermalMaterial.FrostRock) a = ThermalMaterial.Stone;
-        if (b is ThermalMaterial.HotRock or ThermalMaterial.FrostRock) b = ThermalMaterial.Stone;
-        if (a > b) (a, b) = (b, a);
-        return (a, b) switch
-        {
-            (ThermalMaterial.Air, ThermalMaterial.Air) => _settings.ThermalKAirAir,
-            (ThermalMaterial.Air, ThermalMaterial.Dirt) => _settings.ThermalKAirDirt,
-            (ThermalMaterial.Air, ThermalMaterial.Stone) => _settings.ThermalKAirStone,
-            (ThermalMaterial.Air, ThermalMaterial.Base) => _settings.ThermalKAirBase,
-            (ThermalMaterial.Dirt, ThermalMaterial.Dirt) => _settings.ThermalKDirtDirt,
-            (ThermalMaterial.Dirt, ThermalMaterial.Stone) => _settings.ThermalKDirtStone,
-            (ThermalMaterial.Dirt, ThermalMaterial.Base) => _settings.ThermalKDirtBase,
-            (ThermalMaterial.Stone, ThermalMaterial.Stone) => _settings.ThermalKStoneStone,
-            (ThermalMaterial.Stone, ThermalMaterial.Base) => _settings.ThermalKStoneBase,
-            (ThermalMaterial.Air, ThermalMaterial.ConstantEnergy) => _settings.ThermalKAirConstantEnergy,
-            (ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy) => _settings.ThermalKDirtConstantEnergy,
-            (ThermalMaterial.Stone, ThermalMaterial.ConstantEnergy) => _settings.ThermalKStoneConstantEnergy,
-            (ThermalMaterial.Base, ThermalMaterial.ConstantEnergy) => _settings.ThermalKBaseConstantEnergy,
-            (ThermalMaterial.ConstantEnergy, ThermalMaterial.ConstantEnergy) => _settings.ThermalKConstantEnergyConstantEnergy,
-            _ => _settings.ThermalKBaseBase,
-        };
-    }
+        => _conductance[(int)a * ThermalMaterialTable.Count + (int)b];
 
     /// <summary>
     /// Fixed-temperature materials hold their temperature whatever flows in or out: base cells are heat sinks
     /// (pinned at ambient), hot rock is a heat source and frost rock a cold source. They are not storage, so sinks and
     /// relays never draw from them.
     /// </summary>
-    public static bool IsFixedTemperatureMaterial(ThermalMaterial material)
-        => material is ThermalMaterial.Base or ThermalMaterial.ConstantEnergy or ThermalMaterial.HotRock
-            or ThermalMaterial.FrostRock;
+    public bool IsFixedTemperatureMaterial(ThermalMaterial material) => _isFixedTemperature[(int)material];
 
-    public float GetFixedTemperature(ThermalMaterial material)
-        => material switch
-        {
-            ThermalMaterial.Base => _settings.ThermalFixedBaseTemperature,
-            ThermalMaterial.ConstantEnergy => _settings.ThermalFixedConstantEnergyTemperature,
-            ThermalMaterial.HotRock => _settings.ThermalFixedHotRockTemperature,
-            ThermalMaterial.FrostRock => _settings.ThermalFixedFrostRockTemperature,
-            _ => 0f,
-        };
+    /// <summary>The temperature a fixed-temperature material is pinned to; 0 for any other material.</summary>
+    public float GetFixedTemperature(ThermalMaterial material) => _fixedTemperature[(int)material];
 }

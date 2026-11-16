@@ -321,7 +321,7 @@ public class TerrainTests
         terrain[hotIndex] = hotTemperature;
 
         double startEnergy = engine.SumTotalEnergy(terrain, air, pixels);
-        double capacityPerCell = engine.GetHeatCapacity(ThermalMaterial.Stone) + Tweaks.World.ThermalCapacityAir;
+        double capacityPerCell = engine.GetHeatCapacity(ThermalMaterial.Stone) + engine.AirHeatCapacity;
         float expected = (float)(startEnergy / (len * capacityPerCell));
 
         double maxAbsDrift = 0.0;
