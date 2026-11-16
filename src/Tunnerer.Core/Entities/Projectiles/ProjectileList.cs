@@ -38,14 +38,6 @@ public class ProjectileList
         var behaviors = new ProjectileBehavior[max + 1];
         behaviors[(int)ProjectileType.Bullet] = new(AdvanceBullet, Tweaks.Colors.FireHot);
         behaviors[(int)ProjectileType.Shrapnel] = new(AdvanceShrapnel, Tweaks.Colors.FireHot);
-        behaviors[(int)ProjectileType.ConcreteFoam] = new(
-            (p, solver, self) => AdvanceFoam(p, solver.Terrain, self,
-                TerrainPixel.Concrete, skipConcrete: true),
-            Tweaks.Colors.Concrete);
-        behaviors[(int)ProjectileType.DirtFoam] = new(
-            (p, solver, self) => AdvanceFoam(p, solver.Terrain, self,
-                TerrainPixel.Dirt, skipConcrete: false),
-            Tweaks.Colors.DirtProjectile);
         return behaviors;
     }
 
@@ -146,24 +138,6 @@ public class ProjectileList
         terrain.SetPixel(ipos, TerrainPixel.Decal);
         int digHeat = Math.Max(0, (int)MathF.Round(Tweaks.Explosion.ShrapnelDigHeatAmount * p.HeatScale));
         terrain.AddHeatRadius(ipos, digHeat, Tweaks.Explosion.ShrapnelDigHeatRadius);
-    }
-
-    private static void AdvanceFoam(Projectile p, TerrainGrid terrain, ProjectileList self,
-        TerrainPixel foamPixel, bool skipConcrete)
-    {
-        if (p.Life-- <= 0) { p.IsAlive = false; return; }
-
-        var prevPos = (Position)p.Position;
-        if (!TryAdvanceInside(terrain, p, out var ipos))
-            return;
-
-        var pix = terrain.GetPixelRaw(ipos);
-        if (Pixel.IsAnyCollision(pix) && !(skipConcrete && Pixel.IsConcrete(pix)))
-        {
-            if (terrain.IsInside(prevPos))
-                terrain.SetPixel(prevPos, foamPixel);
-            p.IsAlive = false;
-        }
     }
 
     private static bool TryAdvanceInside(TerrainGrid terrain, Projectile p, out Position ipos)

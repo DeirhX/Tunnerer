@@ -208,8 +208,6 @@ public static class Tweaks
     public static class Weapon
     {
         public const int CannonBulletSpeed = 3;
-        public const float ConcreteBarrelSpeed = 2f;
-        public const float DirtBarrelSpeed = 2f;
         public const int BulletDamage = 160;
     }
 
@@ -283,8 +281,6 @@ public static class Tweaks
         public static readonly Color BaseOutline = new(40, 40, 40);
         public static readonly Color TurretBarrelTip = new(0xf3, 0xeb, 0x1c);
         public static readonly Color FireHot = new(0xff, 0x34, 0x08);
-        public static readonly Color Concrete = new(0xba, 0xba, 0xcc);
-        public static readonly Color DirtProjectile = new(0xaa, 0x50, 0x03);
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
         public static readonly Color Pylon = new(0x4f, 0x8f, 0xff);
         public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
