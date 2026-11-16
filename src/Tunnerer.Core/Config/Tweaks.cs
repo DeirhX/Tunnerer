@@ -64,6 +64,11 @@ public static class Tweaks
             new(ThermalMaterial.Dirt, ThermalMaterial.HotRock, 0.07f),
             new(ThermalMaterial.Dirt, ThermalMaterial.Base, 0.09f),
             new(ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy, 0.1f),
+            // Between two pinned sinks: cell temperatures never depend on these, but the ledger's rounding does when
+            // an entity adds heat to a sink cell, so they keep their tuned values.
+            new(ThermalMaterial.Base, ThermalMaterial.Base, 0.2f),
+            new(ThermalMaterial.ConstantEnergy, ThermalMaterial.ConstantEnergy, 0.3f),
+            new(ThermalMaterial.Base, ThermalMaterial.ConstantEnergy, 0.45f),
         ]);
 
         // Air-field coupling knobs for conservative air/terrain exchange.
