@@ -5,8 +5,8 @@ using Tunnerer.Core.Types;
 
 /// <summary>
 /// Cellular automata that regrows dirt terrain in blank and scorched areas. Every roll is a hash of the seed, the
-/// step and the cell, and rows are applied in order, so the parallel path (used when the simulation is not asked
-/// to be deterministic) gives exactly the same result as the sequential one.
+/// step and the cell, and rows are applied in order, so the parallel path (<c>--fast</c>) gives exactly the same
+/// result as the sequential one.
 /// </summary>
 public sealed class TerrainRegrowth
 {
@@ -15,9 +15,9 @@ public sealed class TerrainRegrowth
     private readonly int _simulationSeed;
     private TimeSpan _regrowAccumulator;
 
-    public TerrainRegrowth(bool deterministicSimulation, bool enabled, int simulationSeed)
+    public TerrainRegrowth(bool parallel, bool enabled, int simulationSeed)
     {
-        _parallel = !deterministicSimulation;
+        _parallel = parallel;
         _enabled = enabled;
         _simulationSeed = simulationSeed;
     }

@@ -18,7 +18,7 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
           --size=WxH          Terrain size in cells.
           --large             Terrain size 1500x750.
           --no-ai             No enemy tank.
-          --fast              Parallel level generation and simulation (not reproducible).
+          --fast              Parallel level generation and regrowth (another map per seed; still reproducible).
 
         Display
           --windowed[=WxH]    Resizable window instead of borderless fullscreen (default 1280x720).

@@ -15,7 +15,7 @@ public class LinkVisibilityTests
         if (dirtBetween)
             terrain.SetPixel(new Position(20, 8), TerrainPixel.Dirt);
 
-        var map = new LinkMap(deterministicSimulation: true);
+        var map = new LinkMap();
         var home = map.RegisterPoint(new Position(4, 8), LinkPointType.Base);
         var a = map.RegisterPoint(new Position(30, 8), LinkPointType.Machine);
         var b = map.RegisterPoint(new Position(50, 8), LinkPointType.Machine);

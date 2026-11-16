@@ -123,7 +123,7 @@ public class World
 
     public World(
         Size terrainSize,
-        bool deterministicSimulation = false,
+        bool parallelRegrowth = false,
         int simulationSeed = 0,
         bool enableTerrainRegrowth = true,
         int hotRockPocketCount = 0,
@@ -135,9 +135,9 @@ public class World
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
         _tankBases = new TankBases(_simulationSettings);
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df);
-        _linkMap = new LinkMap(deterministicSimulation, _simulationSeed ^ 0x13579BDF);
+        _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
-        _terrainRegrowth = new TerrainRegrowth(deterministicSimulation, enableTerrainRegrowth, _simulationSeed);
+        _terrainRegrowth = new TerrainRegrowth(parallelRegrowth, enableTerrainRegrowth, _simulationSeed);
     }
 
     public void Initialize(TerrainGrid generatedTerrain, Position[] spawns,

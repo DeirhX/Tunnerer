@@ -1,4 +1,5 @@
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Presentation;
 using Tunnerer.Desktop.Rendering.Entities;
 
@@ -26,6 +27,14 @@ public class MachinePresentationTests
         Assert.Equal(all.Count, all.Select(p => p.BuildSlot).Distinct().Count());
         Assert.All(all, p => Assert.InRange(p.BuildSlot, 0, BuildSlotCount - 1));
         Assert.Equal(all.OrderBy(p => p.BuildSlot), MachinePresentations.InSlotOrder);
+    }
+
+    [Fact]
+    public void EveryMachine_HasItsOwnBuildSound()
+    {
+        var all = MachinePresentations.All;
+        Assert.Equal(all.Count, all.Select(p => p.BuildSound).Distinct().Count());
+        Assert.All(all, p => Assert.False(SoundBank.IsLoop(p.BuildSound), $"{p.Type}'s build sound is a loop."));
     }
 
     [Fact]

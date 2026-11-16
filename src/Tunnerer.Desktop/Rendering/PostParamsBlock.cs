@@ -8,12 +8,9 @@ using Tunnerer.Desktop.Config;
 /// terrain and post passes of every backend.
 /// </summary>
 /// <remarks>
-/// Known layout issue, kept on purpose while two backends are compared: HLSL places
-/// <c>MaterialEmissiveGold</c> at byte 128, straight after <c>Quality</c>, but this struct has
-/// <see cref="_padQuality0"/> there, so every field from <see cref="MaterialGoldR"/> to
-/// <see cref="_padScorch"/> arrives one float later than the shader reads it. The fields line up again from
-/// <see cref="TankGlowCount"/> (byte 288). Removing <see cref="_padQuality0"/> and adding a float before
-/// <see cref="TankGlowCount"/> fixes it, and changes how the game looks.
+/// Each line below is one 16-byte constant-buffer row. HLSL never lets a <c>float4</c> straddle two rows, so the
+/// struct pads the same way; <c>PostParamsLayoutGuardTests</c> compares every field's offset with the packing it
+/// computes from the .hlsli file.
 /// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct PostParamsBlock
@@ -29,16 +26,16 @@ public unsafe struct PostParamsBlock
     public float ThermalTileHeatThreshold01, _padReserved1, VignetteStrength, VignetteInnerRadius;
     public float VignetteOuterRadius, _padReserved2, TerrainMaskCaveDarken, TerrainMaskSolidLift;
     public float _padReserved3, TerrainMaskRimLift, _padReserved4, Quality;
-    public float _padQuality0, MaterialGoldR, MaterialGoldG, MaterialGoldB;
-    public float MaterialGoldStrength, MaterialScorchedR, MaterialScorchedG, MaterialScorchedB;
-    public float MaterialScorchedStrength, MaterialPulseFreq, MaterialPulseMin, MaterialPulseRange;
-    public float MaterialPulsePad, NativeSmoothingEnabled, _padReserved5, NativeSampleFactor;
-    public float NativeCurvingEnabled, LightDirX, LightDirY, LightDirZ;
-    public float LightNormalStrength, HalfVecX, HalfVecY, HalfVecZ;
-    public float LightMicroNormalStrength, LightAmbient, LightDiffuseWeight, LightShininess;
-    public float LightSpecularIntensity, TankHeatGlowR, TankHeatGlowG, TankHeatGlowB;
-    public float TankHeatGlowA, TerrainHeatGlowR, TerrainHeatGlowG, TerrainHeatGlowB;
-    public float TerrainHeatThreshold, ScorchTintDarken, ScorchTintStrength, _padScorch;
+    public float MaterialGoldR, MaterialGoldG, MaterialGoldB, MaterialGoldStrength;
+    public float MaterialScorchedR, MaterialScorchedG, MaterialScorchedB, MaterialScorchedStrength;
+    public float MaterialPulseFreq, MaterialPulseMin, MaterialPulseRange, MaterialPulsePad;
+    public float NativeSmoothingEnabled, _padReserved5, NativeSampleFactor, NativeCurvingEnabled;
+    public float LightDirX, LightDirY, LightDirZ, LightNormalStrength;
+    public float HalfVecX, HalfVecY, HalfVecZ, LightMicroNormalStrength;
+    public float LightAmbient, LightDiffuseWeight, LightShininess, LightSpecularIntensity;
+    public float TankHeatGlowR, TankHeatGlowG, TankHeatGlowB, TankHeatGlowA;
+    public float TerrainHeatGlowR, TerrainHeatGlowG, TerrainHeatGlowB, TerrainHeatThreshold;
+    public float _padScorch0, ScorchTintDarken, ScorchTintStrength, _padScorch1;
     public float TankGlowCount, _padTankGlow0, _padTankGlow1, _padTankGlow2;
     public fixed float TankGlow[MaxTankGlows * 4];
 

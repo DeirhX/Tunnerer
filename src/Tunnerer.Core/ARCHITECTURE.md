@@ -77,13 +77,12 @@ Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, Dir
 
 ## World
 
-`new World(size, deterministicSimulation, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
+`new World(size, parallelRegrowth, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
 spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot rock pockets (if asked)
 and adds one tank per spawn. Every RNG World owns (projectiles, link map, regrowth, each tank) is seeded from
 `simulationSeed`, and decorations and hot rock pockets from the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
-picks the seed. `deterministicSimulation: false` only lets regrowth run in parallel (same result) and switches the
-link map's id scheme. The bot takes its own seed, also from `WorldFactory`.
+picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in parallel, with the same result. The bot takes its own seed, also from `WorldFactory`.
 
 `World.Advance(getInput)` runs one fixed step, in this order:
 

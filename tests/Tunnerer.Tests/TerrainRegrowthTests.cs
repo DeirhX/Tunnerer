@@ -8,8 +8,8 @@ public class TerrainRegrowthTests
     [Fact]
     public void ParallelRegrowth_MatchesSequential()
     {
-        var sequential = Grow(deterministicSimulation: true);
-        var parallel = Grow(deterministicSimulation: false);
+        var sequential = Grow(parallel: false);
+        var parallel = Grow(parallel: true);
 
         Assert.True(sequential.Changed > 0, "the scenario must actually regrow something");
         for (int i = 0; i < sequential.Terrain.Size.Area; i++)
@@ -19,7 +19,7 @@ public class TerrainRegrowthTests
         }
     }
 
-    private static (TerrainGrid Terrain, int Changed) Grow(bool deterministicSimulation)
+    private static (TerrainGrid Terrain, int Changed) Grow(bool parallel)
     {
         // A dirt field with blank holes and scorched patches, so every regrowth rule fires.
         var terrain = new TerrainGrid(new Size(160, 100));
@@ -45,7 +45,7 @@ public class TerrainRegrowthTests
         for (int i = 0; i < before.Length; i++)
             before[i] = terrain[i];
 
-        var regrowth = new TerrainRegrowth(deterministicSimulation, enabled: true, simulationSeed: 77);
+        var regrowth = new TerrainRegrowth(parallel, enabled: true, simulationSeed: 77);
         for (int step = 0; step < 600; step++)
             regrowth.Advance(terrain, step);
 
