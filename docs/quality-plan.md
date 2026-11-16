@@ -91,7 +91,6 @@ Independent review of the whole diff.
 | Item | Effect |
 |---|---|
 | Split `--fast` from determinism (it now only picks a random seed and uses `LinkMap`'s other id scheme; the fallbacks themselves are gone) | changes `--fast` runs only |
-| Fix `PostParamsBlock` one-float misalignment, add layout guard | changes how the game looks |
 | Core per-step event list (`World.StepEvents`) and audio driven by it instead of state diffing | audio timing may shift |
 | One tank collision shape (sprite vs `TankCollisionMask` vs footprint) | changes collision results |
 | Data-driven thermal material table instead of N² conductance constants | refactor of the solver tables |
@@ -133,7 +132,6 @@ Behaviour-preserving:
 - `TerrainGrid` keeps thin thermal forwards for `TerrainGrid.cs`/`HotRock.cs`.
 - HintSelector and BuildPanel compare `dirt >= cost` themselves; a `Tank.CanBuild(type)` query would own it.
 - `VisualTime` is a real-time stopwatch, so step-locked screenshot runs are not reproducible; derive it from steps in automated runs.
-- `RenderingSourceGuardTests`-style guard for `PostParamsBlock` layout vs `PostParams.hlsli` (blocked on the misalignment decision).
 - `EntityPs_DispatchesEveryShapeKind` and the thermal ratchet were tightened after review; `Machine.Advance` relay ignores `dt` (same result while `AdvanceStep` is the default).
 
 Change results (owner's call, add to Decisions):
