@@ -21,8 +21,8 @@ public sealed class HudStrip
 
     /// <summary>
     /// A panel's plates, measured on the art (art pixels): the centre both lines share, the title plate's centre, and
-    /// the readout plate's inner edges. The readout is centred in its plate; the plate's own fill behind it is the
-    /// panel's bar.
+    /// the readout plate's inner edges. The readout is centred in its plate. The levels themselves show in the art
+    /// above (the heat orb, the shield and the chest fill), so the plates carry no bars.
     /// </summary>
     private readonly record struct Plate(float CenterX, float TitleY, float ReadoutLeft, float ReadoutTop, float ReadoutRight, float ReadoutBottom)
     {
@@ -87,24 +87,15 @@ public sealed class HudStrip
         // TEMP: the tank's temperature in degrees above ambient. Digging and firing heat it; past the safe maximum
         // the heat burns the shield. A tank docked at its own base is pre-cooled below ambient (negative degrees).
         int degrees = player.IsDead ? 0 : (int)MathF.Round(player.Heat);
-        if (!player.IsDead)
-            _heat.DrawPlateFill(dl, player, TempPlate.ReadoutLeft, TempPlate.ReadoutTop, TempPlate.ReadoutRight, TempPlate.ReadoutBottom, time);
         DrawReadout(dl, TempPlate, degrees.ToString(System.Globalization.CultureInfo.InvariantCulture) + "°");
         _heat.DrawTrend(dl, player, TempPlate.ReadoutRight - 12f, TempPlate.ReadoutY);
         _heat.DrawOffNetworkTag(dl, player, HeatX + HeatPanelW * 0.5f, time);
 
         // SHIELD: the tank's armor.
         int health = Math.Max(0, player.Reactor.Health);
-        DrawPlateFill(dl, ShieldPlate, player.ShieldFraction, player.ShieldLevel switch
-        {
-            StatusLevel.Ok => 0xFFFFC040u,
-            StatusLevel.Warn => 0xFF30C0FFu,
-            _ => 0xFF3040FFu,
-        });
         DrawReadout(dl, ShieldPlate, health.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-        // MATERIALS: the dirt in the tank's hold, which is what structures are built from; the fill is how full it is.
-        DrawPlateFill(dl, MaterialsPlate, player.HoldFill, 0xFF40B8F0u);
+        // MATERIALS: the dirt in the tank's hold, which is what structures are built from.
         DrawReadout(dl, MaterialsPlate, player.Resources.Dirt.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         _build.Draw(dl, player, player.BuildableDirt(player.IsDockedAtOwnBase), BuildX, time);
@@ -123,25 +114,6 @@ public sealed class HudStrip
     {
         var min = At(x, 0f);
         dl.AddImage(texture, min, min + new Vector2(S(w), S(StripH)));
-    }
-
-    /// <summary>
-    /// A plate's bar: its readout plate lit from the left up to <paramref name="fill"/>, translucent so the number
-    /// stays readable over it, with a bright leading edge.
-    /// </summary>
-    private void DrawPlateFill(ImDrawListPtr dl, Plate plate, float fill, uint color) =>
-        PlateFill(dl, _layout, plate.ReadoutLeft, plate.ReadoutTop, plate.ReadoutRight, plate.ReadoutBottom, fill, color);
-
-    /// <summary>A readout plate (art pixels) lit from the left up to <paramref name="fill"/> in <paramref name="color"/>.</summary>
-    internal static void PlateFill(ImDrawListPtr dl, HudLayout layout, float left, float top, float right, float bottom, float fill, uint color)
-    {
-        fill = Math.Clamp(fill, 0f, 1f);
-        if (fill <= 0f)
-            return;
-        float x = left + (right - left) * fill;
-        uint rgb = color & 0x00FFFFFFu;
-        dl.AddRectFilledMultiColor(layout.At(left, top), layout.At(x, bottom), 0x18000000u | rgb, 0x50000000u | rgb, 0x50000000u | rgb, 0x18000000u | rgb);
-        dl.AddLine(layout.At(x, top), layout.At(x, bottom), 0xC0000000u | rgb, layout.S(1.5f));
     }
 
     /// <summary>
