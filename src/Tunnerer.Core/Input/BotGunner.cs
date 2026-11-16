@@ -139,7 +139,7 @@ internal sealed class BotGunner
 
     private static DirectionF Rotate(DirectionF d, double radians)
     {
-        float c = (float)Math.Cos(radians), s = (float)Math.Sin(radians);
+        float c = (float)DeterministicMath.Cos(radians), s = (float)DeterministicMath.Sin(radians);
         return new DirectionF(d.X * c - d.Y * s, d.X * s + d.Y * c);
     }
 }

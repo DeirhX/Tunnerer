@@ -107,6 +107,12 @@ Independent review of the whole diff.
 | 3A, 3B, 3C, 3D | done: GameHud 1203→143, EntityLayerBuilder 634→92, EntityPs.hlsl 753→61 (compiled output byte-identical), Game.cs 358→280; flaky test fixed |
 | 4 | done: architecture docs rewritten from the code (Core doc 518→221 lines), "Keeping the code healthy" in AGENTS.md; independent review found no serious defects, two weak guard tests tightened |
 
+Cross-platform determinism (2026-11-16): Windows and macOS/Linux gave different results for the same seed because
+`Math.Sin/Cos/Pow` and `MathF.*` call the C runtime, which rounds differently per OS. Core now calls
+`Types/DeterministicMath` (polynomials using only exactly-rounded operations, ~8 ns per call), and
+`SourceGuardTests.Core_UsesDeterministicMath` forbids the platform functions in Core. Windows results are unchanged;
+one fingerprint now holds on every OS.
+
 After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
 
 ## Follow-ups found during the work (not started)
@@ -127,9 +133,5 @@ Change results (owner's call, add to Decisions):
 - `TankThermals` still reads coolant capacity, dock cooling, dig radius and base cooldown from `Tweaks`; routing them through `SimulationSettings` changes tests that inject settings.
 - Bot reads the int `Reactor.Heat` mirror and pre-coolant thresholds instead of `Tank.HeatBudget`.
 - Pylon plays the relay build sound (`SoundBank` has no pylon sound).
-- Same seed and inputs give different results on Windows vs macOS/Linux (found by `SimulationFingerprintTests` in CI;
-  the player-driving run differs, the network run does not). Likely platform `Math.Sin/Cos/Pow` rounding. Replays and
-  seeds are therefore not portable across OSes. Fix by finding the transcendental calls in the simulation path and
-  replacing them with table-based or deterministic versions; this changes results.
 - Bullets never hit machines (nothing passes `onMachine`, nothing lowers machine health), so machines cannot be destroyed. Gameplay decision.
 - `World.Initialize` seeds hot-rock pockets from `Environment.TickCount` when no decoration seed is given, even in deterministic mode.

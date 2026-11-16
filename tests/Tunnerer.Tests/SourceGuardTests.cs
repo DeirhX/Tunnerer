@@ -49,6 +49,10 @@ public class SourceGuardTests
     [
     ];
 
+    // Math.Sin, Math.Pow and friends call the C runtime, which rounds differently on Windows and macOS/Linux.
+    private static readonly Regex PlatformMath =
+        new(@"\bMathF?\.(Sin|Cos|Tan|Asin|Acos|Atan|Atan2|Sinh|Cosh|Tanh|SinCos|Exp|Log|Log2|Log10|Pow|Cbrt|Hypot|FusedMultiplyAdd)\b");
+
     private const int MaxLines = 700;
 
     // Files already over the limit, capped at their size when the rule was added. Split them; never raise a cap.
@@ -72,6 +76,21 @@ public class SourceGuardTests
 
         AssertMatchesAllowList(found, NonDeterministicAllowed,
             "Simulation code must not read the clock or unseeded randomness (it breaks determinism and replays)");
+    }
+
+    [Fact]
+    public void Core_UsesDeterministicMath()
+    {
+        var found = RepositoryFiles.CSharpFiles(CoreDir)
+            .Where(path => Path.GetFileName(path) != "DeterministicMath.cs")
+            .Select(path => (Path: path, Match: PlatformMath.Match(WithoutLineComments(File.ReadAllText(path)))))
+            .Where(f => f.Match.Success)
+            .Select(f => $"{RepositoryFiles.Relative(f.Path)} calls {f.Match.Value}")
+            .ToList();
+
+        Assert.True(found.Count == 0,
+            "Core must call DeterministicMath, not Math/MathF transcendentals (they differ between operating systems)."
+            + Environment.NewLine + string.Join(Environment.NewLine, found));
     }
 
     [Fact]

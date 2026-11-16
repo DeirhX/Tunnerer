@@ -26,7 +26,9 @@ Run from the repository root.
 ## Rules that tests enforce
 
 - **Determinism.** The same seed and inputs give the same world every frame (`DeterminismTests`, `ReplayTests`).
-  Do not read the wall clock, `Random.Shared` or unordered collections in simulation code.
+  Do not read the wall clock, `Random.Shared` or unordered collections in simulation code. Results must also match
+  across operating systems, so Core calls `DeterministicMath` instead of `Math`/`MathF` transcendentals
+  (`SourceGuardTests`).
 - **Energy is conserved.** Entities exchange *energy* with the grid; they never write temperatures. Energy that is
   created or destroyed is recorded in `ThermalLedger`, and `ThermalLedgerTests` checks the balance every tick.
 - **One heat solver.** `TerrainHeatEngine.ComputeRegionDeltaConservative` is the only exchange stencil and

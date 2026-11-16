@@ -37,7 +37,7 @@ public static class NetworkCoverage
         }
     }
 
-    public static float StrengthForHops(int hops) => MathF.Pow(Tweaks.Coverage.HopFalloff, Math.Max(0, hops));
+    public static float StrengthForHops(int hops) => DeterministicMath.Pow(Tweaks.Coverage.HopFalloff, Math.Max(0, hops));
 
     public static TankCoverage At(Position position, IReadOnlyList<CoverageNode> nodes, ITerrainPixelReadOnly terrain)
     {
