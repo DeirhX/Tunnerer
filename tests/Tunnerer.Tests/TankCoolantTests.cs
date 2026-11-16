@@ -58,7 +58,7 @@ public class TankCoolantTests
         var settings = SimulationSettings.FromTweaks() with { TankCoolantCapacity = 20f, TankDockCoolingPerTick = 0.25f };
         var size = TestHelpers.DefaultMapSize;
         var (terrain, spawns) = new Tunnerer.Core.LevelGen.ToastGenerator().Generate(size, seed: 5151);
-        var world = new World(size, deterministicSimulation: true, simulationSeed: 5151, simulationSettings: settings);
+        var world = new World(size, simulationSeed: 5151, simulationSettings: settings);
         world.Initialize(terrain, spawns, decorationSeed: 5152);
         var tank = world.TankList.Tanks[0];
         SetTankHeat(tank, 0f);
