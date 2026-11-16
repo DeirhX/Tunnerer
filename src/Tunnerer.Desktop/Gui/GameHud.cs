@@ -27,8 +27,11 @@ public partial class GameHud
     /// <summary>State of the temperature orb shader for the frame just drawn; the game passes it to the backend.</summary>
     public HeatOrbState HeatOrb => _strip.HeatOrb;
 
-    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel, nint digitStrip) =>
-        _strip.Init(heatIcon, shieldIcon, panelFrame, buildPanel, digitStrip);
+    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel) =>
+        _strip.Init(heatIcon, shieldIcon, panelFrame, buildPanel);
+
+    /// <summary>Window pixel (the mouse, the game texture, the camera) to UI units (see <see cref="ImGuiPlatform.UiScale"/>).</summary>
+    private static float ToUi(float windowPixels) => windowPixels / ImGuiPlatform.UiScale;
 
     public void Draw(
         nint gameTextureId,
@@ -88,8 +91,8 @@ public partial class GameHud
         {
             var cursorPos = ImGui.GetCursorScreenPos();
             ImGui.SetCursorPos(Vector2.Zero);
-            ImGui.Image(gameTextureId, new Vector2(texW, texH));
-            ViewportRect = (cursorPos.X, cursorPos.Y, texW, texH);
+            ImGui.Image(gameTextureId, new Vector2(ToUi(texW), ToUi(texH)));
+            ViewportRect = (cursorPos.X, cursorPos.Y, ToUi(texW), ToUi(texH));
         }
         ImGui.End();
         ImGui.PopStyleVar(2);
@@ -101,7 +104,8 @@ public partial class GameHud
 
     private void DrawCrosshair()
     {
-        if (CrosshairScreenPos is not { } pos) return;
+        if (CrosshairScreenPos is not { } window) return;
+        var pos = (x: ToUi(window.x), y: ToUi(window.y));
         var vp = ViewportRect;
         if (pos.x < vp.x || pos.y < vp.y || pos.x >= vp.x + vp.w || pos.y >= vp.y + vp.h) return;
 

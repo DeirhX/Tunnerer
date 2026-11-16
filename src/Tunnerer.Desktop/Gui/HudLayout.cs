@@ -1,6 +1,7 @@
 namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
+using Tunnerer.Desktop.Rendering;
 
 /// <summary>
 /// Size and placement of the bottom HUD strip: the art's own dimensions, how much it is enlarged for the display, and
@@ -30,24 +31,29 @@ public sealed class HudLayout
     public float Scale { get; private set; } = 1f;
 
     /// <summary>
-    /// How much the HUD art is enlarged: 1 up to a 1080-pixel-high display, in proportion above it (2 at 4K), and
-    /// shrunk only when the display is narrower than the art.
+    /// How much the HUD art is enlarged, in UI units (<see cref="ImGuiPlatform.UiScale"/> does the rest): 1 up to a
+    /// 1080-unit-high display, in proportion above it, and shrunk only when the display is narrower than the art.
     /// </summary>
     public static float HudScale(float displayW, float displayH) =>
         MathF.Min(displayW / StripW, MathF.Max(1f, displayH / ReferenceDisplayHeight));
 
-    /// <summary>Screen pixels at the bottom of the window covered by the HUD; the game view is drawn above them.</summary>
-    public static int BottomPanelHeight(int windowW, int windowH) =>
-        (int)MathF.Ceiling(StripH * HudScale(windowW, windowH));
+    /// <summary>Window pixels at the bottom of the window covered by the HUD; the game view is drawn above them.</summary>
+    public static int BottomPanelHeight(int windowW, int windowH)
+    {
+        float ui = ImGuiPlatform.ComputeUiScale(windowW, windowH);
+        return (int)MathF.Ceiling(StripH * HudScale(windowW / ui, windowH / ui) * ui);
+    }
 
-    /// <summary>Centres the strip at the bottom of a display of this size.</summary>
+    /// <summary>Centres the strip at the bottom of a display of this size (in UI units).</summary>
     public void Update(Vector2 displaySize)
     {
         Scale = HudScale(displaySize.X, displaySize.Y);
         float stripScreenW = StripW * Scale;
+        float ui = ImGuiPlatform.UiScale;
+        int windowW = (int)MathF.Round(displaySize.X * ui), windowH = (int)MathF.Round(displaySize.Y * ui);
         Origin = new Vector2(
             MathF.Floor((displaySize.X - stripScreenW) * 0.5f),
-            displaySize.Y - BottomPanelHeight((int)displaySize.X, (int)displaySize.Y));
+            displaySize.Y - BottomPanelHeight(windowW, windowH) / ui);
     }
 
     /// <summary>Art pixel to screen position, for the HUD drawn at the current scale.</summary>

@@ -250,8 +250,7 @@ public partial class Game : IDisposable
             heatIcon: Load("heat_icon.png"),
             shieldIcon: Load("shield_icon.png"),
             panelFrame: Load("panel_frame.png"),
-            buildPanel: Load("build_panel.png"),
-            digitStrip: _textures.LoadTexture(Path.Combine(baseDir, "digits.png")));
+            buildPanel: Load("build_panel.png"));
     }
 
     public void Dispose()
