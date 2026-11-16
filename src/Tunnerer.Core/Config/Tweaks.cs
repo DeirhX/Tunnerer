@@ -253,6 +253,8 @@ public static class Tweaks
         public const int PylonRange = 12;
         public const float PylonChargePerAction = 6000f;
         public const int BoundingBoxHalfSize = 2;
+        // A destroyed machine scorches the open ground and dirt within this half-width of its centre; regrowth fades it.
+        public const int WreckScorchHalfSize = 2;
 
         // Relay: a heat pipe. Planted within line of sight of a powered link network it pulls heat out of the
         // surrounding square (half-width RelayCoolingRadius) and pumps it into its owner's base reactor.
@@ -273,6 +275,9 @@ public static class Tweaks
         public static readonly ExplosionParams Death = new(ShrapnelCount: 100, Speed: 0.25f, Frames: 72);
         public const float BulletExplosionHeatScale = 1.5f;
         public const float DeathHeatScale = 1.0f;
+        // A destroyed machine bursts once, smaller than a tank's death.
+        public static readonly ExplosionParams MachineWreck = new(ShrapnelCount: 24, Speed: 0.4f, Frames: 20);
+        public const float MachineWreckHeatScale = 1.0f;
 
         public const int BulletHeatAmount = 3;
         public const int BulletHeatRadius = 7;

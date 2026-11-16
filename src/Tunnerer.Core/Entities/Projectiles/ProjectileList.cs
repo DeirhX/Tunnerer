@@ -85,6 +85,14 @@ public class ProjectileList
                     tank.TakeDamage(Tweaks.Weapon.BulletDamage, DamageCause.EnemyFire, p.Speed);
                     return true;
                 },
+                // Like tanks, a bullet passes through its own side's machines and stops on the enemy's.
+                onMachine: machine =>
+                {
+                    if (machine.OwnerColor == p.OwnerColor) return false;
+                    if (machine.TakeDamage(Tweaks.Weapon.BulletDamage))
+                        self.AddExplosion(machine.Position, Tweaks.Explosion.MachineWreck, Tweaks.Explosion.MachineWreckHeatScale);
+                    return true;
+                },
                 onTerrain: pix => Pixel.IsAnyCollision(pix));
 
             if (hit)

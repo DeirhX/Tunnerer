@@ -79,10 +79,24 @@ public class Machine
     public bool IsBlockingCollision => State == MachineState.Planted;
     public bool TestCollide(Position pos) => BoundingBox.IsInside(pos, Position);
 
+    /// <summary>
+    /// Takes <paramref name="amount"/> from the machine's health; at zero it dies, and <see cref="MachineList.Advance"/>
+    /// wrecks it on the same tick. Returns true when this hit destroyed it.
+    /// </summary>
+    public bool TakeDamage(int amount)
+    {
+        if (amount <= 0 || !IsAlive || State != MachineState.Planted)
+            return false;
+        Reactor.Exhaust(new ReactorState(0, amount));
+        if (Reactor.Health > 0)
+            return false;
+        IsAlive = false;
+        return true;
+    }
+
     public void Advance(in MachineContext ctx, TimeSpan dt)
     {
         if (!IsAlive || State != MachineState.Planted) return;
-        if (Reactor.Health <= 0) { IsAlive = false; return; }
 
         var interval = Behavior.ActionInterval;
         if (interval > TimeSpan.Zero)

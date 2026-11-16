@@ -40,10 +40,20 @@ public class LinkMap
     public void Advance(ITerrainPixelReadOnly terrain, TimeSpan dt)
     {
         _elapsed += dt;
-        if (_elapsed < _nextRelink) return;
-        _nextRelink += Tweaks.World.RefreshLinkMapInterval;
+        if (_elapsed >= _nextRelink)
+            _nextRelink += Tweaks.World.RefreshLinkMapInterval;
+        else if (!HasDisabledMachinePoint())
+            return; // a destroyed machine's point is pruned at once, so the network around it rebuilds that tick
 
         RebuildLinks(terrain);
+    }
+
+    private bool HasDisabledMachinePoint()
+    {
+        foreach (var p in _points)
+            if (!p.IsEnabled && p.Type != LinkPointType.Base)
+                return true;
+        return false;
     }
 
     private int GenerateDeterministicId(int pointIndex)
