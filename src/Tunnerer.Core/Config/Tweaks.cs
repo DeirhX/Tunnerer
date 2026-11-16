@@ -314,4 +314,22 @@ public static class Tweaks
         public const int RuinWallMinLength = 2;
         public const int RuinWallMaxLength = 5;
     }
+
+    /// <summary>
+    /// The computer opponent's heat discipline. It reads the same heat model as the player's gauge: fractions are of
+    /// <c>Tank.HeatBudgetCapacity</c> (the safe heat range plus a full coolant charge), so a pre-cooled tank has more
+    /// room before it heads home than a warm one.
+    /// </summary>
+    public static class Bot
+    {
+        // Roaming ends and the bot heads home when its heat budget falls below this share (heat above 70 of 100).
+        public const float ReturnHeatBudgetFraction = 0.20f;
+        // Off the network the tank cannot cool below its rising heat floor, so the trip home only adds heat: it
+        // turns back earlier (heat above 47.5).
+        public const float ReturnHeatBudgetFractionOffNetwork = 0.35f;
+        // Docked, the bot waits until it is fully pre-cooled (Tank.IsCoolingDown is false). If its heat stops falling
+        // for RechargeStallFrames (the base's reservoir is full), it leaves once it has at least this share.
+        public const float RechargeStalledMinHeatBudgetFraction = 0.60f;
+        public const int RechargeStallFrames = Perf.TargetFps;
+    }
 }

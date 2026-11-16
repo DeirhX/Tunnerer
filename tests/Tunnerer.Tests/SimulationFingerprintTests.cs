@@ -8,8 +8,8 @@ using Tunnerer.Core.Types;
 namespace Tunnerer.Tests;
 
 /// <summary>
-/// Golden fingerprints of two fixed simulation runs. <see cref="DeterminismTests"/> and <see cref="ReplayTests"/> only
-/// compare a run with itself; these compare today's output with the output recorded when the constants were set, so
+/// Golden fingerprints of fixed simulation runs, one of them two bots playing each other.
+/// <see cref="DeterminismTests"/> and <see cref="ReplayTests"/> only compare a run with itself; these compare today's output with the output recorded when the constants were set, so
 /// a refactor that changes any float in the simulation fails here. The hash covers the raw bits of both temperature
 /// fields, the terrain, the energy ledger and totals, tanks, bases, machines and projectiles.
 /// </summary>
@@ -22,6 +22,7 @@ public class SimulationFingerprintTests
     // only means something platform-dependent has crept back into the simulation.
     private const ulong ExpectedPlayerDrivesAndShoots = 0x901AD40E3DF6F29BUL;
     private const ulong ExpectedRelayPylonHarvesterNetwork = 0xCC67A68447AE4216UL;
+    private const ulong ExpectedBotVsBot = 0x78032631EFDBB20AUL;
 
     [Fact]
     public void PlayerDrivesAndShoots_MatchesRecordedFingerprint()
@@ -62,6 +63,18 @@ public class SimulationFingerprintTests
         }
 
         AssertFingerprint(ExpectedRelayPylonHarvesterNetwork, s.World);
+    }
+
+    [Fact]
+    public void BotVsBot_MatchesRecordedFingerprint()
+    {
+        var world = TestHelpers.CreateSeededWorld();
+        var tanks = world.TankList.Tanks;
+        var bots = new[] { new BotTankAI(seed: 11), new BotTankAI(seed: 22) };
+        for (int frame = 0; frame < 1200; frame++)
+            world.Advance(i => bots[i].GetInput(tanks[i], tanks[1 - i], world.Terrain));
+
+        AssertFingerprint(ExpectedBotVsBot, world);
     }
 
     private static void Plant(RelayHeatTests.Scenario s, MachineType type, int distanceFromBase)
