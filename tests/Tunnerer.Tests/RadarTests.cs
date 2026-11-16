@@ -177,6 +177,29 @@ public class RadarTests
     }
 
     [Fact]
+    public void ABlip_GoesOnceItsCellHasBeenSeen_AndDoesNotComeBack()
+    {
+        var terrain = Dirt();
+        Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
+        Warm(terrain, 240, 199, 250, 201, temperature: 20);
+        var vision = new VisionMap(terrain);
+        var radar = new Radar(vision);
+        Pulse(radar, terrain, Origin);
+        Assert.Contains(Contacts(radar), c => c.Position == new Position(300, 200));
+        Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Heat);
+
+        // The side looks at the rock's face and the warm ground, then away again.
+        vision.Update(terrain, None, [new VisionSource(new Position(280, 200), 0, 45)]);
+        Run(radar, terrain, Origin, 1);
+        Assert.DoesNotContain(Contacts(radar), c => vision.IsVisible(c.Position));
+        vision.Update(terrain, None, None);
+        Run(radar, terrain, Origin, 1);
+
+        Assert.DoesNotContain(Contacts(radar), c => c.Position == new Position(300, 200));
+        Assert.DoesNotContain(Contacts(radar), c => c.Echo == RadarEcho.Heat);
+    }
+
+    [Fact]
     public void RememberedGround_BlipsOnlyWhereItHasChanged()
     {
         var terrain = Dirt();
@@ -410,7 +433,7 @@ public class RadarTests
     }
 
     [Fact]
-    public void HotGround_AbsorbsTheRays_AndMarksTheEdgeWhereTheyEnteredIt()
+    public void HotGround_IsMarkedCellByCell_UntilItHasAbsorbedTheRay()
     {
         var terrain = Dirt();
         Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
@@ -424,33 +447,40 @@ public class RadarTests
         var contacts = Contacts(radar);
         Assert.DoesNotContain(contacts, c => c.Echo == RadarEcho.Solid);
         Assert.NotEmpty(contacts);
-        // 60 degrees takes 0.2 a cell: the rays die on their fifth hot cell, but the mark is on the near edge.
+        // 60 degrees takes 0.2 a cell of path: a ray gets five or six cells of path into the ground, and no further.
         Assert.All(contacts, c =>
         {
             Assert.Equal(RadarEcho.Heat, c.Echo);
-            Assert.Equal(240, c.Position.X);
+            Assert.InRange(c.Position.X, 240, 247);
             Assert.Equal(1f, c.Strength);
         });
+        // The ray along the axis marks each cell it went through (the sixth is float rounding of 5 * 0.2).
+        Assert.Equal([240, 241, 242, 243, 244, 245],
+            contacts.Where(c => c.Position.Y == Origin.Y).Select(c => c.Position.X).Order());
         Assert.InRange(radar.HeatLoss, 0.05f, 0.5f);
     }
 
     [Fact]
-    public void HeatMarks_SeenFromDifferentPlaces_LieOnTheSameEdge()
+    public void WarmGround_IsPenetratedFurtherThanHotGround_AndReadsFainter()
     {
-        var terrain = Dirt();
-        Warm(terrain, 240, 180, 270, 220, temperature: 60);
-        bool OnEdge(Position p) =>
-            p.X is >= 240 and <= 270 && p.Y is >= 180 and <= 220 && (p.X == 240 || p.Y == 180 || p.Y == 220);
-
-        foreach (var origin in new[] { Origin, new Position(205, 150), new Position(200, 260), new Position(250, 120) })
+        static (int Deepest, float Strength) Probe(int temperature)
         {
+            var terrain = Dirt();
+            Warm(terrain, 240, 150, 300, 250, temperature);
             var radar = Blind(terrain);
-            Pulse(radar, terrain, origin);
-            var contacts = Contacts(radar);
-            Assert.NotEmpty(contacts);
-            Assert.All(contacts, c => Assert.True(c.Echo == RadarEcho.Heat && OnEdge(c.Position),
-                $"from {origin} a heat mark at {c.Position} is not on the hot ground's edge"));
+            Pulse(radar, terrain, Origin);
+            var onAxis = Contacts(radar).Where(c => c.Position.Y == Origin.Y).ToList();
+            Assert.All(onAxis, c => Assert.Equal(RadarEcho.Heat, c.Echo));
+            return (onAxis.Max(c => c.Position.X), onAxis[0].Strength);
         }
+
+        var hot = Probe(60);
+        var warm = Probe(25);
+        Assert.Equal(245, hot.Deepest);
+        // 25 degrees takes 0.06 a cell, so the ray would last 17 cells: the marks stop at the cap instead.
+        Assert.Equal(240 + Tweaks.Radar.HeatReturnsPerRay - 1, warm.Deepest);
+        Assert.Equal(1f, hot.Strength);
+        Assert.InRange(warm.Strength, 0.25f, 0.35f);
     }
 
     [Fact]
@@ -485,9 +515,11 @@ public class RadarTests
         Pulse(radar, terrain, Origin);
 
         var contacts = Contacts(radar);
-        Assert.All(contacts, c => Assert.Equal(RadarEcho.Solid, c.Echo));
+        Assert.All(contacts.Where(c => c.Echo == RadarEcho.Heat),
+            c => Assert.True(c.Position.X is >= 240 and <= 250 && c.Position.Y is >= 199 and <= 201));
+        Assert.All(contacts.Where(c => c.Echo != RadarEcho.Heat), c => Assert.Equal(RadarEcho.Solid, c.Echo));
         RadarContact throughWarm = contacts.Single(c => c.Position == new Position(300, 200));
-        RadarContact throughCool = contacts.First(c => c.Position.Y < 195);
+        RadarContact throughCool = contacts.First(c => c.Echo == RadarEcho.Solid && c.Position.Y < 195);
         // 11 cells at 10 degrees over the threshold: 11 * 10 * 0.004 = 0.44 lost.
         Assert.InRange(throughWarm.Strength, 0.5f, 0.62f);
         Assert.Equal(1f, throughCool.Strength);

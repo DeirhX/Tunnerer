@@ -141,6 +141,8 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
 - **Coverage.** The base and every powered relay and pylon cover a circle around themselves. A position is covered
   when it is inside a node's circle and in direct line of sight through open ground, the same rule links use, so
   coverage follows your tunnels.
+- **Relays hold the ground open** *(Prototype)*. No new dirt grows within the range of a planted relay or pylon,
+  linked or not, so tunnels along a network stay dug. Elsewhere dirt closes in again, slowly.
 - **Inside coverage** the tank's heat goes down the links into the base reactor, so it competes with the relays for
   the same radiator. Coverage only takes heat away; it never chills the tank below 0.
 - **Outside coverage** the tank's heat floor climbs steadily. Work heat from digging and firing still sheds into the
@@ -270,9 +272,10 @@ The player sees only what their side sees, so that learning the shape of the wor
 - **Three kinds of ground.** *In sight*: shown live. *Remembered*: seen before, shown as it was last seen, drained
   toward a cool blue-grey and dimmed, with no entities and no live heat. *Unknown*: never seen, black.
 - **What sees.** The tank sees along open tunnel (about 45 cells) and a little through solid ground around itself.
-  The base and powered relays and pylons see their coverage circles; every machine sees a few cells around itself.
-  The network is therefore the player's eyes as well as its cooling line (§4.6): a place stays lit, with its live
-  heat, only while something of yours stands there, and a relay that loses its link goes nearly blind.
+  The base sees along open ground over its coverage circle. A relay or pylon sees its whole coverage circle, through
+  the ground, whether or not it is linked; every other machine sees a few cells around itself. The network is
+  therefore the player's eyes as well as its cooling line (§4.6): a place stays lit, with its live heat, only while
+  something of yours stands there. The edge of sight is a gradient, never a hard line.
 - **Radar** *(Prototype)*. Every 4 seconds the tank sends a pulse: a faint ring that runs outward from where the
   tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
   it through; rock, hot and frost rock, gold, another side's base walls, machines and tanks reflect it and stop it.
@@ -282,13 +285,14 @@ The player sees only what their side sees, so that learning the shape of the wor
   slightly different points, so a shape fills in while you wait. When a later pulse passes an old blip it checks it
   again: a blip of an enemy that has driven off, or of ground that has changed, goes out; one hidden in a new
   shadow stays until it fades. A tunnel or cave behind dirt gives a weak blue return and lets the pulse on. The
-  radar reports only news: nothing in sight, and nothing in remembered ground unless it has changed since.
+  radar reports only news: nothing in sight, nothing in remembered ground unless it has changed since, and never
+  your own machines. A blip goes the moment you see its cell.
 - **Heat blinds the radar** *(Prototype)*. Hot ground absorbs the pulse: every hot cell a ray crosses takes some of
-  it, more the hotter it is. A return that got through warm ground is fainter. A ray that runs out leaves orange
-  static on the edge where it entered the hot ground, and so does a return off anything too hot to read, hot rock
-  included. So a hot zone is a dark patch outlined in static, in the same place from wherever you look: the radar
-  tells you that it is hot there and nothing about what is inside, until relays have cooled it, and the next pulse
-  then clears the static. This is the radar's tie to heat (pillar 2). Still open: whether pinging should cost heat,
+  it, more the hotter it is, and shows as a red dot, brighter the hotter the cell. The pulse gets through many warm
+  cells but only a few very hot ones before it is spent, so a hot zone shows as red dots reaching a little way into
+  it from your side, deeper where it is cooler, and nothing behind them. A return that got through warm ground is
+  fainter, and anything too hot to read, hot rock included, returns only its heat. Once relays have cooled the
+  ground the next pulse clears the dots. This is the radar's tie to heat (pillar 2). Still open: whether pinging should cost heat,
   and whether the tank's own heat should weaken its radar.
 - **It is information, not physics.** Vision never changes the simulation: heat, machines and mobs run the same
   seen or unseen. Whether unseen ground may be simulated more cheaply is a separate question (below).
@@ -471,7 +475,7 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Rival tank becomes an optional sector twist | Proposed |
 | Fog of war: the player sees what their tank, base and machines see; the rest is remembered or unknown | Prototype |
 | Radar: pulses from the tank leave blips where they reflect, well beyond sight | Prototype |
-| Hot ground absorbs the radar pulse; hot zones show outlined in static until cooled | Prototype |
+| Hot ground absorbs the radar pulse; the cells it got through show as red dots by heat | Prototype |
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
 
 ## 14. Open questions

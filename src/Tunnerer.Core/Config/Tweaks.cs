@@ -24,8 +24,9 @@ public static class Tweaks
     {
         public static readonly TimeSpan AdvanceStep = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / Perf.TargetFps);
         public const int MaxPlayers = 8;
-        public static readonly TimeSpan DirtRecoverInterval = TimeSpan.FromMilliseconds(250);
+        public static readonly TimeSpan DirtRecoverInterval = TimeSpan.FromMilliseconds(750);
         public const int DirtRecoverSpeed = 10;
+        // Per-mille chance per regrowth check, per dirt neighbour (times the modifiers below).
         public const int DirtRegrowSpeed = 4;
         public const int DirtRegrowBlankModifier = 4;
         public const int DirtRegrowScorchedModifier = 1;
@@ -274,12 +275,14 @@ public static class Tweaks
         public const int TankRadius = 45;
         // ...and everything this close, through solid ground too, so digging is not blind.
         public const int TankNearRadius = 7;
-        // A machine sees this close around itself. A powered link node also sees its coverage circle (Coverage).
+        // A machine sees this close around itself. A link node (relay, pylon) sees its whole coverage circle
+        // (Coverage), through solid ground too.
         public const int MachineNearRadius = 6;
-        // The walls around open ground in sight are seen this many cells deep.
-        public const int WallSkin = 3;
-        // The level falls from full to nothing over the last cells of a source's reach.
-        public const int EdgeFade = 6;
+        // The walls around open ground in sight are seen this many cells deep, fading with depth.
+        public const int WallSkin = 5;
+        // The level falls from full to nothing over the last cells of a source's reach (a short reach: its outer
+        // half), so sight has no hard edge.
+        public const int EdgeFade = 12;
         // Bases and machines stay put: their vision is recast every this many ticks, the tank's every tick.
         public const int FixedSourceRefreshTicks = 6;
     }
@@ -310,10 +313,14 @@ public static class Tweaks
         public const int TankHalfSize = 3;
         // Heat weakens the pulse. A ray starts at strength 1 and every cell hotter than HeatThreshold takes
         // HeatLossPerDegree per degree above it, per cell of path: ground at 50 stops a ray in about 6 cells, ground
-        // at 20 in about 25. A ray that runs out marks where it entered the hot ground that stopped it.
+        // at 20 in about 25.
         public const float HeatThreshold = 10f;
         public const float HeatLossPerDegree = 0.004f;
-        // A reflector this hot returns only noise: the blip says "heat", not what the thing is.
+        // Each hot cell a ray goes through is marked with how hot it is, at most this many a ray, at full intensity
+        // from HeatFullTemperature up.
+        public const int HeatReturnsPerRay = 10;
+        public const float HeatFullTemperature = 60f;
+        // A reflector this hot returns only its heat: the blip says "heat", not what the thing is.
         public const float HeatScrambleTemperature = 40f;
     }
 

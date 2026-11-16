@@ -92,7 +92,8 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
 
 1. **Collision**: `CollisionSolver.Update` rebuilds the tank sector index.
 2. **Heat**: `TerrainGrid.CoolDown` (see below). The energy-balance residual is measured here for the profile.
-3. **Regrowth**: `TerrainRegrowth.Advance`.
+3. **Regrowth**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
+   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open.
 4. **Projectiles**: `ProjectileList.Advance`.
 5. **Tanks**: `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`): idle heat, base
    interaction (recharge, heat sink, docking), network coverage, turret aim and fire, `TankDigger.Move`, spawn
@@ -170,13 +171,15 @@ A side sees through `VisionSource`s (numbers in `Tweaks.Vision`):
 
 - its tank, along open lines of sight to `TankRadius`, and everything within `TankNearRadius`, through solid ground
   too, so digging is not blind;
-- its base and its powered link nodes, over their coverage circles (the radii of `NetworkCoverage`);
-- every planted machine of its base, `MachineNearRadius` around itself. An unpowered relay sees no further.
+- its base, along open lines of sight over its coverage circle (the radius of `NetworkCoverage`);
+- its link nodes (relays, pylons), over their whole coverage circles, through solid ground too, linked or not;
+- every other planted machine of its base, `MachineNearRadius` around itself.
 
 A source casts a Bresenham ray to each cell on the edge of its square, cut to a circle. A ray stops at the first
 cell that blocks a link (`Pixel.BlocksLink`, the rule links and coverage use). The walls around the open cells in
-sight are then lit `WallSkin` cells deep. Each cell gets a level, 255 in plain sight and fading over the last
-`EdgeFade` cells of the source's reach.
+sight are then lit `WallSkin` cells deep, less with every cell of depth. Each cell gets a level, 255 in plain sight
+and fading over the last `EdgeFade` cells of the source's reach (a short reach: its outer half), so sight has no hard
+edge anywhere.
 
 The map holds, per cell: the level (`LevelAt`, `IsVisible`), whether it was ever seen (`IsExplored`), and `Known`,
 the pixel the side last saw there (an `ITerrainPixelReadOnly`; it starts as a copy of the terrain). After each
@@ -212,10 +215,12 @@ A ray stops at the first thing that reflects it whether or not the return is kep
 Heat weakens the rays. A ray starts at strength 1 and loses `HeatLossPerDegree` for every degree a cell is above
 `HeatThreshold`, scaled by the length of path a cell stands for along that ray (so the loss per distance is the same
 in every direction), before anything in that cell can reflect it. What it then finds is recorded with the strength
-left (`RadarContact.Strength`). A ray that runs out leaves a `Heat` contact on the first cell of the run of hot ground
-it died in, the edge where it entered: that is a property of the ground, so pulses from anywhere mark the same
-outline. A reflector at or above `HeatScrambleTemperature` returns `Heat` instead of what it is. So hot rock and the
-ground around it are dark to the radar and outlined in noise until they are cooled. `Radar.HeatLoss` is the share of
+left (`RadarContact.Strength`). Every hot cell the ray goes through gets a `Heat` contact whose strength is how hot
+the cell is (1 at `HeatFullTemperature`), at most `HeatReturnsPerRay` a ray, and the ray stops when its strength runs
+out: a few cells into very hot ground, many into warm ground. A reflector at or above `HeatScrambleTemperature`
+returns `Heat` instead of what it is. So a hot zone shows as heat marks reaching a little way into it from the side
+the pulse came from, and nothing behind them. A contact is removed as soon as the side sees its cell, and the side's
+own machines are not radar targets: the radar tells a side only what it cannot see or does not remember. `Radar.HeatLoss` is the share of
 the last finished pulse's rays that heat absorbed. Cold does nothing to the rays. This is the radar reading the heat
 field, not changing it.
 

@@ -4,7 +4,8 @@
 //
 // Runs last, over the finished terrain. fogTex holds one texel per world cell:
 //   .r = how well the player's side sees the cell (0 out of sight, 1 in plain
-//        sight, fading over the last cells of a source's reach)
+//        sight, fading over the last cells of a source's reach and with
+//        depth into a wall, so sight has no hard edge)
 //   .g = 1 once the cell has been explored
 //
 // Three looks, blended by those two values:
@@ -24,8 +25,8 @@ static const float3 kFogUnknownColor = float3(0.012, 0.014, 0.020);
 static const float3 kFogMemoryTint = float3(0.74, 0.86, 1.00);
 static const float kFogMemoryDesaturate = 0.75;
 static const float kFogMemoryBrightness = 0.55;
-// Half-width, in cells, of the blur that softens the stepped edge of the per-cell data.
-static const float kFogSoftenCells = 0.75;
+// Reach, in cells, of the blur that turns the per-cell data into a smooth gradient.
+static const float kFogSoftenCells = 1.5;
 
 float2 SampleFog(float2 worldCell)
 {
@@ -35,12 +36,13 @@ float2 SampleFog(float2 worldCell)
 void ApplyFogPass(float2 uv, inout float3 color)
 {
     float2 worldCell = (CameraPixels + uv * ViewSize) / max(1.0, PixelScale);
-    float2 fog = SampleFog(worldCell) * 2.0
-        + SampleFog(worldCell + float2(kFogSoftenCells, 0.0))
-        + SampleFog(worldCell - float2(kFogSoftenCells, 0.0))
-        + SampleFog(worldCell + float2(0.0, kFogSoftenCells))
-        + SampleFog(worldCell - float2(0.0, kFogSoftenCells));
-    fog /= 6.0;
+    const float d = kFogSoftenCells;
+    float2 fog = SampleFog(worldCell) * 4.0
+        + (SampleFog(worldCell + float2(d, 0.0)) + SampleFog(worldCell - float2(d, 0.0))
+            + SampleFog(worldCell + float2(0.0, d)) + SampleFog(worldCell - float2(0.0, d))) * 2.0
+        + SampleFog(worldCell + float2(d, d)) + SampleFog(worldCell - float2(d, d))
+        + SampleFog(worldCell + float2(d, -d)) + SampleFog(worldCell + float2(-d, d));
+    fog /= 16.0;
 
     float seen = smoothstep(0.0, 1.0, fog.r);
     float explored = smoothstep(0.0, 1.0, fog.g);

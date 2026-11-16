@@ -184,8 +184,8 @@ public sealed class VisionMap
 
     /// <summary>
     /// Lights the solid cells within <see cref="Tweaks.Vision.WallSkin"/> of each open cell in
-    /// <paramref name="lit"/>[<paramref name="from"/>..<paramref name="to"/>) at that cell's level. Only open cells
-    /// that touch a wall do any work.
+    /// <paramref name="lit"/>[<paramref name="from"/>..<paramref name="to"/>), at that cell's level on the wall's
+    /// face and less with every cell of depth. Only open cells that touch a wall do any work.
     /// </summary>
     private void LightWalls(int from, int to, ReadOnlySpan<TerrainPixel> pixels, List<int> lit)
     {
@@ -199,15 +199,20 @@ public sealed class VisionMap
             if (!TouchesWall(x, y, pixels))
                 continue;
 
-            byte level = _scratch[offset];
+            int level = _scratch[offset];
             int minX = Math.Max(0, x - skin), maxX = Math.Min(_width - 1, x + skin);
             int minY = Math.Max(0, y - skin), maxY = Math.Min(_height - 1, y + skin);
             for (int ny = minY; ny <= maxY; ny++)
             {
                 int row = ny * _width;
                 for (int nx = minX; nx <= maxX; nx++)
-                    if (Pixel.BlocksLink(pixels[row + nx]))
-                        Light(row + nx, level, lit);
+                {
+                    if (!Pixel.BlocksLink(pixels[row + nx]))
+                        continue;
+                    // Full at the wall's face, fading with depth so the wall has no hard inner edge.
+                    int depth = Math.Max(Math.Abs(nx - x), Math.Abs(ny - y));
+                    Light(row + nx, (byte)Math.Max(1, level * (skin + 1 - depth) / skin), lit);
+                }
             }
         }
     }
@@ -229,17 +234,31 @@ public sealed class VisionMap
         public readonly int RadiusSq;
         public readonly int NearSq;
         private readonly int _fullSq;
+        private readonly int _nearFullSq;
 
         public Reach(int radius, int nearRadius)
         {
             RadiusSq = radius * radius;
             NearSq = nearRadius * nearRadius;
-            int full = Math.Max(0, radius - Tweaks.Vision.EdgeFade);
-            _fullSq = full * full;
+            _fullSq = FullSq(radius);
+            _nearFullSq = FullSq(nearRadius);
         }
 
-        public byte LevelAt(int distSq) =>
-            distSq <= _fullSq ? (byte)255 : (byte)Math.Max(1, 255 * (RadiusSq - distSq) / (RadiusSq - _fullSq));
+        /// <summary>The squared radius up to which a reach of <paramref name="radius"/> is at full level: a short reach fades over its outer half.</summary>
+        private static int FullSq(int radius)
+        {
+            int full = radius - Math.Min(Tweaks.Vision.EdgeFade, radius / 2);
+            return full * full;
+        }
+
+        /// <summary>The level of a cell seen along open ground.</summary>
+        public byte LevelAt(int distSq) => Fade(distSq, _fullSq, RadiusSq);
+
+        /// <summary>The level of a cell seen through solid ground, which fades toward the near radius.</summary>
+        public byte NearLevelAt(int distSq) => Math.Min(LevelAt(distSq), Fade(distSq, _nearFullSq, NearSq));
+
+        private static byte Fade(int distSq, int fullSq, int edgeSq) =>
+            distSq <= fullSq ? (byte)255 : (byte)Math.Max(1, 255 * (edgeSq - distSq) / Math.Max(1, edgeSq - fullSq));
     }
 
     private void CastRay(int x0, int y0, int x1, int y1, in Reach reach, ReadOnlySpan<TerrainPixel> pixels, List<int> lit)
@@ -265,7 +284,7 @@ public sealed class VisionMap
                 blocked = true;
             if (blocked && distSq > reach.NearSq)
                 return;
-            Light(offset, reach.LevelAt(distSq), lit);
+            Light(offset, blocked ? reach.NearLevelAt(distSq) : reach.LevelAt(distSq), lit);
 
             if (x == x1 && y == y1)
                 return;

@@ -3,8 +3,12 @@ namespace Tunnerer.Core.Terrain;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 
+/// <summary>A circle in which no new dirt grows: the range of a planted relay or pylon.</summary>
+public readonly record struct RegrowthBlocker(Position Center, int Radius);
+
 /// <summary>
-/// Cellular automata that regrows dirt terrain in blank and scorched areas. Every roll is a hash of the seed, the
+/// Cellular automata that regrows dirt terrain in blank and scorched areas, except inside a
+/// <see cref="RegrowthBlocker"/>, where open ground stays open (growth already under way still finishes). Every roll is a hash of the seed, the
 /// step and the cell, and rows are applied in order, so the parallel path (<c>--fast</c>) gives exactly the same
 /// result as the sequential one.
 /// </summary>
@@ -22,7 +26,7 @@ public sealed class TerrainRegrowth
         _simulationSeed = simulationSeed;
     }
 
-    public void Advance(TerrainGrid terrain, int advanceCount)
+    public void Advance(TerrainGrid terrain, int advanceCount, IReadOnlyList<RegrowthBlocker> blockers)
     {
         _regrowAccumulator += Tweaks.World.AdvanceStep;
         if (_regrowAccumulator < Tweaks.World.DirtRecoverInterval)
@@ -39,10 +43,10 @@ public sealed class TerrainRegrowth
         // One write list per row; a row reads only raw pixels (writes are staged) and touches only its own scorch.
         var rows = new List<(int offset, TerrainPixel value)>[h];
         if (_parallel)
-            Parallel.For(1, h - 1, y => rows[y] = RegrowRow(terrain, advanceCount, y));
+            Parallel.For(1, h - 1, y => rows[y] = RegrowRow(terrain, advanceCount, y, blockers));
         else
             for (int y = 1; y < h - 1; y++)
-                rows[y] = RegrowRow(terrain, advanceCount, y);
+                rows[y] = RegrowRow(terrain, advanceCount, y, blockers);
 
         for (int y = 1; y < h - 1; y++)
         {
@@ -54,7 +58,20 @@ public sealed class TerrainRegrowth
         }
     }
 
-    private List<(int offset, TerrainPixel value)> RegrowRow(TerrainGrid terrain, int advanceCount, int y)
+    private static bool IsBlocked(int x, int y, IReadOnlyList<RegrowthBlocker> blockers)
+    {
+        for (int i = 0; i < blockers.Count; i++)
+        {
+            RegrowthBlocker blocker = blockers[i];
+            int dx = x - blocker.Center.X, dy = y - blocker.Center.Y;
+            if (dx * dx + dy * dy <= blocker.Radius * blocker.Radius)
+                return true;
+        }
+        return false;
+    }
+
+    private List<(int offset, TerrainPixel value)> RegrowRow(
+        TerrainGrid terrain, int advanceCount, int y, IReadOnlyList<RegrowthBlocker> blockers)
     {
         int w = terrain.Width;
         var writes = new List<(int offset, TerrainPixel value)>();
@@ -66,14 +83,16 @@ public sealed class TerrainRegrowth
             if (pix == TerrainPixel.Blank)
             {
                 int neighbors = terrain.CountDirtNeighbors(pos);
-                if (TryQueueDirtRegrow(advanceCount, x, y, neighbors, Tweaks.World.DirtRegrowBlankModifier, 0))
+                if (TryQueueDirtRegrow(advanceCount, x, y, neighbors, Tweaks.World.DirtRegrowBlankModifier, 0) &&
+                    !IsBlocked(x, y, blockers))
                     writes.Add((x + y * w, TerrainPixel.DirtGrow));
             }
             else if (Pixel.IsScorched(pix))
             {
                 int offset = x + y * w;
                 int neighbors = terrain.CountDirtNeighbors(pos);
-                if (TryQueueDirtRegrow(advanceCount, x, y, neighbors, Tweaks.World.DirtRegrowScorchedModifier, 1))
+                if (TryQueueDirtRegrow(advanceCount, x, y, neighbors, Tweaks.World.DirtRegrowScorchedModifier, 1) &&
+                    !IsBlocked(x, y, blockers))
                 {
                     writes.Add((offset, TerrainPixel.DirtGrow));
                     terrain.SetScorchIntensity(offset, 0);

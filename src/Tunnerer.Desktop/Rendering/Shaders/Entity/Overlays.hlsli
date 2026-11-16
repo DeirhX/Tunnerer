@@ -84,30 +84,29 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 
 // One radar return, on ground out of the player's sight. It flares when the pulse finds it and then fades over its
 // life. Green for rock and walls, amber for metal (gold, machines, tanks), a dim blue-green for the weak return of a
-// cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Where hot ground swallowed the
-// ray (marked at the edge where it entered that ground), or the thing that reflected was too hot to read, there is
-// no dot: a ragged orange smudge that flickers like static.
+// cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
+// or a thing too hot to read, is a red dot instead, brighter and larger the hotter the cell (data.r).
 float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {
     float life = saturate(params.x);
     float echo = params.y;
-    float phase = params.z;
     float flash = saturate(params.w);
     float rayStrength = saturate(data.r);
-    float seed = data.g * 6.2831853;
     // Hold most of the brightness for the first half of the life, then let go.
     float fade = smoothstep(0.0, 0.55, life);
     float r = length(p);
 
     if (echo > 2.5)
     {
-        float angle = atan2(p.y, p.x);
-        float ragged = r * (1.0 + 0.30 * sin(angle * 5.0 + seed * 5.0 + phase * 9.0));
-        float flicker = 0.60 + 0.40 * sin(phase * 23.0 + seed * 7.0) * sin(phase * 7.3 + seed * 13.0);
-        float haze = exp(-ragged * ragged * 0.85);
-        float ember = exp(-ragged * ragged * 6.0);
-        float3 hot = float3(1.00, 0.38, 0.08) * haze * 0.55 + float3(1.00, 0.80, 0.35) * ember * 0.5;
-        return float4(hot * (0.75 + 0.6 * flash) * flicker * fade, 0.0);
+        // Heat: data.r is how hot the cell read. A dim, small dark-red dot for warm ground up to a bright, larger
+        // red one for ground hot enough to stop a ray in a few cells.
+        float heat = rayStrength;
+        float3 red = lerp(float3(0.60, 0.05, 0.03), float3(1.00, 0.20, 0.10), heat);
+        float level = lerp(0.35, 1.0, heat);
+        float dot = FillAlpha(r - (lerp(0.20, 0.40, heat) + 0.15 * flash), aa);
+        float halo = exp(-r * r * (2.4 - 1.0 * flash));
+        float3 glowing = red * (dot * (0.80 + 0.5 * flash) + halo * (0.18 + 0.6 * flash) * heat);
+        return float4(glowing * fade * level, dot * fade * level * 0.5);
     }
 
     float3 color = echo < 0.5 ? float3(0.30, 1.00, 0.50)

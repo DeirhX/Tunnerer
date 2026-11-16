@@ -241,7 +241,7 @@ public class World
         _lastThermalEnergy = thermalEnergy;
         _lastNetExternalEnergy = netExternal;
 
-        ProfileSection(ref Profile.Regrow, () => _terrainRegrowth.Advance(_terrain, _advanceCount));
+        ProfileSection(ref Profile.Regrow, AdvanceRegrowth);
         ProfileSection(ref Profile.Projectiles, () => _projectiles.Advance(_collisionSolver));
         var simCtx = new SimulationContext
         {
@@ -285,6 +285,19 @@ public class World
             Profile.Report();
     }
 
+    private readonly List<RegrowthBlocker> _regrowthBlockers = new();
+
+    /// <summary>Regrows dirt, except within the range of a planted relay or pylon, which keeps its ground open.</summary>
+    private void AdvanceRegrowth()
+    {
+        _regrowthBlockers.Clear();
+        foreach (var machine in _machines.Machines)
+            if (machine.IsAlive && machine.State == MachineState.Planted && machine.Behavior.IsLinkNode)
+                _regrowthBlockers.Add(new RegrowthBlocker(
+                    machine.Position, Tweaks.Coverage.NodeRadius + (machine.OwnerBase?.Upgrades.CoverageBonusCells ?? 0)));
+        _terrainRegrowth.Advance(_terrain, _advanceCount, _regrowthBlockers);
+    }
+
     private readonly List<(Tank Tank, VisionMap Map)> _trackedVisions = new();
     private readonly List<VisionSource> _fixedVisionSources = new();
     private readonly List<VisionSource> _movingVisionSources = new();
@@ -292,8 +305,8 @@ public class World
     /// <summary>
     /// Starts tracking what <paramref name="tank"/>'s side sees (fog of war) and returns the map, which every
     /// <see cref="Advance"/> then keeps up to date. The side sees through its tank, its base and its machines:
-    /// the tank along open tunnel, the base and powered link nodes over their coverage circles, every machine a
-    /// little around itself. Vision is output only: nothing in the simulation reads it, and a world nobody asks
+    /// the tank and the base along open tunnel, link nodes (relays, pylons) over their whole coverage circles, every
+    /// machine a little around itself. Vision is output only: nothing in the simulation reads it, and a world nobody asks
     /// pays nothing for it.
     /// </summary>
     public VisionMap TrackVision(Tank tank)
@@ -347,10 +360,12 @@ public class World
                 radar.Idle();
                 continue;
             }
-            // Everything that is not terrain and reflects: planted machines and the other tanks.
+            // Everything that is not terrain and reflects: the other tanks and planted machines. The side's own
+            // machines are left out: it knows where it put them, so their echo would tell it nothing.
             _radarTargets.Clear();
             foreach (var machine in _machines.Machines)
-                if (machine.IsAlive && machine.State == MachineState.Planted)
+                if (machine.IsAlive && machine.State == MachineState.Planted &&
+                    (tank.Base is null || machine.OwnerBase != tank.Base))
                     _radarTargets.Add(new RadarTarget(machine.Position, machine.BoundingBox.HalfWidth));
             foreach (var other in _tankList.Tanks)
                 if (other != tank && !other.IsDead)
@@ -377,9 +392,9 @@ public class World
                 {
                     if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner)
                         continue;
-                    bool poweredNode = machine.Behavior.IsLinkNode && machine.LinkPoint is { IsPowered: true };
-                    _fixedVisionSources.Add(new VisionSource(
-                        machine.Position, poweredNode ? Tweaks.Coverage.NodeRadius + bonus : near, near));
+                    // A relay or pylon sees its whole coverage circle, through the ground, linked or not.
+                    int reach = machine.Behavior.IsLinkNode ? Tweaks.Coverage.NodeRadius + bonus : near;
+                    _fixedVisionSources.Add(new VisionSource(machine.Position, reach, reach));
                 }
             }
         }

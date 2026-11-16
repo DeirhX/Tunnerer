@@ -17,8 +17,8 @@ public enum RadarEcho : byte
     Cavity,
 
     /// <summary>
-    /// Noise from heat: the near edge of hot ground that went on to absorb the ray, or a reflector too hot to tell
-    /// what it is. Either way the radar learned only that it is hot there.
+    /// Hot ground the ray went through, or a reflector too hot to tell what it is. The radar learned only that it
+    /// is hot there, and how hot (<see cref="RadarContact.Strength"/>). The ray goes on, weaker.
     /// </summary>
     Heat,
 }
@@ -26,7 +26,8 @@ public enum RadarEcho : byte
 /// <summary>One radar return: the cell that reflected, what kind of thing it was and when (<see cref="Radar.Tick"/>).</summary>
 /// <param name="Strength">
 /// What was left of the ray when it reflected, 1 for a ray that crossed only cool ground down toward 0 for one
-/// that warm ground nearly absorbed. A <see cref="RadarEcho.Heat"/> contact is always 1.
+/// that warm ground nearly absorbed. For a <see cref="RadarEcho.Heat"/> contact it is how hot the cell was instead:
+/// just above 0 at <see cref="Tweaks.Radar.HeatThreshold"/>, 1 at <see cref="Tweaks.Radar.HeatFullTemperature"/>.
 /// </param>
 public readonly record struct RadarContact(Position Position, RadarEcho Echo, int BornTick, float Strength = 1f);
 
@@ -48,14 +49,16 @@ public readonly record struct RadarTarget(Position Position, int HalfSize);
 /// </para>
 /// <para>
 /// Heat weakens the rays (<see cref="Tweaks.Radar.HeatLossPerDegree"/>). A ray loses strength in every hot cell it
-/// crosses; what it then finds comes back fainter, and a ray that runs out leaves a <see cref="RadarEcho.Heat"/>
-/// contact where it entered the hot ground that stopped it. That edge belongs to the ground, not to the ray, so seen
-/// from anywhere a hot zone is a dark patch outlined in noise until it is cooled.
+/// crosses and leaves a <see cref="RadarEcho.Heat"/> contact there that says how hot the cell is, up to
+/// <see cref="Tweaks.Radar.HeatReturnsPerRay"/> a ray. The hotter the cell the more it takes, so a ray gets through
+/// many warm cells but only a few very hot ones before it runs out and stops. What it finds beyond comes back
+/// fainter. A hot zone therefore shows as dots that reach a little way into it from the side the pulse came from.
 /// </para>
 /// </summary>
 /// <remarks>
 /// Like <see cref="VisionMap"/> it only observes: nothing in the simulation reads it. It reports only news: returns
-/// from cells the side can see are dropped, and so are returns from terrain it remembers correctly. While a pulse
+/// from cells the side can see are dropped, so are returns from terrain it remembers correctly, and a contact goes
+/// as soon as the side sees its cell. While a pulse
 /// travels a tick walks the cells its front crossed, about <c>RaysPerPulse * FrontCellsPerTick</c>, and looks at
 /// each live contact once; neither depends on the size of the map.
 /// </remarks>
@@ -65,6 +68,9 @@ public sealed class Radar
     private const double PulseOffset = 0.6180339887498949;
 
     private const int RayCount = Tweaks.Radar.RaysPerPulse;
+
+    /// <summary>The most contacts one ray can leave: what stopped it, its weak returns and its heat marks.</summary>
+    private const int ReturnsPerRay = 1 + Tweaks.Radar.WeakReturnsPerRay + Tweaks.Radar.HeatReturnsPerRay;
 
     /// <summary>One ray of the pulse in flight: a Bresenham walk that resumes where the front left it.</summary>
     private struct Ray
@@ -76,10 +82,8 @@ public sealed class Radar
         /// <summary>0, or the axis (1 x, 2 y) of the second half of a diagonal step still to take.</summary>
         public byte Owed;
         public bool Live, WasDirt;
-        public int WeakLeft;
+        public int WeakLeft, HeatLeft;
         public float Strength;
-        /// <summary>The first cell of the run of hot ground the ray is in, or X = -1 outside hot ground.</summary>
-        public int HotX, HotY;
         /// <summary>Squared distance from the pulse origin of the last cell reached, now and at the start of the tick.</summary>
         public int ReachSq, PrevReachSq;
     }
@@ -103,9 +107,9 @@ public sealed class Radar
         _vision = vision;
         // At most this many pulses have live contacts at once, each at most a return and the weak ones per ray.
         const int pulsesAlive = Tweaks.Radar.ContactLifetimeTicks / Tweaks.Radar.PulsePeriodTicks + 2;
-        _contacts = new RadarContact[RayCount * (1 + Tweaks.Radar.WeakReturnsPerRay) * pulsesAlive];
+        _contacts = new RadarContact[RayCount * ReturnsPerRay * pulsesAlive];
         _keep = new bool[_contacts.Length];
-        _newCells = new HashSet<int>(RayCount * (1 + Tweaks.Radar.WeakReturnsPerRay));
+        _newCells = new HashSet<int>(RayCount * ReturnsPerRay);
     }
 
     /// <summary>Ticks this radar has run; a contact's age is <c>Tick - BornTick</c>.</summary>
@@ -185,6 +189,20 @@ public sealed class Radar
             _head = (_head + 1) % _contacts.Length;
             _count--;
         }
+
+        // A contact the side has come to see is no longer news: sight and memory have the real thing now, and a
+        // later pulse reports the cell again only if it changes.
+        int kept = 0;
+        for (int i = 0; i < _count; i++)
+        {
+            RadarContact contact = _contacts[Slot(i)];
+            if (_vision.IsVisible(contact.Position))
+                continue;
+            if (kept != i)
+                _contacts[Slot(kept)] = contact;
+            kept++;
+        }
+        _count = kept;
     }
 
     private void Emit(Position origin)
@@ -221,8 +239,8 @@ public sealed class Radar
                 Err = dx + dy,
                 Live = true,
                 WeakLeft = Tweaks.Radar.WeakReturnsPerRay,
+                HeatLeft = Tweaks.Radar.HeatReturnsPerRay,
                 Strength = 1f,
-                HotX = -1,
             };
         }
     }
@@ -316,42 +334,34 @@ public sealed class Radar
         int offset = x + y * width;
         // Heat first: it takes its share of the ray before anything in the cell can reflect it.
         float temperature = heat.GetHeatTemperature(offset);
+        bool marked = false;
         if (temperature > Tweaks.Radar.HeatThreshold)
         {
-            if (ray.HotX < 0)
+            if (ray.HeatLeft > 0)
             {
-                ray.HotX = x;
-                ray.HotY = y;
+                ray.HeatLeft--;
+                marked = true;
+                Record(cell, RadarEcho.Heat, HeatIntensity(temperature), width, pixels, isTerrain: false);
             }
             ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * Tweaks.Radar.HeatLossPerDegree * ray.CellLength;
             if (ray.Strength <= 0f)
             {
                 _lostToHeat++;
-                Record(new Position(ray.HotX, ray.HotY), RadarEcho.Heat, 1f, width, pixels, isTerrain: false);
                 return true;
             }
         }
-        else
-        {
-            ray.HotX = -1;
-        }
+
+        // A reflector too hot to read returns nothing but the heat mark its cell already has (or gets now).
         bool scrambled = temperature >= Tweaks.Radar.HeatScrambleTemperature;
-
-        if (HitsTarget(cell, _onRay))
-        {
-            Reflect(cell, RadarEcho.Metal, scrambled, ray.Strength, width, pixels, isTerrain: false);
-            return true;
-        }
-
         TerrainPixel pixel = pixels[offset];
-        if (Pixel.IsGold(pixel))
+        bool target = HitsTarget(cell, _onRay);
+        bool gold = !target && Pixel.IsGold(pixel);
+        if (target || gold || (Pixel.IsBlockingCollision(pixel) && pixel != ownWall))
         {
-            Reflect(cell, RadarEcho.Metal, scrambled, ray.Strength, width, pixels, isTerrain: true);
-            return true;
-        }
-        if (Pixel.IsBlockingCollision(pixel) && pixel != ownWall)
-        {
-            Reflect(cell, RadarEcho.Solid, scrambled, ray.Strength, width, pixels, isTerrain: true);
+            if (!scrambled)
+                Record(cell, target || gold ? RadarEcho.Metal : RadarEcho.Solid, ray.Strength, width, pixels, isTerrain: !target);
+            else if (!marked)
+                Record(cell, RadarEcho.Heat, HeatIntensity(temperature), width, pixels, isTerrain: false);
             return true;
         }
 
@@ -403,16 +413,10 @@ public sealed class Radar
         return false;
     }
 
-    /// <summary>A return off something that stops the ray. One too hot to read comes back as heat noise, and as news.</summary>
-    private void Reflect(
-        Position cell, RadarEcho echo, bool scrambled, float strength, int width, ReadOnlySpan<TerrainPixel> pixels,
-        bool isTerrain)
-    {
-        if (scrambled)
-            Record(cell, RadarEcho.Heat, 1f, width, pixels, isTerrain: false);
-        else
-            Record(cell, echo, strength, width, pixels, isTerrain);
-    }
+    /// <summary>How hot a cell reads on the radar, 0..1 (<see cref="RadarContact.Strength"/> of a heat contact).</summary>
+    private static float HeatIntensity(float temperature) => Math.Clamp(
+        (temperature - Tweaks.Radar.HeatThreshold) / (Tweaks.Radar.HeatFullTemperature - Tweaks.Radar.HeatThreshold),
+        0f, 1f);
 
     /// <summary>Keeps a return unless it tells the side nothing (<see cref="IsNews"/>).</summary>
     private void Record(

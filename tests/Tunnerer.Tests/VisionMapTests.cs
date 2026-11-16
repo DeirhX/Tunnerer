@@ -170,7 +170,7 @@ public class VisionMapTests
     }
 
     [Fact]
-    public void AWorld_ShowsItsSideTheBaseTheTankAndPoweredRelays()
+    public void AWorld_ShowsItsSideTheBaseTheTankAndRelays()
     {
         var s = RelayHeatTests.CreateScenario();
         var relay = RelayHeatTests.PlantRelay(s);
@@ -179,15 +179,11 @@ public class VisionMapTests
 
         VisionMap map = s.World.TrackVision(s.Tank);
         Assert.True(map.IsVisible(s.Base.Position), "the base sees itself");
-        Assert.False(map.IsVisible(far), "an unlinked relay sees only around itself");
-
-        // The link map powers the relay; the next recast of the fixed sources gives it its coverage circle.
-        for (int i = 0; i < Tweaks.Perf.TargetFps; i++)
-            s.World.Advance(_ => default);
-
-        Assert.True(relay.LinkPoint is { IsPowered: true });
+        Assert.False(relay.LinkPoint is { IsPowered: true });
         Assert.True(map.IsVisible(s.RelayPos));
-        Assert.True(map.IsVisible(far), "a powered relay sees along the tunnel");
+        Assert.True(map.IsVisible(far), "a relay sees along the tunnel, linked or not");
+        Assert.True(map.IsVisible(s.RelayPos + new Offset(10, 10)), "and its whole circle, through the ground");
+        Assert.False(map.IsVisible(s.RelayPos + new Offset(Tweaks.Coverage.NodeRadius + 2, 0)));
         Assert.Same(map, s.World.TrackVision(s.Tank));
     }
 

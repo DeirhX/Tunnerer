@@ -47,12 +47,41 @@ public class TerrainRegrowthTests
 
         var regrowth = new TerrainRegrowth(parallel, enabled: true, simulationSeed: 77);
         for (int step = 0; step < 600; step++)
-            regrowth.Advance(terrain, step);
+            regrowth.Advance(terrain, step, []);
 
         int changed = 0;
         for (int i = 0; i < before.Length; i++)
             if (terrain[i] != before[i])
                 changed++;
         return (terrain, changed);
+    }
+
+    [Fact]
+    public void NoDirtGrows_InsideABlocker_ButItDoesOutside()
+    {
+        var terrain = new TerrainGrid(new Size(120, 60));
+        terrain.Fill(TerrainPixel.Dirt);
+        // Two tunnels five cells wide, one inside the blocker's circle and one clear of it.
+        for (int x = 10; x < 110; x++)
+            for (int dy = -2; dy <= 2; dy++)
+                terrain.SetPixelRaw(new Position(x, 30 + dy), TerrainPixel.Blank);
+        RegrowthBlocker[] blockers = [new RegrowthBlocker(new Position(30, 30), 15)];
+
+        var regrowth = new TerrainRegrowth(parallel: false, enabled: true, simulationSeed: 77);
+        for (int step = 0; step < 6000; step++)
+            regrowth.Advance(terrain, step, blockers);
+
+        int Open(int minX, int maxX)
+        {
+            int open = 0;
+            for (int x = minX; x <= maxX; x++)
+                for (int dy = -2; dy <= 2; dy++)
+                    if (terrain.GetPixelRaw(new Position(x, 30 + dy)) == TerrainPixel.Blank)
+                        open++;
+            return open;
+        }
+
+        Assert.Equal(21 * 5, Open(20, 40));
+        Assert.True(Open(70, 90) < 21 * 5 / 2, $"the tunnel outside the blocker should mostly have closed, open={Open(70, 90)}");
     }
 }
