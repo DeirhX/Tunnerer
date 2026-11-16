@@ -7,10 +7,27 @@ using Tunnerer.Desktop.Presentation;
 
 /// <summary>
 /// Machines, planted or carried, drawn as their <see cref="MachinePresentation.Sprite"/> says: the body, and while
-/// planted the ground it senses, its battery gauge and, while a pylon fills it, a charge beam.
+/// planted the ground it senses and its battery gauge. <see cref="SubmitChargeBeams"/> adds the beams of pylons filling
+/// batteries.
 /// </summary>
 public static class MachineQuads
 {
+    /// <summary>A charge beam from each pylon to the planted machine whose battery it is filling.</summary>
+    public static void SubmitChargeBeams(BeamFader beams, EntityInterpolator interpolator, float alpha)
+    {
+        ReadOnlySpan<MachineRenderState> machines = interpolator.Machines;
+        for (int i = 0; i < machines.Length; i++)
+        {
+            ref readonly MachineRenderState machine = ref machines[i];
+            if (!machine.IsAlive || !machine.IsCharging || machine.State != MachineState.Planted ||
+                !MachinePresentations.Get(machine.Type).Sprite.ShowsBattery)
+                continue;
+            PositionF at = interpolator.MachinePosition(i, alpha);
+            LinkQuads.SubmitChargeBeam(beams, machine.ChargingFrom, machine.Position,
+                machine.ChargingFrom.X, machine.ChargingFrom.Y, at.X, at.Y, 1f);
+        }
+    }
+
     public static void Emit(EntityQuads quads, EntityInterpolator interpolator, float turnSeconds, bool snapHeadings)
     {
         float scale = quads.View.PixelScale;
@@ -61,8 +78,6 @@ public static class MachineQuads
 
             if (!carried && sprite.ShowsBattery)
             {
-                if (machine.IsCharging)
-                    LinkQuads.AddChargeBeam(quads, machine.ChargingFrom.X, machine.ChargingFrom.Y, x, y, 1f);
                 // Battery gauge above the machine, upright whichever way it faces.
                 quads.Add(cx, cy - 4.6f * scale, 1f, 0f, -2.4f, 2.4f, -0.9f, 0.9f,
                     EntityShape.KindBattery, machine.Charge, machine.IsReturning ? 1f : 0f, phase,

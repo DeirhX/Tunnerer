@@ -34,6 +34,7 @@ public sealed class EntityLayerBuilder
     private readonly EntityQuads _quads = new();
     private readonly CoverageQuads _coverage = new();
     private readonly LinkQuads _links = new();
+    private readonly BeamFader _beams = new();
     private readonly PreviewQuads _preview = new();
     private readonly ProjectileQuads _projectiles = new();
     private TankRenderState[] _tankScratch = [];
@@ -79,10 +80,14 @@ public sealed class EntityLayerBuilder
         bool protectedBlinkOn = (long)(visualSeconds * 1000f) / ProtectedBlinkMilliseconds % 2 == 0;
         ReadOnlySpan<PositionF> tankPositions = _interpolator.InterpolateTankPositions(alpha);
 
-        // Links under machines, machines under tanks (a tank carrying one draws on top of it).
+        // Beams (links, charge, the tether) under machines, machines under tanks (a tank carrying one draws on top).
+        _coverage.Emit(_quads);
+        _beams.Begin(visualSeconds);
         if (tankPositions.Length > 0)
-            _coverage.Emit(_quads, tankPositions[0]);
-        _links.Emit(_quads);
+            _coverage.SubmitTether(_beams, tankPositions[0]);
+        _links.Submit(_beams);
+        MachineQuads.SubmitChargeBeams(_beams, _interpolator, alpha);
+        _beams.Emit(_quads);
         if (tankPositions.Length > 0)
             _preview.Emit(_quads, tankPositions[0]);
         MachineQuads.Emit(_quads, _interpolator, turnSeconds, snapHeadings);

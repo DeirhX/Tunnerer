@@ -3,13 +3,48 @@
 // ============================================================================
 //
 // Beams along +x from x = 0 to params.x (their length in cells). Each flows
-// toward +x. The shader owns the beams' colours.
+// toward +x. The shader owns the beams' colours. Link, charge and tether beams
+// carry their connect/dissolve transition in params.w (BeamFader.Transition).
 // ============================================================================
 
 #ifndef TUNNERER_ENTITY_BEAMS_HLSLI
 #define TUNNERER_ENTITY_BEAMS_HLSLI
 
 #include "Common.hlsli"
+
+float BeamHash(float n)
+{
+    return frac(sin(n * 12.9898) * 43758.5453);
+}
+
+// How a beam fades in and out (BeamFader.Transition, t). x: a mask for the whole beam; y: an extra glow, to add in
+// the beam's colour, at the front that is connecting or the edges that are breaking up.
+//   t in (0, 1]:  connecting. The beam reaches out from x = 0 toward its end, a bright spark leading it, flickering
+//                 as it catches; at 1 it is whole and steady.
+//   t in [-1, 0): dissolving (-t is what is left). It breaks into fragments that wink out one by one, each glowing
+//                 like an ember just before it goes, while the whole beam dims.
+float2 BeamTransition(float2 p, float len, float t, float phase)
+{
+    if (t >= 0.999)
+        return float2(1.0, 0.0);
+    if (t > 0.0)
+    {
+        float grow = 1.0 - (1.0 - t) * (1.0 - t);   // eases out: quick to leave, slow to arrive
+        float front = lerp(-1.0, len + 1.0, grow);
+        float reached = smoothstep(front + 0.8, front - 0.8, p.x);
+        // It catches unsteadily at first: a flicker that settles as the beam arrives.
+        float flicker = lerp(0.45 + 0.55 * step(0.35, BeamHash(floor(phase * 24.0))), 1.0, t);
+        float spark = exp(-abs(p.x - front) * 1.8) * exp(-p.y * p.y * 2.0) * (1.0 - t) * 1.6;
+        return float2(reached * flicker, spark * step(p.x, len + 0.5));
+    }
+    float left = -t;
+    // Fragments a cell or so long, with a finer grain so their edges crumble rather than cut.
+    float n = 0.7 * BeamHash(floor(p.x * 0.9) + 0.37) + 0.3 * BeamHash(floor(p.x * 3.1) * 1.7 + floor(p.y * 3.0) * 7.3);
+    float cut = 1.0 - left;  // fragments whose noise is under the cut are gone
+    float keep = smoothstep(cut - 0.04, cut + 0.10, n);
+    float ember = exp(-abs(n - cut) * 18.0) * keep * 2.0;
+    return float2(keep * (0.35 + 0.65 * left), ember * left);
+}
 
 // A link beam. Live: a thin cyan line with a slow shimmer. Blocked: a dim red dashed line. Carrying heat: an
 // orange plasma beam that wobbles, with bright pulses racing toward the base and a glow that grows with the flow.
@@ -18,7 +53,8 @@ float4 LinkBeam(float2 p, float4 params, float aa)
     float len = params.x;
     float heat = params.y;
     float phase = params.z;
-    bool blocked = params.w > 0.5;
+    bool blocked = params.w > 2.0;   // a blocked link's transition comes with 4 added
+    float2 fade = BeamTransition(p, len, params.w - (blocked ? 4.0 : 0.0), phase);
     float endFade = smoothstep(-0.2, 1.2, p.x) * smoothstep(len + 0.2, len - 1.2, p.x);
     float4 result = float4(0.0, 0.0, 0.0, 0.0);
 
@@ -26,7 +62,10 @@ float4 LinkBeam(float2 p, float4 params, float aa)
     {
         float d = sdSegment(p, float2(0.0, 0.0), float2(len, 0.0));
         float dash = smoothstep(0.35, 0.45, abs(frac(p.x * 0.45) - 0.5));
-        Over(result, float3(0.85, 0.22, 0.18), FillAlpha(d - 0.09, aa) * dash * 0.55 * endFade);
+        float3 red = float3(0.85, 0.22, 0.18);
+        Over(result, red, FillAlpha(d - 0.09, aa) * dash * 0.55 * endFade);
+        result *= fade.x;
+        result.rgb += red * fade.y * exp(-d * 3.0) * 0.5 * endFade;
         return result;
     }
 
@@ -45,8 +84,8 @@ float4 LinkBeam(float2 p, float4 params, float aa)
         float motes = pow(saturate(1.0 - abs(frac(p.x * 0.25 - phase * 0.6) - 0.5) * 2.0), 12.0);
         float filament = exp(-d * d * 30.0) * (0.35 + 0.5 * shimmer + 0.6 * motes);
         float haze = exp(-d * 2.8) * (0.08 + 0.20 * shimmer + 0.15 * motes);
-        float3 light = cyan * (filament + haze) * endFade;
-        return float4(light, saturate(filament * 0.25) * endFade);
+        float3 light = cyan * ((filament + haze) * fade.x + fade.y * exp(-d * 2.5) * 0.6) * endFade;
+        return float4(light, saturate(filament * 0.25) * endFade * fade.x);
     }
 
     float flow = min(h + max(heat - 1.0, 0.0) * 0.5, 2.5);
@@ -67,6 +106,8 @@ float4 LinkBeam(float2 p, float4 params, float aa)
     float glowReach = 1.8 + 1.6 * flow;
     float glow = exp(-d * (3.0 / glowReach)) * (0.30 + 0.55 * flow * (0.4 + 0.6 * pulse));
     result.rgb += lerp(orange, yellow, pulse) * glow * endFade;
+    result *= fade.x;
+    result.rgb += yellow * fade.y * exp(-d * 1.5) * endFade;
     return result;
 }
 
@@ -79,6 +120,7 @@ float4 ChargeBeam(float2 p, float4 params, float aa)
     float phase = params.z;
     float endFade = smoothstep(-0.2, 1.0, p.x) * smoothstep(len + 0.2, len - 1.0, p.x);
     float strength = 0.45 + 0.55 * sqrt(flow);
+    float2 fade = BeamTransition(p, len, params.w, phase);
 
     // Electric jitter: fast, small, piecewise so it reads as an arc rather than a wave.
     float t = floor(phase * 14.0);
@@ -95,6 +137,8 @@ float4 ChargeBeam(float2 p, float4 params, float aa)
     Over(result, color, FillAlpha(d - (0.06 + 0.12 * spark), aa) * endFade * strength);
     float glow = exp(-d * 2.2) * (0.18 + 0.6 * spark) * strength;
     result.rgb += lerp(kChargeBlue, kChargeViolet, 0.35) * glow * endFade;
+    result *= fade.x;
+    result.rgb += float3(0.75, 0.85, 1.0) * fade.y * exp(-d * 2.0) * endFade;
     return result;
 }
 
@@ -180,9 +224,11 @@ float4 Tether(float2 p, float4 params, float aa)
     float3 moteColor = lerp(float3(1.0, 0.55, 0.20), float3(0.55, 0.90, 1.0), along);
     float3 threadColor = float3(0.45, 0.85, 1.0);
 
+    float2 fade = BeamTransition(p, len, params.w, phase);
     float level = (0.5 + 0.5 * strength) * startFade * endFade;
-    float3 rgb = (threadColor * thread + moteColor * mote * 0.9) * level;
-    return float4(rgb, saturate(thread * 0.5 + mote * 0.3) * level);
+    float3 rgb = (threadColor * thread + moteColor * mote * 0.9) * level * fade.x +
+                 threadColor * fade.y * exp(-d * 3.0) * 0.5 * level;
+    return float4(rgb, saturate(thread * 0.5 + mote * 0.3) * level * fade.x);
 }
 
 #endif // TUNNERER_ENTITY_BEAMS_HLSLI

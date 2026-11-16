@@ -8,9 +8,10 @@ using Tunnerer.Desktop.Rendering;
 using static Tunnerer.Desktop.Gui.HudLayout;
 
 /// <summary>
-/// The art strip along the bottom of the screen: TEMP, SHIELD, MATERIALS and BUILD STRUCTURES panels, their
-/// readouts and bars, extended to both screen edges. The art carries no text: titles and numbers are drawn with the
-/// UI font, so they stay sharp at any resolution.
+/// The art panels along the bottom of the screen: TEMP, SHIELD and MATERIALS in the bottom-left corner, BUILD
+/// STRUCTURES in the bottom-right (<see cref="HudLayout"/>), with their readouts and bars. The middle of the view is
+/// left clear. The art carries no text: titles and numbers are drawn with the UI font, so they stay sharp at any
+/// resolution.
 /// </summary>
 public sealed class HudStrip
 {
@@ -22,12 +23,6 @@ public sealed class HudStrip
     private const float TempCenterX = HeatX + 168f;
     private const float ShieldCenterX = ShieldX + 80f;
     private const float MaterialsCenterX = MaterialsX + 120f;
-
-    // The strip is extended to both screen edges by repeating, mirrored, the chassis at its outer ends: the left
-    // end of heat_icon.png and the right end of build_panel.png, from ExtensionTopY down. Mirroring every other
-    // copy makes the joins seamless.
-    private const float ExtensionTileW = 60f;
-    private const float ExtensionTopY = 100f;
 
     private readonly HudLayout _layout = new();
     private readonly HeatGauge _heat;
@@ -68,13 +63,11 @@ public sealed class HudStrip
 
         _layout.Update(displaySize);
 
-        DrawStripExtensions(dl, displaySize.X);
-
-        const float h = StripH;
-        dl.AddImage(_heatIconTex, At(HeatX, 0f), At(HeatX + HeatPanelW, h));
-        dl.AddImage(_shieldIconTex, At(ShieldX, 0f), At(ShieldX + ShieldPanelW, h));
-        dl.AddImage(_panelFrameTex, At(MaterialsX, 0f), At(MaterialsX + MaterialsPanelW, h));
-        dl.AddImage(_buildPanelTex, At(BuildX, 0f), At(BuildX + BuildPanelW, h));
+        DrawPanelArt(dl, _heatIconTex, HeatX, HeatPanelW);
+        DrawPanelArt(dl, _shieldIconTex, ShieldX, ShieldPanelW);
+        DrawPanelArt(dl, _panelFrameTex, MaterialsX, MaterialsPanelW);
+        DrawLeftEndCap(dl);
+        DrawPanelArt(dl, _buildPanelTex, BuildX, BuildPanelW);
         DrawPanelLabels(dl);
 
         _heat.DrawOrb(dl, player, time);
@@ -121,37 +114,23 @@ public sealed class HudStrip
                 (int)(time * 2f) % 2 == 0 ? 0xFF40FF60u : 0xFF208030u, S(10f), ImDrawFlags.None, S(2.5f));
     }
 
-    /// <summary>
-    /// Fills the screen width on both sides of the strip with mirrored copies of the chassis at its outer ends, so
-    /// the HUD runs from edge to edge at any aspect ratio.
-    /// </summary>
-    private void DrawStripExtensions(ImDrawListPtr dl, float displayW)
+    /// <summary>One panel's art, placed by its left edge and sized from its width (its right edge may be where the
+    /// other part of the HUD begins, which <see cref="HudLayout.At(float, float)"/> would move).</summary>
+    private void DrawPanelArt(ImDrawListPtr dl, nint texture, float x, float w)
     {
-        float tileW = S(ExtensionTileW);
-        float top = At(0f, ExtensionTopY).Y;
-        float bottom = At(0f, StripH).Y;
-        float vTop = ExtensionTopY / StripH;
+        var min = At(x, 0f);
+        dl.AddImage(texture, min, min + new Vector2(S(w), S(StripH)));
+    }
 
-
-        // Left: the first ExtensionTileW columns of the heat panel, the copy touching the strip mirrored.
-        float uHeat = ExtensionTileW / HeatPanelW;
-        float x = _layout.Origin.X;
-        for (int i = 0; x > 0f; i++, x -= tileW)
-        {
-            bool mirrored = i % 2 == 0;
-            dl.AddImage(_heatIconTex, new Vector2(x - tileW, top), new Vector2(x, bottom),
-                new Vector2(mirrored ? uHeat : 0f, vTop), new Vector2(mirrored ? 0f : uHeat, 1f));
-        }
-
-        // Right: the last columns of the build panel.
-        float uBuild = 1f - ExtensionTileW / BuildPanelW;
-        x = _layout.Origin.X + S(StripW);
-        for (int i = 0; x < displayW; i++, x += tileW)
-        {
-            bool mirrored = i % 2 == 0;
-            dl.AddImage(_buildPanelTex, new Vector2(x, top), new Vector2(x + tileW, bottom),
-                new Vector2(mirrored ? 1f : uBuild, vTop), new Vector2(mirrored ? uBuild : 1f, 1f));
-        }
+    /// <summary>
+    /// Closes the left part after MATERIALS with the build panel's left edge, mirrored so its finished side faces the
+    /// open middle of the screen.
+    /// </summary>
+    private void DrawLeftEndCap(ImDrawListPtr dl)
+    {
+        var min = At(MaterialsX, 0f) + new Vector2(S(MaterialsPanelW), 0f);
+        float u = LeftCapW / BuildPanelW;
+        dl.AddImage(_buildPanelTex, min, min + new Vector2(S(LeftCapW), S(StripH)), new Vector2(u, 0f), new Vector2(0f, 1f));
     }
 
     private void DrawBar(ImDrawListPtr dl, float x, float y, float w, float h, float fill, uint color)

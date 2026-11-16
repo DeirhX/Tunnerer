@@ -33,27 +33,29 @@ public sealed class RenderViewState
         CellPixels = Math.Max(1, (int)MathF.Round(DesktopScreenTweaks.PixelScale * PixelDensity));
     }
 
-    /// <summary>
-    /// Height in device pixels of the play area: the part of the view above the HUD strip. The map is drawn behind the
-    /// whole window, but aiming and clicks stop at this line, so the HUD does not fire.
-    /// </summary>
-    public int PlayAreaHeight { get; private set; }
+    private Size _windowPoints;
+    private bool _hudShown;
 
     /// <summary>
-    /// The game view in device pixels: the whole window. The HUD strip is drawn over its bottom edge, so the map
-    /// shows through wherever the strip's art is see-through.
+    /// The game view in device pixels: the whole window. The HUD is drawn over its bottom corners, so the map shows
+    /// through between its two parts and wherever its art is see-through.
     /// </summary>
     /// <param name="windowPixels">Window size in device pixels.</param>
     /// <param name="windowPoints">Window size in points.</param>
-    /// <param name="supportsUi">Whether the HUD strip is shown, which sets the play area's bottom edge.</param>
+    /// <param name="supportsUi">Whether the HUD is shown, which takes its parts out of the play area.</param>
     public Size ComputeViewSize(Size windowPixels, Size windowPoints, bool supportsUi)
     {
-        int hudPixels = supportsUi
-            ? (int)MathF.Round(HudLayout.BottomPanelHeight(windowPoints.X, windowPoints.Y, PixelDensity) * PixelDensity)
-            : 0;
-        PlayAreaHeight = Math.Max(1, windowPixels.Y - hudPixels);
+        _windowPoints = windowPoints;
+        _hudShown = supportsUi;
         return new Size(Math.Max(1, windowPixels.X), Math.Max(1, windowPixels.Y));
     }
+
+    /// <summary>
+    /// Whether a point of the view (device pixels) is under the HUD, where aiming and clicks stop so the HUD does not
+    /// fire. The gap between the HUD's two parts is play area.
+    /// </summary>
+    public bool IsUnderHud(float x, float y) =>
+        _hudShown && HudLayout.Covers(_windowPoints.X, _windowPoints.Y, PixelDensity, x / PixelDensity, y / PixelDensity);
 
     public void EnsureHiResBuffer(Size size)
     {

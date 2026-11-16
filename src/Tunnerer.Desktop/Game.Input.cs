@@ -182,9 +182,8 @@ public partial class Game
     private bool IsMouseInViewport(in FrameInputSnapshot frameInput, out float relX, out float relY)
     {
         relX = 0; relY = 0;
-        // The play area stops above the HUD strip, which is drawn over the bottom of the view.
         float vpW = _renderViewState.HiResSize.X;
-        float vpH = _renderViewState.PlayAreaHeight;
+        float vpH = _renderViewState.HiResSize.Y;
         if (vpW <= 0 || vpH <= 0) return false;
 
         // The mouse is in points; the view is in device pixels.
@@ -194,6 +193,7 @@ public partial class Game
         if (relX < 0 || relY < 0 || relX >= vpW || relY >= vpH)
             return false;
 
-        return true;
+        // The HUD's two parts are drawn over the bottom corners of the view; the mouse over them does not aim.
+        return !_renderViewState.IsUnderHud(relX, relY);
     }
 }

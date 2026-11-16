@@ -28,8 +28,8 @@ public sealed class CoverageQuads
         _playerOffNetwork = !player.IsDead && player.IsOffNetwork;
     }
 
-    /// <summary><paramref name="player"/> is the interpolated player tank, where the tether starts.</summary>
-    public void Emit(EntityQuads quads, PositionF player)
+    /// <summary>The coverage fields around every node.</summary>
+    public void Emit(EntityQuads quads)
     {
         float scale = quads.View.PixelScale;
         float phase = quads.Phase;
@@ -45,16 +45,20 @@ public sealed class CoverageQuads
                 r, node.Strength, phase, emphasis);
         }
 
+    }
+
+    /// <summary>The tether, handed to <paramref name="beams"/>; <paramref name="player"/> is the interpolated player tank, where it starts.</summary>
+    public void SubmitTether(BeamFader beams, PositionF player)
+    {
         if (!_playerCoverage.Covered)
             return;
         float dx = player.X - _playerCoverage.Node.X, dy = player.Y - _playerCoverage.Node.Y;
         float length = MathF.Sqrt(dx * dx + dy * dy);
         if (length < 4f)
             return;   // standing on the node (or in the base): nothing to draw
-        // Oriented from the tank toward the node: heat flows that way.
-        float tx = quads.ScreenX(player.X);
-        float ty = quads.ScreenY(player.Y);
-        quads.Add(tx, ty, -dx / length, -dy / length, -1.5f, length + 1.5f, -2.5f, 2.5f,
-            EntityShape.KindTether, length, _playerCoverage.Strength, phase, 0f);
+        // From the tank toward the node: heat flows that way. Keyed by the node, so it follows the tank about.
+        Position node = _playerCoverage.Node;
+        beams.Submit(new BeamKey(EntityShape.KindTether, node, node),
+            player.X, player.Y, node.X, node.Y, _playerCoverage.Strength, 2.5f);
     }
 }
