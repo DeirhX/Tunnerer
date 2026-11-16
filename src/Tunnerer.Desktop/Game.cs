@@ -217,7 +217,8 @@ public partial class Game : IDisposable
         int scale = _renderViewState.CellPixels;
 
         // WASD panning: read keyboard state directly through the controller's held keys.
-        const int panSpeed = 4;
+        // Four points a tick, in device pixels: scaled by density so the pan keeps its speed on a Retina display.
+        int panSpeed = Math.Max(1, (int)MathF.Round(4f * _renderViewState.PixelDensity));
         int dx = 0, dy = 0;
         if (_p1Controller.IsLeftHeld) dx -= panSpeed;
         if (_p1Controller.IsRightHeld) dx += panSpeed;

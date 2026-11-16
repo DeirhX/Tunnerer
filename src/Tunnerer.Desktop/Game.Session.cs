@@ -177,7 +177,7 @@ public partial class Game
 
         var sound = new SoundMenuState(_audio.Enabled, AudioOptions.Volume, AudioOptions.Muted);
         SessionOverlayAction action = _sessionOverlay.Draw(
-            _hud.ViewportRect, _paused, _showControls, Seed, ReplayArguments, deltaTime, ref sound,
+            _hud.PlayRect, _paused, _showControls, Seed, ReplayArguments, deltaTime, ref sound,
             showKeyReminder: IsInteractiveSession);
         // The menu only says what the player asked for; GameAudio owns the setting.
         if (sound.Muted != AudioOptions.Muted)

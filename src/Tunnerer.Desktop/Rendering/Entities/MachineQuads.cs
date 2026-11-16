@@ -23,7 +23,8 @@ public static class MachineQuads
                 !MachinePresentations.Get(machine.Type).Sprite.ShowsBattery)
                 continue;
             PositionF at = interpolator.MachinePosition(i, alpha);
-            LinkQuads.SubmitChargeBeam(beams, machine.ChargingFrom, machine.Position,
+            // Keyed by the anchor, where the machine was planted, so the beam follows a harvester as it crawls.
+            LinkQuads.SubmitChargeBeam(beams, machine.ChargingFrom, machine.Anchor,
                 machine.ChargingFrom.X, machine.ChargingFrom.Y, at.X, at.Y, 1f);
         }
     }
