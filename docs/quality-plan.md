@@ -137,5 +137,4 @@ Behaviour-preserving:
 Change results (owner's call, add to Decisions):
 - `TankThermals` still reads coolant capacity, dock cooling, dig radius and base cooldown from `Tweaks`; routing them through `SimulationSettings` changes tests that inject settings.
 - Bot reads the int `Reactor.Heat` mirror and pre-coolant thresholds instead of `Tank.HeatBudget`.
-- Pylon plays the relay build sound (`SoundBank` has no pylon sound).
 - Bullets never hit machines (nothing passes `onMachine`, nothing lowers machine health), so machines cannot be destroyed. Gameplay decision.
