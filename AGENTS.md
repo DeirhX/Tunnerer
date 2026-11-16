@@ -57,9 +57,10 @@ Adding a machine:
    action, interval, colour, build cost, build key, and the traits Core reads instead of the type (`BatteryCapacity`,
    `IsLinkNode`, `RequiresLinkToPlant`, `IsCharger`). `MachineBehaviorTableTests` must pass.
 3. Cost, interval, colour and battery size in `Config/Tweaks.cs`.
-4. Desktop: a `MachinePresentation` (name, key, build slot, sound; `Presentation/MachinePresentation.cs`), and its
-   sprite in `Rendering/Entities/MachineQuads.cs` and `PreviewQuads.cs`. Only three build keys exist (`BuildKey`),
-   so a fourth machine also needs a new key. The full recipe is in `src/Tunnerer.Core/ARCHITECTURE.md`.
+4. Desktop: a `MachinePresentation` (name, key, build slot, sound, and the `MachineSprite` the entity emitters draw:
+   shader shape, size, gauge, sense ring, battery, preview reach; `Presentation/MachinePresentation.cs`).
+   `MachinePresentationTests` must pass. A new shape also needs a shader branch. Only three build keys exist
+   (`BuildKey`), so a fourth machine also needs a new key. The full recipe is in `src/Tunnerer.Core/ARCHITECTURE.md`.
 
 Adding a shader:
 
