@@ -200,10 +200,8 @@ public class World
 
         ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
         ProfileSection(ref Profile.Cooldown, () => _terrain.CoolDown(_simulationSettings.ThermalArtificialCoolingPerFrame));
-        Profile.CooldownPrep += _terrain.LastCoolDownProfile.Prep;
         Profile.CooldownSim += _terrain.LastCoolDownProfile.Simulate;
         Profile.CooldownMark += _terrain.LastCoolDownProfile.MarkDirty;
-        Profile.CooldownWriteBack += _terrain.LastCoolDownProfile.WriteBack;
         Profile.CooldownActiveTiles += _terrain.LastCoolDownProfile.ActiveTiles;
         Profile.CooldownRegionCount += _terrain.LastCoolDownProfile.RegionCount;
         if (_terrain.LastCoolDownProfile.UsedSparse) Profile.CooldownSparseFrames++;
@@ -324,10 +322,8 @@ public class SimulationProfile
 
     public TimeSpan Collision;
     public TimeSpan Cooldown;
-    public TimeSpan CooldownPrep;
     public TimeSpan CooldownSim;
     public TimeSpan CooldownMark;
-    public TimeSpan CooldownWriteBack;
     public long CooldownActiveTiles;
     public long CooldownRegionCount;
     public int CooldownSparseFrames;
@@ -358,8 +354,7 @@ public class SimulationProfile
             $"bases={Avg(Bases):F3} proj={Avg(Projectiles):F3} tanks={Avg(Tanks):F3} harv={Avg(Harvesters):F3} " +
             $"spr={Avg(Sprites):F3} links={Avg(Links):F3} " +
             $"| total={Avg(Total):F3} ms (avg over {FrameCount} frames)");
-        ReportSink($"[Profile+] coolPrep={Avg(CooldownPrep):F3} coolSim={Avg(CooldownSim):F3} " +
-            $"coolMark={Avg(CooldownMark):F3} coolCopy={Avg(CooldownWriteBack):F3} ms");
+        ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolMark={Avg(CooldownMark):F3} ms");
         ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
             $"sparseFrames={CooldownSparseFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
         ReportSink($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} ledgerResidualSigned={AvgValue(ThermalLedgerResidualSigned):F5} " +
@@ -373,7 +368,7 @@ public class SimulationProfile
 
     public void Reset()
     {
-        Collision = Cooldown = CooldownPrep = CooldownSim = CooldownMark = CooldownWriteBack
+        Collision = Cooldown = CooldownSim = CooldownMark
             = Regrow = Projectiles = Tanks = Harvesters = Sprites = Bases = Links = Total = TimeSpan.Zero;
         CooldownActiveTiles = 0;
         CooldownRegionCount = 0;

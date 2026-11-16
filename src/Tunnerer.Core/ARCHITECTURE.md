@@ -166,7 +166,7 @@ Core:
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), added to the
    `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, build cost
    and `BuildKey`, plus the traits Core reads instead of the type: `BatteryCapacity`, `IsLinkNode`,
-   `RequiresLinkToPlant`, `IsCharger`. The action is a static method in `MachineBehaviors` taking
+   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`. The action is a static method in `MachineBehaviors` taking
    `(Machine, MachineContext)`.
 3. Constants (cost, interval, battery) in `Tweaks.Machine`, colour in `Tweaks.Colors`.
 4. Each `BuildKey` builds exactly one machine, so a fourth machine needs a new key: a value in `BuildKey`, a field

@@ -42,14 +42,6 @@ public class MachineList
         }
     }
 
-    public Machine? TestCollide(Position pos)
-    {
-        foreach (var m in _machines)
-            if (m.IsAlive && m.TestCollide(pos))
-                return m;
-        return null;
-    }
-
     public int CopyRenderStates(Span<MachineRenderState> destination)
     {
         int count = Math.Min(destination.Length, _machines.Count);
