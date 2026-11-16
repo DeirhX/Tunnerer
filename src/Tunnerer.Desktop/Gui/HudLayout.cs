@@ -27,13 +27,10 @@ public sealed class HudLayout
     public const float BuildX = MaterialsX + MaterialsPanelW;
 
     /// <summary>
-    /// The left part's end cap: the art was painted as one strip, so MATERIALS stops mid-strut where BUILD STRUCTURES
-    /// used to join it. The cap is the build panel's finished left edge, mirrored, this many art pixels wide.
+    /// Widths of the two parts, in art pixels: the left one ends where BUILD STRUCTURES begins. The art was painted as
+    /// one strip, so the facing ends of MATERIALS and BUILD STRUCTURES are cut along their frames, with a bevel.
     /// </summary>
-    public const float LeftCapW = 30f;
-
-    /// <summary>Widths of the two parts on screen, in art pixels.</summary>
-    public const float LeftW = BuildX + LeftCapW, RightW = BuildPanelW;
+    public const float LeftW = BuildX, RightW = BuildPanelW;
 
     /// <summary>The narrowest clear gap between the two parts, in art pixels; narrower displays shrink the HUD.</summary>
     public const float MinCenterGap = 192f;

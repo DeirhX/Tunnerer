@@ -66,7 +66,6 @@ public sealed class HudStrip
         DrawPanelArt(dl, _heatIconTex, HeatX, HeatPanelW);
         DrawPanelArt(dl, _shieldIconTex, ShieldX, ShieldPanelW);
         DrawPanelArt(dl, _panelFrameTex, MaterialsX, MaterialsPanelW);
-        DrawLeftEndCap(dl);
         DrawPanelArt(dl, _buildPanelTex, BuildX, BuildPanelW);
         DrawPanelLabels(dl);
 
@@ -120,17 +119,6 @@ public sealed class HudStrip
     {
         var min = At(x, 0f);
         dl.AddImage(texture, min, min + new Vector2(S(w), S(StripH)));
-    }
-
-    /// <summary>
-    /// Closes the left part after MATERIALS with the build panel's left edge, mirrored so its finished side faces the
-    /// open middle of the screen.
-    /// </summary>
-    private void DrawLeftEndCap(ImDrawListPtr dl)
-    {
-        var min = At(MaterialsX, 0f) + new Vector2(S(MaterialsPanelW), 0f);
-        float u = LeftCapW / BuildPanelW;
-        dl.AddImage(_buildPanelTex, min, min + new Vector2(S(LeftCapW), S(StripH)), new Vector2(u, 0f), new Vector2(0f, 1f));
     }
 
     private void DrawBar(ImDrawListPtr dl, float x, float y, float w, float h, float fill, uint color)
