@@ -49,11 +49,9 @@ public class ProjectileList
         return behaviors;
     }
 
-    public ProjectileList(int? seed = null)
+    public ProjectileList(int seed)
     {
-        _rng = seed.HasValue
-            ? new FastRandom(seed.Value)
-            : new FastRandom((uint)Environment.TickCount);
+        _rng = new FastRandom(seed);
     }
 
     public int Count => _projectiles.Count + _pending.Count;

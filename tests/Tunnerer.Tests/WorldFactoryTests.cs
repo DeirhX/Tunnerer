@@ -43,15 +43,17 @@ public class WorldFactoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FastGeneration_IsParallelAndUnseeded(bool terrainTest)
+    public void FastGeneration_IsParallelWithARandomSeed(bool terrainTest)
     {
-        // Pins today's behaviour: --fast also gives up determinism (an open decision, see WorldFactory).
+        // Pins today's behaviour: --fast also picks a random seed (an open decision, see WorldFactory). The seed is
+        // still reported, so a --fast match can be rebuilt from it.
         Assert.False(WorldFactory.IsSimulationDeterministic(LevelGenMode.Optimized));
         Assert.True(WorldFactory.IsSimulationDeterministic(LevelGenMode.Deterministic));
 
         var built = WorldFactory.Build(new WorldLaunchOptions(
             terrainTest, SmallSize, LevelGenMode.Optimized, Seed: 123));
         Assert.True(built.Parallel);
-        Assert.Null(built.BotSeed);
+        Assert.InRange(built.Seed, 1, int.MaxValue);
+        Assert.Equal(built.Seed + 2, built.BotSeed);
     }
 }

@@ -23,7 +23,6 @@ public class World
     private readonly SpriteList _sprites = new();
     private readonly CollisionSolver _collisionSolver;
     private readonly TerrainRegrowth _terrainRegrowth;
-    private readonly bool _deterministicSimulation;
     private readonly int _hotRockPocketCount;
     private readonly List<Position> _hotRockPockets = new();
     private readonly int _simulationSeed;
@@ -130,13 +129,12 @@ public class World
         int hotRockPocketCount = 0,
         SimulationSettings? simulationSettings = null)
     {
-        _deterministicSimulation = deterministicSimulation;
         _hotRockPocketCount = hotRockPocketCount;
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
         _tankBases = new TankBases(_simulationSettings);
-        _projectiles = new ProjectileList(deterministicSimulation ? _simulationSeed ^ 0x5f3759df : null);
+        _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df);
         _linkMap = new LinkMap(deterministicSimulation, _simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
         _terrainRegrowth = new TerrainRegrowth(deterministicSimulation, enableTerrainRegrowth, _simulationSeed);
@@ -149,7 +147,10 @@ public class World
             _terrain[i] = generatedTerrain[i];
 
         _terrain.MaterializeTerrain(parallel: parallelMaterialize);
-        _terrain.DecorateTerrain(decorationSeed.HasValue ? decorationSeed.Value + 100 : null);
+        // Without a decoration seed, decorations and pockets follow the generated level (its spawns) and the
+        // simulation seed, so the same inputs always give the same world while different levels still differ.
+        int seed = decorationSeed ?? SeedFromSpawns(spawns) ^ _simulationSeed;
+        _terrain.DecorateTerrain(seed + 100);
 
         for (int i = 0; i < spawns.Length; i++)
             _tankBases.AddBase(spawns[i], i);
@@ -160,10 +161,7 @@ public class World
 
         if (_hotRockPocketCount > 0)
         {
-            // Without a decoration seed the pockets follow the generated level (its spawns) and the simulation seed,
-            // so the same inputs always give the same pockets while different levels still differ.
-            int pocketSeed = decorationSeed.HasValue ? decorationSeed.Value + 200 : SeedFromSpawns(spawns) ^ _simulationSeed;
-            _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, pocketSeed));
+            _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, seed + 200));
 
             // Let the heat spread a little before play starts so the pockets do not begin as isolated hot dots.
             for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
@@ -177,9 +175,7 @@ public class World
             {
                 uint mixed = (uint)_simulationSeed ^ (uint)(i + 1) * 0x9e3779b9u;
                 int tankSeed = unchecked((int)mixed);
-                _tankList.AddTank(i, tankBase,
-                    _deterministicSimulation ? tankSeed : 0,
-                    _simulationSettings);
+                _tankList.AddTank(i, tankBase, tankSeed, _simulationSettings);
             }
         }
     }

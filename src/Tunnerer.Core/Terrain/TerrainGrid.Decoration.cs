@@ -4,9 +4,9 @@ using Tunnerer.Core.Config;
 
 public partial class TerrainGrid
 {
-    public void DecorateTerrain(int? seed = null)
+    public void DecorateTerrain(int seed)
     {
-        var rng = seed.HasValue ? new Random(seed.Value) : Random.Shared;
+        var rng = new Random(seed);
         int w = Width, h = Height;
 
         PlaceGoldVeins(rng, w, h);

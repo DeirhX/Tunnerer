@@ -18,10 +18,13 @@ public readonly record struct WorldLaunchOptions(
     bool TerrainTest, Size? TerrainSizeOverride, LevelGenMode GenMode, int Seed);
 
 /// <param name="Parallel">Draw and materialise on several threads (only with <c>--fast</c>).</param>
-/// <param name="BotSeed">Seed for the enemy tank's AI; null when the simulation is not deterministic.</param>
-public sealed record BuiltWorld(World World, bool Parallel, int? BotSeed)
+/// <param name="Seed">The seed the world was built from (random when the simulation is not deterministic).</param>
+public sealed record BuiltWorld(World World, bool Parallel, int Seed)
 {
     public Size TerrainSize => World.Terrain.Size;
+
+    /// <summary>Seed for the enemy tank's AI.</summary>
+    public int BotSeed => Seed + 2;
 }
 
 /// <summary>
@@ -31,7 +34,8 @@ public static class WorldFactory
 {
     /// <summary>
     /// <c>--fast</c> (<see cref="LevelGenMode.Optimized"/>) asks for fast, parallel level generation, and today that
-    /// also turns off simulation determinism: random seeds for the map, decorations and AI. Whether the two should be
+    /// also turns off simulation determinism: a random seed for the map, decorations and AI, picked here (Core never
+    /// reads the clock or unseeded randomness). Whether the two should be
     /// split is an open decision (see <c>docs/quality-plan.md</c>, "Decisions"); until it is made, this is the one
     /// place that ties them together.
     /// </summary>
@@ -41,11 +45,12 @@ public static class WorldFactory
     {
         bool deterministic = IsSimulationDeterministic(options.GenMode);
         bool parallel = options.GenMode == LevelGenMode.Optimized;
+        int seed = deterministic ? options.Seed : Random.Shared.Next(1, int.MaxValue);
         World world = options.TerrainTest
             ? BuildTerrainTest(options.TerrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize)
             : BuildMatch(options.TerrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize,
-                options.GenMode, options.Seed, deterministic, parallel);
-        return new BuiltWorld(world, parallel, BotSeed: deterministic ? options.Seed + 2 : null);
+                options.GenMode, seed, deterministic, parallel);
+        return new BuiltWorld(world, parallel, seed);
     }
 
     private static World BuildTerrainTest(Size size)
@@ -70,19 +75,19 @@ public static class WorldFactory
     private static World BuildMatch(Size size, LevelGenMode genMode, int seed, bool deterministic, bool parallel)
     {
         var modeLabel = parallel ? "optimized" : "deterministic";
-        Console.WriteLine($"Generating terrain {size.X}x{size.Y} ({modeLabel}, seed={(deterministic ? seed.ToString(CultureInfo.InvariantCulture) : "random")})...");
+        Console.WriteLine($"Generating terrain {size.X}x{size.Y} ({modeLabel}, seed={seed.ToString(CultureInfo.InvariantCulture)}{(deterministic ? "" : ", random")})...");
         var genWatch = Stopwatch.StartNew();
         var generator = new ToastGenerator();
-        var (terrain, spawns) = generator.Generate(size, deterministic ? seed : null, genMode);
+        var (terrain, spawns) = generator.Generate(size, seed, genMode);
         Console.WriteLine($"Level generated in {genWatch.Elapsed.TotalMilliseconds:F0} ms, {spawns.Length} spawns");
 
         var world = new World(
             size,
             deterministicSimulation: deterministic,
-            simulationSeed: deterministic ? seed : 0,
+            simulationSeed: seed,
             hotRockPocketCount: Tweaks.World.HotRockPocketCount);
         world.Profile.ReportSink = static line => Console.WriteLine(line);
-        world.Initialize(terrain, spawns, decorationSeed: deterministic ? seed + 1 : null, parallelMaterialize: parallel);
+        world.Initialize(terrain, spawns, decorationSeed: seed + 1, parallelMaterialize: parallel);
         if (world.HotRockPockets.Count > 0)
             Console.WriteLine($"[HotRock] {world.HotRockPockets.Count} pocket(s) at " +
                 string.Join(", ", world.HotRockPockets.Select(p => $"({p.X},{p.Y})")));

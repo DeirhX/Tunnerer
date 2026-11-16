@@ -41,9 +41,9 @@ public class BotTankAI
     private int _timeToChange;
     private DirectionF _aimDirection;
 
-    public BotTankAI(int? seed = null)
+    public BotTankAI(int seed)
     {
-        _rng = seed.HasValue ? new Random(seed.Value) : new Random();
+        _rng = new Random(seed);
         _navigator = new BotNavigator(_rng);
         _gunner = new BotGunner(_rng);
     }

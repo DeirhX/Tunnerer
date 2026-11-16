@@ -20,18 +20,11 @@ public class SourceGuardTests
         ("Stopwatch", new Regex(@"\bStopwatch\b")),
     ];
 
-    // Unseeded fallbacks and profiling timers that predate the rule. Profiling timers must never feed simulation state.
+    // Profiling timers. They must never feed simulation state.
     private static readonly HashSet<(string File, string Pattern)> NonDeterministicAllowed =
     [
-        ("src/Tunnerer.Core/Entities/Projectiles/ProjectileList.cs", "Environment.TickCount"),
-        ("src/Tunnerer.Core/Entities/Tank.cs", "Environment.TickCount"),
-        ("src/Tunnerer.Core/Input/BotTankAI.cs", "new Random()"),
-        ("src/Tunnerer.Core/LevelGen/ToastGenerator.cs", "Environment.TickCount"),
-        ("src/Tunnerer.Core/Terrain/TerrainGrid.Decoration.cs", "Random.Shared"),
         ("src/Tunnerer.Core/Terrain/TerrainGrid.Heat.cs", "Stopwatch"),
         ("src/Tunnerer.Core/Terrain/TerrainGrid.HeatSparse.cs", "Stopwatch"),
-        ("src/Tunnerer.Core/Terrain/TerrainRegrowth.cs", "Stopwatch"),
-        ("src/Tunnerer.Core/Terrain/TerrainRegrowth.cs", "new Random()"),
         ("src/Tunnerer.Core/World.cs", "Stopwatch"),
     ];
 

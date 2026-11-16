@@ -130,8 +130,7 @@ public class Tank
         Turret = new TankTurret(color);
         _build = new TankBuildController(this, color);
         _lifecycle = new TankLifecycle(this, _build);
-        int fallbackSeed = Environment.TickCount ^ HashSeed(color, tankBase.Position);
-        _digger = new TankDigger(this, _thermals, rngSeed != 0 ? rngSeed : fallbackSeed);
+        _digger = new TankDigger(this, _thermals, rngSeed != 0 ? rngSeed : HashSeed(color, tankBase.Position));
         Direction = _digger.RandomDirection();
         Heat = Tweaks.Tank.InitialHeat;
     }

@@ -90,7 +90,7 @@ Independent review of the whole diff.
 
 | Item | Effect |
 |---|---|
-| Remove non-deterministic fallbacks (parallel regrowth, "Optimized" level gen, wall-clock seeds); split `--fastgen` from determinism | changes `--fastgen` runs only |
+| Split `--fast` from determinism (it now only picks a random seed and uses `LinkMap`'s other id scheme; the fallbacks themselves are gone) | changes `--fast` runs only |
 | Fix `PostParamsBlock` one-float misalignment, add layout guard | changes how the game looks |
 | Core per-step event list (`World.StepEvents`) and audio driven by it instead of state diffing | audio timing may shift |
 | One tank collision shape (sprite vs `TankCollisionMask` vs footprint) | changes collision results |
@@ -113,6 +113,11 @@ Cross-platform determinism (2026-11-16): Windows and macOS/Linux gave different 
 `SourceGuardTests.Core_UsesDeterministicMath` forbids the platform functions in Core. Windows results are unchanged;
 one fingerprint now holds on every OS. Hot-rock pockets without a decoration seed are now seeded from the spawns and
 simulation seed instead of the clock.
+
+No unseeded fallbacks (2026-11-16): `ProjectileList`, `Tank`, `BotTankAI`, `ToastGenerator` and terrain decoration
+require a seed, and Desktop picks a random one for `--fast` matches (and logs it). Terrain regrowth has one
+implementation: hashed per-cell rolls on the step clock, optionally parallel over rows, giving the same result either
+way (`TerrainRegrowthTests`). Core's clock allow-list now holds only profiling timers. Seeded runs are unchanged.
 
 After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
 
