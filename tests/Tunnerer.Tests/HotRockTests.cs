@@ -15,7 +15,7 @@ namespace Tunnerer.Tests;
 /// </summary>
 public class HotRockTests
 {
-    private const int Hot = (int)Tweaks.World.ThermalFixedHotRockTemperature;
+    private static readonly int Hot = (int)Tweaks.World.ThermalMaterials[ThermalMaterial.HotRock].FixedTemperature.GetValueOrDefault();
 
     /// <summary>A dirt block with a two-row tunnel just below a pocket, so the pocket borders open air.</summary>
     private static TerrainGrid PocketNextToTunnel(out Position pocketCenter, out int tunnelY)
@@ -45,8 +45,9 @@ public class HotRockTests
         Assert.False(Pixel.IsTorchable(TerrainPixel.HotRock));
         Assert.False(Pixel.IsRock(TerrainPixel.HotRock), "ordinary rock can be blasted away; a pocket must not be");
         Assert.Equal(ThermalMaterial.HotRock, Pixel.GetThermalMaterial(TerrainPixel.HotRock));
-        Assert.True(TerrainHeatEngine.IsFixedTemperatureMaterial(ThermalMaterial.HotRock));
-        Assert.Equal(Tweaks.World.ThermalFixedHotRockTemperature, new TerrainHeatEngine().GetFixedTemperature(ThermalMaterial.HotRock));
+        var engine = new TerrainHeatEngine();
+        Assert.True(engine.IsFixedTemperatureMaterial(ThermalMaterial.HotRock));
+        Assert.Equal(Tweaks.World.ThermalMaterials[ThermalMaterial.HotRock].FixedTemperature, engine.GetFixedTemperature(ThermalMaterial.HotRock));
     }
 
     [Fact]

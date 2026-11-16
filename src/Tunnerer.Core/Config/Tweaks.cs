@@ -1,5 +1,7 @@
 namespace Tunnerer.Core.Config;
 
+using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 
 public readonly record struct ExplosionParams(int ShrapnelCount, float Speed, int Frames);
@@ -36,40 +38,38 @@ public static class Tweaks
         public const float ThermalDt = 2.0f;
         public const float ThermalAmbientTemperature = 0f;
 
-        // Effective heat capacities (higher means temperature changes slower).
-        public const float ThermalCapacityAir = 0.8f;
-        public const float ThermalCapacityDirt = 1.4f;
-        public const float ThermalCapacityStone = 2.6f;
-        public const float ThermalCapacityBase = 2.6f;
-        public const float ThermalCapacityConstantEnergy = 2.0f;
-
-        // Pairwise transmission speed (conductance).
-        public const float ThermalKAirAir = 0.240f;
-        public const float ThermalKAirDirt = 0.035f;
-        public const float ThermalKAirStone = 0.220f;
-        public const float ThermalKAirBase = 0.450f;
-        public const float ThermalKDirtDirt = 0.045f;
-        public const float ThermalKDirtStone = 0.070f;
-        public const float ThermalKDirtBase = 0.090f;
-        public const float ThermalKStoneStone = 0.300f;
-        public const float ThermalKStoneBase = 0.450f;
-        public const float ThermalKBaseBase = 0.200f;
-        public const float ThermalKAirConstantEnergy = 0.550f;
-        public const float ThermalKDirtConstantEnergy = 0.100f;
-        public const float ThermalKStoneConstantEnergy = 0.450f;
-        public const float ThermalKBaseConstantEnergy = 0.450f;
-        public const float ThermalKConstantEnergyConstantEnergy = 0.300f;
+        // One row per thermal material (see ThermalMaterialProperties):
+        // - capacity: energy per degree (higher means temperature changes slower);
+        // - conductivity: half-cell conductance; two touching cells conduct ka * kb / (ka + kb), so a material
+        //   against itself conducts half its value. Air's value is the air field's, between neighbouring cells;
+        // - air exchange: conductance between a cell's terrain and the air in the same cell;
+        // - fixed: the temperature the cell is pinned to (a source or sink), or none.
+        // A pair the rule cannot reproduce is listed after the rows as an override (either order).
+        // Base and ConstantEnergy cells are heat sinks, so they conduct far better than rock and pull heat out of
+        // whatever touches them. Hot rock conducts like stone and is pinned hot: a permanent heat source for any
+        // tunnel it touches (pocket placement is opt-in per world, World ctor).
+        public static ThermalMaterialTable ThermalMaterials { get; } = new(
+        [
+            (ThermalMaterial.Air, new(HeatCapacity: 0.8f, Conductivity: 0.48f, AirExchange: 0f)),
+            (ThermalMaterial.Dirt, new(HeatCapacity: 1.4f, Conductivity: 0.09f, AirExchange: 0.035f)),
+            (ThermalMaterial.Stone, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f)),
+            (ThermalMaterial.Base, new(HeatCapacity: 2.6f, Conductivity: 1.8f, AirExchange: 0.45f, FixedTemperature: 0f)),
+            (ThermalMaterial.ConstantEnergy, new(HeatCapacity: 2.0f, Conductivity: 1.8f, AirExchange: 0.55f, FixedTemperature: 0f)),
+            (ThermalMaterial.HotRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: 100f)),
+        ],
+        // Tuned values the series rule cannot produce (it would give dirt-stone 0.0783 and dirt against a sink
+        // 0.0857): dirt stays a poor conductor against rock and a slightly better one against bases and gold.
+        [
+            new(ThermalMaterial.Dirt, ThermalMaterial.Stone, 0.07f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.HotRock, 0.07f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.Base, 0.09f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy, 0.1f),
+        ]);
 
         // Air-field coupling knobs for conservative air/terrain exchange.
         public const float ThermalAirCellCoupling = 0.120f;
         public const float ThermalAirNeighborCoupling = 0.060f;
 
-        public const float ThermalFixedBaseTemperature = 0f;
-        public const float ThermalFixedConstantEnergyTemperature = 0f;
-
-        // Hot rock pockets: indestructible rock pinned at a fixed high temperature. They are permanent heat sources
-        // that push heat into any tunnel they touch. Pocket placement is opt-in per world (World ctor).
-        public const float ThermalFixedHotRockTemperature = 100f;
         public const int HotRockPocketCount = 8;
         // Gradient toward the centre: a large placeholder core at the map centre, and the other pockets biased toward
         // it (uniform sample ^ bias; 1 = uniform scatter) and bigger there. Starting values for the spike.

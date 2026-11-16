@@ -111,7 +111,7 @@ Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsM
 ## Heat
 
 Heat lives in two float fields on `TerrainGrid`, terrain and air. Energy is temperature times heat capacity
-(`TerrainHeatEngine.GetHeatCapacity` per `ThermalMaterial`, `ThermalCapacityAir` for air). In an air cell the
+(`TerrainHeatEngine.GetHeatCapacity` per `ThermalMaterial`, `AirHeatCapacity` for air). In an air cell the
 terrain field only mirrors the air field, so such a cell holds one store.
 
 Each tick `TerrainGrid.CoolDown` asks `ThermalScheduler.Decide` what to do: sleep (nothing active, or the last step
@@ -204,13 +204,21 @@ Desktop:
 1. A value in `ThermalMaterial` (`Terrain/TerrainPixel.cs`), contiguous from zero.
 2. Map pixels to it in `Pixel.DeriveThermalMaterial`. A new `TerrainPixel` also needs an entry in
    `Pixel.BuildBehaviorTable` and its name in the reviewed list of `SimulationTableGuardTests`.
-3. In `Thermal/TerrainHeatEngine.cs`: raise `MaterialCount`; add a case to `ComputeHeatCapacity` and a pair for
-   every other material in `ComputeConductance` (unlisted pairs silently get the base-to-base value). If it holds
-   a fixed temperature, add it to `IsFixedTemperatureMaterial` and `GetFixedTemperature`; if entities must not
-   draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.
-4. Constants in `Tweaks.World`, a property on `SimulationSettings` and its copy in `SimulationSettings.FromTweaks`.
-   Thermal code reads only the settings (`SourceGuardTests`).
-5. Desktop shades pixels, not materials: a new pixel needs a case in `TerrainAuxBuilder` and
+3. Its row in `Tweaks.World.ThermalMaterials`, a `ThermalMaterialTable` with one `ThermalMaterialProperties` per
+   material (the constructor throws on a missing or doubled row):
+   - `HeatCapacity`: energy per degree.
+   - `Conductivity`: the conductance of half a cell. Two touching cells conduct their halves in series,
+     `ka * kb / (ka + kb)`, so a material against itself conducts half its value and against a much better
+     conductor (a base, a gold core) nearly all of it. Air's value is the air field's, between neighbouring cells.
+     A pair that needs a value the rule cannot produce gets a `ThermalPairOverride` in the table's override list
+     (either order; today dirt against stone, hot rock, base and gold/core). The engine copies the pair table once
+     at construction, so the solver's inner loop pays one array read.
+   - `AirExchange`: conductance between the cell's terrain and the air in the same cell.
+   - `FixedTemperature`: set it for a source or sink; `ResolveTerrainTemperature` pins the cell there each step.
+   If entities must not draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.
+   The table reaches thermal code through `SimulationSettings.ThermalMaterials` (`SourceGuardTests`), so a test can
+   swap a row with `ThermalMaterialTable.With`.
+4. Desktop shades pixels, not materials: a new pixel needs a case in `TerrainAuxBuilder` and
    `TerrainMaterialCoverage`.
 
 ### Adding a collidable entity

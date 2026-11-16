@@ -27,7 +27,7 @@ public class TankBase
     {
         Position = position;
         Color = color;
-        _baseTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalFixedBaseTemperature;
+        _baseTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalMaterials[ThermalMaterial.Base].FixedTemperature.GetValueOrDefault();
     }
 
     public bool IsInside(Position tested) => BoundingBox.IsInside(tested, Position);
