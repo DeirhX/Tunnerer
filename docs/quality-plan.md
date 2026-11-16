@@ -119,19 +119,21 @@ require a seed, and Desktop picks a random one for `--fast` matches (and logs it
 implementation: hashed per-cell rolls on the step clock, optionally parallel over rows, giving the same result either
 way (`TerrainRegrowthTests`). Core's clock allow-list now holds only profiling timers. Seeded runs are unchanged.
 
+Behaviour-preserving cleanup (2026-11-16, PR after #24): every rule the HUD computed is now a Core query (`Tank`,
+`TankBase`, `World`, `NetworkStatus`; `PlayerStatusTests`); entity emitters draw machines from
+`MachinePresentation.Sprite` with no `MachineType` switch (vertex hashes identical); `NetworkStatus` asks the
+`IsMiner`/`IsHeatPump` traits; dead code deleted (foam projectiles and sprite, `MachineList.TestCollide`,
+`StepConservative`, always-zero profile timings, 18 unused tweaks). Fingerprints unchanged; Ubuntu CI is required.
+
 After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
 
 ## Follow-ups found during the work (not started)
 
 Behaviour-preserving:
-- Rules the HUD still computes: "has left base" (`NetworkPanel`), "cooling down", "build from base store", radiator load and fill ratios, `PlayerWarnings` thresholds, heat-scale range. Move each to a Core query.
-- Entity emitters still switch on `MachineType` in four places; add a shader kind to `MachinePresentation`.
-- `TerrainHeatEngine.StepConservative` is now called only by tests; `TerrainGrid` keeps thin thermal forwards for `TerrainGrid.cs`/`HotRock.cs`.
+- `TerrainGrid` keeps thin thermal forwards for `TerrainGrid.cs`/`HotRock.cs`.
+- HintSelector and BuildPanel compare `dirt >= cost` themselves; a `Tank.CanBuild(type)` query would own it.
 - `VisualTime` is a real-time stopwatch, so step-locked screenshot runs are not reproducible; derive it from steps in automated runs.
 - `RenderingSourceGuardTests`-style guard for `PostParamsBlock` layout vs `PostParams.hlsli` (blocked on the misalignment decision).
-- `NetworkStatus.Collect` still checks machine types directly instead of asking `MachineBehaviors`.
-- `[Profile+]` `coolPrep`/`coolCopy` are always 0 since the thermal snapshot copy was removed; drop them.
-- Dead or unreachable: foam projectiles and their factories, `MachineList.TestCollide`.
 - `EntityPs_DispatchesEveryShapeKind` and the thermal ratchet were tightened after review; `Machine.Advance` relay ignores `dt` (same result while `AdvanceStep` is the default).
 
 Change results (owner's call, add to Decisions):
