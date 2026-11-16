@@ -46,7 +46,7 @@ public readonly record struct NetworkStatus(
         {
             if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != tankBase)
                 continue;
-            if (machine.Type == MachineType.Harvester)
+            if (machine.Behavior.IsMiner)
             {
                 harvesters++;
                 switch (MachineBehaviors.HarvesterStateOf(machine))
@@ -56,7 +56,7 @@ public readonly record struct NetworkStatus(
                     case HarvesterState.TooHot: tooHot++; break;
                 }
             }
-            else if (machine.Type == MachineType.Relay)
+            else if (machine.Behavior.IsHeatPump)
             {
                 relays++;
                 if (machine.LinkPoint?.IsPowered == true)

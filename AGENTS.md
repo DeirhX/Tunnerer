@@ -55,7 +55,7 @@ Adding a machine:
 1. `MachineType` in `Entities/Machines/Machine.cs`.
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), listed in `MachineBehaviors.All`:
    action, interval, colour, build cost, build key, and the traits Core reads instead of the type (`BatteryCapacity`,
-   `IsLinkNode`, `RequiresLinkToPlant`, `IsCharger`). `MachineBehaviorTableTests` must pass.
+   `IsLinkNode`, `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`). `MachineBehaviorTableTests` must pass.
 3. Cost, interval, colour and battery size in `Config/Tweaks.cs`.
 4. Desktop: a `MachinePresentation` (name, key, build slot, sound; `Presentation/MachinePresentation.cs`), and its
    sprite in `Rendering/Entities/MachineQuads.cs` and `PreviewQuads.cs`. Only three build keys exist (`BuildKey`),

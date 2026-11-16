@@ -41,6 +41,10 @@ public class MachineBehaviorTableTests
 
         Assert.Single(MachineBehaviors.All, b => b.IsCharger);
         Assert.True(MachineBehaviors.Pylon.IsCharger);
+        Assert.Single(MachineBehaviors.All, b => b.IsMiner);
+        Assert.True(MachineBehaviors.Harvester.IsMiner);
+        Assert.Single(MachineBehaviors.All, b => b.IsHeatPump);
+        Assert.True(MachineBehaviors.Relay.IsHeatPump);
     }
 
     [Fact]
