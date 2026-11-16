@@ -111,7 +111,8 @@ Cross-platform determinism (2026-11-16): Windows and macOS/Linux gave different 
 `Math.Sin/Cos/Pow` and `MathF.*` call the C runtime, which rounds differently per OS. Core now calls
 `Types/DeterministicMath` (polynomials using only exactly-rounded operations, ~8 ns per call), and
 `SourceGuardTests.Core_UsesDeterministicMath` forbids the platform functions in Core. Windows results are unchanged;
-one fingerprint now holds on every OS.
+one fingerprint now holds on every OS. Hot-rock pockets without a decoration seed are now seeded from the spawns and
+simulation seed instead of the clock.
 
 After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
 
@@ -134,4 +135,3 @@ Change results (owner's call, add to Decisions):
 - Bot reads the int `Reactor.Heat` mirror and pre-coolant thresholds instead of `Tank.HeatBudget`.
 - Pylon plays the relay build sound (`SoundBank` has no pylon sound).
 - Bullets never hit machines (nothing passes `onMachine`, nothing lowers machine health), so machines cannot be destroyed. Gameplay decision.
-- `World.Initialize` seeds hot-rock pockets from `Environment.TickCount` when no decoration seed is given, even in deterministic mode.

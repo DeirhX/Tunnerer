@@ -160,7 +160,9 @@ public class World
 
         if (_hotRockPocketCount > 0)
         {
-            int pocketSeed = decorationSeed.HasValue ? decorationSeed.Value + 200 : Environment.TickCount;
+            // Without a decoration seed the pockets follow the generated level (its spawns) and the simulation seed,
+            // so the same inputs always give the same pockets while different levels still differ.
+            int pocketSeed = decorationSeed.HasValue ? decorationSeed.Value + 200 : SeedFromSpawns(spawns) ^ _simulationSeed;
             _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, pocketSeed));
 
             // Let the heat spread a little before play starts so the pockets do not begin as isolated hot dots.
@@ -180,6 +182,17 @@ public class World
                     _simulationSettings);
             }
         }
+    }
+
+    private static int SeedFromSpawns(Position[] spawns)
+    {
+        uint hash = 2166136261;
+        foreach (var spawn in spawns)
+        {
+            hash = (hash ^ (uint)spawn.X) * 16777619;
+            hash = (hash ^ (uint)spawn.Y) * 16777619;
+        }
+        return (int)hash;
     }
 
     public void Advance(Func<int, ControllerOutput> getInput)

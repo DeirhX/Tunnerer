@@ -32,7 +32,6 @@ public class SourceGuardTests
         ("src/Tunnerer.Core/Terrain/TerrainGrid.HeatSparse.cs", "Stopwatch"),
         ("src/Tunnerer.Core/Terrain/TerrainRegrowth.cs", "Stopwatch"),
         ("src/Tunnerer.Core/Terrain/TerrainRegrowth.cs", "new Random()"),
-        ("src/Tunnerer.Core/World.cs", "Environment.TickCount"),
         ("src/Tunnerer.Core/World.cs", "Stopwatch"),
     ];
 

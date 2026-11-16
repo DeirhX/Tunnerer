@@ -1,6 +1,7 @@
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
+using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
@@ -220,6 +221,24 @@ public class HotRockTests
             for (int j = i + 1; j < a.HotRockPockets.Count; j++)
                 Assert.True(Position.DistanceSquared(pocket, a.HotRockPockets[j]) >= minBetweenSq, "pockets too close together");
         }
+    }
+
+    [Fact]
+    public void WorldPockets_WithoutDecorationSeed_FollowTheLevelNotTheClock()
+    {
+        static IReadOnlyList<Position> Pockets(int seed)
+        {
+            var (terrain, spawns) = new ToastGenerator().Generate(TestHelpers.DefaultMapSize, seed: seed);
+            var world = new World(TestHelpers.DefaultMapSize, deterministicSimulation: true, simulationSeed: seed,
+                hotRockPocketCount: 4);
+            world.Initialize(terrain, spawns);
+            return world.HotRockPockets;
+        }
+
+        var first = Pockets(8181);
+        Assert.NotEmpty(first);
+        Assert.Equal(first, Pockets(8181));
+        Assert.NotEqual(first, Pockets(9292));
     }
 
     [Fact]
