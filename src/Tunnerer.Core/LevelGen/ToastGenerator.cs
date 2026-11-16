@@ -215,7 +215,7 @@ public class ToastGenerator
 
     #endregion
 
-    #region Optimized (parallel, non-deterministic)
+    #region Optimized (parallel; deterministic per seed, but a different map from Deterministic)
 
     private static void GenerateOptimized(TerrainGrid terrain, Position[] spawns, int seed)
     {

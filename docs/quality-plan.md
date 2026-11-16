@@ -90,7 +90,6 @@ Independent review of the whole diff.
 
 | Item | Effect |
 |---|---|
-| Split `--fast` from determinism (it now only picks a random seed and uses `LinkMap`'s other id scheme; the fallbacks themselves are gone) | changes `--fast` runs only |
 | Core per-step event list (`World.StepEvents`) and audio driven by it instead of state diffing | audio timing may shift |
 | One tank collision shape (sprite vs `TankCollisionMask` vs footprint) | changes collision results |
 | Data-driven thermal material table instead of N² conductance constants | refactor of the solver tables |
@@ -123,6 +122,13 @@ Behaviour-preserving cleanup (2026-11-16, PR after #24): every rule the HUD comp
 `MachinePresentation.Sprite` with no `MachineType` switch (vertex hashes identical); `NetworkStatus` asks the
 `IsMiner`/`IsHeatPump` traits; dead code deleted (foam projectiles and sprite, `MachineList.TestCollide`,
 `StepConservative`, always-zero profile timings, 18 unused tweaks). Fingerprints unchanged; Ubuntu CI is required.
+
+Owner decisions (2026-11-16, decisions-g3): `PostParamsBlock` matches `cbuffer PostParams` again
+(`PostParamsLayoutGuardTests` packs the .hlsli and compares offsets; gold veins, scorch glow and terrain lighting
+now use their configured values); the pylon has its own build sound; automated runs take visual time from the
+frame count, so repeated screenshot runs are byte-identical; `--fast` only means parallel (level gen,
+materialisation, regrowth), the simulation is always deterministic and `LinkMap` always uses hashed ids.
+Fingerprints unchanged.
 
 After Wave 4: 426 tests, 0 skipped, 0 warnings; no source file over 555 lines; fingerprints unchanged since 01d998e.
 

@@ -229,7 +229,7 @@ public class HotRockTests
         static IReadOnlyList<Position> Pockets(int seed)
         {
             var (terrain, spawns) = new ToastGenerator().Generate(TestHelpers.DefaultMapSize, seed: seed);
-            var world = new World(TestHelpers.DefaultMapSize, deterministicSimulation: true, simulationSeed: seed,
+            var world = new World(TestHelpers.DefaultMapSize, simulationSeed: seed,
                 hotRockPocketCount: 4);
             world.Initialize(terrain, spawns);
             return world.HotRockPockets;

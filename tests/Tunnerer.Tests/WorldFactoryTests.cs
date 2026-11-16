@@ -45,15 +45,25 @@ public class WorldFactoryTests
     [InlineData(true)]
     public void FastGeneration_IsParallelAndUsesTheGivenSeed(bool terrainTest)
     {
-        // --fast is not "deterministic" (an open decision, see WorldFactory), but it builds from the seed it is given
-        // so the pause menu's replay arguments rebuild the same map.
-        Assert.False(WorldFactory.IsSimulationDeterministic(LevelGenMode.Optimized));
-        Assert.True(WorldFactory.IsSimulationDeterministic(LevelGenMode.Deterministic));
-
+        // --fast builds from the seed it is given, so the pause menu's replay arguments rebuild the same map.
         var built = WorldFactory.Build(new WorldLaunchOptions(
             terrainTest, SmallSize, LevelGenMode.Optimized, Seed: 123));
         Assert.True(built.Parallel);
         Assert.Equal(123, built.Seed);
         Assert.Equal(built.Seed + 2, built.BotSeed);
+    }
+
+    [Fact]
+    public void FastMatch_SameSeedBuildsTheSameTerrainAndLinkIds()
+    {
+        var options = new WorldLaunchOptions(
+            TerrainTest: false, TerrainSizeOverride: SmallSize, LevelGenMode.Optimized, Seed: 123);
+        var a = WorldFactory.Build(options);
+        var b = WorldFactory.Build(options);
+
+        for (int i = 0; i < SmallSize.Area; i++)
+            Assert.Equal(a.World.Terrain[i], b.World.Terrain[i]);
+        Assert.NotEmpty(a.World.LinkMap.Points);
+        Assert.Equal(a.World.LinkMap.Points.Select(p => p.Id), b.World.LinkMap.Points.Select(p => p.Id));
     }
 }

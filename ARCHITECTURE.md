@@ -38,8 +38,8 @@ tools/
 
 `Program.cs` parses the command line and constructs `Game`. The constructor opens the window and GPU backend,
 asks `WorldFactory.Build` for the world (a generated match level, or the static patterns of `--terrain-test`) and
-sets up input. `WorldFactory.IsSimulationDeterministic` is the one place where `--fast` also turns off simulation
-determinism. `Game.Run` hands a set of callbacks to `GameFrameCoordinator`, which owns the loop:
+sets up input. `--fast` only makes level generation, materialisation and regrowth parallel; the simulation is
+deterministic either way. `Game.Run` hands a set of callbacks to `GameFrameCoordinator`, which owns the loop:
 
 ```
 while running:

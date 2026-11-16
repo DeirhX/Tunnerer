@@ -10,7 +10,6 @@ public class LinkMap
 {
     private readonly List<LinkPoint> _points = new();
     private readonly List<Link> _links = new();
-    private readonly bool _deterministicSimulation;
     private readonly int _idSeed;
     private int _nextPointIndex;
     private TimeSpan _elapsed;
@@ -21,17 +20,14 @@ public class LinkMap
     public int PointCount => _points.Count;
     public int LinkCount => _links.Count;
 
-    public LinkMap(bool deterministicSimulation = false, int idSeed = 0)
+    public LinkMap(int idSeed = 0)
     {
-        _deterministicSimulation = deterministicSimulation;
         _idSeed = idSeed != 0 ? idSeed : 0x6E624EB7;
     }
 
     public LinkPoint RegisterPoint(Position position, LinkPointType type)
     {
-        int id = _deterministicSimulation
-            ? GenerateDeterministicId(_nextPointIndex++)
-            : unchecked(_idSeed ^ ++_nextPointIndex);
+        int id = GeneratePointId(_nextPointIndex++);
         var point = new LinkPoint(position, type, id);
         _points.Add(point);
         return point;
@@ -46,7 +42,7 @@ public class LinkMap
         RebuildLinks(terrain);
     }
 
-    private int GenerateDeterministicId(int pointIndex)
+    private int GeneratePointId(int pointIndex)
     {
         uint mixed = (uint)_idSeed ^ (uint)(pointIndex + 1) * 0x9e3779b9u;
         return unchecked((int)FastRandom.Hash32(mixed));
