@@ -110,14 +110,6 @@ public class TankBase
         Store.Add(whole);
     }
 
-    /// <summary>Charge the relays tapping the map's hot core made for this base during the last tick.</summary>
-    public double CoreTapPerTick { get; internal set; }
-
-    /// <summary>Seconds the core tap has held the goal rate (DESIGN.md §4.8); the sector is won at the goal hold.</summary>
-    public double CoreHoldSeconds { get; internal set; }
-
-    /// <summary>True once this base has tapped the core at the goal rate for long enough.</summary>
-    public bool HasTappedCore { get; internal set; }
     /// <summary>How full the charge store is, 0 to 1.</summary>
     public double ChargeFill => Math.Clamp(Charge / ChargeCapacity, 0.0, 1.0);
 

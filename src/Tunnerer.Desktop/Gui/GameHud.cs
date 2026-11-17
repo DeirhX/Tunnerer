@@ -81,7 +81,7 @@ public partial class GameHud
         _warnings.Draw(ViewportRect, player, heatDebugOverlayEnabled, _time);
         DrawGuidance(player, world);
         DrawUpgradePanel(player);
-        DrawSectorComplete(player);
+        DrawSectorComplete(player, world);
         MatchOverlay.Draw(PlayRect, player, world, CanRestartMatch, WinnerName);
         if (showPostPassOverlay)
             PostPassOverlay.Draw(ViewportRect, heatDebugOverlayEnabled, postPassFlags);

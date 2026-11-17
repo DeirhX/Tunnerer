@@ -257,7 +257,7 @@ public class SectorGoalTests
         for (int i = 0; i < Tweaks.Perf.TargetFps * 4; i++)
         {
             world.Advance(_ => default);
-            maxTap = Math.Max(maxTap, home.CoreTapPerTick);
+            maxTap = Math.Max(maxTap, world.CoreTapOf(home)!.TapPerTick);
         }
 
         Assert.True(maxTap > 0, "a linked relay at the core's edge should make charge that counts toward the goal");

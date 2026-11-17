@@ -18,7 +18,7 @@ Match/
   MatchRules.cs              Which optional systems a world runs (regrowth, pockets, ore, the core race); World.Rules
   MatchOutcome.cs            MatchReferee: Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
   MatchResult.cs             Latches the referee's first answer (World.MatchWinner, World.IsMatchOver)
-  SectorGoal.cs              The core tap: each base's tap and hold timer, and the first base to tap the core
+  SectorGoal.cs              The core tap: each base's CoreTap (tap, hold timer, tapped), the first base to tap the core
 Config/
   Tweaks.cs                  Every gameplay and simulation constant (const / static readonly only)
   SimulationSettings.cs      The thermal and tank-heat constants, copied from Tweaks; tests inject their own
@@ -171,6 +171,7 @@ residual over the report window, which should stay near float noise. That line s
 is off by default and never runs per tick.
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
+`World.CoreTapOf` (a base's progress on the sector goal),
 `Tank.IsDockedAtOwnBase`, `Tank.IsInOwnNetwork`, `Tank.IsUnloadingOre`, `Tank.QuoteBuild` (cost, payer, stock and
 refusal for a machine), `Tank.LastBuildRefusal`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
 `World.CollectCoverageNodes`, `World.TrackVision`, `World.TrackRadar`, `World.RadarOf`, and the `CopyRenderStates` snapshot of each entity list.

@@ -215,7 +215,7 @@ public class World
                 _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(
                     _terrain, spawns, Rules.HotRockPockets, pocketSeed, out Position? core));
                 if (core is Position corePosition)
-                    _sectorGoal = new SectorGoal(corePosition);
+                    _sectorGoal = new SectorGoal(corePosition, _tankBases.Bases);
             }
             if (Rules.FrostRockPockets > 0)
                 _frostRockPockets.AddRange(LevelGen.FrostRockPockets.Place(
@@ -312,7 +312,7 @@ public class World
                 tankBase.AdvanceBotTrickle(seconds);
         }));
         if (_sectorGoal is SectorGoal goal)
-            systems.Add(new("goal", _ => goal.Advance(_tankBases.Bases, _machines, _tankList.Tanks, seconds)));
+            systems.Add(new("goal", _ => goal.Advance(_machines, _tankList.Tanks, seconds)));
         systems.Add(new("match", _ => _matchResult.Latch(RaceWinner)));
         systems.Add(new("links", _ => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep)));
         systems.Add(new("dock", _ =>
@@ -582,6 +582,12 @@ public class World
     /// spot to it clear of the bases. Null when the world has no hot rock.
     /// </summary>
     public Position? CorePocket => _sectorGoal?.Core;
+
+    /// <summary>
+    /// How <paramref name="tankBase"/> stands on the sector goal: its tap, its hold timer and whether it has tapped
+    /// the core. Null in a world without a core, and for a null or foreign base.
+    /// </summary>
+    public CoreTap? CoreTapOf(TankBase? tankBase) => tankBase is null ? null : _sectorGoal?.TapOf(tankBase);
 
 }
 

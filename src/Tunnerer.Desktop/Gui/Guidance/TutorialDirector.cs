@@ -118,10 +118,10 @@ public sealed class TutorialDirector
 
             new("Tap the core",
                 "Chain relays to the hot core at the centre. Relays beside it must make the goal rate of charge, held for a minute. More relays there, a bigger radiator and a better engine all help.",
-                static (_, w, p) => w.CorePocket == null || p.Base is { HasTappedCore: true },
-                Progress: static (w, p) => p.Base is { } b && w.CorePocket != null
-                    ? ($"Core tap {b.CoreTapPerTick * Tweaks.Perf.TargetFps / 1000.0:0.0}k / {Tweaks.Goal.GoalChargePerSecond / 1000.0:0.0}k charge/s, held {b.CoreHoldSeconds:0} / {Tweaks.Goal.GoalHoldSeconds:0} s",
-                        (float)Math.Clamp(b.CoreHoldSeconds / Tweaks.Goal.GoalHoldSeconds, 0.0, 1.0))
+                static (_, w, p) => w.CorePocket == null || w.CoreTapOf(p.Base) is { HasTapped: true },
+                Progress: static (w, p) => w.CoreTapOf(p.Base) is { } b
+                    ? ($"Core tap {b.TapPerTick * Tweaks.Perf.TargetFps / 1000.0:0.0}k / {Tweaks.Goal.GoalChargePerSecond / 1000.0:0.0}k charge/s, held {b.HoldSeconds:0} / {Tweaks.Goal.GoalHoldSeconds:0} s",
+                        (float)Math.Clamp(b.HoldSeconds / Tweaks.Goal.GoalHoldSeconds, 0.0, 1.0))
                     : null,
                 Target: static (w, _) => w.CorePocket),
         ];

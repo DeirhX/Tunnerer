@@ -10,14 +10,25 @@ using Tunnerer.Core.Entities.Tanks;
 /// The sector goal (DESIGN.md §4.8): tap the hot core. Each tick it sums the charge each base's heat pumps near the
 /// core made and advances that base's hold timer, which grows while the tap meets the goal rate and drains faster
 /// while it falls short. The base that holds it long enough has tapped the core. A world without a core has no
-/// sector goal and pays nothing for it.
+/// sector goal and pays nothing for it. Each base's progress is kept here (<see cref="TapOf"/>), not on the base.
 /// </summary>
 public sealed class SectorGoal
 {
     // Scratch for the machines near the core, refilled every tick.
     private readonly List<Machine> _nearCore = new();
+    private readonly IReadOnlyList<TankBase> _bases;
+    // One per base, in the order of _bases.
+    private readonly CoreTap[] _taps;
 
-    public SectorGoal(Position core) => Core = core;
+    /// <param name="bases">The match's bases, all of them added already.</param>
+    public SectorGoal(Position core, IReadOnlyList<TankBase> bases)
+    {
+        Core = core;
+        _bases = bases;
+        _taps = new CoreTap[bases.Count];
+        for (int i = 0; i < _taps.Length; i++)
+            _taps[i] = new CoreTap();
+    }
 
     /// <summary>Where the core is: the large hot rock pocket at the map centre, or the nearest spot to it clear of the bases.</summary>
     public Position Core { get; }
@@ -25,24 +36,35 @@ public sealed class SectorGoal
     /// <summary>The base that tapped the core first, among those whose tank still had lives left; null until one has.</summary>
     public TankBase? FirstToTapCore { get; private set; }
 
-    public void Advance(IReadOnlyList<TankBase> bases, MachineList machines, IReadOnlyList<Tank> tanks, double dt)
+    /// <summary>How <paramref name="tankBase"/> stands on the goal, or null for a base that is not in the match.</summary>
+    public CoreTap? TapOf(TankBase tankBase)
+    {
+        for (int i = 0; i < _taps.Length; i++)
+            if (_bases[i] == tankBase)
+                return _taps[i];
+        return null;
+    }
+
+    public void Advance(MachineList machines, IReadOnlyList<Tank> tanks, double dt)
     {
         const int radius = Tweaks.Goal.CoreTapRadius;
         const int radiusSq = radius * radius;
         // In list order, so each base's tap is summed in the same order on every machine.
         machines.CollectNear(Core, radius, _nearCore);
-        foreach (var tankBase in bases)
+        for (int b = 0; b < _taps.Length; b++)
         {
+            TankBase tankBase = _bases[b];
+            CoreTap state = _taps[b];
             double tap = 0.0;
             foreach (var machine in _nearCore)
                 if (machine.IsAlive && machine.Behavior.IsHeatPump && machine.OwnerBase == tankBase &&
                     Position.DistanceSquared(machine.Position, Core) <= radiusSq)
                     tap += machine.LastChargeMade;
-            tankBase.CoreTapPerTick = tap;
-            tankBase.CoreHoldSeconds = NextHold(tankBase.CoreHoldSeconds, tap, dt);
-            if (tankBase.CoreHoldSeconds >= Tweaks.Goal.GoalHoldSeconds)
+            state.TapPerTick = tap;
+            state.HoldSeconds = NextHold(state.HoldSeconds, tap, dt);
+            if (state.HoldSeconds >= Tweaks.Goal.GoalHoldSeconds)
             {
-                tankBase.HasTappedCore = true;
+                state.HasTapped = true;
                 // Bases are visited in slot order, so two that finish on the same tick always resolve the same way.
                 // A base whose tank is out of lives is out of the race, even if its hold was already running.
                 if (!MatchReferee.IsEliminated(tanks, tankBase))
@@ -60,4 +82,17 @@ public sealed class SectorGoal
         double goalPerTick = Tweaks.Goal.GoalChargePerSecond * dt;
         return tapPerTick >= goalPerTick ? hold + dt : Math.Max(0.0, hold - dt * Tweaks.Goal.GoalHoldDecay);
     }
+}
+
+/// <summary>One base's progress on the sector goal (<see cref="SectorGoal.TapOf"/>, <see cref="World.CoreTapOf"/>).</summary>
+public sealed class CoreTap
+{
+    /// <summary>Charge the base's heat pumps near the core made for it during the last tick.</summary>
+    public double TapPerTick { get; internal set; }
+
+    /// <summary>Seconds the tap has held the goal rate; the sector is won at <c>Tweaks.Goal.GoalHoldSeconds</c>.</summary>
+    public double HoldSeconds { get; internal set; }
+
+    /// <summary>True once the base has tapped the core at the goal rate for long enough. It stays true.</summary>
+    public bool HasTapped { get; internal set; }
 }

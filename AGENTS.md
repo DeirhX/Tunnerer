@@ -130,4 +130,7 @@ that tests can inject their own values.
   the flag is off: `World.BuildSystems` leaves it out of the step. Do not add a `World` constructor argument, a
   property set after construction, or a null delegate that means "off". The rules are in the hash clients compare
   before a network match starts.
+- **A system keeps its own state.** What a system tracks per base or per tank lives in the system, and `World`
+  answers for it (the sector goal keeps each base's `CoreTap`; Desktop asks `World.CoreTapOf`). Do not add a new
+  system's fields to `TankBase` or `Tank`: then removing the system leaves them untouched.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.

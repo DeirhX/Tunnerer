@@ -2,6 +2,7 @@ namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
 using ImGuiNET;
+using Tunnerer.Core;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Tanks;
 using static Tunnerer.Desktop.Gui.HudDraw;
@@ -102,9 +103,9 @@ public partial class GameHud
     }
 
     /// <summary>A banner across the view for a few seconds once the player's base taps the core.</summary>
-    private void DrawSectorComplete(Tank player)
+    private void DrawSectorComplete(Tank player, World world)
     {
-        if (player.Base is not { HasTappedCore: true })
+        if (world.CoreTapOf(player.Base) is not { HasTapped: true })
             return;
         if (float.IsNaN(_sectorCompleteAt))
             _sectorCompleteAt = _time;
