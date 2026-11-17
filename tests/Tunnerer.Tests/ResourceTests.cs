@@ -71,7 +71,7 @@ public class ResourceTests
         var mc = new MaterialContainer(new MaterialAmount(50, 30), new MaterialAmount(100, 100));
         Assert.True(mc.Pay(new MaterialAmount(20, 10)));
         Assert.Equal(30, mc.Dirt);
-        Assert.Equal(20, mc.Minerals);
+        Assert.Equal(20, mc.Ore);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class ResourceTests
         var mc = new MaterialContainer(new MaterialAmount(90, 80), new MaterialAmount(100, 100));
         mc.Add(new MaterialAmount(30, 40));
         Assert.Equal(100, mc.Dirt);
-        Assert.Equal(100, mc.Minerals);
+        Assert.Equal(100, mc.Ore);
     }
 
     [Fact]
@@ -99,9 +99,9 @@ public class ResourceTests
         a.Absorb(b);
 
         Assert.Equal(100, a.Dirt);
-        Assert.Equal(100, a.Minerals);
+        Assert.Equal(100, a.Ore);
         Assert.Equal(30, b.Dirt);
-        Assert.Equal(30, b.Minerals);
+        Assert.Equal(30, b.Ore);
     }
 
     [Fact]
@@ -141,8 +141,8 @@ public class ResourceTests
         var a = new MaterialAmount(10, 20);
         var b = new MaterialAmount(3, 7);
         Assert.Equal(13, (a + b).Dirt);
-        Assert.Equal(27, (a + b).Minerals);
+        Assert.Equal(27, (a + b).Ore);
         Assert.Equal(7, (a - b).Dirt);
-        Assert.Equal(13, (a - b).Minerals);
+        Assert.Equal(13, (a - b).Ore);
     }
 }

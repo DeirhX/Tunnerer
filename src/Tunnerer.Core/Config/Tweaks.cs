@@ -129,6 +129,15 @@ public static class Tweaks
         public const int CoreCellUnits = 3;
         public const float CoreTemperature = 70f;
 
+        // Mining (TankDigger). The tank's dig clears a plain ore cell with this per-mille chance per dig (dirt always
+        // clears), so ore is slower than dirt; a core cell needs the torch and its own chance (rock is
+        // World.DigThroughRockChance). The hold is small: a full one leaves ore in the ground.
+        public const int DigOreChance = 300;
+        public const int TorchCoreChance = 150;
+        public const int TankHold = 40;
+        // A dead tank's hold goes back into the ground as plain ore within this many cells (OreDrop).
+        public const int DeathDropRadius = 6;
+
         // Specks: 1-3 cells of ore in dirt, anywhere but right beside a base.
         public const int SpeckEveryCells = 6000;
         public const int SpeckMinCells = 1;
@@ -162,7 +171,7 @@ public static class Tweaks
         public const int HeatCapacity = 100;
         public const int HealthCapacity = 2000;
         public const int MaterialDirtCapacity = 2000;
-        public const int MaterialMineralsCapacity = 20000;
+        public const int MaterialOreCapacity = 20000;
         // Radiator. At 1 unit per tick (500 energy/tick), two relays (300 each) out-pump it, so the reservoir fills
         // and pumping stops: the shared exit is the real bottleneck. Starting value for the first-prototype spike.
         public const int HeatCooldown = 1;
@@ -184,7 +193,8 @@ public static class Tweaks
         public const int ForeignCooldownHeat = 2;
         public const int ForeignRechargeHealth = 1;
         public const int HomeAbsorbDirt = 15;
-        public const int HomeAbsorbMinerals = 15;
+        // Ore banked per tick while docked: a full hold empties in a few ticks.
+        public const int HomeAbsorbOre = 10;
 
         // Power (DESIGN.md §4.5). Heat relays deliver passes through the base engine on its way to the dimensional-link
         // cold sink; a fraction becomes charge: eta = clamp(dT / (dT + EngineTemperatureScale), 0, EngineMaxEfficiency),
@@ -242,7 +252,6 @@ public static class Tweaks
         public const int HeatCapacity = 100;
         public const int HealthCapacity = 1000;
         public const int ResourceDirtCapacity = 10000;
-        public const int ResourceMineralsCapacity = 10000;
         public const int IdleHeatGain = 0;
         public const int MoveHeatGain = 0;
         public const int CoolingPickupGold = 14;

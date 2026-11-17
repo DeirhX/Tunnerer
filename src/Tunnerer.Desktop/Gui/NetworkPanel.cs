@@ -84,6 +84,7 @@ public sealed class NetworkPanel
             HudTheme.TitleRow($"BASE        lives {player.LivesLeft}", 18f, player.LivesLeft > 1 ? HudTheme.Amber : HudTheme.Danger);
             GoalLines.Draw(world, tankBase);
             ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Dirt}/{tankBase.Materials.DirtCapacity}");
+            ColoredText(TextInfo, $"Base ore store {tankBase.Materials.Ore}");
 
             // Power: the charge store and what the engine is making from relay heat right now.
             float chargeFill = (float)tankBase.ChargeFill;

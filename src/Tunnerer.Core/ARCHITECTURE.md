@@ -37,9 +37,10 @@ Thermal/
 Entities/
   Tank.cs                    Tank state and the per-tick order (below); delegates to Tanks/*
   Tanks/TankThermals.cs      Tank heat, network coverage floor, base sink, refrigeration, ledger bookings
-  Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, pickups; owns the tank's RNG
+  Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, mining ore into the hold, pickups; owns the
+                             tank's RNG
   Tanks/TankBuildController.cs   Build keys: build, carry, plant
-  Tanks/TankLifecycle.cs     Damage, death, respawn, spawn shield
+  Tanks/TankLifecycle.cs     Damage, death (the hold spills as ore, OreDrop), respawn, spawn shield
   Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
   TankTurret.cs              Aim, cooldown, bullet spawn
   TankHeatModel.cs           Heat-flow formula shared by tank contact with terrain and air
@@ -77,7 +78,8 @@ LevelGen/
 Rendering/
   RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
-Resources/Resources.cs       Reactor, ReactorState, MaterialAmount, MaterialContainer
+Resources/Resources.cs       Reactor, ReactorState, MaterialAmount (dirt and ore), MaterialContainer
+Resources/OreDrop.cs         Puts ore back into the ground, nearest free cells first (a dead tank's hold)
 Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, DirectionF, Color, Rect, BoundingBox
 ```
 

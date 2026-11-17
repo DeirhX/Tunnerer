@@ -19,6 +19,11 @@ public sealed class HudStrip
     private const uint ReadoutColor = 0xFFAAFACDu;
     private const float ReadoutSize = 22f;
 
+    // The ore hold line, drawn in the chest window above the MATERIALS plates (art pixels): teal like the ore,
+    // amber once the hold is full.
+    private const float OreLineX = MaterialsX + 126f, OreLineY = 84f, OreLineSize = 19f;
+    private const uint OreLineColor = 0xFFD8E860u, OreLineFullColor = 0xFF40C0FFu;
+
     /// <summary>
     /// A panel's plates, measured on the art (art pixels): the centre both lines share, the title plate's centre, and
     /// the readout plate's inner edges. The readout is centred in its plate. The levels themselves show in the art
@@ -94,6 +99,10 @@ public sealed class HudStrip
 
         // MATERIALS: the dirt in the tank's hold, which is what structures are built from.
         DrawReadout(dl, MaterialsPlate, player.Resources.Dirt.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // ORE: the emberite in the hold against what it takes (Tweaks.Ore.TankHold).
+        DrawStripText(dl, string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"ORE {player.OreHeld} / {player.OreHoldCapacity}"),
+            OreLineX, OreLineY, OreLineSize, player.IsOreHoldFull ? OreLineFullColor : OreLineColor, glow: 0x28806020u);
 
         _build.Draw(dl, player, player.BuildableDirt(player.IsDockedAtOwnBase), BuildX, time);
 

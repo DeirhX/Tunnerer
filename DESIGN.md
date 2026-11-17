@@ -267,10 +267,17 @@ of deposit, scaled with map area:
 
 Ore blocks movement; it is drawn as teal and violet crystal, the core glowing warm.
 
+The tank's ordinary dig clears plain ore, slower than dirt; a core cell needs the torch, like rock. A plain cell gives
+1 unit and a core cell 3, into a small hold of 40 units. A full hold leaves ore in the ground (a core cell is taken only
+if all 3 units fit), so mining never destroys ore. Docking at the own base banks the hold into the base's ore store.
+When the tank dies its hold spills back into the ground as plain ore in the nearest open or dirt cells around the wreck;
+what does not fit within a few cells is lost. Torching rock no longer yields anything. The HUD shows the hold as
+"ORE n / 40" in the MATERIALS panel and the base's ore store in the base panel.
+
 ### 6.4 Structures
 
-Existing: harvester, relay, pylon. All cost only dirt today, although build costs already carry a minerals
-field. Planned: conductor lines, insulating walls, haulers, turrets, props, heat pumps, generators.
+Existing: harvester, relay, pylon. All cost only dirt today, although build costs already carry an ore field
+(emberite, §6.3). Planned: conductor lines, insulating walls, haulers, turrets, props, heat pumps, generators.
 
 ### 6.5 The rival tank *(Proposed)*
 

@@ -32,7 +32,7 @@ public partial class GameHud
         var anchor = new Vector2(vp.x + UpgradePanelMargin, MathF.Floor(ViewBottom(vp) - UpgradePanelMargin));
         if (HudTheme.BeginWindow("##Upgrades", anchor, new Vector2(0f, 1f), width))
         {
-            HudTheme.TitleRow($"BASE UPGRADES    dirt store {home.Materials.Dirt}", 19f);
+            HudTheme.TitleRow($"BASE UPGRADES    dirt store {home.Materials.Dirt}    ore {home.Materials.Ore}", 19f);
             var dl = ImGui.GetWindowDrawList();
             float rowW = ImGui.GetContentRegionAvail().X;
             for (int i = 0; i < BaseUpgrades.Count; i++)

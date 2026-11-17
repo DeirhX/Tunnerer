@@ -95,14 +95,14 @@ public class MachineBehaviorTests
     public void Harvester_BuildCost_MatchesTweaks()
     {
         Assert.Equal(Tweaks.Machine.HarvesterDirtCost, MachineBehaviors.Harvester.BuildCost.Dirt);
-        Assert.Equal(0, MachineBehaviors.Harvester.BuildCost.Minerals);
+        Assert.Equal(0, MachineBehaviors.Harvester.BuildCost.Ore);
     }
 
     [Fact]
     public void Pylon_BuildCost_MatchesTweaks()
     {
         Assert.Equal(Tweaks.Machine.PylonDirtCost, MachineBehaviors.Pylon.BuildCost.Dirt);
-        Assert.Equal(0, MachineBehaviors.Pylon.BuildCost.Minerals);
+        Assert.Equal(0, MachineBehaviors.Pylon.BuildCost.Ore);
     }
 
     [Fact]

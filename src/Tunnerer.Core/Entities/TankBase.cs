@@ -15,7 +15,7 @@ public class TankBase
         capacity: new ReactorState(Tweaks.Base.HeatCapacity, Tweaks.Base.HealthCapacity));
     public MaterialContainer Materials { get; } = new(
         initial: new MaterialAmount(0, 0),
-        capacity: new MaterialAmount(Tweaks.Base.MaterialDirtCapacity, Tweaks.Base.MaterialMineralsCapacity));
+        capacity: new MaterialAmount(Tweaks.Base.MaterialDirtCapacity, Tweaks.Base.MaterialOreCapacity));
 
     private static int Half => Tweaks.Base.BaseSize / 2;
     private static int DoorHalf => Tweaks.Base.DoorSize / 2;

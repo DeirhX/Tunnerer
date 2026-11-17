@@ -43,7 +43,9 @@ public enum StepEventKind
     /// <summary>A tank picked up a gold nugget at <see cref="StepEvent.Position"/>.</summary>
     GoldCollected,
 
-    /// <summary>A tank torched a mineral cell into its hold.</summary>
+    /// <summary>
+    /// A tank dug a cell of emberite into its hold: <see cref="StepEvent.Count"/> units (a core cell is worth more).
+    /// </summary>
     OreCollected,
 
     /// <summary>A live tank drove into its own base.</summary>

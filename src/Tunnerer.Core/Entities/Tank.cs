@@ -5,6 +5,7 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Entities.Projectiles;
+using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Tanks;
@@ -138,6 +139,15 @@ public class Tank
     /// <summary>How full the tank's dirt hold is, 0 to 1.</summary>
     public float HoldFill => Math.Clamp(Resources.Dirt / (float)Math.Max(1, Resources.DirtCapacity), 0f, 1f);
 
+    /// <summary>Emberite in the tank's hold, in units (DESIGN.md §6.3).</summary>
+    public int OreHeld => Resources.Ore;
+
+    /// <summary>How much emberite the hold takes (<see cref="Tweaks.Ore.TankHold"/>).</summary>
+    public int OreHoldCapacity => Resources.OreCapacity;
+
+    /// <summary>True when the hold has no room for another unit: the tank's dig leaves ore in the ground.</summary>
+    public bool IsOreHoldFull => Resources.OreRoom == 0;
+
     /// <summary>
     /// True once the live tank has been outside every base at the end of a tick: the player has driven out of the
     /// base at least once this match.
@@ -190,7 +200,7 @@ public class Tank
             capacity: new ReactorState(Tweaks.Tank.HeatCapacity, Tweaks.Tank.HealthCapacity));
         Resources = new MaterialContainer(
             initial: new MaterialAmount(0, 0),
-            capacity: new MaterialAmount(Tweaks.Tank.ResourceDirtCapacity, Tweaks.Tank.ResourceMineralsCapacity));
+            capacity: new MaterialAmount(Tweaks.Tank.ResourceDirtCapacity, Tweaks.Ore.TankHold));
         Turret = new TankTurret(color);
         _build = new TankBuildController(this, color);
         _lifecycle = new TankLifecycle(this, _build);
@@ -208,7 +218,7 @@ public class Tank
 
         if (IsDead)
         {
-            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Heat.Ledger, ctx.Events);
+            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Terrain, ctx.Heat.Ledger, ctx.Events);
             return;
         }
 
@@ -309,17 +319,18 @@ public class Tank
         var baseColl = ctx.CheckBaseCollision(Position);
         if (baseColl == null) return;
 
-        (int health, float heat, int dirt) = (Reactor.Health, Heat, Resources.Dirt);
+        (int health, float heat, int dirt, int ore) = (Reactor.Health, Heat, Resources.Dirt, Resources.Ore);
         baseColl.RechargeTank(Reactor, Color);
         bool atOwnBase = baseColl.Color == Color;
         _thermals.SinkAtBase(ctx.Heat, baseColl, atOwnBase);
 
         if (atOwnBase)
         {
-            baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
+            baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbOre));
             _thermals.PumpHeatAtBase(baseColl);
             // A tank that is only shedding the last fraction of a degree near 0 is not being serviced any more.
-            if (Reactor.Health > health || Heat < heat - BaseServicedHeatDrop || Resources.Dirt < dirt)
+            if (Reactor.Health > health || Heat < heat - BaseServicedHeatDrop || Resources.Dirt < dirt ||
+                Resources.Ore < ore)
                 ctx.Events?.Record(new StepEvent(StepEventKind.BaseServiced, Position, Color));
         }
     }
@@ -359,8 +370,12 @@ public class Tank
         _lifecycle.OnSpawned();
     }
 
-    /// <summary>Destroys the tank: it loses a life, drops what it carries and explodes.</summary>
-    public void Die(ProjectileList? projectiles = null) => _lifecycle.Die(projectiles);
+    /// <summary>
+    /// Destroys the tank: it loses a life, drops what it carries and explodes. The ore in its hold spills into
+    /// <paramref name="terrain"/> around it (lost when there is none).
+    /// </summary>
+    public void Die(ProjectileList? projectiles = null, ITerrainPixelAccessor? terrain = null) =>
+        _lifecycle.Die(projectiles, terrain);
 
     private static int HashSeed(int color, Position pos)
     {

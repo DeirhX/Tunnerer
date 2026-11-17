@@ -3,6 +3,7 @@ namespace Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Resources;
+using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 
@@ -78,7 +79,7 @@ internal sealed class TankLifecycle
         SpawnProtectionTicks--;
     }
 
-    public void Die(ProjectileList? projectiles)
+    public void Die(ProjectileList? projectiles, ITerrainPixelAccessor? terrain)
     {
         if (_respawning)
             return;
@@ -86,6 +87,7 @@ internal sealed class TankLifecycle
         var reactor = _tank.Reactor;
         reactor.Exhaust(new ReactorState(reactor.Heat, reactor.Health));
         _build.DiscardCarried();
+        DropOre(terrain);
         _tank.LivesLeft = Math.Max(0, _tank.LivesLeft - 1);
         _respawning = true;
         _respawnTimer = _tank.LivesLeft > 0 ? Tweaks.Tank.RespawnDelay : TimeSpan.Zero;
@@ -93,13 +95,26 @@ internal sealed class TankLifecycle
         projectiles?.AddExplosion(_tank.Position, Tweaks.Explosion.Death, Tweaks.Explosion.DeathHeatScale);
     }
 
+    /// <summary>
+    /// The hold spills back into the ground around the wreck (<see cref="OreDrop"/>); what finds no room, or all of it
+    /// when there is no terrain to drop into, is lost. Either way the hold is empty.
+    /// </summary>
+    private void DropOre(ITerrainPixelAccessor? terrain)
+    {
+        var hold = _tank.Resources;
+        if (terrain != null && hold.Ore > 0)
+            OreDrop.Scatter(terrain, _tank.Position, hold.Ore);
+        hold.Current.Ore = 0;
+    }
+
     /// <summary>A dead tank's tick: it explodes once, then respawns at its base when the timer runs out and lives remain.</summary>
-    public void AdvanceDeath(ProjectileList projectiles, ThermalLedger ledger, StepEventLog? events)
+    public void AdvanceDeath(ProjectileList projectiles, ITerrainPixelAccessor terrain, ThermalLedger ledger,
+        StepEventLog? events)
     {
         if (!_respawning)
         {
             events?.Record(new StepEvent(StepEventKind.TankDied, _tank.Position, _tank.Color));
-            Die(projectiles);
+            Die(projectiles, terrain);
         }
 
         if (_tank.LivesLeft <= 0)

@@ -126,7 +126,12 @@ internal sealed class TankDigger
                 if (!terrain.IsInside(worldPos)) continue;
 
                 var pix = terrain.GetPixelRaw(worldPos);
-                if (Pixel.IsDiggable(pix))
+                if (Pixel.IsOre(pix))
+                {
+                    if (TryMineOre(terrain, heat, worldPos, pix, torchUse, events))
+                        cleared++;
+                }
+                else if (Pixel.IsDiggable(pix))
                 {
                     terrain.SetPixel(worldPos, TerrainPixel.Blank);
                     cleared++;
@@ -145,15 +150,41 @@ internal sealed class TankDigger
                     cleared++;
                     _thermals.RecordDugPixels(2);
                     heat.AddHeatRadius(worldPos, Tweaks.Tank.TorchRockHeatAmount, Tweaks.Tank.TorchRockHeatRadius);
-                    if (Pixel.IsMineral(pix))
-                    {
-                        resources.Add(new MaterialAmount(0, 1));
-                        events?.Record(new StepEvent(StepEventKind.OreCollected, worldPos, _tank.Color));
-                    }
                 }
             }
         if (cleared > 0)
             events?.Record(new StepEvent(StepEventKind.TankDug, center, _tank.Color, Count: cleared, Torch: torchUse));
+    }
+
+    /// <summary>
+    /// Digs one ore cell into the hold (DESIGN.md §6.3). Plain ore yields to the dig, slower than dirt; a core cell
+    /// needs the torch, like rock, and heats the ground as rock does. A cell whose units do not all fit in the hold
+    /// stays in the ground, so ore is never lost to mining.
+    /// </summary>
+    private bool TryMineOre(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position worldPos, TerrainPixel pix,
+        bool torchUse, StepEventLog? events)
+    {
+        int units = Pixel.OreUnits(pix);
+        if (_tank.Resources.OreRoom < units)
+            return false;
+        bool core = Pixel.IsOreCore(pix);
+        if (core ? !(torchUse && _rng.Chance1000(Tweaks.Ore.TorchCoreChance)) : !_rng.Chance1000(Tweaks.Ore.DigOreChance))
+            return false;
+
+        terrain.SetPixel(worldPos, TerrainPixel.Blank);
+        if (core)
+        {
+            _thermals.RecordDugPixels(2);
+            heat.AddHeatRadius(worldPos, Tweaks.Tank.TorchRockHeatAmount, Tweaks.Tank.TorchRockHeatRadius);
+        }
+        else if (torchUse)
+        {
+            _thermals.RecordDugPixels(1);
+            heat.AddHeat(worldPos, Tweaks.Tank.TorchTerrainHeatAmount);
+        }
+        _tank.Resources.Add(new MaterialAmount(0, units));
+        events?.Record(new StepEvent(StepEventKind.OreCollected, worldPos, _tank.Color, Count: units));
+        return true;
     }
 
     /// <summary>

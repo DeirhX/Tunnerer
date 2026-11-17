@@ -24,6 +24,8 @@ public sealed class GameEventWatcher
     private bool _offNetwork;
     private bool _engineRunning;
     private bool _radarScattered;
+    private bool _holdingOre;
+    private bool _oreHoldFull;
     private int _lastStore;
     private readonly int[] _upgradeLevels = new int[BaseUpgrades.Count];
     private int _upgradeRefused;
@@ -76,6 +78,8 @@ public sealed class GameEventWatcher
         bool offNetwork = player.IsOffNetwork;
         bool engineRunning = home.EngineOutputPerTick > 1.0;
         bool radarScattered = !player.IsDead && world.RadarOf(player) is { HeatLoss: >= RadarScatteredShare };
+        bool holdingOre = player.OreHeld > 0;
+        bool oreHoldFull = player.IsOreHoldFull;
 
         double coreRate = home.CoreTapPerTick * Tweaks.Perf.TargetFps;
         bool tappingCore = coreRate > 1.0;
@@ -159,6 +163,15 @@ public sealed class GameEventWatcher
                 feed.Post(now, "radar-heat", "Radar scattered by heat",
                     "Hot ground swallows the pulse: red dots show how far it got. Cool that ground to see past it.",
                     NotificationKind.Warning, cooldown: 60f);
+            // Once each per match: the first ore in the hold, and the first time the hold fills.
+            if (holdingOre && !_holdingOre)
+                feed.Post(now, "ore-collected", "Emberite collected",
+                    "Ore rides in your hold (MATERIALS). Dock at your base to bank it; if you die, it spills where you fall.",
+                    NotificationKind.Good, cooldown: 1e9f);
+            if (oreHoldFull && !_oreHoldFull)
+                feed.Post(now, "ore-hold-full", "Ore hold full",
+                    $"The hold takes {player.OreHoldCapacity}. Dock at your base to bank it before you dig more ore.",
+                    NotificationKind.Warning, cooldown: 1e9f);
             if (engineRunning && !_engineRunning)
                 feed.Post(now, "engine-running", "Base engine making charge",
                     "Relay heat is being turned into charge. Hotter sources make more.", NotificationKind.Good, cooldown: 120f);
@@ -186,6 +199,8 @@ public sealed class GameEventWatcher
         _offNetwork = offNetwork;
         _engineRunning = engineRunning;
         _radarScattered = radarScattered;
+        _holdingOre = holdingOre;
+        _oreHoldFull = oreHoldFull;
         _lastStore = store;
         _upgradeRefused = player.UpgradeRefusedTicks;
         _tappingCore = tappingCore;

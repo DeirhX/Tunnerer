@@ -223,15 +223,31 @@ public class StepEventTests
     }
 
     [Fact]
-    public void TorchingRock_RecordsTorchDiggingAndOre()
+    public void TorchingRock_RecordsTorchDigging_ButYieldsNoOre()
     {
         var s = InOpenPocket();
         Fill(s.World.Terrain, s.RelayPos, 12, TerrainPixel.Rock, fromDx: 5);
         var torch = new ControllerOutput { MoveSpeed = new Offset(1, 0), ShootPrimary = true, AimDirection = new DirectionF(1, 0) };
 
-        var events = StepUntil(s.World, e => e.Kind == StepEventKind.OreCollected, tank0: torch);
+        var events = StepUntil(s.World, e => e.Kind == StepEventKind.TankDug && e.Torch, tank0: torch);
+        for (int i = 0; i < 60; i++)
+            events.AddRange(Step(s.World, torch));
         Assert.Contains(events, e => e.Kind == StepEventKind.TankDug && e.Torch && e.Color == s.Tank.Color);
-        Assert.Contains(events, e => e.Kind == StepEventKind.OreCollected && e.Color == s.Tank.Color);
+        Assert.DoesNotContain(events, e => e.Kind == StepEventKind.OreCollected);
+        Assert.Equal(0, s.Tank.OreHeld);
+    }
+
+    [Fact]
+    public void DiggingOre_RecordsOreCollected()
+    {
+        var s = InOpenPocket();
+        Fill(s.World.Terrain, s.RelayPos, 12, TerrainPixel.Emberite, fromDx: 5);
+        var right = new ControllerOutput { MoveSpeed = new Offset(1, 0) };
+
+        var collected = StepUntil(s.World, e => e.Kind == StepEventKind.OreCollected, tank0: right)
+            .First(e => e.Kind == StepEventKind.OreCollected);
+        Assert.Equal(s.Tank.Color, collected.Color);
+        Assert.Equal(Tweaks.Ore.PlainCellUnits, collected.Count);
     }
 
     [Fact]

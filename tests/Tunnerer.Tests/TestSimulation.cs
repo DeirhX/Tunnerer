@@ -100,7 +100,7 @@ internal static class TestSimulation
             hash = Mix(hash, (uint)(int)t.Reactor.Heat);
             hash = Mix(hash, (uint)(int)t.Reactor.Health);
             hash = Mix(hash, (uint)t.Resources.Dirt);
-            hash = Mix(hash, (uint)t.Resources.Minerals);
+            hash = Mix(hash, (uint)t.Resources.Ore);
             hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(t.Heat));
             hash = Mix(hash, t.IsDead ? 1u : 0u);
         }

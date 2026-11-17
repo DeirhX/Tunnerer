@@ -28,17 +28,18 @@ public struct ReactorState
     public void TrimNegative() { Heat = new(Math.Max(0, Heat)); Health = new(Math.Max(0, Health)); }
 }
 
+/// <summary>Dirt and emberite ore (DESIGN.md §6.3), in units: a plain ore cell is one, a core cell three.</summary>
 public struct MaterialAmount
 {
     public int Dirt;
-    public int Minerals;
+    public int Ore;
 
-    public MaterialAmount(int dirt, int minerals) { Dirt = dirt; Minerals = minerals; }
+    public MaterialAmount(int dirt, int ore) { Dirt = dirt; Ore = ore; }
 
-    public static MaterialAmount operator +(MaterialAmount a, MaterialAmount b) => new(a.Dirt + b.Dirt, a.Minerals + b.Minerals);
-    public static MaterialAmount operator -(MaterialAmount a, MaterialAmount b) => new(a.Dirt - b.Dirt, a.Minerals - b.Minerals);
-    public bool IsNegative => Dirt < 0 || Minerals < 0;
-    public void TrimNegative() { Dirt = Math.Max(0, Dirt); Minerals = Math.Max(0, Minerals); }
+    public static MaterialAmount operator +(MaterialAmount a, MaterialAmount b) => new(a.Dirt + b.Dirt, a.Ore + b.Ore);
+    public static MaterialAmount operator -(MaterialAmount a, MaterialAmount b) => new(a.Dirt - b.Dirt, a.Ore - b.Ore);
+    public bool IsNegative => Dirt < 0 || Ore < 0;
+    public void TrimNegative() { Dirt = Math.Max(0, Dirt); Ore = Math.Max(0, Ore); }
 }
 
 public class Reactor
@@ -105,8 +106,12 @@ public class MaterialContainer
     }
 
     public int Dirt => Current.Dirt;
-    public int Minerals => Current.Minerals;
+    public int Ore => Current.Ore;
     public int DirtCapacity => Capacity.Dirt;
+    public int OreCapacity => Capacity.Ore;
+
+    /// <summary>Room left for ore before the container is full.</summary>
+    public int OreRoom => Math.Max(0, Capacity.Ore - Current.Ore);
 
     public bool CanPay(MaterialAmount cost) => !(Current - cost).IsNegative;
 
