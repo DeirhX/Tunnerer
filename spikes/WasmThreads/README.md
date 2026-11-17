@@ -31,18 +31,18 @@ Clear `obj` and `bin` between the two publishes; the two runtimes differ.
 
 ## Results (2026-11-17, Apple M5 Max, .NET 10.0.15, Chromium)
 
-Mean milliseconds per tick (budget at 24 ticks/s: 41.7 ms).
+Mean milliseconds per tick (budget at 24 ticks/s: 41.7 ms). The threaded columns come from the run with the browser
+pane visible; the native and one-thread browser columns come from the first run. Runs in a hidden pane were ~3x
+slower, so trust the ratios more than the absolute numbers.
 
 | | Native 1 / 8 workers | Browser, one-thread build | Browser, threads: 1 | 2 | 4 | 8 |
 |---|---|---|---|---|---|---|
-| Two bots | 2.16 / 0.44 | 6.97 | 6.96 | 3.67 | 2.14 | 1.26 |
-| Heat bursts | 8.45 / 1.41 | 24.1 | 24.2 | 21.4* | 6.85 | 3.99 |
+| Two bots | 2.16 / 0.44 | 6.97 | 6.65 | 3.53 | 1.90 | 1.20 |
+| Heat bursts | 8.45 / 1.41 | 24.1 | 23.3 | 12.0 | 6.42 | 3.77 |
 
-- The browser is about 3x slower than native at the same thread count; threads scale about as well as natively.
+- The browser is about 3x slower than native at the same thread count. Threads scale 5.5x on two bots and 6.2x on
+  heat bursts from one to eight workers.
 - The golden fingerprint matches in both browser builds, and every run's hash is identical across native, browser,
   and all worker counts.
 - With threads, .NET runs on a worker and the page stays responsive.
-- \*One-off: a rerun gave the expected ~2x. A second run in a hidden browser pane was ~3.4x slower overall (the
-  ratios held), so trust the ratios more than the absolute numbers. Firefox and Safari were not tried.
-- A third run with the pane visible, threaded build: two bots 6.65 / 3.53 / 1.90 / 1.20 ms and heat bursts
-  23.3 / 12.0 / 6.42 / 3.77 ms at 1 / 2 / 4 / 8 workers (6.2x on eight), same hashes.
+- Firefox and Safari were not tried.
