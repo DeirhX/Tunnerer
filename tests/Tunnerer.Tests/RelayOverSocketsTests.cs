@@ -17,6 +17,7 @@ using Tunnerer.Protocol;
 using Tunnerer.Relay;
 
 /// <summary>The real relay on a local port, with real WebSocket clients.</summary>
+[Collection(TimedTestGroup.Name)]
 public class RelayOverSocketsTests
 {
     private static readonly Size MapSize = new(320, 200);
