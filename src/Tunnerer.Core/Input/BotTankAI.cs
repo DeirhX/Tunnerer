@@ -43,10 +43,18 @@ public class BotTankAI
     /// <summary>Heading home, this long around one spot (a wall, an enemy base in the way): the bot takes a detour.</summary>
     private const int ReturnNoProgressLimitFrames = 5 * Tweaks.Perf.TargetFps;
     /// <summary>
-    /// Heading home this long without arriving (the door sealed by hot rock, a trail that ends in a dead end): the
-    /// bot gives up and roams again, as it can fight and look for another way in from there.
+    /// Heading home this long without getting any nearer (the door sealed by hot rock, a trail that ends in a dead
+    /// end): the bot gives up and roams again, as it can fight and look for another way in from there. A slow tank on
+    /// a long way home keeps getting nearer, so it never gives up.
     /// </summary>
     private const int ReturnGiveUpFrames = 20 * Tweaks.Perf.TargetFps;
+    /// <summary>How much nearer to the base (cells) counts as headway on the way home.</summary>
+    private const int ReturnHeadwayCells = 3;
+    /// <summary>
+    /// After giving up on a return, low health or heat does not send the bot home again for this long (a kill or
+    /// standing in its own base still does), or it would be back at the sealed door on the next tick.
+    /// </summary>
+    private const int ReturnCooldownFrames = 30 * Tweaks.Perf.TargetFps;
     /// <summary>How long a breakout or detour holds its heading.</summary>
     private const int BreakoutFrames = 2 * Tweaks.Perf.TargetFps;
 
@@ -76,8 +84,12 @@ public class BotTankAI
     private bool _shoot;
     private bool _torchDirt;
     private int _timeToChange;
-    /// <summary>Ticks spent heading home in this return; <see cref="ReturnGiveUpFrames"/> ends it.</summary>
-    private int _returnFrames;
+    /// <summary>Ticks since this return last got nearer to the base; <see cref="ReturnGiveUpFrames"/> ends it.</summary>
+    private int _returnStallFrames;
+    /// <summary>The nearest to the base (cells, along either axis) this return has been.</summary>
+    private int _returnNearestCells = int.MaxValue;
+    /// <summary>Ticks left in which low health or heat does not send the bot home (see <see cref="ReturnCooldownFrames"/>).</summary>
+    private int _returnCooldownFrames;
     private DirectionF _aimDirection;
     private Offset _maneuverMove;
     private int _maneuverFrames;
@@ -131,9 +143,12 @@ public class BotTankAI
         {
             // It respawns in its base, whole and cold: it starts over from there.
             SetMode(TwitchMode.Start);
+            _returnCooldownFrames = 0;
             return default;
         }
 
+        if (_returnCooldownFrames > 0)
+            _returnCooldownFrames--;
         if (_mode is TwitchMode.ExitBaseUp or TwitchMode.ExitBaseDown or TwitchMode.Twitch)
             _trail.Record(tank.Position);
 
@@ -178,7 +193,8 @@ public class BotTankAI
         if (mode == TwitchMode.Start)
             _trail.Clear(); // A new outing leaves a new trail.
         _maneuverFrames = 0;
-        _returnFrames = 0;
+        _returnStallFrames = 0;
+        _returnNearestCells = int.MaxValue;
         _navigator.ResetStuck();
         _navigator.ResetProgress();
     }
@@ -248,7 +264,8 @@ public class BotTankAI
     private ControllerOutput DoTwitch(Tank tank, Tank? enemy, World world)
     {
         var profile = _profiles.Active;
-        if (tank.Reactor.Health < ReturnBelowHealth || NeedsToCool(tank) || IsInsideOwnBase(tank))
+        bool hurtOrHot = _returnCooldownFrames <= 0 && (tank.Reactor.Health < ReturnBelowHealth || NeedsToCool(tank));
+        if (hurtOrHot || IsInsideOwnBase(tank))
         {
             SetMode(TwitchMode.Return);
             return default;
@@ -314,10 +331,17 @@ public class BotTankAI
     /// </summary>
     private ControllerOutput DoReturn(Tank tank, World world, int relX, int relY)
     {
-        if (++_returnFrames > ReturnGiveUpFrames)
+        int cellsFromBase = Math.Max(Math.Abs(relX), Math.Abs(relY));
+        if (cellsFromBase < _returnNearestCells - ReturnHeadwayCells)
+        {
+            _returnNearestCells = cellsFromBase;
+            _returnStallFrames = 0;
+        }
+        else if (++_returnStallFrames > ReturnGiveUpFrames)
         {
             SetMode(TwitchMode.Twitch);
             _timeToChange = 0;
+            _returnCooldownFrames = ReturnCooldownFrames;
             return default;
         }
 

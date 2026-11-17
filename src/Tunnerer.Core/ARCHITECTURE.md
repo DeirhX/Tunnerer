@@ -390,7 +390,8 @@ Desktop:
 `CollisionSolver.TestPoint` is the shared point query; only bullets use it today. A tank's step is stopped by the
 ground under its hull (`CollisionSolver.TestTankTerrain`) and by `CollisionSolver.BlocksTank`: any other live tank,
 and planted machines of another side. A tank's own machines never block it (its own bullets pass them too), and
-something it already overlaps where it stands does not hold it, so two overlapping bodies can always part.
+something it already overlaps where it stands holds it only for a step that brings it nearer the other body's
+centre, so two overlapping bodies can always part and never pass through one another.
 `TankDigger.Move` asks both through `SimulationContext`; `World.ProbeTankStep` gives the same answer for a step not
 yet taken. Machine placement checks `World.IsMachineSpotOccupied`, and roaming harvesters ask
 `MachineContext.IsOccupied`. To make bullets (or a new projectile) hit a new entity:
