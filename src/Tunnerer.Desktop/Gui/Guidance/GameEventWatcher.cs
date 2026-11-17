@@ -8,7 +8,8 @@ using Tunnerer.Core.Entities.Machines;
 /// <summary>
 /// Watches the player's side of the world from frame to frame and posts a toast when something changes that the
 /// player should know about: a relay linking or losing its link, a harvester starting, stalling or running dry, the
-/// base stores filling up, charge running low, leaving the network. It only reads Core state.
+/// base stores filling up, charge running low, leaving the network. It only reads Core state. What happens inside a
+/// step (harvesters banking ore) it counts from <see cref="World.StepEvents"/> in <see cref="AfterStep"/>.
 /// </summary>
 public sealed class GameEventWatcher
 {
@@ -26,7 +27,6 @@ public sealed class GameEventWatcher
     private bool _radarScattered;
     private bool _holdingOre;
     private bool _oreHoldFull;
-    private int _lastStore;
     private readonly int[] _upgradeLevels = new int[BaseUpgrades.Count];
     private int _upgradeRefused;
     private bool _tappingCore;
@@ -38,7 +38,22 @@ public sealed class GameEventWatcher
     /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
     public const float RadarScatteredShare = 0.08f;
 
-    public void Reset() => _primed = false;
+    public void Reset()
+    {
+        _primed = false;
+        _harvestedSinceReport = 0;
+    }
+
+    /// <summary>
+    /// Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events: counts
+    /// the ore the player's harvesters banked, however many steps a displayed frame runs.
+    /// </summary>
+    public void AfterStep(World world, Tank player)
+    {
+        foreach (ref readonly StepEvent e in world.StepEvents)
+            if (e.Kind == StepEventKind.OreHarvested && e.Color == player.Color)
+                _harvestedSinceReport += e.Count;
+    }
 
     public void Update(World world, Tank player, NotificationFeed feed, float now)
     {
@@ -69,7 +84,6 @@ public sealed class GameEventWatcher
             }
         }
 
-        bool docked = world.TankBases.CheckBaseCollision(player.Position) == home;
         int store = home.Store.Ore;
         bool storeFull = home.Store.IsFull;
         double heatCapacity = Math.Max(1, (int)home.Reactor.HeatCapacity) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
@@ -88,7 +102,6 @@ public sealed class GameEventWatcher
         if (!_primed)
         {
             _primed = true;
-            _lastStore = store;
             _lastHarvestReport = now;
             for (int i = 0; i < BaseUpgrades.Count; i++)
                 _upgradeLevels[i] = home.Upgrades.Level((BaseUpgrade)i);
@@ -176,10 +189,6 @@ public sealed class GameEventWatcher
                 feed.Post(now, "engine-running", "Base engine making charge",
                     "Relay heat is being turned into charge. Hotter sources make more.", NotificationKind.Good, cooldown: 120f);
 
-            // Ore that reaches the store while the player is neither docked nor unloading came from harvesters (or the
-            // bot's stand-in income, which the player's base never gets).
-            if (!docked && !player.IsUnloadingOre && store > _lastStore)
-                _harvestedSinceReport += store - _lastStore;
             if (_harvestedSinceReport > 0 && now - _lastHarvestReport >= 20f)
             {
                 feed.Post(now, "harvested", $"Harvesters delivered +{_harvestedSinceReport} ore",
@@ -202,7 +211,6 @@ public sealed class GameEventWatcher
         _radarScattered = radarScattered;
         _holdingOre = holdingOre;
         _oreHoldFull = oreHoldFull;
-        _lastStore = store;
         _upgradeRefused = player.UpgradeRefusedTicks;
         _tappingCore = tappingCore;
         _meetingGoal = meetingGoal;
