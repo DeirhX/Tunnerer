@@ -17,11 +17,14 @@ public partial class TerrainGrid
                 for (int i = from; i < to; i++)
                     _data[i] = MaterializePixel(_data[i]);
             });
-            return;
+        }
+        else
+        {
+            for (int i = 0; i < _data.Length; i++)
+                _data[i] = MaterializePixel(_data[i]);
         }
 
-        for (int i = 0; i < _data.Length; i++)
-            _data[i] = MaterializePixel(_data[i]);
+        NoteBulkWrite();
     }
 
     private static TerrainPixel MaterializePixel(TerrainPixel p) => p switch

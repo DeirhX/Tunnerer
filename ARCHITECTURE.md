@@ -41,7 +41,7 @@ tools/
 
 `Program.cs` parses the command line and constructs `Game`. The constructor opens the window and GPU backend,
 asks `WorldFactory.Build` for the world (a generated match level, or the static patterns of `--terrain-test`) and
-sets up input. `--fast` only makes level generation, materialisation and regrowth parallel; the simulation is
+sets up input. `--fast` only makes level generation and materialisation parallel; the simulation is
 deterministic either way. `Game.Run` hands a set of callbacks to `GameFrameCoordinator`, which owns the loop:
 
 ```
@@ -103,14 +103,14 @@ and Escape quits at once.
 ## Simulation order (`World.Advance`)
 
 1. **Collision** - rebuild the sector lookup for tanks and machines
-2. **Thermal** - `TerrainGrid.CoolDown`: heat diffusion between cells (sparse by active tile, parallel when large)
-3. **Regrowth** - dirt recovery by cellular automaton
+2. **Thermal** - `TerrainGrid.CoolDown`: heat diffusion between cells (only the tiles still changing, in parallel when many)
+3. **Regrowth** - dirt grows back into open and scorched ground (only the cells that can change are looked at)
 4. **Projectiles** - movement, impacts, explosions
 5. **Tanks** - input, turret, movement, digging, shooting, building, heat exchange with terrain and base
 6. **Machines** - relays pump heat to their base, harvesters mine and roam, pylons charge batteries
 7. **Sprites** - lifetime
 8. **Bases** - reactor heat sink and radiator
-9. **LinkMap** - which machines are connected to a powered base (line of sight, range); rebuilt every 200 ms
+9. **LinkMap** - which machines are connected to a powered base (line of sight, range); brought up to date every 200 ms, only where points or the ground between them changed
 10. **Vision** - fog of war for each side someone asked to track (`World.TrackVision`): what its tank, base and
     machines see, and the terrain as it last saw it; and the tank's radar (`World.TrackRadar`), whose turning beam
     leaves fading contacts where it reflects beyond sight. Output only; the steps above never read them

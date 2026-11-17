@@ -15,7 +15,7 @@ public interface ITerrainHeatSource
 
     void AddHeat(Position pos, int amount);
     void AddHeatRadius(Position center, int amount, int radius);
-    void CoolDown(float artificialCoolingPerFrame = 0f);
+    void CoolDown();
 
     float SampleAverageHeat(Position center, int radius);
     float SampleAverageAirTemperature(Position center, int radius);
@@ -31,6 +31,7 @@ public interface ITerrainHeatSource
     double ExtractEnergyInRadiusArea(Position center, int radius, double maxEnergy, TerrainGrid.ThermalField field);
     double ExtractableHeatTemperature(Position center, int radius, TerrainGrid.ThermalField field);
     double SinkCellToAmbient(Position pos, TerrainGrid.ThermalField field);
+    long QuietHeatStamp(Position center, int radius);
 
     bool TryGetHeatDirtyRect(out Rect dirtyRect);
     void ClearHeatDirtyRect();

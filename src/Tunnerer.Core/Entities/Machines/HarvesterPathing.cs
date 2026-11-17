@@ -130,21 +130,7 @@ internal static class HarvesterPathing
     /// <summary>Whether the work area holds any plain ore, and (<paramref name="coreLeft"/>) any core ore.</summary>
     private static bool HasPlainOre(Machine machine, ITerrainAccess terrain, out bool coreLeft)
     {
-        coreLeft = false;
-        bool plain = false;
-        int range = Tweaks.Machine.HarvestRange;
-        for (int dy = -range; dy <= range; dy++)
-            for (int dx = -range; dx <= range; dx++)
-            {
-                if (dx * dx + dy * dy > range * range) continue;
-                var pos = new Position(machine.Anchor.X + dx, machine.Anchor.Y + dy);
-                if (!terrain.IsInside(pos)) continue;
-                var pixel = terrain.GetPixelRaw(pos);
-                if (Pixel.IsOreCore(pixel))
-                    coreLeft = true;
-                else if (Pixel.IsOre(pixel))
-                    plain = true;
-            }
+        terrain.FindOre(machine.Anchor, Tweaks.Machine.HarvestRange, out bool plain, out coreLeft);
         return plain;
     }
 

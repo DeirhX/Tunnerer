@@ -43,18 +43,27 @@ public static class Tweaks
         // One row per thermal material (see ThermalMaterialProperties):
         // - capacity: energy per degree (higher means temperature changes slower);
         // - conductivity: half-cell conductance; two touching cells conduct ka * kb / (ka + kb), so a material
-        //   against itself conducts half its value. Air's value is the air field's, between neighbouring cells;
+        //   against itself conducts half its value. Air's value is the air field's, between two neighbouring cells of
+        //   which at least one is open;
         // - air exchange: conductance between a cell's terrain and the air in the same cell;
-        // - fixed: the temperature the cell is pinned to (a source or sink), or none.
+        // - fixed: the temperature the cell is pinned to (a source or sink), or none;
+        // - loss: the fraction of its temperature above ambient the cell gives up to the outside every tick (solid
+        //   ground to the deep ground, open air to the surface). It is the only way heat leaves the map other than
+        //   through a base, and it is what gives a hot or frost pocket a halo of a fixed size.
         // A pair the rule cannot reproduce is listed after the rows as an override (either order).
+        //
+        // Dirt is the insulator: it conducts 30 times worse than stone, so a pocket buried in it keeps its heat until a
+        // tunnel reaches it, and the halo around the pocket stays about ten cells wide. Open air loses heat faster
+        // than the ground does, so a dug-out chamber works as a radiator: the more open space around a heat source,
+        // the cooler it runs.
         // Base and ConstantEnergy cells are heat sinks, so they conduct far better than rock and pull heat out of
         // whatever touches them. Hot rock conducts like stone and is pinned hot: a permanent heat source for any
         // tunnel it touches (pocket placement is opt-in per world, World ctor).
         public static ThermalMaterialTable ThermalMaterials { get; } = new(
         [
-            (ThermalMaterial.Air, new(HeatCapacity: 0.8f, Conductivity: 0.48f, AirExchange: 0f)),
-            (ThermalMaterial.Dirt, new(HeatCapacity: 1.4f, Conductivity: 0.09f, AirExchange: 0.035f)),
-            (ThermalMaterial.Stone, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f)),
+            (ThermalMaterial.Air, new(HeatCapacity: 0.8f, Conductivity: 0.48f, AirExchange: 0f, Loss: 0.0010f)),
+            (ThermalMaterial.Dirt, new(HeatCapacity: 1.4f, Conductivity: 0.02f, AirExchange: 0.035f, Loss: 0.0003f)),
+            (ThermalMaterial.Stone, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
             (ThermalMaterial.Base, new(HeatCapacity: 2.6f, Conductivity: 1.8f, AirExchange: 0.45f, FixedTemperature: 0f)),
             (ThermalMaterial.ConstantEnergy, new(HeatCapacity: 2.0f, Conductivity: 1.8f, AirExchange: 0.55f, FixedTemperature: 0f)),
             (ThermalMaterial.HotRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: 100f)),
@@ -65,15 +74,7 @@ public static class Tweaks
             // together heats itself. Plain ore is stone.
             (ThermalMaterial.EmberiteCore, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: Ore.CoreTemperature)),
         ],
-        // Tuned values the series rule cannot produce (it would give dirt-stone 0.0783 and dirt against a sink
-        // 0.0857): dirt stays a poor conductor against rock and a slightly better one against bases and gold.
         [
-            new(ThermalMaterial.Dirt, ThermalMaterial.Stone, 0.07f),
-            new(ThermalMaterial.Dirt, ThermalMaterial.HotRock, 0.07f),
-            new(ThermalMaterial.Dirt, ThermalMaterial.FrostRock, 0.07f),
-            new(ThermalMaterial.Dirt, ThermalMaterial.EmberiteCore, 0.07f),
-            new(ThermalMaterial.Dirt, ThermalMaterial.Base, 0.09f),
-            new(ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy, 0.1f),
             // Between two pinned sinks: cell temperatures never depend on these, but the ledger's rounding does when
             // an entity adds heat to a sink cell, so they keep their tuned values.
             new(ThermalMaterial.Base, ThermalMaterial.Base, 0.2f),
@@ -106,14 +107,45 @@ public static class Tweaks
         public const int FrostRockMinDistanceFromBase = 45;
         public const int FrostRockMinDistanceFromHot = 35;
         public const int FrostRockMinDistanceBetween = 40;
+
+        // The solver steps only the tiles where heat is still changing, plus the ring of tiles around them; a tile
+        // where nothing changes any more is in equilibrium and is left alone until something disturbs it. A cell
+        // counts as changing while a step moves it by at least:
+        // - ThermalSettledGrowStep degrees away from ambient. This is the far edge of a halo that is still creeping
+        //   outward: slower than this (about 1.4 degrees a minute) it is taken as arrived, so a halo sleeps a little
+        //   short of where it would end, and creeps on whenever something nearby keeps it stepped. Measured on a
+        //   pocket buried in dirt: at 0.001 it sleeps after about 4 minutes with the rim (12 cells out) 30% short;
+        //   at 0.0003 after 6 minutes, 10% short; at 0.0001 after 9 minutes, 4% short. The coarse value is chosen on
+        //   purpose: running on weak computers matters more than an exact halo, and a tile that went to sleep early
+        //   is woken by anything that writes heat into it or changes a material beside heat.
+        // - ThermalSettledFadeStep degrees back toward ambient. Fading heat is followed until it loses less than this
+        //   a tick, which with the losses above is a third of a degree in the ground and a tenth in open air; that
+        //   much stays behind when the tile goes to sleep.
         public const int ThermalActiveTileSize = 32;
-        public const float ThermalSparseFallbackCoverage = 0.45f;
-        public const int ThermalParallelRegionThreshold = 4;
+        public const float ThermalSettledGrowStep = 0.001f;
+        public const float ThermalSettledFadeStep = 0.0001f;
+        // A change of material (digging, regrowth) wakes the solver only where a cell involved is further than this
+        // from ambient. It has to exceed what fading leaves behind (ThermalSettledFadeStep / the smallest loss, a
+        // third of a degree), or every spade of once-warm ground would wake its tile for nothing.
+        public const float ThermalWakeTemperature = 0.5f;
+        // A temperature difference or a heat flow below this is treated as none. It has to stay far below the two
+        // settle steps: a cut-off near them makes flows switch on and off, and a halo that should have settled
+        // keeps twitching and never sleeps.
+        public const float ThermalFlowCutoff = 1e-7f;
+        // Side of the tiles regrowth keeps its appointments in (RegrowthSchedule); a tile with none holds no memory.
+        public const int RegrowthTileSize = 32;
+        // Side of the regions that each take their regrowth pass on a tick of their own, which spreads a large map's
+        // work over the ticks between passes. It has to stay several times a look-out's reach: a look-out is recast
+        // when ground in its sight changes, so ground in one view should change on one tick, not on many (at 256
+        // vision cost three times as much).
+        public const int RegrowthRegionSize = 1024;
+        // The longest an open cell waits to be looked at again, and growing dirt to settle, in passes. The waits are
+        // drawn from the chances above; the few that would be longer end here (two and three in a hundred thousand).
+        public const int RegrowthLongestLookPasses = 80;
+        public const int RegrowthLongestSettlePasses = 1024;
+        // Tiles are stepped on several threads from this many up; fewer are not worth handing out.
+        public const int ThermalParallelTileThreshold = 32;
         public const int ThermalMaxWorkers = 0; // 0 => default scheduler/CPU count
-        public const float ThermalActiveTemperatureThreshold = 2.5f;
-        public const float ThermalArtificialCoolingPerFrame = 0.02f;
-        public const float ThermalMaxDeltaSleepThreshold = 0.005f;
-        public const int ThermalNoActiveSleepFrames = 120;
         public const float ThermalSaturationCoverageThreshold = 0.90f;
         public const int ThermalSaturationFramesBeforeThrottle = 90;
         public const int ThermalSaturationStepIntervalFrames = 4;
@@ -370,8 +402,8 @@ public static class Tweaks
         // The level falls from full to nothing over the last cells of a source's reach (a short reach: its outer
         // half), so sight has no hard edge.
         public const int EdgeFade = 12;
-        // Bases and machines stay put: their vision is recast every this many ticks, the tank's every tick.
-        public const int FixedSourceRefreshTicks = 6;
+        // Side of the tiles the vision map files its sources under, so a cell finds the sources that can see it.
+        public const int SourceTileSize = 32;
     }
 
     /// <summary>
