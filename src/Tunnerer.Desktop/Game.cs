@@ -341,6 +341,4 @@ public partial class Game : IDisposable
         _renderBackend.Dispose();
         _renderer.Dispose();
     }
-
-
 }

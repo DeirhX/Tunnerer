@@ -104,7 +104,6 @@ public static class WorldStateHash
             hash = Mix(hash, p.IsAlive ? 1u : 0u);
         }
 
-
         for (int i = 0; i < tanks.Count; i++)
         {
             var tip = tanks[i].Turret.GetBarrelTip(tanks[i].Position);
