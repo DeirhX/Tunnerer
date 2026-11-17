@@ -128,18 +128,18 @@ try {
     await page.waitForFunction(() => !window.testFrame.player.carrying);
     assert.ok(
         await page.evaluate(() =>
-            window.testEvents.some((e) => e.kind === "MachinePlanted"),
+            window.testEvents.some((e) => e.sound === "Plant"),
         ),
-        "A relay must plant",
+        "Planting a relay must be heard",
     );
     await page.keyboard.down("Space");
     await ticks(page, 8);
     await page.keyboard.up("Space");
     assert.ok(
         await page.evaluate(() =>
-            window.testEvents.some((e) => e.kind === "ShotFired"),
+            window.testEvents.some((e) => e.sound === "Fire"),
         ),
-        "Firing must produce Core events",
+        "Firing must be heard",
     );
     await page.screenshot({ path: resolve(out, "game.png") });
     await page.keyboard.press("Escape");
