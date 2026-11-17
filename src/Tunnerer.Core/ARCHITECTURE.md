@@ -23,17 +23,21 @@ Terrain/
   TerrainPixel.cs            TerrainPixel, ThermalMaterial, TerrainBehavior and the Pixel lookup tables
   TerrainGrid.cs             Pixel array, change list, SetPixel (metered) and SetPixelRaw (level gen only)
   TerrainGrid.Heat.cs        Terrain and air temperature fields, CoolDown, energy add / extract API
-  TerrainGrid.HeatSparse.cs  Sparse (active-region) solver path
+  TerrainGrid.HeatTiles.cs   The solver step over the tiles that are still changing
   TerrainGrid.HotRock.cs     PlaceHotRockPocket, PlaceFrostRockPocket, SetPinnedPixel
-  TerrainGrid.Ore.cs         PlaceOre (level gen)
+  TerrainGrid.Ore.cs         PlaceOre (level gen); FindOre and the per-tile ore counts behind it
   TerrainGrid.Materialization.cs, .Decoration.cs, .Render.cs   Level-gen markers to pixels, cleanup, Draw*ToSurface
-  TerrainRegrowth.cs         Dirt regrowth cellular automaton
+  TerrainRegrowth.cs         Dirt regrowth: the rules, applied to each cell when its appointment comes
+  RegrowthSchedule.cs        The appointments: at most one per cell, filed by tick
+  RegrowthWrites.cs          The pixel writes regrowth has yet to hear of
+  RegrowthBlockers.cs        Where no dirt grows (relay and pylon range), filed by map area
+  SightlineChanges.cs        The cells that started or stopped blocking a line of sight, for the link map
   TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
   ITerrain*.cs               Narrow interfaces over TerrainGrid (pixel read / write, heat source, change tracker)
 Thermal/
-  TerrainHeatEngine.cs       The exchange stencil, capacity and conductance tables, ResolveTerrainTemperature
-  ThermalScheduler.cs        Per tick: sleep, full grid or sparse regions
-  ThermalActivityTracker.cs  Active tiles (which regions to step) and the heat dirty rect (for the renderer)
+  TerrainHeatEngine.cs       The exchange stencil, capacity, conductance and loss tables, ResolveCell
+  ThermalScheduler.cs        Per tick: step or not (nothing active, or throttled when nearly everything is)
+  ThermalActivityTracker.cs  Active tiles (which tiles to step) and the heat dirty rect (for the renderer)
   ThermalLedger.cs           Energy created or destroyed, by kind
   TankHeatEngine.cs          One tank's heat exchange with terrain and air
 Entities/
@@ -56,15 +60,16 @@ Entities/
   Machines/Machine.cs        MachineType, MachineState, Machine
   Machines/MachineBehavior.cs   MachineBehavior (action, interval, cost, BuildKey, traits), MachineBehaviors table
   Machines/HarvesterPathing.cs  Where a harvester can stand; the flood that finds the ore nearest by path
-  Machines/MachineList.cs    Machine collection; wrecks dead machines (leave the network, charge to heat, scorch)
+  Machines/MachineList.cs    Machine collection, filed by place (`CollectNear`); wrecks dead machines (leave the network, charge to heat, scorch)
   Machines/MachinePlacementPreview.cs   Result of World.PreviewPlacement
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
-  Links/LinkPoint.cs, Link.cs, LinkMap.cs   Link network: nodes, edges, rebuild, power and flow
+  Links/LinkPoint.cs, Link.cs, LinkMap.cs   Link network: nodes, edges, refresh, power and flow
   Links/NetworkCoverage.cs   Coverage nodes and the coverage a tank gets at a position
 Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
+  VisionEye.cs               One source's sight, kept between updates, and the ray and wall casting that fills it
   Radar.cs                   A tank's radar: pulses running out from the tank and the fading contacts where they reflected
   RadarContact.cs            What a radar return is: RadarEcho, RadarContact, RadarTarget
   RadarReach.cs              The radar's ranges and heat budget, scaled per tank by its radar upgrade
@@ -94,7 +99,7 @@ Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, Dir
 
 ## World
 
-`new World(size, parallelRegrowth, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
+`new World(size, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
 spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot and frost rock pockets (if
 asked; the hot ones also give the core, `World.CorePocket`), seeds emberite ore (if asked, `seedOre`;
 `World.OreDeposits`) and adds one tank per spawn. Ore is placed last and grows each deposit cell by cell from its
@@ -103,14 +108,20 @@ distance rules shrink and a floor of pockets and lumps applies (`OreDeposits.Dis
 (projectiles, link map, regrowth, each tank) is seeded from `simulationSeed`, and decorations and rock pockets from
 the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
-picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in parallel, with the same result. The bot takes its own seed, also from `WorldFactory`.
+picks the seed. The bot takes its own seed, also from `WorldFactory`.
 
 `World.Advance(getInput)` runs one fixed step, in this order:
 
 1. **Collision**: `CollisionSolver.Update` rebuilds the tank sector index.
 2. **Heat**: `TerrainGrid.CoolDown` (see below). The energy-balance residual is measured here for the profile.
 3. **Regrowth**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
-   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open.
+   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open. Nothing scans the
+   map: each cell that can change (open ground with more than two dirt neighbours, scorch, dirt still growing) has
+   an appointment in `RegrowthSchedule` at the tick it is next looked at, with the wait drawn so that the odds are
+   those of rolling on every pass. Pixel writes (`RegrowthWrites`) start new appointments, and so does a blocker
+   going away. Open ground away from dirt or inside a blocker has none and costs nothing. The map is cut into
+   regions of `RegrowthRegionSize` cells that each take their pass on a tick of their own, so a large map's
+   regrowth is spread over the ticks between passes.
 4. **Projectiles**: `ProjectileList.Advance`.
 5. **Tanks**: `LinkMap.AgeOreFlow`, then `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`):
    idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage, the
@@ -121,18 +132,24 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
 6. **Machines**: `MachineList.Advance` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
-   (`LinkMap.CarryCharge`).
+   (`LinkMap.CarryCharge`). A machine that needs the machines near a place (a pylon its batteries, a harvester the
+   nodes that cover it, anything asking whether a spot is taken) asks `MachineList.CollectNear`, which returns them
+   in list order, and never walks the whole list. A relay that found no heat to pump keeps the ground's
+   `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
+   in its reach.
 7. **Sprites**: lifetime.
 8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), the bot's stand-in ore income for bases
    marked with `World.SetBotControlled`, then `World.AdvanceSectorGoal` (the core tap and its hold timer).
-9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
-   every tick.
+9. **Links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
+   (200 ms), not every tick, and at once when a machine's point is switched off.
 10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
     out by `World.TrackRadar` runs its pulse on (see "Radar" below).
 
 `SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per section
-above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / parallel ticks) and `[ProfileE]`
-(thermal energy and the ledger residual, which should stay near float noise).
+above), `[Profile+]` (heat solver parts) and `[Profile++]` (active and stepped tiles, stepped / parallel ticks).
+With `Profile.AuditEnergy` (Desktop: `--energy-audit`) it adds `[ProfileE]`: the thermal energy and the ledger
+residual over the report window, which should stay near float noise. That line sums every cell of the map, so it
+is off by default and never runs per tick.
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
 `Tank.IsDockedAtOwnBase`, `Tank.IsInOwnNetwork`, `Tank.IsUnloadingOre`, `Tank.QuoteBuild` (cost, payer, stock and
@@ -160,11 +177,30 @@ Heat lives in two float fields on `TerrainGrid`, terrain and air. Energy is temp
 (`TerrainHeatEngine.GetHeatCapacity` per `ThermalMaterial`, `AirHeatCapacity` for air). In an air cell the
 terrain field only mirrors the air field, so such a cell holds one store.
 
-Each tick `TerrainGrid.CoolDown` asks `ThermalScheduler.Decide` what to do: sleep (nothing active, or the last step
-was quiet), step the full grid, or step only the regions around active tiles (`ThermalActivityTracker`), in
-parallel when there are many regions. Both paths use `TerrainHeatEngine.ComputeRegionDeltaConservative` and
-`ResolveTerrainTemperature`, which pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock, emberite cores) and
-books what the pin removes or adds as `SunkFixedTemperature`.
+The exchange is `TerrainHeatEngine.ComputeRegionDeltaConservative`: a cell's terrain trades heat with its own air
+and with the solid cells beside it, and its air with the air beside it, but only where at least one of the two
+cells is open. The air inside solid ground carries nothing from one solid cell to the next, so ground conducts as
+its material row says; dirt is the insulator (30 times worse than stone). `ResolveCell` then applies the step to a
+cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock, emberite cores) and books what the
+pin removes or adds as `SunkFixedTemperature`, and it takes each material's `Loss` from unpinned ground and from
+open air, a small share of the temperature above or below ambient, booked as `SunkAmbientLoss`. The loss stands for
+heat leaving to the deep ground and to the surface. It is what gives a hot or frost pocket a halo of a fixed size
+(about a dozen cells in dirt) instead of one that spreads for ever, and open air loses faster than ground, so a
+dug-out chamber is a radiator for whatever stands in it.
+
+Because of the loss, heat settles, and the solver only works where it has not. `ThermalActivityTracker` keeps a
+grid of tiles (`ThermalActiveTileSize` cells a side). A tile is active when the last step still changed a cell in it
+(`ThermalSettledGrowStep` away from ambient, `ThermalSettledFadeStep` back toward it) or when something wrote heat
+into it or changed a cell's material next to heat (`SetPixel`). Each tick `TerrainGrid.CoolDown` steps the active
+tiles and the ring of tiles around them (`TerrainGrid.HeatTiles.cs`), one tile per thread when there are many:
+every tile's deltas are computed from the same state, tiles trade across the sides they share (each writes its own
+half of the trade, `RegionEdges`), and what the tiles found is merged in tile order, so the result is the same on
+any number of threads. A stepped tile's side toward a tile left out is closed, so before the step the set is grown
+across every side that still carries heat (`EdgeCarriesHeat`): a settled pocket and its halo are stepped together
+or not at all, never cut apart. Being stepped along does not make a settled tile active. A change of material
+wakes its tile only where a cell involved is more than `ThermalWakeTemperature` from ambient. A settled pocket, old tunnel or untouched ground costs nothing until it is disturbed. With no
+active tile the solver does not run; `ThermalScheduler` also holds it to every few ticks when nearly the whole map
+is active.
 
 Entities exchange energy through the `ITerrainHeatSource` API, never by writing temperatures:
 `AddEnergyInRadiusArea` / `ExtractEnergyInRadiusArea` for transfers the entity books itself, `AddHeat` /
@@ -211,9 +247,25 @@ the pixel the side last saw there (an `ITerrainPixelReadOnly`; it starts as a co
 update `KnownChanges` lists the cells whose known pixel changed, either because the terrain changed in sight or
 because a cell that changed out of sight came back into it. `TryGetDirtyRect` bounds the cells whose level changed.
 
-Cost follows the cells in sight, never the size of the map: every pass walks lists of lit cells, and no pass sweeps
-the grid. The tank is recast every tick; bases and machines, which stay put, every
-`FixedSourceRefreshTicks` ticks into their own layer. Keep it that way: maps are meant to grow.
+Cost follows what changes, never the size of the map or the number of cells in sight. Each source keeps its own
+cast (a `VisionEye`: the level it gives every cell of the square it can reach), and a cell's level is the highest
+any source gives it. `World` lists every source each tick, which costs next to nothing, and the map does work only
+for:
+
+- a source that is new or has moved (a source is its position and radii: the tank when it drives, a harvester when
+  it crawls), which is cast, and one that is gone, whose cells fall back to what the other sources give them;
+- ground that blocks sight where it did not, or the reverse, inside a source's square. A tank or base, which see
+  along open lines, are cast again. A machine sees through the ground, so its rays light the same cells whatever
+  the terrain is and only the walls lit around open ground can differ: it repairs the changed cells and
+  `WallSkin` + 1 cells around them (`VisionCast.CastWindow`);
+- a changed cell that is in sight, whose `Known` pixel is brought up to date.
+
+A pixel change that blocks sight no differently (a scorch mark on open ground, regrowing dirt that settles) casts
+nothing. The map learns of changes from the terrain's change list (`ITerrainChangeTracker`), which `World` keeps to
+one step's worth; a cell written without `SetPixel` during play is not noticed, by vision or by the renderer.
+`VisionMap.CellsCastInLastUpdate` is the measure of the work, and it is zero while nothing moves and nothing is dug.
+`VisionMapTests.AMapKeptUpToDate_ShowsWhatAFreshLookShows` checks the result against a map that looks at the same
+world for the first time. Keep it that way: maps are meant to grow, and so are networks of machines.
 
 ### Radar
 
@@ -279,10 +331,14 @@ between pulses only age contacts. Neither depends on the size of the map.
 
 ## Links
 
-Planted machines whose behavior has `IsLinkNode` (relays, pylons) and every base are `LinkPoint`s. At each rebuild
+Planted machines whose behavior has `IsLinkNode` (relays, pylons) and every base are `LinkPoint`s.
 `LinkMap` pairs points within `MaximumTheoreticalLinkDistance`, marks a link live when it is short enough and
 `Raycaster.HasOpenLine` finds no blocking pixel (`Pixel.BlocksLink`), and powers points breadth first from the
-bases, recording each point's `UpstreamLink` and `Hops`. Relays book pumped heat and pylons book charge along that
+bases, recording each point's `UpstreamLink` and `Hops`. It keeps its links between refreshes and does only what
+changed: a new point gets its links, a point switched off loses them, and a link's line of sight is cast again
+only when a cell in a tile its line crosses started or stopped blocking (the terrain lists those cells in
+`SightlineChanges`, from every pixel write). Power is searched again only when one of those changed something.
+The result is the one a rebuild from nothing gives, in the same order (`LinkMapTests`). Relays book pumped heat and pylons book charge along that
 route (`LinkMap.CarryHeat`, `LinkMap.CarryCharge`), which the renderer draws as flow. `LinkMap.PreviewLink` answers
 "would a node here link?" for planting and for `World.PreviewPlacement`.
 
@@ -375,10 +431,12 @@ Desktop:
      `ka * kb / (ka + kb)`, so a material against itself conducts half its value and against a much better
      conductor (a base, a gold core) nearly all of it. Air's value is the air field's, between neighbouring cells.
      A pair that needs a value the rule cannot produce gets a `ThermalPairOverride` in the table's override list
-     (either order; today dirt against stone, hot rock, base and gold/core). The engine copies the pair table once
+     (either order; today only pairs of pinned sinks). The engine copies the pair table once
      at construction, so the solver's inner loop pays one array read.
    - `AirExchange`: conductance between the cell's terrain and the air in the same cell.
-   - `FixedTemperature`: set it for a source or sink; `ResolveTerrainTemperature` pins the cell there each step.
+   - `FixedTemperature`: set it for a source or sink; `ResolveCell` pins the cell there each step.
+   - `Loss`: for a material that stores heat, the share of its temperature above ambient it gives up to the outside
+     each tick. Leave it zero only for a pinned material; ground without a loss never settles.
    If entities must not draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.
    The table reaches thermal code through `SimulationSettings.ThermalMaterials` (`SourceGuardTests`), so a test can
    swap a row with `ThermalMaterialTable.With`.

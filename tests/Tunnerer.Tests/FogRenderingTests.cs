@@ -15,7 +15,6 @@ public class FogRenderingTests
 {
     private static readonly Size TerrainSize = new(128, 96);
     private static readonly Rect Viewport = new(0, 0, 128, 96);
-    private static readonly VisionSource[] None = [];
     private static readonly Position Seen = new(22, 20);
     private static readonly Position Unseen = new(100, 70);
 
@@ -29,7 +28,7 @@ public class FogRenderingTests
         LookFrom(new Position(20, 20));
     }
 
-    private void LookFrom(Position eye) => _vision.Update(_terrain, None, [new VisionSource(eye, 10, 0)]);
+    private void LookFrom(Position eye) => _vision.Update(_terrain, [new VisionSource(eye, 10, 0)], changedCells: []);
 
     private static int Index(Position p) => p.X + p.Y * TerrainSize.X;
 

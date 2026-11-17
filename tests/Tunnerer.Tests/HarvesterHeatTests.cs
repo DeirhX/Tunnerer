@@ -95,10 +95,13 @@ public class HarvesterHeatTests
         Advance(s, HarvestTicks(Tweaks.Ore.HarvesterPlainWork - 1));
         Assert.Equal(oreBefore, OreAround(s, Tweaks.Machine.HarvestRange));
 
-        Advance(s, HarvestTicks(Tweaks.Ore.HarvesterPlainWork * 4));
+        // Its own heat lingers in the ground and keeps stalling it (the relay is too far away to pump it out), so it
+        // works about a third of the time.
+        int cellsWorth = 12;
+        Advance(s, HarvestTicks(Tweaks.Ore.HarvesterPlainWork * cellsWorth));
         int mined = oreBefore - OreAround(s, Tweaks.Machine.HarvestRange);
         Assert.True(mined >= 3, $"the harvester should have mined a few cells. mined={mined}");
-        Assert.True(mined <= 6, $"no more than a cell per {Tweaks.Ore.HarvesterPlainWork} actions. mined={mined}");
+        Assert.True(mined <= cellsWorth + 1, $"no more than a cell per {Tweaks.Ore.HarvesterPlainWork} actions. mined={mined}");
         Assert.Equal(storeBefore + mined, s.Base.Store.Ore);
     }
 

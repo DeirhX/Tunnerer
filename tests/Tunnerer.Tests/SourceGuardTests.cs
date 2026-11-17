@@ -23,8 +23,7 @@ public class SourceGuardTests
     // Profiling timers. They must never feed simulation state.
     private static readonly HashSet<(string File, string Pattern)> NonDeterministicAllowed =
     [
-        ("src/Tunnerer.Core/Terrain/TerrainGrid.Heat.cs", "Stopwatch"),
-        ("src/Tunnerer.Core/Terrain/TerrainGrid.HeatSparse.cs", "Stopwatch"),
+        ("src/Tunnerer.Core/Terrain/TerrainGrid.HeatTiles.cs", "Stopwatch"),
         ("src/Tunnerer.Core/World.cs", "Stopwatch"),
     ];
 
@@ -98,6 +97,43 @@ public class SourceGuardTests
 
         AssertMatchesAllowList(found, ThermalTweaksAllowed,
             "Thermal code must read constants through SimulationSettings, not Tweaks");
+    }
+
+    /// <summary>
+    /// During play a pixel changes through <c>SetPixel</c>, which books the heat and lists the cell as changed. Fog of
+    /// war and the renderer follow that list instead of rereading the map, so a cell written behind its back would
+    /// stay as it was on screen. Level generation and the grid itself write raw.
+    /// </summary>
+    [Fact]
+    public void Core_ChangesPixelsThroughSetPixel_OutsideLevelGeneration()
+    {
+        (string Name, Regex Pattern)[] rawWrites =
+        [
+            ("SetPixelRaw", new Regex(@"\bSetPixelRaw\s*\(")),
+            ("terrain[...] =", new Regex(@"\b\w*([tT]errain|[gG]rid)\w*\[[^\]\n]+\]\s*=[^=]")),
+        ];
+        string[] writesRaw =
+        [
+            "src/Tunnerer.Core/LevelGen/",
+            "src/Tunnerer.Core/Terrain/TerrainGrid.",
+            "src/Tunnerer.Core/Terrain/ITerrainPixelWriter.cs",
+            "src/Tunnerer.Core/Terrain/TerrainTestPatternGenerator.cs",
+        ];
+        var found = new HashSet<(string File, string Pattern)>();
+        foreach (string path in RepositoryFiles.CSharpFiles(CoreDir))
+        {
+            string file = RepositoryFiles.Relative(path);
+            if (writesRaw.Any(prefix => file.StartsWith(prefix, StringComparison.Ordinal)))
+                continue;
+            string code = WithoutLineComments(File.ReadAllText(path));
+            foreach (var (name, pattern) in rawWrites)
+                if (pattern.IsMatch(code))
+                    found.Add((file, name));
+        }
+
+        // World.Initialize copies the generated level into its grid, before anything can follow the terrain.
+        AssertMatchesAllowList(found, [("src/Tunnerer.Core/World.cs", "terrain[...] =")],
+            "Simulation code must change pixels through SetPixel, so that vision and the renderer learn of it");
     }
 
     [Fact]

@@ -90,6 +90,66 @@ public class RelayHeatTests
     }
 
     [Fact]
+    public void ARelayInColdGround_PumpsNothing_AndStartsAgainOnceHeatReachesIt()
+    {
+        // A relay that finds no heat stops sweeping its ground until heat moves there. Whether it sleeps cannot be
+        // seen from outside; that it wakes can: heat written beside it, or spreading in from further off, is pumped.
+        var s = CreateScenario();
+        var relay = PlantRelay(s);
+        Advance(s.World, 60);
+        Assert.True(relay.LinkPoint!.IsPowered);
+        Assert.Equal(0.0, relay.LastPumpedEnergy);
+
+        HeatZone(s);
+        Advance(s.World, 1);
+        Assert.True(relay.LastPumpedEnergy > 0.0, "heat written into its reach is pumped on the next tick");
+
+        // Left alone the zone is pumped out and the relay rests again.
+        Advance(s.World, 3000);
+        Assert.Equal(0.0, relay.LastPumpedEnergy);
+
+        // Heat outside its reach that spreads into it wakes it as well.
+        int beyond = Tweaks.Machine.RelayCoolingRadius + 3;
+        s.World.Terrain.AddHeatRadius(s.RelayPos + new Offset(0, s.DirY * beyond), 200, 2);
+        double pumped = 0.0;
+        for (int i = 0; i < 600; i++)
+        {
+            s.World.Advance(_ => default);
+            pumped += relay.LastPumpedEnergy;
+        }
+        Assert.True(pumped > 0.0, "heat that spreads into its reach is pumped");
+    }
+
+    [Fact]
+    public void TheGroundsQuietStamp_HoldsWhileNoHeatMoves_AndChangesWhenItDoes()
+    {
+        var terrain = new TerrainGrid(new Size(200, 200));
+        terrain.Fill(TerrainPixel.Dirt);
+        var at = new Position(100, 100);
+        for (int i = 0; i < 5; i++)
+            terrain.CoolDown();
+        long quiet = terrain.QuietHeatStamp(at, 12);
+        Assert.True(quiet >= 0);
+        for (int i = 0; i < 20; i++)
+            terrain.CoolDown();
+        Assert.Equal(quiet, terrain.QuietHeatStamp(at, 12));
+
+        // Heat written in reach: no promise while it moves, and another number once it has settled.
+        terrain.AddHeat(at + new Offset(5, 0), 80);
+        Assert.True(terrain.QuietHeatStamp(at, 12) < 0);
+        for (int i = 0; i < 20000 && terrain.QuietHeatStamp(at, 12) < 0; i++)
+            terrain.CoolDown();
+        long settled = terrain.QuietHeatStamp(at, 12);
+        Assert.True(settled >= 0 && settled != quiet, $"settled={settled} quiet={quiet}");
+
+        // Heat far away leaves it as it is.
+        terrain.AddHeat(new Position(20, 20), 80);
+        for (int i = 0; i < 50; i++)
+            terrain.CoolDown();
+        Assert.Equal(settled, terrain.QuietHeatStamp(at, 12));
+    }
+
+    [Fact]
     public void Relay_WithoutLineOfSight_IsNotPoweredAndDoesNothing()
     {
         var s = CreateScenario(blockLineOfSight: true);

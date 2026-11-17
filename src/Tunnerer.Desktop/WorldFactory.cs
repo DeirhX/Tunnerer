@@ -40,7 +40,7 @@ public static class WorldFactory
 {
     /// <summary>
     /// <c>--fast</c> (<see cref="LevelGenMode.Optimized"/>) only means fast: parallel level generation,
-    /// materialisation, drawing and regrowth. The simulation is deterministic either way, and the world is built
+    /// materialisation and drawing. The simulation is deterministic either way, and the world is built
     /// from the seed passed in (<c>Game</c> picks a random one for a normal match), so a --fast match replays with
     /// --fast --seed=N. (The two level generators make different maps from the same seed.)
     /// </summary>
@@ -86,12 +86,12 @@ public static class WorldFactory
 
         var world = new World(
             size,
-            parallelRegrowth: parallel,
             simulationSeed: seed,
             hotRockPocketCount: Tweaks.World.HotRockPocketCount,
             frostRockPocketCount: Tweaks.World.FrostRockPocketCount,
             seedOre: true);
         world.Profile.ReportSink = static line => Console.WriteLine(line);
+        world.Profile.AuditEnergy = GameLaunchOptions.EnergyAudit;
         world.Initialize(terrain, spawns, decorationSeed: seed + 1, parallelMaterialize: parallel);
         if (world.HotRockPockets.Count > 0)
             Console.WriteLine($"[HotRock] {world.HotRockPockets.Count} pocket(s) at " +

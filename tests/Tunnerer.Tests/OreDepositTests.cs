@@ -228,4 +228,62 @@ public class OreDepositTests
         Assert.InRange(Share(OreDepositKind.Pocket), 0.28, 0.42);
         Assert.InRange(Share(OreDepositKind.Lump), 0.42, 0.58);
     }
+
+    [Fact]
+    public void FindOre_SaysWhatTheCircleHolds_AsOreIsPlacedAndMined()
+    {
+        var terrain = new TerrainGrid(new Size(300, 200));
+        terrain.Fill(TerrainPixel.Dirt);
+        var rng = new Random(11);
+        var ore = new List<Position>();
+
+        void Check()
+        {
+            for (int i = 0; i < 40; i++)
+            {
+                var center = new Position(rng.Next(-10, 310), rng.Next(-10, 210));
+                int radius = rng.Next(1, 30);
+                bool plain = false, core = false;
+                foreach (var p in ore)
+                {
+                    int dx = p.X - center.X, dy = p.Y - center.Y;
+                    if (dx * dx + dy * dy > radius * radius)
+                        continue;
+                    if (terrain.GetPixelRaw(p) == TerrainPixel.EmberiteCore)
+                        core = true;
+                    else
+                        plain = true;
+                }
+                terrain.FindOre(center, radius, out bool foundPlain, out bool foundCore);
+                Assert.Equal((plain, core), (foundPlain, foundCore));
+            }
+        }
+
+        Check();
+        // Placed every way a pixel can be written, then mined again a cell at a time.
+        for (int i = 0; i < 60; i++)
+        {
+            var p = new Position(rng.Next(1, 299), rng.Next(1, 199));
+            if (ore.Contains(p))
+                continue;
+            ore.Add(p);
+            switch (i % 3)
+            {
+                case 0: terrain.PlaceOre(p, core: i % 2 == 0, dirtOnly: false); break;
+                case 1: terrain.SetPixel(p, TerrainPixel.Emberite); break;
+                default: terrain[p.X + p.Y * terrain.Width] = TerrainPixel.EmberiteCore; break;
+            }
+            Check();
+        }
+        while (ore.Count > 0)
+        {
+            terrain.SetPixel(ore[^1], TerrainPixel.Blank);
+            ore.RemoveAt(ore.Count - 1);
+            Check();
+        }
+
+        terrain.Fill(TerrainPixel.Emberite);
+        terrain.FindOre(new Position(150, 100), 5, out bool afterFill, out _);
+        Assert.True(afterFill, "a bulk write is counted too");
+    }
 }

@@ -36,6 +36,10 @@ public class CollisionSolver
     private readonly WorldSectors _tankSectors;
     private TankList? _tanks;
     private MachineList? _machines;
+    private readonly List<List<Machine>> _nearMachines = new();
+    /// <summary>Scratch list for <see cref="BlocksTank"/>, which calls out to nothing and so needs just one.</summary>
+    private readonly List<Machine> _blockers = new();
+    private int _nearDepth;
 
     public TerrainGrid Terrain => _terrain;
 
@@ -67,7 +71,7 @@ public class CollisionSolver
     /// Tests a single point against terrain, tanks, and/or machines.
     /// Supply only the callbacks you care about; null callbacks are skipped.
     /// Callbacks receive the hit entity and return true to signal a hit (stops further checks).
-    /// Tank checks use sector-based broad-phase; machine checks are linear (few entities).
+    /// Tank checks use sector-based broad-phase; machine checks look at the machines filed near the point.
     /// </summary>
     public bool TestPoint(Position pos,
         Func<Tank, bool>? onTank = null,
@@ -88,10 +92,23 @@ public class CollisionSolver
 
         if (onMachine != null && _machines != null)
         {
-            foreach (var m in _machines.Machines)
+            // In list order: the first machine the callback accepts ends the test. A callback may test another
+            // point before it returns, so each test in progress has a scratch list of its own.
+            if (_nearDepth == _nearMachines.Count)
+                _nearMachines.Add(new List<Machine>());
+            var near = _nearMachines[_nearDepth++];
+            try
             {
-                if (!m.IsAlive || !m.IsBlockingCollision) continue;
-                if (m.TestCollide(pos) && onMachine(m)) return true;
+                _machines.CollectNear(pos, Config.Tweaks.Machine.BoundingBoxHalfSize, near);
+                foreach (var m in near)
+                {
+                    if (!m.IsAlive || !m.IsBlockingCollision) continue;
+                    if (m.TestCollide(pos) && onMachine(m)) return true;
+                }
+            }
+            finally
+            {
+                _nearDepth--;
             }
         }
 
@@ -164,7 +181,10 @@ public class CollisionSolver
 
         if (_machines != null)
         {
-            foreach (var m in _machines.Machines)
+            // Only machines the hull can reach; whether one blocks does not depend on the order they are met in.
+            _machines.CollectNear(pos, TankSpriteShape.Size + Config.Tweaks.Machine.BoundingBoxHalfSize, _blockers,
+                inListOrder: false);
+            foreach (var m in _blockers)
             {
                 if (!m.IsAlive || !m.IsBlockingCollision || m.OwnerColor == tank.Color) continue;
                 int half = m.BoundingBox.HalfWidth;

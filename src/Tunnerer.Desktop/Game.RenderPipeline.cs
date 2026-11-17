@@ -150,12 +150,15 @@ public partial class Game
         _drawProfile.ScreenImGuiRender += imguiWatch.Elapsed;
     }
 
+    /// <summary>
+    /// The thermal debug overlay (Shift+2) draws the solver's tile grid and tints the tiles that hold warm ground.
+    /// It works from the heat texture, so it shows where heat is, not which tiles the solver is stepping: a pocket
+    /// that has settled is warm and drawn, yet costs nothing.
+    /// </summary>
     private ThermalRegionOverlayUpload BuildThermalRegionOverlayUpload()
     {
-        if (!_world.Terrain.TryGetThermalTileInfo(out int tileSize, out _, out _))
-            return default;
-
-        float threshold01 = _world.Settings.ThermalActiveTemperatureThreshold / (TerrainGrid.HeatByteScale * 255f);
+        _world.Terrain.GetThermalTileInfo(out int tileSize, out _, out _);
+        float threshold01 = DesktopScreenTweaks.ThermalOverlayWarmTemperature / (TerrainGrid.HeatByteScale * 255f);
         return new ThermalRegionOverlayUpload(
             TileSizeCells: Math.Max(1, tileSize),
             ActiveThresholdHeat01: Math.Clamp(threshold01, 0f, 1f));

@@ -11,7 +11,28 @@ public enum MachineState { Template, Transporting, Planted }
 
 public class Machine
 {
-    public Position Position { get; set; }
+    private Position _position;
+
+    /// <summary>Where the machine is. The list it belongs to files it by position, so a move is reported to it.</summary>
+    public Position Position
+    {
+        get => _position;
+        set
+        {
+            if (value == _position)
+                return;
+            Position from = _position;
+            _position = value;
+            List?.NoteMoved(this, from);
+        }
+    }
+
+    /// <summary>The list this machine was added to, or null.</summary>
+    internal MachineList? List { get; set; }
+
+    /// <summary>Its place in the order of <see cref="MachineList.Machines"/>: a machine added later has a higher one.</summary>
+    public int Sequence { get; internal set; }
+
     public MachineType Type { get; }
     public MachineBehavior Behavior { get; }
     public MachineState State { get; set; } = MachineState.Template;
@@ -37,6 +58,12 @@ public class Machine
 
     /// <summary>True when a relay could not pump its full rate because the base reservoir was nearly full.</summary>
     public bool LastPumpLimitedByBase { get; set; }
+
+    /// <summary>
+    /// A relay: the ground's <see cref="ITerrainHeatSource.QuietHeatStamp"/> when it last found no heat to pump, or
+    /// negative. While the ground still gives that number there is still none, and it does not look.
+    /// </summary>
+    internal long ColdGroundStamp { get; set; } = -1;
 
     /// <summary>True when a harvester skipped its last action because the ground around it was too hot.</summary>
     public bool IsStalled { get; set; }
@@ -85,11 +112,14 @@ public class Machine
     /// <summary>Charge a pylon handed out at its last action (zero when it charged nothing).</summary>
     public double LastChargeGiven { get; set; }
 
+    /// <summary>A pylon: the batteries it charged at its last action, whose <see cref="ChargingFrom"/> names it.</summary>
+    internal List<Machine> ChargedAtLastAction { get; } = new();
+
     private TimeSpan _actionAccumulator;
 
     public Machine(Position position, MachineType type, int ownerColor)
     {
-        Position = position;
+        _position = position;
         Type = type;
         Behavior = MachineBehaviors.Get(type);
         OwnerColor = ownerColor;

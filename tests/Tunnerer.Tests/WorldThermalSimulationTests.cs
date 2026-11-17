@@ -80,6 +80,7 @@ public class WorldThermalSimulationTests
             $"Expected measurable dissipation when connected to base sink. start={startHeat}, end={endHeat}");
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void WorldAdvance_BaseConnectedTunnel_ExternalHeat_ConvergesToBaseTemperature()
     {
@@ -96,7 +97,8 @@ public class WorldThermalSimulationTests
         float startHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 8) * 255f;
         float startBaseTemperature = world.Terrain.SampleAverageHeat(basePos, radius: 6) * 255f;
 
-        AdvanceUntil(world, maxFrames: 24 * 90, () =>
+        // ~335 s: the walls of the tunnel hold what was blasted into them and give it up slowly.
+        AdvanceUntil(world, maxFrames: 24 * 420, () =>
             world.Terrain.SampleAverageHeat(hotspotPos, radius: 8) * 255f <= 6f,
             visual,
             "settle");
@@ -306,9 +308,9 @@ public class WorldThermalSimulationTests
         TestSimulation.Advance(world, frames: shootFrames, inputForTank0ByFrame: _ => shootDown, visual: visual, phase: "shoot", captureEvery: 6);
         float hotspotAfterShooting = world.Terrain.SampleAverageHeat(impactPos, radius: 6) * 255f;
 
-        // Heat injected into a tunnel now stays in the air until it conducts away (it is no longer erased), so
-        // the hotspot needs ~16 s to drop below the safe level instead of ~9 s.
-        const int waitFrames = 24 * 20;
+        // Dirt insulates, so the heat a shot leaves in the walls stays put and fades with the ground's own loss:
+        // the hotspot needs ~47 s to drop below the safe level (it was ~16 s when air carried heat through dirt).
+        const int waitFrames = 24 * 60;
         TestSimulation.AdvanceIdle(world, frames: waitFrames, visual: visual, phase: "wait", captureEvery: 24);
 
         float hotspotBeforeReturn = world.Terrain.SampleAverageHeat(impactPos, radius: 6) * 255f;
@@ -440,6 +442,7 @@ public class WorldThermalSimulationTests
             $"Expected base interior to remain near ambient after driving out. baseAfterDriveOut={baseAfterDriveOut:0.00}, baseAfterSettle={baseAfterSettle:0.00}");
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange()
     {
@@ -482,7 +485,8 @@ public class WorldThermalSimulationTests
         float startHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 6) * 255f;
         var energySamples = new List<string>();
         double startTunnelEnergy = SumTunnelEnergy();
-        const int maxFrames = 24 * 120;
+        // ~235 s: heat blasted into insulating walls leaves through the tunnel and the ground's slow loss.
+        const int maxFrames = 24 * 300;
         for (int i = 0; i < maxFrames; i++)
         {
             if ((i % 120) == 0)

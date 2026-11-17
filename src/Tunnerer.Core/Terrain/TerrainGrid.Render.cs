@@ -4,6 +4,7 @@ using Tunnerer.Core.Types;
 
 public partial class TerrainGrid
 {
+    /// <summary>Draws the listed changes. The list stays: the world trims it (<see cref="ITerrainChangeTracker"/>).</summary>
     public void DrawChangesToSurface(uint[] surface)
     {
         foreach (var pos in _changeList)
@@ -11,7 +12,6 @@ public partial class TerrainGrid
             var color = Pixel.GetColor(GetPixel(pos));
             surface[pos.X + pos.Y * Width] = color.ToArgb();
         }
-        _changeList.Clear();
     }
 
     public void DrawAllToSurface(uint[] surface)

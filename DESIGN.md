@@ -72,7 +72,9 @@ Minerals have thermal jobs:
 
 This fits the solver, which already exchanges heat between neighbouring cells using a conductance per pair of
 materials. A conductor or insulator is a new terrain material with its own row in that table; routing follows from
-the simulation. Digging is already a weak form of this, because dirt conducts far worse than stone.
+the simulation. Digging is already a form of this: dirt is the insulator of the world (it conducts 30 times worse
+than stone, and the air inside solid ground carries no heat through it), so a pocket buried in dirt keeps its heat
+until a tunnel uncorks it.
 
 ### 4.3 Leaks to close *(Proposed)*
 
@@ -81,7 +83,10 @@ Heat currently leaves the world in ways that bypass the base. Each one weakens "
 - Base cells are pinned at ambient, so heat that conducts into the base interior is deleted without using the
   reservoir.
 - Digging hot dirt out to air destroys that cell's heat.
-- An optional global dirt cooling removes heat everywhere.
+- Ground and open air give a small share of their heat to the outside every tick (deep ground, the surface). This
+  one is kept on purpose: without it a pinned pocket has no equilibrium and its halo spreads for ever. It is small
+  (ground loses a third of its heat in about a minute, open air in about 15 seconds), it bounds a pocket's halo at
+  about a dozen cells, and it is what makes a dug-out chamber a radiator for a machine that runs hot.
 
 ### 4.4 Heat as a resource *(Proposed)*
 

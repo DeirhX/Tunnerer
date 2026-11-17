@@ -20,11 +20,19 @@ using Tunnerer.Core.Terrain;
 /// The temperature a cell is pinned to every step, or null for a material that stores heat. A pinned cell is a source
 /// or sink: the energy the pin adds or removes is booked in <see cref="ThermalLedger.SunkFixedTemperature"/>.
 /// </param>
+/// <param name="Loss">
+/// The fraction of its temperature above (or below) ambient that a cell's store gives up to the outside every step:
+/// a solid cell's terrain field to the deep ground, an open cell's air to the surface. It is what lets a heat or cold
+/// source reach an equilibrium with the ground around it instead of spreading for ever. The air row's value applies
+/// to open cells only; the air inside a solid cell follows that cell. Booked in
+/// <see cref="ThermalLedger.SunkAmbientLoss"/>. Zero for a pinned material, which has no store to lose from.
+/// </param>
 public readonly record struct ThermalMaterialProperties(
     float HeatCapacity,
     float Conductivity,
     float AirExchange,
-    float? FixedTemperature = null)
+    float? FixedTemperature = null,
+    float Loss = 0f)
 {
     public bool IsFixedTemperature => FixedTemperature.HasValue;
 }
@@ -56,6 +64,10 @@ public sealed class ThermalMaterialTable
                 throw new ArgumentException($"{material} is not a ThermalMaterial.", nameof(rows));
             if (seen[index])
                 throw new ArgumentException($"{material} has two rows.", nameof(rows));
+            if (!(properties.Loss >= 0f && properties.Loss < 1f))
+                throw new ArgumentException($"{material} has a loss outside [0, 1).", nameof(rows));
+            if (properties.IsFixedTemperature && properties.Loss != 0f)
+                throw new ArgumentException($"{material} is pinned, so it cannot have a loss.", nameof(rows));
             seen[index] = true;
             _rows[index] = properties;
         }

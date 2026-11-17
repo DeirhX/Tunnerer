@@ -6,8 +6,28 @@ using Tunnerer.Core.Collision;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Rendering;
 
+/// <summary>
+/// The link network: the points (bases and planted link nodes), the links between points near enough to link, and
+/// which points have power, found from the bases outward over the links with a clear line of sight.
+/// <para>
+/// The map is brought up to date every <c>RefreshLinkMapInterval</c>, and at once when a machine's point is switched
+/// off. It keeps its links from one refresh to the next and does only what has changed: a new point gets its links,
+/// a point switched off loses them, and a link's line of sight is looked at again only when a cell near its line
+/// started or stopped blocking (<see cref="SightlineChanges"/>). Power is searched again only when one of those
+/// changed something. The result is the one a rebuild from nothing would give.
+/// </para>
+/// </summary>
 public class LinkMap
 {
+    // Side of the squares links are filed in by the cells their line crosses, as a power of two.
+    private const int TileShift = 5;
+
+    // The order of Links: by the registration order of the first end, then of the second.
+    private static readonly Comparison<Link> ByEnds = static (a, b) => a.From.Sequence != b.From.Sequence
+        ? a.From.Sequence.CompareTo(b.From.Sequence)
+        : a.To.Sequence.CompareTo(b.To.Sequence);
+    private static readonly Comparison<Link> ByOrder = static (a, b) => a.Order.CompareTo(b.Order);
+
     private readonly List<LinkPoint> _points = new();
     private readonly List<Link> _links = new();
     private readonly int _idSeed;
@@ -15,10 +35,26 @@ public class LinkMap
     private TimeSpan _elapsed;
     private TimeSpan _nextRelink;
 
+    // What has happened since the last refresh.
+    private readonly List<LinkPoint> _unlinked = new();
+    private bool _hasDisabledPoint;
+    private bool _hasDisabledMachinePoint;
+    private bool _hasSpreadPower;
+
+    // Looked up by key only, never enumerated, so its order cannot reach the simulation.
+    private readonly Dictionary<long, List<Link>> _linksByTile = new();
+    private readonly List<Link> _toRecheck = new();
+    private readonly List<Link> _candidates = new();
+    private List<LinkPoint> _frontier = new();
+    private List<LinkPoint> _nextFrontier = new();
+
     public IReadOnlyList<LinkPoint> Points => _points;
     public IReadOnlyList<Link> Links => _links;
     public int PointCount => _points.Count;
     public int LinkCount => _links.Count;
+
+    /// <summary>Links whose line of sight the last <see cref="Advance"/> looked at: what the step cost.</summary>
+    public int SightlinesCheckedInLastAdvance { get; private set; }
 
     public LinkMap(int idSeed = 0)
     {
@@ -27,29 +63,34 @@ public class LinkMap
 
     public LinkPoint RegisterPoint(Position position, LinkPointType type)
     {
-        int id = GeneratePointId(_nextPointIndex++);
-        var point = new LinkPoint(position, type, id);
+        int index = _nextPointIndex++;
+        var point = new LinkPoint(position, type, GeneratePointId(index)) { Map = this, Sequence = index };
         _points.Add(point);
+        _unlinked.Add(point);
         return point;
     }
 
-    public void Advance(ITerrainPixelReadOnly terrain, TimeSpan dt)
+    public void Advance(TerrainGrid terrain, TimeSpan dt)
     {
+        SightlinesCheckedInLastAdvance = 0;
         _elapsed += dt;
         if (_elapsed >= _nextRelink)
             _nextRelink += Tweaks.World.RefreshLinkMapInterval;
-        else if (!HasDisabledMachinePoint())
-            return; // a destroyed machine's point is pruned at once, so the network around it rebuilds that tick
+        else if (!_hasDisabledMachinePoint)
+            return; // a destroyed machine's point is pruned at once, so the network around it changes that tick
 
-        RebuildLinks(terrain);
+        Refresh(terrain);
     }
 
-    private bool HasDisabledMachinePoint()
+    internal void NoteEnabledChanged(LinkPoint point)
     {
-        foreach (var p in _points)
-            if (!p.IsEnabled && p.Type != LinkPointType.Base)
-                return true;
-        return false;
+        if (point.IsEnabled)
+        {
+            _unlinked.Add(point);
+            return;
+        }
+        _hasDisabledPoint = true;
+        _hasDisabledMachinePoint |= point.Type != LinkPointType.Base;
     }
 
     private int GeneratePointId(int pointIndex)
@@ -58,74 +99,235 @@ public class LinkMap
         return unchecked((int)FastRandom.Hash32(mixed));
     }
 
-    private void RebuildLinks(ITerrainPixelReadOnly terrain)
+    private void Refresh(TerrainGrid terrain)
     {
-        // Machines already booked this tick's heat on the old links; keep it on their replacements so the drawn
-        // heat flow does not drop to zero for a tick at every rebuild.
-        var previousFlow = new Dictionary<(int, int), Link>();
-        foreach (var old in _links)
-            if (old.HeatFlow > 0.0 || old.ChargeFlow > 0.0 || old.OreFlowTicks > 0)
-                previousFlow[(old.From.Id, old.To.Id)] = old;
-        _links.Clear();
-        _points.RemoveAll(p => !p.IsEnabled && p.Type != LinkPointType.Base);
+        SightlineChanges sightlines = terrain.SightlineChanges;
+        if (!sightlines.IsFollowed)
+            sightlines.Follow();
 
-        for (int i = 0; i < _points.Count; i++)
+        bool pointsChanged = DropDisabledPoints();
+        pointsChanged |= LinkNewPoints(terrain);
+        if (pointsChanged)
+            PutLinksInOrder();
+        bool sightChanged = RecheckSightlines(terrain, sightlines);
+
+        // A link that is not live carries nothing, and one that carried nothing starts over: as if made anew.
+        foreach (var link in _links)
+            if (link.Type != LinkType.Live || !(link.HeatFlow > 0.0 || link.ChargeFlow > 0.0 || link.OreFlowTicks > 0))
+                link.ForgetFlows();
+
+        if (pointsChanged || sightChanged || !_hasSpreadPower)
+            SpreadPower();
+    }
+
+    /// <summary>Drops the links of points that were switched off, and the points themselves unless they are bases.</summary>
+    private bool DropDisabledPoints()
+    {
+        if (!_hasDisabledPoint)
+            return false;
+        _hasDisabledPoint = false;
+        _hasDisabledMachinePoint = false;
+
+        int kept = 0;
+        for (int i = 0; i < _links.Count; i++)
         {
-            if (!_points[i].IsEnabled) continue;
-            for (int j = i + 1; j < _points.Count; j++)
-            {
-                if (!_points[j].IsEnabled) continue;
-                float dist = VectorF.FromPositions(_points[i].Position, _points[j].Position).Length;
-                if (dist > Tweaks.World.MaximumTheoreticalLinkDistance) continue;
+            Link link = _links[i];
+            if (link.From.IsEnabled && link.To.IsEnabled)
+                _links[kept++] = link;
+            else
+                Unfile(link);
+        }
+        bool changed = kept < _links.Count;
+        _links.RemoveRange(kept, _links.Count - kept);
 
-                var link = new Link(_points[i], _points[j]);
+        foreach (var point in _points)
+            if (!point.IsEnabled)
+                point.IsLinked = false;
+        changed |= _points.RemoveAll(p => !p.IsEnabled && p.Type != LinkPointType.Base) > 0;
+        return changed;
+    }
+
+    /// <summary>Makes the links of the points registered since the last refresh, to every point within reach.</summary>
+    private bool LinkNewPoints(TerrainGrid terrain)
+    {
+        if (_unlinked.Count == 0)
+            return false;
+        foreach (var point in _unlinked)
+        {
+            if (point.IsLinked || !point.IsEnabled)
+                continue;
+            foreach (var other in _points)
+            {
+                if (!other.IsLinked)
+                    continue;
+                // The earlier registered point is the link's first end.
+                LinkPoint from = other.Sequence < point.Sequence ? other : point;
+                LinkPoint to = ReferenceEquals(from, other) ? point : other;
+                float dist = VectorF.FromPositions(from.Position, to.Position).Length;
+                if (dist > Tweaks.World.MaximumTheoreticalLinkDistance)
+                    continue;
+
+                var link = new Link(from, to);
                 link.UpdateType(terrain);
-                if (link.Type == LinkType.Live && previousFlow.TryGetValue((link.From.Id, link.To.Id), out var old))
-                {
-                    link.HeatFlow = old.HeatFlow;
-                    link.FlowsFromTo = old.FlowsFromTo;
-                    link.ChargeFlow = old.ChargeFlow;
-                    link.ChargeFlowsFromTo = old.ChargeFlowsFromTo;
-                    link.OreFlowTicks = old.OreFlowTicks;
-                    link.OreFlowsFromTo = old.OreFlowsFromTo;
-                }
+                SightlinesCheckedInLastAdvance++;
+                File(link);
                 _links.Add(link);
             }
+            point.IsLinked = true;
         }
+        _unlinked.Clear();
+        return true;
+    }
 
-        // Propagate power from bases, breadth first so each point's upstream link is on a shortest route home.
-        var frontier = new List<LinkPoint>();
+    private void PutLinksInOrder()
+    {
+        _links.Sort(ByEnds);
+        foreach (var point in _points)
+            point.Links.Clear();
+        for (int i = 0; i < _links.Count; i++)
+        {
+            Link link = _links[i];
+            link.Order = i;
+            link.From.Links.Add(link);
+            link.To.Links.Add(link);
+        }
+    }
+
+    /// <summary>
+    /// Looks again at the line of sight of every link filed near a cell that started or stopped blocking. True when
+    /// a link changed type.
+    /// </summary>
+    private bool RecheckSightlines(TerrainGrid terrain, SightlineChanges sightlines)
+    {
+        bool changed = false;
+        if (sightlines.AllChanged)
+        {
+            foreach (var link in _links)
+                changed |= Recheck(link, terrain);
+        }
+        else
+        {
+            int width = terrain.Width;
+            long lastKey = long.MinValue;
+            foreach (int cell in sightlines.Cells)
+            {
+                // Cells come in runs (a dig, a blast), so most repeat the tile before them.
+                long key = TileKey(cell % width, cell / width);
+                if (key == lastKey)
+                    continue;
+                lastKey = key;
+                if (!_linksByTile.TryGetValue(key, out var filed))
+                    continue;
+                foreach (var link in filed)
+                {
+                    if (link.IsQueued)
+                        continue;
+                    link.IsQueued = true;
+                    _toRecheck.Add(link);
+                }
+            }
+            foreach (var link in _toRecheck)
+            {
+                link.IsQueued = false;
+                changed |= Recheck(link, terrain);
+            }
+            _toRecheck.Clear();
+        }
+        sightlines.Clear();
+        return changed;
+    }
+
+    private bool Recheck(Link link, TerrainGrid terrain)
+    {
+        SightlinesCheckedInLastAdvance++;
+        LinkType was = link.Type;
+        link.UpdateType(terrain);
+        return link.Type != was;
+    }
+
+    /// <summary>Files a link under every tile its line crosses. A link too long to ever be live is not filed.</summary>
+    private void File(Link link)
+    {
+        if (link.Distance > Tweaks.World.MaximumLiveLinkDistance)
+            return;
+        long lastKey = long.MinValue;
+        Raycaster.BresenhamLine(link.From.Position, link.To.Position, cell =>
+        {
+            long key = TileKey(cell.X, cell.Y);
+            if (key == lastKey)
+                return;
+            lastKey = key;
+            if (!_linksByTile.TryGetValue(key, out var filed))
+                _linksByTile[key] = filed = new List<Link>();
+            filed.Add(link);
+        });
+    }
+
+    private void Unfile(Link link)
+    {
+        if (link.Distance > Tweaks.World.MaximumLiveLinkDistance)
+            return;
+        long lastKey = long.MinValue;
+        Raycaster.BresenhamLine(link.From.Position, link.To.Position, cell =>
+        {
+            long key = TileKey(cell.X, cell.Y);
+            if (key == lastKey)
+                return;
+            lastKey = key;
+            if (_linksByTile.TryGetValue(key, out var filed))
+                filed.Remove(link);
+        });
+    }
+
+    private static long TileKey(int x, int y) => ((long)(y >> TileShift) << 32) | (uint)(x >> TileShift);
+
+    /// <summary>
+    /// Finds which points have power: from the bases outward over live links, a round per hop, so each point's
+    /// upstream link is on a shortest route home. Within a round the links are taken in the order of
+    /// <see cref="Links"/>, and the first to reach a point becomes its upstream link.
+    /// </summary>
+    private void SpreadPower()
+    {
+        _hasSpreadPower = true;
+        _frontier.Clear();
         foreach (var p in _points)
         {
             p.IsPowered = p.Type == LinkPointType.Base;
             p.UpstreamLink = null;
             p.Hops = p.IsPowered ? 0 : -1;
+            p.PoweredInRound = p.IsPowered ? 1 : 0;
             if (p.IsPowered)
-                frontier.Add(p);
+                _frontier.Add(p);
         }
 
-        while (frontier.Count > 0)
+        for (int round = 1; _frontier.Count > 0; round++)
         {
-            var next = new List<LinkPoint>();
-            foreach (var link in _links)
+            // Only links that end at a point powered in the last round can carry power further.
+            _candidates.Clear();
+            foreach (var point in _frontier)
+                foreach (var link in point.Links)
+                    if (link.Type == LinkType.Live)
+                        _candidates.Add(link);
+            _candidates.Sort(ByOrder);
+
+            _nextFrontier.Clear();
+            foreach (var link in _candidates)
             {
-                if (link.Type != LinkType.Live) continue;
-                if (link.From.IsPowered && !link.To.IsPowered && frontier.Contains(link.From))
-                {
-                    link.To.IsPowered = true;
-                    link.To.UpstreamLink = link;
-                    link.To.Hops = link.From.Hops + 1;
-                    next.Add(link.To);
-                }
-                else if (link.To.IsPowered && !link.From.IsPowered && frontier.Contains(link.To))
-                {
-                    link.From.IsPowered = true;
-                    link.From.UpstreamLink = link;
-                    link.From.Hops = link.To.Hops + 1;
-                    next.Add(link.From);
-                }
+                if (link.From.IsPowered && !link.To.IsPowered && link.From.PoweredInRound == round)
+                    Power(link.To, link, link.From, round + 1);
+                else if (link.To.IsPowered && !link.From.IsPowered && link.To.PoweredInRound == round)
+                    Power(link.From, link, link.To, round + 1);
             }
-            frontier = next;
+            (_frontier, _nextFrontier) = (_nextFrontier, _frontier);
+        }
+
+        void Power(LinkPoint point, Link through, LinkPoint from, int round)
+        {
+            point.IsPowered = true;
+            point.UpstreamLink = through;
+            point.Hops = from.Hops + 1;
+            point.PoweredInRound = round;
+            _nextFrontier.Add(point);
         }
     }
 

@@ -38,8 +38,8 @@ public class World
 
     private int _advanceCount;
     private TimeSpan _elapsed;
-    private double _lastThermalEnergy;
-    private double _lastNetExternalEnergy;
+    private double _auditThermalEnergy = double.NaN;
+    private double _auditNetExternalEnergy;
 
     public TerrainGrid Terrain => _terrain;
     public TankBases TankBases => _tankBases;
@@ -117,7 +117,8 @@ public class World
             if (TankSpriteShape.OverlapsSquare(tank.Direction, tank.Position, center, half))
                 return true;
         }
-        foreach (var other in _machines.Machines)
+        _machines.CollectNear(center, half + Tweaks.Machine.BoundingBoxHalfSize, _nearMachines, inListOrder: false);
+        foreach (var other in _nearMachines)
         {
             if (ReferenceEquals(other, machine) || !other.IsAlive || other.State != MachineState.Planted) continue;
             int reach = half + other.BoundingBox.HalfWidth;
@@ -145,7 +146,6 @@ public class World
 
     public World(
         Size terrainSize,
-        bool parallelRegrowth = false,
         int simulationSeed = 0,
         bool enableTerrainRegrowth = true,
         int hotRockPocketCount = 0,
@@ -163,7 +163,7 @@ public class World
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
-        _terrainRegrowth = new TerrainRegrowth(parallelRegrowth, enableTerrainRegrowth, _simulationSeed);
+        _terrainRegrowth = new TerrainRegrowth(enableTerrainRegrowth, _simulationSeed);
     }
 
     public void Initialize(TerrainGrid generatedTerrain, Position[] spawns,
@@ -200,7 +200,7 @@ public class World
             // Let the heat (and cold) spread a little before play starts so the pockets and ore cores do not begin as
             // isolated dots.
             for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
-                _terrain.CoolDown(Tweaks.World.ThermalArtificialCoolingPerFrame);
+                _terrain.CoolDown();
         }
 
         for (int i = 0; i < spawns.Length; i++)
@@ -213,6 +213,7 @@ public class World
                 _tankList.AddTank(i, tankBase, tankSeed, _simulationSettings);
             }
         }
+        _terrainRegrowth.Survey(_terrain);
     }
 
     private static int SeedFromSpawns(Position[] spawns)
@@ -232,30 +233,17 @@ public class World
 
         _advanceCount++;
         _stepEvents.Clear();
+        _terrain.DropSeenChanges();
         _elapsed += _simulationSettings.AdvanceStep;
 
         ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
-        ProfileSection(ref Profile.Cooldown, () => _terrain.CoolDown(_simulationSettings.ThermalArtificialCoolingPerFrame));
+        ProfileSection(ref Profile.Cooldown, _terrain.CoolDown);
         Profile.CooldownSim += _terrain.LastCoolDownProfile.Simulate;
-        Profile.CooldownMark += _terrain.LastCoolDownProfile.MarkDirty;
+        Profile.CooldownApply += _terrain.LastCoolDownProfile.Apply;
         Profile.CooldownActiveTiles += _terrain.LastCoolDownProfile.ActiveTiles;
-        Profile.CooldownRegionCount += _terrain.LastCoolDownProfile.RegionCount;
-        if (_terrain.LastCoolDownProfile.UsedSparse) Profile.CooldownSparseFrames++;
+        Profile.CooldownSteppedTiles += _terrain.LastCoolDownProfile.SteppedTiles;
+        if (_terrain.LastCoolDownProfile.SteppedTiles > 0) Profile.CooldownSteppedFrames++;
         if (_terrain.LastCoolDownProfile.UsedParallel) Profile.CooldownParallelFrames++;
-        // Energy balance: whatever the system gained since the last tick must equal what the ledger says came
-        // in from outside. A non-zero residual means energy was created or destroyed somewhere unmetered.
-        double thermalEnergy = SumSystemThermalEnergy();
-        double netExternal = _terrain.Ledger.NetExternal;
-        Profile.ThermalEnergy += thermalEnergy;
-        if (_advanceCount > 1)
-        {
-            double residual = (thermalEnergy - _lastThermalEnergy) - (netExternal - _lastNetExternalEnergy);
-            Profile.ThermalLedgerResidualSigned += residual;
-            Profile.ThermalLedgerResidualAbs += Math.Abs(residual);
-        }
-        _lastThermalEnergy = thermalEnergy;
-        _lastNetExternalEnergy = netExternal;
-
         ProfileSection(ref Profile.Regrow, AdvanceRegrowth);
         ProfileSection(ref Profile.Projectiles, () => _projectiles.Advance(_collisionSolver));
         var simCtx = new SimulationContext
@@ -277,7 +265,7 @@ public class World
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         _linkMap.ClearHeatFlow();
         ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
-            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines, IsMachineOnNetwork, _stepEvents),
+            new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents),
             _simulationSettings.AdvanceStep));
         // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
         _linkMap.ClearChargeFlow();
@@ -299,12 +287,40 @@ public class World
         }
         if (_trackedVisions.Count > 0)
             ProfileSection(ref Profile.Vision, UpdateVisions);
+        _terrain.MarkChangesSeen();
 
         Profile.Total += frameWatch.Elapsed;
         Profile.FrameCount++;
 
         if (Profile.FrameCount >= 100)
+        {
+            AuditEnergy();
             Profile.Report();
+        }
+    }
+
+    /// <summary>
+    /// The energy balance over one report window, for <c>[ProfileE]</c>: whatever the system gained must equal what
+    /// the ledger says came in from outside, and a residual means energy was created or destroyed somewhere
+    /// unmetered. Summing the grid visits every cell, so it runs once per report and only when
+    /// <see cref="SimulationProfile.AuditEnergy"/> asks for it, never every tick.
+    /// </summary>
+    private void AuditEnergy()
+    {
+        if (!Profile.AuditEnergy || Profile.ReportSink is null)
+        {
+            _auditThermalEnergy = double.NaN;
+            return;
+        }
+
+        double thermalEnergy = SumSystemThermalEnergy();
+        double netExternal = _terrain.Ledger.NetExternal;
+        Profile.ThermalEnergy = thermalEnergy;
+        Profile.ThermalLedgerResidual = double.IsNaN(_auditThermalEnergy)
+            ? 0.0
+            : (thermalEnergy - _auditThermalEnergy) - (netExternal - _auditNetExternalEnergy);
+        _auditThermalEnergy = thermalEnergy;
+        _auditNetExternalEnergy = netExternal;
     }
 
     private readonly List<RegrowthBlocker> _regrowthBlockers = new();
@@ -317,12 +333,11 @@ public class World
             if (machine.IsAlive && machine.State == MachineState.Planted && machine.Behavior.IsLinkNode)
                 _regrowthBlockers.Add(new RegrowthBlocker(
                     machine.Position, Tweaks.Coverage.NodeRadius + (machine.OwnerBase?.Upgrades.CoverageBonusCells ?? 0)));
-        _terrainRegrowth.Advance(_terrain, _advanceCount, _regrowthBlockers);
+        _terrainRegrowth.Advance(_terrain, _regrowthBlockers);
     }
 
     private readonly List<(Tank Tank, VisionMap Map)> _trackedVisions = new();
-    private readonly List<VisionSource> _fixedVisionSources = new();
-    private readonly List<VisionSource> _movingVisionSources = new();
+    private readonly List<VisionSource> _visionSources = new();
 
     /// <summary>
     /// Starts tracking what <paramref name="tank"/>'s side sees (fog of war) and returns the map, which every
@@ -338,7 +353,7 @@ public class World
                 return tracked.Map;
         var map = new VisionMap(_terrain);
         _trackedVisions.Add((tank, map));
-        UpdateVision(tank, map, recastFixed: true);
+        UpdateVision(tank, map);
         return map;
     }
 
@@ -371,9 +386,8 @@ public class World
 
     private void UpdateVisions()
     {
-        bool recastFixed = _advanceCount % Tweaks.Vision.FixedSourceRefreshTicks == 0;
         foreach (var (tank, map) in _trackedVisions)
-            UpdateVision(tank, map, recastFixed);
+            UpdateVision(tank, map);
 
         foreach (var (tank, radar) in _trackedRadars)
         {
@@ -398,54 +412,44 @@ public class World
         }
     }
 
-    private void UpdateVision(Tank tank, VisionMap map, bool recastFixed)
+    /// <summary>
+    /// Hands the map everything <paramref name="tank"/>'s side sees through and the cells that changed since the map
+    /// last looked. The map keeps the cast of every source that is where it was, so listing them costs next to
+    /// nothing.
+    /// </summary>
+    private void UpdateVision(Tank tank, VisionMap map)
     {
-        _movingVisionSources.Clear();
+        _visionSources.Clear();
         if (!tank.IsDead)
-            _movingVisionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius, Tweaks.Vision.TankNearRadius));
-
-        if (recastFixed)
+            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius, Tweaks.Vision.TankNearRadius));
+        if (tank.Base is TankBase owner)
         {
-            _fixedVisionSources.Clear();
-            if (tank.Base is TankBase owner)
+            int bonus = owner.Upgrades.CoverageBonusCells;
+            const int near = Tweaks.Vision.MachineNearRadius;
+            _visionSources.Add(new VisionSource(owner.Position, Tweaks.Coverage.BaseRadius + bonus, near));
+            foreach (var machine in _machines.Machines)
             {
-                int bonus = owner.Upgrades.CoverageBonusCells;
-                const int near = Tweaks.Vision.MachineNearRadius;
-                _fixedVisionSources.Add(new VisionSource(owner.Position, Tweaks.Coverage.BaseRadius + bonus, near));
-                foreach (var machine in _machines.Machines)
-                {
-                    if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner)
-                        continue;
-                    // A relay or pylon sees its whole coverage circle, through the ground, linked or not.
-                    int reach = machine.Behavior.IsLinkNode ? Tweaks.Coverage.NodeRadius + bonus : near;
-                    _fixedVisionSources.Add(new VisionSource(machine.Position, reach, reach));
-                }
+                if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner)
+                    continue;
+                // A relay or pylon sees its whole coverage circle, through the ground, linked or not.
+                int reach = machine.Behavior.IsLinkNode ? Tweaks.Coverage.NodeRadius + bonus : near;
+                _visionSources.Add(new VisionSource(machine.Position, reach, reach));
             }
         }
-        map.Update(_terrain, recastFixed ? _fixedVisionSources : null, _movingVisionSources);
+        map.Update(_terrain, _visionSources, _terrain.GetChangeList());
     }
 
-    private readonly List<CoverageNode> _coverageNodes = new();
+    // Scratch for one question about the machines near a place; no such question is asked while another is open.
+    private readonly List<Machine> _nearMachines = new();
 
     /// <summary>The network coverage of <paramref name="tank"/>'s own base where the tank stands (DESIGN.md §4.6).</summary>
-    public TankCoverage CoverageFor(Tank tank)
-    {
-        if (tank.Base == null)
-            return TankCoverage.None;
-        NetworkCoverage.CollectNodes(tank.Base, _machines.Machines, _coverageNodes);
-        return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
-    }
-
-    private readonly List<CoverageNode> _machineCoverageNodes = new();
+    public TankCoverage CoverageFor(Tank tank) => tank.Base == null
+        ? TankCoverage.None
+        : NetworkCoverage.At(tank.Position, tank.Base, _machines, _terrain, _nearMachines);
 
     /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
-    private bool IsMachineOnNetwork(Machine machine)
-    {
-        if (machine.OwnerBase is not TankBase owner)
-            return false;
-        NetworkCoverage.CollectNodes(owner, _machines.Machines, _machineCoverageNodes);
-        return NetworkCoverage.At(machine.Position, _machineCoverageNodes, _terrain).Covered;
-    }
+    private bool IsMachineOnNetwork(Machine machine) => machine.OwnerBase is TankBase owner &&
+        NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines).Covered;
 
     /// <summary>
     /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer: the bot does not prospect, so
@@ -601,17 +605,22 @@ public class SimulationProfile
 {
     public Action<string>? ReportSink { get; set; }
 
+    /// <summary>
+    /// Adds the <c>[ProfileE]</c> line to each report: the system's thermal energy and how far it strays from the
+    /// ledger over the report window. Off by default, because it sums every cell of the map.
+    /// </summary>
+    public bool AuditEnergy { get; set; }
+
     public TimeSpan Collision;
     public TimeSpan Cooldown;
     public TimeSpan CooldownSim;
-    public TimeSpan CooldownMark;
+    public TimeSpan CooldownApply;
     public long CooldownActiveTiles;
-    public long CooldownRegionCount;
-    public int CooldownSparseFrames;
+    public long CooldownSteppedTiles;
+    public int CooldownSteppedFrames;
     public int CooldownParallelFrames;
     public double ThermalEnergy;
-    public double ThermalLedgerResidualSigned;
-    public double ThermalLedgerResidualAbs;
+    public double ThermalLedgerResidual;
     public TimeSpan Regrow;
     public TimeSpan Projectiles;
     public TimeSpan Tanks;
@@ -636,29 +645,27 @@ public class SimulationProfile
             $"bases={Avg(Bases):F3} proj={Avg(Projectiles):F3} tanks={Avg(Tanks):F3} harv={Avg(Harvesters):F3} " +
             $"spr={Avg(Sprites):F3} links={Avg(Links):F3} vision={Avg(Vision):F3} " +
             $"| total={Avg(Total):F3} ms (avg over {FrameCount} frames)");
-        ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolMark={Avg(CooldownMark):F3} ms");
-        ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
-            $"sparseFrames={CooldownSparseFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
-        ReportSink($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} ledgerResidualSigned={AvgValue(ThermalLedgerResidualSigned):F5} " +
-            $"ledgerResidualAbs={AvgValue(ThermalLedgerResidualAbs):F5}");
+        ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolApply={Avg(CooldownApply):F3} ms");
+        ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} steppedTiles={AvgCount(CooldownSteppedTiles):F1} " +
+            $"steppedFrames={CooldownSteppedFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
+        if (AuditEnergy)
+            ReportSink($"[ProfileE] thermal={ThermalEnergy:F3} ledgerResidual={ThermalLedgerResidual:F5} (over {FrameCount} frames)");
         Reset();
     }
 
     private double Avg(TimeSpan ts) => ts.TotalMilliseconds / FrameCount;
     private double AvgCount(long count) => FrameCount == 0 ? 0 : (double)count / FrameCount;
-    private double AvgValue(double value) => FrameCount == 0 ? 0 : value / FrameCount;
 
     public void Reset()
     {
-        Collision = Cooldown = CooldownSim = CooldownMark
+        Collision = Cooldown = CooldownSim = CooldownApply
             = Regrow = Projectiles = Tanks = Harvesters = Sprites = Bases = Links = Vision = Total = TimeSpan.Zero;
         CooldownActiveTiles = 0;
-        CooldownRegionCount = 0;
-        CooldownSparseFrames = 0;
+        CooldownSteppedTiles = 0;
+        CooldownSteppedFrames = 0;
         CooldownParallelFrames = 0;
         ThermalEnergy = 0;
-        ThermalLedgerResidualSigned = 0;
-        ThermalLedgerResidualAbs = 0;
+        ThermalLedgerResidual = 0;
         FrameCount = 0;
     }
 }

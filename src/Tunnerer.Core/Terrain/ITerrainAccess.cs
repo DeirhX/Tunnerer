@@ -5,4 +5,6 @@ namespace Tunnerer.Core.Terrain;
 /// </summary>
 public interface ITerrainAccess : ITerrainPixelAccessor, ITerrainHeatSource
 {
+    /// <summary>Whether the circle holds plain ore and lump core (<see cref="TerrainGrid.FindOre"/>).</summary>
+    void FindOre(Types.Position center, int radius, out bool plain, out bool core);
 }

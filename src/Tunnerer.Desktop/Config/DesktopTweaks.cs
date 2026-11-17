@@ -39,6 +39,12 @@ public static class GameLaunchOptions
 {
     /// <summary>Map and simulation seed requested with --seed=N; null lets the game choose.</summary>
     public static int? Seed { get; set; }
+
+    /// <summary>
+    /// --energy-audit: add the <c>[ProfileE]</c> line to the simulation profile. It sums the heat of every cell of
+    /// the map once per report, so it is off unless asked for.
+    /// </summary>
+    public static bool EnergyAudit { get; set; }
 }
 
 /// <summary>
@@ -210,6 +216,8 @@ public static class DesktopScreenTweaks
 {
     public static readonly Size WindowSize = new(1920, 1080);
     public static readonly Size RenderSurfaceSize = new(320, 200);
+    /// <summary>Degrees from which the thermal debug overlay tints a tile as holding warm ground.</summary>
+    public const float ThermalOverlayWarmTemperature = 2.5f;
     /// <summary>Terrain cell size in points, at a standard (1x) display. <c>RenderViewState.CellPixels</c> scales it to device pixels.</summary>
     public const int PixelScale = 6;
     public const int NativeContinuousSampleLow = 1;

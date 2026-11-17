@@ -169,12 +169,12 @@ public class RadarOreTests
         Pulse(radar, terrain);
         Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Ore && c.Position == speck);
 
-        vision.Update(terrain, None, [new VisionSource(speck, 0, 8)]);
+        vision.Update(terrain, [new VisionSource(speck, 0, 8)], changedCells: []);
         radar.Advance(terrain, terrain, Origin, ownColor: 0, NoTargets);
         Assert.DoesNotContain(Contacts(radar), c => c.Position == speck);
 
         // Out of sight again the side remembers the ore where it is, so the next pulse does not report it.
-        vision.Update(terrain, None, None);
+        vision.Update(terrain, None, changedCells: []);
         Pulse(radar, terrain);
         Assert.DoesNotContain(Contacts(radar), c => c.Position == speck);
     }
