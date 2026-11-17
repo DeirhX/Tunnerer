@@ -36,6 +36,7 @@
 #include "Materials/ConcreteMaterial.hlsli"
 #include "Materials/DirtMaterial.hlsli"
 #include "Materials/GoldMaterial.hlsli"
+#include "Materials/OreMaterial.hlsli"
 #include "Materials/TunnelFloorMaterial.hlsli"
 #include "Materials/BaseMaterial.hlsli"
 

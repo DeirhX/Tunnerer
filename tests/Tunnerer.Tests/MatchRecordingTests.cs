@@ -21,7 +21,7 @@ public class MatchRecordingTests
         World world = MatchRecording.BuildWorld(Config);
         var session = new NetSession(relay.LinkFor(0), world)
         {
-            Bots = NetSession.CreateBots(Config.Seed, HumanMask, world.TankList.Count),
+            Bots = NetSession.CreateBots(world, Config.Seed, HumanMask),
         };
         while (world.AdvanceCount < ticks)
         {

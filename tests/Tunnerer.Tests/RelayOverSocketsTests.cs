@@ -445,7 +445,7 @@ public class RelayOverSocketsTests
         {
             session.Receive();
             if (connection.Started && world.AdvanceCount == 0 && session.Bots.Count == 0)
-                session.Bots = NetSession.CreateBots(connection.Config.Seed, connection.HumanMask, world.TankList.Count);
+                session.Bots = NetSession.CreateBots(world, connection.Config.Seed, connection.HumanMask);
             while (world.AdvanceCount < limit && session.TryStep())
                 session.SendInput(new ControllerOutput
                 {

@@ -58,8 +58,20 @@ public class KeyboardController
             BuildPrimary = primary,
             BuildSecondary = secondary,
             BuildTertiary = tertiary,
-            Upgrade = IsHeld(Scancode.Alpha1) ? 1 : IsHeld(Scancode.Alpha2) ? 2
-                : IsHeld(Scancode.Alpha3) ? 3 : IsHeld(Scancode.Alpha4) ? 4 : 0,
+            Upgrade = HeldUpgradeKey(),
         };
+    }
+
+    // Number keys 1-6 buy upgrades while docked: 1-4 the base track, 5-6 the tank track (BaseUpgrade order).
+    private static readonly Scancode[] UpgradeKeys =
+        [Scancode.Alpha1, Scancode.Alpha2, Scancode.Alpha3, Scancode.Alpha4, Scancode.Alpha5, Scancode.Alpha6];
+
+    /// <summary>The upgrade key held (1 for the first), or 0 for none.</summary>
+    private static int HeldUpgradeKey()
+    {
+        for (int i = 0; i < UpgradeKeys.Length; i++)
+            if (IsHeld(UpgradeKeys[i]))
+                return i + 1;
+        return 0;
     }
 }

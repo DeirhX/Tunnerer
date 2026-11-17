@@ -4,10 +4,14 @@ using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Desktop.Presentation;
 using static Tunnerer.Desktop.Gui.HudDraw;
 
-/// <summary>The build slots of the BUILD STRUCTURES panel: one per machine, filling up as dirt is dug.</summary>
+/// <summary>
+/// The build slots of the BUILD STRUCTURES panel: one per machine, filling up toward its ore cost from the stock that
+/// would pay (<see cref="Tank.QuoteBuild"/>: the base store in the own network, else the hold), which each slot names.
+/// </summary>
 public sealed class BuildPanel(HudLayout layout)
 {
     // Build slots inside build_panel.png (offsets from the panel's top-left), 3 columns x 2 rows.
@@ -18,7 +22,7 @@ public sealed class BuildPanel(HudLayout layout)
     private Vector2 At(float x, float y) => layout.At(x, y);
     private float S(float v) => layout.S(v);
 
-    public void Draw(ImDrawListPtr dl, Tank player, int dirt, float panelX, float time)
+    public void Draw(ImDrawListPtr dl, Tank player, float panelX, float time)
     {
         // Each machine has a slot in the top row (MachinePresentation.BuildSlot). While a machine is in hand only its
         // own slot is lit: pressing the key again plants it.
@@ -36,17 +40,17 @@ public sealed class BuildPanel(HudLayout layout)
         }
 
         foreach (var machine in MachinePresentations.InSlotOrder)
-            DrawSlot(dl, panelX, machine, dirt, carried, time);
+            DrawSlot(dl, panelX, machine, player.QuoteBuild(machine.Type), carried, time);
     }
 
-    private void DrawSlot(ImDrawListPtr dl, float panelX, MachinePresentation machine, int dirt, MachineType? carried, float time)
+    private void DrawSlot(ImDrawListPtr dl, float panelX, MachinePresentation machine, BuildQuote quote, MachineType? carried, float time)
     {
         MachineType type = machine.Type;
         int col = machine.BuildSlot;
         string name = machine.SlotLabel, key = machine.KeyLabel;
-        int cost = machine.DirtCost;
-        float progress = Math.Clamp(dirt / (float)cost, 0f, 1f);
-        bool ready = progress >= 1f;
+        int cost = quote.Cost;
+        float progress = Math.Clamp(quote.Stock / (float)Math.Max(1, cost), 0f, 1f);
+        bool ready = quote.CanAfford;
         bool carryingThis = carried == type;
         bool blocked = carried != null && !carryingThis; // the other machine is in hand
 
@@ -65,10 +69,17 @@ public sealed class BuildPanel(HudLayout layout)
             : ready && !blocked ? 0xFF40FF60u : 0xFF707070u;
         dl.AddRect(sMin, sMax, border, S(6f), ImDrawFlags.None, S(2.5f));
 
-        string label = carryingThis ? $"PLANT [{key}]" : ready ? $"{name} [{key}]" : $"{dirt}/{cost}";
+        string label = carryingThis ? $"PLANT [{key}]" : ready ? $"{name} [{key}]" : $"ORE {quote.Stock}/{cost}";
         DrawOutlinedText(dl, S(15f), new Vector2(sMin.X + S(4f), sMax.Y - S(18f)), label, blocked ? 0xFF909090u : 0xFFFFFFFFu, S(1f));
         // The key is always visible, even before the slot is affordable.
         if (!ready && !carryingThis)
             DrawOutlinedText(dl, S(13f), new Vector2(sMin.X + S(4f), sMin.Y + S(3f)), $"[{key}] {name}", 0xFFB0B0B0u, S(1f));
+        else if (!carryingThis)
+        {
+            // Affordable: what it costs and which stock pays, so the player knows where the ore comes from.
+            string payer = quote.Payer == OrePayer.BaseStore ? "BASE" : "HOLD";
+            DrawOutlinedText(dl, S(13f), new Vector2(sMin.X + S(4f), sMin.Y + S(3f)), $"{cost} ORE {payer}",
+                quote.Payer == OrePayer.BaseStore ? 0xFFF0D080u : 0xFFD8E860u, S(1f));
+        }
     }
 }

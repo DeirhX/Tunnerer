@@ -26,6 +26,16 @@ public class Link
     /// <summary>True when that charge flows from <see cref="From"/> to <see cref="To"/>.</summary>
     public bool ChargeFlowsFromTo { get; set; }
 
+    /// <summary>
+    /// Ticks left of the ore flow last seen on this link (ore a tank unloaded into the network, on its way home): set
+    /// to <c>Ore.LinkFlowShowTicks</c> when a unit passes and counted down every tick, so the drawn flow is steady
+    /// between units.
+    /// </summary>
+    public int OreFlowTicks { get; set; }
+
+    /// <summary>True when that ore flows from <see cref="From"/> to <see cref="To"/>.</summary>
+    public bool OreFlowsFromTo { get; set; }
+
     public Link(LinkPoint from, LinkPoint to)
     {
         From = from;

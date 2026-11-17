@@ -21,6 +21,10 @@ public enum TerrainPixel : byte
     FrostRock = (byte)'f',
     Concrete = (byte)'C',
     Gold = (byte)'E',
+    // Emberite ore (DESIGN.md §6.3): the resource machines are made of. Plain ore is inert; a core cell sits at the
+    // heart of a large lump and is pinned warm.
+    Emberite = (byte)'o',
+    EmberiteCore = (byte)'O',
 }
 
 public enum ThermalMaterial : byte
@@ -32,6 +36,7 @@ public enum ThermalMaterial : byte
     ConstantEnergy = 4,
     HotRock = 5,
     FrostRock = 6,
+    EmberiteCore = 7,
 }
 
 /// <summary>
@@ -48,7 +53,8 @@ public readonly record struct TerrainBehavior(
     bool Gold,
     bool Base,
     bool Scorched,
-    Color DisplayColor)
+    Color DisplayColor,
+    bool Ore = false)
 {
     public bool IsAnyCollision => BlocksMovement || SoftCollision;
     public bool Torchable => Diggable || Mineral;
@@ -109,6 +115,16 @@ public static class Pixel
             BlocksMovement: true, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x9c, 0xd8, 0xf0)));
+        // Ore blocks movement but is neither diggable nor mineral: the tank's dig has its own rule for it
+        // (TankDigger), shots do not break it and it never regrows.
+        Set(TerrainPixel.Emberite, new(
+            BlocksMovement: true, SoftCollision: false, Diggable: false,
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0x3c, 0xb8, 0xb0), Ore: true));
+        Set(TerrainPixel.EmberiteCore, new(
+            BlocksMovement: true, SoftCollision: false, Diggable: false,
+            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            DisplayColor: new Color(0xb0, 0x5c, 0xd8), Ore: true));
         Set(TerrainPixel.BaseCore, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
             Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
@@ -149,6 +165,20 @@ public static class Pixel
     public static bool IsGold(TerrainPixel p) => _behaviors[(int)p].Gold;
     public static bool IsEmpty(TerrainPixel p) => p == TerrainPixel.Blank;
 
+    /// <summary>True for emberite ore, plain or core.</summary>
+    public static bool IsOre(TerrainPixel p) => _behaviors[(int)p].Ore;
+
+    /// <summary>True for the warm heart of a lump, which needs the torch and is worth more than a plain cell.</summary>
+    public static bool IsOreCore(TerrainPixel p) => p == TerrainPixel.EmberiteCore;
+
+    /// <summary>Ore units a mined cell yields: 0 for anything that is not ore.</summary>
+    public static int OreUnits(TerrainPixel p) => p switch
+    {
+        TerrainPixel.Emberite => Config.Tweaks.Ore.PlainCellUnits,
+        TerrainPixel.EmberiteCore => Config.Tweaks.Ore.CoreCellUnits,
+        _ => 0,
+    };
+
     /// <summary>Hot path of the thermal solver: a plain array lookup instead of re-deriving the material.</summary>
     public static ThermalMaterial GetThermalMaterial(TerrainPixel p) => _thermalMaterials[(int)p];
 
@@ -167,6 +197,7 @@ public static class Pixel
         {
             TerrainPixel.HotRock => ThermalMaterial.HotRock,
             TerrainPixel.FrostRock => ThermalMaterial.FrostRock,
+            TerrainPixel.EmberiteCore => ThermalMaterial.EmberiteCore,
             TerrainPixel.BaseCore or TerrainPixel.Gold => ThermalMaterial.ConstantEnergy,
             TerrainPixel.BaseBarrier => ThermalMaterial.Base,
             _ when b.Base => ThermalMaterial.Base,

@@ -219,7 +219,7 @@ public sealed class GameAudio : IDisposable
     /// <summary>Events about a tank itself (as opposed to a bullet, explosion or machine it was involved with).</summary>
     private static bool IsTankSound(StepEventKind kind) => kind is StepEventKind.TankHit or StepEventKind.TankDied
         or StepEventKind.TankRespawned or StepEventKind.MachineBuilt or StepEventKind.MachinePlanted
-        or StepEventKind.PlantRefused or StepEventKind.Docked;
+        or StepEventKind.PlantRefused or StepEventKind.BuildRefused or StepEventKind.OreUnloaded or StepEventKind.Docked;
 
     /// <summary>Index of the tank of <paramref name="color"/> among the tracked ones, or -1.</summary>
     private static int TankIndex(IReadOnlyList<Tank> tanks, int color)

@@ -89,7 +89,8 @@ public static class WorldFactory
             parallelRegrowth: parallel,
             simulationSeed: seed,
             hotRockPocketCount: Tweaks.World.HotRockPocketCount,
-            frostRockPocketCount: Tweaks.World.FrostRockPocketCount);
+            frostRockPocketCount: Tweaks.World.FrostRockPocketCount,
+            seedOre: true);
         world.Profile.ReportSink = static line => Console.WriteLine(line);
         world.Initialize(terrain, spawns, decorationSeed: seed + 1, parallelMaterialize: parallel);
         if (world.HotRockPockets.Count > 0)
@@ -98,6 +99,8 @@ public static class WorldFactory
         if (world.FrostRockPockets.Count > 0)
             Console.WriteLine($"[FrostRock] {world.FrostRockPockets.Count} pocket(s) at " +
                 string.Join(", ", world.FrostRockPockets.Select(p => $"({p.X},{p.Y})")));
+        if (world.OreDeposits.Count > 0)
+            Console.WriteLine($"[Ore] {world.OreDeposits.Count} deposit(s), {world.OreDeposits.Sum(d => d.Units)} units");
         return world;
     }
 }

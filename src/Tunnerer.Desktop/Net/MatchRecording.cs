@@ -82,7 +82,7 @@ public sealed record MatchRecording(MatchConfig Config, int HumanMask, IReadOnly
     public World Replay(int? ticks = null, Action<World>? afterTick = null)
     {
         World world = BuildWorld(Config);
-        var bots = NetSession.CreateBots(Config.Seed, HumanMask, world.TankList.Count);
+        var bots = NetSession.CreateBots(world, Config.Seed, HumanMask);
         int count = Math.Min(ticks ?? Bundles.Count, Bundles.Count);
         for (int i = 0; i < count; i++)
         {

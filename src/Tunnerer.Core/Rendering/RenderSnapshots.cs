@@ -46,6 +46,7 @@ public readonly record struct MachineRenderState(
 
 /// <param name="HeatFlow">Heat carried in the last tick, in full relay pump rates (2 = two relays' worth).</param>
 /// <param name="ChargeFlow">Charge carried out to pylons, in full pylon hand-outs (1 = one pylon at full rate).</param>
+/// <param name="OreFlow">Ore unloaded into the network on its way home: 1 just after a unit passed, fading to 0.</param>
 public readonly record struct LinkRenderState(
     Position From,
     Position To,
@@ -54,7 +55,9 @@ public readonly record struct LinkRenderState(
     float HeatFlow = 0f,
     bool FlowsFromTo = true,
     float ChargeFlow = 0f,
-    bool ChargeFlowsFromTo = true);
+    bool ChargeFlowsFromTo = true,
+    float OreFlow = 0f,
+    bool OreFlowsFromTo = true);
 
 public readonly record struct SpriteRenderState(
     Position Position,

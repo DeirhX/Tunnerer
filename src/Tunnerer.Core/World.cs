@@ -30,6 +30,8 @@ public class World
     private Position? _corePocket;
     private readonly int _frostRockPocketCount;
     private readonly List<Position> _frostRockPockets = new();
+    private readonly bool _seedOre;
+    private readonly List<LevelGen.OreDeposit> _oreDeposits = new();
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
     private readonly StepEventLog _stepEvents = new();
@@ -94,6 +96,9 @@ public class World
     /// <summary>Centres of the frost pockets placed at initialisation (empty unless the world was created with some).</summary>
     public IReadOnlyList<Position> FrostRockPockets => _frostRockPockets;
 
+    /// <summary>The emberite deposits seeded at initialisation (empty unless the world was created with ore).</summary>
+    public IReadOnlyList<LevelGen.OreDeposit> OreDeposits => _oreDeposits;
+
     /// <summary>
     /// Whether <paramref name="machine"/> centred on <paramref name="center"/> would overlap a live tank or another
     /// planted machine: the machine's square against the tank's shape (<see cref="TankSpriteShape"/>) or the other
@@ -141,9 +146,11 @@ public class World
         bool enableTerrainRegrowth = true,
         int hotRockPocketCount = 0,
         SimulationSettings? simulationSettings = null,
-        int frostRockPocketCount = 0)
+        int frostRockPocketCount = 0,
+        bool seedOre = false)
     {
         _hotRockPocketCount = hotRockPocketCount;
+        _seedOre = seedOre;
         _frostRockPocketCount = frostRockPocketCount;
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
@@ -174,7 +181,7 @@ public class World
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
-        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0)
+        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0 || _seedOre)
         {
             int pocketSeed = seed + 200;
             if (_hotRockPocketCount > 0)
@@ -182,8 +189,12 @@ public class World
             if (_frostRockPocketCount > 0)
                 _frostRockPockets.AddRange(LevelGen.FrostRockPockets.Place(
                     _terrain, spawns, _hotRockPockets, _frostRockPocketCount, pocketSeed + 1));
+            // Ore last, so it fills the ground the pockets left.
+            if (_seedOre)
+                _oreDeposits.AddRange(LevelGen.OreDeposits.Place(_terrain, spawns, pocketSeed + 2));
 
-            // Let the heat (and cold) spread a little before play starts so the pockets do not begin as isolated dots.
+            // Let the heat (and cold) spread a little before play starts so the pockets and ore cores do not begin as
+            // isolated dots.
             for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
                 _terrain.CoolDown(Tweaks.World.ThermalArtificialCoolingPerFrame);
         }
@@ -256,10 +267,12 @@ public class World
             CoverageFor = CoverageFor,
             Events = _stepEvents,
         };
+        _linkMap.AgeOreFlow();
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         _linkMap.ClearHeatFlow();
         ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
-            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines), _simulationSettings.AdvanceStep));
+            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines, IsMachineOnNetwork),
+            _simulationSettings.AdvanceStep));
         // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
         _linkMap.ClearChargeFlow();
         // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
@@ -268,6 +281,8 @@ public class World
                 LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
+        foreach (var tankBase in _tankBases.Bases)
+            tankBase.AdvanceBotTrickle(_simulationSettings.AdvanceStep.TotalSeconds);
         AdvanceSectorGoal();
         LatchMatchResult();
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
@@ -371,7 +386,9 @@ public class World
             foreach (var other in _tankList.Tanks)
                 if (other != tank && !other.IsDead)
                     _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize, Alive: true));
-            radar.Advance(_terrain, _terrain, tank.Position, tank.Color, _radarTargets);
+            radar.Advance(_terrain, _terrain, tank.Position, tank.Color, _radarTargets,
+                tank.Base is { } home ? RadarReach.Scaled(home.Upgrades.RadarRangeScale, home.Upgrades.RadarHeatBudgetScale)
+                    : RadarReach.Base);
         }
     }
 
@@ -411,6 +428,27 @@ public class World
             return TankCoverage.None;
         NetworkCoverage.CollectNodes(tank.Base, _machines.Machines, _coverageNodes);
         return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
+    }
+
+    private readonly List<CoverageNode> _machineCoverageNodes = new();
+
+    /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
+    private bool IsMachineOnNetwork(Machine machine)
+    {
+        if (machine.OwnerBase is not TankBase owner)
+            return false;
+        NetworkCoverage.CollectNodes(owner, _machines.Machines, _machineCoverageNodes);
+        return NetworkCoverage.At(machine.Position, _machineCoverageNodes, _terrain).Covered;
+    }
+
+    /// <summary>
+    /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer: the bot does not prospect, so
+    /// its base gets <see cref="Tweaks.Ore.BotOrePerSecond"/> of ore instead (a stand-in, DESIGN.md §6.4).
+    /// </summary>
+    public void SetBotControlled(int spawnIndex)
+    {
+        if (_tankBases.GetSpawn(spawnIndex) is TankBase tankBase)
+            tankBase.IsBotControlled = true;
     }
 
     /// <summary>What a machine of <paramref name="type"/> would do if planted at <paramref name="at"/>.</summary>

@@ -160,7 +160,11 @@ public partial class Game : IDisposable
         var bots = new BotTankAI?[_world.TankList.Count];
         for (int slot = 0; aiTanks && slot < bots.Length; slot++)
             if (slot != _localSlot)
+            {
                 bots[slot] = new BotTankAI(seed: built.BotSeedFor(slot));
+                // Its base gets the bot's stand-in ore income.
+                _world.SetBotControlled(slot);
+            }
         return bots;
     }
 

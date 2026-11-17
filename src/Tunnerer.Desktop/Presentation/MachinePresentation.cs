@@ -34,7 +34,7 @@ public sealed record MachinePresentation(
     /// <summary>The tank's build input this machine is built with.</summary>
     public BuildKey BuildKey => Behavior.Key;
 
-    public int DirtCost => Behavior.BuildCost.Dirt;
+    public int OreCost => Behavior.OreCost;
 }
 
 public static class MachinePresentations
@@ -48,7 +48,7 @@ public static class MachinePresentations
 
     public static readonly MachinePresentation Harvester = new(
         MachineType.Harvester, "harvester", "HARVEST", Scancode.R, "R", BuildSlot: 1, SoundEffect.BuildHarvester,
-        "plant harvester here - it mines nearby dirt into your base store",
+        "plant harvester here - in your network it mines nearby ore into your base store",
         new MachineSprite(EntityShape.KindHarvester, HalfLength: 3.4f, HalfWidth: 3.0f, FacesHeading: true,
             SenseRadius: Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f, ShowsBattery: true));
 

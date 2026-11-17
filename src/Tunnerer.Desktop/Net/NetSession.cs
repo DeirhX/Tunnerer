@@ -102,12 +102,17 @@ public sealed class NetSession
     /// The bots of a match: one for every tank no player drives, each seeded from the match seed and its slot, so
     /// every client (and a replay) makes the same ones.
     /// </summary>
-    public static BotTankAI?[] CreateBots(int matchSeed, int humanMask, int tanks)
+    public static BotTankAI?[] CreateBots(World world, int matchSeed, int humanMask)
     {
-        var bots = new BotTankAI?[tanks];
-        for (int slot = 0; slot < tanks; slot++)
+        var bots = new BotTankAI?[world.TankList.Count];
+        for (int slot = 0; slot < bots.Length; slot++)
             if ((humanMask & 1 << slot) == 0)
+            {
                 bots[slot] = new BotTankAI(seed: BuiltWorld.BotSeed(matchSeed, slot));
+                // Part of the simulation, so every client must mark the same slots: the bot's base gets its
+                // stand-in ore income.
+                world.SetBotControlled(slot);
+            }
         return bots;
     }
 

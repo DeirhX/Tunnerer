@@ -183,6 +183,8 @@ public static class AudioTweaks
     public const float PlantGain = 0.60f;
     public const float RefusedGain = 0.45f;
     public const float PickupGain = 0.40f;
+    // A unit of ore unloaded into the network: a quieter pickup, about four a second.
+    public const float UnloadGain = 0.18f;
     public const float WarningGain = 0.38f;
     public const float EngineIdleGain = 0.10f;
     public const float EngineMovingGain = 0.22f;

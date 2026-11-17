@@ -78,19 +78,20 @@ public class PlayerFeedbackTests
     public void RelayPlant_IsRefused_WhenTheRelayWouldNotLink()
     {
         var s = RelayHeatTests.CreateScenario(blockLineOfSight: true);
-        s.Tank.Resources.Add(new MaterialAmount(500, 0));
+        s.Tank.Hold.Add(20);
         s.Tank.Position = s.RelayPos;
 
         Press(s.World, true);
         Press(s.World, false);
         Assert.True(s.Tank.IsCarryingMachine);
-        int dirtAfterBuild = s.Tank.Resources.Current.Dirt;
+        int oreAfterBuild = s.Tank.OreHeld;
 
         Press(s.World, true);
 
         Assert.True(s.Tank.IsCarryingMachine, "a relay that would not link must stay in the tank");
         Assert.True(s.Tank.PlantRefusedTicks > 0);
-        Assert.Equal(dirtAfterBuild, s.Tank.Resources.Current.Dirt);
+        Assert.Equal(Tunnerer.Core.Entities.Tanks.BuildRefusal.WillNotLink, s.Tank.LastBuildRefusal);
+        Assert.Equal(oreAfterBuild, s.Tank.OreHeld);
         Assert.Equal(LinkPreviewStatus.Blocked, s.World.LinkMap.PreviewLink(s.Tank.Position, s.World.Terrain).Status);
     }
 
@@ -161,35 +162,14 @@ public class PlayerFeedbackTests
     {
         var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false);
         var tank = world.TankList.Tanks[0];
-        tank.Base!.Materials.Add(new MaterialAmount(500, 0));
-        Assert.True(tank.Resources.Current.Dirt < Tweaks.Machine.RelayDirtCost);
+        int store = tank.Base!.Store.Ore;
+        Assert.Equal(Tweaks.Ore.BaseStartingStore, store);
+        Assert.Equal(0, tank.OreHeld);
 
         Press(world, true);
 
         Assert.True(tank.IsCarryingMachine);
-        Assert.Equal(500 - Tweaks.Machine.RelayDirtCost, tank.Base.Materials.Current.Dirt);
-    }
-
-    [Fact]
-    public void DockedTank_WithSomeDirt_CanStillAffordAHarvesterFromTheBaseStore()
-    {
-        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false);
-        var tank = world.TankList.Tanks[0];
-        tank.Resources.Add(new MaterialAmount(Tweaks.Machine.RelayDirtCost + 100 - tank.Resources.Dirt, 0));
-        tank.Base!.Materials.Add(new MaterialAmount(Tweaks.Machine.HarvesterDirtCost + 200, 0));
-
-        // What the HUD shows as affordable is what a key press builds.
-        Assert.True(tank.BuildableDirt(dockedAtOwnBase: true) >= Tweaks.Machine.HarvesterDirtCost);
-        Assert.Same(tank.Base.Materials, tank.BuildPayer(MachineType.Harvester, dockedAtOwnBase: true));
-        Assert.Same(tank.Resources, tank.BuildPayer(MachineType.Relay, dockedAtOwnBase: true));
-        Assert.Null(tank.BuildPayer(MachineType.Harvester, dockedAtOwnBase: false));
-
-        int totalBefore = tank.Resources.Dirt + tank.Base.Materials.Dirt;
-        world.Advance(i => i == 0 ? new ControllerOutput { BuildSecondary = true } : default);
-
-        // Docking also moves dirt from tank to store each tick, so check the total that was spent.
-        Assert.Equal(MachineType.Harvester, tank.CarriedMachineType);
-        Assert.Equal(totalBefore - Tweaks.Machine.HarvesterDirtCost, tank.Resources.Dirt + tank.Base.Materials.Dirt);
+        Assert.Equal(store - Tweaks.Ore.RelayCost, tank.Base.Store.Ore);
     }
 
     private static void Press(Tunnerer.Core.World world, bool pressed)

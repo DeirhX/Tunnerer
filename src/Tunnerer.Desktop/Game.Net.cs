@@ -152,7 +152,7 @@ public partial class Game
                 : slot < relay.Roster.Length && relay.Roster[slot].Length > 0 ? relay.Roster[slot]
                 : "Player " + (slot + 1).ToString(CultureInfo.InvariantCulture);
         }
-        session.Bots = NetSession.CreateBots(Seed, relay.HumanMask, tanks);
+        session.Bots = NetSession.CreateBots(_world, Seed, relay.HumanMask);
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"[Net] Match {(relay.Rejoined ? "rejoined" : "started")}: {string.Join(", ", _slotNames)}."));
     }
