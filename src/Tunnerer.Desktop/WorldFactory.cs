@@ -84,6 +84,7 @@ public static class WorldFactory
             hotRockPocketCount: Tweaks.World.HotRockPocketCount,
             frostRockPocketCount: Tweaks.World.FrostRockPocketCount);
         world.Profile.ReportSink = static line => Console.WriteLine(line);
+        world.Profile.AuditEnergy = GameLaunchOptions.EnergyAudit;
         world.Initialize(terrain, spawns, decorationSeed: seed + 1, parallelMaterialize: parallel);
         if (world.HotRockPockets.Count > 0)
             Console.WriteLine($"[HotRock] {world.HotRockPockets.Count} pocket(s) at " +

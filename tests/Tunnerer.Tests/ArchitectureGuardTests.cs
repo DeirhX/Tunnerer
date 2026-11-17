@@ -71,7 +71,19 @@ public class SimulationProfileTests
 
         profile.Report();
 
-        Assert.Equal(4, lines.Count);
+        Assert.Equal(3, lines.Count);
         Assert.All(lines, line => Assert.StartsWith("[Profile", line, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Report_WithEnergyAudit_AddsTheEnergyLine()
+    {
+        var lines = new List<string>();
+        var profile = new SimulationProfile { ReportSink = lines.Add, AuditEnergy = true, FrameCount = 100 };
+
+        profile.Report();
+
+        Assert.Equal(4, lines.Count);
+        Assert.StartsWith("[ProfileE]", lines[3], StringComparison.Ordinal);
     }
 }

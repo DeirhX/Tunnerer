@@ -2,31 +2,31 @@ namespace Tunnerer.Core.Thermal;
 
 using Tunnerer.Core.Types;
 
-/// <summary>A rectangle of cells that the heat solver steps as one block; regions of one step never overlap.</summary>
-internal readonly record struct HeatRegion(int MinX, int MinY, int MaxXInclusive, int MaxYInclusive)
-{
-    public int Width => MaxXInclusive - MinX + 1;
-    public int Height => MaxYInclusive - MinY + 1;
-
-    public bool Intersects(in HeatRegion other)
-        => MinX <= other.MaxXInclusive && other.MinX <= MaxXInclusive &&
-           MinY <= other.MaxYInclusive && other.MinY <= MaxYInclusive;
-}
+/// <summary>A rectangle of cells that the heat solver steps as one block: one tile of the activity grid.</summary>
+internal readonly record struct HeatRegion(int MinX, int MinY, int MaxXInclusive, int MaxYInclusive);
 
 /// <summary>
-/// Where terrain heat is changing. Active tiles tell the solver which regions to step next tick (a step writes the
-/// next set, then commits it); the dirty rect tells the renderer which cells changed visibly since it last looked.
-/// Tiles do not exist until <see cref="EnsureTiles"/> is first called, and activations before that are dropped.
+/// Where terrain heat is changing. A tile is active when the last step still changed a cell in it, or when something
+/// outside the solver wrote heat into it or changed what a cell is made of. The solver steps the active tiles and the
+/// ring of tiles around them (a step writes the next set, then commits it); every other tile is in equilibrium and
+/// costs nothing until it is disturbed. The dirty rect tells the renderer which cells changed visibly since it last
+/// looked.
+/// <para>
+/// The active and the stepped tiles are kept as lists beside their flags, so every operation here costs the number
+/// of tiles involved, never the number of tiles on the map.
+/// </para>
 /// </summary>
 internal sealed class ThermalActivityTracker
 {
-    private bool[]? _activeTiles;
-    private bool[]? _nextActiveTiles;
-    private int _width;
-    private int _height;
-    private int _tileSize;
-    private int _tileCountX;
-    private int _tileCountY;
+    private readonly bool[] _active;
+    private readonly bool[] _stepped;
+    private readonly List<int> _activeTiles = new();
+    private readonly List<int> _steppedTiles = new();
+    private readonly int _width;
+    private readonly int _height;
+    private readonly int _tileSize;
+    private readonly int _tileCountX;
+    private readonly int _tileCountY;
 
     private bool _hasDirtyRect;
     private int _dirtyMinX;
@@ -34,181 +34,140 @@ internal sealed class ThermalActivityTracker
     private int _dirtyMaxX;
     private int _dirtyMaxY;
 
-    public int TileCount { get; private set; }
-
-    public void EnsureTiles(int width, int height, int tileSize)
+    public ThermalActivityTracker(int width, int height, int tileSize)
     {
-        int tcx = (width + tileSize - 1) / tileSize;
-        int tcy = (height + tileSize - 1) / tileSize;
-        int count = tcx * tcy;
-        if (_activeTiles != null && _tileSize == tileSize && TileCount == count)
-            return;
-
         _width = width;
         _height = height;
         _tileSize = tileSize;
-        _tileCountX = tcx;
-        _tileCountY = tcy;
-        TileCount = count;
-        _activeTiles = new bool[count];
-        _nextActiveTiles = new bool[count];
+        _tileCountX = (width + tileSize - 1) / tileSize;
+        _tileCountY = (height + tileSize - 1) / tileSize;
+        TileCount = _tileCountX * _tileCountY;
+        _active = new bool[TileCount];
+        _stepped = new bool[TileCount];
     }
 
-    public int CountActiveTiles()
-    {
-        if (_activeTiles == null)
-            return 0;
-        int count = 0;
-        for (int i = 0; i < _activeTiles.Length; i++)
-            if (_activeTiles[i]) count++;
-        return count;
-    }
+    public int TileCount { get; }
+    public int TileSize => _tileSize;
+    public int TileCountX => _tileCountX;
+    public int TileCountY => _tileCountY;
+
+    /// <summary>How many tiles are active for the coming step.</summary>
+    public int ActiveTileCount => _activeTiles.Count;
 
     /// <summary>Marks the tile of a cell active for the coming step.</summary>
-    public void Activate(int x, int y) => SetTile(_activeTiles, x, y);
-
-    /// <summary>Marks the tile of a cell active in the set being built by the current step.</summary>
-    public void ActivateNext(int x, int y) => SetTile(_nextActiveTiles, x, y);
-
-    private void SetTile(bool[]? tiles, int x, int y)
+    public void Activate(int x, int y)
     {
-        if (tiles == null)
-            return;
         int tx = x / _tileSize;
         int ty = y / _tileSize;
         if ((uint)tx >= (uint)_tileCountX || (uint)ty >= (uint)_tileCountY)
             return;
-        tiles[tx + ty * _tileCountX] = true;
+        ActivateTile(tx + ty * _tileCountX);
     }
 
-    /// <summary>Starts building the next active set from scratch.</summary>
-    public void BeginNextPass()
+    private void ActivateTile(int tile)
     {
-        if (_nextActiveTiles != null)
-            Array.Clear(_nextActiveTiles, 0, _nextActiveTiles.Length);
-    }
-
-    /// <summary>Makes the set built since <see cref="BeginNextPass"/> the active one.</summary>
-    public void CommitNextPass()
-    {
-        if (_activeTiles == null || _nextActiveTiles == null)
+        if (_active[tile])
             return;
-        (_activeTiles, _nextActiveTiles) = (_nextActiveTiles, _activeTiles);
-        Array.Clear(_nextActiveTiles, 0, _nextActiveTiles.Length);
-    }
-
-    public void ForgetActivity()
-    {
-        if (_activeTiles != null)
-            Array.Clear(_activeTiles, 0, _activeTiles.Length);
-        if (_nextActiveTiles != null)
-            Array.Clear(_nextActiveTiles, 0, _nextActiveTiles.Length);
-    }
-
-    public bool TryGetTileInfo(out int tileSize, out int tileCountX, out int tileCountY)
-    {
-        if (_activeTiles == null || _tileCountX <= 0 || _tileCountY <= 0)
-        {
-            tileSize = 0;
-            tileCountX = 0;
-            tileCountY = 0;
-            return false;
-        }
-
-        tileSize = _tileSize;
-        tileCountX = _tileCountX;
-        tileCountY = _tileCountY;
-        return true;
+        _active[tile] = true;
+        _activeTiles.Add(tile);
     }
 
     /// <summary>
-    /// One region per connected group of active tiles, padded by a tile on every side and merged until no two
-    /// regions overlap.
+    /// Replaces the active set with the tiles of <paramref name="steppedTiles"/> (the list the last
+    /// <see cref="BuildSteppedTiles"/> returned) whose entry in <paramref name="stillChanging"/> is set.
     /// </summary>
-    public List<HeatRegion> BuildActiveRegions()
+    public void CommitStep(List<int> steppedTiles, ReadOnlySpan<bool> stillChanging)
     {
-        var regions = new List<HeatRegion>();
-        if (_activeTiles == null)
-            return regions;
-
-        bool[] active = _activeTiles;
-        bool[] visited = new bool[active.Length];
-        var queue = new Queue<int>(64);
-        for (int tile = 0; tile < active.Length; tile++)
-        {
-            if (!active[tile] || visited[tile])
-                continue;
-            visited[tile] = true;
-            queue.Enqueue(tile);
-            int minTx = int.MaxValue, minTy = int.MaxValue, maxTx = int.MinValue, maxTy = int.MinValue;
-
-            while (queue.Count > 0)
-            {
-                int t = queue.Dequeue();
-                int tx = t % _tileCountX;
-                int ty = t / _tileCountX;
-                if (tx < minTx) minTx = tx;
-                if (ty < minTy) minTy = ty;
-                if (tx > maxTx) maxTx = tx;
-                if (ty > maxTy) maxTy = ty;
-
-                TryEnqueue(tx - 1, ty);
-                TryEnqueue(tx + 1, ty);
-                TryEnqueue(tx, ty - 1);
-                TryEnqueue(tx, ty + 1);
-            }
-
-            int padMinTx = Math.Max(0, minTx - 1);
-            int padMinTy = Math.Max(0, minTy - 1);
-            int padMaxTx = Math.Min(_tileCountX - 1, maxTx + 1);
-            int padMaxTy = Math.Min(_tileCountY - 1, maxTy + 1);
-            int minX = padMinTx * _tileSize;
-            int minY = padMinTy * _tileSize;
-            int maxX = Math.Min(_width - 1, (padMaxTx + 1) * _tileSize - 1);
-            int maxY = Math.Min(_height - 1, (padMaxTy + 1) * _tileSize - 1);
-            regions.Add(new HeatRegion(minX, minY, maxX, maxY));
-
-            void TryEnqueue(int nx, int ny)
-            {
-                if ((uint)nx >= (uint)_tileCountX || (uint)ny >= (uint)_tileCountY)
-                    return;
-                int ni = nx + ny * _tileCountX;
-                if (visited[ni] || !active[ni])
-                    return;
-                visited[ni] = true;
-                queue.Enqueue(ni);
-            }
-        }
-
-        MergeOverlappingRegions(regions);
-        return regions;
+        foreach (int tile in _activeTiles)
+            _active[tile] = false;
+        _activeTiles.Clear();
+        for (int i = 0; i < steppedTiles.Count; i++)
+            if (stillChanging[i])
+                ActivateTile(steppedTiles[i]);
     }
 
-    private static void MergeOverlappingRegions(List<HeatRegion> regions)
+    /// <summary>
+    /// The tiles to step: every active tile and the eight tiles around it, in ascending order. Heat that reaches the
+    /// ring changes it and makes it active in turn, so a front is always one tile ahead of what is stepped. The list
+    /// is reused: it is valid until the next call. <see cref="AddSteppedNeighbour"/> can extend it.
+    /// </summary>
+    public List<int> BuildSteppedTiles()
     {
-        bool merged;
-        do
+        foreach (int tile in _steppedTiles)
+            _stepped[tile] = false;
+        _steppedTiles.Clear();
+
+        foreach (int tile in _activeTiles)
         {
-            merged = false;
-            for (int i = 0; i < regions.Count && !merged; i++)
-            {
-                for (int j = i + 1; j < regions.Count; j++)
-                {
-                    if (!regions[i].Intersects(regions[j]))
-                        continue;
-                    var a = regions[i];
-                    var b = regions[j];
-                    regions[i] = new HeatRegion(
-                        Math.Min(a.MinX, b.MinX),
-                        Math.Min(a.MinY, b.MinY),
-                        Math.Max(a.MaxXInclusive, b.MaxXInclusive),
-                        Math.Max(a.MaxYInclusive, b.MaxYInclusive));
-                    regions.RemoveAt(j);
-                    merged = true;
-                    break;
-                }
-            }
-        } while (merged);
+            int tx = tile % _tileCountX, ty = tile / _tileCountX;
+            int minTx = Math.Max(0, tx - 1), maxTx = Math.Min(_tileCountX - 1, tx + 1);
+            int minTy = Math.Max(0, ty - 1), maxTy = Math.Min(_tileCountY - 1, ty + 1);
+            for (int ny = minTy; ny <= maxTy; ny++)
+                for (int nx = minTx; nx <= maxTx; nx++)
+                    AddStepped(nx + ny * _tileCountX);
+        }
+
+        // Ascending, whatever order the tiles became active in: the step merges what tiles found in list order.
+        _steppedTiles.Sort();
+        return _steppedTiles;
+    }
+
+    private void AddStepped(int tile)
+    {
+        if (_stepped[tile])
+            return;
+        _stepped[tile] = true;
+        _steppedTiles.Add(tile);
+    }
+
+    /// <summary>
+    /// Adds the tile across <paramref name="side"/> of <paramref name="tile"/> to the stepped tiles, at the end of
+    /// the list. Call <see cref="SortSteppedTiles"/> once the list is complete.
+    /// </summary>
+    public void AddSteppedNeighbour(int tile, RegionEdges side) => AddStepped(side switch
+    {
+        RegionEdges.Left => tile - 1,
+        RegionEdges.Right => tile + 1,
+        RegionEdges.Up => tile - _tileCountX,
+        RegionEdges.Down => tile + _tileCountX,
+        _ => throw new ArgumentOutOfRangeException(nameof(side), side, "one side at a time"),
+    });
+
+    public void SortSteppedTiles() => _steppedTiles.Sort();
+
+    /// <summary>The cells of a tile.</summary>
+    public HeatRegion TileRegion(int tile)
+    {
+        int tx = tile % _tileCountX;
+        int ty = tile / _tileCountX;
+        return new HeatRegion(
+            tx * _tileSize,
+            ty * _tileSize,
+            Math.Min(_width - 1, (tx + 1) * _tileSize - 1),
+            Math.Min(_height - 1, (ty + 1) * _tileSize - 1));
+    }
+
+    /// <summary>
+    /// The sides of a tile that touch another stepped tile (<paramref name="stepped"/>) and the sides that touch a
+    /// tile left out of the step (<paramref name="unstepped"/>); a side on the edge of the map is in neither.
+    /// </summary>
+    public void SidesOf(int tile, out RegionEdges stepped, out RegionEdges unstepped)
+    {
+        int tx = tile % _tileCountX;
+        int ty = tile / _tileCountX;
+        stepped = unstepped = RegionEdges.None;
+        if (tx > 0) Note(_stepped[tile - 1], RegionEdges.Left, ref stepped, ref unstepped);
+        if (tx < _tileCountX - 1) Note(_stepped[tile + 1], RegionEdges.Right, ref stepped, ref unstepped);
+        if (ty > 0) Note(_stepped[tile - _tileCountX], RegionEdges.Up, ref stepped, ref unstepped);
+        if (ty < _tileCountY - 1) Note(_stepped[tile + _tileCountX], RegionEdges.Down, ref stepped, ref unstepped);
+
+        static void Note(bool isStepped, RegionEdges side, ref RegionEdges stepped, ref RegionEdges unstepped)
+        {
+            if (isStepped)
+                stepped |= side;
+            else
+                unstepped |= side;
+        }
     }
 
     /// <summary>Grows the dirty rect to include the cell.</summary>

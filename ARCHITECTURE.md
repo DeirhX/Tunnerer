@@ -87,7 +87,7 @@ and Escape quits at once.
 ## Simulation order (`World.Advance`)
 
 1. **Collision** - rebuild the sector lookup for tanks and machines
-2. **Thermal** - `TerrainGrid.CoolDown`: heat diffusion between cells (sparse by active tile, parallel when large)
+2. **Thermal** - `TerrainGrid.CoolDown`: heat diffusion between cells (only the tiles still changing, in parallel when many)
 3. **Regrowth** - dirt recovery by cellular automaton
 4. **Projectiles** - movement, impacts, explosions
 5. **Tanks** - input, turret, movement, digging, shooting, building, heat exchange with terrain and base

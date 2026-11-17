@@ -15,7 +15,7 @@ public interface ITerrainHeatSource
 
     void AddHeat(Position pos, int amount);
     void AddHeatRadius(Position center, int amount, int radius);
-    void CoolDown(float artificialCoolingPerFrame = 0f);
+    void CoolDown();
 
     float SampleAverageHeat(Position center, int radius);
     float SampleAverageAirTemperature(Position center, int radius);

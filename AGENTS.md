@@ -8,7 +8,7 @@ Read this before changing code. `DESIGN.md` says where the game is going; `ARCHI
 Run from the repository root.
 
 - Build: `dotnet build Tunnerer.slnx`
-- Test: `dotnet test Tunnerer.slnx` (about 20 seconds; run it before every commit)
+- Test: `dotnet test Tunnerer.slnx` (about 35 seconds; run it before every commit)
 - Fast tests: `dotnet test Tunnerer.slnx --filter "Category!=Slow"` skips tests marked
   `[Trait("Category", "Slow")]` (over ~5 s each). Use it while iterating; mark new tests over ~5 s `Slow`.
 - Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)
@@ -32,8 +32,11 @@ Run from the repository root.
 - **Energy is conserved.** Entities exchange *energy* with the grid; they never write temperatures. Energy that is
   created or destroyed is recorded in `ThermalLedger`, and `ThermalLedgerTests` checks the balance every tick.
 - **One heat solver.** `TerrainHeatEngine.ComputeRegionDeltaConservative` is the only exchange stencil and
-  `ResolveTerrainTemperature` is the only place that applies a step to a cell. The full-grid and sparse paths both
-  go through them.
+  `ResolveCell` is the only place that applies a step to a cell. Every tile the solver steps goes through them.
+- **Heat costs what is changing, not the map.** The solver steps only tiles where heat still changes
+  (`ThermalActivityTracker`); settled ground is left alone until something writes heat into it or digs it. Do not
+  add a heat pass that visits every cell each tick, and wake a tile (`ActivateTileByCell`) from anything new that
+  changes a temperature or a cell's material. Regrowth follows the same rule through `RegrowthTiles`.
 - **Shaders compile for every GPU API.** Every build compiles each shader to DXIL, SPIR-V and MSL, on every OS. Declare
   resources with the macros in `Rendering/Shaders/PostPs/Common/Registers.hlsli`, never `register()`, and give
   every `Texture2D` a `SamplerState` at the same index (`RenderingSourceGuardTests` and the shader build step
@@ -46,8 +49,9 @@ Run from the repository root.
 Adding a thermal material:
 
 1. `ThermalMaterial` in `Terrain/TerrainPixel.cs`, and `Pixel.DeriveThermalMaterial` if pixels map to it.
-2. Its row in `Tweaks.World.ThermalMaterials` (`Config/Tweaks.cs`): heat capacity, conductivity, air exchange and,
-   for a source or sink, a fixed temperature. Pair conductances are derived from the rows (the two conductivities
+2. Its row in `Tweaks.World.ThermalMaterials` (`Config/Tweaks.cs`): heat capacity, conductivity, air exchange and
+   either a fixed temperature (a source or sink) or a loss (the share of its heat it gives up to the outside each
+   tick). Pair conductances are derived from the rows (the two conductivities
    in series, `ThermalMaterialTable.PairConductance`). Add a pair to the table's override list only when the game
    needs a value the rule cannot produce.
 3. `SimulationTableGuardTests` must pass.

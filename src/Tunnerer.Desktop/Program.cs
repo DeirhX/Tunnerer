@@ -34,6 +34,7 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
           --dump-sounds=DIR   Write every sound effect to a WAV file in DIR, print its levels, and exit.
           --terrain-test      Static terrain test patterns instead of a match.
           --perf              Capture frame times and exit (--perf-warmup=N --perf-frames=N --perf-csv=PATH).
+          --energy-audit      Print the heat energy balance with the simulation profile (sums the whole map).
 
         In game: W A S D drive and dig, mouse aims, left click or Space fires, E builds a relay,
         M mutes the sound, F1 shows the controls, Esc pauses.
@@ -123,6 +124,10 @@ foreach (var arg in args)
     else if (arg == "--no-fog")
     {
         fogOfWar = false;
+    }
+    else if (arg == "--energy-audit")
+    {
+        GameLaunchOptions.EnergyAudit = true;
     }
     else if (arg.StartsWith("--seed=", StringComparison.Ordinal))
     {

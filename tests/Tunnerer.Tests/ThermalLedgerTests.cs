@@ -135,9 +135,10 @@ public class ThermalLedgerTests(ITestOutputHelper output)
     [Fact]
     public void AirCell_InjectedHeat_IsKeptAndConserved()
     {
-        // Open cave: no dirt, rock or base cells, so nothing may remove heat. Heat written into an air cell
-        // used to land in a mirror field that the next solver step overwrote, deleting ~90% of it.
-        var t = new TerrainGrid(new Size(40, 40));
+        // Open cave: no dirt, rock or base cells, and the air's own loss switched off, so nothing may remove heat.
+        // Heat written into an air cell used to land in a mirror field that the next solver step overwrote,
+        // deleting ~90% of it.
+        var t = new TerrainGrid(new Size(40, 40), FullGridHeatStep.LosslessSettings());
         for (int y = 0; y < 40; y++)
             for (int x = 0; x < 40; x++)
                 t.SetPixelRaw(new Position(x, y), TerrainPixel.Blank);
@@ -240,7 +241,7 @@ public class ThermalLedgerTests(ITestOutputHelper output)
         output.WriteLine(
             $"peakEnergy={maxEnergy:0.0} injected={ledger.Injected:0.0} sunkFixed={ledger.SunkFixedTemperature:0.0} " +
             $"sunkBase={ledger.SunkBase:0.0} sunkTank={ledger.SunkTank:0.0} " +
-            $"sunkArtificial={ledger.SunkArtificialCooling:0.0} maxResidual={maxResidual:0.0000} at tick {worstTick}");
+            $"sunkLoss={ledger.SunkAmbientLoss:0.0} maxResidual={maxResidual:0.0000} at tick {worstTick}");
 
         Assert.True(ledger.Injected > 0.0, "the scenario should actually inject heat (shots, torch, explosions)");
         Assert.True(maxResidual < 0.5,

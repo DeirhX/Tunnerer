@@ -21,16 +21,17 @@ Terrain/
   TerrainPixel.cs            TerrainPixel, ThermalMaterial, TerrainBehavior and the Pixel lookup tables
   TerrainGrid.cs             Pixel array, change list, SetPixel (metered) and SetPixelRaw (level gen only)
   TerrainGrid.Heat.cs        Terrain and air temperature fields, CoolDown, energy add / extract API
-  TerrainGrid.HeatSparse.cs  Sparse (active-region) solver path
+  TerrainGrid.HeatTiles.cs   The solver step over the tiles that are still changing
   TerrainGrid.HotRock.cs     PlaceHotRockPocket
   TerrainGrid.Materialization.cs, .Decoration.cs, .Render.cs   Level-gen markers to pixels, cleanup, Draw*ToSurface
   TerrainRegrowth.cs         Dirt regrowth cellular automaton
+  RegrowthTiles.cs           Which tiles hold anything for regrowth to act on
   TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
   ITerrain*.cs               Narrow interfaces over TerrainGrid (pixel read / write, heat source, change tracker)
 Thermal/
-  TerrainHeatEngine.cs       The exchange stencil, capacity and conductance tables, ResolveTerrainTemperature
-  ThermalScheduler.cs        Per tick: sleep, full grid or sparse regions
-  ThermalActivityTracker.cs  Active tiles (which regions to step) and the heat dirty rect (for the renderer)
+  TerrainHeatEngine.cs       The exchange stencil, capacity, conductance and loss tables, ResolveCell
+  ThermalScheduler.cs        Per tick: step or not (nothing active, or throttled when nearly everything is)
+  ThermalActivityTracker.cs  Active tiles (which tiles to step) and the heat dirty rect (for the renderer)
   ThermalLedger.cs           Energy created or destroyed, by kind
   TankHeatEngine.cs          One tank's heat exchange with terrain and air
 Entities/
@@ -93,7 +94,9 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
 1. **Collision**: `CollisionSolver.Update` rebuilds the tank sector index.
 2. **Heat**: `TerrainGrid.CoolDown` (see below). The energy-balance residual is measured here for the profile.
 3. **Regrowth**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
-   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open.
+   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open. A pass visits only
+   the tiles `RegrowthTiles` has marked as holding open, scorched or growing cells; every pixel write keeps the marks
+   up to date, so the pass costs what has been dug, not the size of the map.
 4. **Projectiles**: `ProjectileList.Advance`.
 5. **Tanks**: `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`): idle heat, base
    interaction (recharge, heat sink, docking), network coverage, turret aim and fire, `TankDigger.Move`, spawn
@@ -109,8 +112,10 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
     out by `World.TrackRadar` runs its pulse on (see "Radar" below).
 
 `SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per section
-above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / parallel ticks) and `[ProfileE]`
-(thermal energy and the ledger residual, which should stay near float noise).
+above), `[Profile+]` (heat solver parts) and `[Profile++]` (active and stepped tiles, stepped / parallel ticks).
+With `Profile.AuditEnergy` (Desktop: `--energy-audit`) it adds `[ProfileE]`: the thermal energy and the ledger
+residual over the report window, which should stay near float noise. That line sums every cell of the map, so it
+is off by default and never runs per tick.
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
 `Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
@@ -136,11 +141,30 @@ Heat lives in two float fields on `TerrainGrid`, terrain and air. Energy is temp
 (`TerrainHeatEngine.GetHeatCapacity` per `ThermalMaterial`, `AirHeatCapacity` for air). In an air cell the
 terrain field only mirrors the air field, so such a cell holds one store.
 
-Each tick `TerrainGrid.CoolDown` asks `ThermalScheduler.Decide` what to do: sleep (nothing active, or the last step
-was quiet), step the full grid, or step only the regions around active tiles (`ThermalActivityTracker`), in
-parallel when there are many regions. Both paths use `TerrainHeatEngine.ComputeRegionDeltaConservative` and
-`ResolveTerrainTemperature`, which pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock) and
-books what the pin removes or adds as `SunkFixedTemperature`.
+The exchange is `TerrainHeatEngine.ComputeRegionDeltaConservative`: a cell's terrain trades heat with its own air
+and with the solid cells beside it, and its air with the air beside it, but only where at least one of the two
+cells is open. The air inside solid ground carries nothing from one solid cell to the next, so ground conducts as
+its material row says; dirt is the insulator (30 times worse than stone). `ResolveCell` then applies the step to a
+cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock) and books what the
+pin removes or adds as `SunkFixedTemperature`, and it takes each material's `Loss` from unpinned ground and from
+open air, a small share of the temperature above or below ambient, booked as `SunkAmbientLoss`. The loss stands for
+heat leaving to the deep ground and to the surface. It is what gives a hot or frost pocket a halo of a fixed size
+(about a dozen cells in dirt) instead of one that spreads for ever, and open air loses faster than ground, so a
+dug-out chamber is a radiator for whatever stands in it.
+
+Because of the loss, heat settles, and the solver only works where it has not. `ThermalActivityTracker` keeps a
+grid of tiles (`ThermalActiveTileSize` cells a side). A tile is active when the last step still changed a cell in it
+(`ThermalSettledGrowStep` away from ambient, `ThermalSettledFadeStep` back toward it) or when something wrote heat
+into it or changed a cell's material next to heat (`SetPixel`). Each tick `TerrainGrid.CoolDown` steps the active
+tiles and the ring of tiles around them (`TerrainGrid.HeatTiles.cs`), one tile per thread when there are many:
+every tile's deltas are computed from the same state, tiles trade across the sides they share (each writes its own
+half of the trade, `RegionEdges`), and what the tiles found is merged in tile order, so the result is the same on
+any number of threads. A stepped tile's side toward a tile left out is closed, so before the step the set is grown
+across every side that still carries heat (`EdgeCarriesHeat`): a settled pocket and its halo are stepped together
+or not at all, never cut apart. Being stepped along does not make a settled tile active. A change of material
+wakes its tile only where a cell involved is more than `ThermalWakeTemperature` from ambient. A settled pocket, old tunnel or untouched ground costs nothing until it is disturbed. With no
+active tile the solver does not run; `ThermalScheduler` also holds it to every few ticks when nearly the whole map
+is active.
 
 Entities exchange energy through the `ITerrainHeatSource` API, never by writing temperatures:
 `AddEnergyInRadiusArea` / `ExtractEnergyInRadiusArea` for transfers the entity books itself, `AddHeat` /
@@ -319,10 +343,12 @@ Desktop:
      `ka * kb / (ka + kb)`, so a material against itself conducts half its value and against a much better
      conductor (a base, a gold core) nearly all of it. Air's value is the air field's, between neighbouring cells.
      A pair that needs a value the rule cannot produce gets a `ThermalPairOverride` in the table's override list
-     (either order; today dirt against stone, hot rock, base and gold/core). The engine copies the pair table once
+     (either order; today only pairs of pinned sinks). The engine copies the pair table once
      at construction, so the solver's inner loop pays one array read.
    - `AirExchange`: conductance between the cell's terrain and the air in the same cell.
-   - `FixedTemperature`: set it for a source or sink; `ResolveTerrainTemperature` pins the cell there each step.
+   - `FixedTemperature`: set it for a source or sink; `ResolveCell` pins the cell there each step.
+   - `Loss`: for a material that stores heat, the share of its temperature above ambient it gives up to the outside
+     each tick. Leave it zero only for a pinned material; ground without a loss never settles.
    If entities must not draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.
    The table reaches thermal code through `SimulationSettings.ThermalMaterials` (`SourceGuardTests`), so a test can
    swap a row with `ThermalMaterialTable.With`.

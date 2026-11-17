@@ -70,6 +70,7 @@ Run `Tunnerer.Desktop --help` for the full list. The common ones:
 | `--hidden` | Never show the window (automated runs) |
 | `--terrain-test` | Static terrain patterns for renderer work |
 | `--perf` | Capture frame times and exit |
+| `--energy-audit` | Print the heat energy balance with the simulation profile (it sums the whole map, so it is off by default) |
 | `--dump-sounds=DIR` | Write every sound effect to a WAV file in DIR, print its length and levels, and exit |
 
 ## Automated runs

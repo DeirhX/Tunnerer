@@ -19,7 +19,47 @@ public class TerrainRegrowthTests
         }
     }
 
-    private static (TerrainGrid Terrain, int Changed) Grow(bool parallel)
+    [Fact]
+    public void SkippingUnmarkedTiles_GivesTheResultOfScanningEveryTile()
+    {
+        var skipping = Grow(parallel: false);
+        var scanningAll = Grow(parallel: false, markAllEveryStep: true);
+
+        for (int i = 0; i < skipping.Terrain.Size.Area; i++)
+        {
+            Assert.Equal(scanningAll.Terrain[i], skipping.Terrain[i]);
+            Assert.Equal(scanningAll.Terrain.GetScorchIntensity(i), skipping.Terrain.GetScorchIntensity(i));
+        }
+    }
+
+    [Fact]
+    public void SolidGround_IsLeftAlone_UntilSomethingIsDugOrScorchedThere()
+    {
+        var terrain = new TerrainGrid(new Size(160, 100));
+        terrain.Fill(TerrainPixel.Dirt);
+        var regrowth = new TerrainRegrowth(parallel: false, enabled: true, simulationSeed: 77);
+        RegrowthTiles tiles = terrain.RegrowthTiles;
+        Assert.True(tiles.IsMarked(0, 0), "every tile starts as a maybe");
+
+        for (int step = 0; step < 40; step++)
+            regrowth.Advance(terrain, step, []);
+        for (int ty = 0; ty < tiles.CountY; ty++)
+            for (int tx = 0; tx < tiles.CountX; tx++)
+                Assert.False(tiles.IsMarked(tx, ty), $"tile {tx},{ty} holds nothing to regrow");
+
+        // Every way of writing a pixel marks the tile it lands in, and only that one.
+        terrain.SetPixel(new Position(40, 40), TerrainPixel.Blank);
+        terrain.SetPixelRaw(new Position(100, 10), TerrainPixel.Decal);
+        terrain[70 + 70 * terrain.Width] = TerrainPixel.DirtGrow;
+        terrain.SetPixel(new Position(130, 90), TerrainPixel.Rock);
+        Assert.True(tiles.IsMarked(40 / RegrowthTiles.TileSize, 40 / RegrowthTiles.TileSize));
+        Assert.True(tiles.IsMarked(100 / RegrowthTiles.TileSize, 10 / RegrowthTiles.TileSize));
+        Assert.True(tiles.IsMarked(70 / RegrowthTiles.TileSize, 70 / RegrowthTiles.TileSize));
+        Assert.False(tiles.IsMarked(130 / RegrowthTiles.TileSize, 90 / RegrowthTiles.TileSize));
+        Assert.False(tiles.IsMarked(0, 0));
+    }
+
+    private static (TerrainGrid Terrain, int Changed) Grow(bool parallel, bool markAllEveryStep = false)
     {
         // A dirt field with blank holes and scorched patches, so every regrowth rule fires.
         var terrain = new TerrainGrid(new Size(160, 100));
@@ -47,7 +87,11 @@ public class TerrainRegrowthTests
 
         var regrowth = new TerrainRegrowth(parallel, enabled: true, simulationSeed: 77);
         for (int step = 0; step < 600; step++)
+        {
+            if (markAllEveryStep)
+                terrain.RegrowthTiles.MarkAll();
             regrowth.Advance(terrain, step, []);
+        }
 
         int changed = 0;
         for (int i = 0; i < before.Length; i++)

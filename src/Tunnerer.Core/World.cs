@@ -36,8 +36,8 @@ public class World
 
     private int _advanceCount;
     private TimeSpan _elapsed;
-    private double _lastThermalEnergy;
-    private double _lastNetExternalEnergy;
+    private double _auditThermalEnergy = double.NaN;
+    private double _auditNetExternalEnergy;
 
     public TerrainGrid Terrain => _terrain;
     public TankBases TankBases => _tankBases;
@@ -171,6 +171,7 @@ public class World
             _tankBases.AddBase(spawns[i], i);
 
         _tankBases.CreateBasesInTerrain(_terrain);
+        _terrain.RegrowthTiles.Rebuild(_terrain.Data);
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
@@ -185,7 +186,7 @@ public class World
 
             // Let the heat (and cold) spread a little before play starts so the pockets do not begin as isolated dots.
             for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
-                _terrain.CoolDown(Tweaks.World.ThermalArtificialCoolingPerFrame);
+                _terrain.CoolDown();
         }
 
         for (int i = 0; i < spawns.Length; i++)
@@ -220,27 +221,13 @@ public class World
         _elapsed += _simulationSettings.AdvanceStep;
 
         ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
-        ProfileSection(ref Profile.Cooldown, () => _terrain.CoolDown(_simulationSettings.ThermalArtificialCoolingPerFrame));
+        ProfileSection(ref Profile.Cooldown, _terrain.CoolDown);
         Profile.CooldownSim += _terrain.LastCoolDownProfile.Simulate;
-        Profile.CooldownMark += _terrain.LastCoolDownProfile.MarkDirty;
+        Profile.CooldownApply += _terrain.LastCoolDownProfile.Apply;
         Profile.CooldownActiveTiles += _terrain.LastCoolDownProfile.ActiveTiles;
-        Profile.CooldownRegionCount += _terrain.LastCoolDownProfile.RegionCount;
-        if (_terrain.LastCoolDownProfile.UsedSparse) Profile.CooldownSparseFrames++;
+        Profile.CooldownSteppedTiles += _terrain.LastCoolDownProfile.SteppedTiles;
+        if (_terrain.LastCoolDownProfile.SteppedTiles > 0) Profile.CooldownSteppedFrames++;
         if (_terrain.LastCoolDownProfile.UsedParallel) Profile.CooldownParallelFrames++;
-        // Energy balance: whatever the system gained since the last tick must equal what the ledger says came
-        // in from outside. A non-zero residual means energy was created or destroyed somewhere unmetered.
-        double thermalEnergy = SumSystemThermalEnergy();
-        double netExternal = _terrain.Ledger.NetExternal;
-        Profile.ThermalEnergy += thermalEnergy;
-        if (_advanceCount > 1)
-        {
-            double residual = (thermalEnergy - _lastThermalEnergy) - (netExternal - _lastNetExternalEnergy);
-            Profile.ThermalLedgerResidualSigned += residual;
-            Profile.ThermalLedgerResidualAbs += Math.Abs(residual);
-        }
-        _lastThermalEnergy = thermalEnergy;
-        _lastNetExternalEnergy = netExternal;
-
         ProfileSection(ref Profile.Regrow, AdvanceRegrowth);
         ProfileSection(ref Profile.Projectiles, () => _projectiles.Advance(_collisionSolver));
         var simCtx = new SimulationContext
@@ -282,7 +269,34 @@ public class World
         Profile.FrameCount++;
 
         if (Profile.FrameCount >= 100)
+        {
+            AuditEnergy();
             Profile.Report();
+        }
+    }
+
+    /// <summary>
+    /// The energy balance over one report window, for <c>[ProfileE]</c>: whatever the system gained must equal what
+    /// the ledger says came in from outside, and a residual means energy was created or destroyed somewhere
+    /// unmetered. Summing the grid visits every cell, so it runs once per report and only when
+    /// <see cref="SimulationProfile.AuditEnergy"/> asks for it, never every tick.
+    /// </summary>
+    private void AuditEnergy()
+    {
+        if (!Profile.AuditEnergy || Profile.ReportSink is null)
+        {
+            _auditThermalEnergy = double.NaN;
+            return;
+        }
+
+        double thermalEnergy = SumSystemThermalEnergy();
+        double netExternal = _terrain.Ledger.NetExternal;
+        Profile.ThermalEnergy = thermalEnergy;
+        Profile.ThermalLedgerResidual = double.IsNaN(_auditThermalEnergy)
+            ? 0.0
+            : (thermalEnergy - _auditThermalEnergy) - (netExternal - _auditNetExternalEnergy);
+        _auditThermalEnergy = thermalEnergy;
+        _auditNetExternalEnergy = netExternal;
     }
 
     private readonly List<RegrowthBlocker> _regrowthBlockers = new();
@@ -521,17 +535,22 @@ public class SimulationProfile
 {
     public Action<string>? ReportSink { get; set; }
 
+    /// <summary>
+    /// Adds the <c>[ProfileE]</c> line to each report: the system's thermal energy and how far it strays from the
+    /// ledger over the report window. Off by default, because it sums every cell of the map.
+    /// </summary>
+    public bool AuditEnergy { get; set; }
+
     public TimeSpan Collision;
     public TimeSpan Cooldown;
     public TimeSpan CooldownSim;
-    public TimeSpan CooldownMark;
+    public TimeSpan CooldownApply;
     public long CooldownActiveTiles;
-    public long CooldownRegionCount;
-    public int CooldownSparseFrames;
+    public long CooldownSteppedTiles;
+    public int CooldownSteppedFrames;
     public int CooldownParallelFrames;
     public double ThermalEnergy;
-    public double ThermalLedgerResidualSigned;
-    public double ThermalLedgerResidualAbs;
+    public double ThermalLedgerResidual;
     public TimeSpan Regrow;
     public TimeSpan Projectiles;
     public TimeSpan Tanks;
@@ -556,29 +575,27 @@ public class SimulationProfile
             $"bases={Avg(Bases):F3} proj={Avg(Projectiles):F3} tanks={Avg(Tanks):F3} harv={Avg(Harvesters):F3} " +
             $"spr={Avg(Sprites):F3} links={Avg(Links):F3} vision={Avg(Vision):F3} " +
             $"| total={Avg(Total):F3} ms (avg over {FrameCount} frames)");
-        ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolMark={Avg(CooldownMark):F3} ms");
-        ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} regions={AvgCount(CooldownRegionCount):F1} " +
-            $"sparseFrames={CooldownSparseFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
-        ReportSink($"[ProfileE] thermal={AvgValue(ThermalEnergy):F3} ledgerResidualSigned={AvgValue(ThermalLedgerResidualSigned):F5} " +
-            $"ledgerResidualAbs={AvgValue(ThermalLedgerResidualAbs):F5}");
+        ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolApply={Avg(CooldownApply):F3} ms");
+        ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} steppedTiles={AvgCount(CooldownSteppedTiles):F1} " +
+            $"steppedFrames={CooldownSteppedFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
+        if (AuditEnergy)
+            ReportSink($"[ProfileE] thermal={ThermalEnergy:F3} ledgerResidual={ThermalLedgerResidual:F5} (over {FrameCount} frames)");
         Reset();
     }
 
     private double Avg(TimeSpan ts) => ts.TotalMilliseconds / FrameCount;
     private double AvgCount(long count) => FrameCount == 0 ? 0 : (double)count / FrameCount;
-    private double AvgValue(double value) => FrameCount == 0 ? 0 : value / FrameCount;
 
     public void Reset()
     {
-        Collision = Cooldown = CooldownSim = CooldownMark
+        Collision = Cooldown = CooldownSim = CooldownApply
             = Regrow = Projectiles = Tanks = Harvesters = Sprites = Bases = Links = Vision = Total = TimeSpan.Zero;
         CooldownActiveTiles = 0;
-        CooldownRegionCount = 0;
-        CooldownSparseFrames = 0;
+        CooldownSteppedTiles = 0;
+        CooldownSteppedFrames = 0;
         CooldownParallelFrames = 0;
         ThermalEnergy = 0;
-        ThermalLedgerResidualSigned = 0;
-        ThermalLedgerResidualAbs = 0;
+        ThermalLedgerResidual = 0;
         FrameCount = 0;
     }
 }

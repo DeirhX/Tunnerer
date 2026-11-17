@@ -238,59 +238,6 @@ public class TerrainTests
     }
 
     [Fact]
-    public void CoolDown_ArtificialCooling_AppliesGlobally_AndClampsAtZero()
-    {
-        // Artificial cooling only applies to dirt cells (see TerrainGrid.CoolDown).
-        var t = MakeTerrain(4, 4);
-        for (int i = 0; i < 16; i++)
-            t[i] = TerrainPixel.Dirt;
-
-        t.AddHeat(new Position(0, 0), 2);
-        t.AddHeat(new Position(3, 3), 12);
-
-        t.CoolDown(artificialCoolingPerFrame: 1000f);
-
-        Assert.Equal(0f, t.GetHeatTemperature(new Position(0, 0)));
-        Assert.Equal(0f, t.GetHeatTemperature(new Position(3, 3)));
-    }
-
-    [Fact]
-    public void CoolDown_ArtificialCooling_LeavesSubZeroDirtCold()
-    {
-        var t = MakeTerrain(4, 4);
-        for (int i = 0; i < 16; i++)
-            t[i] = TerrainPixel.Dirt;
-        var cold = new Position(1, 1);
-        t.AddEnergyInRadiusArea(cold, 0, -20.0 * t.SumHeatCapacityInRadiusArea(cold, 0, TerrainGrid.ThermalField.Terrain),
-            TerrainGrid.ThermalField.Terrain);
-        Assert.True(t.GetHeatTemperature(cold) < 0f);
-        double sunkBefore = t.Ledger.SunkArtificialCooling;
-
-        t.CoolDown(artificialCoolingPerFrame: 1000f);
-
-        // The sink only removes heat above ambient: the chilled cell is still below zero and nothing was booked.
-        Assert.True(t.GetHeatTemperature(cold) < 0f);
-        Assert.Equal(sunkBefore, t.Ledger.SunkArtificialCooling);
-    }
-
-    [Fact]
-    public void CoolDown_ArtificialCooling_DoesNotCoolNonDirtMaterial()
-    {
-        var t = MakeTerrain(4, 4);
-        for (int i = 0; i < 16; i++)
-            t[i] = TerrainPixel.Rock;
-
-        t.AddHeat(new Position(1, 1), 12);
-        float before = t.GetHeatTemperature(new Position(1, 1));
-
-        t.CoolDown(artificialCoolingPerFrame: 1000f);
-
-        // Rock still conducts normally, but the artificial sink must not zero it out.
-        Assert.True(t.GetHeatTemperature(new Position(1, 1)) > 0f,
-            $"Rock cell should not be zeroed by artificial cooling (before={before}).");
-    }
-
-    [Fact]
     public void TerrainHeatEngine_OneDimensionalStrip_ClosedSystem_ConvergesToInitialEnergyMean()
     {
         // Single-pixel-wide bed (1 x N): inject heat on one side and wait for equilibrium.
@@ -312,7 +259,7 @@ public class TerrainTests
     /// </summary>
     private static void AssertClosedRockSystemConverges(int width, int height, int hotIndex, float hotTemperature, int steps, float tolerance)
     {
-        var engine = new TerrainHeatEngine();
+        var engine = new TerrainHeatEngine(FullGridHeatStep.LosslessSettings());
         int len = width * height;
         var terrain = new float[len];
         var air = new float[len];
@@ -341,7 +288,7 @@ public class TerrainTests
     {
         const int width = 32;
         const int height = 32;
-        var engine = new TerrainHeatEngine();
+        var engine = new TerrainHeatEngine(FullGridHeatStep.LosslessSettings());
         var terrain = new float[width * height];
         var air = new float[width * height];
         var pixels = new TerrainPixel[width * height];

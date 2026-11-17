@@ -12,6 +12,9 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     private readonly int[] _neighborOffsets;
     private readonly List<Position> _changeList = new();
 
+    /// <summary>The tiles regrowth still has to look at; every pixel write keeps it up to date.</summary>
+    public RegrowthTiles RegrowthTiles { get; }
+
     public Size Size { get; }
     public int Width => Size.X;
     public int Height => Size.Y;
@@ -31,18 +34,24 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         _airTemperature = new float[size.Area];
         _heatEngine = new TerrainHeatEngine(simulationSettings);
         _neighborOffsets = BuildNeighborOffsets(size.X);
+        RegrowthTiles = new RegrowthTiles(size.X, size.Y);
+        _thermalActivity = new ThermalActivityTracker(size.X, size.Y, Math.Max(8, simulationSettings.ThermalActiveTileSize));
+        _computeTileDelta = ComputeTileDelta;
+        _applyTileStep = ApplyTileStep;
+        if (simulationSettings.ThermalMaxWorkers > 0)
+            _tileThreads.MaxDegreeOfParallelism = simulationSettings.ThermalMaxWorkers;
     }
 
     public TerrainPixel this[int offset]
     {
         get => _data[offset];
-        set => _data[offset] = value;
+        set => SetPixelRaw(offset, value);
     }
 
     public TerrainPixel this[int x, int y]
     {
         get => _data[x + y * Width];
-        set => _data[x + y * Width] = value;
+        set => SetPixelRaw(x + y * Width, value);
     }
 
     public TerrainPixel GetPixel(Position pos)
@@ -51,8 +60,13 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         return _data[pos.X + pos.Y * Width];
     }
 
-    public void SetPixelRaw(Position pos, TerrainPixel value) => _data[pos.X + pos.Y * Width] = value;
-    public void SetPixelRaw(int offset, TerrainPixel value) => _data[offset] = value;
+    public void SetPixelRaw(Position pos, TerrainPixel value) => SetPixelRaw(pos.X + pos.Y * Width, value);
+
+    public void SetPixelRaw(int offset, TerrainPixel value)
+    {
+        _data[offset] = value;
+        RegrowthTiles.NoteWrite(offset, value);
+    }
     public TerrainPixel GetPixelRaw(Position pos) => _data[pos.X + pos.Y * Width];
     public TerrainPixel GetPixelRaw(int offset) => _data[offset];
 
@@ -64,7 +78,9 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         TerrainPixel previous = _data[offset];
         RecordMaterialChangeEnergy(offset, previous, value);
         _data[offset] = value;
+        RegrowthTiles.NoteWrite(offset, value);
         MirrorAirIfCellBecameAir(pos, offset, previous, value);
+        WakeHeatIfMaterialChanged(pos, offset, previous, value);
         if (value == TerrainPixel.Decal)
             _scorchIntensity[offset] = ScorchIntensityMax;
         else if (!Pixel.IsScorched(value))
@@ -111,6 +127,28 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         _heatTemperature[offset] = air;
         if (ShouldMarkHeatDirty(stale, air))
             MarkHeatDirty(pos.X, pos.Y);
+    }
+
+    /// <summary>
+    /// A cell that changes thermal material conducts differently from then on, so heat that had settled around it
+    /// starts to move again: its tile is stepped. Where the cell and its four neighbours are all at ambient, or within
+    /// the trace that faded heat leaves behind, there is nothing to move, and digging or regrowth there wakes nothing.
+    /// </summary>
+    private void WakeHeatIfMaterialChanged(Position pos, int offset, TerrainPixel oldPixel, TerrainPixel newPixel)
+    {
+        if (Pixel.GetThermalMaterial(newPixel) == Pixel.GetThermalMaterial(oldPixel))
+            return;
+        if (HoldsHeat(offset) ||
+            (pos.X > 0 && HoldsHeat(offset - 1)) || (pos.X < Width - 1 && HoldsHeat(offset + 1)) ||
+            (pos.Y > 0 && HoldsHeat(offset - Width)) || (pos.Y < Height - 1 && HoldsHeat(offset + Width)))
+            ActivateTileByCell(pos.X, pos.Y);
+    }
+
+    private bool HoldsHeat(int offset)
+    {
+        float ambient = _simulationSettings.ThermalAmbientTemperature;
+        float wake = _simulationSettings.ThermalWakeTemperature;
+        return MathF.Abs(_heatTemperature[offset] - ambient) > wake || MathF.Abs(_airTemperature[offset] - ambient) > wake;
     }
 
     public void CommitPixel(Position pos) => _changeList.Add(pos);
@@ -172,9 +210,14 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     }
 
     public IReadOnlyList<Position> GetChangeList() => _changeList;
+
     public void ClearChangeList() => _changeList.Clear();
 
-    public void Fill(TerrainPixel value) => Array.Fill(_data, value);
+    public void Fill(TerrainPixel value)
+    {
+        Array.Fill(_data, value);
+        RegrowthTiles.MarkAll();
+    }
 
     public ReadOnlySpan<TerrainPixel> Data => _data;
 }

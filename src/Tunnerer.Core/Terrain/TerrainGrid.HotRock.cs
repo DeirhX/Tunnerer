@@ -60,8 +60,6 @@ public partial class TerrainGrid
                 converted++;
             }
 
-        if (converted > 0)
-            RequestThermalWake();
         return converted;
     }
 }

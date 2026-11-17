@@ -3,6 +3,17 @@ namespace Tunnerer.Core.Thermal;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Terrain;
 
+/// <summary>The sides of a region across which <see cref="TerrainHeatEngine.ComputeRegionDeltaConservative"/> trades heat.</summary>
+[Flags]
+public enum RegionEdges
+{
+    None = 0,
+    Left = 1,
+    Up = 2,
+    Right = 4,
+    Down = 8,
+}
+
 /// <summary>
 /// Applies one material-heat-exchange simulation step over a terrain heat field.
 /// This is kept separate from TerrainGrid to make thermal behavior easier to test in isolation.
@@ -19,6 +30,7 @@ public sealed class TerrainHeatEngine
     public TerrainHeatEngine(SimulationSettings settings)
     {
         _settings = settings;
+        _flowCutoff = settings.ThermalFlowCutoff;
         var materials = settings.ThermalMaterials
             ?? throw new ArgumentException("settings carry no ThermalMaterials table", nameof(settings));
         int count = ThermalMaterialTable.Count;
@@ -26,6 +38,7 @@ public sealed class TerrainHeatEngine
         _fixedTemperature = new float[count];
         _isFixedTemperature = new bool[count];
         _airExchange = new float[count];
+        _loss = new float[count];
         _conductance = new float[count * count];
         for (int a = 0; a < count; a++)
         {
@@ -33,6 +46,7 @@ public sealed class TerrainHeatEngine
             _heatCapacity[a] = row.HeatCapacity;
             _isFixedTemperature[a] = row.IsFixedTemperature;
             _fixedTemperature[a] = row.FixedTemperature ?? 0f;
+            _loss[a] = row.Loss;
             _airExchange[a] = row.AirExchange + 0.5f * settings.ThermalAirCellCoupling;
             for (int b = 0; b < count; b++)
                 _conductance[a * count + b] = materials.PairConductance((ThermalMaterial)a, (ThermalMaterial)b);
@@ -60,27 +74,55 @@ public sealed class TerrainHeatEngine
     }
 
     /// <summary>
-    /// What a cell's terrain field holds once a step's deltas are applied. This is the only place that decides it,
-    /// for the full-grid and the sparse-region solver alike:
-    /// an air cell mirrors its air field; a fixed-temperature cell is pinned (the energy that the pin removes is
-    /// added to <paramref name="sunkFixed"/>); every other cell keeps the stepped value.
+    /// What a cell holds once a step's deltas are applied. This is the only place that decides it, for the full-grid
+    /// and the sparse-region solver alike. Returns the terrain field; <paramref name="steppedAir"/> comes back as the
+    /// air field.
+    /// <list type="bullet">
+    /// <item>An open cell's air gives up its material's loss, and its terrain field mirrors the air.</item>
+    /// <item>A fixed-temperature cell is pinned; the energy the pin removes is added to <paramref name="sunkFixed"/>.</item>
+    /// <item>Any other solid cell gives up its material's loss from the terrain field; the air inside it is left to
+    /// follow the cell through the exchange between the two.</item>
+    /// </list>
+    /// The energy the losses remove is added to <paramref name="sunkLoss"/>.
     /// </summary>
-    public float ResolveTerrainTemperature(ThermalMaterial material, float steppedTerrain, float steppedAir, ref double sunkFixed)
+    public float ResolveCell(
+        ThermalMaterial material, float steppedTerrain, ref float steppedAir, ref double sunkFixed, ref double sunkLoss)
     {
         if (material == ThermalMaterial.Air)
-            return steppedAir;
-        if (!_isFixedTemperature[(int)material])
-            return steppedTerrain;
+        {
+            float air = steppedAir - _loss[(int)ThermalMaterial.Air] * (steppedAir - _settings.ThermalAmbientTemperature);
+            sunkLoss += (double)(steppedAir - air) * _airCapacity;
+            steppedAir = air;
+            return air;
+        }
+        if (_isFixedTemperature[(int)material])
+        {
+            float fixedTemperature = _fixedTemperature[(int)material];
+            sunkFixed += FixedCellEnergySunk(material, steppedTerrain, fixedTemperature);
+            return fixedTemperature;
+        }
 
-        float fixedTemperature = _fixedTemperature[(int)material];
-        sunkFixed += FixedCellEnergySunk(material, steppedTerrain, fixedTemperature);
-        return fixedTemperature;
+        float terrain = steppedTerrain - _loss[(int)material] * (steppedTerrain - _settings.ThermalAmbientTemperature);
+        sunkLoss += (double)(steppedTerrain - terrain) * _heatCapacity[(int)material];
+        return terrain;
     }
 
     /// <summary>Energy removed when a fixed-temperature cell is pinned back to <paramref name="fixedTemperature"/>.</summary>
     public double FixedCellEnergySunk(ThermalMaterial material, float terrainTemperature, float fixedTemperature)
         => (double)(terrainTemperature - fixedTemperature) * GetHeatCapacity(material);
 
+    /// <summary>
+    /// The one exchange stencil: for every cell of the region, the heat its terrain field trades with its own air and
+    /// with the solid cells right and below, and the heat its air trades with the air right and below. Air only moves
+    /// between two cells when at least one of them is open: the air inside solid ground does not carry heat from one
+    /// solid cell to the next, so ground conducts exactly as its material row says.
+    /// <para>
+    /// A region's sides are insulated unless <paramref name="exchangeAcross"/> names them. Across a named side each
+    /// border cell also trades with the cell just outside, and only the region's half of that trade is written; the
+    /// region on the other side writes the other half from the same state, so the two halves cancel exactly. This is
+    /// how the solver steps a set of tiles as one seamless area, each tile on its own thread.
+    /// </para>
+    /// </summary>
     public void ComputeRegionDeltaConservative(
         float[] terrainTemperature,
         float[] airTemperature,
@@ -92,13 +134,16 @@ public sealed class TerrainHeatEngine
         int maxXInclusive,
         int maxYInclusive,
         float[] terrainDelta,
-        float[] airDelta)
+        float[] airDelta,
+        RegionEdges exchangeAcross = RegionEdges.None)
     {
         int rw = maxXInclusive - minX + 1;
         int rh = maxYInclusive - minY + 1;
         int required = rw * rh;
         if (terrainDelta.Length < required || airDelta.Length < required)
             throw new ArgumentException("region delta lengths must cover region area");
+        if (minX < 0 || minY < 0 || maxXInclusive >= width || maxYInclusive >= height)
+            throw new ArgumentException("region must lie inside the grid");
         Array.Clear(terrainDelta, 0, required);
         Array.Clear(airDelta, 0, required);
 
@@ -116,27 +161,95 @@ public sealed class TerrainHeatEngine
                 ExchangeTerrainAir(local, m1, t1, a1, terrainDelta, airDelta);
 
                 if (x + 1 <= maxXInclusive)
-                {
-                    int idxR = idx + 1;
-                    int localR = local + 1;
-                    ThermalMaterial mR = Pixel.GetThermalMaterial(pixels[idxR]);
-                    float tR = terrainTemperature[idxR];
-                    float aR = airTemperature[idxR];
-                    ExchangeTerrainPair(local, localR, m1, t1, mR, tR, terrainDelta);
-                    ExchangeAirPair(local, localR, a1, aR, airDelta);
-                }
+                    ExchangeWithNeighbour(local, local + 1, m1, t1, a1, idx + 1);
                 if (y + 1 <= maxYInclusive)
-                {
-                    int idxD = idx + width;
-                    int localD = local + rw;
-                    ThermalMaterial mD = Pixel.GetThermalMaterial(pixels[idxD]);
-                    float tD = terrainTemperature[idxD];
-                    float aD = airTemperature[idxD];
-                    ExchangeTerrainPair(local, localD, m1, t1, mD, tD, terrainDelta);
-                    ExchangeAirPair(local, localD, a1, aD, airDelta);
-                }
+                    ExchangeWithNeighbour(local, local + rw, m1, t1, a1, idx + width);
             }
         }
+
+        if ((exchangeAcross & RegionEdges.Left) != 0 && minX > 0)
+            for (int y = minY; y <= maxYInclusive; y++)
+                ExchangeAcrossEdge((y - minY) * rw, y * width + minX, -1);
+        if ((exchangeAcross & RegionEdges.Right) != 0 && maxXInclusive < width - 1)
+            for (int y = minY; y <= maxYInclusive; y++)
+                ExchangeAcrossEdge((y - minY) * rw + rw - 1, y * width + maxXInclusive, 1);
+        if ((exchangeAcross & RegionEdges.Up) != 0 && minY > 0)
+            for (int x = minX; x <= maxXInclusive; x++)
+                ExchangeAcrossEdge(x - minX, minY * width + x, -width);
+        if ((exchangeAcross & RegionEdges.Down) != 0 && maxYInclusive < height - 1)
+            for (int x = minX; x <= maxXInclusive; x++)
+                ExchangeAcrossEdge((rh - 1) * rw + x - minX, maxYInclusive * width + x, width);
+
+        // Both halves of a trade between two cells of the region.
+        void ExchangeWithNeighbour(int local, int localN, ThermalMaterial m1, float t1, float a1, int idxN)
+        {
+            ThermalMaterial mN = Pixel.GetThermalMaterial(pixels[idxN]);
+            float dQ = TerrainPairFlow(m1, t1, mN, terrainTemperature[idxN]);
+            if (dQ != 0f)
+            {
+                terrainDelta[local] -= dQ / GetHeatCapacity(m1);
+                terrainDelta[localN] += dQ / GetHeatCapacity(mN);
+            }
+            if (m1 != ThermalMaterial.Air && mN != ThermalMaterial.Air)
+                return;
+            dQ = AirPairFlow(a1, airTemperature[idxN]);
+            if (dQ != 0f)
+            {
+                airDelta[local] -= dQ / _airCapacity;
+                airDelta[localN] += dQ / _airCapacity;
+            }
+        }
+
+        // The region's half of a trade between a border cell and the cell just outside (at idx + step).
+        void ExchangeAcrossEdge(int local, int idx, int step)
+        {
+            ThermalMaterial m1 = Pixel.GetThermalMaterial(pixels[idx]);
+            ThermalMaterial mN = Pixel.GetThermalMaterial(pixels[idx + step]);
+            float dQ = TerrainPairFlow(m1, terrainTemperature[idx], mN, terrainTemperature[idx + step]);
+            if (dQ != 0f)
+                terrainDelta[local] -= dQ / GetHeatCapacity(m1);
+            if (m1 != ThermalMaterial.Air && mN != ThermalMaterial.Air)
+                return;
+            dQ = AirPairFlow(airTemperature[idx], airTemperature[idx + step]);
+            if (dQ != 0f)
+                airDelta[local] -= dQ / _airCapacity;
+        }
+    }
+
+    /// <summary>
+    /// Whether closing one side of a region would matter: true when the heat one border cell trades with the cell
+    /// just outside moves either of the two by at least <paramref name="step"/> degrees in a tick. The solver asks
+    /// this before it leaves the tile on the other side out of a step. Around settled heat that trade is part of the
+    /// balance (a pocket feeding its halo), and a closed side would cut it.
+    /// </summary>
+    public bool EdgeCarriesHeat(
+        float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels, int width,
+        int minX, int minY, int maxXInclusive, int maxYInclusive, RegionEdges side, float step)
+    {
+        (int first, int count, int stride, int outward) = side switch
+        {
+            RegionEdges.Left => (minY * width + minX, maxYInclusive - minY + 1, width, -1),
+            RegionEdges.Right => (minY * width + maxXInclusive, maxYInclusive - minY + 1, width, 1),
+            RegionEdges.Up => (minY * width + minX, maxXInclusive - minX + 1, 1, -width),
+            RegionEdges.Down => (maxYInclusive * width + minX, maxXInclusive - minX + 1, 1, width),
+            _ => throw new ArgumentOutOfRangeException(nameof(side), side, "one side at a time"),
+        };
+
+        for (int i = 0; i < count; i++)
+        {
+            int idx = first + i * stride;
+            ThermalMaterial m1 = Pixel.GetThermalMaterial(pixels[idx]);
+            ThermalMaterial mN = Pixel.GetThermalMaterial(pixels[idx + outward]);
+            float dQ = TerrainPairFlow(m1, terrainTemperature[idx], mN, terrainTemperature[idx + outward]);
+            if (MathF.Abs(dQ) >= step * MathF.Min(GetHeatCapacity(m1), GetHeatCapacity(mN)))
+                return true;
+            if (m1 != ThermalMaterial.Air && mN != ThermalMaterial.Air)
+                continue;
+            dQ = AirPairFlow(airTemperature[idx], airTemperature[idx + outward]);
+            if (MathF.Abs(dQ) >= step * _airCapacity)
+                return true;
+        }
+        return false;
     }
 
     public double SumTotalEnergy(float[] terrainTemperature, float[] airTemperature, TerrainPixel[] pixels)
@@ -157,46 +270,32 @@ public sealed class TerrainHeatEngine
         return sum;
     }
 
-    private void ExchangeTerrainPair(
-        int idxA,
-        int idxB,
-        ThermalMaterial mA,
-        float tA,
-        ThermalMaterial mB,
-        float tB,
-        float[] terrainDelta)
+    /// <summary>
+    /// Heat flowing from solid cell A to solid cell B this step (negative the other way); zero if either is open.
+    /// Swapping the cells gives exactly the negated value, which is what lets two regions each write their own half.
+    /// </summary>
+    private float TerrainPairFlow(ThermalMaterial mA, float tA, ThermalMaterial mB, float tB)
     {
         if (mA == ThermalMaterial.Air || mB == ThermalMaterial.Air)
-            return;
+            return 0f;
 
         float delta = tA - tB;
-        if (MathF.Abs(delta) < 0.0001f)
-            return;
+        if (MathF.Abs(delta) < _flowCutoff)
+            return 0f;
 
-        float cA = GetHeatCapacity(mA);
-        float cB = GetHeatCapacity(mB);
-        float k = GetConductance(mA, mB);
-        float dQ = StablePairHeatFlow(delta, cA, cB, k);
-        if (MathF.Abs(dQ) < 0.0001f)
-            return;
-
-        terrainDelta[idxA] -= dQ / cA;
-        terrainDelta[idxB] += dQ / cB;
+        float dQ = StablePairHeatFlow(delta, GetHeatCapacity(mA), GetHeatCapacity(mB), GetConductance(mA, mB));
+        return MathF.Abs(dQ) < _flowCutoff ? 0f : dQ;
     }
 
-    private void ExchangeAirPair(int idxA, int idxB, float aA, float aB, float[] airDelta)
+    /// <summary>Heat flowing from the air of cell A to the air of cell B this step; antisymmetric like the terrain flow.</summary>
+    private float AirPairFlow(float aA, float aB)
     {
         float delta = aA - aB;
-        if (MathF.Abs(delta) < 0.0001f)
-            return;
+        if (MathF.Abs(delta) < _flowCutoff)
+            return 0f;
 
-        float c = _airCapacity;
-        float dQ = StablePairHeatFlow(delta, c, c, _airPairConductance);
-        if (MathF.Abs(dQ) < 0.0001f)
-            return;
-
-        airDelta[idxA] -= dQ / c;
-        airDelta[idxB] += dQ / c;
+        float dQ = StablePairHeatFlow(delta, _airCapacity, _airCapacity, _airPairConductance);
+        return MathF.Abs(dQ) < _flowCutoff ? 0f : dQ;
     }
 
     private void ExchangeTerrainAir(int idx, ThermalMaterial material, float terrainT, float airT, float[] terrainDelta, float[] airDelta)
@@ -206,14 +305,14 @@ public sealed class TerrainHeatEngine
             return;
 
         float delta = terrainT - airT;
-        if (MathF.Abs(delta) < 0.0001f)
+        if (MathF.Abs(delta) < _flowCutoff)
             return;
 
         float cTerrain = GetHeatCapacity(material);
         float cAir = _airCapacity;
         float k = _airExchange[(int)material];
         float dQ = StablePairHeatFlow(delta, cTerrain, cAir, k);
-        if (MathF.Abs(dQ) < 0.0001f)
+        if (MathF.Abs(dQ) < _flowCutoff)
             return;
 
         terrainDelta[idx] -= dQ / cTerrain;
@@ -233,10 +332,12 @@ public sealed class TerrainHeatEngine
     private readonly float[] _heatCapacity;
     private readonly float[] _conductance;
     private readonly float[] _airExchange;
+    private readonly float[] _loss;
     private readonly bool[] _isFixedTemperature;
     private readonly float[] _fixedTemperature;
     private readonly float _airCapacity;
     private readonly float _airPairConductance;
+    private readonly float _flowCutoff;
 
     /// <summary>Heat capacity of the terrain field of a cell made of <paramref name="material"/>.</summary>
     public float GetHeatCapacity(ThermalMaterial material) => _heatCapacity[(int)material];

@@ -82,15 +82,17 @@ public class SimulationTableGuardTests
         // The table replaced hand-tuned pairwise constants and reproduces every one that can carry heat. These are
         // those values (hot and frost rock conduct like stone); terrain-air exchange is the AirExchange column, and air-air
         // the air row's own pair. Base-base, base-core and core-core are left to the rule: both cells are pinned to
-        // the same temperature, so whatever flows between them is pinned away in the same step.
+        // the same temperature, so whatever flows between them is pinned away in the same step. Dirt is the
+        // insulator: against itself it conducts 30 times worse than stone, and against anything else the series rule
+        // gives nearly its own half-cell value (PairConductance_IsTheTwoConductivitiesInSeries_UnlessOverridden checks that).
         const ThermalMaterial D = ThermalMaterial.Dirt, S = ThermalMaterial.Stone, B = ThermalMaterial.Base,
             E = ThermalMaterial.ConstantEnergy, H = ThermalMaterial.HotRock, F = ThermalMaterial.FrostRock,
             A = ThermalMaterial.Air;
         (ThermalMaterial, ThermalMaterial, float)[] tuned =
         [
-            (A, A, 0.240f), (D, D, 0.045f), (D, S, 0.070f), (D, B, 0.090f), (D, E, 0.100f), (D, H, 0.070f),
+            (A, A, 0.240f), (D, D, 0.010f),
             (S, S, 0.300f), (S, B, 0.450f), (S, E, 0.450f), (S, H, 0.300f), (H, H, 0.300f), (H, B, 0.450f),
-            (H, E, 0.450f), (D, F, 0.070f), (S, F, 0.300f), (F, F, 0.300f), (F, H, 0.300f), (F, B, 0.450f),
+            (H, E, 0.450f), (S, F, 0.300f), (F, F, 0.300f), (F, H, 0.300f), (F, B, 0.450f),
             (F, E, 0.450f),
         ];
         var table = Tweaks.World.ThermalMaterials;
@@ -101,6 +103,22 @@ public class SimulationTableGuardTests
         float[] airExchange = [0f, 0.035f, 0.220f, 0.450f, 0.550f, 0.220f, 0.220f];
         foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
             Assert.Equal(airExchange[(int)m], table[m].AirExchange);
+        // What leaves the map: open air and unpinned ground give a little up every tick, pinned cells nothing.
+        float[] loss = [0.0010f, 0.0003f, 0.0003f, 0f, 0f, 0f, 0f];
+        foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
+            Assert.Equal(loss[(int)m], table[m].Loss);
+    }
+
+    [Fact]
+    public void MaterialTable_RejectsALossOnAPinnedMaterialOrOutOfRange()
+    {
+        var table = Tweaks.World.ThermalMaterials;
+        Assert.Throws<ArgumentException>(() =>
+            table.With(ThermalMaterial.HotRock, table[ThermalMaterial.HotRock] with { Loss = 0.01f }));
+        Assert.Throws<ArgumentException>(() =>
+            table.With(ThermalMaterial.Dirt, table[ThermalMaterial.Dirt] with { Loss = 1f }));
+        Assert.Throws<ArgumentException>(() =>
+            table.With(ThermalMaterial.Dirt, table[ThermalMaterial.Dirt] with { Loss = -0.1f }));
     }
 
     [Fact]
@@ -153,7 +171,7 @@ public class SimulationTableGuardTests
 
         Assert.Equal(fixedTemperature, terrain[1]);
         double now = engine.SumTotalEnergy(terrain, air, pixels);
-        Assert.Equal(start - ledger.SunkFixedTemperature, now, tolerance: 0.05);
+        Assert.Equal(start - ledger.SunkFixedTemperature - ledger.SunkAmbientLoss, now, tolerance: 0.05);
     }
 
     [Fact]

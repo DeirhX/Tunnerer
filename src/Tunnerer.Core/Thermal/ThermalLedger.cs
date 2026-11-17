@@ -19,8 +19,11 @@ public sealed class ThermalLedger
     /// <summary>Energy deleted by cells pinned to a fixed temperature (base barrier and core cells).</summary>
     public double SunkFixedTemperature { get; private set; }
 
-    /// <summary>Energy removed by the optional global dirt cooling.</summary>
-    public double SunkArtificialCooling { get; private set; }
+    /// <summary>
+    /// Energy the ground gave up to the deep ground and open air gave up to the surface (the <c>Loss</c> of each
+    /// thermal material); negative where cold ground or air warmed back toward ambient.
+    /// </summary>
+    public double SunkAmbientLoss { get; private set; }
 
     /// <summary>Energy removed by base cooling of a tank standing in a base and by the base-centre sink.</summary>
     public double SunkBase { get; private set; }
@@ -36,7 +39,7 @@ public sealed class ThermalLedger
     public double ConvertedToCharge { get; private set; }
 
     public double TotalSunk =>
-        SunkFixedTemperature + SunkArtificialCooling + SunkBase + SunkTank;
+        SunkFixedTemperature + SunkAmbientLoss + SunkBase + SunkTank;
 
     /// <summary>
     /// <c>Injected - TotalSunk - ConvertedToCharge</c>: the net thermal energy the system should have gained since the
@@ -48,7 +51,7 @@ public sealed class ThermalLedger
     public void RecordToCharge(double energy) => ConvertedToCharge += energy;
     public void RecordFromCharge(double energy) => ConvertedToCharge -= energy;
     public void RecordSunkFixedTemperature(double energy) => SunkFixedTemperature += energy;
-    public void RecordSunkArtificialCooling(double energy) => SunkArtificialCooling += energy;
+    public void RecordSunkAmbientLoss(double energy) => SunkAmbientLoss += energy;
     public void RecordSunkBase(double energy) => SunkBase += energy;
     public void RecordSunkTank(double energy) => SunkTank += energy;
 
@@ -56,7 +59,7 @@ public sealed class ThermalLedger
     {
         Injected = 0;
         SunkFixedTemperature = 0;
-        SunkArtificialCooling = 0;
+        SunkAmbientLoss = 0;
         SunkBase = 0;
         SunkTank = 0;
         ConvertedToCharge = 0;

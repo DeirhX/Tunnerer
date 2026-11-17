@@ -23,8 +23,7 @@ public class SourceGuardTests
     // Profiling timers. They must never feed simulation state.
     private static readonly HashSet<(string File, string Pattern)> NonDeterministicAllowed =
     [
-        ("src/Tunnerer.Core/Terrain/TerrainGrid.Heat.cs", "Stopwatch"),
-        ("src/Tunnerer.Core/Terrain/TerrainGrid.HeatSparse.cs", "Stopwatch"),
+        ("src/Tunnerer.Core/Terrain/TerrainGrid.HeatTiles.cs", "Stopwatch"),
         ("src/Tunnerer.Core/World.cs", "Stopwatch"),
     ];
 

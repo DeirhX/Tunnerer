@@ -20,10 +20,10 @@ public class SimulationFingerprintTests
 
     // The same on every OS: Core uses DeterministicMath instead of the platform math library. A failure on one OS
     // only means something platform-dependent has crept back into the simulation.
-    private const ulong ExpectedPlayerDrivesAndShoots = 0xCBE7B2A093FD526CUL;
-    private const ulong ExpectedRelayPylonHarvesterNetwork = 0xB8C43E84402532ADUL;
-    private const ulong ExpectedEnemyMachinesShotToPieces = 0x22B9D1F9124AE6A5UL;
-    private const ulong ExpectedBotVsBot = 0xFB511DFD65403E63UL;
+    private const ulong ExpectedPlayerDrivesAndShoots = 0x6967B17799831016UL;
+    private const ulong ExpectedRelayPylonHarvesterNetwork = 0xB1D29E7CC0258256UL;
+    private const ulong ExpectedEnemyMachinesShotToPieces = 0x00949F1014F3038EUL;
+    private const ulong ExpectedBotVsBot = 0x20A2DE258CB7D622UL;
 
     [Fact]
     public void PlayerDrivesAndShoots_MatchesRecordedFingerprint()
@@ -137,7 +137,7 @@ public class SimulationFingerprintTests
         var ledger = terrain.Ledger;
         h.Add(ledger.Injected);
         h.Add(ledger.SunkFixedTemperature);
-        h.Add(ledger.SunkArtificialCooling);
+        h.Add(ledger.SunkAmbientLoss);
         h.Add(ledger.SunkBase);
         h.Add(ledger.SunkTank);
         h.Add(ledger.ConvertedToCharge);
