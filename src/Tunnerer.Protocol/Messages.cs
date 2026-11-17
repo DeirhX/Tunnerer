@@ -20,7 +20,10 @@ public sealed record MatchConfig(
 /// <summary>One message between a client and the relay. <see cref="MessageCodec"/> turns it into bytes and back.</summary>
 public abstract record Message;
 
-/// <summary>Client to relay, first message: join <paramref name="Room"/>, or create it with <paramref name="Config"/>.</summary>
+/// <summary>
+/// Client to relay, first message: join <paramref name="Room"/>, or create it with <paramref name="Config"/>. Its
+/// first two fields, the kind byte and <paramref name="Protocol"/>, stay where they are in every protocol.
+/// </summary>
 /// <param name="Protocol"><see cref="MessageCodec.ProtocolVersion"/> of the sender.</param>
 /// <param name="BuildId">Identifies the game build; a room holds clients of one build only.</param>
 /// <param name="Config">Used only if the room does not exist yet.</param>

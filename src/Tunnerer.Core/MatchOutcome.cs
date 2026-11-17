@@ -41,6 +41,15 @@ public static class MatchReferee
         return tanks.Count > 0;
     }
 
+    /// <summary>True when the tank that owns <paramref name="tankBase"/> is out of lives: its base cannot win a race.</summary>
+    public static bool IsEliminated(IReadOnlyList<Tank> tanks, TankBase tankBase)
+    {
+        foreach (var tank in tanks)
+            if (tank.Base == tankBase)
+                return IsOutOfLives(tank);
+        return false;
+    }
+
     /// <param name="firstToTapCore">The base that won the race to the core, or null (also when it is not a race).</param>
     public static (Tank Tank, MatchWinReason Reason)? Winner(IReadOnlyList<Tank> tanks, TankBase? firstToTapCore)
     {
@@ -64,13 +73,14 @@ public static class MatchReferee
 
     public static MatchOutcome OutcomeFor(Tank player, Tank? winner)
     {
+        if (winner == player)
+        {
+            // The winner's victory waits for its respawn, so the death screen is not cut short. A winner that has
+            // since lost its last life has no respawn to wait for, and has still won.
+            return player.IsDead && !IsOutOfLives(player) ? MatchOutcome.InProgress : MatchOutcome.Victory;
+        }
         if (IsOutOfLives(player))
             return MatchOutcome.Defeat;
-        if (winner == null)
-            return MatchOutcome.InProgress;
-        if (winner != player)
-            return MatchOutcome.Defeat;
-        // The winner's victory waits for its respawn, so the death screen is not cut short.
-        return player.IsDead ? MatchOutcome.InProgress : MatchOutcome.Victory;
+        return winner == null ? MatchOutcome.InProgress : MatchOutcome.Defeat;
     }
 }

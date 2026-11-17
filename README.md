@@ -70,7 +70,7 @@ Run `Tunnerer.Desktop --help` for the full list. The common ones:
 | `--room=NAME` | The room to join, when `--relay` is given without `--net` |
 | `--players=N` | Tanks in the match when opening the room, 2 to 8 (default 4); bots take the slots nobody joins |
 | `--name=NAME` | Your name in the room. If you drop out, starting again with the same room and name puts you back in |
-| `--secret=TEXT` | The relay's shared secret, if it has one; `TUNNERER_RELAY_SECRET` does the same |
+| `--secret=TEXT` | The relay's shared secret, if it has one (up to 256 characters); `TUNNERER_RELAY_SECRET` does the same |
 | `--volume=N` | Master volume, 0 to 100 (default 70); `TUNNERER_VOLUME` does the same |
 | `--mute` | Start with the sound off; `TUNNERER_MUTE=1` does the same |
 | `--hidden` | Never show the window (automated runs) |
@@ -93,6 +93,10 @@ presses Enter; bots play the tanks nobody took. It is a race: the first base to 
 of lives is out. The first player's `--seed`, `--size`, `--fast` and `--players` decide the match for everyone.
 All players must run the same build, and every machine must be fast enough to simulate the map in real time.
 P pauses and resumes the match for everyone; Escape only opens your own menu.
+
+A player whose connection dies is dropped by the relay after about 20 seconds and can come back under the same name. A
+player who loses the relay is told so on screen. A started match with nobody in it waits five minutes for players
+to return, and its clock does not run meanwhile.
 
 To run your own relay instead of the shared one:
 

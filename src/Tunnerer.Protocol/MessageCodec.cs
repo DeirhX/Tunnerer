@@ -10,7 +10,7 @@ using System.Text;
 public static class MessageCodec
 {
     /// <summary>Changes whenever the bytes of any message change. Client and relay must match.</summary>
-    public const int ProtocolVersion = 3;
+    public const int ProtocolVersion = 4;
 
     /// <summary>No message is longer than this; a longer frame is an error.</summary>
     public const int MaxMessageBytes = 4096;
@@ -19,12 +19,41 @@ public static class MessageCodec
     public const int MaxLogTicks = 64;
 
     public const int MaxSlots = 8;
+    public const int MinSlots = 2;
+    public const int MinTicksPerSecond = 10;
     public const int MaxTicksPerSecond = 120;
+
+    /// <summary>The smallest and largest map side, in cells, a match may ask for.</summary>
+    public const int MinMapSide = 64;
+
+    public const int MaxMapSide = 4096;
+
     /// <summary>Longest name, room or build id, in characters.</summary>
     public const int MaxTextLength = 64;
 
+    /// <summary>Longest shared secret, in characters. The relay refuses to start with a longer one.</summary>
+    public const int MaxSecretLength = 256;
+
     /// <summary>Longest refusal reason, in characters: a sentence or two for the player.</summary>
     public const int MaxReasonLength = 240;
+
+    // A Hello starts with its kind byte and then its protocol number, whatever the protocol. They are the fixed prefix
+    // the relay reads first, so that it can tell a client of another protocol to update before it tries to decode a
+    // layout it may not know. Refusal, which answers it, must stay as it is for the same reason.
+    private const int HelloPrefixLength = 1 + sizeof(int);
+
+    /// <summary>
+    /// Reads the protocol number a <see cref="Hello"/> starts with, without decoding the rest. False when the bytes
+    /// are not the start of a hello.
+    /// </summary>
+    public static bool TryReadHelloProtocol(ReadOnlySpan<byte> bytes, out int protocol)
+    {
+        protocol = 0;
+        if (bytes.Length < HelloPrefixLength || (Kind)bytes[0] != Kind.Hello)
+            return false;
+        protocol = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes[1..]);
+        return true;
+    }
 
     private enum Kind : byte
     {
@@ -44,7 +73,7 @@ public static class MessageCodec
                 WriteText(w, m.Name);
                 WriteText(w, m.Room);
                 WriteConfig(w, m.Config);
-                WriteText(w, m.Secret);
+                WriteText(w, m.Secret, MaxSecretLength);
                 break;
             case Welcome m:
                 w.Write((byte)Kind.Welcome);
@@ -139,9 +168,9 @@ public static class MessageCodec
             using var r = new BinaryReader(stream, Encoding.UTF8);
             Message message = (Kind)r.ReadByte() switch
             {
-                Kind.Hello => new Hello(r.ReadInt32(), ReadText(r), ReadText(r), ReadText(r), ReadConfig(r), ReadText(r)),
+                Kind.Hello => new Hello(r.ReadInt32(), ReadText(r), ReadText(r), ReadText(r), ReadConfig(r), ReadText(r, MaxSecretLength * 3)),
                 Kind.Welcome => new Welcome(ReadCount(r, MaxSlots - 1), ReadConfig(r)),
-                Kind.Roster => new Roster(ReadList(r, ReadText)),
+                Kind.Roster => new Roster(ReadList(r, static x => ReadText(x))),
                 Kind.Ready => new Ready(r.ReadUInt64()),
                 Kind.Start => new Start(r.ReadByte()),
                 Kind.StartRequest => new StartRequest(),
@@ -175,10 +204,10 @@ public static class MessageCodec
         w.Write(utf8);
     }
 
-    private static string ReadText(BinaryReader r)
+    private static string ReadText(BinaryReader r, int maxBytes = MaxReasonLength * 3)
     {
         int length = r.ReadUInt16();
-        if (length > MaxReasonLength * 3)
+        if (length > maxBytes)
             throw new InvalidDataException($"A text of {length} bytes is too long.");
         byte[] utf8 = r.ReadBytes(length);
         if (utf8.Length != length)
@@ -201,9 +230,11 @@ public static class MessageCodec
     {
         var config = new MatchConfig(
             r.ReadInt32(), r.ReadUInt16(), r.ReadUInt16(), r.ReadByte(), r.ReadByte(), r.ReadByte(), r.ReadUInt32());
-        if (config.Slots is < 1 or > MaxSlots)
+        if (config.Slots is < MinSlots or > MaxSlots)
             throw new InvalidDataException($"A match of {config.Slots} slots is not allowed.");
-        if (config.TicksPerSecond is < 1 or > MaxTicksPerSecond)
+        if (config.MapWidth is < MinMapSide or > MaxMapSide || config.MapHeight is < MinMapSide or > MaxMapSide)
+            throw new InvalidDataException($"A map of {config.MapWidth} by {config.MapHeight} cells is not allowed.");
+        if (config.TicksPerSecond is < MinTicksPerSecond or > MaxTicksPerSecond)
             throw new InvalidDataException($"A match at {config.TicksPerSecond} ticks a second is not allowed.");
         return config;
     }

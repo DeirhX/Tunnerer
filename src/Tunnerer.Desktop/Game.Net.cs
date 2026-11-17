@@ -92,9 +92,11 @@ public partial class Game
                 _world.Terrain.AddHeatRadius(at, 20, 3);
                 Console.WriteLine($"[Net] Fault injected at tick {_faultTick}.");
             }
-            if (_world.AdvanceCount % NetLogIntervalTicks == 0)
+            // The session digested the world at this tick already (the interval is a multiple of its own).
+            if (_world.AdvanceCount % NetLogIntervalTicks == 0 && session.RecentDigests.LastOrDefault() is { } logged &&
+                logged.Tick == _world.AdvanceCount)
                 Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                    $"[Net] tick {_world.AdvanceCount} hash {WorldStateHash.Compute(_world):X16} buffered {session.Buffered}"));
+                    $"[Net] tick {_world.AdvanceCount} hash {logged.Digest.State:X16} buffered {session.Buffered}"));
         }
     }
 

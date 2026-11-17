@@ -77,7 +77,9 @@ public sealed class GameSimulationStepper
         if (sendInput)
             session.SendInput(local);
 
-        _inputRecorder.RecordFrame(local.MoveSpeed, local.ShootPrimary);
+        // What was simulated for this tank, not what the keyboard says now: that is what a replay must reproduce.
+        ControllerOutput simulated = ControllerOutputCodec.Decode(session.Played[^1].Inputs[_localSlot]);
+        _inputRecorder.RecordFrame(simulated.MoveSpeed, simulated.ShootPrimary);
         if (_scriptedInput.ShouldCaptureScreenshot(simFrame))
             _requestScreenshot($"script_frame_{simFrame:D4}");
         return true;

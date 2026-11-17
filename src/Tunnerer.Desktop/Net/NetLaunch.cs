@@ -35,6 +35,15 @@ public static class NetLaunch
     public static RelayConnection Join(NetLaunchOptions options, MatchConfig proposed)
     {
         var hello = new Hello(MessageCodec.ProtocolVersion, BuildId, options.Name, options.Room, proposed, options.Secret);
-        return RelayConnection.Connect(options.Relay, hello, ConnectTimeout);
+        var connection = RelayConnection.Connect(options.Relay, hello, ConnectTimeout);
+        // The relay passes the settings through without reading the level generator, which this client must know.
+        if (!Enum.IsDefined((LevelGenMode)connection.Config.GenMode))
+        {
+            int genMode = connection.Config.GenMode;
+            connection.Dispose();
+            throw new RelayException(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"The room's level generator ({genMode}) is not one this game knows. Update the game."));
+        }
+        return connection;
     }
 }

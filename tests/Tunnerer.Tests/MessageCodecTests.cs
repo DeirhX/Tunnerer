@@ -86,4 +86,71 @@ public class MessageCodecTests
         Assert.True(bytes.Length <= MessageCodec.MaxMessageBytes);
         Assert.IsType<Log>(MessageCodec.Decode(bytes));
     }
+
+    [Fact]
+    public void LongSecret_RoundTripsWhole_AndOnlyAbsurdOnesAreCut()
+    {
+        string secret = new('k', MessageCodec.MaxSecretLength);
+        var hello = new Hello(MessageCodec.ProtocolVersion, "b", "Ann", "room", Config, secret);
+
+        var decoded = (Hello)MessageCodec.Decode(MessageCodec.Encode(hello));
+
+        Assert.Equal(secret, decoded.Secret);
+        var tooLong = (Hello)MessageCodec.Decode(MessageCodec.Encode(hello with { Secret = secret + "more" }));
+        Assert.Equal(MessageCodec.MaxSecretLength, tooLong.Secret.Length);
+    }
+
+    [Theory]
+    [InlineData(1, 320, 200, 24)]
+    [InlineData(MessageCodec.MaxSlots + 1, 320, 200, 24)]
+    [InlineData(2, MessageCodec.MinMapSide - 1, 200, 24)]
+    [InlineData(2, 320, MessageCodec.MinMapSide - 1, 24)]
+    [InlineData(2, MessageCodec.MaxMapSide + 1, 200, 24)]
+    [InlineData(2, 320, MessageCodec.MaxMapSide + 1, 24)]
+    [InlineData(2, 320, 200, MessageCodec.MinTicksPerSecond - 1)]
+    [InlineData(2, 320, 200, MessageCodec.MaxTicksPerSecond + 1)]
+    public void MatchSettingsOutsideTheLimits_AreRejected(int slots, int width, int height, int ticksPerSecond)
+    {
+        var config = Config with { Slots = slots, MapWidth = width, MapHeight = height, TicksPerSecond = ticksPerSecond };
+
+        Assert.Throws<InvalidDataException>(() => MessageCodec.Decode(MessageCodec.Encode(new Welcome(0, config))));
+        Assert.Throws<InvalidDataException>(() => MessageCodec.Decode(
+            MessageCodec.Encode(new Hello(MessageCodec.ProtocolVersion, "b", "Ann", "room", config))));
+    }
+
+    [Fact]
+    public void MatchSettingsAtTheLimits_AreAccepted()
+    {
+        var small = Config with
+        {
+            Slots = MessageCodec.MinSlots,
+            MapWidth = MessageCodec.MinMapSide,
+            MapHeight = MessageCodec.MinMapSide,
+            TicksPerSecond = MessageCodec.MinTicksPerSecond
+        };
+        var large = Config with
+        {
+            Slots = MessageCodec.MaxSlots,
+            MapWidth = MessageCodec.MaxMapSide,
+            MapHeight = MessageCodec.MaxMapSide,
+            TicksPerSecond = MessageCodec.MaxTicksPerSecond
+        };
+
+        Assert.Equal(new Welcome(0, small), MessageCodec.Decode(MessageCodec.Encode(new Welcome(0, small))));
+        Assert.Equal(new Welcome(0, large), MessageCodec.Decode(MessageCodec.Encode(new Welcome(0, large))));
+    }
+
+    [Fact]
+    public void HelloProtocol_CanBeReadWithoutDecodingTheRest()
+    {
+        byte[] hello = MessageCodec.Encode(new Hello(7, "b", "Ann", "room", Config));
+
+        Assert.True(MessageCodec.TryReadHelloProtocol(hello, out int protocol));
+        Assert.Equal(7, protocol);
+        // Only the first five bytes are read: whatever follows may be a layout this build does not know.
+        Assert.True(MessageCodec.TryReadHelloProtocol(hello.AsSpan(0, 5), out protocol));
+        Assert.Equal(7, protocol);
+        Assert.False(MessageCodec.TryReadHelloProtocol(hello.AsSpan(0, 4), out _));
+        Assert.False(MessageCodec.TryReadHelloProtocol(MessageCodec.Encode(new Ping(1)), out _));
+    }
 }

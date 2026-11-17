@@ -1,6 +1,6 @@
 # Multiplayer for small groups: design
 
-Status: proposed, 2026-11-17. Nothing here is built. Target for the first tranche: four people in one office,
+Status: built and in use, 2026-11-17 (the build order in §10 says what is done). Target for the first tranche: four people in one office,
 each on their own machine, connecting out through the office firewall to a relay on the Starfish server.
 
 What is still undecided is listed in [Open questions](#11-open-questions).
@@ -71,7 +71,8 @@ Properties:
 - **A backlog drains.** A queue more than one deep means that player's inputs are played late, and at one input
   per tick it would never shrink. While a slot has a backlog the server skips an input whose keys equal the
   next one's (the match settings carry the mask that says which bits are keys), so only an intermediate aim is
-  lost. If a queue still overflows, the oldest input is dropped and counted.
+  lost. If a queue still overflows, the relay drops an input whose keys the next one repeats, which loses no press or
+  release, and only if there is none the oldest input, which it counts.
 - **The tick rate is a match setting**, not a constant in the relay: changing the simulation rate needs no new
   relay.
 - **Input delay** is uplink + up to one tick + downlink: roughly 1 to 2 ticks (40 to 85 ms) on an office link to
@@ -102,7 +103,7 @@ Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
 
 | Direction | Message | Purpose |
 |---|---|---|
-| C to S | `Hello { protocol, buildId, name, room, config }` | Join a room, or open it with `config` if it does not exist |
+| C to S | `Hello { protocol, buildId, name, room, config, secret }` | Join a room, or open it with `config` if it does not exist. The kind byte and `protocol` come first in every protocol version, so the relay can refuse an old client before reading the rest |
 | S to C | `Welcome { slot, config }` | Slot assignment and the room's match settings |
 | S to C | `Roster { names[] }` | Who is in each slot; sent on every change |
 | C to S | `Ready { worldHash }` | World built from the config; hash of tick 0 |
@@ -112,13 +113,13 @@ Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
 | S to C | `Tick { n, inputs[] }` | One per server tick |
 | C to S | `Hash { n, hash }` | Once a second |
 | S to C | `Desync { n }` | Hashes differed at tick `n` |
-| S to C | `Refusal { reason }` | Cannot join, or the match cannot start; the reason is for the player |
+| S to C | `Refusal { reason }` | Cannot join, or the match cannot start; the reason is for the player. The connection closes after it |
 | S to C | `Rejoined { humanMask }`, `Log { firstTick, slots, inputs[] }` | To a returning player: the match is on, and every tick so far in runs of 64 |
 | C to S | `SetPaused { paused }` | Hold the match for everyone, or let it run |
 | S to C | `PauseState { paused, bySlot }` | The match is held or running, and who asked |
 | both | `Ping { id }`, `Pong { id }` | Times the round trip, once a second |
 
-`Hello` also carries the relay's shared secret. Still to add: a lobby `Configure` and ending a match by command.
+Still to add: a lobby `Configure` and ending a match by command.
 
 Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
 
@@ -140,7 +141,18 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
 
 ### Disconnect and rejoin
 
-- A dropped client's slot keeps receiving neutral input (no move, no fire). The room continues.
+- A dropped client's slot keeps receiving neutral input (no move, no fire). The room continues. The relay finds a
+  client that vanished without closing (the connection to Caddy stays up, so TCP says nothing) by WebSocket
+  pings: after seven seconds of silence from it the relay pings, and with no answer within ten more it ends the
+  connection, which frees the slot. The pings are WebSocket control frames, answered by the client's socket on
+  its own background task, so a client whose game loop is busy for a long time (building a large world) is not
+  dropped. The client does the same towards the relay and says "lost the connection to the relay" on screen.
+- **A room nobody is in waits.** A started match with every player gone keeps its log and its place for five
+  minutes (`RelayHub.EmptyRoomGrace`). Its clock does not run meanwhile, so bots do not play on alone and a
+  returning player does not face minutes of catch-up; the next tick is the one after the last. After the grace
+  the room is deleted. A room still in the lobby is deleted as soon as it is empty. The match time lives in the
+  room (`MatchRoom.AdvanceClock`); the hub only measures wall time, so the pause and empty rules are testable
+  without a timer.
 - **Rejoin by replay.** The server holds the whole input log: about 1.4 MB per hour for four players. A
   player who dropped out starts the game again with the same room and name, receives the settings and the
   log, rebuilds the world from the seed and replays it, a frame's budget of ticks at a time, without sound and
@@ -157,8 +169,10 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
 - **Build identity.** `buildId` is the Core assembly's version, which the SDK stamps with the git commit. The
   relay refuses to mix builds in a room. It does not see uncommitted changes; the hash each client reports
   before the first tick catches a world that differs anyway.
-- **Periodic hash.** Each client sends a digest once a second; the server compares the ones for the same
-  tick. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus the bits of
+- **Periodic hash.** Each client sends a digest once a second; the server keeps the first one reported for each
+  tick for the whole match (a few thousand numbers an hour) and compares every later report for that tick with
+  it, so a client far behind, replaying to catch up, is checked too. A report for a tick the relay has not closed
+  yet is ignored. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus the bits of
   the total thermal energy and of the total stored charge, which cover the heat field the state hash does not
   read.
 - **Its cost does not yet follow activity.** Both the state hash and the energy total walk the whole grid once
@@ -184,7 +198,8 @@ Determinism risks to check before trusting it:
 - **`src/Tunnerer.Protocol`**: the room's tick rule, message types and the binary codec. No dependencies
   (`ArchitectureGuardTests`). Referenced by the relay, Desktop and the tests.
 - **`src/Tunnerer.Relay`**: a small ASP.NET Core (Kestrel) app with one WebSocket endpoint, `/play`, and
-  `/health`. Rooms are in memory; a room is deleted when empty for a few minutes. Each room has one timer loop.
+  `/health`. Rooms are in memory; a started room is deleted when it has been empty for five minutes, a lobby as soon as it is
+  empty. Each started room has one timer loop, which only measures wall time for the room.
   It never references Core, so it never needs redeploying for a gameplay change, only for a protocol change.
 - **Deployment on Starfish** (inspected 2026-11-17). Starfish is an Azure VM in North Europe: Standard_D2s_v3
   (2 vCPU, 8 GB, about 6.5 GB available), Ubuntu 24.04 x64, 7 GB of disk free. Caddy 2.11 owns ports 80 and
@@ -219,8 +234,20 @@ Determinism risks to check before trusting it:
   the transport is behind an interface on both ends to allow that.
 - **Access.** When the relay's `TUNNERER_RELAY_SECRET` is set, a client must send the same secret in `Hello`
   (`--secret=` or the same environment variable on the client). Unset, the relay is open. Room names are not
-  security.
-- **Limits.** Message size and rate caps per connection, a room cap, an idle timeout.
+  security. A rejoin is by name only (no token): anyone who knows the room, the secret and a dropped player's
+  name can take that slot, which among friends is accepted (see the open questions).
+- **Limits.** What exists, and nothing else:
+  - a message is at most 4096 bytes, and every length inside it is checked while decoding;
+  - names, room names and build ids are cut to 64 characters, a refusal reason to 240, the shared secret to 256
+    (the relay will not start with a longer one);
+  - a match has 2 to 8 slots, maps of 64 to 4096 cells a side and 10 to 120 ticks a second, or the hello is
+    rejected;
+  - a connection may send at most 2000 messages a second (an honest client sends about 26, and a burst of 240
+    while catching up) or it is ended;
+  - a slot queues at most 4 inputs;
+  - at most 64 rooms are open at once;
+  - a client has 10 seconds to say hello, and a silent connection ends as described in §5;
+  - a room nobody is in is kept 5 minutes once its match has started.
 
 Since Core has no platform dependencies, the relay could later run the simulation headless to arbitrate hashes
 or serve snapshots. The first tranche does not need it.
@@ -293,10 +320,18 @@ Each step is testable without the next.
 5. **Robustness** (done; the relay on Starfish runs protocol 3 with a secret since 2026-11-17). The sync digest with heat and
    charge, the desync report and `MatchRecording`, rejoin by name with catch-up, pause for everyone, the
    round-trip time on screen, and the relay's shared secret. Protocol version 3.
-6. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
+6. **Review fixes** (done; the relay on Starfish still runs protocol 3 and has to be updated to protocol 4 before
+   clients of this build can join). A started room survives being empty; dead connections
+   are found within about 20 seconds; the match result is fixed once decided (`World.MatchWinner`); the sync hash
+   covers the whole match; a full input queue loses no key edge; the secret has its own limit; a client of
+   another protocol is told to update; limits on match settings and message rate. Protocol version 4.
+7. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
 
 ## 11. Open questions
 
+- **Rejoin by name is not authenticated.** Anyone with the relay's secret who knows a dropped player's name can
+  take their slot. A token handed out in `Welcome` and kept by the client would close it; not done, because
+  among friends the name is enough and the token would have to survive restarting the game.
 - **Does the office network pass WebSockets to Starfish?** One `wss://` echo test from an office machine
   answers it. Latency from the office to North Europe should be measured at the same time.
 - **Are all four machines the same OS and architecture?** It decides how early the mixed-architecture check in

@@ -7,12 +7,18 @@ using Tunnerer.Protocol;
 public interface IPeer
 {
     void Send(Message message);
+
+    /// <summary>
+    /// Ends the connection once what was sent has gone out, and ignores anything sent later. The client's own
+    /// leaving then takes it out of the room.
+    /// </summary>
+    void Close();
 }
 
 /// <summary>
 /// One match on the relay: who is in which slot, the lobby until everyone is ready, then the ticks. It owns no
-/// sockets and no clock: the hub passes it messages and tells it how many ticks should have been closed by now.
-/// Every member takes the room's lock, so it can be called from any connection's thread.
+/// sockets and no timer: the hub passes it messages and tells it how much wall time has gone by
+/// (<see cref="AdvanceClock"/>), and the room keeps the match time itself. Every member takes the room's lock, so it can be called from any connection's thread.
 /// </summary>
 public sealed class MatchRoom
 {
@@ -24,6 +30,10 @@ public sealed class MatchRoom
     private bool _desyncSent;
     private bool _startRequested;
     private int _humanMask;
+    // The time the match has run: not counted while it is paused or nobody is connected.
+    private double _matchSeconds;
+    private TimeSpan _emptyFor;
+    private int _pausedBySlot;
     // Who played each slot when the match started: a player who drops out comes back under the same name.
     private string[] _startNames = [];
 
@@ -49,13 +59,23 @@ public sealed class MatchRoom
     /// <summary>True while a running match is held: no ticks are closed until someone resumes it.</summary>
     public bool IsPaused { get; private set; }
 
-    /// <summary>True once nobody is connected: the hub then forgets the room.</summary>
+    /// <summary>True when nobody is connected. A lobby is then forgotten at once, a running match after a grace period.</summary>
     public bool IsEmpty
     {
         get
         {
             lock (_lock)
                 return _peers.All(p => p is null);
+        }
+    }
+
+    /// <summary>How long a running match has had nobody connected; zero while someone is.</summary>
+    public TimeSpan EmptyFor
+    {
+        get
+        {
+            lock (_lock)
+                return _emptyFor;
         }
     }
 
@@ -117,6 +137,7 @@ public sealed class MatchRoom
         }
 
         _peers[slot] = peer;
+        _emptyFor = TimeSpan.Zero;
         _names[slot] = _startNames[slot];
         peer.Send(new Welcome(slot, Config));
         peer.Send(new Rejoined(_humanMask));
@@ -130,7 +151,7 @@ public sealed class MatchRoom
             peer.Send(new Log(first, Config.Slots, inputs.MoveToImmutable()));
         }
         if (IsPaused)
-            peer.Send(new PauseState(true, slot));
+            peer.Send(new PauseState(true, _pausedBySlot));
         _lockstep.Reconnect(slot);
         Broadcast(new Roster([.. _names]));
         return slot;
@@ -174,6 +195,7 @@ public sealed class MatchRoom
                     break;
                 case SetPaused pause when IsRunning && pause.Paused != IsPaused:
                     IsPaused = pause.Paused;
+                    _pausedBySlot = slot;
                     Broadcast(new PauseState(IsPaused, slot));
                     break;
                 case Ping ping:
@@ -191,6 +213,32 @@ public sealed class MatchRoom
         }
     }
 
+    /// <summary>
+    /// Lets <paramref name="elapsed"/> wall time go by and closes the ticks that are now due. The match clock runs
+    /// only while the match is on, not paused, and someone is connected: a room nobody is in waits, so bots do not
+    /// play on alone and a returning player does not face a stretch of catch-up, and a pause is not counted. The
+    /// number of ticks due follows the total match time, so a late call is made up at once and the rate does not
+    /// drift.
+    /// </summary>
+    public void AdvanceClock(TimeSpan elapsed)
+    {
+        lock (_lock)
+        {
+            if (!IsRunning)
+                return;
+            if (_peers.All(p => p is null))
+            {
+                _emptyFor += elapsed;
+                return;
+            }
+            _emptyFor = TimeSpan.Zero;
+            if (IsPaused)
+                return;
+            _matchSeconds += elapsed.TotalSeconds;
+            CloseTicksUpTo((int)(_matchSeconds * Config.TicksPerSecond));
+        }
+    }
+
     /// <summary>Closes ticks until <paramref name="ticksDue"/> have been closed in all, sending each to every client.</summary>
     public void CloseTicksUpTo(int ticksDue)
     {
@@ -202,7 +250,7 @@ public sealed class MatchRoom
     }
 
     /// <summary>The host is whoever sits in the lowest occupied slot; -1 in an empty room.</summary>
-    private int HostSlot => Array.FindIndex(_peers, p => p is not null);
+    private int HostSlot => RoomRules.HostSlot(_peers.Length, slot => _peers[slot] is not null);
 
     /// <summary>
     /// Starts once everyone here is ready, if the room is full or the host asked. Slots nobody took are left to
@@ -225,7 +273,10 @@ public sealed class MatchRoom
         if (hashes.Distinct().Count() > 1)
         {
             // Same seed and build, different worlds: playing on would only desync a second later.
+            // The refusal is final for the clients, and the connections close after it: the room empties and goes.
             Broadcast(new Refusal("The players' worlds differ before the first tick. Check that everyone runs the same build."));
+            foreach (IPeer? peer in _peers)
+                peer?.Close();
             Array.Clear(_readyHashes);
             _startRequested = false;
             return;

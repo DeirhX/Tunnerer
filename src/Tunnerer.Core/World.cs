@@ -269,6 +269,7 @@ public class World
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
         AdvanceSectorGoal();
+        LatchMatchResult();
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
         foreach (var tank in _tankList.Tanks)
         {
@@ -449,15 +450,36 @@ public class World
     /// <summary>The base that tapped the core first, once one has.</summary>
     private TankBase? _firstToTapCore;
 
+    /// <summary>True from the step in which the match was decided; its result is then fixed.</summary>
+    private bool _matchDecided;
+
+    private (Tank Tank, MatchWinReason Reason)? _decidedWinner;
+
     /// <summary>
     /// The tank that has won, and how: the first to tap the core when <see cref="CoreTapWins"/>, or the only tank
-    /// with lives left. Null while the match is undecided.
+    /// with lives left. Null while the match is undecided, and after a match that ended with no tank left. Once the
+    /// step that decided the match has run, it never changes.
     /// </summary>
     public (Tank Tank, MatchWinReason Reason)? MatchWinner =>
-        MatchReferee.Winner(_tankList.Tanks, CoreTapWins ? _firstToTapCore : null);
+        _matchDecided ? _decidedWinner : MatchReferee.Winner(_tankList.Tanks, CoreTapWins ? _firstToTapCore : null);
 
-    /// <summary>A match is over once a tank has won, or no tank has a life left.</summary>
-    public bool IsMatchOver => MatchWinner != null || MatchReferee.NobodyIsLeft(_tankList.Tanks);
+    /// <summary>A match is over once a tank has won, or no tank has a life left. It stays over.</summary>
+    public bool IsMatchOver => _matchDecided || MatchWinner != null || MatchReferee.NobodyIsLeft(_tankList.Tanks);
+
+    /// <summary>
+    /// Records the result the first time the referee has one, so that nothing that happens afterwards (the winner
+    /// dying, another base finishing its hold) can change it.
+    /// </summary>
+    private void LatchMatchResult()
+    {
+        if (_matchDecided)
+            return;
+        var winner = MatchWinner;
+        if (winner == null && !MatchReferee.NobodyIsLeft(_tankList.Tanks))
+            return;
+        _decidedWinner = winner;
+        _matchDecided = true;
+    }
 
     /// <summary>How the match stands for <paramref name="player"/>.</summary>
     public MatchOutcome MatchOutcomeFor(Tank player) => MatchReferee.OutcomeFor(player, MatchWinner?.Tank);
@@ -492,7 +514,9 @@ public class World
             {
                 tankBase.HasTappedCore = true;
                 // Bases are visited in slot order, so two that finish on the same tick always resolve the same way.
-                _firstToTapCore ??= tankBase;
+                // A base whose tank is out of lives is out of the race, even if its hold was already running.
+                if (!MatchReferee.IsEliminated(_tankList.Tanks, tankBase))
+                    _firstToTapCore ??= tankBase;
             }
         }
     }

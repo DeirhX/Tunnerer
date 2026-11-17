@@ -22,11 +22,11 @@ public sealed class LockstepRoom
     /// <summary>The input of a tank nobody is driving: no movement, no keys, no aim.</summary>
     public const uint NeutralInput = 0;
 
-    /// <summary>Inputs one slot may have waiting; a client that sends more at once loses the oldest.</summary>
+    /// <summary>
+    /// Inputs one slot may have waiting. A client that sends more at once loses an input that repeats its
+    /// successor's keys, or, if there is none, the oldest.
+    /// </summary>
     public const int MaxQueuedInputs = 4;
-
-    /// <summary>How long a reported hash waits for the other clients' reports before it is forgotten.</summary>
-    private const int HashMemoryTicks = 240;
 
     private readonly List<uint>[] _queues;
     private readonly uint _keyMask;
@@ -66,7 +66,7 @@ public sealed class LockstepRoom
 
     public bool IsConnected(int slot) => _connected[slot];
 
-    /// <summary>How many of the slot's inputs were discarded because its queue was full.</summary>
+    /// <summary>How many of the slot's inputs were lost because its queue was full and none could be skipped safely.</summary>
     public int DroppedInputs(int slot) => _dropped[slot];
 
     /// <summary>How many of the slot's inputs are waiting: more than one is a backlog, played late.</summary>
@@ -78,13 +78,28 @@ public sealed class LockstepRoom
         if (!_connected[slot])
             return;
         var queue = _queues[slot];
-        if (queue.Count == MaxQueuedInputs)
+        queue.Add(input);
+        if (queue.Count <= MaxQueuedInputs)
+            return;
+        // Losing an input whose keys its successor repeats loses no press or release; only when there is none does
+        // the oldest go, and that can.
+        int redundant = 0;
+        while (redundant < queue.Count && !IsRedundant(queue, redundant))
+            redundant++;
+        if (redundant == queue.Count)
         {
-            queue.RemoveAt(0);
+            redundant = 0;
             _dropped[slot]++;
         }
-        queue.Add(input);
+        queue.RemoveAt(redundant);
     }
+
+    /// <summary>
+    /// True when the queued input at <paramref name="index"/> has the same keys as the one after it, so playing it
+    /// would change nothing but the aim: skipping it loses no key press or release.
+    /// </summary>
+    private bool IsRedundant(List<uint> queue, int index) =>
+        index + 1 < queue.Count && (queue[index] & _keyMask) == (queue[index + 1] & _keyMask);
 
     /// <summary>The slot's client is gone: from the next tick its tank plays the neutral input.</summary>
     public void Disconnect(int slot)
@@ -104,7 +119,7 @@ public sealed class LockstepRoom
         for (int slot = 0; slot < Slots; slot++)
         {
             var queue = _queues[slot];
-            while (queue.Count > 1 && (queue[0] & _keyMask) == (queue[1] & _keyMask))
+            while (IsRedundant(queue, 0))
                 queue.RemoveAt(0);
             if (queue.Count > 0)
             {
@@ -120,12 +135,14 @@ public sealed class LockstepRoom
 
     /// <summary>
     /// Records a client's hash of its world after <paramref name="tick"/> ticks and compares it with what another
-    /// client reported for the same tick. A difference sets <see cref="DesyncTick"/>.
+    /// client reported for the same tick. A difference sets <see cref="DesyncTick"/>. The first report for a tick is
+    /// kept for the whole match (clients report about once a second, so it stays small), so a client far behind,
+    /// catching up, is still checked. A tick that has not been closed yet cannot have been simulated by anyone and
+    /// is ignored.
     /// </summary>
     public void SubmitHash(int tick, ulong hash)
     {
-        // A client catching up reports ticks the others reported long ago; there is nothing left to compare with.
-        if (tick < NextTick - HashMemoryTicks)
+        if (tick < 0 || tick > NextTick)
             return;
         if (_hashes.TryGetValue(tick, out ulong known))
         {
@@ -134,6 +151,5 @@ public sealed class LockstepRoom
             return;
         }
         _hashes[tick] = hash;
-        _hashes.Remove(tick - HashMemoryTicks);
     }
 }

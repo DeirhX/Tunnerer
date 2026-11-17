@@ -3,7 +3,6 @@ namespace Tunnerer.Desktop.Config;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 
-/// <summary>Launch options for a match that come from the command line.</summary>
 /// <summary>Defaults for network matches (docs/multiplayer-design.md).</summary>
 public static class NetworkTweaks
 {
@@ -35,6 +34,7 @@ public static class NetworkTweaks
     public const int CatchUpBudgetMs = 25;
 }
 
+/// <summary>Launch options for a match that come from the command line.</summary>
 public static class GameLaunchOptions
 {
     /// <summary>Map and simulation seed requested with --seed=N; null lets the game choose.</summary>

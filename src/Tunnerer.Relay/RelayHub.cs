@@ -17,10 +17,35 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
     /// </summary>
     public const string SecretKey = "TUNNERER_RELAY_SECRET";
 
-    private readonly byte[] _secret = System.Text.Encoding.UTF8.GetBytes(configuration[SecretKey] ?? string.Empty);
+    private readonly byte[] _secret = System.Text.Encoding.UTF8.GetBytes(CheckedSecret(configuration));
 
     public const int MaxRooms = 64;
     private static readonly TimeSpan HelloTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Most messages one connection may send in a second, before the relay ends it. An honest client sends one input
+    /// per step (at most a few steps per frame while it catches up, about 240 a second at 60 frames) and a ping and
+    /// a hash a second; this is several times that.
+    /// </summary>
+    public const int MaxMessagesPerSecond = 2000;
+
+    /// <summary>
+    /// How long a started match whose players have all left is kept for them to come back to. Its clock waits
+    /// meanwhile. A room still in the lobby is forgotten as soon as it is empty.
+    /// </summary>
+    public TimeSpan EmptyRoomGrace { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>The shared secret from the configuration (empty when there is none).</summary>
+    /// <exception cref="InvalidOperationException">The secret is longer than a client can send.</exception>
+    public static string CheckedSecret(IConfiguration configuration)
+    {
+        string secret = configuration[SecretKey] ?? string.Empty;
+        if (secret.Length > MessageCodec.MaxSecretLength)
+            throw new InvalidOperationException(
+                $"{SecretKey} is {secret.Length} characters long; the protocol carries at most {MessageCodec.MaxSecretLength}. " +
+                "Use a shorter secret.");
+        return secret;
+    }
 
     private readonly Lock _lock = new();
     private readonly Dictionary<string, MatchRoom> _rooms = new(StringComparer.OrdinalIgnoreCase);
@@ -38,23 +63,40 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
     public async Task ServeAsync(WebSocket socket, CancellationToken stopping)
     {
         using var peer = new SocketPeer(socket);
+        using var served = CancellationTokenSource.CreateLinkedTokenSource(stopping, peer.Closed);
         Task writing = peer.WriteAsync(stopping);
         MatchRoom? room = null;
         int slot = -1;
         try
         {
-            using var helloLimit = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+            using var helloLimit = CancellationTokenSource.CreateLinkedTokenSource(served.Token);
             helloLimit.CancelAfter(HelloTimeout);
-            if (await SocketPeer.ReadAsync(socket, helloLimit.Token) is not Hello hello)
+            if (await SocketPeer.ReadFrameAsync(socket, helloLimit.Token) is not { } first)
+                return;
+            // The protocol number is read before the rest: a client of another protocol sends a hello this relay
+            // may not be able to decode, and should still be told to update.
+            if (MessageCodec.TryReadHelloProtocol(first, out int protocol) && protocol != MessageCodec.ProtocolVersion)
+            {
+                peer.Send(new Refusal(
+                    $"The relay speaks protocol {MessageCodec.ProtocolVersion}; you speak {protocol}. Update the game."));
+                return;
+            }
+            if (MessageCodec.Decode(first) is not Hello hello)
                 return;
 
             (room, slot) = Enter(peer, hello);
             if (room is null)
                 return;
             RelayLog.Joined(logger, hello.Name, room.Code, slot);
+            if (room.IsRunning)
+                StartClock(room, stopping);
 
-            while (await SocketPeer.ReadAsync(socket, stopping) is { } message)
+            var rate = new MessageRate(MaxMessagesPerSecond);
+            while (await SocketPeer.ReadFrameAsync(socket, served.Token) is { } frame)
             {
+                if (rate.Exceeded())
+                    throw new InvalidDataException($"The client sends more than {MaxMessagesPerSecond} messages a second.");
+                Message message = MessageCodec.Decode(frame);
                 room.Handle(slot, message);
                 if (message is not (Input or Hash) && room.IsRunning)
                     StartClock(room, stopping);
@@ -81,12 +123,6 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
 
     private (MatchRoom? Room, int Slot) Enter(SocketPeer peer, Hello hello)
     {
-        if (hello.Protocol != MessageCodec.ProtocolVersion)
-        {
-            peer.Send(new Refusal(
-                $"The relay speaks protocol {MessageCodec.ProtocolVersion}; you speak {hello.Protocol}. Update the game."));
-            return (null, -1);
-        }
         if (_secret.Length > 0 && !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
                 _secret, System.Text.Encoding.UTF8.GetBytes(hello.Secret)))
         {
@@ -122,23 +158,30 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         }
     }
 
-    private void Forget(MatchRoom room)
+    /// <summary>
+    /// Deletes the room if it is empty: at once while it is a lobby, and once it has been empty for
+    /// <see cref="EmptyRoomGrace"/> when its match has started. Returns whether the room is gone.
+    /// </summary>
+    private bool Forget(MatchRoom room)
     {
         lock (_lock)
         {
-            if (room.IsEmpty && _rooms.TryGetValue(room.Code, out MatchRoom? known) && known == room)
-            {
-                _rooms.Remove(room.Code);
-                RelayLog.RoomClosed(logger, room.Code, room.TicksClosed);
-            }
+            if (!_rooms.TryGetValue(room.Code, out MatchRoom? known) || known != room)
+                return true;
+            if (!room.IsEmpty || (room.IsRunning && room.EmptyFor < EmptyRoomGrace))
+                return false;
+            _rooms.Remove(room.Code);
+            RelayLog.RoomClosed(logger, room.Code, room.TicksClosed);
+            return true;
         }
     }
 
     private readonly HashSet<MatchRoom> _clocked = [];
 
     /// <summary>
-    /// Runs the room's tick clock until the room is empty. The number of ticks due comes from the match time, so a
-    /// late wake-up is made up at once and the rate does not drift.
+    /// Runs the room's clock, one per room, from the start of its match until the room is deleted. It only measures
+    /// wall time and hands it to the room, which decides what counts (<see cref="MatchRoom.AdvanceClock"/>): the
+    /// clock keeps running while the room is empty, so a player who comes back finds it going.
     /// </summary>
     private void StartClock(MatchRoom room, CancellationToken stopping)
     {
@@ -149,19 +192,17 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         }
         _ = Task.Run(async () =>
         {
-            // Match time: the time since the start, less the time spent paused.
-            double matchSeconds = 0;
             long last = Stopwatch.GetTimestamp();
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1.0 / room.Config.TicksPerSecond));
             try
             {
-                while (!room.IsEmpty && await timer.WaitForNextTickAsync(stopping))
+                while (await timer.WaitForNextTickAsync(stopping))
                 {
                     long now = Stopwatch.GetTimestamp();
-                    if (!room.IsPaused)
-                        matchSeconds += Stopwatch.GetElapsedTime(last, now).TotalSeconds;
+                    room.AdvanceClock(Stopwatch.GetElapsedTime(last, now));
                     last = now;
-                    room.CloseTicksUpTo((int)(matchSeconds * room.Config.TicksPerSecond));
+                    if (Forget(room))
+                        break;
                 }
             }
             catch (OperationCanceledException)
@@ -183,11 +224,24 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         private readonly Channel<byte[]> _outbox = Channel.CreateBounded<byte[]>(
             new BoundedChannelOptions(16384) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
         private readonly CancellationTokenSource _overflow = new();
+        private readonly CancellationTokenSource _closed = new();
+        private volatile bool _closing;
+
+        /// <summary>Cancelled once the room has closed this connection and what it sent has gone out.</summary>
+        public CancellationToken Closed => _closed.Token;
 
         public void Send(Message message)
         {
+            if (_closing)
+                return;
             if (!_outbox.Writer.TryWrite(MessageCodec.Encode(message)) && !_outbox.Reader.Completion.IsCompleted)
                 _overflow.Cancel();
+        }
+
+        public void Close()
+        {
+            _closing = true;
+            _outbox.Writer.TryComplete();
         }
 
         public void Complete() => _outbox.Writer.TryComplete();
@@ -201,6 +255,9 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
                     await socket.SendAsync(bytes, WebSocketMessageType.Binary, endOfMessage: true, linked.Token);
                 if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
                     await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, stopping);
+                // Closed by the room: the client may never answer the close, so stop waiting for it.
+                if (_closing)
+                    await _closed.CancelAsync();
             }
             catch (Exception e) when (e is WebSocketException or OperationCanceledException)
             {
@@ -208,8 +265,8 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
             }
         }
 
-        /// <summary>The client's next message, or null when it closed the connection.</summary>
-        public static async Task<Message?> ReadAsync(WebSocket socket, CancellationToken cancel)
+        /// <summary>The bytes of the client's next message, or null when it closed the connection.</summary>
+        public static async Task<ArraySegment<byte>?> ReadFrameAsync(WebSocket socket, CancellationToken cancel)
         {
             byte[] buffer = new byte[MessageCodec.MaxMessageBytes];
             int length = 0;
@@ -220,13 +277,36 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
                     return null;
                 length += part.Count;
                 if (part.EndOfMessage)
-                    return MessageCodec.Decode(buffer.AsSpan(0, length));
+                    return new ArraySegment<byte>(buffer, 0, length);
                 if (length == buffer.Length)
                     throw new InvalidDataException("A message is longer than the protocol allows.");
             }
         }
 
-        public void Dispose() => _overflow.Dispose();
+        public void Dispose()
+        {
+            _overflow.Dispose();
+            _closed.Dispose();
+        }
+    }
+}
+
+/// <summary>Counts a connection's messages in one-second windows.</summary>
+internal sealed class MessageRate(int limitPerSecond)
+{
+    private long _windowStart = Stopwatch.GetTimestamp();
+    private int _count;
+
+    /// <summary>Counts one message; true when this second has had more than the limit.</summary>
+    public bool Exceeded()
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (Stopwatch.GetElapsedTime(_windowStart, now) >= TimeSpan.FromSeconds(1))
+        {
+            _windowStart = now;
+            _count = 0;
+        }
+        return ++_count > limitPerSecond;
     }
 }
 

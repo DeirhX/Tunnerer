@@ -26,6 +26,19 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     private uint _pingId;
     private bool _pingPending;
 
+    /// <summary>
+    /// How the client notices a relay that has gone silent without closing the connection: after
+    /// <see cref="Interval"/> of silence its socket pings the relay, and if nothing at all comes back within
+    /// <see cref="Timeout"/> the connection is ended and <see cref="Failure"/> says so. The socket does this itself,
+    /// on its own background task, so a game loop that is busy for a long time (building the world on a slow
+    /// machine) neither sends the pings nor delays the answers to the relay's. A lobby or a paused match, where
+    /// no ticks flow, passes the same way: the relay answers every ping.
+    /// </summary>
+    public sealed record KeepAlive(TimeSpan Interval, TimeSpan Timeout)
+    {
+        public static KeepAlive Default { get; } = new(TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(10));
+    }
+
     private RelayConnection(ClientWebSocket socket, Welcome welcome, string room)
     {
         _socket = socket;
@@ -56,16 +69,7 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     public int HumanMask { get; private set; }
 
     /// <summary>The slot of the host, who may start the match before the room is full: the lowest slot taken.</summary>
-    public int HostSlot
-    {
-        get
-        {
-            for (int slot = 0; slot < Roster.Length; slot++)
-                if (Roster[slot].Length > 0)
-                    return slot;
-            return -1;
-        }
-    }
+    public int HostSlot => RoomRules.HostSlot(Roster.Length, slot => Roster[slot].Length > 0);
 
     public bool IsHost => HostSlot == Slot;
 
@@ -91,9 +95,12 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     /// Connects, says hello and waits for the relay's answer. Blocks, so call it before the game loop starts.
     /// </summary>
     /// <exception cref="RelayException">The relay could not be reached, or it refused the request.</exception>
-    public static RelayConnection Connect(Uri relay, Hello hello, TimeSpan timeout)
+    public static RelayConnection Connect(Uri relay, Hello hello, TimeSpan timeout, KeepAlive? keepAlive = null)
     {
+        keepAlive ??= KeepAlive.Default;
         var socket = new ClientWebSocket();
+        socket.Options.KeepAliveInterval = keepAlive.Interval;
+        socket.Options.KeepAliveTimeout = keepAlive.Timeout;
         try
         {
             using var limit = new CancellationTokenSource(timeout);
@@ -229,10 +236,14 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
                 _inbox.Enqueue(message);
             _lost = "the relay closed the connection.";
         }
-        catch (Exception e) when (e is WebSocketException or OperationCanceledException or InvalidDataException
-            or ObjectDisposedException)
+        catch (InvalidDataException e)
         {
-            _lost = $"the connection was lost ({e.Message}).";
+            _lost = $"the relay sent something this game does not understand ({e.Message}).";
+        }
+        catch (Exception e) when (e is WebSocketException or OperationCanceledException or ObjectDisposedException)
+        {
+            // Also what a relay that went silent ends in: the socket gave up waiting for its answer to a ping.
+            _lost = "lost the connection to the relay.";
         }
     }
 

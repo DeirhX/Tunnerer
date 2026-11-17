@@ -138,7 +138,6 @@ public partial class Game : IDisposable
             Shoot: Scancode.Space));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         // The terrain test has no match: no player input to script or record, and no enemy tank.
-        // No bots in a network match yet: a tank without a player idles.
         bool aiTanks = !terrainTestMode && StartMatchInput(enableAiTanks && relay == null);
         var bots = CreateBots(built, aiTanks);
         _simulationStepper = new GameSimulationStepper(
