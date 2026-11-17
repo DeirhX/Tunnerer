@@ -42,6 +42,21 @@ public class BrowserSessionTests
     }
 
     [Fact]
+    public void Status_CarriesTheDesktopsHeatColour_UpgradeTracks_AndNoHitAtTheStart()
+    {
+        var session = new BrowserSession(1234);
+        var status = BrowserFrameBuilder.Capture(session, includeEvents: false);
+
+        // The desktop's ambient green (HudLogicTests: 0xFF66E566 in ImGui's ABGR).
+        Assert.Equal("#66e566", BrowserFrameBuilder.HexColor(HeatScale.ColorRgb(0f)));
+        Assert.Equal(BrowserFrameBuilder.HexColor(HeatScale.ColorRgb(session.Player.Heat)), status.Player.HeatColor);
+        Assert.Equal(HeatScale.Fraction(session.Player.Heat), status.Player.HeatGauge);
+        Assert.Equal((0f, 0f, 0f), (status.Player.HitFlash, status.Player.HitFromX, status.Player.HitFromY));
+        Assert.Equal(["Base", "Base", "Base", "Base", "Tank", "Tank"], status.Upgrades.Select(u => u.Track));
+        Assert.All(status.Upgrades, u => Assert.Equal(BaseUpgrades.MaxLevel, u.MaxLevel));
+    }
+
+    [Fact]
     public void SoundBank_PacksEveryDesktopEffect_OneAfterAnother()
     {
         var bank = new BrowserSoundBank();

@@ -73,19 +73,31 @@ export class GameRenderer {
             this.worldCanvas.hidden = true;
             c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
             this.drawLanding(c, now);
+            // The landing illustration shares the overlay canvas: the first game frame clears it.
+            this.overlayCleared = true;
             return;
         }
         this.worldCanvas.hidden = false;
         // Nothing new from the worker since the last draw: what is on screen is still right.
         if (!this.gpu.draw() && !this.overlayCleared) return;
-        this.overlayCleared = false;
         c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-        c.clearRect(0, 0, this.width, this.height);
+        // The overlay is empty most of the time: clear it only when something was drawn on it (or the canvas was
+        // resized), rather than filling the whole display every frame.
+        if (this.overlayCleared || this.overlayDrawn)
+            c.clearRect(0, 0, this.width, this.height);
+        this.overlayCleared = false;
+        let drawn = false;
         if (this.frame.goal)
-            this.bearing(c, this.frame.goal.position, "CORE", "#e9a367");
+            drawn =
+                this.bearing(c, this.frame.goal.position, "CORE", "#e9a367") ||
+                drawn;
         if (!this.frame.player.docked)
-            this.bearing(c, this.frame.player.home, "HOME", "#83d9cf");
-        if (this.pointerTarget) this.pointer(c, this.pointerTarget, now);
+            drawn =
+                this.bearing(c, this.frame.player.home, "HOME", "#83d9cf") ||
+                drawn;
+        if (this.pointerTarget)
+            drawn = this.pointer(c, this.pointerTarget, now) || drawn;
+        this.overlayDrawn = drawn;
     }
 
     // Where a cell is on screen, from the centre of the view, in CSS pixels.
@@ -106,8 +118,7 @@ export class GameRenderer {
             Math.abs(dx) > this.width / 2 - margin ||
             Math.abs(dy) > this.height / 2 - margin
         ) {
-            this.bearing(c, target, "NEXT", "#ecb867");
-            return;
+            return this.bearing(c, target, "NEXT", "#ecb867");
         }
         const t = now / 1000,
             pulse = 0.5 + 0.5 * Math.sin(t * 5);
@@ -134,14 +145,16 @@ export class GameRenderer {
         c.closePath();
         c.fill();
         c.restore();
+        return true;
     }
 
+    // Draws an arrow at the edge of the view toward a cell that is off screen; returns whether it drew.
     bearing(c, target, label, color) {
         const scale = this.cellSize;
         const { dx, dy } = this.fromCentre(target);
         const w = this.width / 2 - 28,
             h = this.height / 2 - 30;
-        if (Math.abs(dx) < w && Math.abs(dy) < h) return;
+        if (Math.abs(dx) < w && Math.abs(dy) < h) return false;
         const ratio = Math.min(
             w / Math.max(Math.abs(dx), 1),
             h / Math.max(Math.abs(dy), 1),
@@ -167,6 +180,7 @@ export class GameRenderer {
             x + (dx < 0 ? 10 : -10),
             y - 10,
         );
+        return true;
     }
 
     drawLanding(c, now) {

@@ -5,6 +5,7 @@ import { setupInstallation } from "./install.js";
 import { PerfReadout } from "./perf.js";
 import { Simulation } from "./simulation.js";
 import { GuidanceView } from "./guidance.js";
+import { StatusView } from "./hud.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
@@ -44,6 +45,7 @@ const input = new GameInput(canvas, (action, direction) => {
             Math.min(8, renderer.zoom + direction * 0.5),
         );
 });
+const statusView = new StatusView(input);
 
 function randomSeed() {
     const values = new Int32Array(1);
@@ -247,75 +249,10 @@ function notify(message) {
 }
 
 function updateHud(f) {
-    const p = f.player;
     canvas.dataset.tick = String(f.tick);
-    $("temperature").textContent = `${Math.round(p.heat)}°`;
-    $("temperature").style.color =
-        p.heat > p.heatLimit ? "#ff8260" : p.heat < -20 ? "#80b7e8" : "";
-    $("heat").max = p.heatLimit;
-    $("heat").value = Math.max(0, p.heat);
-    $("shield").value = p.shield;
-    $("shield-text").textContent = `${Math.round(p.shield * 100)}%`;
-    $("lives").textContent = `${p.lives} ${p.lives === 1 ? "LIFE" : "LIVES"}`;
-    $("network").textContent = p.docked
-        ? "DOCKED"
-        : p.offNetwork
-          ? `OFF GRID / ${Math.ceil(p.safeSeconds)}s`
-          : "ON NETWORK";
-    $("network").style.color = p.offNetwork ? "#ffad72" : "#6edace";
-    $("position").textContent =
-        `X ${p.position.x} / Y ${p.position.y} · WORLD ${f.seed}`;
-    $("ore").textContent = `${p.ore}/${p.holdCapacity} ORE · BASE ${p.store}`;
-    $("power").textContent =
-        `BASE CHARGE ${Math.round(p.charge * 100)}% / HEAT STORE ${Math.round(p.baseHeat * 100)}%`;
-    if (!$("builds").children.length) {
-        for (const b of f.builds) {
-            const button = document.createElement("button");
-            button.dataset.key = String(b.key);
-            button.onclick = () => input.queue("build", b.key);
-            const key = document.createElement("kbd");
-            key.textContent = ["E", "R", "T"][b.key - 1];
-            const name = document.createElement("span");
-            name.textContent = b.name;
-            const cost = document.createElement("small");
-            button.append(key, name, cost);
-            $("builds").append(button);
-        }
-    }
-    for (const b of f.builds) {
-        const button = $("builds").querySelector(`[data-key="${b.key}"]`);
-        button.querySelector("small").textContent = `${b.cost} ORE`;
-        button.title = p.carrying
-            ? `Plant carried ${p.carrying}`
-            : `Build ${b.name}: ${b.cost} ore (${b.payer})`;
-        button.style.opacity = b.affordable || p.carrying ? "1" : ".5";
-    }
-    $("upgrades").hidden = !p.docked || p.dead;
-    if (!$("upgrade-list").children.length) {
-        for (const u of f.upgrades) {
-            const button = document.createElement("button");
-            button.onclick = () => input.queue("upgrade", u.key);
-            $("upgrade-list").append(button);
-        }
-    }
-    for (const u of f.upgrades) {
-        const button = $("upgrade-list").children[u.key - 1];
-        button.textContent = `${u.key} · ${u.name} / L${u.level}`;
-        const price = document.createElement("small");
-        price.textContent = u.maxed ? "MAX LEVEL" : `${u.cost} ore`;
-        button.append(price);
-        button.title = u.effect;
-        button.disabled = u.maxed || p.store < u.cost;
-    }
+    statusView.update(f);
     guidance.update(f.guidance, f.goal);
     renderer.pointerTarget = guidance.target;
-    $("death").hidden = !p.dead && p.outcome === "InProgress";
-    $("death").textContent =
-        p.outcome === "Victory"
-            ? "SECTOR SECURED\nOpen the menu for a new world."
-            : p.outcome === "Defeat"
-              ? "DIVE ENDED\nOpen the menu to try a new world."
-              : `TANK LOST\nRespawning in ${Math.ceil(p.respawnSeconds)}s`;
 }
 
 function animate(now) {

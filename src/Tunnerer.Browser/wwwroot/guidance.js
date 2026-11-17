@@ -2,6 +2,8 @@
 // C# by the desktop's PlayerGuidance (each frame after a step carries it as `guidance`); this file only shows it.
 // Tones are HintTone names: Dim, Info, Good, Warn, Bad, Accent (style.css: .tone-*).
 
+import { setClass, setHidden, setText } from "./hud.js";
+
 const $ = (id) => document.getElementById(id);
 
 const OBJECTIVE =
@@ -49,35 +51,48 @@ export class GuidanceView {
     showCard() {
         const tutorial = this.guidance?.tutorial;
         const showTutorial = tutorial && !this.tutorialHidden;
-        $("tutorial-toggle").hidden = !tutorial;
-        $("tutorial-toggle").firstChild.textContent = showTutorial
-            ? "Hide "
-            : "Tutorial ";
-        $("mission-label").textContent = showTutorial
-            ? `NEXT STEP ${tutorial.number} / ${tutorial.count}`
-            : "SECTOR OBJECTIVE";
-        $("mission-title").textContent = showTutorial
-            ? tutorial.title
-            : "Tap the hot core";
-        $("guidance").textContent = showTutorial ? tutorial.body : OBJECTIVE;
+        setHidden($("tutorial-toggle"), !tutorial);
+        const toggle = $("tutorial-toggle").firstChild;
+        const toggleText = showTutorial ? "Hide " : "Tutorial ";
+        if (toggle.textContent !== toggleText) toggle.textContent = toggleText;
+        setText(
+            $("mission-label"),
+            showTutorial
+                ? `NEXT STEP ${tutorial.number} / ${tutorial.count}`
+                : "SECTOR OBJECTIVE",
+        );
+        setText(
+            $("mission-title"),
+            showTutorial ? tutorial.title : "Tap the hot core",
+        );
+        setText($("guidance"), showTutorial ? tutorial.body : OBJECTIVE);
         const progress = showTutorial && tutorial.progress;
-        $("tutorial-progress").hidden = !progress;
+        setHidden($("tutorial-progress"), !progress);
         if (progress) {
-            $("tutorial-meter").value = tutorial.fraction;
-            $("tutorial-meter").classList.toggle(
-                "done",
-                tutorial.fraction >= 1,
-            );
-            $("tutorial-progress-text").textContent = tutorial.progress;
+            const meter = $("tutorial-meter"),
+                fraction = Math.round(tutorial.fraction * 400) / 400;
+            if (meter.value !== fraction) meter.value = fraction;
+            setClass(meter, tutorial.fraction >= 1 ? "done" : "");
+            setText($("tutorial-progress-text"), tutorial.progress);
         }
         const g = this.goal;
-        $("goal").textContent = g
-            ? `${g.output.toFixed(0)} / ${g.required.toFixed(0)} POWER · ${g.hold.toFixed(0)} / ${g.requiredHold.toFixed(0)}s HELD`
-            : "";
+        setText(
+            $("goal"),
+            g
+                ? `${g.output.toFixed(0)} / ${g.required.toFixed(0)} POWER · ${g.hold.toFixed(0)} / ${g.requiredHold.toFixed(0)}s HELD`
+                : "",
+        );
     }
 
-    // Newest on top, as on the desktop. A toast keeps its element while it shows, so it animates in only once.
+    // Newest on top, as on the desktop. A toast keeps its element while it shows, so it animates in only once, and
+    // the list is touched only when a toast comes or goes.
     showToasts(toasts) {
+        const ids = toasts.map((t) => `${t.key}@${t.postedAt}`);
+        if (
+            ids.length === this.toasts.size &&
+            ids.every((id) => this.toasts.has(id))
+        )
+            return;
         const list = $("toasts"),
             live = new Map();
         for (const t of toasts) {
@@ -90,7 +105,7 @@ export class GuidanceView {
                 const detail = document.createElement("span");
                 detail.textContent = t.detail;
                 element.append(title, detail);
-                element.className = `toast tone-${t.tone}`;
+                element.className = `toast plate tone-${t.tone}`;
             }
             live.set(id, element);
         }
@@ -100,19 +115,23 @@ export class GuidanceView {
 
     showHint(hint) {
         const element = $("hint");
-        element.textContent = hint.text;
-        element.className = `tone-${hint.tone}`;
-        element.hidden = !hint.text;
+        setText(element, hint.text);
+        setClass(element, `tone-${hint.tone}`);
+        setHidden(element, !hint.text);
     }
 
     showWarning(warning) {
         const element = $("warning");
-        element.hidden = !warning;
+        setHidden(element, !warning);
         if (!warning) return;
-        element.className = `tone-${warning.tone}${warning.blinks ? " blink" : ""}`;
-        element.dataset.kind = warning.kind;
-        $("warning-title").textContent = warning.title;
-        $("warning-detail").textContent = warning.detail ?? "";
-        $("warning-detail").hidden = !warning.detail;
+        setClass(
+            element,
+            `plate tone-${warning.tone}${warning.blinks ? " blink" : ""}`,
+        );
+        if (element.dataset.kind !== warning.kind)
+            element.dataset.kind = warning.kind;
+        setText($("warning-title"), warning.title);
+        setText($("warning-detail"), warning.detail ?? "");
+        setHidden($("warning-detail"), !warning.detail);
     }
 }

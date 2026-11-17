@@ -1,5 +1,24 @@
+/* The desktop HUD's font (copied in by tools/browser/publish.py). */
+@font-face {
+    font-family: "Chakra Petch";
+    src: url("./fonts/ChakraPetch-Medium.ttf") format("truetype");
+    font-weight: 500;
+    font-display: swap;
+}
 :root {
     color-scheme: dark;
+    /* The desktop HUD's palette (HudTheme): plates, frame, titles and status colours. */
+    --hud-font: "Chakra Petch", system-ui, sans-serif;
+    --hud-plate-top: #1e2024f0;
+    --hud-plate: #0d0e10f4;
+    --hud-bronze: #7a562c;
+    --hud-amber: #ffb240;
+    --hud-teal: #60d6ff;
+    --hud-text: #eae4d8;
+    --hud-dim: #9e968a;
+    --hud-good: #76e680;
+    --hud-warn: #ffc640;
+    --hud-danger: #ff5642;
     --bg: #080f13;
     --line: #334047;
     --ink: #e6ede8;
@@ -285,23 +304,83 @@ footer i {
     height: 4px;
     margin: 0 8px;
 }
+/*
+ * A HUD plate as the desktop draws it (HudTheme.DrawPanel): chamfered corners, a bronze frame, a gunmetal fill with
+ * a lighter top, a faint inner line and corner brackets in the plate's accent (amber unless --accent says otherwise).
+ * Painted once from CSS: no images to download, nothing redrawn per frame.
+ */
 .plate {
-    background: linear-gradient(140deg, #15232aee, #0c171eee);
-    border: 1px solid #56635b88;
-    border-top-color: #b49b65aa;
-    box-shadow: 0 8px 40px #0005;
-    border-radius: 2px;
+    --chamfer: 9px;
+    --accent: var(--hud-amber);
+    position: relative;
+    isolation: isolate;
     padding: 18px;
+    color: var(--hud-text);
+    font-family: var(--hud-font);
+    background: var(--hud-bronze);
+    clip-path: polygon(
+        var(--chamfer) 0,
+        calc(100% - var(--chamfer)) 0,
+        100% var(--chamfer),
+        100% calc(100% - var(--chamfer)),
+        calc(100% - var(--chamfer)) 100%,
+        var(--chamfer) 100%,
+        0 calc(100% - var(--chamfer)),
+        0 var(--chamfer)
+    );
+}
+.plate::before,
+.plate::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    clip-path: polygon(
+        var(--c) 0,
+        calc(100% - var(--c)) 0,
+        100% var(--c),
+        100% calc(100% - var(--c)),
+        calc(100% - var(--c)) 100%,
+        var(--c) 100%,
+        0 calc(100% - var(--c)),
+        0 var(--c)
+    );
+}
+.plate::before {
+    --c: calc(var(--chamfer) - 1px);
+    inset: 2px;
+    background: linear-gradient(
+        var(--hud-plate-top),
+        var(--hud-plate) 45%
+    );
+}
+.plate::after {
+    --c: calc(var(--chamfer) - 2px);
+    inset: 4px;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    background:
+        linear-gradient(var(--accent), var(--accent)) left 6px top 0 / 14px
+            2px no-repeat,
+        linear-gradient(var(--accent), var(--accent)) right 6px top 0 / 14px
+            2px no-repeat,
+        linear-gradient(var(--accent), var(--accent)) left 6px bottom 0 /
+            14px 2px no-repeat,
+        linear-gradient(var(--accent), var(--accent)) right 6px bottom 0 /
+            14px 2px no-repeat;
 }
 .plate h2 {
     margin: 8px 0 6px;
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 500;
+    color: var(--hud-amber);
 }
 .plate p {
-    color: #a5b5b4;
-    font-size: 12px;
+    color: var(--hud-text);
+    font-size: 12.5px;
     margin-bottom: 8px;
+}
+.plate .eyebrow {
+    color: var(--hud-dim);
 }
 #guide {
     position: absolute;
@@ -367,12 +446,8 @@ footer i {
     gap: 6px;
 }
 .toast {
-    background: #0e1a20e6;
-    border: 1px solid #56635b66;
-    border-left: 3px solid currentColor;
-    border-radius: 2px;
-    padding: 9px 12px;
-    box-shadow: 0 6px 24px #0005;
+    --accent: currentColor;
+    padding: 10px 14px;
     animation: toast-in 0.25s ease-out;
 }
 .toast strong {
@@ -383,7 +458,7 @@ footer i {
 }
 .toast span {
     display: block;
-    color: #a5b5b4;
+    color: var(--hud-text);
     font-size: 11px;
     line-height: 1.4;
 }
@@ -394,22 +469,22 @@ footer i {
     }
 }
 .tone-Dim {
-    color: var(--muted);
+    color: var(--hud-dim);
 }
 .tone-Info {
-    color: var(--cyan);
+    color: var(--hud-teal);
 }
 .tone-Good {
-    color: #7bd88f;
+    color: var(--hud-good);
 }
 .tone-Warn {
-    color: #ffad72;
+    color: var(--hud-warn);
 }
 .tone-Bad {
-    color: #ff8260;
+    color: var(--hud-danger);
 }
 .tone-Accent {
-    color: var(--amber);
+    color: var(--hud-amber);
 }
 #warning {
     position: absolute;
@@ -418,11 +493,8 @@ footer i {
     transform: translateX(-50%);
     max-width: min(560px, 46vw);
     text-align: center;
-    background: #0e1a20ee;
-    border: 1px solid currentColor;
-    border-radius: 2px;
-    padding: 8px 22px 10px;
-    box-shadow: 0 8px 30px #0006;
+    --accent: currentColor;
+    padding: 10px 28px 12px;
     pointer-events: none;
 }
 #warning[hidden] {
@@ -441,8 +513,30 @@ footer i {
 #warning span {
     display: block;
     margin-top: 3px;
-    font-size: 12px;
-    color: var(--ink);
+    font-size: 12.5px;
+    color: var(--hud-text);
+}
+/*
+ * After a hit by enemy fire: a red edge vignette and a wedge pointing back at the shooter, fading over the flash
+ * (as the desktop's GameHud.DrawHitFeedback). Only opacity and transforms change, so the compositor does the work.
+ */
+#hit {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 12vmin 2vmin rgb(224 0 0 / 0.6);
+    opacity: var(--hit, 0);
+    will-change: opacity;
+}
+#hit-wedge {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -13px 0 0 -22px;
+    border: 22px solid transparent;
+    border-top: 0;
+    border-bottom: 26px solid rgb(255 64 48 / 0.9);
+    transform: rotate(var(--angle, 0rad)) translateY(calc(-22vmin - 26px));
 }
 #warning.blink strong {
     animation: warning-blink 0.67s steps(1) infinite;
@@ -475,8 +569,9 @@ footer i {
     top: 40%;
     left: 50%;
     transform: translate(-50%, -50%);
+    font-family: var(--hud-font);
     background: #101b21ed;
-    border: 1px solid var(--amber);
+    border: 1px solid var(--hud-amber);
     padding: 24px 40px;
     text-align: center;
     font-size: 22px;
@@ -497,15 +592,32 @@ footer i {
 }
 .heat-value {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 10px;
     margin: 8px 0;
 }
+.heat-value span {
+    margin-left: auto;
+}
+/* The heat orb: the desktop's colour for the tank's temperature (HeatScale), glowing. */
+.orb {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    flex: none;
+    background: radial-gradient(
+        circle at 35% 30%,
+        #fff8 0 8%,
+        var(--heat-color, var(--hud-good)) 40%,
+        #000a 100%
+    );
+    box-shadow: 0 0 12px
+        color-mix(in srgb, var(--heat-color, var(--hud-good)) 60%, transparent);
+}
 .heat-value strong {
-    font:
-        34px ui-monospace,
-        monospace;
-    color: var(--amber);
+    font: 500 34px var(--hud-font);
+    line-height: 1;
+    color: var(--heat-color, var(--hud-amber));
 }
 .heat-value span {
     font:
@@ -521,6 +633,18 @@ meter {
     background: #273138;
     border-radius: 0;
 }
+/* The desktop's segmented bars (HudTheme.BarRow). */
+.tank-status meter {
+    height: 10px;
+    -webkit-mask: repeating-linear-gradient(90deg, #000 0 8px, #0000 8px 10px);
+    mask: repeating-linear-gradient(90deg, #000 0 8px, #0000 8px 10px);
+}
+#heat::-webkit-meter-optimum-value {
+    background: var(--heat-color, var(--hud-good));
+}
+#heat::-moz-meter-bar {
+    background: var(--heat-color, var(--hud-good));
+}
 meter::-webkit-meter-bar {
     background: #273138;
     border: none;
@@ -530,7 +654,10 @@ meter::-webkit-meter-optimum-value {
     background: var(--amber);
 }
 #shield::-webkit-meter-optimum-value {
-    background: var(--cyan);
+    background: var(--hud-teal);
+}
+#shield::-moz-meter-bar {
+    background: var(--hud-teal);
 }
 meter::-moz-meter-bar {
     background: var(--amber);
@@ -580,6 +707,9 @@ meter::-moz-meter-bar {
         9px ui-monospace,
         monospace;
 }
+.builds button.unaffordable {
+    opacity: 0.5;
+}
 .builds button kbd {
     margin: 0;
     color: var(--amber);
@@ -609,22 +739,71 @@ meter::-moz-meter-bar {
 #upgrades[open] summary::after {
     content: "▴";
 }
+/* The desktop's upgrade list (GameHud.Goal): the base track above the tank track, a row per upgrade. */
 #upgrade-list {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
+    gap: 4px;
     margin-top: 10px;
 }
+#upgrade-list h3 {
+    margin: 6px 0 0;
+    font: 500 10px var(--hud-font);
+    letter-spacing: 1.5px;
+    color: var(--hud-dim);
+}
 #upgrade-list button {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-areas: "key name pips cost" "key effect effect effect";
+    align-items: center;
+    column-gap: 10px;
     text-align: left;
-    font-size: 10px;
-    padding: 7px;
+    padding: 6px 8px;
+    background: #0d0e10cc;
+    border-color: #3a2816;
+    font-family: var(--hud-font);
+}
+#upgrade-list button:disabled {
+    cursor: default;
+}
+#upgrade-list kbd {
+    grid-area: key;
+    margin: 0;
+    color: var(--hud-amber);
+    border-color: var(--hud-bronze);
+}
+#upgrade-list .name {
+    grid-area: name;
+    color: var(--hud-amber);
+    font-size: 13px;
+}
+#upgrade-list .effect {
+    grid-area: effect;
+    color: var(--hud-text);
+    font-size: 10.5px;
+}
+#upgrade-list .pips {
+    grid-area: pips;
+    display: flex;
+    gap: 3px;
+}
+#upgrade-list .pips i {
+    width: 9px;
+    height: 9px;
+    border: 1px solid #5a4630;
+    background: #0008;
+}
+#upgrade-list .pips i.on {
+    background: var(--hud-amber);
+    border-color: var(--hud-amber);
 }
 #upgrade-list small {
-    display: block;
-    color: var(--muted);
-    font-size: 9px;
-    margin-top: 4px;
+    grid-area: cost;
+    color: var(--hud-amber);
+    font-size: 11px;
+}
+#upgrade-list button:disabled small {
+    color: var(--hud-dim);
 }
 dialog {
     background: #101b21;
@@ -800,6 +979,12 @@ dd {
     .toast span {
         display: none;
     }
+    #upgrade-list .effect {
+        display: none;
+    }
+    #upgrade-list button {
+        grid-template-areas: "key name pips cost";
+    }
     #warning {
         top: 12px;
         max-width: calc(100vw - 280px);
@@ -893,6 +1078,7 @@ dd {
     #upgrades[open] {
         top: 204px;
         max-height: 200px;
+        overflow: auto;
         width: calc(100% - 24px);
     }
     .tank-status {

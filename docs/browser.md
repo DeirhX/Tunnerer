@@ -61,7 +61,7 @@ If the threaded runtime fails to load, the match starts on one thread instead.
 One deployment carries both runtimes, rather than the runtime being fixed when publishing, because a deployment
 with only the threaded one would not start where the page is not isolated, the device has few cores, or the
 browser is not Chromium. A browser still downloads and keeps only the one it uses: the offline manifest lists the
-two apart (0.4 MiB shared; single-thread 9.5 MiB, threaded 10.1 MiB), and the service worker asks `threads.js` the
+two apart (0.5 MiB shared; single-thread 10.2 MiB, threaded 10.8 MiB), and the service worker asks `threads.js` the
 page's own question and caches that one ahead of time. The other is cached if the page ever loads it. The zip
 holds both, so it is about twice the size of a default publish's.
 
@@ -203,7 +203,19 @@ window and graphics dependencies out of the shared rendering assembly.
 - `main.js` / `input.js`: HUD, seed selection, session lifecycle and input. Build costs, placement, coverage, match
   outcome and upgrade descriptions come from Core. `guidance.js` shows the desktop's tutorial card (F2 hides it),
   toasts, hint line and warning banner as each frame after a step carries them (`guidance`), and the renderer points
-  at the tutorial's target. The match is built by Core's `MatchSetup`, as on the desktop.
+  at the tutorial's target. `hud.js` shows the status panels, the upgrade list (base track above tank track, with
+  level pips), the heat orb and bar in the desktop's heat colours (`HeatScale`) and the hit flash with a wedge
+  toward the shooter.
+- The HUD looks like the desktop's (`HudTheme`): chamfered plates with a bronze frame and amber corner brackets,
+  amber titles, segmented bars and the desktop's palette and font (Chakra Petch, which `publish.py` copies from
+  `src/Tunnerer.Desktop/resources/fonts` as it generates the shaders). The plates are drawn by CSS rather than the
+  desktop's HUD art, which would add 1.4 MiB of images to the offline download and does not fit narrow screens.
+- The HUD's cost follows what changes. It updates after every step, 24 times a second, and writes to the page
+  only text, classes and styles whose values changed; toasts are added and removed, not rebuilt; the hit flash
+  changes only opacity and a transform. The overlay canvas (bearings, the tutorial's pointer) is cleared only
+  when something was drawn on it. Measured 2026-11-18 in headless Chromium on an Apple M5 Max, seed 1234, the same
+  15 seconds of digging and idling: 33 changes to the page a second where rebuilding the HUD made 1,150, and
+  1.0 ms of layout a second where it took 5.5 ms. The match is built by Core's `MatchSetup`, as on the desktop.
   What sounds, for whom, how loud, where and at what pitch is decided by the desktop's `SoundDirector` after each
   step; the frame after the step lists the one-shots it started and where each loop (engines, digging, torch,
   recharge) stands (`sounds`). The samples are the desktop's `SoundBank`, synthesised in .NET the first time the

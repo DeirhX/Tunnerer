@@ -29,8 +29,8 @@ Run from the repository root.
   - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
   - `Rendering/Shaders`: the HLSL it draws.
 - `src/Tunnerer.Rendering`: the rendering code every host shares (terrain fields and what a frame uploads of them,
-  entity emitters and machine sprites, the shader constant block, sound (the step-event table, `SoundDirector` and `SoundBank`), and the HUD's guidance:
-  tutorial, toasts, build-key hint and warnings). Its sources are the files of `src/Tunnerer.Desktop` listed in
+  entity emitters and machine sprites, the shader constant block, sound (the step-event table, `SoundDirector` and `SoundBank`), the heat colours (`HeatScale`) and the HUD's
+  guidance: tutorial, toasts, build-key hint and warnings). Its sources are the files of `src/Tunnerer.Desktop` listed in
   `Tunnerer.Rendering.csproj`, which `Tunnerer.Desktop.csproj` leaves out: sharing a file means adding it to both
   lists. It references only Core (`ArchitectureGuardTests`).
 - `src/Tunnerer.Browser.Client`: the browser's match and what it draws, in plain .NET so the tests cover it.

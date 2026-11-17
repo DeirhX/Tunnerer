@@ -113,7 +113,8 @@
                 </aside>
                 <div id="toasts" role="log" aria-live="polite"></div>
             </div>
-            <div id="warning" role="alert" hidden>
+            <div id="hit" hidden aria-hidden="true"><i id="hit-wedge"></i></div>
+            <div id="warning" class="plate" role="alert" hidden>
                 <strong id="warning-title"></strong
                 ><span id="warning-detail"></span>
             </div>
@@ -125,15 +126,16 @@
                         REACTOR / <span id="network">DOCKED</span>
                     </div>
                     <div class="heat-value">
-                        <strong id="temperature">0°</strong
+                        <i class="orb" aria-hidden="true"></i
+                        ><strong id="temperature">0°</strong
                         ><span id="lives">3 LIVES</span>
                     </div>
                     <meter
                         id="heat"
                         min="0"
-                        max="100"
+                        max="1"
                         value="0"
-                        aria-label="Tank temperature"
+                        aria-label="Tank temperature, from deep frost to overheating"
                     ></meter>
                     <div class="meter-label">
                         <span>SHIELD</span><span id="shield-text">100%</span>

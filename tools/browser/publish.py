@@ -116,6 +116,11 @@ def main():
         for path in shader_dir.iterdir():
             if path.suffix != ".glsl":
                 path.unlink()
+        # The HUD's font is the desktop's, copied like the shaders rather than kept twice in the repository.
+        font_dir = repo / "src/Tunnerer.Browser/wwwroot/fonts"
+        font_dir.mkdir(exist_ok=True)
+        for name in ("ChakraPetch-Medium.ttf", "OFL-chakrapetch.txt"):
+            shutil.copy2(repo / "src/Tunnerer.Desktop/resources/fonts" / name, font_dir / name)
         project = str(repo / "src/Tunnerer.Browser/Tunnerer.Browser.csproj")
         if args.restore_workloads:
             # Which workload that is depends on the SDK in use (wasm-tools on .NET 10, wasm-tools-net10 on later
