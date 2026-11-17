@@ -26,10 +26,10 @@ public partial class Game
         var viewSize = EnsureViewSize();
         int scale = _renderViewState.CellPixels;
 
-        var player = tanks.Count > 0 ? tanks[0] : null;
+        var player = LocalTank;
         ReadOnlySpan<PositionF> drawnTankPositions = _entityLayer.InterpolateTankPositions(stepProgress);
         _renderViewState.UpdateCamera(
-            drawnTankPositions.Length > 0 ? drawnTankPositions[0] : null, _terrainSize, viewSize.X, viewSize.Y, scale);
+            _localSlot < drawnTankPositions.Length ? drawnTankPositions[_localSlot] : null, _terrainSize, viewSize.X, viewSize.Y, scale);
         var renderView = new RenderView(
             ViewSize: _renderViewState.HiResSize,
             WorldSize: _terrainSize,
@@ -37,7 +37,7 @@ public partial class Game
             PixelScale: scale);
         float visualTime = VisualTime;
         _entityLayer.Build(
-            renderView, stepProgress, turnSeconds: _paused ? 0f : dt, snapHeadings: !_interpolateFrames,
+            renderView, stepProgress, turnSeconds: SimulationPaused ? 0f : dt, snapHeadings: !_interpolateFrames,
             visualSeconds: visualTime, vision: _vision, radar: _radar);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
@@ -139,6 +139,7 @@ public partial class Game
                         _commandController.ShowPostPassOverlay));
                 _renderBackend.SetHeatOrb(_hud.HeatOrb);
                 DrawSessionOverlay(dt);
+                DrawNetOverlays(drawnTankPositions);
             }
 
         }

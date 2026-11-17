@@ -15,6 +15,9 @@ src/
     ARCHITECTURE.md        Detailed design
   Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
+  Tunnerer.Protocol/       What a network match's clients and relay share: tick bundles and the relay's tick rule.
+                           References nothing (enforced by ArchitectureGuardTests). See docs/multiplayer-design.md.
+  Tunnerer.Relay/          The relay server (ASP.NET Core, one WebSocket endpoint). References only the protocol.
 tests/
   Tunnerer.Tests/          xUnit tests for Core and Desktop logic, plus guard tests for both
 tools/
@@ -50,7 +53,7 @@ while running:
   5. for each due step (at most 4 to catch up):
        match:
          GameSimulationStepper.AdvanceOneStep
-           scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
+           scripted commands -> keyboard / scripted input for the local slot, a BotTankAI per other slot -> World.Advance
          EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
          GameAudio.AfterStep               (plays the step's World.StepEvents, sets the loops)
          TerrainAuxUploader.ObserveTerrainChanges (changed cells, to repack on the next frame)

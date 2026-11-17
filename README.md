@@ -65,12 +65,43 @@ Run `Tunnerer.Desktop --help` for the full list. The common ones:
 | `--size=WxH`, `--large` | Terrain size |
 | `--no-ai` | No enemy tank |
 | `--no-fog` | No fog of war: the whole map is shown live |
+| `--net[=ROOM]` | Join ROOM (default `lobby`) on the shared relay; the first player in opens it and their settings apply |
+| `--relay=URL` | Use the relay at URL instead (`ws://` or `wss://`, ending in `/play`) |
+| `--room=NAME` | The room to join, when `--relay` is given without `--net` |
+| `--players=N` | Tanks in the match when opening the room, 2 to 8 (default 4); bots take the slots nobody joins |
+| `--name=NAME` | Your name in the room. If you drop out, starting again with the same room and name puts you back in |
+| `--secret=TEXT` | The relay's shared secret, if it has one; `TUNNERER_RELAY_SECRET` does the same |
 | `--volume=N` | Master volume, 0 to 100 (default 70); `TUNNERER_VOLUME` does the same |
 | `--mute` | Start with the sound off; `TUNNERER_MUTE=1` does the same |
 | `--hidden` | Never show the window (automated runs) |
 | `--terrain-test` | Static terrain patterns for renderer work |
 | `--perf` | Capture frame times and exit |
 | `--dump-sounds=DIR` | Write every sound effect to a WAV file in DIR, print its length and levels, and exit |
+
+## Network matches
+
+Players connect out to a relay server; nobody needs an open port. Everyone starts the game with the same room
+name:
+
+```
+dotnet run --project src/Tunnerer.Desktop -- --net=friday --name=Ann
+```
+
+The shared relay asks for a secret: set `TUNNERER_RELAY_SECRET` (or pass `--secret=`) to the value whoever runs
+the relay gives you. The lobby shows who is in. The match starts when the room is full, or when the host (the first player in)
+presses Enter; bots play the tanks nobody took. It is a race: the first base to tap the core wins, and a tank out
+of lives is out. The first player's `--seed`, `--size`, `--fast` and `--players` decide the match for everyone.
+All players must run the same build, and every machine must be fast enough to simulate the map in real time.
+P pauses and resumes the match for everyone; Escape only opens your own menu.
+
+To run your own relay instead of the shared one:
+
+```
+dotnet run --project src/Tunnerer.Relay -- --urls http://127.0.0.1:8130
+dotnet run --project src/Tunnerer.Desktop -- --relay=ws://127.0.0.1:8130/play --room=friday
+```
+
+The design and what is still missing are in `docs/multiplayer-design.md`.
 
 ## Automated runs
 
@@ -82,7 +113,7 @@ frames keep counting while it is paused, so later commands and screenshots still
 | Variable | Meaning |
 |----------|---------|
 | `TUNNERER_SCRIPTED_INPUT` | Player input per simulation frame (record one with F12) |
-| `TUNNERER_COMMAND_SCRIPT` | `frame:Command` pairs, e.g. `30:TogglePause,60:RequestScreenshot,90:TogglePause`; names are the `GameCommand` enum |
+| `TUNNERER_COMMAND_SCRIPT` | `frame:Command` pairs, e.g. `30:TogglePause,60:RequestScreenshot,90:TogglePause`; names are the `GameCommand` enum. Script frames also count in a network lobby, so `150:StartNetMatch` starts a match as host |
 | `TUNNERER_SCRIPT_SCREENSHOT_FRAMES` | Simulation frames at which to save a final-frame screenshot |
 | `TUNNERER_RECORD_INPUT_PATH`, `TUNNERER_RECORD_INPUT_AUTOSTART` | Where to save a recording, and whether to start recording at once |
 | `TUNNERER_DISPLAY`, `TUNNERER_WINDOWED`, `TUNNERER_HIDDEN` | Same as the command-line options |
@@ -90,6 +121,7 @@ frames keep counting while it is paused, so later commands and screenshots still
 | `TUNNERER_GPU_DEBUG` | `1` turns on SDL_GPU's validation layer |
 | `TUNNERER_AUDIO_CAPTURE` | Path of a WAV file to write the game's sound to, one simulation step of sound per step, instead of playing it. Works in automated runs (which are otherwise silent), logs every effect as `[Audio] step N ...`, and rewrites the file every two seconds of game time, so a run that is killed still leaves it |
 | `TUNNERER_AUDIO_LOG` | `1` logs every effect as it starts in a normal game too |
+| `TUNNERER_NET_FAULT_TICK` | In a network match, makes this client's world differ from that tick on, to see a desync found and reported |
 | `TUNNERER_INTERPOLATE` | `1` displays frames between simulation steps in an automated run too (a normal game always does); screenshots are then no longer tied to an exact step |
 
 ## Layout
@@ -97,6 +129,8 @@ frames keep counting while it is paused, so later commands and screenshots still
 ```
 src/Tunnerer.Core          simulation: terrain, heat, tanks, projectiles, machines, links, level generation, bot AI
 src/Tunnerer.Desktop       window, input, renderer (SDL_GPU), HUD, sound, game loop
+src/Tunnerer.Protocol      what a network match's clients and relay share: messages and the relay's tick rule
+src/Tunnerer.Relay         the relay server for network matches
 tests/Tunnerer.Tests       xUnit tests for Core, plus source rules for the renderers
 tools/Tunnerer.ShaderCompiler  build step: HLSL to DXIL, SPIR-V and MSL for SDL_GPU
 ```

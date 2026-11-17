@@ -12,6 +12,8 @@ World.cs                     World: owns every subsystem, runs Advance; Simulati
 StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
 MatchOutcome.cs              Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
 NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
+WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds heat and
+                             charge totals (what machines in a network match compare)
 StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
 Config/
   Tweaks.cs                  Every gameplay and simulation constant (const / static readonly only)
@@ -65,6 +67,7 @@ Collision/
   Raycaster.cs               Bresenham lines; HasOpenLine (the one line-of-sight test)
 Input/
   Controller.cs              ControllerOutput
+  ControllerOutputCodec.cs   ControllerOutput as 28 bits (network, input logs); quantises the aim
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
 LevelGen/

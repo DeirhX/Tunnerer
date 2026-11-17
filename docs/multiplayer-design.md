@@ -1,0 +1,307 @@
+# Multiplayer for small groups: design
+
+Status: proposed, 2026-11-17. Nothing here is built. Target for the first tranche: four people in one office,
+each on their own machine, connecting out through the office firewall to a relay on the Starfish server.
+
+What is still undecided is listed in [Open questions](#11-open-questions).
+
+## 1. Summary
+
+- **Deterministic lockstep, paced by the server.** Every client runs the whole simulation. Only inputs travel.
+- **The server is a relay.** It owns the room, the clock and the input log. It does not run the game.
+- **Outbound WebSocket over TLS on port 443.** Clients never accept a connection and never talk to each other, so
+  the firewall sees ordinary HTTPS traffic to one host.
+- **Core barely changes.** `World.Advance(Func<int, ControllerOutput>)` is already the lockstep interface. The
+  work is a relay, a client session in Desktop, and removing the "player is tank 0, tank 1 is the bot"
+  assumption.
+
+## 2. Why lockstep
+
+| Fact about the code today | Consequence |
+|---|---|
+| Fixed 24 Hz step; same seed and inputs give the same world on every OS (`DeterminismTests`, `ReplayTests`, `SimulationFingerprintTests`, `DeterministicMath`) | Clients can each simulate and stay identical. The hard part of lockstep is already paid for and guarded by tests. |
+| A tick's whole input is one `ControllerOutput` per tank | About 4 bytes per player per tick on the wire. |
+| The world is a grid of up to 1500 x 750 cells with heat, meant to grow | Sending state (snapshots, deltas) is expensive and gets worse with map size. Sending inputs costs the same on any map. |
+| There is no save format or world serializer (DESIGN §11, gap 6) | Server-authoritative state sync and rollback both need one. Lockstep does not. |
+| `VisionMap` is output only | Each client tracks fog for its own tank; nothing about vision crosses the network. |
+
+Rejected for now:
+
+- **Server-authoritative simulation with state replication.** Needs serialization, delta compression and
+  interest management for the heat field. Far more work, and bandwidth grows with the map.
+- **Rollback (GGPO style).** Needs cheap snapshot and restore of the world every tick. The heat grid makes that
+  costly. Input delay over an office link is small enough not to need it.
+- **Peer to peer.** Blocked by the firewall, by requirement.
+
+What lockstep costs: every client holds the full world, so a modified client could see through fog. That is
+acceptable among friends and is not defended against.
+
+## 3. Topology
+
+```
+ office firewall (outbound 443 only)
+ +--------------------------------+
+ |  client A --+                  |
+ |  client B --+-- wss://  -------+-----> Starfish: Tunnerer.Relay
+ |  client C --+                  |         room "K7QD": roster, config, tick clock, input log
+ |  client D --+                  |
+ +--------------------------------+
+```
+
+One relay process hosts many rooms. A room holds up to 8 slots (`Tweaks.World.MaxPlayers`); the first tranche
+is tuned and tested for 4.
+
+## 4. The tick protocol
+
+The server is the clock. Clients never decide which tick an input belongs to.
+
+1. Each client sends one input for every tick it simulates: `Input { encoded }`. Tying sends to ticks received,
+   not to the local clock, keeps every client sending at exactly the server's rate.
+2. The server keeps a short FIFO per slot (cap 4). Every 1/24 s it closes a tick: it takes one input from each
+   slot's queue, or repeats that slot's last input if the queue is empty, and broadcasts
+   `Tick { n, inputs[slots] }` to everyone, including the sender.
+3. A client steps tick `n` only when it holds `Tick n`, calling `World.Advance(i => bundle.inputs[i])`. The local
+   player's own tank is driven by the bundle too, never by the keyboard directly.
+
+Properties:
+
+- **A slow client never stalls the others.** Its tank repeats its last input until its packets arrive.
+- **No key press is dropped.** Core detects key presses as edges between consecutive inputs
+  (`TankBuildController`, `Tank` upgrades), so the server queues inputs instead of keeping only the newest.
+- **A backlog drains.** A queue more than one deep means that player's inputs are played late, and at one input
+  per tick it would never shrink. While a slot has a backlog the server skips an input whose keys equal the
+  next one's (the match settings carry the mask that says which bits are keys), so only an intermediate aim is
+  lost. If a queue still overflows, the oldest input is dropped and counted.
+- **The tick rate is a match setting**, not a constant in the relay: changing the simulation rate needs no new
+  relay.
+- **Input delay** is uplink + up to one tick + downlink: roughly 1 to 2 ticks (40 to 85 ms) on an office link to
+  a nearby server. Entity interpolation already hides one step.
+- **Pacing on the client.** `GameFrameCoordinator` today steps on the wall clock. In a net session it steps when
+  a bundle is available, keeping a one-tick jitter buffer, and uses the existing "at most 4 steps to catch up"
+  path when bundles arrive in a burst. If the buffer keeps growing the client steps faster until it is level.
+
+### Input encoding
+
+`ControllerOutput` packs into 4 bytes:
+
+| Field | Bits |
+|---|---|
+| `MoveSpeed` x, y (each -1, 0, 1) | 4 |
+| `ShootPrimary`, `BuildPrimary`, `BuildSecondary`, `BuildTertiary` | 4 |
+| `Upgrade` (0 to 4) | 3 |
+| `AimDirection` as an angle, quantised to 16 bits | 16 |
+
+The aim is quantised **before** anyone simulates with it, and decoded through `DeterministicMath`, so every
+client, the sender included, feeds identical floats to Core. The codec lives beside `ControllerOutput` in Core
+with a round-trip test, and the local single-player path should go through the same quantisation so replays and
+net play agree.
+
+### Messages
+
+Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
+
+| Direction | Message | Purpose |
+|---|---|---|
+| C to S | `Hello { protocol, buildId, name, room, config }` | Join a room, or open it with `config` if it does not exist |
+| S to C | `Welcome { slot, config }` | Slot assignment and the room's match settings |
+| S to C | `Roster { names[] }` | Who is in each slot; sent on every change |
+| C to S | `Ready { worldHash }` | World built from the config; hash of tick 0 |
+| C to S | `StartRequest` | From the host (lowest slot): start with the players who are here |
+| S to C | `Start { humanMask }` | Everyone here is ready and agrees; the other slots are bots |
+| C to S | `Input { encoded }` | One per tick simulated |
+| S to C | `Tick { n, inputs[] }` | One per server tick |
+| C to S | `Hash { n, hash }` | Once a second |
+| S to C | `Desync { n }` | Hashes differed at tick `n` |
+| S to C | `Refusal { reason }` | Cannot join, or the match cannot start; the reason is for the player |
+| S to C | `Rejoined { humanMask }`, `Log { firstTick, slots, inputs[] }` | To a returning player: the match is on, and every tick so far in runs of 64 |
+| C to S | `SetPaused { paused }` | Hold the match for everyone, or let it run |
+| S to C | `PauseState { paused, bySlot }` | The match is held or running, and who asked |
+| both | `Ping { id }`, `Pong { id }` | Times the round trip, once a second |
+
+`Hello` also carries the relay's shared secret. Still to add: a lobby `Configure` and ending a match by command.
+
+Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
+
+## 5. Session lifecycle
+
+1. **Lobby.** The first player into a room opens it, and their seed, map size and tank count become the room's.
+   Everyone sees the roster, slot by slot in tank colours. The host is the player in the lowest slot.
+2. **Build.** On `Configure`, each client generates the level locally from the config and reports the hash of
+   the initial world. Level generation in `--fast` mode produces a different map from the same seed, so
+   `genMode` is part of the config, not a local flag.
+3. **Start.** A full room starts by itself; the host can start earlier with Enter. Either way the relay waits
+   until everyone present is ready with the same hash. Slots nobody took are played by bots, which every client
+   runs for itself from the match seed. A hash mismatch here means different builds or a determinism bug and
+   is reported before play begins.
+4. **Play.** As §4.
+5. **Pause.** Escape opens the local menu without stopping the simulation. P pauses for everyone: the relay
+   stops closing ticks, and its clock does not count the pause, until anyone presses P again.
+6. **End.** Core reports the outcome; clients show it. The host can restart with a new seed in the same room.
+
+### Disconnect and rejoin
+
+- A dropped client's slot keeps receiving neutral input (no move, no fire). The room continues.
+- **Rejoin by replay.** The server holds the whole input log: about 1.4 MB per hour for four players. A
+  player who dropped out starts the game again with the same room and name, receives the settings and the
+  log, rebuilds the world from the seed and replays it, a frame's budget of ticks at a time, without sound and
+  without sending input, until it reaches the live tick. (A name, not a token: among friends that is enough,
+  and it survives restarting the game.) A step on the default map measured about
+  10 ms on a development Mac (2026-11-17, mostly the heat solver), a quarter of a tick, so ten minutes of play
+  replays in about two and a half. That is tolerable for a short match and too slow for a long one.
+- **Late join** of a new player is the same mechanism plus a free slot, but a tank and base cannot appear
+  mid-match in Core today. Not in the first tranche.
+- A world snapshot (which the sector save in DESIGN §12.2 needs anyway) later replaces the fast-forward.
+
+## 6. Staying in sync
+
+- **Build identity.** `buildId` is the Core assembly's version, which the SDK stamps with the git commit. The
+  relay refuses to mix builds in a room. It does not see uncommitted changes; the hash each client reports
+  before the first tick catches a world that differs anyway.
+- **Periodic hash.** Each client sends a digest once a second; the server compares the ones for the same
+  tick. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus the bits of
+  the total thermal energy and of the total stored charge, which cover the heat field the state hash does not
+  read.
+- **Its cost does not yet follow activity.** Both the state hash and the energy total walk the whole grid once
+  a second. That is small on today's maps and will not be on much larger ones; summing per active tile, or
+  hashing the terrain in turns, is the fix when maps grow.
+- **On desync** the match stops and every client writes `artifacts/debug/desync_<room>_tick<n>_slot<k>.txt`:
+  the digests it reported around the tick, split into state, heat and charge, where its tanks stand, and the
+  match as a `MatchRecording` (settings, which slots were players, every tick's inputs). Comparing two
+  players' files shows when and in what the worlds went apart; `MatchRecording.Load(...).Replay()` rebuilds the
+  match tick by tick in a test. `TUNNERER_NET_FAULT_TICK=n` makes one client diverge on purpose, to exercise
+  this.
+
+Determinism risks to check before trusting it:
+
+- Parallel paths (`TerrainGrid.HeatSparse`, regrowth) are documented as deterministic; a four-instance soak test
+  with mixed `--fast` settings should confirm it.
+- Mixed CPU architectures (Apple Silicon and x64). .NET does not fuse multiply-add on its own and transcendentals
+  go through `DeterministicMath`, so this should hold, but it has only been tested per OS, not per architecture
+  in one match. The start hash and the periodic hash will show it immediately if not.
+
+## 7. The relay
+
+- **`src/Tunnerer.Protocol`**: the room's tick rule, message types and the binary codec. No dependencies
+  (`ArchitectureGuardTests`). Referenced by the relay, Desktop and the tests.
+- **`src/Tunnerer.Relay`**: a small ASP.NET Core (Kestrel) app with one WebSocket endpoint, `/play`, and
+  `/health`. Rooms are in memory; a room is deleted when empty for a few minutes. Each room has one timer loop.
+  It never references Core, so it never needs redeploying for a gameplay change, only for a protocol change.
+- **Deployment on Starfish** (inspected 2026-11-17). Starfish is an Azure VM in North Europe: Standard_D2s_v3
+  (2 vCPU, 8 GB, about 6.5 GB available), Ubuntu 24.04 x64, 7 GB of disk free. Caddy 2.11 owns ports 80 and
+  443, gets certificates automatically and reverse-proxies each site in `/etc/caddy/conf.d/*.caddy` to a
+  service on `127.0.0.1`. Services are systemd units, each with its own user, under `/srv/<name>/`. There is no
+  Docker and no .NET runtime. The relay follows the same pattern and has been running there since 2026-11-17:
+  - Binary: `/srv/tunnerer/relay/Tunnerer.Relay`, a self-contained single file.
+  - Service: `tunnerer-relay.service`, user `tunnerer-relay`, `Restart=always`, on `127.0.0.1:8130`.
+  - Site: `/etc/caddy/conf.d/crust.bokovka.cz.caddy`, `reverse_proxy 127.0.0.1:8130`. Caddy issued the
+    certificate itself and proxies WebSockets with no extra configuration.
+  - Clients connect to `wss://crust.bokovka.cz/play`; `https://crust.bokovka.cz/health` says it is up and how
+    many rooms are open.
+  - To update it (only needed when `Tunnerer.Protocol` or `Tunnerer.Relay` changes, with a higher
+    `MessageCodec.ProtocolVersion` if the bytes changed):
+
+    ```
+    dotnet publish src/Tunnerer.Relay -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -p:DebugType=none -o /tmp/relay-publish
+    scp /tmp/relay-publish/Tunnerer.Relay Starfish-azureuser:/tmp/
+    ssh Starfish-azureuser 'sudo install -o root -g tunnerer-relay -m 750 /tmp/Tunnerer.Relay /srv/tunnerer/relay/Tunnerer.Relay && sudo systemctl restart tunnerer-relay && rm /tmp/Tunnerer.Relay'
+    ```
+
+    A restart ends any match in progress.
+  - Secret: `/etc/tunnerer/relay.env` (root, readable by the service's group) sets `TUNNERER_RELAY_SECRET`,
+    and the unit loads it with `EnvironmentFile=`. Read it with
+    `ssh Starfish-azureuser 'sudo cat /etc/tunnerer/relay.env'`; to change it, edit the file and restart the
+    service. Players set the same value in `TUNNERER_RELAY_SECRET` or pass `--secret=`.
+- **Capacity.** The relay's work is one timer and a few small sends per room per tick, so the VM is ample. One
+  thing to settle first: `litestream` (the neride service's database replication) has averaged a full core
+  since it started, leaving one of the two cores busy. The relay will still run, but a 24 Hz timer on a
+  machine with a pegged core will show more jitter than it should.
+- **If the office proxy blocks WebSocket upgrades**, the fallback is the same messages over HTTP long-polling;
+  the transport is behind an interface on both ends to allow that.
+- **Access.** When the relay's `TUNNERER_RELAY_SECRET` is set, a client must send the same secret in `Hello`
+  (`--secret=` or the same environment variable on the client). Unset, the relay is open. Room names are not
+  security.
+- **Limits.** Message size and rate caps per connection, a room cap, an idle timeout.
+
+Since Core has no platform dependencies, the relay could later run the simulation headless to arbitrate hashes
+or serve snapshots. The first tranche does not need it.
+
+## 8. Changes on the client
+
+Desktop:
+
+- `Net/RelayConnection`: `ClientWebSocket` on a background task, handing decoded messages to the game loop
+  through a queue. No simulation state is touched off the main thread.
+- `Net/NetSession`: lobby state, the bundle buffer, input sending, hash reporting, rejoin fast-forward.
+- `GameSimulationStepper` takes an input source per slot instead of "slot 0 is the keyboard, the rest is the
+  bot": local keyboard (sent to the relay), remote (from the bundle), or bot.
+- A **local slot** replaces tank 0 wherever Desktop means "the player": camera, HUD, `TrackVision`,
+  `TrackRadar`, audio listener, tutorial, `MatchOutcomeFor`. About a dozen call sites.
+- Lobby screens with `HudTheme`: create or join, roster, host settings, ready state, connection quality.
+- Name tags and distinct colours for four tanks; a latency and "waiting for server" indicator.
+- Debug hotkeys that would change the simulation are off in a net session. Render-only toggles stay.
+
+Core:
+
+- The input codec (§4).
+- `ComputeWorldStateHash` and the cheap per-second variant (§6).
+- Spawn count from the match config. `Tweaks.LevelGen.MaxPlayers` is 2 today and `ToastGenerator.SelectSpawns`
+  needs to place four bases with sensible spacing; on the default map the spawn-distance rule already struggles
+  to fit two, so four players need a larger default map or a smaller distance.
+- Match rules for more than two tanks (§9).
+- Bots stay as they are: `BotTankAI` is seeded and runs identically on every client, so empty slots can be bots
+  with no network traffic.
+
+## 9. Game mode
+
+The transport does not care, but Core's match rules do. `IsMatchOver` ends the match when **any** tank is out of
+lives, and each tank has its own base and its own core-tap goal.
+
+Decided for the first tranche: **free-for-all race**. Four tanks, four bases, first base to tap the core
+wins, a tank out of lives is out. It needs only a spawn count and a small rewrite of `IsMatchOver` and
+`MatchOutcomeFor`, and it tests the network under real play.
+
+Co-op (two or four tanks sharing a base, radiator and network) fits DESIGN.md better, since the game is moving
+away from the duel, but it needs a notion of *side* separate from *tank* across bases, links, coverage, vision
+and the goal. It should be the second tranche, designed with DESIGN §14's open question on co-op against
+competitive.
+
+## 10. Build order
+
+Each step is testable without the next.
+
+1. **Core groundwork** (done). Input codec (`ControllerOutputCodec`), state hash in Core (`WorldStateHash`),
+   per-slot input sources in the stepper, local slot in Desktop, bots that pick their enemy the same way on
+   every machine (`BotTankAI.PickEnemy`). The recorded fingerprints are unchanged: the local player's aim is
+   quantised in Desktop's stepper, which the fingerprint tests do not go through.
+2. **Lockstep in process** (done). `Tunnerer.Protocol` holds what client and relay share: `LockstepRoom` (the
+   relay's tick rule, input log and hash comparison), `TickBundle`, `BundleBuffer` (the client's buffer and
+   pacing rule) and `ILockstepLink` (the connection as the game sees it). `NetSession` in Desktop steps a world
+   from bundles. `NetSessionTests` runs four worlds through an in-memory relay with uneven delays, a client
+   that stalls and bursts, and one that drops out, then checks the worlds are identical and that the relay's
+   log rebuilds the same world. It needs no socket. Not yet wired into the game loop: that comes with the
+   connection in step 3.
+3. **Relay and transport** (done and deployed). The message codec, `Tunnerer.Relay` (`MatchRoom`,
+   `RelayHub`), `RelayConnection` and the game loop's network path (`Game.Net.cs`). Started from the command
+   line with `--relay`, `--room`, `--players` and `--name`; there is no lobby screen yet. Two game clients on
+   one machine reported the same world hashes through a local relay and through the relay on Starfish.
+   Playing from the office network is still to do.
+4. **Four players** (done; the relay on Starfish runs protocol 2 since 2026-11-17). The level generator places any number of bases
+   (`ToastGenerator.SelectSpawns`); `MatchReferee` decides a match of any size, and in a network match the
+   first base to tap the core wins (`World.CoreTapWins`); a lobby plate, host start, bots in open slots, name
+   tags over tanks in sight, and a warning when a machine falls behind. Joining is still by command line
+   (`--net=ROOM`); a menu for it is not built. Protocol version 2.
+5. **Robustness** (done; the relay on Starfish runs protocol 3 with a secret since 2026-11-17). The sync digest with heat and
+   charge, the desync report and `MatchRecording`, rejoin by name with catch-up, pause for everyone, the
+   round-trip time on screen, and the relay's shared secret. Protocol version 3.
+6. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
+
+## 11. Open questions
+
+- **Does the office network pass WebSockets to Starfish?** One `wss://` echo test from an office machine
+  answers it. Latency from the office to North Europe should be measured at the same time.
+- **Are all four machines the same OS and architecture?** It decides how early the mixed-architecture check in
+  §6 matters.
+- **Map size for four.** The default is 480 by 300, chosen to be cheap: every player's machine must simulate
+  the map in real time, and one that cannot falls steadily behind (it is told so on screen). The timings in
+  this document come from a fast development Mac; the default needs checking on the slowest machine that
+  will play.

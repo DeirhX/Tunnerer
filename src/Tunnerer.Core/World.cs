@@ -440,32 +440,27 @@ public class World
     public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
         NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
-    /// <summary>A match is over once any tank has died with no lives left.</summary>
-    public bool IsMatchOver
-    {
-        get
-        {
-            foreach (var tank in _tankList.Tanks)
-                if (IsOutOfLives(tank))
-                    return true;
-            return false;
-        }
-    }
+    /// <summary>
+    /// Whether the first base to tap the core wins the match (a race, DESIGN.md §4.8). Off by default: the core is
+    /// then a goal that does not end the match. Set before the first step.
+    /// </summary>
+    public bool CoreTapWins { get; set; }
+
+    /// <summary>The base that tapped the core first, once one has.</summary>
+    private TankBase? _firstToTapCore;
+
+    /// <summary>
+    /// The tank that has won, and how: the first to tap the core when <see cref="CoreTapWins"/>, or the only tank
+    /// with lives left. Null while the match is undecided.
+    /// </summary>
+    public (Tank Tank, MatchWinReason Reason)? MatchWinner =>
+        MatchReferee.Winner(_tankList.Tanks, CoreTapWins ? _firstToTapCore : null);
+
+    /// <summary>A match is over once a tank has won, or no tank has a life left.</summary>
+    public bool IsMatchOver => MatchWinner != null || MatchReferee.NobodyIsLeft(_tankList.Tanks);
 
     /// <summary>How the match stands for <paramref name="player"/>.</summary>
-    public MatchOutcome MatchOutcomeFor(Tank player)
-    {
-        if (IsOutOfLives(player))
-            return MatchOutcome.Defeat;
-        if (player.IsDead)
-            return MatchOutcome.InProgress;
-        foreach (var tank in _tankList.Tanks)
-            if (tank != player && IsOutOfLives(tank))
-                return MatchOutcome.Victory;
-        return MatchOutcome.InProgress;
-    }
-
-    private static bool IsOutOfLives(Tank tank) => tank.IsDead && tank.LivesLeft <= 0;
+    public MatchOutcome MatchOutcomeFor(Tank player) => MatchReferee.OutcomeFor(player, MatchWinner?.Tank);
 
     /// <summary>
     /// The hot core, the sector goal (DESIGN.md §4.8): the large hot rock pocket at the map centre, or the nearest
@@ -494,7 +489,11 @@ public class World
             tankBase.CoreTapPerTick = tap;
             tankBase.CoreHoldSeconds = NextCoreHold(tankBase.CoreHoldSeconds, tap, dt);
             if (tankBase.CoreHoldSeconds >= Tweaks.Goal.GoalHoldSeconds)
+            {
                 tankBase.HasTappedCore = true;
+                // Bases are visited in slot order, so two that finish on the same tick always resolve the same way.
+                _firstToTapCore ??= tankBase;
+            }
         }
     }
 

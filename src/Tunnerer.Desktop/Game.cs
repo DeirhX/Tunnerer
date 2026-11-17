@@ -35,8 +35,14 @@ public partial class Game : IDisposable
     private readonly World _world;
     private readonly uint[] _worldPixels;
     private readonly uint[] _compositePixels;
-    private readonly KeyboardController _p1Controller;
-    private readonly BotTankAI _p2AI;
+    private readonly KeyboardController _localController;
+    /// <summary>
+    /// Which tank this machine's player drives: the camera, HUD, fog of war, radar and sound all follow it. Always
+    /// the first tank today; a network match will hand each machine its own slot.
+    /// </summary>
+    private readonly int _localSlot;
+    private Core.Entities.Tank? LocalTank =>
+        _localSlot < _world.TankList.Count ? _world.TankList.Tanks[_localSlot] : null;
     private readonly ScriptedInputConfig _scriptedInput;
     private readonly InputRecorder _inputRecorder = new();
     private readonly GameSimulationStepper _simulationStepper;
@@ -74,8 +80,11 @@ public partial class Game : IDisposable
         PerfCaptureOptions? perfCapture = null,
         bool enableAiTanks = true,
         bool terrainTestMode = false,
-        bool fogOfWar = true)
+        bool fogOfWar = true,
+        Net.RelayConnection? relay = null)
     {
+        _relay = relay;
+        _localSlot = relay?.Slot ?? 0;
         _terrainTestMode = terrainTestMode;
         _automatedRun = IsAutomatedRun(perfCapture);
         // Automated runs display exactly one frame per simulation step so their screenshots and timings are
@@ -83,7 +92,7 @@ public partial class Game : IDisposable
         _interpolateFrames = !_automatedRun ||
             string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
         _visualClock = _automatedRun ? VisualClock.StepLocked(Tweaks.World.AdvanceStep) : VisualClock.RealTime();
-        Seed = ResolveSeed(IsInteractiveSession);
+        Seed = relay?.Config.Seed ?? ResolveSeed(IsInteractiveSession);
         var windowSize = DesktopScreenTweaks.WindowSize;
         _perfSession = PerfCaptureSession.Create(perfCapture);
 
@@ -100,17 +109,18 @@ public partial class Game : IDisposable
         ReplayArguments = genMode == LevelGenMode.Optimized
             ? $"--fast --seed={Seed.ToString(CultureInfo.InvariantCulture)}"
             : $"--seed={Seed.ToString(CultureInfo.InvariantCulture)}";
-        var built = WorldFactory.Build(new WorldLaunchOptions(terrainTestMode, terrainSizeOverride, genMode, Seed));
+        var built = WorldFactory.Build(new WorldLaunchOptions(
+            terrainTestMode, terrainSizeOverride, genMode, Seed,
+            Players: relay?.Config.Slots ?? Tweaks.LevelGen.DefaultPlayers, CoreTapWins: relay != null));
         _world = built.World;
         _terrainSize = built.TerrainSize;
-        _p2AI = new BotTankAI(seed: built.BotSeed);
-        _entityLayer.CaptureStep(_world);
-        // The player is the first tank; the terrain test has none, and so no fog.
-        if (fogOfWar && _world.TankList.Count > 0)
+        _entityLayer.CaptureStep(_world, _localSlot);
+        // The terrain test has no tanks, and so no fog.
+        if (fogOfWar && LocalTank is { } localTank)
         {
-            _vision = _world.TrackVision(_world.TankList.Tanks[0]);
+            _vision = _world.TrackVision(localTank);
             _fogLayer = new FogLayer(_terrainSize);
-            _radar = _world.TrackRadar(_world.TankList.Tanks[0]);
+            _radar = _world.TrackRadar(localTank);
         }
         _terrainView = _vision != null ? TerrainView.Fogged(_world.Terrain, _vision) : TerrainView.Live(_world.Terrain);
 
@@ -122,23 +132,37 @@ public partial class Game : IDisposable
         else
             _world.Terrain.DrawAllToSurface(_worldPixels);
 
-        _p1Controller = new KeyboardController(new KeyBindings(
+        _localController = new KeyboardController(new KeyBindings(
             Left: Scancode.A, Right: Scancode.D,
             Up: Scancode.W, Down: Scancode.S,
             Shoot: Scancode.Space));
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         // The terrain test has no match: no player input to script or record, and no enemy tank.
-        bool aiTanks = !terrainTestMode && StartMatchInput(enableAiTanks);
+        // No bots in a network match yet: a tank without a player idles.
+        bool aiTanks = !terrainTestMode && StartMatchInput(enableAiTanks && relay == null);
+        var bots = CreateBots(built, aiTanks);
         _simulationStepper = new GameSimulationStepper(
             world: _world,
-            p1Controller: _p1Controller,
-            p2AI: _p2AI,
-            enableAiTanks: aiTanks,
+            localSlot: _localSlot,
+            localController: _localController,
+            bots: bots,
             scriptedInput: _scriptedInput,
             inputRecorder: _inputRecorder,
             executeCommand: ExecuteGameCommand,
             requestScreenshot: label => _renderBackend.RequestScreenshot(label));
+        if (relay != null)
+            StartNetSession(relay);
         Console.WriteLine("[Render] TerrainVisual=NativeContinuous");
+    }
+
+    /// <summary>One AI per tank the local player does not drive, or none at all when AI tanks are off.</summary>
+    private BotTankAI?[] CreateBots(BuiltWorld built, bool aiTanks)
+    {
+        var bots = new BotTankAI?[_world.TankList.Count];
+        for (int slot = 0; aiTanks && slot < bots.Length; slot++)
+            if (slot != _localSlot)
+                bots[slot] = new BotTankAI(seed: built.BotSeedFor(slot));
+        return bots;
     }
 
     public void Run()
@@ -162,12 +186,12 @@ public partial class Game : IDisposable
                 isRunning: () => _isRunning,
                 requestStop: () => _isRunning = false,
                 pollEvents: () => _renderer.PollEvents(HandleEvent),
-                isPaused: () => _paused,
+                isPaused: () => SimulationPaused,
                 onPausedFrame: AdvancePausedFrame,
                 onBeforeSimulationBatch: () =>
                 {
                     _terrainAuxUploader.ClearDirtyCells();
-                    _audio.SetPaused(_paused);
+                    _audio.SetPaused(SimulationPaused);
                     updateView();
                 },
                 captureFrameInput: CaptureFrameInput,
@@ -224,7 +248,7 @@ public partial class Game : IDisposable
     {
         var viewSize = EnsureViewSize();
         int scale = _renderViewState.CellPixels;
-        PositionF? player = tanks.Count > 0 ? new PositionF(tanks[0].Position.X, tanks[0].Position.Y) : null;
+        PositionF? player = LocalTank is { } tank ? new PositionF(tank.Position.X, tank.Position.Y) : null;
         _renderViewState.UpdateCamera(player, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
@@ -237,10 +261,10 @@ public partial class Game : IDisposable
         // Four points a tick, in device pixels: scaled by density so the pan keeps its speed on a Retina display.
         int panSpeed = Math.Max(1, (int)MathF.Round(4f * _renderViewState.PixelDensity));
         int dx = 0, dy = 0;
-        if (_p1Controller.IsLeftHeld) dx -= panSpeed;
-        if (_p1Controller.IsRightHeld) dx += panSpeed;
-        if (_p1Controller.IsUpHeld) dy -= panSpeed;
-        if (_p1Controller.IsDownHeld) dy += panSpeed;
+        if (_localController.IsLeftHeld) dx -= panSpeed;
+        if (_localController.IsRightHeld) dx += panSpeed;
+        if (_localController.IsUpHeld) dy -= panSpeed;
+        if (_localController.IsDownHeld) dy += panSpeed;
         _renderViewState.PanCamera(dx, dy, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
@@ -248,19 +272,32 @@ public partial class Game : IDisposable
     {
         var aimDir = ComputeAimDirection(tanks, frameInput);
         bool mouseShoot = IsMouseInViewport(frameInput, out _, out _) && frameInput.IsLeftMouseDown;
+        if (_relay != null && _netSession != null)
+        {
+            AdvanceNetSteps(_relay, _netSession, aimDir, mouseShoot);
+            return;
+        }
+
         _simulationStepper.AdvanceOneStep(
             simFrame: _simFrameCounter,
-            tanks: tanks,
             aimDirection: aimDir,
             mouseShoot: mouseShoot);
+        AfterSimulationStep();
+    }
+
+    /// <summary>What follows every simulated step: the entity snapshot, sound, and the terrain the step changed.</summary>
+    /// <param name="silent">No sound for this step: it is a tick from the past, replayed to catch up.</param>
+    private void AfterSimulationStep(bool silent = false)
+    {
         _simFrameCounter++;
         _steppedSinceRender = true;
-        _entityLayer.CaptureStep(_world);
+        _entityLayer.CaptureStep(_world, _localSlot);
 
         // With fog the renderer follows what the player knows of the terrain, not the terrain: a change out of
         // sight is drawn when the player next sees the cell.
         var changedCells = _vision?.KnownChanges ?? _world.Terrain.GetChangeList();
-        _audio.AfterStep(_world);
+        if (!silent)
+            _audio.AfterStep(_world, _localSlot);
         _terrainAuxUploader.ObserveTerrainChanges(_terrainView.Pixels, changedCells, VisualTime);
 
         DrawProfile.Measure(ref _drawProfile.TerrainDraw, DrawTerrainChangesToSurface);

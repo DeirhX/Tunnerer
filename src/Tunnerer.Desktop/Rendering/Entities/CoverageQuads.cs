@@ -16,12 +16,12 @@ public sealed class CoverageQuads
     private TankCoverage _playerCoverage;
     private bool _playerOffNetwork;
 
-    public void Capture(World world)
+    public void Capture(World world, int localSlot)
     {
         _coverageNodes.Clear();
         _playerCoverage = TankCoverage.None;
         _playerOffNetwork = false;
-        if (world.TankList.Count == 0 || world.TankList.Tanks[0] is not { Base: { } home } player)
+        if (localSlot >= world.TankList.Count || world.TankList.Tanks[localSlot] is not { Base: { } home } player)
             return;
         world.CollectCoverageNodes(home, _coverageNodes);
         _playerCoverage = player.IsDead ? TankCoverage.None : player.Coverage;
