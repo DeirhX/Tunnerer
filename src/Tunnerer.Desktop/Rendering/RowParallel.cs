@@ -18,7 +18,7 @@ internal static class RowParallel
         int rows = toRowExclusive - fromRow;
         if (rows <= 0) return;
         long cells = (long)rows * Math.Max(1, cellsPerRow);
-        if (rows == 1 || cells < MinParallelCells)
+        if (OperatingSystem.IsBrowser() || rows == 1 || cells < MinParallelCells)
         {
             body(fromRow, toRowExclusive);
             return;

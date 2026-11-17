@@ -42,22 +42,17 @@ public static class MachinePresentations
     public static readonly MachinePresentation Relay = new(
         MachineType.Relay, "relay", "RELAY", Scancode.E, "E", BuildSlot: 0, SoundEffect.BuildRelay,
         "plant relay here - it will link (green line)",
-        new MachineSprite(EntityShape.KindRelay, HalfLength: 3.6f, HalfWidth: 3.6f,
-            Gauge: static (in MachineRenderState m) => m.PumpFraction,
-            Reach: new MachineReach(Tweaks.Machine.RelayCoolingRadius, Tweaks.Colors.Relay, Circle: false)));
+        MachineSprites.Relay);
 
     public static readonly MachinePresentation Harvester = new(
         MachineType.Harvester, "harvester", "HARVEST", Scancode.R, "R", BuildSlot: 1, SoundEffect.BuildHarvester,
         "plant harvester here - in your network it mines nearby ore into your base store",
-        new MachineSprite(EntityShape.KindHarvester, HalfLength: 3.4f, HalfWidth: 3.0f, FacesHeading: true,
-            SenseRadius: Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f, ShowsBattery: true));
+        MachineSprites.Harvester);
 
     public static readonly MachinePresentation Pylon = new(
         MachineType.Pylon, "pylon", "PYLON", Scancode.T, "T", BuildSlot: 2, SoundEffect.BuildPylon,
         "plant pylon here - it charges harvesters it can see",
-        new MachineSprite(EntityShape.KindPylon, HalfLength: 3.6f, HalfWidth: 3.6f,
-            Gauge: static (in MachineRenderState m) => m.IsGivingCharge ? 1f : 0f,
-            Reach: new MachineReach(Tweaks.Machine.PylonRange, Tweaks.Colors.Pylon, Circle: true)));
+        MachineSprites.Pylon);
 
     /// <summary>Every machine's presentation, indexed by <see cref="MachineType"/>.</summary>
     public static readonly IReadOnlyList<MachinePresentation> All = BuildTable(Relay, Harvester, Pylon);

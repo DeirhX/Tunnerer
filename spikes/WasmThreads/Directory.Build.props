@@ -1,0 +1,8 @@
+<Project>
+  <!-- Throwaway spike: keep the repository's analyzer-as-error settings out of it. -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

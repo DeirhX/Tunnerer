@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <!-- Build twice: -p:WasmEnableThreads=false (one thread) and -p:WasmEnableThreads=true (Web Workers). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <RunAOTCompilation>true</RunAOTCompilation>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Pre-start enough Web Workers for Parallel.For with up to 8 workers plus the runtime's own threads. -->
+    <_WasmPThreadPoolInitialSize Condition="'$(WasmEnableThreads)' == 'true'">16</_WasmPThreadPoolInitialSize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <StaticWebAssetFingerprintPattern Include="JS" Pattern="*.js" Expression="#[.{fingerprint}]!" />
+    <ProjectReference Include="..\..\..\src\Tunnerer.Core\Tunnerer.Core.csproj" />
+    <Compile Include="..\Bench\*.cs" />
+  </ItemGroup>
+</Project>

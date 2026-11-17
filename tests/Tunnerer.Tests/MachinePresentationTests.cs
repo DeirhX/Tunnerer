@@ -64,6 +64,7 @@ public class MachinePresentationTests
         foreach (var p in MachinePresentations.All)
         {
             var sprite = p.Sprite;
+            Assert.Same(MachineSprites.Get(p.Type), sprite);
             Assert.True(sprite is not null, $"{p.Type} needs a MachineSprite.");
             Assert.Contains(sprite.Kind, kinds);
             Assert.True(sprite.HalfLength > 0f && sprite.HalfWidth > 0f, $"{p.Type}'s sprite needs a size.");

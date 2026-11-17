@@ -1,0 +1,10 @@
+# Netlify / Cloudflare Pages. Other hosts should send equivalent headers.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+/sw.js
+  Cache-Control: no-cache
+/assets-manifest.js
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache

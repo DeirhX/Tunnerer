@@ -1,0 +1,44 @@
+name: browser
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  browser:
+    # Like the desktop smoke run, exercise the full material shaders through Metal.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: dotnet workload install wasm-tools
+      - name: Publish the installable game
+        run: python3 tools/browser/publish.py
+      - name: Check browser host formatting
+        run: dotnet format src/Tunnerer.Browser/Tunnerer.Browser.csproj --verify-no-changes --no-restore
+      - name: Browser smoke tests
+        # Hosted macOS GPUs can be unavailable; keep build/format blocking and retain diagnostics.
+        # This follows the desktop graphics smoke run in dotnet-tests.yml.
+        continue-on-error: true
+        run: |
+          npm install --prefix artifacts/browser-tests playwright@1.65.1
+          artifacts/browser-tests/node_modules/.bin/playwright install --with-deps chromium
+          python3 tools/browser/serve.py > artifacts/browser-server.log 2>&1 &
+          PLAYWRIGHT_MODULE="$PWD/artifacts/browser-tests/node_modules/playwright/index.mjs" node tools/browser/smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tunnerer-browser
+          path: |
+            artifacts/browser/tunnerer-browser.zip
+            artifacts/browser-tests/*.png
+            artifacts/browser-server.log
