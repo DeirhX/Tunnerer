@@ -172,14 +172,26 @@ public class RelayOverSocketsTests
             new Hello(MessageCodec.ProtocolVersion, NetLaunch.BuildId, "Eve", "flood", Config(1))));
         Assert.IsType<Welcome>(await ReadRawAsync(socket));
 
+        // The relay may end the connection while the flood is still being sent or its answers read; either way
+        // the socket fails or closes, and that is the cut-off.
         byte[] ping = MessageCodec.Encode(new Ping(1));
-        for (int i = 0; i < RelayHub.MaxMessagesPerSecond + 500; i++)
-            await SendRawAsync(socket, ping);
-
         int pongs = 0;
-        while (await ReadRawAsync(socket) is { } message)
-            if (message is Pong)
-                pongs++;
+        bool cutOff = false;
+        try
+        {
+            for (int i = 0; i < RelayHub.MaxMessagesPerSecond + 500; i++)
+                await SendRawAsync(socket, ping);
+            while (await ReadRawAsync(socket) is { } message)
+                if (message is Pong)
+                    pongs++;
+            cutOff = true;
+        }
+        catch (WebSocketException)
+        {
+            cutOff = true;
+        }
+
+        Assert.True(cutOff);
         Assert.True(pongs <= RelayHub.MaxMessagesPerSecond);
     }
 
