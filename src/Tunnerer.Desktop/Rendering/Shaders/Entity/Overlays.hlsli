@@ -130,10 +130,11 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 
     if (echo > 2.5)
     {
-        // Heat: a red dot of one size whose opacity is how hot the cell read (data.r): barely there for warm
-        // ground, solid for hot rock. The flare when it is found scales with the heat too, so a faint mark stays faint.
+        // Heat: a red dot of one size whose opacity is how hot the cell read (data.r). The curve is squared so the
+        // dot warns of dangerous heat: warm ground is a trace, ground at half scale a quarter, hot rock nearly solid.
+        // The flare when it is found scales the same way, so a faint mark stays faint.
         float heat = rayStrength;
-        float opacity = lerp(0.10, 1.0, heat) * fade;
+        float opacity = lerp(0.03, 0.90, heat * heat) * fade;
         float dot = FillAlpha(r - 0.36, aa);
         float halo = exp(-r * r * 2.2) * (0.15 + 0.5 * flash);
         float3 red = float3(1.00, 0.14, 0.08);
