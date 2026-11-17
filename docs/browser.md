@@ -52,8 +52,9 @@ holds, and the single-thread runtime in its worker everywhere else:
   answering the page: a call from the page never comes back, after anything from four to a few hundred steps, in
   about a third of the matches tried. A whole match played inside one call (`BrowserApi.Fingerprint`) never
   stopped, and a call that does nothing stopped once, so the fault is on the way between the page and .NET's own
-  thread, not in the solver. Firefox has not been tried. `?threads=4` in the address uses the threaded runtime with four heat workers in any
-  isolated browser, and `?threads=0` keeps Chromium to one thread, for comparing the two on one device.
+  thread, not in the solver. Firefox has not been tried. `?threads=4` in the address uses the threaded runtime
+  with four heat workers in any isolated browser, and `?threads=0` keeps Chromium to one thread, for comparing the
+  two on one device.
 
 If the threaded runtime fails to load, the match starts on one thread instead.
 
@@ -104,8 +105,9 @@ There is no game server or .NET runtime to install on the host. All URLs are rel
 prefix such as `/Tunnerer/` works as well as at the domain root. Keep the directory structure intact.
 
 Serve `.wasm` as `application/wasm`, JavaScript as `text/javascript`, and `.webmanifest` as
-`application/manifest+json`. Serve `index.html`, `sw.js` and `assets-manifest.js` without long-lived HTTP caching.
-An example `_headers` file is included for hosts that support it. Deploy each complete publish together.
+`application/manifest+json`. Serve `index.html`, `sw.js`, `assets-manifest.js` and `threads.js` without long-lived
+HTTP caching. An example `_headers` file is included for hosts that support it. Deploy each complete publish
+together.
 The default publish needs no COOP/COEP headers or `SharedArrayBuffer`: the normal single-threaded .NET runtime
 lives inside a module Web Worker. It uses the same serial heat solver as desktop with one thermal worker.
 
@@ -115,10 +117,10 @@ cannot open it in a frame unless they are isolated too; the game loads nothing f
 its threaded WebAssembly runtime experimental.
 
 `publish.py` hashes the complete deployed app and emits `assets-manifest.js`. The service worker caches every
-required asset (of two runtimes, the one this browser uses) before becoming active, isolates caches by deployment path, and keeps an open game's existing
-runtime active until all its tabs/windows close. Failed update downloads leave the previous working version
-active. The manifest must be regenerated after changing a published file; rerun the publisher rather than
-editing files in `wwwroot`.
+required asset (of two runtimes, the one this browser uses) before becoming active, isolates caches by deployment
+path, and keeps an open game's existing runtime active until all its tabs/windows close. Failed update downloads
+leave the previous working version active. The manifest must be regenerated after changing a published file; rerun
+the publisher rather than editing files in `wwwroot`.
 
 The `browser` GitHub Actions workflow publishes the AOT build on Windows, macOS and Linux, once as the default
 and once with `--threads`, so a change that one OS's toolchain cannot build fails there. On macOS it also runs the
@@ -163,8 +165,8 @@ world is drawn at. The same numbers are in `window.tunnererPerf`.
   frame has arrived, and a paused game asks for none.
 - The simulation step is the largest cost, and most of it is the heat solver. Measured 2026-11-17 on an Apple M5
   Max in Chromium, seed 1234 with the player idle, at the game's 24 steps a second: 9.4 ms a step on one thread
-  and 4.1 to 4.7 ms in the threaded runtime with eight heat workers. Stepping without a pause between steps takes 6.2 ms
-  and 1.1 ms: about 3 ms of every paced step is the cores waking up, which threads do not shorten.
+  and 4.1 to 4.7 ms in the threaded runtime with eight heat workers. Stepping without a pause between steps takes
+  6.2 ms and 1.1 ms: about 3 ms of every paced step is the cores waking up, which threads do not shorten.
 - Where the graphics hardware cannot keep 45 frames a second, the world is drawn at a lower resolution and
   stretched (`pace.js`: 80%, 65%, 50%); the HUD stays sharp. Steps that do not make frames come faster are undone.
 Set `BROWSER_URL` to test a deployed path; set `BROWSER_CHANNEL=chrome` to use an installed Google Chrome.

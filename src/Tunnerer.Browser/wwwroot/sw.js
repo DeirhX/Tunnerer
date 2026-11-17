@@ -94,7 +94,9 @@ self.addEventListener("fetch", (event) => {
                 const cache = await caches.open(cacheName);
                 const cached = await cache.match(request);
                 if (cached) return cached;
-                const response = await fetch(request);
+                // As at install: never a copy the browser kept from an older publish, whose runtime files do
+                // not go with this one's.
+                const response = await fetch(request, { cache: "reload" });
                 if (response.ok) await cache.put(request, response.clone());
                 return response;
             })(),
