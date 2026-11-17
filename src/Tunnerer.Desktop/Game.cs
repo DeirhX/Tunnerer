@@ -301,6 +301,9 @@ public partial class Game : IDisposable
         var changedCells = _vision?.KnownChanges ?? _world.Terrain.GetChangeList();
         if (!silent)
             _audio.AfterStep(_world, _localSlot);
+        var tanks = _world.TankList.Tanks;
+        if (_localSlot < tanks.Count)
+            _hud.AfterStep(_world, tanks[_localSlot]);
         _terrainAuxUploader.ObserveTerrainChanges(_terrainView.Pixels, changedCells, VisualTime);
 
         DrawProfile.Measure(ref _drawProfile.TerrainDraw, DrawTerrainChangesToSurface);

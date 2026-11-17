@@ -217,6 +217,34 @@ public class HarvesterHeatTests
 
         Assert.Equal(oreBefore, OreAround(s, Tweaks.Machine.HarvestRange));
         Assert.Equal(charge, harvester.Charge);
+        Assert.Equal(HarvesterState.StoreFull, MachineBehaviors.HarvesterStateOf(harvester));
+        var status = s.World.GetNetworkStatus(s.Base);
+        Assert.Equal((1, 0), (status.HarvestersStoreFull, status.HarvestersWorking));
+
+        s.Base.Store.Ore -= 5; // the player spends some
+        Advance(s, HarvestTicks(Tweaks.Ore.HarvesterPlainWork + 1));
+        Assert.Equal(HarvesterState.Working, MachineBehaviors.HarvesterStateOf(harvester));
+        Assert.True(OreAround(s, Tweaks.Machine.HarvestRange) < oreBefore, "it goes back to work");
+    }
+
+    [Fact]
+    public void Harvester_WithAFullStore_StillNoticesItsOreIsGone()
+    {
+        var (s, harvester) = Networked();
+        Advance(s, HarvestTicks(2));
+        Assert.Equal(HarvesterState.Working, MachineBehaviors.HarvesterStateOf(harvester));
+
+        s.Base.Store.Ore = s.Base.Store.Capacity;
+        int range = Tweaks.Machine.HarvestRange; // the tank digs the rest out
+        for (int dy = -range; dy <= range; dy++)
+            for (int dx = -range; dx <= range; dx++)
+                if (Pixel.IsOre(s.World.Terrain.GetPixelRaw(s.RelayPos + new Offset(dx, dy))))
+                    s.World.Terrain.SetPixel(s.RelayPos + new Offset(dx, dy), TerrainPixel.Blank);
+        Advance(s, HarvestTicks(2));
+
+        Assert.Equal(HarvesterState.NoOre, MachineBehaviors.HarvesterStateOf(harvester));
+        var status = s.World.GetNetworkStatus(s.Base);
+        Assert.Equal((1, 0, 0), (status.HarvestersNoOre, status.HarvestersStoreFull, status.HarvestersWorking));
     }
 
     /// <summary>

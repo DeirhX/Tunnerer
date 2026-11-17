@@ -55,6 +55,7 @@ Entities/
   DamageCause.cs
   Machines/Machine.cs        MachineType, MachineState, Machine
   Machines/MachineBehavior.cs   MachineBehavior (action, interval, cost, BuildKey, traits), MachineBehaviors table
+  Machines/HarvesterPathing.cs  Where a harvester can stand; the flood that finds the ore nearest by path
   Machines/MachineList.cs    Machine collection; wrecks dead machines (leave the network, charge to heat, scorch)
   Machines/MachinePlacementPreview.cs   Result of World.PreviewPlacement
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
@@ -86,7 +87,7 @@ Rendering/
   RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
 Resources/Resources.cs       Reactor, ReactorState, OreStore (a tank's hold, a base's store: ore is the only currency)
-Resources/OreDrop.cs         Puts ore back into the ground, nearest free cells first (a dead tank's hold)
+Resources/OreDrop.cs         Puts ore back into the ground, nearest free cells first, not under tanks or machines (a dead tank's hold)
 Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, DirectionF, Color, Rect, BoundingBox
 ```
 
@@ -143,11 +144,12 @@ Desktop learns about one-off happenings from `World.StepEvents`, never by compar
 `Advance` clears the list first, then the code where something happens records a small `StepEvent` (kind, position,
 the tank or side's colour, and a machine type, impact target, cell count or torch flag where they apply): shots
 fired, bullet impacts, explosions, spent shrapnel, tank hits, deaths and respawns, moving, digging, pickups,
-docking and leaving the base, base service, and machines built, planted, refused, damaged and wrecked. The list
+docking and leaving the base, base service, ore unloaded by a tank or banked by a harvester, and machines built,
+planted, refused, damaged and wrecked. The list
 holds the last step's events until the next step begins, so a caller that runs several steps per frame reads it
 after each one. It is output only: nothing in the simulation reads it, so recording cannot change a result
 (`SimulationFingerprintTests`), and the `StepEventLog` reuses its storage, so recording does not allocate in steady
-state. Tanks record through `SimulationContext.Events`, projectiles through the log `ProjectileList` is built with,
+state. Tanks record through `SimulationContext.Events`, machines through `MachineContext.Events`, projectiles through the log `ProjectileList` is built with,
 and `World` itself records plantings and docking. A new kind of happening that presentation needs is a new
 `StepEventKind`, recorded where it happens (`StepEventTests` covers each kind).
 

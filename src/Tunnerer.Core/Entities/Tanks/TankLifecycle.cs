@@ -79,7 +79,7 @@ internal sealed class TankLifecycle
         SpawnProtectionTicks--;
     }
 
-    public void Die(ProjectileList? projectiles, ITerrainPixelAccessor? terrain)
+    public void Die(ProjectileList? projectiles, ITerrainPixelAccessor? terrain, Func<Position, bool>? isOccupied = null)
     {
         if (_respawning)
             return;
@@ -87,7 +87,7 @@ internal sealed class TankLifecycle
         var reactor = _tank.Reactor;
         reactor.Exhaust(new ReactorState(reactor.Heat, reactor.Health));
         _build.DiscardCarried();
-        DropOre(terrain);
+        DropOre(terrain, isOccupied);
         _tank.LivesLeft = Math.Max(0, _tank.LivesLeft - 1);
         _respawning = true;
         _respawnTimer = _tank.LivesLeft > 0 ? Tweaks.Tank.RespawnDelay : TimeSpan.Zero;
@@ -96,25 +96,26 @@ internal sealed class TankLifecycle
     }
 
     /// <summary>
-    /// The hold spills back into the ground around the wreck (<see cref="OreDrop"/>); what finds no room, or all of it
-    /// when there is no terrain to drop into, is lost. Either way the hold is empty.
+    /// The hold spills back into the ground around the wreck (<see cref="OreDrop"/>), not under live tanks or planted
+    /// machines (<paramref name="isOccupied"/>); what finds no room, or all of it when there is no terrain to drop
+    /// into, is lost. Either way the hold is empty.
     /// </summary>
-    private void DropOre(ITerrainPixelAccessor? terrain)
+    private void DropOre(ITerrainPixelAccessor? terrain, Func<Position, bool>? isOccupied)
     {
         var hold = _tank.Hold;
         if (terrain != null && hold.Ore > 0)
-            OreDrop.Scatter(terrain, _tank.Position, hold.Ore);
+            OreDrop.Scatter(terrain, _tank.Position, hold.Ore, isOccupied);
         hold.Ore = 0;
     }
 
     /// <summary>A dead tank's tick: it explodes once, then respawns at its base when the timer runs out and lives remain.</summary>
     public void AdvanceDeath(ProjectileList projectiles, ITerrainPixelAccessor terrain, ThermalLedger ledger,
-        StepEventLog? events)
+        StepEventLog? events, Func<Position, bool>? isOccupied)
     {
         if (!_respawning)
         {
             events?.Record(new StepEvent(StepEventKind.TankDied, _tank.Position, _tank.Color));
-            Die(projectiles, terrain);
+            Die(projectiles, terrain, isOccupied);
         }
 
         if (_tank.LivesLeft <= 0)

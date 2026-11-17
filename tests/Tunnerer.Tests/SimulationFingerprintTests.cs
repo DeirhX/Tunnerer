@@ -21,7 +21,7 @@ public class SimulationFingerprintTests
     // The same on every OS: Core uses DeterministicMath instead of the platform math library. A failure on one OS
     // only means something platform-dependent has crept back into the simulation.
     private const ulong ExpectedPlayerDrivesAndShoots = 0xAD0A42A28FBD3549UL;
-    private const ulong ExpectedRelayPylonHarvesterNetwork = 0x6F0B0BF4610D6EC0UL;
+    private const ulong ExpectedRelayPylonHarvesterNetwork = 0xB5D700C33CAEBB79UL;
     private const ulong ExpectedEnemyMachinesShotToPieces = 0x44203ECF6EBFBECDUL;
     private const ulong ExpectedBotVsBot = 0xB1240F7AB2A3F3FEUL;
 

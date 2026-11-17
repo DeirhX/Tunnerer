@@ -56,6 +56,7 @@ while running:
            scripted commands -> keyboard / scripted input for the local slot, a BotTankAI per other slot -> World.Advance
          EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
          GameAudio.AfterStep               (plays the step's World.StepEvents, sets the loops)
+         GameHud.AfterStep                 (GameEventWatcher counts the ore harvesters banked this step)
          TerrainAuxUploader.ObserveTerrainChanges (changed cells, to repack on the next frame)
          Game.DrawTerrainChangesToSurface  (incremental update of the world pixel buffer)
            with fog of war both follow the cells the player's VisionMap says changed in the terrain
@@ -145,7 +146,9 @@ state once per displayed frame.
   A step can name a world cell to point at.
 - `GameEventWatcher` compares the player's side of the world with the previous frame and posts toasts to a
   `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, ore
-  store full, charge low, off network, radar scattered by heat, engine running, harvester ore deliveries). The feed de-duplicates by key with a cooldown.
+  store full, charge low, off network, radar scattered by heat, engine running, harvester ore deliveries). The
+  deliveries are counted from `StepEventKind.OreHarvested` after every step (`AfterStep`), not from the store, so a
+  tank unloading in the same frame is not mistaken for them. The feed de-duplicates by key with a cooldown.
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
   docked (base track on keys 1-4, tank track on 5-6) and the sector-complete banner. The build panel asks

@@ -297,8 +297,9 @@ The tank's ordinary dig clears plain ore, slower than dirt; a core cell needs th
 if all 3 units fit), so mining never destroys ore. Docking at the own base banks the hold into the base's ore store
 quickly (10 units a tick); inside the own network's coverage it unloads there too, slower (§6.4). The hold grows
 with the cargo hold upgrade (§4.8).
-When the tank dies its hold spills back into the ground as plain ore in the nearest open or dirt cells around the wreck;
-what does not fit within a few cells is lost. Torching rock no longer yields anything. The HUD shows the hold as
+When the tank dies its hold spills back into the ground as plain ore in the nearest open or dirt cells around the wreck,
+never under another tank or a machine (ore blocks links, so it would cut a relay); what does not fit within a few cells
+is lost. Torching rock no longer yields anything. The HUD shows the hold as
 "n / 40" on the MATERIALS plate, above it the base's ore store or, while the hold empties, a blinking UNLOADING
 with down arrows, and the base's ore store in the base panel.
 
@@ -318,11 +319,13 @@ base store starts with 30. The tank's hold is small (40), so getting ore home is
   second, a unit at a time, while the store has room; docking is faster. Relays and pylons are therefore also
   drop-off points: planting one near a dig site saves the trip home.
 - **Harvesters mine ore.** A harvester works the plain ore within 4 cells of itself (3 actions a cell), crawls
-  toward the nearest plain ore in its work area, clearing the dirt in its way, and pays charge per action as before.
+  along the shortest path to plain ore in its work area that it can get within reach of, clearing the dirt in its
+  way, and pays charge per action as before. Rock, concrete and ore itself block its 5x5 body, so ore sealed in
+  rock is out of its reach: it passes that over for ore it can get to, and with none says it is out of ore.
   It leaves a lump's core to the tank (§6.3): with only core left it idles and the base panel says so ("at a warm
   core: torch it out with the tank"). Its ore reaches the base only through the network, so it works only while it
-  stands in the own linked coverage; off the network, with no ore left in reach, or with the store full, it idles
-  and spends nothing.
+  stands in the own linked coverage; off the network, with no ore it can reach, or with the store full (the panel
+  says "waiting: the base ore store is full"), it idles and spends nothing.
 - **The bot** does not prospect yet. As a stand-in, a base whose side the computer plays gets 0.5 ore a second.
   The bot builds and buys nothing today, so this only keeps its store from being empty once it does.
 
