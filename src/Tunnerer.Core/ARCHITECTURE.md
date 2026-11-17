@@ -63,6 +63,7 @@ Entities/
 Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
   Radar.cs                   A tank's radar: pulses running out from the tank and the fading contacts where they reflected
+  RadarContact.cs            What a radar return is: RadarEcho, RadarContact, RadarTarget
   RadarReach.cs              The radar's ranges and heat budget, scaled per tank by its radar upgrade
 Collision/
   CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
@@ -113,7 +114,8 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
    `TankDigger.Move`, spawn shield, shooting, pickups, `TankBuildController.Advance`, the upgrade keys, then
    `TankThermals.Advance` (exchange with the grid).
 6. **Machines**: `MachineList.Advance` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
-   network at its position, before it works), then each pylon's last hand-out is booked on its route
+   network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
+   idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
    (`LinkMap.CarryCharge`).
 7. **Sprites**: lifetime.
 8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), the bot's stand-in ore income for bases
@@ -215,7 +217,9 @@ output only, like vision (`RadarTests.AWorld_RunsTheRadar_WithoutChangingTheSimu
 
 Every `PulsePeriodTicks` the radar sends a pulse from the tank's cell, which stays the pulse's origin however the
 tank moves. The pulse is a fan of `RaysPerPulse` rays, turned a fraction of a ray spacing each pulse so later pulses
-fill the gaps of earlier ones. Its front runs `FrontCellsPerTick` outward a tick to `Range`, and each ray walks only
+fill the gaps of earlier ones. Its front runs `FrontCellsPerTick` outward a tick to `Range` (both scaled by the radar
+upgrade, so a pulse always takes the same time to reach full range; `PulseFront` keeps the fraction of a cell a
+scaled front carries), and each ray walks only
 the cells the front crossed that tick, so a return appears when the front reaches it, near ones first. One pulse is
 in flight at a time; `PulseInFlight`, `PulseOrigin` and `PulseRadius` let Desktop draw its ring. A ray is a
 Bresenham line that never cuts a corner: a diagonal step goes through the side cell the line crosses first, so it
@@ -225,6 +229,7 @@ cannot slip between two cells that touch only at a corner. Along a ray:
 - another side's machine (`RadarTarget`), or gold, reflects as `Metal` and stops it;
 - another tank (a `RadarTarget` marked `Alive`) reflects as `Life` and stops it;
 - rock, concrete, hot and frost rock and another side's base walls reflect as `Solid` and stop it;
+- emberite (plain or core) reflects as `Ore` and stops it;
 - stepping from dirt into open ground (a tunnel, a cave) gives a `Cavity` return and the ray goes on, at most
   `WeakReturnsPerRay` times.
 
@@ -236,7 +241,9 @@ by the tank's base's radar upgrade (`BaseUpgrades.RadarRangeScale`, `RadarHeatBu
 longer than `PulsePeriodTicks` delays the next one. Each kind of thing returns only from within its own range of the
 pulse's origin (`Tweaks.Radar`): rock from
 `SolidRangeMin` for a thin shell up to the full `Range` for a formation `FormationDepth` cells deep along the ray
-(`Radar.SolidRange` looks behind the face, only for rock beyond the near range), gold from `GoldRange`, machines
+(`Radar.FormationRange` looks behind the face, only beyond the near range), ore from `OreRangeMin` for a speck up to
+`OreRangeMax` for a deposit `FormationDepth` cells deep (the same probe, counting only plain ore no warmer than
+`HeatThreshold`, so a lump's warm heart lends its rim no reach), gold from `GoldRange`, machines
 from `MachineRange`, tanks from `LifeRange`, caves from `CavityRange`, heat from `HeatRangeMin` to `HeatRangeMax` by
 intensity. Out of range the thing still stops the ray.
 
@@ -246,7 +253,8 @@ in every direction), before anything in that cell can reflect it. What it then f
 left (`RadarContact.Strength`). Every hot cell the ray goes through gets a `Heat` contact whose strength is how hot
 the cell is (1 at `HeatFullTemperature`), at most `HeatReturnsPerRay` a ray, and the ray stops when its strength runs
 out: a few cells into very hot ground, many into warm ground. A reflector at or above `HeatScrambleTemperature`
-returns `Heat` instead of what it is. So a hot zone shows as heat marks reaching a little way into it from the side
+returns `Heat` instead of what it is; ore included, so a lump, whose core is pinned warm and heats its shell past
+that, shows as heat and its contents are found by going there. So a hot zone shows as heat marks reaching a little way into it from the side
 the pulse came from, and nothing behind them. A contact is removed as soon as the side sees its cell, and the side's
 own machines are not radar targets: the radar tells a side only what it cannot see or does not remember. `Radar.HeatLoss` is the share of
 the last finished pulse's rays that heat absorbed. Cold does nothing to the rays. This is the radar reading the heat
@@ -258,7 +266,7 @@ has changed. Contacts live at most `ContactLifetimeTicks` in a fixed ring (`Cont
 first, and never move. Each tick of a pulse, after the rays have walked, the radar reconciles the older contacts: a
 new return in a cell replaces the old contact there, and a contact the front has just passed, on the nearest ray,
 when that ray got at least that far, is checked against the world and dropped unless it still holds (the rock is
-still there, the ground still hot, a target still covers the cell) and is still news. A contact in the shadow of
+still there, the ore not yet mined, the ground still hot, a target still covers the cell) and is still news. A contact in the shadow of
 whatever its ray stopped at is not checked, so the radar never learns what it could not reach; it fades instead.
 A tick of a pulse walks about `RaysPerPulse * FrontCellsPerTick` cells and looks at each contact once; ticks
 between pulses only age contacts. Neither depends on the size of the map.

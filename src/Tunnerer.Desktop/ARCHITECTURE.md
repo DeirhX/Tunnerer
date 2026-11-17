@@ -92,12 +92,15 @@ Core decides what is seen; the renderer only shows it.
 - **Radar blips.** `Game` also asks for the player's `Radar` (`World.TrackRadar`). `RadarQuads` draws one small
   quad per contact (`KindRadarBlip`, `RadarBlip` in `Shaders/Entity/Overlays.hlsli`), first in the entity layer so
   everything else is on top: green for rock and walls, amber for metal, dim blue-green for a cave,
-  a white-violet dot in a ring for something alive. A blip flares
+  a white-violet dot in a ring for something alive, and for emberite a small diamond, teal-rimmed with a violet
+  heart (the only blip that is not round). `Layout.hlsli` lists the echo numbers in `RadarEcho`'s order and
+  `EntityLayoutGuardTests.RadarEchoes_MatchTheBlipShader` checks it and the branches of `RadarBlip`. A blip flares
   for a few ticks when the beam finds it, which is what shows the sweep, then fades over the contact's life. A blip
   whose cell has come into sight is not drawn. A return that crossed warm ground is smaller and dimmer (the
   contact's strength, sent in the vertex colour), and a `Heat` contact is drawn as a red dot whose opacity is how hot
   the cell is (its strength). `GameEventWatcher` posts "Radar scattered by heat" when `Radar.HeatLoss` passes `RadarScatteredShare`.
-  The pulse ring fades out at `Radar.PulseRange`, which the radar upgrade lengthens.
+  The pulse ring is drawn at `Radar.PulseFront` (moving `Radar.PulseSpeed` a tick, faster with the radar upgrade)
+  and fades out at `Radar.PulseRange`, which the upgrade lengthens.
 - **Ore on the network.** Links carry three beams: heat home (orange, `KindLink`), charge out (blue,
   `KindChargeBeam`) and ore home (`KindOreBeam`, `OreBeam` in `Shaders/Entity/Beams.hlsli`: teal crystals with a violet
   glint, tumbling toward the base). `LinkQuads` draws the ore beam from `LinkRenderState.OreFlow`, which Core keeps up

@@ -268,7 +268,7 @@ Rare minerals and metals sit in the terrain, and the player has reasons to colle
 
 **Emberite (Prototype).** The first mineral is an exotic ore, emberite, the only thing machines and upgrades are
 made of (§6.4); dirt is worth nothing. It is inert as a speck but warms itself when
-enough sits together: the core of a large lump is pinned at about 70 degrees, a permanent heat source like hot rock
+enough sits together: the core of a large lump is pinned at about 90 degrees, a permanent heat source like hot rock
 until it is mined out. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core cell 3), in three kinds
 of deposit, scaled with map area:
 
@@ -281,6 +281,16 @@ no less than 0.4 of them), and every map gets at least three pockets and one lum
 default 320x200 match has a few hundred units rather than a few dozen. 1500x750 is unchanged.
 
 Ore blocks movement; it is drawn as teal and violet crystal, the core glowing warm.
+
+**Cracking a lump.** A lump is the big prize, and it takes the tank. Its core heats the ore round it to 55-80
+degrees and the ground just outside to about 45, so a harvester at its edge senses about 39 degrees and stalls (its
+limit is 30), and the radar reads the whole lump as heat. Harvesters never mine core cells; only the tank's torch
+does. Once the core is out the lump cools: with no relay its edge is workable within about 15 seconds and the whole
+lump within half a minute, and a linked relay beside it cools it in a few seconds. Then harvesters clear the shell, a
+cell every three actions (about a minute for a hundred cells, more counting trips to a pylon). A relay planted right
+against an intact lump pumps enough heat that harvesters can already work its outer shell, stalling only within a
+few cells of the core; the core itself still waits for the tank. *(Tuning open: whether an intact core should hold
+its shell against a relay too.)*
 
 The tank's ordinary dig clears plain ore, slower than dirt; a core cell needs the torch, like rock. A plain cell gives
 1 unit and a core cell 3, into a small hold of 40 units. A full hold leaves ore in the ground (a core cell is taken only
@@ -307,10 +317,12 @@ base store starts with 30. The tank's hold is small (40), so getting ore home is
 - **Unloading through the network.** Inside linked coverage the hold unloads into the base store at 4 units a
   second, a unit at a time, while the store has room; docking is faster. Relays and pylons are therefore also
   drop-off points: planting one near a dig site saves the trip home.
-- **Harvesters mine ore.** A harvester works the ore within 4 cells of itself (a plain cell takes 3 actions, a core
-  cell 6), crawls toward the nearest ore in its work area, clearing the dirt in its way, and pays charge per action
-  as before. Its ore reaches the base only through the network, so it works only while it stands in the own linked
-  coverage; off the network, with no ore left in reach, or with the store full, it idles and spends nothing.
+- **Harvesters mine ore.** A harvester works the plain ore within 4 cells of itself (3 actions a cell), crawls
+  toward the nearest plain ore in its work area, clearing the dirt in its way, and pays charge per action as before.
+  It leaves a lump's core to the tank (§6.3): with only core left it idles and the base panel says so ("at a warm
+  core: torch it out with the tank"). Its ore reaches the base only through the network, so it works only while it
+  stands in the own linked coverage; off the network, with no ore left in reach, or with the store full, it idles
+  and spends nothing.
 - **The bot** does not prospect yet. As a stand-in, a base whose side the computer plays gets 0.5 ore a second.
   The bot builds and buys nothing today, so this only keeps its store from being empty once it does.
 
@@ -332,17 +344,20 @@ The player sees only what their side sees, so that learning the shape of the wor
   something of yours stands there. The edge of sight is a gradient, never a hard line.
 - **Radar** *(Prototype)*. Every 4 seconds the tank sends a pulse: a faint ring that runs outward from where the
   tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
-  it through; rock, hot and frost rock, gold, another side's base walls, machines and tanks reflect it and stop it.
+  it through; rock, hot and frost rock, gold, emberite, another side's base walls, machines and tanks reflect it and stop it.
   Each return is a single blip at the first cell that reflected, flaring the moment the ring reaches it (near
-  things first) and fading over 10 seconds: green for rock, amber for metal, and a white-violet dot in a ring for
-  something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
+  things first) and fading over 10 seconds: green for rock, amber for metal, a small teal diamond with a violet heart
+  for emberite, and a white-violet dot in a ring for something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
   shadow, so the outline of a thing is only learned by pinging it from several sides, and successive pulses hit
   slightly different points, so a shape fills in while you wait. When a later pulse passes an old blip it checks it
   again: a blip of an enemy that has driven off, or of ground that has changed, goes out; one hidden in a new
   shadow stays until it fades. A tunnel or cave behind dirt gives a weak blue return and lets the pulse on. The
   Different things show from different distances: a large rock formation from the pulse's full 150 cells, a thin
-  wall only from about 60, gold from 90, machines from 75, a tank from 60, a cave from 50, and hot ground from 50
-  to 120 by how hot it is (the radar upgrade, §4.8, lengthens all of these). Beyond its range a thing still casts its shadow but leaves no blip, so the far picture is
+  wall only from about 60, gold from 90, machines from 75, a tank from 60, a cave from 50, emberite from 40 for a
+  speck up to 110 for a deep deposit (counting only cool plain ore behind the face), and hot ground from 50 to 120 by
+  how hot it is. The radar upgrade (§4.8) lengthens all of these and speeds the ring up to match, so a longer radar
+  still pings every 4 seconds. A lump never shows as ore from afar: its warm core and the ground it heats return heat,
+  and what it holds is found by going there. Beyond its range a thing still casts its shadow but leaves no blip, so the far picture is
   only the big shapes and the detail is a surprise kept for when you get close. The
   radar reports only news: nothing in sight, nothing in remembered ground unless it has changed since, and never
   your own machines. A blip goes the moment you see its cell.
@@ -540,6 +555,8 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Radar: pulses from the tank leave blips where they reflect, well beyond sight | Prototype |
 | Hot ground absorbs the radar pulse; the cells it got through show as red dots by heat | Prototype |
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
+| The radar finds emberite (a speck from near, a deep deposit from further); a lump shows only as heat | Prototype |
+| Harvesters leave lump cores to the tank's torch; a warm core (90 degrees) keeps harvesters off its lump until it is cut out | Prototype |
 
 ## 14. Open questions
 
@@ -551,5 +568,6 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 - What exactly is at the core?
 - Is there multiplayer, and if so is it cooperative or competitive?
 - Should the bot (and later mobs) be limited to what it could see, or stay all-knowing?
+- Should an intact lump core hold its ore against a relay planted beside it, so harvesters truly wait for the tank?
 - What makes a step cheap on a very large map: bookkeeping that follows activity, or coarser simulation of ground
   nobody sees?

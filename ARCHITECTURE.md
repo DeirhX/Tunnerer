@@ -152,7 +152,8 @@ state once per displayed frame.
 Every overlay (tutorial card, toasts, status and upgrade panels, warning banners, pause and controls menus, tags) is
 drawn with `HudTheme`, which follows the bottom HUD art: chamfered gunmetal plates, a bronze frame with an amber inner
 line, amber corner brackets, amber titles, segmented bars and key caps. `HudTheme.BeginWindow` turns an ImGui window
-into such a plate, so new panels match by default.
+into such a plate, so new panels match by default. While docked, toasts stop above the upgrade panel rather than
+cover it.
 
 ## Sound
 
