@@ -1,5 +1,7 @@
 namespace Tunnerer.Desktop.Input;
 
+using Tunnerer.Desktop.Config;
+
 public sealed class ScriptedInputConfig
 {
     private readonly HashSet<int> _screenshotFrames = [];
@@ -22,8 +24,8 @@ public sealed class ScriptedInputConfig
         {
             Controller = ScriptedController.TryParse(Environment.GetEnvironmentVariable("TUNNERER_SCRIPTED_INPUT")),
             RecordPath = NormalizeRecordPath(Environment.GetEnvironmentVariable("TUNNERER_RECORD_INPUT_PATH")),
-            RecordAutoStart = IsTruthy(Environment.GetEnvironmentVariable("TUNNERER_RECORD_INPUT_AUTOSTART")),
-            KeepAi = IsTruthy(Environment.GetEnvironmentVariable("TUNNERER_SCRIPT_KEEP_AI")),
+            RecordAutoStart = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_RECORD_INPUT_AUTOSTART")),
+            KeepAi = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_SCRIPT_KEEP_AI")),
         };
 
         int singleScreenshotFrame = ParseNonNegativeInt(
@@ -68,16 +70,6 @@ public sealed class ScriptedInputConfig
         if (int.TryParse(value, out int parsed) && parsed >= 0)
             return parsed;
         return fallback;
-    }
-
-    private static bool IsTruthy(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return false;
-        return value.Equals("1", StringComparison.OrdinalIgnoreCase)
-            || value.Equals("true", StringComparison.OrdinalIgnoreCase)
-            || value.Equals("yes", StringComparison.OrdinalIgnoreCase)
-            || value.Equals("on", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? NormalizeRecordPath(string? raw)

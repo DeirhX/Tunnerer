@@ -374,10 +374,7 @@ public static class MachineBehaviors
         cost = Math.Min(cost, machine.Charge);
         if (cost <= 0.0)
             return;
-        double heat = terrain.AddEnergyInRadiusArea(machine.Position, Tweaks.Machine.HarvesterHeatRadius,
-            cost, TerrainGrid.ThermalField.Terrain);
-        machine.Charge -= heat;
-        terrain.Ledger.RecordFromCharge(heat);
+        machine.DischargeAsHeat(terrain, cost);
     }
 
     private static bool Crawl(Machine machine, MachineContext ctx, Position target)
@@ -397,7 +394,7 @@ public static class MachineBehaviors
         int bestDist = int.MaxValue;
         foreach (var other in ctx.Machines.Chargers)
         {
-            if (!other.IsAlive || other.State != MachineState.Planted ||
+            if (!other.IsStanding ||
                 other.OwnerBase != machine.OwnerBase || other.LinkPoint is not { IsPowered: true })
                 continue;
             int d = Position.DistanceSquared(other.Position, machine.Position);
@@ -444,7 +441,7 @@ public static class MachineBehaviors
         {
             if (budget <= 0.0 || home.Charge <= 0.0)
                 break;
-            if (m.ChargeCapacity <= 0.0 || !m.IsAlive || m.State != MachineState.Planted || m.OwnerBase != home ||
+            if (m.ChargeCapacity <= 0.0 || !m.StandsFor(home) ||
                 m.Charge >= m.ChargeCapacity || !CanCharge(pylon, m, ctx.Terrain))
                 continue;
             double given = home.DrawCharge(Math.Min(budget, m.ChargeCapacity - m.Charge));

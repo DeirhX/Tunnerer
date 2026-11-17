@@ -88,7 +88,7 @@ public sealed class LiquidGauges(HudLayout layout)
             float x = centerX - halfWidth + 2f * halfWidth * u;
             points[i] = new Vector2(x, y + MathF.Sin(u * 9f + time * 5f) * layout.S(1.2f));
         }
-        dl.AddPolyline(ref points[0], points.Length, color & 0x00FFFFFFu | 0x50000000u, ImDrawFlags.None, layout.S(4f));
+        dl.AddPolyline(ref points[0], points.Length, HudTheme.WithAlphaByte(color, 0x50), ImDrawFlags.None, layout.S(4f));
         dl.AddPolyline(ref points[0], points.Length, color, ImDrawFlags.None, layout.S(1.5f));
     }
 }

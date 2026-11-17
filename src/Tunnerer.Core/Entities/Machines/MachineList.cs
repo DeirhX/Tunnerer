@@ -4,6 +4,7 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Network;
 
 /// <summary>
 /// Every machine in the world, in the order they were added. The machines are also filed by where they stand
@@ -118,12 +119,7 @@ public class MachineList
         if (machine.LinkPoint != null)
             machine.LinkPoint.IsEnabled = false; // the link map prunes disabled points
         if (machine.Charge > 0.0)
-        {
-            double heat = terrain.AddEnergyInRadiusArea(machine.Position,
-                Tweaks.Machine.HarvesterHeatRadius, machine.Charge, TerrainGrid.ThermalField.Terrain);
-            terrain.Ledger.RecordFromCharge(heat);
-            machine.Charge -= heat;
-        }
+            machine.DischargeAsHeat(terrain, machine.Charge);
         if (machine.State == MachineState.Planted)
             Scorch(machine.Position, terrain);
     }
@@ -138,7 +134,7 @@ public class MachineList
                 if (!terrain.IsInside(pos)) continue;
                 var pix = terrain.GetPixelRaw(pos);
                 // Open ground and dirt burn; rock and base cells keep their material.
-                if (pix == TerrainPixel.Blank || Pixel.IsScorched(pix) || Pixel.IsDiggable(pix))
+                if (Pixel.IsOpenGround(pix) || Pixel.IsDiggable(pix))
                     terrain.SetPixel(pos, TerrainPixel.Decal); // metered: a dirt cell's heat change is booked
             }
     }
@@ -155,7 +151,7 @@ public class MachineList
                 State: m.State,
                 IsAlive: m.IsAlive,
                 IsPowered: m.LinkPoint?.IsPowered ?? false,
-                IsPumping: m.LastPumpedEnergy > 1.0,
+                IsPumping: m.LastPumpedEnergy > NetworkStatus.PumpingThreshold,
                 PumpFraction: (float)Math.Clamp(m.LastPumpedEnergy / Tweaks.Machine.RelayHeatPumpPerTick, 0.0, 1.0),
                 IsPumpLimited: m.LastPumpLimitedByBase,
                 IsStalled: m.IsStalled,

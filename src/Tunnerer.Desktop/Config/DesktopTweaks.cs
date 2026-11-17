@@ -68,6 +68,7 @@ public static class DesktopDisplayOptions
     /// </summary>
     public static bool Hidden { get; set; }
 
+    /// <summary>Whether <paramref name="text"/> is a truthy word: <c>1</c>, <c>true</c>, <c>yes</c> or <c>on</c>, in any case.</summary>
     public static bool ParseFlag(string? text)
     {
         text = text?.Trim();
@@ -92,12 +93,7 @@ public static class DesktopDisplayOptions
         if (parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h) && w >= 320 && h >= 200)
             return new Size(w, h);
 
-        return text.Equals("1", StringComparison.OrdinalIgnoreCase) ||
-               text.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-               text.Equals("on", StringComparison.OrdinalIgnoreCase) ||
-               text.Equals("yes", StringComparison.OrdinalIgnoreCase)
-            ? DefaultWindowedSize
-            : null;
+        return ParseFlag(text) ? DefaultWindowedSize : null;
     }
 
     /// <summary>

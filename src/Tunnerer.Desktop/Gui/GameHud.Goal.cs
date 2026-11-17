@@ -60,7 +60,7 @@ public partial class GameHud
                 DrawUpgradeRow(dl, home, upgrade, i + 1, rowW);
             }
             if (player.UpgradeRefusedTicks > 0)
-                ColoredText(TextBad, player.LastUpgradeRefusal == UpgradeRefusal.Maxed
+                ColoredText(HudTheme.Danger, player.LastUpgradeRefusal == UpgradeRefusal.Maxed
                     ? "That upgrade is already at its top level."
                     : "Not enough ore in the base store for that one.");
         }

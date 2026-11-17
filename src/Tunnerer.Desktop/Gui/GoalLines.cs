@@ -16,16 +16,15 @@ public static class GoalLines
             return;
         if (core.HasTapped)
         {
-            ColoredText(TextGood, "SECTOR COMPLETE - the core is tapped");
+            ColoredText(HudTheme.Good, "SECTOR COMPLETE - the core is tapped");
             return;
         }
-        double rate = core.TapPerTick * Tweaks.Perf.TargetFps;
-        bool meeting = rate >= Tweaks.Goal.GoalChargePerSecond;
-        ColoredText(TextInfo, "GOAL  tap the hot core at the centre");
-        ColoredText(meeting ? TextGood : TextDim,
+        double rate = core.TapPerSecond;
+        bool meeting = core.IsMeetingGoal;
+        ColoredText(HudTheme.Teal, "GOAL  tap the hot core at the centre");
+        ColoredText(meeting ? HudTheme.Good : HudTheme.Text,
             $"Core tap {rate / 1000.0:0.0}k / {Tweaks.Goal.GoalChargePerSecond / 1000.0:0.0}k charge/s");
-        float hold = (float)(core.HoldSeconds / Tweaks.Goal.GoalHoldSeconds);
-        HudTheme.BarRow(Math.Clamp(hold, 0f, 1f), meeting ? HudTheme.Good : HudTheme.Amber,
+        HudTheme.BarRow(core.HoldFraction, meeting ? HudTheme.Good : HudTheme.Amber,
             $"held {core.HoldSeconds:0} / {Tweaks.Goal.GoalHoldSeconds:0} s", 20f);
         ImGui.Separator();
     }

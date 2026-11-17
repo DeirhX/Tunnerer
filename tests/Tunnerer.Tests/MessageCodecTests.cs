@@ -167,4 +167,21 @@ public class MessageCodecTests
 
         Assert.Throws<InvalidDataException>(() => MessageCodec.Decode(forged));
     }
+
+    [Fact]
+    public void LogChunks_CarryEveryTickBackInOrder()
+    {
+        const int slots = 3;
+        var log = Enumerable.Range(0, MessageCodec.MaxLogTicks * 2 + 5)
+            .Select(t => new TickBundle(t, [(uint)t, (uint)t + 1000, (uint)t + 2000]))
+            .ToList();
+
+        var chunks = Log.Chunk(log, slots).ToList();
+
+        Assert.Equal(3, chunks.Count);
+        Assert.All(chunks, chunk => Assert.Equal(chunk, MessageCodec.Decode(MessageCodec.Encode(chunk))));
+        var back = chunks.SelectMany(chunk => chunk.Bundles()).ToList();
+        Assert.Equal(log.Select(b => b.Tick), back.Select(b => b.Tick));
+        Assert.Equal(log.SelectMany(b => b.Inputs), back.SelectMany(b => b.Inputs));
+    }
 }

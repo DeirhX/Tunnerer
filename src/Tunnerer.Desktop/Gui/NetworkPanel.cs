@@ -20,20 +20,13 @@ public sealed class NetworkPanel
     private double _radiatorInflow;
     private double _engineOutput;
 
-    private static Vector4 LevelColor(StatusLevel level, Vector4 ok) => level switch
+    private static uint ToneColor(HintTone tone) => tone switch
     {
-        StatusLevel.Ok => ok,
-        StatusLevel.Warn => TextWarn,
-        _ => TextBad,
-    };
-
-    private static Vector4 ToneColor(HintTone tone) => tone switch
-    {
-        HintTone.Info => TextInfo,
-        HintTone.Good => TextGood,
-        HintTone.Warn => TextWarn,
-        HintTone.Bad => TextBad,
-        _ => TextDim,
+        HintTone.Info => HudTheme.Teal,
+        HintTone.Good => HudTheme.Good,
+        HintTone.Warn => HudTheme.Warn,
+        HintTone.Bad => HudTheme.Danger,
+        _ => HudTheme.Text,
     };
 
     public void Draw((float x, float y, float w, float h) vp, Tank player, World world, float time)
@@ -53,7 +46,7 @@ public sealed class NetworkPanel
         double ventCapacity = status.VentCapacity;
 
         float fill = (float)status.HeatStoreFill;
-        var fillColor = LevelColor(status.HeatStoreLevel, TextGood);
+        var fillColor = HudTheme.LevelColor(status.HeatStoreLevel, HudTheme.Good);
 
         bool insideBase = world.IsInsideAnyBase(player.Position);
         if (powered > _lastPoweredRelays)
@@ -85,40 +78,40 @@ public sealed class NetworkPanel
         {
             HudTheme.TitleRow($"BASE        lives {player.LivesLeft}", 18f, player.LivesLeft > 1 ? HudTheme.Amber : HudTheme.Danger);
             GoalLines.Draw(world, tankBase);
-            ColoredText(TextInfo, $"Base ore store {tankBase.Store.Ore}" +
+            ColoredText(HudTheme.Teal, $"Base ore store {tankBase.Store.Ore}" +
                 (player.IsUnloadingOre ? "   unloading" : player.IsInOwnNetwork ? "   in network" : ""));
 
             // Power: the charge store and what the engine is making from relay heat right now.
             float chargeFill = (float)tankBase.ChargeFill;
             double perSecond = _engineOutput * Tweaks.Perf.TargetFps;
-            ColoredText(LevelColor(tankBase.ChargeLevel, TextInfo),
+            ColoredText(HudTheme.LevelColor(tankBase.ChargeLevel, HudTheme.Teal),
                 $"Charge {tankBase.Charge / 1000.0:0}k / {tankBase.ChargeCapacity / 1000.0:0}k" +
                 (perSecond >= 1.0 ? $"   engine +{perSecond / 1000.0:0.0}k/s" : "   engine idle"));
             HudTheme.BarRow(chargeFill, HudTheme.Teal, null, 10f);
 
             if (harvesters > 0)
             {
-                ColoredText(stalled > 0 ? TextWarn : TextDim,
+                ColoredText(stalled > 0 ? HudTheme.Warn : HudTheme.Text,
                     $"Harvesters working {working}/{harvesters}" +
                     (stalled > 0 ? $", {stalled} too hot" : ""));
                 if (status.HarvestersOffNetwork > 0 || status.HarvestersNoOre > 0)
-                    ColoredText(TextWarn,
+                    ColoredText(HudTheme.Warn,
                         (status.HarvestersOffNetwork > 0 ? $"{status.HarvestersOffNetwork} off the network" : "") +
                         (status.HarvestersOffNetwork > 0 && status.HarvestersNoOre > 0 ? ", " : "") +
                         (status.HarvestersNoOre > 0 ? $"{status.HarvestersNoOre} out of ore" : ""));
                 if (status.HarvestersCoreOnly > 0)
-                    ColoredText(TextWarn, $"{status.HarvestersCoreOnly} at a warm core: torch it out with the tank");
+                    ColoredText(HudTheme.Warn, $"{status.HarvestersCoreOnly} at a warm core: torch it out with the tank");
                 if (status.HarvestersStoreFull > 0)
-                    ColoredText(TextWarn, $"{status.HarvestersStoreFull} waiting: the base ore store is full");
+                    ColoredText(HudTheme.Warn, $"{status.HarvestersStoreFull} waiting: the base ore store is full");
                 if (recharging > 0 || flat > 0)
-                    ColoredText(flat > 0 ? TextBad : TextWarn,
+                    ColoredText(flat > 0 ? HudTheme.Danger : HudTheme.Warn,
                         (recharging > 0 ? $"{recharging} heading to a pylon" : "") +
                         (recharging > 0 && flat > 0 ? ", " : "") +
                         (flat > 0 ? $"{flat} out of charge" : ""));
             }
             if (relays > 0)
             {
-                ColoredText(powered == relays ? TextDim : TextWarn,
+                ColoredText(powered == relays ? HudTheme.Text : HudTheme.Warn,
                     $"Relays linked {powered}/{relays}" + (pumping > 0 ? $", {pumping} pumping" : ""));
                 ColoredText(fillColor, fill > 0f && fill < 0.01f
                     ? "Base heat store <1% full"
@@ -127,16 +120,15 @@ public sealed class NetworkPanel
                 // Radiator load: heat arriving through relays against the rate the base can vent. Past 100% the
                 // store fills, and once it is full the relays are throttled.
                 float load = tankBase.RadiatorLoad(_radiatorInflow);
-                var loadColor = LevelColor(TankBase.RadiatorLoadLevel(load), TextGood);
+                var loadColor = HudTheme.LevelColor(TankBase.RadiatorLoadLevel(load), HudTheme.Good);
                 ColoredText(loadColor,
                     $"Radiator {(int)Math.Round(_radiatorInflow)} in / {(int)ventCapacity} out per tick");
-                HudTheme.BarRow(Math.Clamp(load / 1.5f, 0f, 1f),
-                    load < 0.8f ? HudTheme.Good : load <= 1.0f ? HudTheme.Warn : HudTheme.Danger, null, 10f);
+                HudTheme.BarRow(Math.Clamp(load / 1.5f, 0f, 1f), loadColor, null, 10f);
             }
             if (hint.Length > 0)
             {
                 ImGui.Separator();
-                HudTheme.WrappedRow(hint, ImGui.ColorConvertFloat4ToU32(hintColor), 16f);
+                HudTheme.WrappedRow(hint, hintColor, 16f);
             }
             HudTheme.KeyRow("H", "heat view", HudTheme.TextDim, 15f);
         }

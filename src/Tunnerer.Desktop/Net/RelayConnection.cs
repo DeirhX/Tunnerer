@@ -146,8 +146,8 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
                     HumanMask = rejoined.HumanMask;
                     break;
                 case Log log:
-                    for (int i = 0; i * log.Slots < log.Inputs.Length; i++)
-                        _bundles.Enqueue(new TickBundle(log.FirstTick + i, log.Inputs.Slice(i * log.Slots, log.Slots)));
+                    foreach (var bundle in log.Bundles())
+                        _bundles.Enqueue(bundle);
                     break;
                 case PauseState pause:
                     IsPaused = pause.Paused;
@@ -271,22 +271,10 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
         }
     }
 
-    private static async Task<Message?> ReadAsync(ClientWebSocket socket, byte[] buffer, CancellationToken cancel)
-    {
-        int length = 0;
-        while (true)
-        {
-            ValueWebSocketReceiveResult part =
-                await socket.ReceiveAsync(buffer.AsMemory(length), cancel).ConfigureAwait(false);
-            if (part.MessageType == WebSocketMessageType.Close)
-                return null;
-            length += part.Count;
-            if (part.EndOfMessage)
-                return MessageCodec.Decode(buffer.AsSpan(0, length));
-            if (length == buffer.Length)
-                throw new InvalidDataException("A message is longer than the protocol allows.");
-        }
-    }
+    private static async Task<Message?> ReadAsync(ClientWebSocket socket, byte[] buffer, CancellationToken cancel) =>
+        await MessageFraming.ReadFrameAsync(socket, buffer, cancel).ConfigureAwait(false) is { } frame
+            ? MessageCodec.Decode(frame)
+            : null;
 }
 
 /// <summary>The relay could not be reached or refused this client; the message is for the player.</summary>

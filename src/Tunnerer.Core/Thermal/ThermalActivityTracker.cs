@@ -30,11 +30,7 @@ internal sealed class ThermalActivityTracker
     private readonly int _tileCountX;
     private readonly int _tileCountY;
 
-    private bool _hasDirtyRect;
-    private int _dirtyMinX;
-    private int _dirtyMinY;
-    private int _dirtyMaxX;
-    private int _dirtyMaxY;
+    private DirtyRect _dirty;
 
     public ThermalActivityTracker(int width, int height, int tileSize)
     {
@@ -196,37 +192,9 @@ internal sealed class ThermalActivityTracker
     }
 
     /// <summary>Grows the dirty rect to include the cell.</summary>
-    public void MarkDirty(int x, int y)
-    {
-        if (!_hasDirtyRect)
-        {
-            _hasDirtyRect = true;
-            _dirtyMinX = _dirtyMaxX = x;
-            _dirtyMinY = _dirtyMaxY = y;
-            return;
-        }
+    public void MarkDirty(int x, int y) => _dirty.Include(x, y);
 
-        if (x < _dirtyMinX) _dirtyMinX = x;
-        if (x > _dirtyMaxX) _dirtyMaxX = x;
-        if (y < _dirtyMinY) _dirtyMinY = y;
-        if (y > _dirtyMaxY) _dirtyMaxY = y;
-    }
+    public bool TryGetDirtyRect(out Rect dirtyRect) => _dirty.TryGet(out dirtyRect);
 
-    public bool TryGetDirtyRect(out Rect dirtyRect)
-    {
-        if (_hasDirtyRect)
-        {
-            dirtyRect = new Rect(
-                _dirtyMinX,
-                _dirtyMinY,
-                _dirtyMaxX - _dirtyMinX + 1,
-                _dirtyMaxY - _dirtyMinY + 1);
-            return true;
-        }
-
-        dirtyRect = default;
-        return false;
-    }
-
-    public void ClearDirtyRect() => _hasDirtyRect = false;
+    public void ClearDirtyRect() => _dirty.Clear();
 }

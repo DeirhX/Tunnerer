@@ -185,15 +185,8 @@ public sealed class MatchRoom
         _names[slot] = _startNames[slot];
         peer.Send(new Welcome(slot, Config));
         peer.Send(new Rejoined(_humanMask));
-        var log = _lockstep.Log;
-        for (int first = 0; first < log.Count; first += MessageCodec.MaxLogTicks)
-        {
-            int count = Math.Min(MessageCodec.MaxLogTicks, log.Count - first);
-            var inputs = ImmutableArray.CreateBuilder<uint>(count * Config.Slots);
-            for (int i = 0; i < count; i++)
-                inputs.AddRange(log[first + i].Inputs);
-            peer.Send(new Log(first, Config.Slots, inputs.MoveToImmutable()));
-        }
+        foreach (var chunk in Log.Chunk(_lockstep.Log, Config.Slots))
+            peer.Send(chunk);
         if (IsPaused)
             peer.Send(new PauseState(true, _pausedBySlot));
         _lockstep.Reconnect(slot);

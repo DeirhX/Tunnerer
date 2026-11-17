@@ -100,4 +100,13 @@ public sealed class CoreTap
 
     /// <summary>True once the base has tapped the core at the goal rate for long enough. It stays true.</summary>
     public bool HasTapped { get; internal set; }
+
+    /// <summary><see cref="TapPerTick"/> as a rate per second, the unit the goal is stated in.</summary>
+    public double TapPerSecond => TapPerTick * Tweaks.Perf.TargetFps;
+
+    /// <summary>The tap makes at least the goal rate (<c>Tweaks.Goal.GoalChargePerSecond</c>), so the hold timer runs.</summary>
+    public bool IsMeetingGoal => TapPerSecond >= Tweaks.Goal.GoalChargePerSecond;
+
+    /// <summary>How far the hold timer is towards the win, 0 to 1.</summary>
+    public float HoldFraction => (float)Math.Clamp(HoldSeconds / Tweaks.Goal.GoalHoldSeconds, 0.0, 1.0);
 }

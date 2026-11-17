@@ -70,6 +70,29 @@ public sealed record Log(int FirstTick, int Slots, ImmutableArray<uint> Inputs) 
         other is not null && FirstTick == other.FirstTick && Slots == other.Slots && Inputs.SequenceEqual(other.Inputs);
 
     public override int GetHashCode() => FirstTick;
+
+    /// <summary>The ticks this message carries, one bundle each.</summary>
+    public IEnumerable<TickBundle> Bundles()
+    {
+        for (int i = 0; i * Slots < Inputs.Length; i++)
+            yield return new TickBundle(FirstTick + i, Inputs.Slice(i * Slots, Slots));
+    }
+
+    /// <summary>
+    /// <paramref name="log"/> (ticks numbered from 0) as <see cref="Log"/> messages of at most
+    /// <see cref="MessageCodec.MaxLogTicks"/> ticks each, in order.
+    /// </summary>
+    public static IEnumerable<Log> Chunk(IReadOnlyList<TickBundle> log, int slots)
+    {
+        for (int first = 0; first < log.Count; first += MessageCodec.MaxLogTicks)
+        {
+            int count = Math.Min(MessageCodec.MaxLogTicks, log.Count - first);
+            var inputs = ImmutableArray.CreateBuilder<uint>(count * slots);
+            for (int i = 0; i < count; i++)
+                inputs.AddRange(log[first + i].Inputs);
+            yield return new Log(first, slots, inputs.MoveToImmutable());
+        }
+    }
 }
 
 /// <summary>Client to relay: stop (or go on) closing ticks, for everyone.</summary>
