@@ -4,10 +4,9 @@ using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
-using Tunnerer.Desktop.Presentation;
 
 /// <summary>
-/// Machines, planted or carried, drawn as their <see cref="MachinePresentation.Sprite"/> says: the body, and while
+/// Machines, planted or carried, drawn as <see cref="MachineSprites"/> says: the body, and while
 /// planted the ground it senses and its battery gauge. <see cref="SubmitChargeBeams"/> adds the beams of pylons filling
 /// batteries.
 /// </summary>
@@ -21,7 +20,7 @@ public static class MachineQuads
         {
             ref readonly MachineRenderState machine = ref machines[i];
             if (!machine.IsAlive || !machine.IsCharging || machine.State != MachineState.Planted ||
-                !MachinePresentations.Get(machine.Type).Sprite.ShowsBattery)
+                !MachineSprites.Get(machine.Type).ShowsBattery)
                 continue;
             if (!Sight.Sees(vision, machine.Position))
                 continue;
@@ -52,7 +51,7 @@ public static class MachineQuads
             if (quads.IsOffScreen(cx, cy, 6f * scale))
                 continue;
 
-            MachineSprite sprite = MachinePresentations.Get(machine.Type).Sprite;
+            MachineSprite sprite = MachineSprites.Get(machine.Type);
             bool carried = machine.State != MachineState.Planted;
             float flags = (machine.IsStalled ? EntityShape.MachineFlagStalled : 0f) +
                           (carried ? EntityShape.MachineFlagCarried : 0f) +

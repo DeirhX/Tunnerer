@@ -3,6 +3,11 @@
 This document describes the current rendering model used by the desktop client, including frame flow, display
 density, the HUD layout, post-processing and profiling hooks. Sound has its own section at the end.
 
+The platform-independent rendering files (terrain fields, entity emitters and interpolation, machine sprites,
+lighting settings and uniform layout) are compiled by `Tunnerer.Rendering` and used by both Desktop and Browser.
+They retain the file paths and namespaces shown here. The browser publish translates the same HLSL to GLSL ES
+with SPIRV-Cross and draws it with WebGL 2; the SDL_GPU backend, ImGui and sound device remain in Desktop.
+
 ## High-Level Layout
 
 `Tunnerer.Desktop` draws through one backend, `Tunnerer.Desktop.Rendering.SdlGpu.SdlGpuBackend`: SDL_GPU, which uses

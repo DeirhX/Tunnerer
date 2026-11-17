@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
+        <meta name="theme-color" content="#0b1419" />
+        <meta
+            name="description"
+            content="Dig deep. Build a cooling network. Tap the core. Play Tunnerer in your browser or install it to play offline."
+        />
+        <link rel="manifest" href="./manifest.webmanifest" />
+        <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+        <link rel="stylesheet" href="./style.css" />
+        <title>Tunnerer · Below the surface</title>
+    </head>
+    <body>
+        <canvas
+            id="game"
+            tabindex="0"
+            aria-label="Tunnerer game. Use WASD or arrow keys to drive, mouse to aim, and Space or click to fire."
+        ></canvas>
+        <header>
+            <a class="brand" href="./" aria-label="Tunnerer home"
+                ><span class="brand-mark">T</span>TUNNERER<span class="edition"
+                    >BROWSER EDITION</span
+                ></a
+            >
+            <nav aria-label="Game actions">
+                <span id="offline" role="status">ONLINE</span>
+                <button id="install" hidden>Install game ↗</button>
+                <button id="sound" aria-pressed="false">Sound off</button>
+                <button id="help">Controls <kbd>?</kbd></button>
+                <button id="pause" disabled>Pause <kbd>Esc</kbd></button>
+            </nav>
+        </header>
+        <main>
+            <section id="welcome" class="landing">
+                <div class="eyebrow"><i></i> EXCAVATION PROTOCOL / 001</div>
+                <h1>Go deeper.<br />Keep your cool.</h1>
+                <p class="intro">
+                    A world of rock, ore, and restless heat.<br />Carve your
+                    path. Build your lifeline. Tap the core.
+                </p>
+                <div class="start-row">
+                    <button id="start" class="primary">
+                        Enter the underground <span>→</span></button
+                    ><span class="local-label"
+                        >SOLO VS BOT<br />RUNS ON YOUR DEVICE</span
+                    >
+                </div>
+                <label class="seed-label"
+                    >WORLD SEED
+                    <input
+                        id="seed"
+                        type="number"
+                        min="-2147483648"
+                        max="2147483647"
+                        step="1"
+                        aria-label="World seed"
+                    /><button
+                        id="randomize"
+                        aria-label="Choose a random world seed"
+                    >
+                        ↻
+                    </button></label
+                >
+                <p id="loading" class="muted" role="status" aria-live="polite">
+                    Keyboard & mouse or touch · No account needed
+                </p>
+                <div class="landing-notes">
+                    <div>
+                        <b>01 / DIG</b
+                        ><span>Drive into dirt to cut a tunnel.</span>
+                    </div>
+                    <div>
+                        <b>02 / CONNECT</b
+                        ><span>Relays carry heat back to base.</span>
+                    </div>
+                    <div>
+                        <b>03 / HARVEST</b
+                        ><span>Turn hot ground into power.</span>
+                    </div>
+                </div>
+            </section>
+            <aside id="mission" class="plate" hidden>
+                <div class="eyebrow">SECTOR OBJECTIVE</div>
+                <h2>Tap the hot core</h2>
+                <p id="guidance">
+                    Leave your base through its north or south door. Drive into
+                    dirt to dig.
+                </p>
+                <div id="goal" class="muted"></div>
+            </aside>
+            <div id="notice" role="status" aria-live="polite"></div>
+            <div id="death" hidden></div>
+            <section id="hud" hidden aria-label="Tank status">
+                <div class="plate tank-status">
+                    <div class="eyebrow">
+                        REACTOR / <span id="network">DOCKED</span>
+                    </div>
+                    <div class="heat-value">
+                        <strong id="temperature">0°</strong
+                        ><span id="lives">3 LIVES</span>
+                    </div>
+                    <meter
+                        id="heat"
+                        min="0"
+                        max="100"
+                        value="0"
+                        aria-label="Tank temperature"
+                    ></meter>
+                    <div class="meter-label">
+                        <span>SHIELD</span><span id="shield-text">100%</span>
+                    </div>
+                    <meter
+                        id="shield"
+                        min="0"
+                        max="1"
+                        value="1"
+                        aria-label="Shield"
+                    ></meter>
+                    <div id="position" class="muted"></div>
+                </div>
+                <div class="plate build-status">
+                    <div class="eyebrow">MATERIALS <span id="ore"></span></div>
+                    <div id="builds" class="builds"></div>
+                    <div id="carrying" class="muted">
+                        Build a machine, carry it, then press its key again to
+                        plant.
+                    </div>
+                    <div id="power" class="muted"></div>
+                </div>
+            </section>
+            <details
+                id="upgrades"
+                class="plate"
+                hidden
+                open
+                aria-label="Base upgrades"
+            >
+                <summary class="eyebrow">DOCKED / UPGRADES</summary>
+                <div id="upgrade-list"></div>
+            </details>
+            <div id="touch" hidden aria-label="Touch controls">
+                <div class="dpad">
+                    <button data-move="0,-1" aria-label="Drive north">↑</button
+                    ><button data-move="-1,0" aria-label="Drive west">←</button
+                    ><button data-move="0,1" aria-label="Drive south">↓</button
+                    ><button data-move="1,0" aria-label="Drive east">→</button>
+                </div>
+                <button id="fire">FIRE</button>
+            </div>
+        </main>
+        <footer id="footer">
+            <span>HEAT IS YOUR LIMIT. THE NETWORK IS YOUR LIFELINE.</span
+            ><span>LOCAL SIMULATION <i></i> NO DOWNLOAD TO PLAY</span>
+        </footer>
+        <dialog id="menu">
+            <form method="dialog">
+                <button class="close" aria-label="Close menu">×</button>
+            </form>
+            <div class="eyebrow">FIELD MANUAL</div>
+            <h2 id="menu-title">Take a breather.</h2>
+            <p>The game pauses when this menu opens or you leave the page.</p>
+            <dl>
+                <dt><kbd>W A S D</kbd> / arrows</dt>
+                <dd>Drive & dig. Fire while driving to torch rock.</dd>
+                <dt>Mouse / touch</dt>
+                <dd>Aim. Click, hold Space, or press FIRE to shoot.</dd>
+                <dt><kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd></dt>
+                <dd>
+                    Build a relay, harvester, or pylon. Press again outside base
+                    to plant.
+                </dd>
+                <dt><kbd>1</kbd> – <kbd>6</kbd></dt>
+                <dd>Buy upgrades while docked at your base.</dd>
+                <dt><kbd>+</kbd> / <kbd>−</kbd> / wheel</dt>
+                <dd>Zoom. Return to base to cool, repair, and unload ore.</dd>
+            </dl>
+            <p class="muted">
+                Mine teal emberite for building materials. Relays cool the
+                ground and make power; pylons recharge harvesters. Extend linked
+                relays to the core and hold the required power output to win.
+            </p>
+            <p id="install-hint" class="muted">
+                Install from your browser’s menu, or use Add to Home Screen on
+                iPhone/iPad. Your current match stays in memory while the app is
+                open; new launches start a new match.
+            </p>
+            <div class="menu-actions">
+                <button id="resume" class="primary">Back to game →</button
+                ><button id="restart">New world</button>
+            </div>
+            <p id="session-seed" class="muted"></p>
+        </dialog>
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>

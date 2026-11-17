@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Tunnerer.Browser.Client/Tunnerer.Browser.Client.csproj" />
     <ProjectReference Include="..\..\src\Tunnerer.Core\Tunnerer.Core.csproj" />
     <ProjectReference Include="..\..\src\Tunnerer.Desktop\Tunnerer.Desktop.csproj" />
     <ProjectReference Include="..\..\src\Tunnerer.Protocol\Tunnerer.Protocol.csproj" />

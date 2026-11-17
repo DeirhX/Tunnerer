@@ -4,6 +4,8 @@ namespace Spike;
 
 using System.Diagnostics;
 using Tunnerer.Core;
+using Tunnerer.Core.Bots;
+using Tunnerer.Core.Match;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.LevelGen;
@@ -63,7 +65,7 @@ public static class Bench
     {
         var size = new Size(320, 200);
         var (terrain, spawns) = new ToastGenerator().Generate(size, seed: 42);
-        var world = new World(size, simulationSeed: 42, enableTerrainRegrowth: true);
+        var world = new World(size, simulationSeed: 42);
         world.Initialize(terrain, spawns, decorationSeed: 43);
         var tanks = world.TankList.Tanks;
         var bots = new[] { new BotTankAI(seed: 11), new BotTankAI(seed: 22) };
@@ -88,8 +90,7 @@ public static class Bench
 
         var sw = Stopwatch.StartNew();
         var (terrain, spawns) = new ToastGenerator().Generate(size, seed, LevelGenMode.Deterministic, 2);
-        var world = new World(size, simulationSeed: seed, hotRockPocketCount: Tweaks.World.HotRockPocketCount,
-            simulationSettings: settings, frostRockPocketCount: Tweaks.World.FrostRockPocketCount, seedOre: true);
+        var world = new World(size, simulationSeed: seed, rules: MatchRules.Standard, simulationSettings: settings);
         world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         double genMs = sw.Elapsed.TotalMilliseconds;
 
@@ -101,7 +102,7 @@ public static class Bench
         world.Profile.ReportSink = line =>
         {
             if (!measuring || !line.StartsWith("[Profile]", StringComparison.Ordinal)) return;
-            heatMs += world.Profile.Cooldown.TotalMilliseconds;
+            heatMs += world.Profile.SectionTime("heat").TotalMilliseconds;
             stepped += world.Profile.CooldownSteppedTiles;
             parallelFrames += world.Profile.CooldownParallelFrames;
             profiledFrames += world.Profile.FrameCount;
