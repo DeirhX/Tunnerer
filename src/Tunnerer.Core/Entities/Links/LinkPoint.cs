@@ -6,9 +6,24 @@ public enum LinkPointType { Base, Machine, Transit, Controllable }
 
 public class LinkPoint
 {
-    public Position Position { get; set; }
+    private bool _isEnabled = true;
+
+    public Position Position { get; }
     public LinkPointType Type { get; }
-    public bool IsEnabled { get; set; } = true;
+
+    /// <summary>False once the point is switched off (its machine was destroyed): the map drops it and its links.</summary>
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set
+        {
+            if (value == _isEnabled)
+                return;
+            _isEnabled = value;
+            Map?.NoteEnabledChanged(this);
+        }
+    }
+
     public bool IsPowered { get; set; }
     public int Id { get; }
 
@@ -20,6 +35,21 @@ public class LinkPoint
 
     /// <summary>Live links between this point and the nearest base: 0 for bases, -1 while unpowered.</summary>
     public int Hops { get; set; } = -1;
+
+    /// <summary>The map this point is registered in.</summary>
+    internal LinkMap? Map { get; set; }
+
+    /// <summary>Its place in the order points were registered in, which is the order of <see cref="LinkMap.Points"/>.</summary>
+    internal int Sequence { get; set; }
+
+    /// <summary>The links that end here, in the order of <see cref="LinkMap.Links"/>.</summary>
+    internal List<Link> Links { get; } = new();
+
+    /// <summary>True once the map has made this point's links to the points that had theirs.</summary>
+    internal bool IsLinked { get; set; }
+
+    /// <summary>Scratch for the power search: the round in which power reached this point.</summary>
+    internal int PoweredInRound { get; set; }
 
     public LinkPoint(Position position, LinkPointType type, int id)
     {

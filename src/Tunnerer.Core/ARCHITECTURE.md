@@ -25,12 +25,13 @@ Terrain/
   TerrainGrid.Heat.cs        Terrain and air temperature fields, CoolDown, energy add / extract API
   TerrainGrid.HeatTiles.cs   The solver step over the tiles that are still changing
   TerrainGrid.HotRock.cs     PlaceHotRockPocket, PlaceFrostRockPocket, SetPinnedPixel
-  TerrainGrid.Ore.cs         PlaceOre (level gen)
+  TerrainGrid.Ore.cs         PlaceOre (level gen); FindOre and the per-tile ore counts behind it
   TerrainGrid.Materialization.cs, .Decoration.cs, .Render.cs   Level-gen markers to pixels, cleanup, Draw*ToSurface
   TerrainRegrowth.cs         Dirt regrowth: the rules, applied to each cell when its appointment comes
   RegrowthSchedule.cs        The appointments: at most one per cell, filed by tick
   RegrowthWrites.cs          The pixel writes regrowth has yet to hear of
   RegrowthBlockers.cs        Where no dirt grows (relay and pylon range), filed by map area
+  SightlineChanges.cs        The cells that started or stopped blocking a line of sight, for the link map
   TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
   ITerrain*.cs               Narrow interfaces over TerrainGrid (pixel read / write, heat source, change tracker)
 Thermal/
@@ -64,7 +65,7 @@ Entities/
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
-  Links/LinkPoint.cs, Link.cs, LinkMap.cs   Link network: nodes, edges, rebuild, power and flow
+  Links/LinkPoint.cs, Link.cs, LinkMap.cs   Link network: nodes, edges, refresh, power and flow
   Links/NetworkCoverage.cs   Coverage nodes and the coverage a tank gets at a position
 Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
@@ -138,8 +139,8 @@ picks the seed. The bot takes its own seed, also from `WorldFactory`.
 7. **Sprites**: lifetime.
 8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), the bot's stand-in ore income for bases
    marked with `World.SetBotControlled`, then `World.AdvanceSectorGoal` (the core tap and its hold timer).
-9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
-   every tick.
+9. **Links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
+   (200 ms), not every tick, and at once when a machine's point is switched off.
 10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
     out by `World.TrackRadar` runs its pulse on (see "Radar" below).
 
@@ -329,10 +330,14 @@ between pulses only age contacts. Neither depends on the size of the map.
 
 ## Links
 
-Planted machines whose behavior has `IsLinkNode` (relays, pylons) and every base are `LinkPoint`s. At each rebuild
+Planted machines whose behavior has `IsLinkNode` (relays, pylons) and every base are `LinkPoint`s.
 `LinkMap` pairs points within `MaximumTheoreticalLinkDistance`, marks a link live when it is short enough and
 `Raycaster.HasOpenLine` finds no blocking pixel (`Pixel.BlocksLink`), and powers points breadth first from the
-bases, recording each point's `UpstreamLink` and `Hops`. Relays book pumped heat and pylons book charge along that
+bases, recording each point's `UpstreamLink` and `Hops`. It keeps its links between refreshes and does only what
+changed: a new point gets its links, a point switched off loses them, and a link's line of sight is cast again
+only when a cell in a tile its line crosses started or stopped blocking (the terrain lists those cells in
+`SightlineChanges`, from every pixel write). Power is searched again only when one of those changed something.
+The result is the one a rebuild from nothing gives, in the same order (`LinkMapTests`). Relays book pumped heat and pylons book charge along that
 route (`LinkMap.CarryHeat`, `LinkMap.CarryCharge`), which the renderer draws as flow. `LinkMap.PreviewLink` answers
 "would a node here link?" for planting and for `World.PreviewPlacement`.
 

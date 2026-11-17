@@ -36,6 +36,23 @@ public class Link
     /// <summary>True when that ore flows from <see cref="From"/> to <see cref="To"/>.</summary>
     public bool OreFlowsFromTo { get; set; }
 
+    /// <summary>Its index in <see cref="LinkMap.Links"/>.</summary>
+    internal int Order { get; set; }
+
+    /// <summary>Scratch for the map: already on the list of links to look at again.</summary>
+    internal bool IsQueued { get; set; }
+
+    /// <summary>Forgets every flow, as on a link that was just made.</summary>
+    internal void ForgetFlows()
+    {
+        HeatFlow = 0.0;
+        FlowsFromTo = false;
+        ChargeFlow = 0.0;
+        ChargeFlowsFromTo = false;
+        OreFlowTicks = 0;
+        OreFlowsFromTo = false;
+    }
+
     public Link(LinkPoint from, LinkPoint to)
     {
         From = from;

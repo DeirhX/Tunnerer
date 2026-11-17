@@ -98,7 +98,7 @@ and Escape quits at once.
 6. **Machines** - relays pump heat to their base, harvesters mine and roam, pylons charge batteries
 7. **Sprites** - lifetime
 8. **Bases** - reactor heat sink and radiator
-9. **LinkMap** - which machines are connected to a powered base (line of sight, range); rebuilt every 200 ms
+9. **LinkMap** - which machines are connected to a powered base (line of sight, range); brought up to date every 200 ms, only where points or the ground between them changed
 10. **Vision** - fog of war for each side someone asked to track (`World.TrackVision`): what its tank, base and
     machines see, and the terrain as it last saw it; and the tank's radar (`World.TrackRadar`), whose turning beam
     leaves fading contacts where it reflects beyond sight. Output only; the steps above never read them

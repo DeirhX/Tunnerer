@@ -16,6 +16,9 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     /// <summary>The pixel writes regrowth has yet to hear of; every pixel write keeps it up to date.</summary>
     public RegrowthWrites RegrowthWrites { get; } = new();
 
+    /// <summary>The cells that started or stopped blocking a line of sight; every pixel write keeps it up to date.</summary>
+    public SightlineChanges SightlineChanges { get; } = new();
+
     public Size Size { get; }
     public int Width => Size.X;
     public int Height => Size.Y;
@@ -36,6 +39,7 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         _heatEngine = new TerrainHeatEngine(simulationSettings);
         _neighborOffsets = BuildNeighborOffsets(size.X);
         _thermalActivity = new ThermalActivityTracker(size.X, size.Y, Math.Max(8, simulationSettings.ThermalActiveTileSize));
+        RecountOre();
         _computeTileDelta = ComputeTileDelta;
         _applyTileStep = ApplyTileStep;
         if (simulationSettings.ThermalMaxWorkers > 0)
@@ -65,6 +69,8 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     public void SetPixelRaw(int offset, TerrainPixel value)
     {
         RegrowthWrites.Note(offset, _data[offset], value);
+        SightlineChanges.Note(offset, _data[offset], value);
+        NoteOreWrite(offset, _data[offset], value);
         _data[offset] = value;
     }
     public TerrainPixel GetPixelRaw(Position pos) => _data[pos.X + pos.Y * Width];
@@ -79,6 +85,8 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         RecordMaterialChangeEnergy(offset, previous, value);
         _data[offset] = value;
         RegrowthWrites.Note(offset, previous, value);
+        SightlineChanges.Note(offset, previous, value);
+        NoteOreWrite(offset, previous, value);
         MirrorAirIfCellBecameAir(pos, offset, previous, value);
         WakeHeatIfMaterialChanged(pos, offset, previous, value);
         if (value == TerrainPixel.Decal)
@@ -222,7 +230,15 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     public void Fill(TerrainPixel value)
     {
         Array.Fill(_data, value);
+        NoteBulkWrite();
+    }
+
+    /// <summary>Pixels were written straight into the grid: whatever follows single writes must look at all of it again.</summary>
+    private void NoteBulkWrite()
+    {
         RegrowthWrites.NoteBulkWrite();
+        SightlineChanges.NoteBulkWrite();
+        RecountOre();
     }
 
     public ReadOnlySpan<TerrainPixel> Data => _data;
