@@ -53,6 +53,12 @@ public sealed class BaseUpgrades
 
     public int CoverageBonusCells => Level(BaseUpgrade.Reach) * Tweaks.Upgrades.ReachCellsPerLevel;
 
+    /// <summary>How far the base itself covers (and sees), with the reach upgrade.</summary>
+    public int BaseCoverageRadius => Tweaks.Coverage.BaseRadius + CoverageBonusCells;
+
+    /// <summary>How far each of the base's link nodes (relays, pylons) covers (and sees), with the reach upgrade.</summary>
+    public int NodeCoverageRadius => Tweaks.Coverage.NodeRadius + CoverageBonusCells;
+
     public double EngineMaxEfficiency =>
         Tweaks.Base.EngineMaxEfficiency + Level(BaseUpgrade.Engine) * Tweaks.Upgrades.EngineEfficiencyPerLevel;
 

@@ -1,6 +1,5 @@
 using Tunnerer.Core;
 using Tunnerer.Core.Entities.Machines;
-using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Presentation;
 
@@ -9,12 +8,13 @@ namespace Tunnerer.Tests;
 /// <summary>Which sound each simulation event plays (<see cref="StepEventSounds"/>), checked without a sound device.</summary>
 public class StepEventSoundsTests
 {
-    private const int Player = 0, Enemy = 1;
-
-    private static SoundEffect? Cue(StepEventKind kind, int color = Player, MachineType machine = default) =>
-        StepEventSounds.TryGetCue(new StepEvent(kind, new Position(5, 5), color, machine), Player, out var effect, out float gain)
-            ? (gain > 0f ? effect : throw new InvalidOperationException("a cue must be audible"))
+    private static SoundEffect? Cue(StepEventKind kind, MachineType machine = default) =>
+        StepEventSounds.CueFor(kind, machine) is { } cue
+            ? (cue.Gain > 0f ? cue.Effect : throw new InvalidOperationException("a cue must be audible"))
             : null;
+
+    private static bool Hears(StepEventKind kind, bool tracked, bool isPlayer) =>
+        StepEventSounds.Hears(StepEventSounds.CueFor(kind, default)!.Value, tracked, isPlayer);
 
     [Theory]
     [InlineData(StepEventKind.ShotFired, SoundEffect.Fire)]
@@ -38,9 +38,34 @@ public class StepEventSoundsTests
 
     [Theory]
     [InlineData(StepEventKind.PlantRefused)]
+    [InlineData(StepEventKind.BuildRefused)]
+    [InlineData(StepEventKind.OreUnloaded)]
     [InlineData(StepEventKind.Docked)]
-    public void PlayerOnlyEvents_AreSilentForTheEnemy(StepEventKind kind) =>
-        Assert.Null(Cue(kind, Enemy));
+    public void PlayerOnlyEvents_AreSilentForTheEnemy(StepEventKind kind)
+    {
+        Assert.True(Hears(kind, tracked: true, isPlayer: true));
+        Assert.False(Hears(kind, tracked: true, isPlayer: false));
+        Assert.False(Hears(kind, tracked: false, isPlayer: true));
+    }
+
+    [Theory]
+    [InlineData(StepEventKind.TankHit)]
+    [InlineData(StepEventKind.TankDied)]
+    [InlineData(StepEventKind.TankRespawned)]
+    [InlineData(StepEventKind.MachineBuilt)]
+    [InlineData(StepEventKind.MachinePlanted)]
+    public void ATanksOwnEvents_AreHeardOnlyForTrackedTanks(StepEventKind kind)
+    {
+        Assert.True(Hears(kind, tracked: true, isPlayer: false));
+        Assert.False(Hears(kind, tracked: false, isPlayer: false));
+    }
+
+    [Theory]
+    [InlineData(StepEventKind.ShotFired)]
+    [InlineData(StepEventKind.BulletImpact)]
+    [InlineData(StepEventKind.OreCollected)]
+    public void ShotsImpactsAndPickups_AreHeardForAnyone(StepEventKind kind) =>
+        Assert.True(Hears(kind, tracked: false, isPlayer: false));
 
     [Theory]
     [InlineData(StepEventKind.TankMoved)]

@@ -86,7 +86,7 @@ public static class OreDeposits
             var pos = new Position(
                 middle.X + (int)(DeterministicMath.Cos(angle) * fraction * halfW),
                 middle.Y + (int)(DeterministicMath.Sin(angle) * fraction * halfH));
-            if (TooClose(pos, bases, minFromBaseSq) || TooClose(pos, lumps, minBetweenSq))
+            if (GeneratorUtils.TooClose(pos, bases, minFromBaseSq) || GeneratorUtils.TooClose(pos, lumps, minBetweenSq))
                 continue;
 
             var deposit = Grow(terrain, rng, pos, OreDepositKind.Lump, cells, Tweaks.Ore.LumpCoreCells, dirtOnly: false);
@@ -110,7 +110,7 @@ public static class OreDeposits
                 margin + rng.Next(terrain.Width - margin * 2),
                 margin + rng.Next(terrain.Height - margin * 2));
             int cells = rng.Next(minCells, maxCells + 1);
-            if (TooClose(pos, bases, minFromBaseSq))
+            if (GeneratorUtils.TooClose(pos, bases, minFromBaseSq))
                 continue;
 
             if (Grow(terrain, rng, pos, kind, cells, coreCells: 0, dirtOnly) is OreDeposit deposit)
@@ -171,13 +171,5 @@ public static class OreDeposits
             }
         }
         return best;
-    }
-
-    private static bool TooClose(Position pos, IReadOnlyList<Position> others, int minDistanceSq)
-    {
-        foreach (var other in others)
-            if (Position.DistanceSquared(pos, other) < minDistanceSq)
-                return true;
-        return false;
     }
 }

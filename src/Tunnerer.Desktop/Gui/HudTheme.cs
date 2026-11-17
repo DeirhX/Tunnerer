@@ -2,6 +2,7 @@ namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
 using ImGuiNET;
+using Tunnerer.Core;
 
 /// <summary>
 /// One look for every piece of UI drawn over the game: the tutorial card, toasts, the status and upgrade panels, the
@@ -13,8 +14,20 @@ public static class HudTheme
 {
     public static uint Rgba(byte r, byte g, byte b, byte a = 255) => (uint)(a << 24 | b << 16 | g << 8 | r);
 
-    private static uint WithAlpha(uint color, float alpha) =>
+    /// <summary><paramref name="color"/> with its alpha scaled by <paramref name="alpha"/> (0 to 1).</summary>
+    public static uint WithAlpha(uint color, float alpha) =>
         (color & 0x00FFFFFFu) | (uint)(Math.Clamp(alpha, 0f, 1f) * (color >> 24)) << 24;
+
+    /// <summary><paramref name="color"/> with its alpha replaced by <paramref name="alpha"/> (0 to 255).</summary>
+    public static uint WithAlphaByte(uint color, uint alpha) => (color & 0x00FFFFFFu) | alpha << 24;
+
+    /// <summary>The colour a status gauge shows at <paramref name="level"/>, with <paramref name="ok"/> for a fine one.</summary>
+    public static uint LevelColor(StatusLevel level, uint ok) => level switch
+    {
+        StatusLevel.Ok => ok,
+        StatusLevel.Warn => Warn,
+        _ => Danger,
+    };
 
     // ---- Palette ---------------------------------------------------------------
     public static readonly uint PlateTop = Rgba(30, 32, 36, 238);
@@ -31,9 +44,6 @@ public static class HudTheme
     public static readonly uint Danger = Rgba(255, 86, 66);
     public static readonly uint Shadow = Rgba(0, 0, 0, 150);
     public static readonly uint Track = Rgba(8, 8, 10, 230);
-
-    public static Vector4 ToVector(uint c) =>
-        new((c & 0xFF) / 255f, (c >> 8 & 0xFF) / 255f, (c >> 16 & 0xFF) / 255f, (c >> 24) / 255f);
 
     private const float Chamfer = 9f;
 

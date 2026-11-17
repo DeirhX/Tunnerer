@@ -162,3 +162,7 @@ that tests can inject their own values.
   answers for it (the sector goal keeps each base's `CoreTap`; Desktop asks `World.CoreTapOf`). Do not add a new
   system's fields to `TankBase` or `Tank`: then removing the system leaves them untouched.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.
+- Ask the shared question instead of spelling it out: `Machine.IsStanding` / `StandsFor(base)`; `Pixel.IsOpenGround`,
+  `IsSoil`, `IsSolidGround`, `IsAnyBaseCell`; `BaseUpgrades.BaseCoverageRadius` / `NodeCoverageRadius`; per-second
+  rates on `CoreTap` and `TankBase`; HUD colours from `HudTheme` (`LevelColor`, `WithAlpha`, `WithAlphaByte`). A new
+  pixel kind, machine or upgrade then changes one place.

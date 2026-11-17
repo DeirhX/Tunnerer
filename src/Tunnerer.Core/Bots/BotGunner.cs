@@ -126,15 +126,7 @@ internal sealed class BotGunner
         return new DirectionF(dx / len, dy / len);
     }
 
-    private static DirectionF AimTowards(Position from, Position to)
-    {
-        float dx = to.X - from.X;
-        float dy = to.Y - from.Y;
-        float len = MathF.Sqrt(dx * dx + dy * dy);
-        if (len < 0.001f)
-            return default;
-        return new DirectionF(dx / len, dy / len);
-    }
+    private static DirectionF AimTowards(Position from, Position to) => AimTowardsOffset(to - from);
 
     private static DirectionF Rotate(DirectionF d, double radians)
     {

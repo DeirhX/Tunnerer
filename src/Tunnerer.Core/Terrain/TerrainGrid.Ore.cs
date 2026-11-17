@@ -84,7 +84,7 @@ public partial class TerrainGrid
         if (pos.X < 1 || pos.Y < 1 || pos.X >= Width - 1 || pos.Y >= Height - 1)
             return false;
         TerrainPixel existing = _data[pos.X + pos.Y * Width];
-        bool fits = dirtOnly ? Pixel.IsDirt(existing) || existing == TerrainPixel.DirtGrow : IsSolidGround(existing);
+        bool fits = dirtOnly ? Pixel.IsSoil(existing) : Pixel.IsSolidGround(existing);
         if (!fits)
             return false;
 

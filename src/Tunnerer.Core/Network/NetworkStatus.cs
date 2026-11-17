@@ -55,17 +55,20 @@ public readonly record struct NetworkStatus(
     /// </summary>
     public bool IsHeatStoreFullWithRelays => HeatStoreLevel == StatusLevel.Bad && PoweredRelays > 0;
 
+    /// <summary>Chargers (pylons) the base's link network reaches.</summary>
+    public int PoweredChargers { get; init; }
+
     /// <summary>A relay counts as pumping once its last action moved more than this much heat.</summary>
     public const double PumpingThreshold = 1.0;
 
     internal static NetworkStatus Collect(TankBase tankBase, IReadOnlyList<Machine> machines)
     {
         int harvesters = 0, returning = 0, outOfCharge = 0, offNetwork = 0, tooHot = 0, noOre = 0, coreOnly = 0, storeFull = 0;
-        int relays = 0, powered = 0, pumping = 0;
+        int relays = 0, powered = 0, pumping = 0, poweredChargers = 0;
         double inflow = 0.0;
         foreach (var machine in machines)
         {
-            if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != tankBase)
+            if (!machine.StandsFor(tankBase))
                 continue;
             if (machine.Behavior.IsMiner)
             {
@@ -90,6 +93,10 @@ public readonly record struct NetworkStatus(
                     pumping++;
                 inflow += machine.LastPumpedEnergy;
             }
+            else if (machine.Behavior.IsCharger && machine.LinkPoint?.IsPowered == true)
+            {
+                poweredChargers++;
+            }
         }
 
         return new NetworkStatus(
@@ -98,6 +105,9 @@ public readonly record struct NetworkStatus(
             RelayInflow: inflow,
             RadiatorInflow: inflow - tankBase.EngineOutputPerTick,
             VentCapacity: tankBase.VentCapacityPerTick,
-            HeatStoreFill: tankBase.HeatStoreFill);
+            HeatStoreFill: tankBase.HeatStoreFill)
+        {
+            PoweredChargers = poweredChargers,
+        };
     }
 }

@@ -73,7 +73,7 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         {
             using var helloLimit = CancellationTokenSource.CreateLinkedTokenSource(served.Token);
             helloLimit.CancelAfter(HelloTimeout);
-            if (await SocketPeer.ReadFrameAsync(socket, buffer, helloLimit.Token) is not { } first)
+            if (await MessageFraming.ReadFrameAsync(socket, buffer, helloLimit.Token) is not { } first)
                 return;
             // The protocol number is read before the rest: a client of another protocol sends a hello this relay
             // may not be able to decode, and should still be told to update.
@@ -94,7 +94,7 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
                 StartClock(room, stopping);
 
             var rate = new MessageRate(MaxMessagesPerSecond);
-            while (await SocketPeer.ReadFrameAsync(socket, buffer, served.Token) is { } frame)
+            while (await MessageFraming.ReadFrameAsync(socket, buffer, served.Token) is { } frame)
             {
                 if (rate.Exceeded())
                     throw new InvalidDataException($"The client sends more than {MaxMessagesPerSecond} messages a second.");
@@ -272,27 +272,6 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
             catch (Exception e) when (e is WebSocketException or OperationCanceledException)
             {
                 socket.Abort();
-            }
-        }
-
-        /// <summary>
-        /// The bytes of the client's next message, read into <paramref name="buffer"/>, or null when it closed the
-        /// connection.
-        /// </summary>
-        public static async Task<ArraySegment<byte>?> ReadFrameAsync(
-            WebSocket socket, byte[] buffer, CancellationToken cancel)
-        {
-            int length = 0;
-            while (true)
-            {
-                ValueWebSocketReceiveResult part = await socket.ReceiveAsync(buffer.AsMemory(length), cancel);
-                if (part.MessageType == WebSocketMessageType.Close)
-                    return null;
-                length += part.Count;
-                if (part.EndOfMessage)
-                    return new ArraySegment<byte>(buffer, 0, length);
-                if (length == buffer.Length)
-                    throw new InvalidDataException("A message is longer than the protocol allows.");
             }
         }
 

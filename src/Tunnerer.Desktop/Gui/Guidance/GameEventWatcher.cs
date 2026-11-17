@@ -6,6 +6,7 @@ using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Entities.Bases;
+using Tunnerer.Desktop.Presentation;
 
 /// <summary>
 /// Watches the player's side of the world from frame to frame and posts a toast when something changes that the
@@ -63,44 +64,24 @@ public sealed class GameEventWatcher
         if (home == null)
             return;
 
-        int poweredRelays = 0, harvesters = 0, stalled = 0, dry = 0, returning = 0;
-        bool hasPylon = false;
-        foreach (var m in world.Machines.Machines)
-        {
-            if (!m.IsAlive || m.State != MachineState.Planted || m.OwnerBase != home)
-                continue;
-            switch (m.Type)
-            {
-                case MachineType.Relay when m.LinkPoint?.IsPowered == true:
-                    poweredRelays++;
-                    break;
-                case MachineType.Pylon when m.LinkPoint?.IsPowered == true:
-                    hasPylon = true;
-                    break;
-                case MachineType.Harvester:
-                    harvesters++;
-                    if (m.IsReturning) returning++;
-                    else if (m.Charge < Tweaks.Machine.HarvesterHeatPerHarvest) dry++;
-                    else if (m.IsStalled) stalled++;
-                    break;
-            }
-        }
+        var network = world.GetNetworkStatus(home);
+        int poweredRelays = network.PoweredRelays, harvesters = network.Harvesters;
+        int stalled = network.HarvestersTooHot, dry = network.HarvestersOutOfCharge, returning = network.HarvestersReturning;
+        bool hasPylon = network.PoweredChargers > 0;
 
         int store = home.Store.Ore;
         bool storeFull = home.Store.IsFull;
-        double heatCapacity = Math.Max(1, (int)home.Reactor.HeatCapacity) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
-        bool heatStoreFull = home.ReactorHeatEnergy / heatCapacity >= 0.9;
+        bool heatStoreFull = network.HeatStoreLevel == StatusLevel.Bad;
         bool chargeLow = home.Charge < home.ChargeCapacity * 0.1 && harvesters > 0;
         bool offNetwork = player.IsOffNetwork;
-        bool engineRunning = home.EngineOutputPerTick > 1.0;
+        bool engineRunning = home.IsEngineRunning;
         bool radarScattered = !player.IsDead && world.RadarOf(player) is { HeatLoss: >= RadarScatteredShare };
         bool holdingOre = player.OreHeld > 0;
         bool oreHoldFull = player.IsOreHoldFull;
 
         CoreTap? core = world.CoreTapOf(home);
-        double coreRate = (core?.TapPerTick ?? 0.0) * Tweaks.Perf.TargetFps;
-        bool tappingCore = coreRate > 1.0;
-        bool meetingGoal = coreRate >= Tweaks.Goal.GoalChargePerSecond;
+        bool tappingCore = core?.TapPerSecond > 1.0;
+        bool meetingGoal = core?.IsMeetingGoal == true;
 
         if (!_primed)
         {
@@ -156,7 +137,8 @@ public sealed class GameEventWatcher
                     "Mining heats the ground. A linked relay near it pumps that heat away.", NotificationKind.Warning);
             if (dry > _dryHarvesters)
                 feed.Post(now, "harvester-dry", "Harvester out of charge",
-                    hasPylon ? "Move a pylon where it can see the harvester." : "Build a pylon (T) near it so it can recharge.",
+                    hasPylon ? "Move a pylon where it can see the harvester."
+                        : $"Build a pylon ({MachinePresentations.Get(MachineType.Pylon).KeyLabel}) near it so it can recharge.",
                     NotificationKind.Danger);
             if (returning > _returningHarvesters)
                 feed.Post(now, "harvester-returning", "Harvester heading to a pylon",

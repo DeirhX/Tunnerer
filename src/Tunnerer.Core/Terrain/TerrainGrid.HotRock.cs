@@ -44,7 +44,7 @@ public partial class TerrainGrid
                 if (pos.X < 1 || pos.Y < 1 || pos.X >= Width - 1 || pos.Y >= Height - 1)
                     continue;
 
-                if (!IsSolidGround(_data[pos.X + pos.Y * Width]))
+                if (!Pixel.IsSolidGround(_data[pos.X + pos.Y * Width]))
                     continue;
 
                 SetPinnedPixel(pos, pixel, material);
@@ -54,9 +54,6 @@ public partial class TerrainGrid
         return converted;
     }
 
-    /// <summary>Dirt (grown or not) and plain rock: the ground generation may turn into pockets and deposits.</summary>
-    private static bool IsSolidGround(TerrainPixel pixel) =>
-        Pixel.IsDirt(pixel) || pixel == TerrainPixel.DirtGrow || Pixel.IsRock(pixel);
 
     /// <summary>
     /// Writes a fixed-temperature pixel and sets the cell to its pinned temperature at once, recording the change in

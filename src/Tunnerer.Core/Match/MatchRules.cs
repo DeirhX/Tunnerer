@@ -1,6 +1,7 @@
 namespace Tunnerer.Core.Match;
 
 using Tunnerer.Core.Config;
+using Tunnerer.Core.Types;
 
 /// <summary>
 /// Which of the game's optional systems a world runs with, fixed when the world is built. This is the one place a
@@ -55,14 +56,12 @@ public sealed record MatchRules
     /// <summary>The rules as one number, the same on every machine and run (unlike <see cref="GetHashCode"/>).</summary>
     public ulong Fingerprint()
     {
-        ulong hash = 1469598103934665603UL;
-        hash = Mix(hash, TerrainRegrowth ? 1u : 0u);
-        hash = Mix(hash, (uint)HotRockPockets);
-        hash = Mix(hash, (uint)FrostRockPockets);
-        hash = Mix(hash, SeedOre ? 1u : 0u);
-        hash = Mix(hash, CoreTapWins ? 1u : 0u);
+        ulong hash = Fnv1a.Offset;
+        hash = Fnv1a.Mix(hash, TerrainRegrowth ? 1u : 0u);
+        hash = Fnv1a.Mix(hash, (uint)HotRockPockets);
+        hash = Fnv1a.Mix(hash, (uint)FrostRockPockets);
+        hash = Fnv1a.Mix(hash, SeedOre ? 1u : 0u);
+        hash = Fnv1a.Mix(hash, CoreTapWins ? 1u : 0u);
         return hash;
-
-        static ulong Mix(ulong h, uint value) => (h ^ value) * 1099511628211UL;
     }
 }

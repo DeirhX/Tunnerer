@@ -3,6 +3,7 @@ namespace Tunnerer.Core;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Entities.Bases;
+using Tunnerer.Core.Types;
 
 /// <summary>
 /// One number for the state of a world: terrain pixels, tanks, machines, links and projectiles. Two worlds
@@ -17,16 +18,8 @@ public static class WorldStateHash
 {
     public static ulong Compute(World world)
     {
-        const ulong offset = 1469598103934665603UL;
-        ulong hash = offset;
-
-        static ulong Mix(ulong h, uint value)
-        {
-            const ulong fnvPrime = 1099511628211UL;
-            h ^= value;
-            h *= fnvPrime;
-            return h;
-        }
+        ulong hash = Fnv1a.Offset;
+        static ulong Mix(ulong h, uint value) => Fnv1a.Mix(h, value);
 
         var terrain = world.Terrain.Data;
         for (int i = 0; i < terrain.Length; i++)
@@ -120,7 +113,7 @@ public static class WorldStateHash
     /// match, for one). The relay refuses to start when two clients report different numbers.
     /// </summary>
     public static ulong ComputeReady(World world) =>
-        (Compute(world) ^ world.Rules.Fingerprint()) * 1099511628211UL;
+        (Compute(world) ^ world.Rules.Fingerprint()) * Fnv1a.Prime;
 
     /// <summary>
     /// What machines in a network match compare: <see cref="Compute"/> plus what it does not read: the totals of
@@ -140,13 +133,13 @@ public static class WorldStateHash
     /// </summary>
     private static ulong ComputeEconomy(World world)
     {
-        ulong hash = 1469598103934665603UL;
+        ulong hash = Fnv1a.Offset;
         foreach (var tankBase in world.TankBases.Bases)
         {
-            hash = (hash ^ (uint)tankBase.Store.Ore) * 1099511628211UL;
-            hash = (hash ^ (uint)tankBase.Store.Capacity) * 1099511628211UL;
+            hash = Fnv1a.Mix(hash, (uint)tankBase.Store.Ore);
+            hash = Fnv1a.Mix(hash, (uint)tankBase.Store.Capacity);
             for (int upgrade = 0; upgrade < BaseUpgrades.Count; upgrade++)
-                hash = (hash ^ (uint)tankBase.Upgrades.Level((BaseUpgrade)upgrade)) * 1099511628211UL;
+                hash = Fnv1a.Mix(hash, (uint)tankBase.Upgrades.Level((BaseUpgrade)upgrade));
         }
         return hash;
     }
@@ -161,5 +154,5 @@ public readonly record struct SyncDigest(ulong State, ulong Heat, ulong Charge, 
 {
     /// <summary>The four parts as one number, which is what travels.</summary>
     public ulong Combined =>
-        ((State * 1099511628211UL ^ Heat) * 1099511628211UL ^ Charge) * 1099511628211UL ^ Economy;
+        ((State * Fnv1a.Prime ^ Heat) * Fnv1a.Prime ^ Charge) * Fnv1a.Prime ^ Economy;
 }

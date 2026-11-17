@@ -42,6 +42,12 @@ public class Machine
     public BoundingBox BoundingBox { get; } = new(Tweaks.Machine.BoundingBoxHalfSize, Tweaks.Machine.BoundingBoxHalfSize);
     public bool IsAlive { get; set; } = true;
 
+    /// <summary>Planted in the ground and not destroyed: a machine that acts, links, sees and can be hit.</summary>
+    public bool IsStanding => IsAlive && State == MachineState.Planted;
+
+    /// <summary>Standing (<see cref="IsStanding"/>) and belonging to <paramref name="owner"/>.</summary>
+    public bool StandsFor(TankBase owner) => IsStanding && OwnerBase == owner;
+
     /// <summary>Node in the link network once planted; <see cref="LinkPoint.IsPowered"/> says whether a base can reach it.</summary>
     public LinkPoint? LinkPoint { get; set; }
 
@@ -132,6 +138,18 @@ public class Machine
     }
 
     public bool IsBlockingCollision => State == MachineState.Planted;
+
+    /// <summary>
+    /// Turns up to <paramref name="amount"/> of the battery's charge into heat in the ground around the machine, booked
+    /// in the ledger as charge turned back into heat.
+    /// </summary>
+    internal void DischargeAsHeat(ITerrainAccess terrain, double amount)
+    {
+        double heat = terrain.AddEnergyInRadiusArea(Position, Tweaks.Machine.HarvesterHeatRadius, amount,
+            TerrainGrid.ThermalField.Terrain);
+        Charge -= heat;
+        terrain.Ledger.RecordFromCharge(heat);
+    }
     public bool TestCollide(Position pos) => BoundingBox.IsInside(pos, Position);
 
     /// <summary>
@@ -140,7 +158,7 @@ public class Machine
     /// </summary>
     public bool TakeDamage(int amount)
     {
-        if (amount <= 0 || !IsAlive || State != MachineState.Planted)
+        if (amount <= 0 || !IsStanding)
             return false;
         Reactor.Exhaust(new ReactorState(0, amount));
         if (Reactor.Health > 0)
@@ -151,7 +169,7 @@ public class Machine
 
     public void Advance(in MachineContext ctx, TimeSpan dt)
     {
-        if (!IsAlive || State != MachineState.Planted) return;
+        if (!IsStanding) return;
 
         var interval = Behavior.ActionInterval;
         if (interval > TimeSpan.Zero)

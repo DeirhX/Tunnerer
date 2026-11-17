@@ -118,11 +118,19 @@ public class TerrainBehaviorTests
     }
 
     [Fact]
-    public void Blank_IsEmpty()
+    public void GroundKinds_SortPixels()
     {
-        Assert.True(Pixel.IsEmpty(TerrainPixel.Blank));
-        Assert.False(Pixel.IsEmpty(TerrainPixel.Rock));
-        Assert.False(Pixel.IsEmpty(TerrainPixel.Dirt));
+        Assert.True(Pixel.IsOpenGround(TerrainPixel.Blank));
+        Assert.False(Pixel.IsOpenGround(TerrainPixel.Rock));
+        Assert.False(Pixel.IsOpenGround(TerrainPixel.Dirt));
+        Assert.True(Pixel.IsSoil(TerrainPixel.Dirt));
+        Assert.True(Pixel.IsSoil(TerrainPixel.DirtGrow));
+        Assert.False(Pixel.IsSoil(TerrainPixel.Rock));
+        Assert.True(Pixel.IsSolidGround(TerrainPixel.Rock));
+        Assert.False(Pixel.IsSolidGround(TerrainPixel.Blank));
+        Assert.True(Pixel.IsAnyBaseCell(TerrainPixel.BaseCore));
+        Assert.True(Pixel.IsAnyBaseCell(TerrainPixel.BaseBarrier));
+        Assert.False(Pixel.IsAnyBaseCell(TerrainPixel.Dirt));
     }
 
     [Fact]

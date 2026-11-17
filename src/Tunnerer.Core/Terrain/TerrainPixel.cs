@@ -150,13 +150,24 @@ public static class Pixel
     /// base from any side rather than only through the exit gap.
     /// </summary>
     public static bool BlocksLink(TerrainPixel p) =>
-        p != TerrainPixel.Blank && !IsScorched(p) && !IsBase(p) &&
-        p is not (TerrainPixel.BaseBarrier or TerrainPixel.BaseCore);
+        !IsOpenGround(p) && !IsAnyBaseCell(p);
     public static bool IsScorched(TerrainPixel p) => _behaviors[(int)p].Scorched;
     public static bool IsConcrete(TerrainPixel p) => _behaviors[(int)p].Concrete;
     public static bool IsRock(TerrainPixel p) => _behaviors[(int)p].Rock;
     public static bool IsMineral(TerrainPixel p) => _behaviors[(int)p].Mineral;
-    public static bool IsEmpty(TerrainPixel p) => p == TerrainPixel.Blank;
+
+    /// <summary>Ground with nothing in it: dug tunnel or scorch.</summary>
+    public static bool IsOpenGround(TerrainPixel p) => p == TerrainPixel.Blank || IsScorched(p);
+
+    /// <summary>Dirt, grown or still growing back.</summary>
+    public static bool IsSoil(TerrainPixel p) => IsDirt(p) || p == TerrainPixel.DirtGrow;
+
+    /// <summary>Soil and plain rock: the ground level generation may turn into pockets and deposits.</summary>
+    public static bool IsSolidGround(TerrainPixel p) => IsSoil(p) || IsRock(p);
+
+    /// <summary>Any cell of a base: walls and floor, the exit barrier and the core.</summary>
+    public static bool IsAnyBaseCell(TerrainPixel p) =>
+        IsBase(p) || p is TerrainPixel.BaseBarrier or TerrainPixel.BaseCore;
 
     /// <summary>True for emberite ore, plain or core.</summary>
     public static bool IsOre(TerrainPixel p) => _behaviors[(int)p].Ore;

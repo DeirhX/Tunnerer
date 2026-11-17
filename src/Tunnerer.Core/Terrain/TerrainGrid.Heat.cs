@@ -36,7 +36,7 @@ public partial class TerrainGrid
 
     public float GetHeatTemperature(Position pos)
     {
-        if ((uint)pos.X >= (uint)Width || (uint)pos.Y >= (uint)Height)
+        if (!IsInside(pos))
             return 0f;
         int offset = pos.X + pos.Y * Width;
         Debug.Assert((uint)offset < (uint)_heatTemperature.Length, "Validated position must map to a valid offset.");
@@ -45,7 +45,7 @@ public partial class TerrainGrid
 
     public float GetAirTemperature(Position pos)
     {
-        if ((uint)pos.X >= (uint)Width || (uint)pos.Y >= (uint)Height)
+        if (!IsInside(pos))
             return 0f;
         int offset = pos.X + pos.Y * Width;
         Debug.Assert((uint)offset < (uint)_airTemperature.Length, "Validated position must map to a valid offset.");
@@ -54,19 +54,28 @@ public partial class TerrainGrid
 
     public void AddHeat(Position pos, int amount)
     {
-        if ((uint)pos.X >= (uint)Width || (uint)pos.Y >= (uint)Height)
+        if (!IsInside(pos))
             return;
         int offset = pos.X + pos.Y * Width;
         Debug.Assert((uint)offset < (uint)_heatTemperature.Length, "Validated position must map to a valid offset.");
-        float old = _heatTemperature[offset];
-        AddToTerrainField(offset, amount);
-        float next = _heatTemperature[offset];
-        Ledger.RecordInjected((double)amount * TerrainCapacityAt(offset));
-        if (ShouldMarkHeatDirty(old, next))
-            MarkHeatDirty(pos.X, pos.Y);
-        if (amount != 0)
-            ActivateTileByCell(pos.X, pos.Y);
+        InjectTerrainTemperature(pos.X, pos.Y, offset, amount, wake: amount != 0);
         CommitPixel(pos);
+    }
+
+    /// <summary>
+    /// Adds <paramref name="delta"/> to one cell's terrain temperature from outside the system: books the energy as
+    /// injected, marks the cell for the renderer if it changed visibly and, if <paramref name="wake"/>, wakes its tile.
+    /// </summary>
+    private void InjectTerrainTemperature(int x, int y, int offset, int delta, bool wake = true)
+    {
+        float old = _heatTemperature[offset];
+        AddToTerrainField(offset, delta);
+        float next = _heatTemperature[offset];
+        Ledger.RecordInjected((double)delta * TerrainCapacityAt(offset));
+        if (ShouldMarkHeatDirty(old, next))
+            MarkHeatDirty(x, y);
+        if (wake)
+            ActivateTileByCell(x, y);
     }
 
     public void AddHeatRadius(Position center, int amount, int radius)
@@ -89,14 +98,7 @@ public partial class TerrainGrid
                 float falloff = 1f - (float)dist2 / radiusSq;
                 int scaled = (int)(amount * falloff);
                 if (scaled == 0) continue;
-                int offset = nx + ny * Width;
-                float old = _heatTemperature[offset];
-                AddToTerrainField(offset, scaled);
-                float next = _heatTemperature[offset];
-                Ledger.RecordInjected((double)scaled * TerrainCapacityAt(offset));
-                if (ShouldMarkHeatDirty(old, next))
-                    MarkHeatDirty(nx, ny);
-                ActivateTileByCell(nx, ny);
+                InjectTerrainTemperature(nx, ny, nx + ny * Width, scaled);
             }
     }
 
@@ -117,34 +119,32 @@ public partial class TerrainGrid
         LastCoolDownProfile = new CoolDownProfile(simulate, apply, activeTiles, steppedTiles, parallel);
     }
 
+    /// <summary>The mean terrain temperature over the square of <paramref name="radius"/> around <paramref name="center"/>, divided by 255.</summary>
     public float SampleAverageHeat(Position center, int radius)
     {
-        float sum = 0f;
-        int count = 0;
-        var area = AreaAround(center, radius);
-        for (int ny = area.MinY; ny <= area.MaxY; ny++)
-            for (int nx = area.MinX; nx <= area.MaxX; nx++)
-            {
-                int idx = ny * Width + nx;
-                sum += _heatEngine.GetTemperatureAt(_heatTemperature, _heatTemperature.Length, idx);
-                count++;
-            }
+        float sum = SumOverArea(_heatTemperature, center, radius, out int count);
         return count > 0 ? sum / (count * 255f) : 0f;
     }
 
+    /// <summary>The mean air temperature over the square of <paramref name="radius"/> around <paramref name="center"/>.</summary>
     public float SampleAverageAirTemperature(Position center, int radius)
     {
+        float sum = SumOverArea(_airTemperature, center, radius, out int count);
+        return count > 0 ? sum / count : 0f;
+    }
+
+    private float SumOverArea(float[] field, Position center, int radius, out int count)
+    {
         float sum = 0f;
-        int count = 0;
+        count = 0;
         var area = AreaAround(center, radius);
         for (int ny = area.MinY; ny <= area.MaxY; ny++)
             for (int nx = area.MinX; nx <= area.MaxX; nx++)
             {
-                int idx = ny * Width + nx;
-                sum += _heatEngine.GetTemperatureAt(_airTemperature, _airTemperature.Length, idx);
+                sum += _heatEngine.GetTemperatureAt(field, field.Length, ny * Width + nx);
                 count++;
             }
-        return count > 0 ? sum / count : 0f;
+        return sum;
     }
 
     public int CountCellsInRadiusArea(Position center, int radius)
@@ -186,14 +186,7 @@ public partial class TerrainGrid
                 if (delta == 0)
                     continue;
 
-                int offset = nx + ny * Width;
-                float old = _heatTemperature[offset];
-                AddToTerrainField(offset, delta);
-                float next = _heatTemperature[offset];
-                Ledger.RecordInjected((double)delta * TerrainCapacityAt(offset));
-                if (ShouldMarkHeatDirty(old, next))
-                    MarkHeatDirty(nx, ny);
-                ActivateTileByCell(nx, ny);
+                InjectTerrainTemperature(nx, ny, nx + ny * Width, delta);
                 applied += delta;
             }
 
@@ -428,7 +421,7 @@ public partial class TerrainGrid
     /// </summary>
     public double SinkCellToAmbient(Position pos, ThermalField field)
     {
-        if ((uint)pos.X >= (uint)Width || (uint)pos.Y >= (uint)Height)
+        if (!IsInside(pos))
             return 0.0;
         int offset = pos.X + pos.Y * Width;
         float[] temperatures = FieldArray(field);

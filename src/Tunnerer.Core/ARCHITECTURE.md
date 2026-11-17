@@ -74,6 +74,7 @@ Network/                     The link network (not network matches: those are De
   NetworkCoverage.cs         Coverage nodes and the coverage a tank gets at a position
   NetworkStatus.cs           One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
 Sensing/
+  SideSensing.cs             The vision system: which sides are tracked, what each sees through, and each tank's radar
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
   VisionEye.cs               One source's sight, kept between updates, and the ray and wall casting that fills it
   Radar.cs                   A tank's radar: pulses running out from the tank and the fading contacts where they reflected
@@ -92,7 +93,7 @@ Bots/                        The computer player: produces a ControllerOutput li
   BotTrail.cs                The way the bot came, retraced to get home
 LevelGen/
   ToastGenerator.cs          Cavern generator (LevelGenMode Deterministic or Optimized)
-  GeneratorUtils.cs          Shared drawing helpers
+  GeneratorUtils.cs          Shared drawing and placement helpers (lines, TooClose)
   HotRockPockets.cs          Scatters hot rock pockets
   FrostRockPockets.cs        Scatters frost pockets
   OreDeposits.cs             Seeds emberite: specks, pockets and lumps with a warm core (OreDeposit, OreDepositKind)
@@ -104,6 +105,8 @@ Resources/Reactor.cs         Reactor, ReactorState, Heat, Health: a tank's or ba
 Resources/OreStore.cs        OreStore: a tank's hold, a base's store (ore is the only currency)
 Resources/OreDrop.cs         Puts ore back into the ground, nearest free cells first, not under tanks or machines (a dead tank's hold)
 Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, DirectionF, Color, Rect, BoundingBox
+Types/DirtyRect.cs           The bounding box of changed cells, for the renderer (heat and vision)
+Types/Fnv1a.cs               The 64-bit FNV-1a mixer the world, rules and economy hashes share
 ```
 
 ## World
@@ -243,7 +246,8 @@ below 0 as frost.
 ## Vision
 
 `World.TrackVision(tank)` returns a `VisionMap` for that tank's side and keeps it up to date at the end of every
-`Advance`. A world nobody asked pays nothing. The map is output only: nothing in the simulation reads it, so
+`Advance`; `SideSensing` keeps the tracked maps and radars and lists what each side sees through, and `World`
+answers for it. A world nobody asked pays nothing. The map is output only: nothing in the simulation reads it, so
 tracking cannot change a result (`VisionMapTests.TrackingVision_DoesNotChangeTheSimulation`, and the recorded
 fingerprints do not move).
 

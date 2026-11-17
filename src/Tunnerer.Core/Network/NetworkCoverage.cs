@@ -30,10 +30,10 @@ public static class NetworkCoverage
     public static void CollectNodes(TankBase owner, IReadOnlyList<Machine> machines, List<CoverageNode> into)
     {
         into.Clear();
-        int bonus = owner.Upgrades.CoverageBonusCells;
-        into.Add(BaseNode(owner, bonus));
+        into.Add(BaseNode(owner));
+        int nodeRadius = owner.Upgrades.NodeCoverageRadius;
         foreach (var machine in machines)
-            if (TryGetNode(machine, owner, bonus, out CoverageNode node))
+            if (TryGetNode(machine, owner, nodeRadius, out CoverageNode node))
                 into.Add(node);
     }
 
@@ -47,27 +47,27 @@ public static class NetworkCoverage
     public static TankCoverage At(
         Position position, TankBase owner, MachineList machines, ITerrainPixelReadOnly terrain, List<Machine> scratch)
     {
-        int bonus = owner.Upgrades.CoverageBonusCells;
+        int nodeRadius = owner.Upgrades.NodeCoverageRadius;
         var best = TankCoverage.None;
-        Consider(BaseNode(owner, bonus), position, terrain, ref best);
-        machines.CollectNear(position, Tweaks.Coverage.NodeRadius + bonus, scratch);
+        Consider(BaseNode(owner), position, terrain, ref best);
+        machines.CollectNear(position, nodeRadius, scratch);
         foreach (var machine in scratch)
-            if (TryGetNode(machine, owner, bonus, out CoverageNode node))
+            if (TryGetNode(machine, owner, nodeRadius, out CoverageNode node))
                 Consider(node, position, terrain, ref best);
         return best;
     }
 
-    private static CoverageNode BaseNode(TankBase owner, int bonus) =>
-        new(owner.Position, Tweaks.Coverage.BaseRadius + bonus, 1f, owner.LinkPoint);
+    private static CoverageNode BaseNode(TankBase owner) =>
+        new(owner.Position, owner.Upgrades.BaseCoverageRadius, 1f, owner.LinkPoint);
 
-    private static bool TryGetNode(Machine machine, TankBase owner, int bonus, out CoverageNode node)
+    private static bool TryGetNode(Machine machine, TankBase owner, int nodeRadius, out CoverageNode node)
     {
         node = default;
-        if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner ||
+        if (!machine.StandsFor(owner) ||
             !machine.Behavior.IsLinkNode ||
             machine.LinkPoint is not { IsPowered: true, Hops: >= 0 } point)
             return false;
-        node = new CoverageNode(machine.Position, Tweaks.Coverage.NodeRadius + bonus, StrengthForHops(point.Hops), point);
+        node = new CoverageNode(machine.Position, nodeRadius, StrengthForHops(point.Hops), point);
         return true;
     }
 

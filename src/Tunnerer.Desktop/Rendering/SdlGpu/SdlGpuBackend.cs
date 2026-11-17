@@ -3,6 +3,7 @@ namespace Tunnerer.Desktop.Rendering.SdlGpu;
 using ImGuiNET;
 using SDL3;
 using Tunnerer.Core.Types;
+using Tunnerer.Desktop.Config;
 
 /// <summary>
 /// The SDL_GPU render backend: Metal on macOS, Direct3D 12 or Vulkan on Windows, Vulkan on Linux. It draws HLSL
@@ -45,7 +46,7 @@ public sealed unsafe partial class SdlGpuBackend : IGameRenderBackend
     public SdlGpuBackend(nint window)
     {
         _window = window;
-        bool debug = string.Equals(Environment.GetEnvironmentVariable("TUNNERER_GPU_DEBUG"), "1", StringComparison.Ordinal);
+        bool debug = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_GPU_DEBUG"));
         _device = SDL.CreateGPUDevice(SdlGpuShaders.ProvidedFormats, debug, null!);
         if (_device == nint.Zero)
             throw new InvalidOperationException($"SDL_CreateGPUDevice failed: {SDL.GetError()}");
