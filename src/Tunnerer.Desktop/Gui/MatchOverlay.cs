@@ -4,6 +4,8 @@ using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities;
+using Tunnerer.Core.Match;
+using Tunnerer.Core.Entities.Tanks;
 using static Tunnerer.Desktop.Gui.HudDraw;
 
 /// <summary>Death screen: what destroyed the tank and when it respawns; victory and defeat when lives run out.</summary>

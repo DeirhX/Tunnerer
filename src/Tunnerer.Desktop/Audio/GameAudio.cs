@@ -2,9 +2,9 @@ namespace Tunnerer.Desktop.Audio;
 
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// Turns what happens in the simulation into sound. It is called once after every simulation step (never per

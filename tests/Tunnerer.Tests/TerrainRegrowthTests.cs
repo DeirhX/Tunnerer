@@ -1,6 +1,7 @@
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Regrowth;
 
 namespace Tunnerer.Tests;
 
@@ -17,7 +18,7 @@ public class TerrainRegrowthTests
         return terrain;
     }
 
-    private static TerrainRegrowth Regrowth(int seed = 77) => new(enabled: true, simulationSeed: seed);
+    private static TerrainRegrowth Regrowth(int seed = 77) => new(simulationSeed: seed);
 
     private static int Run(TerrainRegrowth regrowth, TerrainGrid terrain, int ticks, IReadOnlyList<RegrowthBlocker>? blockers = null)
     {
@@ -260,17 +261,22 @@ public class TerrainRegrowthTests
     }
 
     [Fact]
-    public void DisabledRegrowth_ChangesNothing_AndKeepsNoList()
+    public void AWorldWithoutRegrowth_GrowsNothingBack_AndKeepsNoList()
     {
-        var terrain = Dirt();
-        var regrowth = new TerrainRegrowth(enabled: false, simulationSeed: 77);
-        Tunnel(terrain, 20, 140, 50, halfWidth: 2);
-        int open = Count(terrain, p => p == TerrainPixel.Blank);
+        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false);
+        TerrainGrid terrain = world.Terrain;
 
-        Assert.Equal(0, Run(regrowth, terrain, 100 * PassTicks));
+        Position at = SolidDirt(terrain, width: 44, height: 9);
+        for (int x = at.X + 2; x < at.X + 42; x++)
+            for (int y = at.Y + 2; y < at.Y + 7; y++)
+                terrain.SetPixel(new Position(x, y), TerrainPixel.Blank);
+        TestSimulation.AdvanceIdle(world, frames: 40 * PassTicks);
 
-        Assert.Equal(open, Count(terrain, p => p == TerrainPixel.Blank));
+        for (int x = at.X + 2; x < at.X + 42; x++)
+            for (int y = at.Y + 2; y < at.Y + 7; y++)
+                Assert.Equal(TerrainPixel.Blank, terrain.GetPixelRaw(new Position(x, y)));
         Assert.False(terrain.RegrowthWrites.Surveyed);
+        Assert.DoesNotContain("regrow", world.Profile.Sections);
     }
 
     [Fact]

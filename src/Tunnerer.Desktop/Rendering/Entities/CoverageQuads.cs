@@ -2,8 +2,8 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 /// <summary>
 /// The player's network coverage (DESIGN.md §4.6): a faint field around every node, and while the tank is covered

@@ -1,11 +1,12 @@
 namespace Tunnerer.Core.Entities.Tanks;
 
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
 /// The tank's heat: work heat, the per-tick exchange with the grid, base sinks and refrigeration, network coverage

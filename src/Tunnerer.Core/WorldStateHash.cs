@@ -1,9 +1,11 @@
 namespace Tunnerer.Core;
 
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
-/// One number for the state of a world: terrain pixels, tanks, machines, links, projectiles and sprites. Two worlds
+/// One number for the state of a world: terrain pixels, tanks, machines, links and projectiles. Two worlds
 /// built from the same seed and stepped with the same inputs have the same hash, which is how the determinism and
 /// fingerprint tests compare runs and how machines in a network match will check they still agree.
 /// </summary>
@@ -102,17 +104,6 @@ public static class WorldStateHash
             hash = Mix(hash, p.IsAlive ? 1u : 0u);
         }
 
-        var sprites = new SpriteRenderState[world.Sprites.Count];
-        int spriteCount = world.Sprites.CopyRenderStates(sprites);
-        for (int i = 0; i < spriteCount; i++)
-        {
-            var s = sprites[i];
-            hash = Mix(hash, (uint)s.Position.X);
-            hash = Mix(hash, (uint)s.Position.Y);
-            hash = Mix(hash, (uint)s.Type);
-            hash = Mix(hash, s.IsAlive ? 1u : 0u);
-        }
-
         for (int i = 0; i < tanks.Count; i++)
         {
             var tip = tanks[i].Turret.GetBarrelTip(tanks[i].Position);
@@ -122,6 +113,14 @@ public static class WorldStateHash
 
         return hash;
     }
+
+    /// <summary>
+    /// What a client reports when its world is built, before the first tick: <see cref="Compute"/> plus the world's
+    /// <see cref="Match.MatchRules"/>, which a freshly built world's state may not show (whether the core ends the
+    /// match, for one). The relay refuses to start when two clients report different numbers.
+    /// </summary>
+    public static ulong ComputeReady(World world) =>
+        (Compute(world) ^ world.Rules.Fingerprint()) * 1099511628211UL;
 
     /// <summary>
     /// What machines in a network match compare: <see cref="Compute"/> plus what it does not read: the totals of
@@ -146,15 +145,15 @@ public static class WorldStateHash
         {
             hash = (hash ^ (uint)tankBase.Store.Ore) * 1099511628211UL;
             hash = (hash ^ (uint)tankBase.Store.Capacity) * 1099511628211UL;
-            for (int upgrade = 0; upgrade < Entities.BaseUpgrades.Count; upgrade++)
-                hash = (hash ^ (uint)tankBase.Upgrades.Level((Entities.BaseUpgrade)upgrade)) * 1099511628211UL;
+            for (int upgrade = 0; upgrade < BaseUpgrades.Count; upgrade++)
+                hash = (hash ^ (uint)tankBase.Upgrades.Level((BaseUpgrade)upgrade)) * 1099511628211UL;
         }
         return hash;
     }
 }
 
 /// <summary>A world's state for comparison between machines (<see cref="WorldStateHash.ComputeSync"/>).</summary>
-/// <param name="State">Terrain pixels, tanks, machines, links, projectiles and sprites.</param>
+/// <param name="State">Terrain pixels, tanks, machines, links and projectiles.</param>
 /// <param name="Heat">The bits of the total thermal energy: terrain, air, tanks and bases.</param>
 /// <param name="Charge">The bits of the total stored charge.</param>
 /// <param name="Economy">Every base's ore store and upgrade levels.</param>

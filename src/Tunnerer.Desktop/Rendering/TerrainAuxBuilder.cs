@@ -1,11 +1,11 @@
 namespace Tunnerer.Desktop.Rendering;
 
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Core.Entities.Tanks;
 
 public sealed class TerrainAuxBuilder
 {

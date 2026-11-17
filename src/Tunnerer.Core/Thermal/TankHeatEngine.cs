@@ -1,7 +1,7 @@
 namespace Tunnerer.Core.Thermal;
 
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// Result of one tank heat step. Energies are expressed in the grid's units

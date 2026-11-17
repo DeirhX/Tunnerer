@@ -3,10 +3,10 @@ namespace Tunnerer.Desktop.Gui;
 using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Core;
-using Tunnerer.Core.Entities;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// Draws the in-game HUD each frame: the game view, crosshair and hit feedback here, and the pieces in their own
@@ -81,7 +81,7 @@ public partial class GameHud
         _warnings.Draw(ViewportRect, player, heatDebugOverlayEnabled, _time);
         DrawGuidance(player, world);
         DrawUpgradePanel(player);
-        DrawSectorComplete(player);
+        DrawSectorComplete(player, world);
         MatchOverlay.Draw(PlayRect, player, world, CanRestartMatch, WinnerName);
         if (showPostPassOverlay)
             PostPassOverlay.Draw(ViewportRect, heatDebugOverlayEnabled, postPassFlags);

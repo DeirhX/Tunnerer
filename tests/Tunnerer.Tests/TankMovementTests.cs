@@ -1,3 +1,4 @@
+using Tunnerer.Core.Match;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
@@ -5,6 +6,8 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Regrowth;
+using Tunnerer.Core.Entities.Bases;
 
 namespace Tunnerer.Tests;
 
@@ -51,7 +54,7 @@ public class TankMovementTests
         // Base centered at (50,30) keeps its 35x35 footprint inside y=13..47,
         // well above the corridor at y=75+.
         var spawn = new Position(50, 30);
-        var world = new World(size, simulationSeed: TestHelpers.DefaultSeed, enableTerrainRegrowth: false);
+        var world = new World(size, simulationSeed: TestHelpers.DefaultSeed, new MatchRules { TerrainRegrowth = false });
 
         for (int i = 0; i < size.Area; i++)
             world.Terrain[i] = terrain[i];

@@ -5,7 +5,7 @@ using System.Globalization;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.LevelGen;
-using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Match;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
 
@@ -51,8 +51,7 @@ public static class WorldFactory
         World world = options.TerrainTest
             ? BuildTerrainTest(options.TerrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize)
             : BuildMatch(options.TerrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize,
-                options.GenMode, seed, parallel, options.Players);
-        world.CoreTapWins = options.CoreTapWins;
+                options.GenMode, seed, parallel, options.Players, MatchRules.Standard with { CoreTapWins = options.CoreTapWins });
         return new BuiltWorld(world, parallel, seed);
     }
 
@@ -61,8 +60,7 @@ public static class WorldFactory
         Console.WriteLine($"[TerrainTest] Generating test patterns {size.X}x{size.Y}...");
         var testTerrain = TerrainTestPatternGenerator.Generate(size);
 
-        var world = new World(size, simulationSeed: Game.DefaultSeed,
-            enableTerrainRegrowth: false);
+        var world = new World(size, simulationSeed: Game.DefaultSeed, new MatchRules { TerrainRegrowth = false });
         world.Profile.ReportSink = static line => Console.WriteLine(line);
         // Copy pixels directly -- test patterns use final pixel values, skip materialization.
         for (int i = 0; i < testTerrain.Size.Area; i++)
@@ -75,7 +73,7 @@ public static class WorldFactory
         return world;
     }
 
-    private static World BuildMatch(Size size, LevelGenMode genMode, int seed, bool parallel, int players)
+    private static World BuildMatch(Size size, LevelGenMode genMode, int seed, bool parallel, int players, MatchRules rules)
     {
         var modeLabel = parallel ? "optimized" : "deterministic";
         Console.WriteLine($"Generating terrain {size.X}x{size.Y} ({modeLabel}, seed={seed.ToString(CultureInfo.InvariantCulture)})...");
@@ -84,12 +82,7 @@ public static class WorldFactory
         var (terrain, spawns) = generator.Generate(size, seed, genMode, players);
         Console.WriteLine($"Level generated in {genWatch.Elapsed.TotalMilliseconds:F0} ms, {spawns.Length} spawns");
 
-        var world = new World(
-            size,
-            simulationSeed: seed,
-            hotRockPocketCount: Tweaks.World.HotRockPocketCount,
-            frostRockPocketCount: Tweaks.World.FrostRockPocketCount,
-            seedOre: true);
+        var world = new World(size, simulationSeed: seed, rules);
         world.Profile.ReportSink = static line => Console.WriteLine(line);
         world.Profile.AuditEnergy = GameLaunchOptions.EnergyAudit;
         world.Initialize(terrain, spawns, decorationSeed: seed + 1, parallelMaterialize: parallel);

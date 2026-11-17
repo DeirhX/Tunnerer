@@ -1,5 +1,7 @@
+using Tunnerer.Core.Match;
 using Tunnerer.Core;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Entities.Tanks;
 
 namespace Tunnerer.Tests;
 
@@ -64,12 +66,12 @@ public class MatchOutcomeTests
     {
         var size = new Size(480, 300);
         var (terrain, spawns) = new Core.LevelGen.ToastGenerator().Generate(size, seed: 42, playerCount: 4);
-        var world = new World(size, simulationSeed: 42, hotRockPocketCount: 3) { CoreTapWins = coreTapWins };
+        var world = new World(size, simulationSeed: 42, new MatchRules { HotRockPockets = 3, CoreTapWins = coreTapWins });
         world.Initialize(terrain, spawns, decorationSeed: 43);
         return world;
     }
 
-    private static void Eliminate(Core.Entities.Tank tank)
+    private static void Eliminate(Tank tank)
     {
         tank.LivesLeft = 1;
         tank.Die();
@@ -171,9 +173,9 @@ public class MatchOutcomeTests
     }
 
     /// <summary>Gives the tank's base a hold already over the goal, which finishes on the next tick whatever the tap is.</summary>
-    private static void FinishHold(Core.Entities.Tank tank) =>
-        typeof(Core.Entities.TankBase).GetProperty(nameof(Core.Entities.TankBase.CoreHoldSeconds))!
-            .SetValue(tank.Base, Core.Config.Tweaks.Goal.GoalHoldSeconds + 10);
+    private static void FinishHold(World world, Tank tank) =>
+        typeof(CoreTap).GetProperty(nameof(CoreTap.HoldSeconds))!
+            .SetValue(world.CoreTapOf(tank.Base), Core.Config.Tweaks.Goal.GoalHoldSeconds + 10);
 
     [Fact]
     public void ABaseWhoseTankIsOutOfLives_CannotWinTheRaceByFinishingItsHold()
@@ -182,15 +184,15 @@ public class MatchOutcomeTests
         var tanks = world.TankList.Tanks;
         Assert.NotNull(world.CorePocket);
         Eliminate(tanks[1]);
-        FinishHold(tanks[1]);
+        FinishHold(world, tanks[1]);
 
         TestSimulation.AdvanceIdle(world, frames: 1);
 
-        Assert.True(tanks[1].Base!.HasTappedCore);
+        Assert.True(world.CoreTapOf(tanks[1].Base)!.HasTapped);
         Assert.Null(world.MatchWinner);
         Assert.False(world.IsMatchOver);
 
-        FinishHold(tanks[2]);
+        FinishHold(world, tanks[2]);
         TestSimulation.AdvanceIdle(world, frames: 1);
 
         Assert.Equal((tanks[2], MatchWinReason.TappedTheCore), world.MatchWinner);

@@ -527,7 +527,7 @@ public class RelayOverSocketsTests
             WaitFor(() => a.Roster.Count(n => n.Length > 0) == 2, a);
             Assert.Equal("Waiting for players: 2 of 2 here.", a.Status);
             foreach (var (c, i) in connections.Select((c, i) => (c, i)))
-                c.SendReady(WorldStateHash.Compute(worlds[i]));
+                c.SendReady(WorldStateHash.ComputeReady(worlds[i]));
             WaitFor(() => a.Started && b.Started, a, b);
             Assert.Null(a.Status);
 
@@ -571,8 +571,8 @@ public class RelayOverSocketsTests
             var worldB = CreateFourTankWorld(42);
             var sessionA = new NetSession(a, worldA);
             var sessionB = new NetSession(b, worldB);
-            a.SendReady(WorldStateHash.Compute(worldA));
-            b.SendReady(WorldStateHash.Compute(worldB));
+            a.SendReady(WorldStateHash.ComputeReady(worldA));
+            b.SendReady(WorldStateHash.ComputeReady(worldB));
             a.RequestStart();
 
             // Steps what has arrived, up to a tick; the bots are chosen when the relay says the match has started.

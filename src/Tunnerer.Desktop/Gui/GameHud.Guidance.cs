@@ -3,10 +3,10 @@ namespace Tunnerer.Desktop.Gui;
 using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Core;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Gui.Guidance;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// The tutorial card (top left), the game-event toasts under it, and a pointer to whatever the current tutorial step

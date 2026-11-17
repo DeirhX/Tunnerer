@@ -5,7 +5,6 @@ using System.Globalization;
 using static SDL3.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Input;
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Terrain;
@@ -16,6 +15,8 @@ using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
 using Tunnerer.Desktop.Rendering.SdlGpu;
+using Tunnerer.Core.Bots;
+using Tunnerer.Core.Entities.Tanks;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -27,21 +28,19 @@ public partial class Game : IDisposable
     [SuppressMessage("Performance", "CA1859", Justification = "Game talks to the backend through its interface, not SDL_GPU types.")]
     private readonly ITextureLoader _textures;
     private readonly GameHud _hud;
-    private readonly WorldCompositeRenderer _compositeRenderer = new();
     private readonly EntityLayerBuilder _entityLayer = new();
     private readonly GameAudio _audio;
 
     private readonly Size _terrainSize;
     private readonly World _world;
     private readonly uint[] _worldPixels;
-    private readonly uint[] _compositePixels;
     private readonly KeyboardController _localController;
     /// <summary>
     /// Which tank this machine's player drives: the camera, HUD, fog of war, radar and sound all follow it. Always
     /// the first tank today; a network match will hand each machine its own slot.
     /// </summary>
     private readonly int _localSlot;
-    private Core.Entities.Tank? LocalTank =>
+    private Tank? LocalTank =>
         _localSlot < _world.TankList.Count ? _world.TankList.Tanks[_localSlot] : null;
     private readonly ScriptedInputConfig _scriptedInput;
     private readonly InputRecorder _inputRecorder = new();
@@ -58,7 +57,7 @@ public partial class Game : IDisposable
     private readonly Radar? _radar;
     /// <summary>What the renderer draws the terrain from: the world, or with fog what the player last saw of it.</summary>
     private readonly TerrainView _terrainView;
-    private bool _compositeChanged = true;
+    private bool _worldPixelsChanged = true;
     private bool _steppedSinceRender = true;
     private readonly Stopwatch _renderClock = Stopwatch.StartNew();
     private readonly bool _interpolateFrames;
@@ -125,7 +124,6 @@ public partial class Game : IDisposable
         _terrainView = _vision != null ? TerrainView.Fogged(_world.Terrain, _vision) : TerrainView.Live(_world.Terrain);
 
         _worldPixels = new uint[_terrainSize.Area];
-        _compositePixels = new uint[_terrainSize.Area];
         _terrainAuxUploader = new TerrainAuxUploader(_terrainSize, _terrainAuxBuilder, _drawProfile);
         if (built.Parallel)
             _world.Terrain.DrawAllToSurfaceParallel(_worldPixels);
@@ -201,12 +199,7 @@ public partial class Game : IDisposable
                 advanceOneSimulationStep: advanceStep,
                 composeFrame: () =>
                 {
-                    DrawProfile.Measure(ref _drawProfile.ObjectsDraw, () =>
-                    {
-                        _compositeRenderer.Compose(_world, _worldPixels, _compositePixels);
-                        MarkEntityPixels(_worldPixels, _compositePixels);
-                        _compositeChanged = true;
-                    });
+                    _worldPixelsChanged = true;
                 },
                 renderFrame: (frameInput, stepProgress) => RenderImGuiFrame(tanks, frameInput, stepProgress),
                 onFrameMeasured: elapsed =>
@@ -247,7 +240,7 @@ public partial class Game : IDisposable
         return viewSize;
     }
 
-    private void UpdateMatchCamera(IReadOnlyList<Core.Entities.Tank> tanks)
+    private void UpdateMatchCamera(IReadOnlyList<Tank> tanks)
     {
         var viewSize = EnsureViewSize();
         int scale = _renderViewState.CellPixels;
@@ -271,7 +264,7 @@ public partial class Game : IDisposable
         _renderViewState.PanCamera(dx, dy, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
-    private void AdvanceOneSimulationStep(IReadOnlyList<Core.Entities.Tank> tanks, FrameInputSnapshot frameInput)
+    private void AdvanceOneSimulationStep(IReadOnlyList<Tank> tanks, FrameInputSnapshot frameInput)
     {
         var aimDir = ComputeAimDirection(tanks, frameInput);
         bool mouseShoot = IsMouseInViewport(frameInput, out _, out _) && frameInput.IsLeftMouseDown;
@@ -348,14 +341,4 @@ public partial class Game : IDisposable
         _renderBackend.Dispose();
         _renderer.Dispose();
     }
-
-    private static void MarkEntityPixels(uint[] terrain, uint[] composite)
-    {
-        for (int i = 0; i < composite.Length; i++)
-        {
-            if (composite[i] != terrain[i])
-                composite[i] = RenderingPixels.MarkEntity(composite[i]);
-        }
-    }
-
 }

@@ -1,7 +1,7 @@
 using Tunnerer.Core.LevelGen;
-using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop;
+using Tunnerer.Core.Entities.Tanks;
 
 namespace Tunnerer.Tests;
 
@@ -95,7 +95,7 @@ public class WorldFactoryTests
             TerrainTest: false, SmallSize, LevelGenMode.Optimized, Seed: 5, Players: 4, CoreTapWins: true));
 
         Assert.Equal(4, built.World.TankList.Count);
-        Assert.True(built.World.CoreTapWins);
+        Assert.True(built.World.Rules.CoreTapWins);
     }
 
     [Fact]

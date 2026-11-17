@@ -1,11 +1,11 @@
 namespace Tunnerer.Desktop;
 
 using Tunnerer.Core;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Net;
+using Tunnerer.Core.Bots;
 
 /// <summary>
 /// Runs one simulation step: each tank takes its input from the source its slot has. The local slot is this machine's

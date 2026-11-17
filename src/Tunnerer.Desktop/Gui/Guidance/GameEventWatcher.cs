@@ -2,8 +2,10 @@ namespace Tunnerer.Desktop.Gui.Guidance;
 
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Match;
+using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
 /// Watches the player's side of the world from frame to frame and posts a toast when something changes that the
@@ -95,7 +97,8 @@ public sealed class GameEventWatcher
         bool holdingOre = player.OreHeld > 0;
         bool oreHoldFull = player.IsOreHoldFull;
 
-        double coreRate = home.CoreTapPerTick * Tweaks.Perf.TargetFps;
+        CoreTap? core = world.CoreTapOf(home);
+        double coreRate = (core?.TapPerTick ?? 0.0) * Tweaks.Perf.TargetFps;
         bool tappingCore = coreRate > 1.0;
         bool meetingGoal = coreRate >= Tweaks.Goal.GoalChargePerSecond;
 
@@ -105,7 +108,7 @@ public sealed class GameEventWatcher
             _lastHarvestReport = now;
             for (int i = 0; i < BaseUpgrades.Count; i++)
                 _upgradeLevels[i] = home.Upgrades.Level((BaseUpgrade)i);
-            _tappedCore = home.HasTappedCore;
+            _tappedCore = core?.HasTapped == true;
         }
         else
         {
@@ -134,7 +137,7 @@ public sealed class GameEventWatcher
             if (meetingGoal && !_meetingGoal)
                 feed.Post(now, "core-goal", "Core tap at the goal rate",
                     "Keep it there: the hold timer is running. Falling short drains it.", NotificationKind.Good, cooldown: 30f);
-            if (home.HasTappedCore && !_tappedCore)
+            if (core?.HasTapped == true && !_tappedCore)
                 feed.Post(now, "sector-complete", "Sector complete", "The core is tapped.", NotificationKind.Good,
                     duration: 12f, cooldown: 1e9f);
 
@@ -214,6 +217,6 @@ public sealed class GameEventWatcher
         _upgradeRefused = player.UpgradeRefusedTicks;
         _tappingCore = tappingCore;
         _meetingGoal = meetingGoal;
-        _tappedCore = home.HasTappedCore;
+        _tappedCore = core?.HasTapped == true;
     }
 }
