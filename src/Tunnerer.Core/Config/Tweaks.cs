@@ -544,8 +544,6 @@ public static class Tweaks
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
         public static readonly Color Pylon = new(0x4f, 0x8f, 0xff);
         public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
-        public static readonly Color FailedInteraction = new(0xff, 0x34, 0x08);
-        public static readonly Color InfoMarker = new(0xff, 0xff, 0x4a);
     }
 
     public static class LevelGen

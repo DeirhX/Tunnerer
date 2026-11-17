@@ -25,7 +25,6 @@ public class World
     private readonly ProjectileList _projectiles;
     private readonly MachineList _machines = new();
     private readonly LinkMap _linkMap;
-    private readonly SpriteList _sprites = new();
     private readonly CollisionSolver _collisionSolver;
     private readonly TerrainRegrowth? _terrainRegrowth;
     private readonly List<Position> _hotRockPockets = new();
@@ -81,7 +80,6 @@ public class World
     public ProjectileList Projectiles => _projectiles;
     public MachineList Machines => _machines;
     public LinkMap LinkMap => _linkMap;
-    public SpriteList Sprites => _sprites;
     public CollisionSolver CollisionSolver => _collisionSolver;
     public int AdvanceCount => _advanceCount;
     public SimulationSettings Settings => _simulationSettings;
@@ -305,7 +303,6 @@ public class World
             _tankList.Advance(in _tankContext, getInput);
         }));
         systems.Add(new("machines", _ => AdvanceMachines()));
-        systems.Add(new("sprites", _ => _sprites.Advance(_simulationSettings.AdvanceStep)));
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain);

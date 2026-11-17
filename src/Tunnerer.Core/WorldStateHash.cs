@@ -5,7 +5,7 @@ using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
-/// One number for the state of a world: terrain pixels, tanks, machines, links, projectiles and sprites. Two worlds
+/// One number for the state of a world: terrain pixels, tanks, machines, links and projectiles. Two worlds
 /// built from the same seed and stepped with the same inputs have the same hash, which is how the determinism and
 /// fingerprint tests compare runs and how machines in a network match will check they still agree.
 /// </summary>
@@ -104,16 +104,6 @@ public static class WorldStateHash
             hash = Mix(hash, p.IsAlive ? 1u : 0u);
         }
 
-        var sprites = new SpriteRenderState[world.Sprites.Count];
-        int spriteCount = world.Sprites.CopyRenderStates(sprites);
-        for (int i = 0; i < spriteCount; i++)
-        {
-            var s = sprites[i];
-            hash = Mix(hash, (uint)s.Position.X);
-            hash = Mix(hash, (uint)s.Position.Y);
-            hash = Mix(hash, (uint)s.Type);
-            hash = Mix(hash, s.IsAlive ? 1u : 0u);
-        }
 
         for (int i = 0; i < tanks.Count; i++)
         {
@@ -164,7 +154,7 @@ public static class WorldStateHash
 }
 
 /// <summary>A world's state for comparison between machines (<see cref="WorldStateHash.ComputeSync"/>).</summary>
-/// <param name="State">Terrain pixels, tanks, machines, links, projectiles and sprites.</param>
+/// <param name="State">Terrain pixels, tanks, machines, links and projectiles.</param>
 /// <param name="Heat">The bits of the total thermal energy: terrain, air, tanks and bases.</param>
 /// <param name="Charge">The bits of the total stored charge.</param>
 /// <param name="Economy">Every base's ore store and upgrade levels.</param>

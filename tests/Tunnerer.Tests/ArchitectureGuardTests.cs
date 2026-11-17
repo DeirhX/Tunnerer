@@ -114,10 +114,10 @@ public class SimulationProfileTests
         var withCore = TestHelpers.CreateSeededWorld(hotRockPocketCount: 4);
 
         Assert.Equal(
-            ["coll", "heat", "proj", "tanks", "machines", "sprites", "bases", "match", "links", "dock", "vision"],
+            ["coll", "heat", "proj", "tanks", "machines", "bases", "match", "links", "dock", "vision"],
             plain.Profile.Sections);
         Assert.Equal(
-            ["coll", "heat", "regrow", "proj", "tanks", "machines", "sprites", "bases", "goal", "match", "links", "dock", "vision"],
+            ["coll", "heat", "regrow", "proj", "tanks", "machines", "bases", "goal", "match", "links", "dock", "vision"],
             withCore.Profile.Sections);
     }
 

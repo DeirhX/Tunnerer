@@ -59,7 +59,6 @@ Entities/
   Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
   Bases/TankBase.cs, TankBases.cs   Bases (reactor, radiator, engine, charge, ore store)
   Bases/BaseUpgrades.cs      BaseUpgrade (base track and tank track), levels, costs and what each level does
-  Sprite.cs                  SpriteList: short-lived markers
   DamageCause.cs
   Machines/Machine.cs        MachineType, MachineState, Machine
   Machines/MachineBehavior.cs   MachineBehavior (action, interval, cost, BuildKey, traits), MachineBehaviors table
@@ -99,7 +98,7 @@ LevelGen/
   OreDeposits.cs             Seeds emberite: specks, pockets and lumps with a warm core (OreDeposit, OreDepositKind)
   TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
 Rendering/
-  RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
+  RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
 Resources/Reactor.cs         Reactor, ReactorState, Heat, Health: a tank's or base's heat and shield
 Resources/OreStore.cs        OreStore: a tank's hold, a base's store (ore is the only currency)
@@ -154,15 +153,14 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    in list order, and never walks the whole list. A relay that found no heat to pump keeps the ground's
    `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
    in its reach.
-7. **sprites**: lifetime.
-8. **bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then the bot's stand-in ore income for
+7. **bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then the bot's stand-in ore income for
    bases marked with `World.SetBotControlled`.
-9. **goal**: `SectorGoal.Advance`, the core tap and its hold timer (only in a world with a core).
-10. **match**: `MatchResult.Latch`, the result, fixed once the referee has one.
-11. **links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
+8. **goal**: `SectorGoal.Advance`, the core tap and its hold timer (only in a world with a core).
+9. **match**: `MatchResult.Latch`, the result, fixed once the referee has one.
+10. **links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
    (200 ms), not every tick, and at once when a machine's point is switched off.
-12. **dock**: each tank notes whether it has left its base (`Tank.HasLeftBase`) and records docking (`Tank.ObserveDocking`).
-13. **vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
+11. **dock**: each tank notes whether it has left its base (`Tank.HasLeftBase`) and records docking (`Tank.ObserveDocking`).
+12. **vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
     out by `World.TrackRadar` runs its pulse on (see "Radar" below).
 
 `SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per system,

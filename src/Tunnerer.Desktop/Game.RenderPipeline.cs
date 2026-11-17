@@ -77,8 +77,8 @@ public partial class Game
                     Count: tankHeatGlowCount),
                 TerrainAux: terrainAux.Upload,
                 NativeContinuous: new NativeContinuousUpload(
-                    SourcePixels: _compositePixels,
-                    SourceChanged: _compositeChanged,
+                    SourcePixels: _worldPixels,
+                    SourceChanged: _worldPixelsChanged,
                     SampleCount: _renderViewState.NativeContinuousSampleCount),
                 Entities: new EntityLayerUpload(
                     Vertices: _entityLayer.Vertices,
@@ -86,7 +86,7 @@ public partial class Game
                 Fog: fog);
             DrawProfile.Measure(ref _drawProfile.ScreenBackendUpload, () =>
                 _renderBackend.UploadGamePixels(upload));
-            _compositeChanged = false;
+            _worldPixelsChanged = false;
             _terrainAuxUploader.Commit(_world.Terrain, terrainAux);
             _drawProfile.ScreenUpload += hiResWatch.Elapsed;
             double uploadMs = hiResWatch.Elapsed.TotalMilliseconds;

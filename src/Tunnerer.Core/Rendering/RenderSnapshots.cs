@@ -58,8 +58,3 @@ public readonly record struct LinkRenderState(
     bool ChargeFlowsFromTo = true,
     float OreFlow = 0f,
     bool OreFlowsFromTo = true);
-
-public readonly record struct SpriteRenderState(
-    Position Position,
-    SpriteType Type,
-    bool IsAlive);
