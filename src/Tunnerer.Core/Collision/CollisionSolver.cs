@@ -144,7 +144,9 @@ public class CollisionSolver
     /// Whether another live tank, or a planted machine of another side, stops <paramref name="tank"/> from standing at
     /// <paramref name="pos"/> facing <paramref name="dir"/>. A tank's own machines never block it (as its own bullets
     /// pass them). Something the tank already overlaps where it stands (it respawned onto an intruder, a harvester
-    /// crawled against it) does not hold it, so two overlapping bodies can always part.
+    /// crawled against it) holds it only when the step drives it deeper in, that is, closer to the other body's
+    /// centre: a step that does not is free, so two overlapping bodies can always part and never pass through one
+    /// another.
     /// </summary>
     public bool BlocksTank(Tank tank, Position pos, int dir)
     {
@@ -154,7 +156,8 @@ public class CollisionSolver
             {
                 if (ReferenceEquals(other, tank) || other.IsDead) continue;
                 if (TankSpriteShape.Overlaps(dir, pos, other.Direction, other.Position) &&
-                    !TankSpriteShape.Overlaps(tank.Direction, tank.Position, other.Direction, other.Position))
+                    !(TankSpriteShape.Overlaps(tank.Direction, tank.Position, other.Direction, other.Position) &&
+                      Parts(tank.Position, pos, other.Position)))
                     return true;
             }
         }
@@ -166,13 +169,18 @@ public class CollisionSolver
                 if (!m.IsAlive || !m.IsBlockingCollision || m.OwnerColor == tank.Color) continue;
                 int half = m.BoundingBox.HalfWidth;
                 if (TankSpriteShape.OverlapsSquare(dir, pos, m.Position, half) &&
-                    !TankSpriteShape.OverlapsSquare(tank.Direction, tank.Position, m.Position, half))
+                    !(TankSpriteShape.OverlapsSquare(tank.Direction, tank.Position, m.Position, half) &&
+                      Parts(tank.Position, pos, m.Position)))
                     return true;
             }
         }
 
         return false;
     }
+
+    /// <summary>Whether a step from <paramref name="from"/> to <paramref name="to"/> keeps its distance from <paramref name="centre"/> or grows it.</summary>
+    private static bool Parts(Position from, Position to, Position centre) =>
+        Position.DistanceSquared(to, centre) >= Position.DistanceSquared(from, centre);
 
     /// <summary>
     /// What would stop <paramref name="tank"/> stepping by <paramref name="move"/> from where it stands, in the order

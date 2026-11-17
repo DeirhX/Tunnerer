@@ -103,6 +103,19 @@ public class TankCollisionTests
     }
 
     [Fact]
+    public void OverlappingTanks_DoNotLetOneDriveThroughTheOther()
+    {
+        var a = CreateArena();
+        a.Other.Position = a.Center;
+        a.Driver.Position = a.Center + new Offset(-3, 0); // inside the other hull, on its west side
+
+        Drive(a, East, ticks: 30);
+
+        Assert.True(a.Driver.Position.X < a.Center.X,
+            $"driving into the tank it overlaps must not carry the driver past it; it reached x={a.Driver.Position.X}");
+    }
+
+    [Fact]
     public void ATank_StopsAgainstAnEnemyMachine_ButNotItsOwn()
     {
         var blocked = CreateArena();

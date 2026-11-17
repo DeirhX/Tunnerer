@@ -225,7 +225,8 @@ internal sealed class BotNavigator
     /// <summary>
     /// A heading to hold for a while when the bot has been going nowhere: toward <paramref name="target"/> if there is
     /// one, else a random one, turned to the nearest heading that is not walled off or scorching. Rock counts as a
-    /// way through only while <paramref name="mayTorchRock"/>, and then as a worse one than dirt a little aside.
+    /// way through only while <paramref name="mayTorchRock"/>, and then as a worse one than dirt a little aside. No
+    /// movement (zero) when every heading is walled off or scorching.
     /// </summary>
     public Offset ChooseBreakoutHeading(Tank tank, Position? target, World world, bool mayTorchRock)
     {
@@ -258,7 +259,8 @@ internal sealed class BotNavigator
             }
         }
 
-        return best;
+        // Walled in on every side: no heading beats standing, so say so and let the caller go on with its plan.
+        return bestTurn == int.MaxValue ? default : best;
     }
 
     /// <summary>What the heat of the ground a few steps along <paramref name="move"/> costs it.</summary>

@@ -42,6 +42,11 @@ public class BotTankAI
     private const int RoamNoProgressLimitFrames = 4 * Tweaks.Perf.TargetFps;
     /// <summary>Heading home, this long around one spot (a wall, an enemy base in the way): the bot takes a detour.</summary>
     private const int ReturnNoProgressLimitFrames = 5 * Tweaks.Perf.TargetFps;
+    /// <summary>
+    /// Heading home this long without arriving (the door sealed by hot rock, a trail that ends in a dead end): the
+    /// bot gives up and roams again, as it can fight and look for another way in from there.
+    /// </summary>
+    private const int ReturnGiveUpFrames = 20 * Tweaks.Perf.TargetFps;
     /// <summary>How long a breakout or detour holds its heading.</summary>
     private const int BreakoutFrames = 2 * Tweaks.Perf.TargetFps;
 
@@ -71,9 +76,13 @@ public class BotTankAI
     private bool _shoot;
     private bool _torchDirt;
     private int _timeToChange;
+    /// <summary>Ticks spent heading home in this return; <see cref="ReturnGiveUpFrames"/> ends it.</summary>
+    private int _returnFrames;
     private DirectionF _aimDirection;
     private Offset _maneuverMove;
     private int _maneuverFrames;
+    /// <summary>Whether the running manoeuvre is a breakout (which ends when the enemy comes into sight).</summary>
+    private bool _maneuverIsBreakout;
     private float _rechargeLowestHeat = float.MaxValue;
     private int _rechargeStallFrames;
 
@@ -133,7 +142,14 @@ public class BotTankAI
         _navigator.UpdateStuckState(tank.Position,
             _mode == TwitchMode.Twitch && enemy is { IsDead: false } ? enemy.Position : null);
         if (_maneuverFrames > 0)
-            return ContinueManeuver(tank, world);
+        {
+            // A breakout is for roaming out of sight; once the enemy is seen the bot fights, which a manoeuvre's
+            // plain move would not.
+            if (_maneuverIsBreakout && _mode == TwitchMode.Twitch && _gunner.EnemyInSight)
+                _maneuverFrames = 0;
+            else
+                return ContinueManeuver(tank, world);
+        }
 
         var relX = tank.Position.X - basePos.X;
         var relY = tank.Position.Y - basePos.Y;
@@ -162,6 +178,7 @@ public class BotTankAI
         if (mode == TwitchMode.Start)
             _trail.Clear(); // A new outing leaves a new trail.
         _maneuverFrames = 0;
+        _returnFrames = 0;
         _navigator.ResetStuck();
         _navigator.ResetProgress();
     }
@@ -273,8 +290,9 @@ public class BotTankAI
         if (!hasLos && _navigator.NoProgressFrames >= RoamNoProgressLimitFrames)
         {
             _navigator.ResetProgress();
-            return StartManeuver(tank, world,
-                _navigator.ChooseBreakoutHeading(tank, targetPos, world, MayTorchRock(tank)), BreakoutFrames);
+            var heading = _navigator.ChooseBreakoutHeading(tank, targetPos, world, MayTorchRock(tank));
+            if (heading.X != 0 || heading.Y != 0)
+                return StartManeuver(tank, world, heading, BreakoutFrames, isBreakout: true);
         }
 
         // In the enemy's sight only aimed fire is fired, so the gunner's fairness rules hold. Out of it the torch
@@ -296,6 +314,13 @@ public class BotTankAI
     /// </summary>
     private ControllerOutput DoReturn(Tank tank, World world, int relX, int relY)
     {
+        if (++_returnFrames > ReturnGiveUpFrames)
+        {
+            SetMode(TwitchMode.Twitch);
+            _timeToChange = 0;
+            return default;
+        }
+
         Offset move;
         if (!IsInsideOwnBase(tank) && _trail.NextHomeward(tank.Position) is Position waypoint)
         {
@@ -313,8 +338,9 @@ public class BotTankAI
         if (_navigator.NoProgressFrames >= ReturnNoProgressLimitFrames)
         {
             _navigator.ResetProgress();
-            return StartManeuver(tank, world,
-                _navigator.ChooseBreakoutHeading(tank, target: null, world, MayTorchRock(tank)), BreakoutFrames);
+            var heading = _navigator.ChooseBreakoutHeading(tank, target: null, world, MayTorchRock(tank));
+            if (heading.X != 0 || heading.Y != 0)
+                return StartManeuver(tank, world, heading, BreakoutFrames, isBreakout: true);
         }
         if (IsStuck(tank, world, move, GeneralStuckThresholdFrames, torchRock: MayTorchRock(tank)))
             return StartManeuver(tank, world,
@@ -447,10 +473,11 @@ public class BotTankAI
     };
 
     /// <summary>Commits to <paramref name="move"/> for <paramref name="frames"/> ticks, then plans afresh.</summary>
-    private ControllerOutput StartManeuver(Tank tank, World world, Offset move, int frames)
+    private ControllerOutput StartManeuver(Tank tank, World world, Offset move, int frames, bool isBreakout = false)
     {
         _maneuverMove = move;
         _maneuverFrames = frames;
+        _maneuverIsBreakout = isBreakout;
         _timeToChange = 0;
         _navigator.ResetStuck();
         return MoveOutput(tank, move, world);
