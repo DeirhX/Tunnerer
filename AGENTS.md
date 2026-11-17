@@ -8,7 +8,7 @@ Read this before changing code. `DESIGN.md` says where the game is going; `ARCHI
 Run from the repository root.
 
 - Build: `dotnet build Tunnerer.slnx`
-- Test: `dotnet test Tunnerer.slnx` (about 20 seconds; run it before every commit)
+- Test: `dotnet test Tunnerer.slnx` (about a minute; run it before every commit)
 - Fast tests: `dotnet test Tunnerer.slnx --filter "Category!=Slow"` skips tests marked
   `[Trait("Category", "Slow")]` (over ~5 s each). Use it while iterating; mark new tests over ~5 s `Slow`.
 - Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)
@@ -37,8 +37,15 @@ Run from the repository root.
 - **Energy is conserved.** Entities exchange *energy* with the grid; they never write temperatures. Energy that is
   created or destroyed is recorded in `ThermalLedger`, and `ThermalLedgerTests` checks the balance every tick.
 - **One heat solver.** `TerrainHeatEngine.ComputeRegionDeltaConservative` is the only exchange stencil and
-  `ResolveTerrainTemperature` is the only place that applies a step to a cell. The full-grid and sparse paths both
-  go through them.
+  `ResolveCell` is the only place that applies a step to a cell. Every tile the solver steps goes through them.
+- **Heat costs what is changing, not the map.** The solver steps only tiles where heat still changes
+  (`ThermalActivityTracker`); settled ground is left alone until something writes heat into it or digs it. Do not
+  add a heat pass that visits every cell each tick, and wake a tile (`ActivateTileByCell`) from anything new that
+  changes a temperature or a cell's material.
+- **Regrowth costs what is growing, not the map.** `TerrainRegrowth` keeps an appointment for each cell that can
+  change (open ground beside dirt, scorch, dirt still growing) and looks at nothing else; it hears of new ones from
+  pixel writes (`RegrowthWrites`). Do not add a regrowth pass that scans the map or its tiles, and write pixels
+  through `SetPixel` or `SetPixelRaw` so that it hears of them.
 - **Shaders compile for every GPU API.** Every build compiles each shader to DXIL, SPIR-V and MSL, on every OS. Declare
   resources with the macros in `Rendering/Shaders/PostPs/Common/Registers.hlsli`, never `register()`, and give
   every `Texture2D` a `SamplerState` at the same index (`RenderingSourceGuardTests` and the shader build step
@@ -51,8 +58,9 @@ Run from the repository root.
 Adding a thermal material:
 
 1. `ThermalMaterial` in `Terrain/TerrainPixel.cs`, and `Pixel.DeriveThermalMaterial` if pixels map to it.
-2. Its row in `Tweaks.World.ThermalMaterials` (`Config/Tweaks.cs`): heat capacity, conductivity, air exchange and,
-   for a source or sink, a fixed temperature. Pair conductances are derived from the rows (the two conductivities
+2. Its row in `Tweaks.World.ThermalMaterials` (`Config/Tweaks.cs`): heat capacity, conductivity, air exchange and
+   either a fixed temperature (a source or sink) or a loss (the share of its heat it gives up to the outside each
+   tick). Pair conductances are derived from the rows (the two conductivities
    in series, `ThermalMaterialTable.PairConductance`). Add a pair to the table's override list only when the game
    needs a value the rule cannot produce.
 3. `SimulationTableGuardTests` must pass.
@@ -91,7 +99,8 @@ that tests can inject their own values.
 - **Guard tests** (each fails with the place to fix):
   - `ArchitectureGuardTests`: Core references no Desktop, SDL, ImGui or graphics packages.
   - `SourceGuardTests`: no clocks or unseeded randomness in Core; thermal code reads `SimulationSettings`, not
-    `Tweaks`; `Tweaks` has no mutable statics; no `.cs` file over 700 lines. Each is a ratchet: today's offenders
+    `Tweaks`; `Tweaks` has no mutable statics; pixels change through `SetPixel` outside level generation; no `.cs`
+    file over 700 lines. Each is a ratchet: today's offenders
     are allow-listed, a new one fails, and a fixed one fails until its entry is deleted. Split a long file; never
     raise a cap.
   - `RenderingSourceGuardTests`: SDL_GPU only in `Rendering/SdlGpu`; shader resources only through the register
@@ -100,7 +109,18 @@ that tests can inject their own values.
     flags in `EntityShape` match `Shaders/Entity/Layout.hlsli` and the dispatch in `EntityPs.hlsl`.
   - `SimulationTableGuardTests`, `MachineBehaviorTableTests`, `MachinePresentationTests`: every enum value has its
     table entries.
-- **Vision is output only, and its cost follows what is seen.** `VisionMap` (fog of war) is read by Desktop and by
-  nothing in the simulation. Its passes walk lists of cells in sight; do not add one that sweeps the whole grid,
-  because maps are meant to grow.
+- **A machine looks at what is near it, not at every machine.** `MachineList.CollectNear` returns the machines
+  around a place, in list order. Use it (or `MachineList.Chargers`) for any rule that involves other machines;
+  do not loop over `MachineList.Machines` inside a machine's action, a collision test or a per-tank query. A
+  relay sleeps while its ground has no heat (`QuietHeatStamp`); anything new that changes a temperature must
+  go through the heat field's own writers, which wake the tile and so the relay.
+- **The link map keeps its links.** `LinkMap` casts a link's line of sight again only when a cell near it
+  started or stopped blocking (`SightlineChanges`) and searches power again only when a link or point changed.
+  Do not add a rebuild of every pair or every link on a timer; what a refresh gives must stay what a rebuild
+  from nothing gives (`LinkMapTests`).
+- **Vision is output only, and its cost follows what changes.** `VisionMap` (fog of war) is read by Desktop and by
+  nothing in the simulation. A source is cast when it appears or moves, or when ground that blocks sight changes
+  within its reach; sources that stand still in ground that stays as it is cost nothing. Do not add a pass that
+  recasts every source or sweeps the grid each tick, and change pixels during play through `SetPixel`, which is
+  how vision and the renderer learn of it.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.

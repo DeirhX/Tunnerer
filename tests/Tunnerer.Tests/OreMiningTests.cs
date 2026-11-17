@@ -83,7 +83,9 @@ public class OreMiningTests
         Assert.Equal(0, Drive(s, Right, 60));
         Assert.Equal(0, s.Tank.OreHeld);
 
-        int collected = Drive(s, TorchRight, 120);
+        // Long enough to cut a holdful, and short enough that the heat of torching warm cores has not killed the tank,
+        // which would spill the hold.
+        int collected = Drive(s, TorchRight, 60);
         Assert.True(collected > 0, "the torch cuts core cells");
         Assert.Equal(0, collected % Tweaks.Ore.CoreCellUnits);
         Assert.Equal(collected, s.Tank.OreHeld);

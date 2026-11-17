@@ -320,7 +320,6 @@ public partial class Game : IDisposable
         int width = _terrainSize.X;
         foreach (Position cell in _vision.KnownChanges)
             _worldPixels[cell.X + cell.Y * width] = Pixel.GetColor(_vision.Known.GetPixelRaw(cell)).ToArgb();
-        _world.Terrain.ClearChangeList();
     }
 
     private void LoadHudSprites()

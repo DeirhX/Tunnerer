@@ -10,14 +10,14 @@ using Tunnerer.Core.Terrain;
 /// True when the position would put the given machine on top of a tank or another machine; a roaming harvester
 /// checks it before every step.
 /// </param>
-/// <param name="Machines">Every machine in the world, in a fixed order: pylons look for batteries, harvesters for pylons.</param>
+/// <param name="Machines">Every machine in the world, in a fixed order, and filed by place: pylons look for batteries, harvesters for pylons.</param>
 /// <param name="IsOnNetwork">
 /// True when the machine stands in the coverage of its own base's linked network (DESIGN.md §4.6): a harvester only
 /// delivers ore from there.
 /// </param>
 /// <param name="Events">Where a machine records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</param>
 public readonly record struct MachineContext(
-    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines,
+    ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, MachineList Machines,
     Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null);
 
 /// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> BuildPrimary, BuildSecondary, BuildTertiary).</summary>
@@ -157,6 +157,11 @@ public static class MachineBehaviors
         return table;
     }
 
+    // Scratch for one pylon action. Per thread, because worlds on different threads (tests, replays) may act at the
+    // same time; nothing in it outlives a call.
+    [ThreadStatic]
+    private static List<Machine>? t_near;
+
     /// <summary>The ground temperature a harvester at <paramref name="at"/> senses (averaged over its sense radius).</summary>
     public static float HarvesterSenseTemperature(ITerrainHeatSource heat, Position at) =>
         // SampleAverageHeat is normalised (temperature / 255).
@@ -195,9 +200,18 @@ public static class MachineBehaviors
         if (machine.OwnerBase == null || machine.LinkPoint is not { IsPowered: true })
             return;
 
+        // Ground that had no heat to give has none until heat moves there again: skip the sweep until then.
+        long quiet = terrain.QuietHeatStamp(machine.Position, Tweaks.Machine.RelayCoolingRadius);
+        if (quiet >= 0 && quiet == machine.ColdGroundStamp)
+        {
+            machine.LastPumpLimitedByBase = machine.OwnerBase.LimitsPumpFromColdGround(Tweaks.Machine.RelayHeatPumpPerTick);
+            return;
+        }
+
         machine.LastPumpedEnergy = machine.OwnerBase.AbsorbHeatFrom(
             terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick,
-            out bool limited, out double engineOutput);
+            out bool limited, out double engineOutput, out bool groundWasCold);
+        machine.ColdGroundStamp = groundWasCold ? quiet : -1;
         machine.LastPumpLimitedByBase = limited;
         machine.LastChargeMade = engineOutput;
         Links.LinkMap.CarryHeat(machine.LinkPoint, machine.LastPumpedEnergy);
@@ -380,9 +394,9 @@ public static class MachineBehaviors
     {
         Machine? best = null;
         int bestDist = int.MaxValue;
-        foreach (var other in ctx.Machines)
+        foreach (var other in ctx.Machines.Chargers)
         {
-            if (!other.Behavior.IsCharger || !other.IsAlive || other.State != MachineState.Planted ||
+            if (!other.IsAlive || other.State != MachineState.Planted ||
                 other.OwnerBase != machine.OwnerBase || other.LinkPoint is not { IsPowered: true })
                 continue;
             int d = Position.DistanceSquared(other.Position, machine.Position);
@@ -411,16 +425,21 @@ public static class MachineBehaviors
     private static void ChargeBatteries(Machine pylon, MachineContext ctx)
     {
         pylon.LastChargeGiven = 0.0;
-        foreach (var m in ctx.Machines)
+        // Only this pylon ever names itself as a battery's charger, and only below.
+        foreach (var m in pylon.ChargedAtLastAction)
             if (ReferenceEquals(m.ChargingFrom, pylon))
                 m.ChargingFrom = null;
+        pylon.ChargedAtLastAction.Clear();
 
         var home = pylon.OwnerBase;
         if (home == null || pylon.LinkPoint is not { IsPowered: true })
             return;
 
         double budget = Tweaks.Machine.PylonChargePerAction;
-        foreach (var m in ctx.Machines)
+        // The batteries in range, in list order: which ones get the budget when it runs short depends on it.
+        var near = t_near ??= new List<Machine>();
+        ctx.Machines.CollectNear(pylon.Position, Tweaks.Machine.PylonRange, near);
+        foreach (var m in near)
         {
             if (budget <= 0.0 || home.Charge <= 0.0)
                 break;
@@ -430,6 +449,7 @@ public static class MachineBehaviors
             double given = home.DrawCharge(Math.Min(budget, m.ChargeCapacity - m.Charge));
             m.Charge += given;
             m.ChargingFrom = pylon;
+            pylon.ChargedAtLastAction.Add(m);
             budget -= given;
             pylon.LastChargeGiven += given;
         }

@@ -51,8 +51,6 @@ public partial class TerrainGrid
                 converted++;
             }
 
-        if (converted > 0)
-            RequestThermalWake();
         return converted;
     }
 
@@ -62,7 +60,7 @@ public partial class TerrainGrid
 
     /// <summary>
     /// Writes a fixed-temperature pixel and sets the cell to its pinned temperature at once, recording the change in
-    /// the <see cref="Ledger"/> as injected. The caller wakes the thermal solver.
+    /// the <see cref="Ledger"/> as injected. The cell's tile is woken, so the solver steps the new source.
     /// </summary>
     private void SetPinnedPixel(Position pos, TerrainPixel pixel, ThermalMaterial material)
     {
