@@ -131,7 +131,7 @@ public class SimulationFingerprintTests
     private static ulong Fingerprint(World world)
     {
         var h = new Fnv64();
-        h.Add(TestSimulation.ComputeWorldStateHash(world));
+        h.Add(WorldStateHash.Compute(world));
 
         var terrain = world.Terrain;
         int area = terrain.Width * terrain.Height;

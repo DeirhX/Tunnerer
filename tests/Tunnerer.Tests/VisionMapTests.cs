@@ -5,6 +5,7 @@ using Tunnerer.Core.Types;
 
 namespace Tunnerer.Tests;
 
+using Tunnerer.Core;
 /// <summary>
 /// Fog of war: a side sees along open lines of sight from its tank, base and machines, remembers the terrain as it
 /// last saw it, and none of this changes the simulation.
@@ -197,7 +198,7 @@ public class VisionMapTests
                 world.TrackVision(world.TankList.Tanks[0]);
             for (int i = 0; i < 150; i++)
                 world.Advance(_ => new Tunnerer.Core.Input.ControllerOutput { MoveSpeed = new Offset(1, 0), ShootPrimary = i % 20 == 0 });
-            return TestSimulation.ComputeWorldStateHash(world);
+            return WorldStateHash.Compute(world);
         }
 
         Assert.Equal(Run(track: false), Run(track: true));

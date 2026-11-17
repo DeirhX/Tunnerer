@@ -69,7 +69,7 @@ public partial class Game
     {
         if (ev.Type == (uint)EventType.WindowFocusLost)
         {
-            if (IsInteractiveSession)
+            if (IsInteractiveSession && !IsNetMatch)
                 _paused = true;
             return false;
         }
@@ -135,6 +135,10 @@ public partial class Game
     {
         switch (command)
         {
+            case GameCommand.TogglePause when _relay is { Started: true } relay:
+                // A network match pauses for everyone or not at all: the relay holds the ticks.
+                relay.SetPaused(!relay.IsPaused);
+                return true;
             case GameCommand.TogglePause:
                 _showControls = false;
                 _paused = !_paused;
