@@ -28,20 +28,6 @@ public struct ReactorState
     public void TrimNegative() { Heat = new(Math.Max(0, Heat)); Health = new(Math.Max(0, Health)); }
 }
 
-/// <summary>Dirt and emberite ore (DESIGN.md §6.3), in units: a plain ore cell is one, a core cell three.</summary>
-public struct MaterialAmount
-{
-    public int Dirt;
-    public int Ore;
-
-    public MaterialAmount(int dirt, int ore) { Dirt = dirt; Ore = ore; }
-
-    public static MaterialAmount operator +(MaterialAmount a, MaterialAmount b) => new(a.Dirt + b.Dirt, a.Ore + b.Ore);
-    public static MaterialAmount operator -(MaterialAmount a, MaterialAmount b) => new(a.Dirt - b.Dirt, a.Ore - b.Ore);
-    public bool IsNegative => Dirt < 0 || Ore < 0;
-    public void TrimNegative() { Dirt = Math.Max(0, Dirt); Ore = Math.Max(0, Ore); }
-}
-
 public class Reactor
 {
     public ReactorState Current;
@@ -94,49 +80,66 @@ public class Reactor
     }
 }
 
-public class MaterialContainer
+/// <summary>
+/// A store of emberite ore (DESIGN.md §6.3), the only currency: a tank's hold or a base's store. In units: a plain ore
+/// cell is one, a core cell three. Ore is only ever moved between stores, paid for something or spilled into the
+/// ground, so every unit is accounted for.
+/// </summary>
+public sealed class OreStore
 {
-    public MaterialAmount Current;
-    public MaterialAmount Capacity;
+    private int _ore;
 
-    public MaterialContainer(MaterialAmount initial, MaterialAmount capacity)
+    public OreStore(int initial, int capacity)
     {
-        Current = initial;
         Capacity = capacity;
+        _ore = Math.Clamp(initial, 0, capacity);
     }
 
-    public int Dirt => Current.Dirt;
-    public int Ore => Current.Ore;
-    public int DirtCapacity => Capacity.Dirt;
-    public int OreCapacity => Capacity.Ore;
+    /// <summary>Units in the store, between 0 and <see cref="Capacity"/>.</summary>
+    public int Ore
+    {
+        get => _ore;
+        set => _ore = Math.Clamp(value, 0, Capacity);
+    }
 
-    /// <summary>Room left for ore before the container is full.</summary>
-    public int OreRoom => Math.Max(0, Capacity.Ore - Current.Ore);
+    /// <summary>
+    /// The most the store holds. It may grow (a hold upgrade); it never shrinks below what the store holds.
+    /// </summary>
+    public int Capacity { get; private set; }
 
-    public bool CanPay(MaterialAmount cost) => !(Current - cost).IsNegative;
+    /// <summary>Room left before the store is full.</summary>
+    public int Room => Math.Max(0, Capacity - _ore);
 
-    public bool Pay(MaterialAmount cost)
+    public bool IsFull => Room == 0;
+
+    public bool CanPay(int cost) => _ore >= cost;
+
+    /// <summary>Takes <paramref name="cost"/> out of the store; false (and nothing taken) when it holds less.</summary>
+    public bool Pay(int cost)
     {
         if (!CanPay(cost)) return false;
-        Current -= cost;
+        _ore -= cost;
         return true;
     }
 
-    public void Add(MaterialAmount gift)
+    /// <summary>Puts up to <paramref name="units"/> into the store, as many as fit, and returns how many did.</summary>
+    public int Add(int units)
     {
-        Current += gift;
-        var excess = Current - Capacity;
-        excess.TrimNegative();
-        Current -= excess;
+        int added = Math.Clamp(units, 0, Room);
+        _ore += added;
+        return added;
     }
 
-    public void Absorb(MaterialContainer other)
+    /// <summary>Moves up to <paramref name="max"/> units into <paramref name="to"/>, as many as it has room for; returns how many moved.</summary>
+    public int MoveTo(OreStore to, int max)
     {
-        Current += other.Current;
-        other.Current = default;
-        var excess = Current - Capacity;
-        excess.TrimNegative();
-        Current -= excess;
-        other.Current += excess;
+        int moved = Math.Min(Math.Min(max, _ore), to.Room);
+        if (moved <= 0)
+            return 0;
+        _ore -= moved;
+        to._ore += moved;
+        return moved;
     }
+
+    internal void SetCapacity(int capacity) => Capacity = Math.Max(capacity, _ore);
 }

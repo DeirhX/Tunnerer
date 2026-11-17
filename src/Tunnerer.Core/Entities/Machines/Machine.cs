@@ -61,6 +61,15 @@ public class Machine
     /// <summary>True while a low harvester is heading back to a pylon to recharge.</summary>
     public bool IsReturning { get; set; }
 
+    /// <summary>A harvester: out of its base's network coverage at its last action, so it held its ore work.</summary>
+    public bool IsOffNetwork { get; set; }
+
+    /// <summary>A harvester: no ore left in its work area at its last action.</summary>
+    public bool HasNoOre { get; set; }
+
+    /// <summary>A harvester: actions of work done on the ore cell it is mining (a cell takes a few).</summary>
+    public int OreWork { get; set; }
+
     /// <summary>The pylon that charged this battery at its last action, or null; drawn as a charge beam.</summary>
     public Machine? ChargingFrom { get; set; }
 

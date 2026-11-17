@@ -12,6 +12,6 @@ public struct ControllerOutput
     public bool BuildSecondary;
     /// <summary>Third build key: builds (and plants) a pylon.</summary>
     public bool BuildTertiary;
-    /// <summary>Base upgrade key held: 0 for none, 1-4 for <see cref="Entities.BaseUpgrade"/> + 1. Bought while docked.</summary>
+    /// <summary>Upgrade key held: 0 for none, 1-6 for <see cref="Entities.BaseUpgrade"/> + 1. Bought while docked.</summary>
     public int Upgrade;
 }

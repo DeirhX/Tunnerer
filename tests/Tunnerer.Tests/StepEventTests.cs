@@ -148,7 +148,7 @@ public class StepEventTests
     public void BuildingAndPlanting_RecordBuiltAndPlanted()
     {
         var s = RelayHeatTests.CreateScenario();
-        s.Tank.Resources.Add(new MaterialAmount(5000, 0));
+        s.Tank.Hold.Add(s.Tank.OreHoldCapacity);
 
         var built = Step(s.World, new ControllerOutput { BuildSecondary = true });
         Assert.Contains(built, e => e.Kind == StepEventKind.MachineBuilt && e.Machine == MachineType.Harvester && e.Color == s.Tank.Color);
@@ -165,7 +165,7 @@ public class StepEventTests
     public void RelayThatWouldNotLink_IsRefused()
     {
         var s = RelayHeatTests.CreateScenario(blockLineOfSight: true);
-        s.Tank.Resources.Add(new MaterialAmount(5000, 0));
+        s.Tank.Hold.Add(s.Tank.OreHoldCapacity);
         Step(s.World, new ControllerOutput { BuildPrimary = true });
         Step(s.World);
 

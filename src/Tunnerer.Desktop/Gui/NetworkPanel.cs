@@ -6,6 +6,7 @@ using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Tanks;
 using static Tunnerer.Desktop.Gui.HudDraw;
 
 /// <summary>
@@ -61,6 +62,7 @@ public sealed class NetworkPanel
 
         bool docked = player.IsDockedAtOwnBase;
         var carried = player.CarriedMachineType;
+        var relayQuote = player.QuoteBuild(MachineType.Relay);
         var (hint, tone) = HintSelector.Select(new HintInputs(
             IsDead: player.IsDead,
             HasLeftBase: player.HasLeftBase,
@@ -73,9 +75,9 @@ public sealed class NetworkPanel
             CarriedLink: world.CarriedPlantLink(player),
             HeatStoreFull: status.IsHeatStoreFullWithRelays,
             Harvesters: harvesters,
-            BuildableDirt: player.BuildableDirt(docked),
-            RelayFromBaseStore: player.BuildsFromBaseStore(MachineType.Relay),
-            BaseStoreDirt: tankBase.Materials.Current.Dirt,
+            SpendableOre: relayQuote.Stock,
+            RelayFromBaseStore: relayQuote.Payer == OrePayer.BaseStore,
+            NotEnoughOre: player.BuildRefusedTicks > 0 && player.LastBuildRefusal == BuildRefusal.NotEnoughOre,
             CoolingDown: player.IsCoolingDown));
         var hintColor = ToneColor(tone);
 
@@ -83,8 +85,8 @@ public sealed class NetworkPanel
         {
             HudTheme.TitleRow($"BASE        lives {player.LivesLeft}", 18f, player.LivesLeft > 1 ? HudTheme.Amber : HudTheme.Danger);
             GoalLines.Draw(world, tankBase);
-            ColoredText(TextDim, $"Base dirt store {tankBase.Materials.Dirt}/{tankBase.Materials.DirtCapacity}");
-            ColoredText(TextInfo, $"Base ore store {tankBase.Materials.Ore}");
+            ColoredText(TextInfo, $"Base ore store {tankBase.Store.Ore}" +
+                (player.IsUnloadingOre ? "   unloading" : player.IsInOwnNetwork ? "   in network" : ""));
 
             // Power: the charge store and what the engine is making from relay heat right now.
             float chargeFill = (float)tankBase.ChargeFill;
@@ -99,6 +101,11 @@ public sealed class NetworkPanel
                 ColoredText(stalled > 0 ? TextWarn : TextDim,
                     $"Harvesters working {working}/{harvesters}" +
                     (stalled > 0 ? $", {stalled} too hot" : ""));
+                if (status.HarvestersOffNetwork > 0 || status.HarvestersNoOre > 0)
+                    ColoredText(TextWarn,
+                        (status.HarvestersOffNetwork > 0 ? $"{status.HarvestersOffNetwork} off the network" : "") +
+                        (status.HarvestersOffNetwork > 0 && status.HarvestersNoOre > 0 ? ", " : "") +
+                        (status.HarvestersNoOre > 0 ? $"{status.HarvestersNoOre} out of ore" : ""));
                 if (recharging > 0 || flat > 0)
                     ColoredText(flat > 0 ? TextBad : TextWarn,
                         (recharging > 0 ? $"{recharging} heading to a pylon" : "") +

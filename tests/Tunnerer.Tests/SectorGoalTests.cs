@@ -12,40 +12,90 @@ using static Tunnerer.Tests.TankHeatTestHelpers;
 namespace Tunnerer.Tests;
 
 /// <summary>
-/// The sector goal and base upgrades (DESIGN.md §4.8): the dirt store buys upgrades that widen what the network can
-/// do, and the sector is won by tapping the hot core at the map centre at the goal rate for long enough.
+/// The sector goal and upgrades (DESIGN.md §4.8): the base's ore store buys upgrades for the base and its tank, and the
+/// sector is won by tapping the hot core at the map centre at the goal rate for long enough.
 /// </summary>
 public class SectorGoalTests
 {
-    private static void Fund(TankBase b, int dirt) => b.Materials.Add(new MaterialAmount(dirt, 0));
+    private static void Fund(TankBase b, int ore) => b.Store.Add(ore);
 
-    [Fact]
-    public void Upgrades_CostDirtFromTheStore_GetDearer_AndStopAtTheMax()
+    [Theory]
+    [InlineData(BaseUpgrade.Radiator)]
+    [InlineData(BaseUpgrade.CargoHold)]
+    [InlineData(BaseUpgrade.Radar)]
+    public void Upgrades_CostOreFromTheStore_25_60_140_AndStopAtTheMax(BaseUpgrade upgrade)
     {
         var s = RelayHeatTests.CreateScenario();
         var b = s.Base;
-        Fund(b, b.Materials.DirtCapacity);
-        int before = b.Materials.Dirt;
+        Assert.Equal([25, 60, 140], Tweaks.Upgrades.LevelCosts.ToArray());
+        Assert.Equal(Tweaks.Upgrades.MaxLevel, Tweaks.Upgrades.LevelCosts.Length);
 
-        Assert.True(b.TryBuyUpgrade(BaseUpgrade.Radiator));
-        Assert.Equal(before - Tweaks.Upgrades.CostPerLevel, b.Materials.Dirt);
-        Assert.Equal(1, b.Upgrades.Level(BaseUpgrade.Radiator));
-        Assert.Equal(Tweaks.Upgrades.CostPerLevel * 2, b.Upgrades.NextCost(BaseUpgrade.Radiator));
-
-        while (b.Upgrades.Level(BaseUpgrade.Radiator) < BaseUpgrades.MaxLevel)
+        for (int level = 0; level < BaseUpgrades.MaxLevel; level++)
         {
-            Fund(b, b.Materials.DirtCapacity);
-            Assert.True(b.TryBuyUpgrade(BaseUpgrade.Radiator));
+            int cost = Tweaks.Upgrades.LevelCosts[level];
+            Assert.Equal(cost, b.Upgrades.NextCost(upgrade));
+            b.Store.Ore = cost - 1;
+            Assert.False(b.TryBuyUpgrade(upgrade), "one short");
+            b.Store.Ore = cost;
+            Assert.True(b.TryBuyUpgrade(upgrade));
+            Assert.Equal(0, b.Store.Ore);
+            Assert.Equal(level + 1, b.Upgrades.Level(upgrade));
         }
-        Fund(b, b.Materials.DirtCapacity);
-        Assert.False(b.TryBuyUpgrade(BaseUpgrade.Radiator), "maxed out");
+        Assert.Equal(0, b.Upgrades.NextCost(upgrade));
+        Fund(b, b.Store.Capacity);
+        Assert.False(b.TryBuyUpgrade(upgrade), "maxed out");
+    }
+
+    [Fact]
+    public void Upgrades_ComeInTwoTracks_FourForTheBase_TwoForTheTank()
+    {
+        var tracks = Enum.GetValues<BaseUpgrade>().Select(BaseUpgrades.TrackOf).ToArray();
+        Assert.Equal(BaseUpgrades.Count, tracks.Length);
+        Assert.Equal(4, tracks.Count(t => t == UpgradeTrack.Base));
+        Assert.Equal([BaseUpgrade.CargoHold, BaseUpgrade.Radar],
+            Enum.GetValues<BaseUpgrade>().Where(u => BaseUpgrades.TrackOf(u) == UpgradeTrack.Tank));
+        foreach (BaseUpgrade u in Enum.GetValues<BaseUpgrade>())
+            Assert.False(string.IsNullOrEmpty(BaseUpgrades.Describe(u).Effect));
+    }
+
+    [Fact]
+    public void ACargoHoldLevel_AddsThirtyToTheTanksHold()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var press = new ControllerOutput { Upgrade = (int)BaseUpgrade.CargoHold + 1 };
+        int[] expected = [40, 70, 100, 130];
+        Assert.Equal(expected[0], s.Tank.OreHoldCapacity);
+        for (int level = 1; level <= BaseUpgrades.MaxLevel; level++)
+        {
+            Fund(s.Base, s.Base.Store.Capacity);
+            s.World.Advance(i => i == 0 ? press : default);
+            s.World.Advance(_ => default);
+            Assert.Equal(level, s.Base.Upgrades.Level(BaseUpgrade.CargoHold));
+            Assert.Equal(expected[level], s.Tank.OreHoldCapacity);
+        }
+    }
+
+    [Fact]
+    public void ARadarLevel_ScalesEveryRange_ByAFifth_AndTheHeatBudget_ByAQuarter()
+    {
+        var b = RelayHeatTests.CreateScenario().Base;
+        for (int level = 0; level <= BaseUpgrades.MaxLevel; level++)
+        {
+            Assert.Equal(1f + 0.2f * level, b.Upgrades.RadarRangeScale, 5);
+            Assert.Equal(1f + 0.25f * level, b.Upgrades.RadarHeatBudgetScale, 5);
+            if (level < BaseUpgrades.MaxLevel)
+            {
+                Fund(b, b.Store.Capacity);
+                b.TryBuyUpgrade(BaseUpgrade.Radar);
+            }
+        }
     }
 
     [Fact]
     public void Upgrades_AreRefused_WhenTheStoreCannotPay()
     {
         var s = RelayHeatTests.CreateScenario();
-        Assert.Equal(0, s.Base.Materials.Dirt);
+        s.Base.Store.Ore = Tweaks.Upgrades.LevelCosts[0] - 1;
         Assert.False(s.Base.TryBuyUpgrade(BaseUpgrade.Engine));
         Assert.Equal(0, s.Base.Upgrades.Level(BaseUpgrade.Engine));
     }
@@ -62,7 +112,7 @@ public class SectorGoalTests
 
         foreach (BaseUpgrade u in Enum.GetValues<BaseUpgrade>())
         {
-            Fund(b, b.Materials.DirtCapacity);
+            Fund(b, b.Store.Capacity);
             Assert.True(b.TryBuyUpgrade(u));
         }
 
@@ -84,7 +134,7 @@ public class SectorGoalTests
             var s = RelayHeatTests.CreateScenario();
             if (upgraded)
             {
-                Fund(s.Base, s.Base.Materials.DirtCapacity);
+                Fund(s.Base, s.Base.Store.Capacity);
                 s.Base.TryBuyUpgrade(BaseUpgrade.Radiator);
             }
             s.Base.Reactor.Current.Heat = s.Base.Reactor.HeatCapacity;
@@ -100,7 +150,7 @@ public class SectorGoalTests
     public void TheTank_BuysUpgradesWithTheUpgradeKeys_OnlyWhileDocked()
     {
         var s = RelayHeatTests.CreateScenario();
-        Fund(s.Base, s.Base.Materials.DirtCapacity);
+        Fund(s.Base, s.Base.Store.Capacity);
         var press = new ControllerOutput { Upgrade = (int)BaseUpgrade.Reach + 1 };
 
         // Docked (the scenario starts the tank in its base): one press buys one level.
@@ -123,21 +173,22 @@ public class SectorGoalTests
         var engine = new ControllerOutput { Upgrade = (int)BaseUpgrade.Engine + 1 };
         void Press() { s.World.Advance(i => i == 0 ? engine : default); s.World.Advance(_ => default); }
 
+        s.Base.Store.Ore = 0;
         Press();   // docked, empty store
-        Assert.Equal(UpgradeRefusal.CannotPay, s.Tank.LastUpgradeRefusal);
+        Assert.Equal(UpgradeRefusal.NotEnoughOre, s.Tank.LastUpgradeRefusal);
 
         // A successful press right after clears the refusal, so its message does not linger.
-        Fund(s.Base, s.Base.Materials.DirtCapacity);
+        Fund(s.Base, s.Base.Store.Capacity);
         Press();
         Assert.Equal(UpgradeRefusal.None, s.Tank.LastUpgradeRefusal);
         Assert.Equal(0, s.Tank.UpgradeRefusedTicks);
 
         while (!s.Base.Upgrades.IsMaxed(BaseUpgrade.Engine))
         {
-            Fund(s.Base, s.Base.Materials.DirtCapacity);
+            Fund(s.Base, s.Base.Store.Capacity);
             Assert.True(s.Base.TryBuyUpgrade(BaseUpgrade.Engine));
         }
-        Fund(s.Base, s.Base.Materials.DirtCapacity);
+        Fund(s.Base, s.Base.Store.Capacity);
         Press();
         Assert.Equal(UpgradeRefusal.Maxed, s.Tank.LastUpgradeRefusal);
 

@@ -19,13 +19,10 @@ public class MachineMaterializer
     /// <summary>Type of the machine in hand, or null when nothing is carried.</summary>
     public MachineType? CarriedType => _carrying?.Type;
 
-    public void TryBuild(MachineType type, Position position, MaterialContainer resources, MachineList machineList)
+    public void TryBuild(MachineType type, Position position, OreStore payer, MachineList machineList)
     {
         if (_carrying != null) return;
-
-        var cost = MachineBehaviors.Get(type).BuildCost;
-        if (!resources.CanPay(cost)) return;
-        resources.Pay(cost);
+        if (!payer.Pay(MachineBehaviors.Get(type).OreCost)) return;
 
         _carrying = new Machine(position, type, _ownerColor);
         _carrying.State = MachineState.Transporting;

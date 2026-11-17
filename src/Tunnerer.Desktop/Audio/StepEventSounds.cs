@@ -24,7 +24,9 @@ public static class StepEventSounds
             StepEventKind.TankRespawned => (SoundEffect.Respawn, AudioTweaks.RespawnGain),
             StepEventKind.MachineBuilt => (MachinePresentations.Get(e.Machine).BuildSound, AudioTweaks.BuildGain),
             StepEventKind.MachinePlanted => (SoundEffect.Plant, AudioTweaks.PlantGain),
-            StepEventKind.PlantRefused when isPlayer => (SoundEffect.PlantRefused, AudioTweaks.RefusedGain),
+            StepEventKind.PlantRefused or StepEventKind.BuildRefused when isPlayer =>
+                (SoundEffect.PlantRefused, AudioTweaks.RefusedGain),
+            StepEventKind.OreUnloaded when isPlayer => (SoundEffect.Pickup, AudioTweaks.UnloadGain),
             StepEventKind.Docked when isPlayer => (SoundEffect.Dock, AudioTweaks.DockGain),
             StepEventKind.GoldCollected or StepEventKind.OreCollected => (SoundEffect.Pickup, AudioTweaks.PickupGain),
             _ => (default(SoundEffect), 0f),

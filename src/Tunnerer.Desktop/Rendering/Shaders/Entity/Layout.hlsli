@@ -11,7 +11,8 @@
 //                   .w = state (0 normal, 1 hit flash, 2 spawn protection)
 //   1 tank turret — .xy = barrel direction (cos, sin), .w = state as above
 //   2 hot shot    — .x = trail length (cells), .y = core radius (cells)
-//   3 (unused)
+//   3 ore beam    — .x = length (cells, along +x), .y = ore flow (1 just after a unit passed, fading to 0),
+//                   .z = phase, .w = transition. Ore flows toward +x (the base).
 //   4 relay       — .x = powered (0/1), .y = pump fraction, .z = animation phase (s), .w = machine flags
 //   5 harvester   — .xy = facing (cos, sin), .z = drum/tread phase, .w = machine flags
 //   6 sense ring  — .x = ground heat / stall temperature, .y = radius (cells), .z = phase, .w = machine flags
@@ -44,6 +45,7 @@
 static const float kKindTankHull = 0.0;
 static const float kKindTankTurret = 1.0;
 static const float kKindHotShot = 2.0;
+static const float kKindOreBeam = 3.0;
 static const float kKindRelay = 4.0;
 static const float kKindHarvester = 5.0;
 static const float kKindSenseRing = 6.0;

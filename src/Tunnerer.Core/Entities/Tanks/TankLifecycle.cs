@@ -101,10 +101,10 @@ internal sealed class TankLifecycle
     /// </summary>
     private void DropOre(ITerrainPixelAccessor? terrain)
     {
-        var hold = _tank.Resources;
+        var hold = _tank.Hold;
         if (terrain != null && hold.Ore > 0)
             OreDrop.Scatter(terrain, _tank.Position, hold.Ore);
-        hold.Current.Ore = 0;
+        hold.Ore = 0;
     }
 
     /// <summary>A dead tank's tick: it explodes once, then respawns at its base when the timer runs out and lives remain.</summary>

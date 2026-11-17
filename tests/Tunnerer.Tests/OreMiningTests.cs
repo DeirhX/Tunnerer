@@ -92,7 +92,7 @@ public class OreMiningTests
     public void FullHold_LeavesOreInTheGround()
     {
         var s = FacingWall(TerrainPixel.Emberite);
-        s.Tank.Resources.Current.Ore = Tweaks.Ore.TankHold - 2;
+        s.Tank.Hold.Ore = Tweaks.Ore.TankHold - 2;
         int before = CountOre(s.World.Terrain, s.RelayPos, 14);
 
         Drive(s, Right, 120);
@@ -106,7 +106,7 @@ public class OreMiningTests
     public void ACoreCell_IsLeftAlone_UnlessAllItsUnitsFit()
     {
         var s = FacingWall(TerrainPixel.EmberiteCore);
-        s.Tank.Resources.Current.Ore = Tweaks.Ore.TankHold - (Tweaks.Ore.CoreCellUnits - 1);
+        s.Tank.Hold.Ore = Tweaks.Ore.TankHold - (Tweaks.Ore.CoreCellUnits - 1);
         int before = CountOre(s.World.Terrain, s.RelayPos, 14);
 
         Assert.Equal(0, Drive(s, TorchRight, 150));
@@ -119,8 +119,8 @@ public class OreMiningTests
     {
         var s = RelayHeatTests.CreateScenario();
         s.Tank.Position = s.Base.Position;
-        s.Tank.Resources.Current.Ore = Tweaks.Ore.TankHold;
-        int stored = s.Base.Materials.Ore;
+        s.Tank.Hold.Ore = Tweaks.Ore.TankHold;
+        int stored = s.Base.Store.Ore;
 
         s.World.Advance(_ => default);
         Assert.Equal(Tweaks.Ore.TankHold - Tweaks.Base.HomeAbsorbOre, s.Tank.OreHeld);
@@ -128,7 +128,7 @@ public class OreMiningTests
             s.World.Advance(_ => default);
 
         Assert.Equal(0, s.Tank.OreHeld);
-        Assert.Equal(stored + Tweaks.Ore.TankHold, s.Base.Materials.Ore);
+        Assert.Equal(stored + Tweaks.Ore.TankHold, s.Base.Store.Ore);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class OreMiningTests
     {
         var s = FacingWall(TerrainPixel.Dirt);
         const int held = 25;
-        s.Tank.Resources.Current.Ore = held;
+        s.Tank.Hold.Ore = held;
         var at = s.Tank.Position;
         int before = CountOre(s.World.Terrain, at, Tweaks.Ore.DeathDropRadius + 1);
 

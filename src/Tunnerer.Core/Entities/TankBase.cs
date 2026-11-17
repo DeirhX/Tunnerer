@@ -13,9 +13,20 @@ public class TankBase
     public Reactor Reactor { get; } = new(
         initial: new ReactorState(Tweaks.Base.InitialHeat, Tweaks.Base.InitialHealth),
         capacity: new ReactorState(Tweaks.Base.HeatCapacity, Tweaks.Base.HealthCapacity));
-    public MaterialContainer Materials { get; } = new(
-        initial: new MaterialAmount(0, 0),
-        capacity: new MaterialAmount(Tweaks.Base.MaterialDirtCapacity, Tweaks.Base.MaterialOreCapacity));
+
+    /// <summary>
+    /// The base's ore store (DESIGN.md §6.4): what machines and upgrades are paid from. Docked and networked tanks
+    /// unload into it, linked harvesters mine into it.
+    /// </summary>
+    public OreStore Store { get; } = new(Tweaks.Ore.BaseStartingStore, Tweaks.Ore.BaseStoreCapacity);
+
+    /// <summary>
+    /// True when the computer plays this base's side (<see cref="World.SetBotControlled"/>): the bot does not prospect,
+    /// so the store gets <see cref="Tweaks.Ore.BotOrePerSecond"/> instead.
+    /// </summary>
+    public bool IsBotControlled { get; internal set; }
+
+    private double _botOreCredit;
 
     private static int Half => Tweaks.Base.BaseSize / 2;
     private static int DoorHalf => Tweaks.Base.DoorSize / 2;
@@ -70,23 +81,32 @@ public class TankBase
 
     public double ChargeCapacity => Tweaks.Base.ChargeCapacity;
 
-    /// <summary>What this base has bought with its dirt store (DESIGN.md §4.8).</summary>
+    /// <summary>What this base has bought with its ore store (DESIGN.md §4.8), for itself and for its tank.</summary>
     public BaseUpgrades Upgrades { get; } = new();
 
     /// <summary>
-    /// Buys the next level of <paramref name="upgrade"/> from the dirt store. False when it is maxed out or the store
+    /// Buys the next level of <paramref name="upgrade"/> from the ore store. False when it is maxed out or the store
     /// cannot pay.
     /// </summary>
     public bool TryBuyUpgrade(BaseUpgrade upgrade)
     {
-        if (Upgrades.IsMaxed(upgrade))
+        if (Upgrades.IsMaxed(upgrade) || !Store.Pay(Upgrades.NextCost(upgrade)))
             return false;
-        var cost = new MaterialAmount(Upgrades.NextCost(upgrade), 0);
-        if (!Materials.CanPay(cost))
-            return false;
-        Materials.Pay(cost);
         Upgrades.Raise(upgrade);
         return true;
+    }
+
+    /// <summary>The bot's stand-in income: <see cref="Tweaks.Ore.BotOrePerSecond"/>, in whole units, while bot-controlled.</summary>
+    internal void AdvanceBotTrickle(double dtSeconds)
+    {
+        if (!IsBotControlled)
+            return;
+        _botOreCredit += Tweaks.Ore.BotOrePerSecond * dtSeconds;
+        int whole = (int)_botOreCredit;
+        if (whole <= 0)
+            return;
+        _botOreCredit -= whole;
+        Store.Add(whole);
     }
 
     /// <summary>Charge the relays tapping the map's hot core made for this base during the last tick.</summary>
@@ -299,19 +319,6 @@ public class TankBase
     private static void GiveReactorResources(Reactor target, int healthRegen)
     {
         target.Add(new ReactorState(0, healthRegen));
-    }
-
-    public void AbsorbResources(MaterialContainer other)
-    {
-        Materials.Absorb(other);
-    }
-
-    public void AbsorbResources(MaterialContainer other, MaterialAmount rate)
-    {
-        var absorber = new MaterialContainer(initial: default, capacity: rate);
-        absorber.Absorb(other);
-        Materials.Absorb(absorber);
-        other.Absorb(absorber);
     }
 
     public void CreateInTerrain(ITerrainPixelAccessor terrain, int color)

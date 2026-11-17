@@ -70,8 +70,8 @@ public sealed class GameEventWatcher
         }
 
         bool docked = world.TankBases.CheckBaseCollision(player.Position) == home;
-        int store = home.Materials.Dirt;
-        bool storeFull = store >= home.Materials.DirtCapacity;
+        int store = home.Store.Ore;
+        bool storeFull = home.Store.IsFull;
         double heatCapacity = Math.Max(1, (int)home.Reactor.HeatCapacity) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
         bool heatStoreFull = home.ReactorHeatEnergy / heatCapacity >= 0.9;
         bool chargeLow = home.Charge < home.ChargeCapacity * 0.1 && harvesters > 0;
@@ -111,7 +111,7 @@ public sealed class GameEventWatcher
                 {
                     UpgradeRefusal.NotDocked => "Upgrades are bought while docked at your base.",
                     UpgradeRefusal.Maxed => "That upgrade is already at its top level.",
-                    _ => "Not enough dirt in the base store. Harvesters fill it for you.",
+                    _ => "Not enough ore in the base store. Bring ore home, or let harvesters mine it.",
                 }, NotificationKind.Warning, cooldown: 2f);
 
             if (tappingCore && !_tappingCore)
@@ -134,7 +134,7 @@ public sealed class GameEventWatcher
 
             if (harvesters > _harvesters)
                 feed.Post(now, "harvester-planted", "Harvester working",
-                    "It mines the dirt around it into your base store on its own. Keep it cool and charged.", NotificationKind.Good, cooldown: 4f);
+                    "Inside your network it mines the ore around it into your base store. Keep it cool and charged.", NotificationKind.Good, cooldown: 4f);
             if (stalled > _stalledHarvesters)
                 feed.Post(now, "harvester-stalled", "Harvester stalled: too hot",
                     "Mining heats the ground. A linked relay near it pumps that heat away.", NotificationKind.Warning);
@@ -147,8 +147,8 @@ public sealed class GameEventWatcher
                     "Its battery is low. It goes back to work once recharged.", NotificationKind.Info, cooldown: 60f);
 
             if (storeFull && !_storeFull)
-                feed.Post(now, "store-full", "Base dirt store full",
-                    "Harvesters idle until you spend dirt: dock and buy upgrades (1-4) or build machines.", NotificationKind.Warning);
+                feed.Post(now, "store-full", "Base ore store full",
+                    "Harvesters idle until you spend ore: dock and buy upgrades (1-6) or build machines.", NotificationKind.Warning);
             if (heatStoreFull && !_heatStoreFull)
                 feed.Post(now, "heat-full", "Base heat store nearly full",
                     "Relays and docking cool less until the radiator catches up.", NotificationKind.Warning);
@@ -166,23 +166,24 @@ public sealed class GameEventWatcher
             // Once each per match: the first ore in the hold, and the first time the hold fills.
             if (holdingOre && !_holdingOre)
                 feed.Post(now, "ore-collected", "Emberite collected",
-                    "Ore rides in your hold (MATERIALS). Dock at your base to bank it; if you die, it spills where you fall.",
+                    "Ore rides in your hold (MATERIALS). Dock, or stay inside your network, to bank it; if you die, it spills where you fall.",
                     NotificationKind.Good, cooldown: 1e9f);
             if (oreHoldFull && !_oreHoldFull)
                 feed.Post(now, "ore-hold-full", "Ore hold full",
-                    $"The hold takes {player.OreHoldCapacity}. Dock at your base to bank it before you dig more ore.",
+                    $"The hold takes {player.OreHoldCapacity}. Bring it into your network or dock to bank it before you dig more ore.",
                     NotificationKind.Warning, cooldown: 1e9f);
             if (engineRunning && !_engineRunning)
                 feed.Post(now, "engine-running", "Base engine making charge",
                     "Relay heat is being turned into charge. Hotter sources make more.", NotificationKind.Good, cooldown: 120f);
 
-            // Dirt that reaches the store while the player is away came from harvesters.
-            if (!docked && store > _lastStore)
+            // Ore that reaches the store while the player is neither docked nor unloading came from harvesters (or the
+            // bot's stand-in income, which the player's base never gets).
+            if (!docked && !player.IsUnloadingOre && store > _lastStore)
                 _harvestedSinceReport += store - _lastStore;
             if (_harvestedSinceReport > 0 && now - _lastHarvestReport >= 20f)
             {
-                feed.Post(now, "harvested", $"Harvesters delivered +{_harvestedSinceReport} dirt",
-                    $"Base store {store}/{home.Materials.DirtCapacity}.", NotificationKind.Good, cooldown: 0f);
+                feed.Post(now, "harvested", $"Harvesters delivered +{_harvestedSinceReport} ore",
+                    $"Base ore store {store}.", NotificationKind.Good, cooldown: 0f);
                 _harvestedSinceReport = 0;
                 _lastHarvestReport = now;
             }

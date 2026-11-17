@@ -108,6 +108,7 @@ public sealed class Radar
     private double _fanOffset;
     private int _nextPulseTick;
     private int _lostToHeat;
+    private RadarReach _reach = RadarReach.Base;
 
     public Radar(VisionMap vision)
     {
@@ -131,6 +132,9 @@ public sealed class Radar
     /// <summary>How far the front of the pulse in flight has run from <see cref="PulseOrigin"/>, in cells.</summary>
     public int PulseRadius { get; private set; }
 
+    /// <summary>The full reach of the pulse in flight (or the last one), in cells: <see cref="RadarReach.Range"/>.</summary>
+    public float PulseRange => _reach.Range;
+
     /// <summary>The share of the last finished pulse's rays that hot ground absorbed, 0..1.</summary>
     public float HeatLoss { get; private set; }
 
@@ -148,13 +152,24 @@ public sealed class Radar
     /// </summary>
     public void Advance(
         ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, Position origin, int ownColor,
-        IReadOnlyList<RadarTarget> targets)
+        IReadOnlyList<RadarTarget> targets) =>
+        Advance(terrain, heat, origin, ownColor, targets, RadarReach.Base);
+
+    /// <summary>
+    /// As <see cref="Advance(ITerrainPixelReadOnly, ITerrainHeatSource, Position, int, IReadOnlyList{RadarTarget})"/>,
+    /// with the ranges of <paramref name="reach"/> (a tank's radar upgrades). A pulse keeps the reach it was sent
+    /// with. A pulse that takes longer than <see cref="Tweaks.Radar.PulsePeriodTicks"/> to run out delays the next.
+    /// </summary>
+    public void Advance(
+        ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, Position origin, int ownColor,
+        IReadOnlyList<RadarTarget> targets, RadarReach reach)
     {
         Age();
         if (!PulseInFlight)
         {
             if (Tick < _nextPulseTick)
                 return;
+            _reach = reach;
             Emit(origin);
         }
 
@@ -223,7 +238,7 @@ public sealed class Radar
         _fanOffset = offset - Math.Floor(offset);
         _pulseCount = (_pulseCount + 1) & 0xFFFF;
 
-        const int range = Tweaks.Radar.Range;
+        float range = _reach.Range;
         for (int i = 0; i < _rays.Length; i++)
         {
             double angle = 2.0 * Math.PI * (i + _fanOffset) / RayCount;
@@ -347,15 +362,14 @@ public sealed class Radar
             // Only a mark that is kept counts against the ray's allowance: hot ground in sight must not use it up
             // and leave the unseen heat beyond unmarked.
             // Hotter ground shows from further off.
-            float heatRange = Tweaks.Radar.HeatRangeMin +
-                (Tweaks.Radar.HeatRangeMax - Tweaks.Radar.HeatRangeMin) * HeatIntensity(temperature);
+            float heatRange = _reach.HeatRangeMin + (_reach.HeatRangeMax - _reach.HeatRangeMin) * HeatIntensity(temperature);
             if (ray.HeatLeft > 0 && Within(ray, heatRange) &&
                 Record(cell, RadarEcho.Heat, HeatIntensity(temperature), width, pixels, isTerrain: false))
             {
                 ray.HeatLeft--;
                 marked = true;
             }
-            ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * ray.CellLength / Tweaks.Radar.HeatBudgetDegreeCells;
+            ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * ray.CellLength / _reach.HeatBudgetDegreeCells;
             if (ray.Strength <= 0f)
             {
                 _lostToHeat++;
@@ -372,9 +386,9 @@ public sealed class Radar
         {
             // Whatever it is stops the ray, but each kind of thing only returns from within its own range.
             RadarEcho echo = alive ? RadarEcho.Life : target || gold ? RadarEcho.Metal : RadarEcho.Solid;
-            float range = alive ? Tweaks.Radar.LifeRange
-                : target ? Tweaks.Radar.MachineRange
-                : gold ? Tweaks.Radar.GoldRange
+            float range = alive ? _reach.LifeRange
+                : target ? _reach.MachineRange
+                : gold ? _reach.GoldRange
                 : SolidRange(ray, x, y, width, pixels);
             if (!Within(ray, range))
                 return true;
@@ -389,7 +403,7 @@ public sealed class Radar
         bool dirt = Pixel.IsSoftCollision(pixel);
         if (pixel == ownWall)
             ray.WasDirt = false;
-        if (ray.WasDirt && !dirt && ray.WeakLeft > 0 && Within(ray, Tweaks.Radar.CavityRange))
+        if (ray.WasDirt && !dirt && ray.WeakLeft > 0 && Within(ray, _reach.CavityRange))
         {
             ray.WeakLeft--;
             Record(cell, RadarEcho.Cavity, ray.Strength, width, pixels, isTerrain: true);
@@ -403,13 +417,13 @@ public sealed class Radar
 
     /// <summary>
     /// How far off the rock at (<paramref name="x"/>, <paramref name="y"/>) returns: a thin shell only from
-    /// <see cref="Tweaks.Radar.SolidRangeMin"/>, a formation <see cref="Tweaks.Radar.FormationDepth"/> cells deep
+    /// <see cref="RadarReach.SolidRangeMin"/>, a formation <see cref="Tweaks.Radar.FormationDepth"/> cells deep
     /// along the ray from the pulse's full range. Looks behind the face only when the answer depends on it.
     /// </summary>
-    private static float SolidRange(in Ray ray, int x, int y, int width, ReadOnlySpan<TerrainPixel> pixels)
+    private float SolidRange(in Ray ray, int x, int y, int width, ReadOnlySpan<TerrainPixel> pixels)
     {
-        if (Within(ray, Tweaks.Radar.SolidRangeMin))
-            return Tweaks.Radar.SolidRangeMin;
+        if (Within(ray, _reach.SolidRangeMin))
+            return _reach.SolidRangeMin;
         const int full = Tweaks.Radar.FormationDepth;
         int height = pixels.Length / width;
         int depth = 0;
@@ -423,7 +437,7 @@ public sealed class Radar
                 break;
             depth++;
         }
-        return Tweaks.Radar.SolidRangeMin + (Tweaks.Radar.Range - Tweaks.Radar.SolidRangeMin) * depth / (float)full;
+        return _reach.SolidRangeMin + (_reach.Range - _reach.SolidRangeMin) * depth / (float)full;
     }
 
     /// <summary>

@@ -92,17 +92,24 @@ public class MachineBehaviorTests
     }
 
     [Fact]
-    public void Harvester_BuildCost_MatchesTweaks()
+    public void Harvester_BuildCost_IsThirtyOre()
     {
-        Assert.Equal(Tweaks.Machine.HarvesterDirtCost, MachineBehaviors.Harvester.BuildCost.Dirt);
-        Assert.Equal(0, MachineBehaviors.Harvester.BuildCost.Ore);
+        Assert.Equal(Tweaks.Ore.HarvesterCost, MachineBehaviors.Harvester.OreCost);
+        Assert.Equal(30, MachineBehaviors.Harvester.OreCost);
     }
 
     [Fact]
-    public void Pylon_BuildCost_MatchesTweaks()
+    public void Pylon_BuildCost_IsTenOre()
     {
-        Assert.Equal(Tweaks.Machine.PylonDirtCost, MachineBehaviors.Pylon.BuildCost.Dirt);
-        Assert.Equal(0, MachineBehaviors.Pylon.BuildCost.Ore);
+        Assert.Equal(Tweaks.Ore.PylonCost, MachineBehaviors.Pylon.OreCost);
+        Assert.Equal(10, MachineBehaviors.Pylon.OreCost);
+    }
+
+    [Fact]
+    public void Relay_BuildCost_IsFourOre()
+    {
+        Assert.Equal(Tweaks.Ore.RelayCost, MachineBehaviors.Relay.OreCost);
+        Assert.Equal(4, MachineBehaviors.Relay.OreCost);
     }
 
     [Fact]

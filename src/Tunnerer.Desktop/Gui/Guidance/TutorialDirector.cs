@@ -57,24 +57,24 @@ public sealed class TutorialDirector
                 static (t, _, _) => t._hasLeftBase,
                 Target: static (_, p) => p.Base is { } b ? b.Position + new Offset(0, Tweaks.Base.BaseSize / 2) : null),
 
-            new("Dig for dirt",
-                "Drive into dirt to dig it. Dirt fills your hold (MATERIALS) and pays for machines.",
-                static (_, w, p) => p.Resources.Dirt >= Tweaks.Machine.RelayDirtCost || OwnsAny(w, p, MachineType.Relay),
-                Progress: static (_, p) => Ratio("Dirt", p.Resources.Dirt, Tweaks.Machine.RelayDirtCost)),
+            new("Mine emberite",
+                "The teal crystal is emberite ore, what everything is paid with. Drive into it to mine it into your hold (MATERIALS). The hold is small: bring it home.",
+                static (_, w, p) => p.OreHeld >= Tweaks.Ore.RelayCost || OwnsAny(w, p, MachineType.Relay),
+                Progress: static (_, p) => Ratio("Ore", p.OreHeld, Tweaks.Ore.RelayCost)),
 
             new("Mind your temperature",
-                "Digging heats the tank (TEMP). Above 100° it burns your shield. Drive back into your base: it cools you down and stores your dirt.",
+                "Digging heats the tank (TEMP). Above 100° it burns your shield. Drive back into your base: it cools you down and banks your ore.",
                 static (t, w, p) => t._unloadedHaul || OwnsAny(w, p, MachineType.Relay),
                 Target: static (_, p) => p.Base?.Position),
 
             new("Build a relay",
-                "Press E to pick up a relay (150 dirt). Drive out of the base and press E again where the line to your network shows green.",
+                $"Press E to pick up a relay ({Tweaks.Ore.RelayCost} ore; inside your network the base store pays). Drive out of the base and press E again where the line to your network shows green.",
                 static (_, w, p) => OwnsPowered(w, p, MachineType.Relay),
                 Progress: static (w, p) => p.IsCarryingMachine ? ("Carrying it: find a spot with a green line, then press E", 1f)
-                    : Ratio("Dirt you can spend", p.BuildableDirt(DockedAtHome(w, p)), Tweaks.Machine.RelayDirtCost)),
+                    : Ratio("Ore you can spend", p.QuoteBuild(MachineType.Relay).Stock, Tweaks.Ore.RelayCost)),
 
             new("Stay on your network",
-                "The pale circles are your network. Inside them the links pull heat out of your tank. Outside, the OFF NETWORK clock runs: get back before it reaches 0, or plant another relay to reach further.",
+                "The pale circles are your network. Inside them the links pull heat out of your tank and your hold unloads into the base. Outside, the OFF NETWORK clock runs: get back before it reaches 0, or plant another relay to reach further.",
                 static (t, _, _) => t._cameBackCovered,
                 ReadSeconds: 14f),
 
@@ -85,11 +85,11 @@ public sealed class TutorialDirector
                 Target: static (w, p) => Nearest(w.HotRockPockets, p.Base?.Position ?? p.Position)),
 
             new("Build a harvester",
-                "Harvesters mine dirt into your base store on their own. Press R to build one (1000 dirt; while docked the base store pays) and plant it beside solid dirt.",
+                $"Harvesters mine emberite into your base store on their own, while they stand inside your network. Press R to build one ({Tweaks.Ore.HarvesterCost} ore) and plant it near ore, inside your network.",
                 static (_, w, p) => OwnsAny(w, p, MachineType.Harvester),
                 Progress: static (w, p) => p.IsCarryingMachine && p.CarriedMachineType == MachineType.Harvester
-                    ? ("Carrying it: drive beside dirt and press R", 1f)
-                    : Ratio("Dirt you can spend", p.BuildableDirt(DockedAtHome(w, p)), Tweaks.Machine.HarvesterDirtCost)),
+                    ? ("Carrying it: drive near ore, inside your network, and press R", 1f)
+                    : Ratio("Ore you can spend", p.QuoteBuild(MachineType.Harvester).Stock, Tweaks.Ore.HarvesterCost)),
 
             new("Keep the harvester cool",
                 "Mining heats the ground, and a harvester stalls when its ring turns orange. Plant a linked relay close to it to pump that heat away.",
@@ -97,15 +97,15 @@ public sealed class TutorialDirector
                 Target: static (w, p) => FirstHarvester(w, p)),
 
             new("Power the harvester",
-                "Harvesters run on a battery (the bar above them). Press T to build a pylon (300 dirt) where it can see the harvester: it recharges batteries from your base's charge.",
+                $"Harvesters run on a battery (the bar above them). Press T to build a pylon ({Tweaks.Ore.PylonCost} ore) where it can see the harvester: it recharges batteries from your base's charge.",
                 static (_, w, p) => OwnsPowered(w, p, MachineType.Pylon),
                 Target: static (w, p) => FirstHarvester(w, p)),
 
-            new("Upgrade your base",
-                "Dock and press 1-4 to spend the base dirt store on upgrades: radiator, network reach, engine and insulation. Your harvesters keep filling that store.",
+            new("Upgrade",
+                "Dock and press 1-6 to spend the base ore store: radiator, network reach, engine and insulation for the base, a bigger cargo hold and a longer radar for your tank.",
                 static (_, _, p) => p.Base is { } b && Enumerable.Range(0, BaseUpgrades.Count).Any(i => b.Upgrades.Level((BaseUpgrade)i) > 0),
                 Progress: static (_, p) => p.Base is { } b
-                    ? Ratio("Base dirt store", b.Materials.Dirt, Tweaks.Upgrades.CostPerLevel)
+                    ? Ratio("Base ore store", b.Store.Ore, Tweaks.Upgrades.LevelCosts[0])
                     : null,
                 Target: static (_, p) => p.Base?.Position),
 
@@ -161,8 +161,8 @@ public sealed class TutorialDirector
         bool docked = DockedAtHome(world, player);
         if (!docked)
             _hasLeftBase = true;
-        // A real haul: the tank came home with at least a relay's worth of dirt and docked.
-        if (!docked && player.Resources.Dirt >= Tweaks.Machine.RelayDirtCost)
+        // A real haul: the tank came home with at least a relay's worth of ore and docked.
+        if (!docked && player.OreHeld >= Tweaks.Ore.RelayCost)
             _carriedHaul = true;
         if (docked && _carriedHaul)
             _unloadedHaul = true;

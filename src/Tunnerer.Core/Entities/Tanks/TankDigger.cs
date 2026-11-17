@@ -112,7 +112,6 @@ internal sealed class TankDigger
     private void DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse,
         StepEventLog? events)
     {
-        var resources = _tank.Resources;
         int cleared = 0;
         int r = Tweaks.Tank.DigRadius;
         for (int ty = center.Y - r; ty <= center.Y + r; ty++)
@@ -140,8 +139,6 @@ internal sealed class TankDigger
                         _thermals.RecordDugPixels(1);
                         heat.AddHeat(worldPos, Tweaks.Tank.TorchTerrainHeatAmount);
                     }
-                    if (Pixel.IsDirt(pix))
-                        resources.Add(new MaterialAmount(1, 0));
                 }
                 else if (Pixel.IsTorchable(pix) && torchUse &&
                          _rng.Chance1000(Tweaks.World.DigThroughRockChance))
@@ -165,7 +162,7 @@ internal sealed class TankDigger
         bool torchUse, StepEventLog? events)
     {
         int units = Pixel.OreUnits(pix);
-        if (_tank.Resources.OreRoom < units)
+        if (_tank.Hold.Room < units)
             return false;
         bool core = Pixel.IsOreCore(pix);
         if (core ? !(torchUse && _rng.Chance1000(Tweaks.Ore.TorchCoreChance)) : !_rng.Chance1000(Tweaks.Ore.DigOreChance))
@@ -182,7 +179,7 @@ internal sealed class TankDigger
             _thermals.RecordDugPixels(1);
             heat.AddHeat(worldPos, Tweaks.Tank.TorchTerrainHeatAmount);
         }
-        _tank.Resources.Add(new MaterialAmount(0, units));
+        _tank.Hold.Add(units);
         events?.Record(new StepEvent(StepEventKind.OreCollected, worldPos, _tank.Color, Count: units));
         return true;
     }

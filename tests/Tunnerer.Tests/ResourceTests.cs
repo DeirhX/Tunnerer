@@ -66,42 +66,41 @@ public class ResourceTests
     }
 
     [Fact]
-    public void MaterialContainer_Pay_Works()
+    public void OreStore_Pay_Works()
     {
-        var mc = new MaterialContainer(new MaterialAmount(50, 30), new MaterialAmount(100, 100));
-        Assert.True(mc.Pay(new MaterialAmount(20, 10)));
-        Assert.Equal(30, mc.Dirt);
-        Assert.Equal(20, mc.Ore);
+        var store = new OreStore(30, 100);
+        Assert.True(store.Pay(10));
+        Assert.Equal(20, store.Ore);
     }
 
     [Fact]
-    public void MaterialContainer_Pay_RefusesInsufficient()
+    public void OreStore_Pay_RefusesInsufficient()
     {
-        var mc = new MaterialContainer(new MaterialAmount(10, 30), new MaterialAmount(100, 100));
-        Assert.False(mc.Pay(new MaterialAmount(20, 10)));
-        Assert.Equal(10, mc.Dirt); // unchanged
+        var store = new OreStore(9, 100);
+        Assert.False(store.Pay(10));
+        Assert.Equal(9, store.Ore); // unchanged
     }
 
     [Fact]
-    public void MaterialContainer_Add_ClampsToCapacity()
+    public void OreStore_Add_ClampsToCapacity_AndSaysHowMuchFit()
     {
-        var mc = new MaterialContainer(new MaterialAmount(90, 80), new MaterialAmount(100, 100));
-        mc.Add(new MaterialAmount(30, 40));
-        Assert.Equal(100, mc.Dirt);
-        Assert.Equal(100, mc.Ore);
+        var store = new OreStore(80, 100);
+        Assert.Equal(20, store.Add(40));
+        Assert.Equal(100, store.Ore);
+        Assert.True(store.IsFull);
+        Assert.Equal(0, store.Room);
     }
 
     [Fact]
-    public void MaterialContainer_Absorb_TransfersAndClamps()
+    public void OreStore_MoveTo_MovesWhatFits_AndConservesOre()
     {
-        var a = new MaterialContainer(new MaterialAmount(80, 70), new MaterialAmount(100, 100));
-        var b = new MaterialContainer(new MaterialAmount(50, 60), new MaterialAmount(100, 100));
-        a.Absorb(b);
-
-        Assert.Equal(100, a.Dirt);
-        Assert.Equal(100, a.Ore);
-        Assert.Equal(30, b.Dirt);
-        Assert.Equal(30, b.Ore);
+        var a = new OreStore(50, 100);
+        var b = new OreStore(90, 100);
+        Assert.Equal(10, a.MoveTo(b, 25));
+        Assert.Equal(40, a.Ore);
+        Assert.Equal(100, b.Ore);
+        Assert.Equal(0, a.MoveTo(b, 25));
+        Assert.Equal(5, new OreStore(5, 10).MoveTo(new OreStore(0, 10), 25));
     }
 
     [Fact]
@@ -133,16 +132,5 @@ public class ResourceTests
         s.TrimNegative();
         Assert.Equal(0, s.Heat);
         Assert.Equal(0, s.Health);
-    }
-
-    [Fact]
-    public void MaterialAmount_Arithmetic()
-    {
-        var a = new MaterialAmount(10, 20);
-        var b = new MaterialAmount(3, 7);
-        Assert.Equal(13, (a + b).Dirt);
-        Assert.Equal(27, (a + b).Ore);
-        Assert.Equal(7, (a - b).Dirt);
-        Assert.Equal(13, (a - b).Ore);
     }
 }

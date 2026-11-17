@@ -18,9 +18,9 @@ public enum HintTone { Dim, Info, Good, Warn, Bad }
 /// needs a link to plant.
 /// </param>
 /// <param name="HeatStoreFull">The base heat store is full with relays linked (<c>NetworkStatus.IsHeatStoreFullWithRelays</c>).</param>
-/// <param name="BuildableDirt">Dirt the tank can build with here (<c>Tank.BuildableDirt</c>).</param>
-/// <param name="RelayFromBaseStore">A relay built now is paid from the base store (<c>Tank.BuildsFromBaseStore</c>).</param>
-/// <param name="BaseStoreDirt">Dirt in the base store.</param>
+/// <param name="SpendableOre">Ore the tank can build with here (the paying stock of <c>Tank.QuoteBuild</c>).</param>
+/// <param name="RelayFromBaseStore">A relay built now is paid from the base store (<c>BuildQuote.Payer</c>).</param>
+/// <param name="NotEnoughOre">A build key press was just refused for want of ore (<c>Tank.LastBuildRefusal</c>).</param>
 /// <param name="CoolingDown">The tank's heat budget is not yet full (<c>Tank.IsCoolingDown</c>).</param>
 public readonly record struct HintInputs(
     bool IsDead,
@@ -34,14 +34,14 @@ public readonly record struct HintInputs(
     LinkPreviewStatus CarriedLink,
     bool HeatStoreFull,
     int Harvesters,
-    int BuildableDirt,
+    int SpendableOre,
     bool RelayFromBaseStore,
-    int BaseStoreDirt,
+    bool NotEnoughOre,
     bool CoolingDown);
 
 /// <summary>
 /// Picks the one context hint the network panel shows: what the build keys will do now, or why a carried machine
-/// will not plant. First match wins, from the most immediate situation to the general advice to dig.
+/// will not plant. First match wins, from the most immediate situation to the general advice to mine.
 /// </summary>
 public static class HintSelector
 {
@@ -50,8 +50,8 @@ public static class HintSelector
         var relay = MachinePresentations.Relay;
         var harvester = MachinePresentations.Harvester;
         var pylon = MachinePresentations.Pylon;
-        int relayCost = relay.DirtCost;
-        int dirt = s.BuildableDirt;
+        int relayCost = relay.OreCost;
+        int ore = s.SpendableOre;
 
         if (s.IsDead)
             return (string.Empty, HintTone.Dim);
@@ -81,22 +81,22 @@ public static class HintSelector
         }
         if (s.HeatStoreFull)
             return ("Base heat store full - relays and docking cool less", HintTone.Warn);
-        if (dirt >= relayCost)
+        if (s.NotEnoughOre)
+            return ("Not enough ore - mine emberite, or bring your hold into your network", HintTone.Bad);
+        if (ore >= relayCost)
         {
             string hint = s.RelayFromBaseStore
-                ? $"{relay.KeyLabel}: build relay from the base store ({relayCost} dirt)"
-                : $"{relay.KeyLabel}: build relay ({relayCost} dirt)";
-            if (dirt >= harvester.DirtCost)
-                hint += $"   {harvester.KeyLabel}: build harvester ({harvester.DirtCost} dirt)";
+                ? $"{relay.KeyLabel}: build relay from the base store ({relayCost} ore)"
+                : $"{relay.KeyLabel}: build relay ({relayCost} ore)";
+            if (ore >= harvester.OreCost)
+                hint += $"   {harvester.KeyLabel}: build harvester ({harvester.OreCost} ore)";
             // A pylon only helps once there is a harvester to charge.
-            if (dirt >= pylon.DirtCost && s.Harvesters > 0)
-                hint += $"   {pylon.KeyLabel}: pylon ({pylon.DirtCost})";
+            if (ore >= pylon.OreCost && s.Harvesters > 0)
+                hint += $"   {pylon.KeyLabel}: pylon ({pylon.OreCost})";
             return (hint, HintTone.Good);
         }
         if (s.Docked && s.HasLeftBase && s.CoolingDown)
-            return ("Docked: cooling down and storing your dirt", HintTone.Info);
-        return (s.BaseStoreDirt >= relayCost
-            ? $"Dig {relayCost - dirt} more dirt, or build a relay at base from the store"
-            : $"Dig {relayCost - dirt} more dirt to build a relay", HintTone.Dim);
+            return ("Docked: cooling down and banking your ore", HintTone.Info);
+        return ($"Mine {relayCost - ore} more ore (teal crystal) to build a relay", HintTone.Dim);
     }
 }

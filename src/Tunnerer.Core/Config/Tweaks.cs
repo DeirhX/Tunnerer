@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Config;
 
+using System.Collections.Immutable;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
@@ -135,6 +136,34 @@ public static class Tweaks
         public const int DigOreChance = 300;
         public const int TorchCoreChance = 150;
         public const int TankHold = 40;
+
+        // The economy (DESIGN.md §6.4): ore is the only currency. A base starts with BaseStartingStore and holds up to
+        // BaseStoreCapacity. Docked, the hold empties into the store at Base.HomeAbsorbOre a tick; inside the coverage
+        // of its own linked network (Coverage) it unloads at NetworkUnloadPerSecond, slower, so relays and pylons are
+        // also drop-off points.
+        public const int BaseStartingStore = 30;
+        public const int BaseStoreCapacity = 20000;
+        public const int NetworkUnloadPerSecond = 4;
+        // How long a link shows ore passing (Link.OreFlowTicks): a little over the gap between two units.
+        public const int LinkFlowShowTicks = Perf.TargetFps / NetworkUnloadPerSecond + 6;
+
+        // Build costs, paid in ore (Entities/Tanks/TankBuildController: the base store inside the own network, else
+        // the hold).
+        public const int RelayCost = 4;
+        public const int PylonCost = 10;
+        public const int HarvesterCost = 30;
+
+        // Harvesters (MachineBehaviors.Harvester) work ore within HarvesterReach of their centre (their footprint is
+        // 5x5, so ore beside it is 3 cells off): a plain cell takes HarvesterPlainWork actions, a core cell
+        // HarvesterCoreWork. At one action per Machine.HarvesterIntervalMs that is about 1.1 units/s from plain ore
+        // and 1.7 from a core, so a harvester repays its cost in under a minute.
+        public const int HarvesterReach = 4;
+        public const int HarvesterPlainWork = 3;
+        public const int HarvesterCoreWork = 6;
+
+        // The bot does not prospect: a base whose side is played by the computer gets this much ore a second instead
+        // (World.SetBotControlled). A stand-in until the bot mines.
+        public const double BotOrePerSecond = 0.5;
         // A dead tank's hold goes back into the ground as plain ore within this many cells (OreDrop).
         public const int DeathDropRadius = 6;
 
@@ -178,8 +207,6 @@ public static class Tweaks
         public const int InitialHealth = 2000;
         public const int HeatCapacity = 100;
         public const int HealthCapacity = 2000;
-        public const int MaterialDirtCapacity = 2000;
-        public const int MaterialOreCapacity = 20000;
         // Radiator. At 1 unit per tick (500 energy/tick), two relays (300 each) out-pump it, so the reservoir fills
         // and pumping stops: the shared exit is the real bottleneck. Starting value for the first-prototype spike.
         public const int HeatCooldown = 1;
@@ -200,7 +227,6 @@ public static class Tweaks
         public const int HomeRechargeHealth = 3;
         public const int ForeignCooldownHeat = 2;
         public const int ForeignRechargeHealth = 1;
-        public const int HomeAbsorbDirt = 15;
         // Ore banked per tick while docked: a full hold empties in a few ticks.
         public const int HomeAbsorbOre = 10;
 
@@ -221,18 +247,26 @@ public static class Tweaks
         public const float RadiatorWarnLoad = 0.8f;         // Warn from here; Bad past 1, when the store fills
     }
 
-    /// <summary>Base upgrades bought with the dirt store (DESIGN.md §4.8). Starting values; tune in play.</summary>
+    /// <summary>
+    /// Upgrades bought with the base's ore store while docked (DESIGN.md §4.8): a base track and a tank track, each
+    /// upgrade with MaxLevel levels. Starting values; tune in play.
+    /// </summary>
     public static class Upgrades
     {
         public const int MaxLevel = 3;
-        // Level n costs CostPerLevel * n dirt from the base store.
-        public const int CostPerLevel = 600;
+        // What level 1, 2 and 3 of any upgrade cost, in ore from the base store.
+        public static readonly ImmutableArray<int> LevelCosts = [25, 60, 140];
         public const int RadiatorUnitsPerLevel = 1;
         public const int ReachCellsPerLevel = 6;
         public const double EngineEfficiencyPerLevel = 0.1;
         // Each engine level multiplies the temperature scale by this, so warm sources convert better too.
         public const double EngineScalePerLevel = 0.8;
         public const float InsulationPerLevel = 0.25f;
+        // Tank track. The cargo hold takes this much more ore per level (Ore.TankHold 40, then 70, 100, 130).
+        public const int CargoHoldPerLevel = 30;
+        // Each radar level adds this share of every radar range, and this share of the heat budget of its rays.
+        public const float RadarRangePerLevel = 0.2f;
+        public const float RadarHeatBudgetPerLevel = 0.25f;
     }
 
     /// <summary>
@@ -259,7 +293,6 @@ public static class Tweaks
         public const int InitialHealth = 1000;
         public const int HeatCapacity = 100;
         public const int HealthCapacity = 1000;
-        public const int ResourceDirtCapacity = 10000;
         public const int IdleHeatGain = 0;
         public const int MoveHeatGain = 0;
         public const int CoolingPickupGold = 14;
@@ -407,11 +440,11 @@ public static class Tweaks
         public const int HarvesterIntervalMs = 300;
         // A harvester roams and mines within this distance of where it was planted.
         public const int HarvestRange = 20;
-        // It eats settled dirt within this radius of itself into the owner base's store. Crawling through solid dirt
-        // that is about 5 new cells per step, roughly 16 dirt/s, so it repays HarvesterDirtCost in about a minute.
+        // It clears the dirt (worth nothing) within this radius as it crawls, so its tunnel stays open; what it mines
+        // is ore (Ore.HarvesterReach).
         public const int HarvesterMineRadius = 2;
         // Work runs on charge, and spent charge ends up as heat in the ground around the harvester: each action that
-        // mines dirt spends this much, a crawl step that mines nothing spends HarvesterCrawlCharge.
+        // works ore spends this much, a crawl step spends HarvesterCrawlCharge.
         // Starting guesses for the first-prototype spike; tune in play.
         public const float HarvesterHeatPerHarvest = 1000f;
         public const float HarvesterCrawlCharge = 200f;
@@ -426,11 +459,9 @@ public static class Tweaks
         // lets it work at full speed. Starting guess for the spike; tune in play.
         public const float HarvesterStallTemperature = 30f;
         public const int HarvesterHeatSenseRadius = 4;
-        public const int HarvesterDirtCost = 1000;
 
         // Pylon: a link node that hands base charge to batteries in direct line of sight within PylonRange, drawing
         // it from its base over the link network.
-        public const int PylonDirtCost = 300;
         public const int PylonIntervalMs = 200;
         public const int PylonRange = 12;
         public const float PylonChargePerAction = 6000f;
@@ -440,7 +471,6 @@ public static class Tweaks
 
         // Relay: a heat pipe. Planted within line of sight of a powered link network it pulls heat out of the
         // surrounding square (half-width RelayCoolingRadius) and pumps it into its owner's base reactor.
-        public const int RelayDirtCost = 150;
         public const int RelayCoolingRadius = 12;
         public const float RelayHeatPumpPerTick = 300f;
     }

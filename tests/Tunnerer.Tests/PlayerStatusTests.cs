@@ -3,6 +3,7 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Types;
@@ -69,14 +70,14 @@ public class PlayerStatusTests
     }
 
     [Fact]
-    public void HoldFill_IsTheDirtHoldAgainstItsCapacity()
+    public void HoldFill_IsTheOreHoldAgainstItsCapacity()
     {
         var (_, tank) = Create();
-        tank.Resources.Current = default;
+        tank.Hold.Ore = 0;
         Assert.Equal(0f, tank.HoldFill);
-        tank.Resources.Add(new MaterialAmount(tank.Resources.DirtCapacity / 4, 0));
+        tank.Hold.Add(tank.OreHoldCapacity / 4);
         Assert.Equal(0.25f, tank.HoldFill);
-        tank.Resources.Add(new MaterialAmount(tank.Resources.DirtCapacity, 0));
+        tank.Hold.Add(tank.OreHoldCapacity);
         Assert.Equal(1f, tank.HoldFill);
     }
 
@@ -147,22 +148,28 @@ public class PlayerStatusTests
     }
 
     [Fact]
-    public void BuildsFromBaseStore_OnlyWhenDockedAndTheHoldCannotPay()
+    public void QuoteBuild_Docked_TheStorePaysFirst_ThenTheHold_ElseNotEnoughOre()
     {
         var (_, tank) = Create();
-        int relay = Tweaks.Machine.RelayDirtCost;
-        tank.Resources.Current = default;
-        tank.Base!.Materials.Add(new MaterialAmount(relay, 0));
-
+        int relay = Tweaks.Ore.RelayCost;
+        var store = tank.Base!.Store;
         Assert.True(tank.IsDockedAtOwnBase);
-        Assert.True(tank.BuildsFromBaseStore(MachineType.Relay));
 
-        tank.Resources.Add(new MaterialAmount(relay, 0));
-        Assert.False(tank.BuildsFromBaseStore(MachineType.Relay));
+        store.Ore = relay;
+        tank.Hold.Ore = relay;
+        var quote = tank.QuoteBuild(MachineType.Relay);
+        Assert.Equal((OrePayer.BaseStore, relay, relay, BuildRefusal.None, true),
+            (quote.Payer, quote.Cost, quote.Stock, quote.Refusal, quote.InNetwork));
 
-        tank.Resources.Current = default;
-        tank.Position = tank.Base.Position + new Offset(0, Tweaks.Base.BaseSize);
-        Assert.False(tank.BuildsFromBaseStore(MachineType.Relay));
+        store.Ore = relay - 1;
+        quote = tank.QuoteBuild(MachineType.Relay);
+        Assert.Equal(OrePayer.Hold, quote.Payer);
+
+        tank.Hold.Ore = 1;
+        quote = tank.QuoteBuild(MachineType.Relay);
+        Assert.False(quote.CanAfford);
+        Assert.Equal(BuildRefusal.NotEnoughOre, quote.Refusal);
+        Assert.Equal(relay - 1, quote.Stock);
     }
 
     [Fact]
@@ -171,12 +178,11 @@ public class PlayerStatusTests
         var (world, tank) = Create();
         Assert.Equal(LinkPreviewStatus.NoNetwork, world.CarriedPlantLink(tank));
 
-        tank.Base!.Materials.Add(new MaterialAmount(Tweaks.Machine.RelayDirtCost, 0));
         world.Advance(i => i == 0 ? new ControllerOutput { BuildPrimary = true } : default);
         Assert.Equal(MachineType.Relay, tank.CarriedMachineType);
         Assert.Equal(LinkPreviewStatus.NoNetwork, world.CarriedPlantLink(tank));
 
-        tank.Position = tank.Base.Position + new Offset(0, Tweaks.Base.BaseSize);
+        tank.Position = tank.Base!.Position + new Offset(0, Tweaks.Base.BaseSize);
         Assert.Equal(world.PreviewPlacement(MachineType.Relay, tank.Position).Link.Status, world.CarriedPlantLink(tank));
     }
 
@@ -207,7 +213,7 @@ public class PlayerStatusTests
     [Fact]
     public void HeatStoreFullWithRelays_NeedsAPoweredRelay()
     {
-        var full = new NetworkStatus(0, 0, 0, 0, Relays: 1, PoweredRelays: 0, PumpingRelays: 0,
+        var full = new NetworkStatus(0, 0, 0, 0, 0, 0, Relays: 1, PoweredRelays: 0, PumpingRelays: 0,
             RelayInflow: 0, RadiatorInflow: 0, VentCapacity: RelayHeatTests.CreateScenario().Base.VentCapacityPerTick, HeatStoreFill: 0.95);
         Assert.Equal(StatusLevel.Bad, full.HeatStoreLevel);
         Assert.False(full.IsHeatStoreFullWithRelays);
