@@ -99,6 +99,10 @@ public class World
     /// <summary>The emberite deposits seeded at initialisation (empty unless the world was created with ore).</summary>
     public IReadOnlyList<LevelGen.OreDeposit> OreDeposits => _oreDeposits;
 
+    /// <summary>Whether a live tank's shape or a planted machine's square covers <paramref name="cell"/>.</summary>
+    private bool IsCellOccupied(Position cell) =>
+        _collisionSolver.TestPoint(cell, onTank: static _ => true, onMachine: static _ => true);
+
     /// <summary>
     /// Whether <paramref name="machine"/> centred on <paramref name="center"/> would overlap a live tank or another
     /// planted machine: the machine's square against the tank's shape (<see cref="TankSpriteShape"/>) or the other
@@ -265,13 +269,14 @@ public class World
             PlantMachine = PlantMachine,
             CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
             CoverageFor = CoverageFor,
+            IsOccupied = IsCellOccupied,
             Events = _stepEvents,
         };
         _linkMap.AgeOreFlow();
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         _linkMap.ClearHeatFlow();
         ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
-            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines, IsMachineOnNetwork),
+            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines, IsMachineOnNetwork, _stepEvents),
             _simulationSettings.AdvanceStep));
         // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
         _linkMap.ClearChargeFlow();

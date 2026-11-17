@@ -235,7 +235,7 @@ public class Tank
 
         if (IsDead)
         {
-            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Terrain, ctx.Heat.Ledger, ctx.Events);
+            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Terrain, ctx.Heat.Ledger, ctx.Events, ctx.IsOccupied);
             return;
         }
 

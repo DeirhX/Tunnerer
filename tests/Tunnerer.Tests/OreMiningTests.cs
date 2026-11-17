@@ -1,5 +1,6 @@
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
+using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
@@ -147,6 +148,66 @@ public class OreMiningTests
         Assert.Equal(0, s.Tank.OreHeld);
         Assert.Equal(before + held, CountOre(s.World.Terrain, at, Tweaks.Ore.DeathDropRadius + 1));
         Assert.True(Pixel.IsOre(s.World.Terrain.GetPixelRaw(at)), "the nearest cells fill first");
+    }
+
+    [Fact]
+    public void Death_SpillsNothingUnderAMachineOrALiveTank_SoALinkedRelayStaysLinked()
+    {
+        var s = FacingWall(TerrainPixel.Dirt);
+        var at = s.Tank.Position;
+        // A linked relay just up the tunnel and the enemy parked beside the wreck, both on open ground in the drop radius.
+        var relay = RelayHeatTests.PlantRelay(s, at + new Offset(0, s.DirY * -4));
+        var enemy = s.World.TankList.Tanks.First(t => t != s.Tank);
+        enemy.Position = at + new Offset(-5, 0);
+        for (int i = 0; i < 12; i++)
+            s.World.Advance(_ => default);
+        Assert.True(relay.LinkPoint!.IsPowered);
+        Assert.False(enemy.IsDead);
+        int radius = Tweaks.Ore.DeathDropRadius;
+        s.Tank.Hold.Ore = Tweaks.Ore.TankHold;
+        int before = CountOre(s.World.Terrain, at, radius + 1);
+
+        s.Tank.Reactor.Exhaust(new ReactorState(0, s.Tank.Reactor.Health));
+        s.World.Advance(_ => default);
+
+        Assert.True(s.Tank.IsDead);
+        int covered = 0, farthestOre = 0;
+        for (int dy = -radius; dy <= radius; dy++)
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                var cell = at + new Offset(dx, dy);
+                bool ore = Pixel.IsOre(s.World.Terrain.GetPixelRaw(cell));
+                if (relay.TestCollide(cell) || TankSpriteShape.Contains(enemy.Direction, enemy.Position, cell))
+                {
+                    covered++;
+                    Assert.False(ore, $"ore landed under a machine or tank at {cell}");
+                }
+                else if (ore)
+                    farthestOre = Math.Max(farthestOre, dx * dx + dy * dy);
+            }
+        Assert.True(covered >= 25, "the relay and the enemy stand inside the drop radius");
+        Assert.True(farthestOre > 16, "the spill went past the relay, so it had to skip the cells under it");
+        Assert.Equal(before + Tweaks.Ore.TankHold, CountOre(s.World.Terrain, at, radius + 1));
+
+        for (int i = 0; i < 12; i++)
+            s.World.Advance(_ => default);
+        Assert.True(relay.IsAlive && relay.LinkPoint!.IsPowered, "the spill must not cut the relay's link");
+    }
+
+    [Fact]
+    public void Drop_SkipsCellsReportedOccupied()
+    {
+        var t = new TerrainGrid(new Size(40, 40));
+        for (int i = 0; i < t.Size.Area; i++)
+            t.SetPixelRaw(i, TerrainPixel.Blank);
+        var center = new Position(20, 20);
+
+        Assert.Equal(4, OreDrop.Scatter(t, center, 4, isOccupied: p => p == center || p.Y < center.Y));
+
+        Assert.Equal(TerrainPixel.Blank, t.GetPixelRaw(center));
+        Assert.Equal(TerrainPixel.Blank, t.GetPixelRaw(center + new Offset(0, -1)));
+        foreach (var o in new Offset[] { new(-1, 0), new(1, 0), new(0, 1), new(-1, 1) })
+            Assert.Equal(TerrainPixel.Emberite, t.GetPixelRaw(center + o));
     }
 
     [Fact]

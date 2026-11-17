@@ -265,6 +265,8 @@ public partial class Game : IDisposable
         // sight is drawn when the player next sees the cell.
         var changedCells = _vision?.KnownChanges ?? _world.Terrain.GetChangeList();
         _audio.AfterStep(_world);
+        if (tanks.Count > 0)
+            _hud.AfterStep(_world, tanks[0]);
         _terrainAuxUploader.ObserveTerrainChanges(_terrainView.Pixels, changedCells, VisualTime);
 
         DrawProfile.Measure(ref _drawProfile.TerrainDraw, DrawTerrainChangesToSurface);

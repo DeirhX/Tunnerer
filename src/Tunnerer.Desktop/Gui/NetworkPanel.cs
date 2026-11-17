@@ -108,6 +108,8 @@ public sealed class NetworkPanel
                         (status.HarvestersNoOre > 0 ? $"{status.HarvestersNoOre} out of ore" : ""));
                 if (status.HarvestersCoreOnly > 0)
                     ColoredText(TextWarn, $"{status.HarvestersCoreOnly} at a warm core: torch it out with the tank");
+                if (status.HarvestersStoreFull > 0)
+                    ColoredText(TextWarn, $"{status.HarvestersStoreFull} waiting: the base ore store is full");
                 if (recharging > 0 || flat > 0)
                     ColoredText(flat > 0 ? TextBad : TextWarn,
                         (recharging > 0 ? $"{recharging} heading to a pylon" : "") +

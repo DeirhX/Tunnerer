@@ -73,7 +73,21 @@ public class OreEconomyTests
     [Fact]
     public void Docking_UnloadsFasterThanTheNetwork()
     {
-        Assert.True(Tweaks.Base.HomeAbsorbOre * Tweaks.Perf.TargetFps > Tweaks.Ore.NetworkUnloadPerSecond * 4);
+        int ore = Tweaks.Ore.TankHold;
+        var docked = RelayHeatTests.CreateScenario();
+        docked.Tank.Position = docked.Base.Position;
+        docked.Tank.Hold.Ore = ore;
+        var networked = TankAtRelay(ore);
+
+        Advance(docked.World, Tweaks.Perf.TargetFps);
+        Advance(networked.World, Tweaks.Perf.TargetFps);
+
+        int byDock = ore - docked.Tank.OreHeld, byNetwork = ore - networked.Tank.OreHeld;
+        Assert.True(docked.Tank.IsDockedAtOwnBase);
+        Assert.True(networked.Tank.Coverage.Covered && !networked.Tank.IsDockedAtOwnBase);
+        Assert.True(byNetwork > 0, "the network was unloading too");
+        Assert.True(byDock >= byNetwork * 4, $"docking should bank much faster. docked={byDock}, network={byNetwork}");
+        Assert.Equal(ore, byDock);
     }
 
     [Fact]

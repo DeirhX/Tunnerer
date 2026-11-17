@@ -26,6 +26,9 @@ public partial class GameHud
 
     private const float CardWidth = 470f;
 
+    /// <summary>Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events.</summary>
+    public void AfterStep(World world, Tank player) => _events.AfterStep(world, player);
+
     private void DrawGuidance(Tank player, World world)
     {
         if (!ReferenceEquals(world, _watchedWorld))

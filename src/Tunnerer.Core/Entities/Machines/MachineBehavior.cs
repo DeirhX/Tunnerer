@@ -15,9 +15,10 @@ using Tunnerer.Core.Terrain;
 /// True when the machine stands in the coverage of its own base's linked network (DESIGN.md §4.6): a harvester only
 /// delivers ore from there.
 /// </param>
+/// <param name="Events">Where a machine records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</param>
 public readonly record struct MachineContext(
     ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, IReadOnlyList<Machine> Machines,
-    Func<Machine, bool> IsOnNetwork);
+    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null);
 
 /// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> BuildPrimary, BuildSecondary, BuildTertiary).</summary>
 public enum BuildKey { Primary, Secondary, Tertiary }
@@ -78,14 +79,17 @@ public enum HarvesterState
     /// <summary>Stalled: the ground around it is too hot.</summary>
     TooHot,
 
-    /// <summary>No ore left in its work area: idle.</summary>
+    /// <summary>No ore in its work area that it can get within reach of: idle.</summary>
     NoOre,
 
     /// <summary>
-    /// The only ore left in its work area is a lump's warm core, which a harvester does not mine: idle until the tank
-    /// torches it out.
+    /// It can reach no plain ore and its work area holds a lump's warm core, which a harvester does not mine: idle
+    /// until the tank torches it out.
     /// </summary>
     CoreOnly,
+
+    /// <summary>It has ore to work but its base's store is full: idle until ore is spent.</summary>
+    StoreFull,
 }
 
 public static class MachineBehaviors
@@ -166,7 +170,7 @@ public static class MachineBehaviors
 
     /// <summary>
     /// A harvester's state, each harvester in exactly one, in this order: heading to a pylon, out of charge, off the
-    /// network, too hot, out of ore (or left only a core), otherwise working.
+    /// network, too hot, out of ore (or left only a core), held up by a full store, otherwise working.
     /// </summary>
     public static HarvesterState HarvesterStateOf(Machine harvester) =>
         harvester.IsReturning ? HarvesterState.Returning
@@ -175,6 +179,7 @@ public static class MachineBehaviors
         : harvester.IsStalled ? HarvesterState.TooHot
         : harvester.HasOnlyCoreOre ? HarvesterState.CoreOnly
         : harvester.HasNoOre ? HarvesterState.NoOre
+        : harvester.OwnerBase is { Store.IsFull: true } ? HarvesterState.StoreFull
         : HarvesterState.Working;
 
     /// <summary>
@@ -200,9 +205,10 @@ public static class MachineBehaviors
 
     /// <summary>
     /// A roaming harvester (DESIGN.md §6.4): it works the ore within <c>Ore.HarvesterReach</c> of itself into its owner
-    /// base's store, <c>HarvesterPlainWork</c> actions a cell; with no ore in reach
-    /// it crawls one cell toward the nearest ore within <c>HarvestRange</c> of where it was planted, clearing the dirt
-    /// in its way (worth nothing). It leaves a lump's warm core to the tank's torch (DESIGN.md §6.3), and the core's
+    /// base's store, <c>HarvesterPlainWork</c> actions a cell; with no ore in reach it crawls one cell along the
+    /// shortest path its footprint can take to ore within <c>HarvestRange</c> of where it was planted
+    /// (<see cref="HarvesterPathing.FindReachableOre"/>), clearing the dirt in its way (worth nothing). Ore it cannot
+    /// get within reach of (sealed in rock, say) it ignores. It leaves a lump's warm core to the tank's torch (DESIGN.md §6.3), and the core's
     /// heat keeps it off the ore around until the core is gone and the ground has cooled.
     /// It works only inside its base's network coverage, which is how its ore gets home,
     /// and idles, spending nothing, off the network, with no ore left, or while the store is full. Working spends
@@ -227,39 +233,43 @@ public static class MachineBehaviors
 
         machine.IsOffNetwork = !ctx.IsOnNetwork(machine);
         // Off the network its ore could not get home; too hot, it waits for the ground to cool (a linked relay nearby
-        // speeds that up a lot); with the store full there is nowhere to put the ore; with a flat battery there is
-        // nothing to work with.
-        if (machine.IsOffNetwork || machine.IsStalled || store.IsFull || IsOutOfCharge(machine))
+        // speeds that up a lot); with a flat battery there is nothing to work with. Each of these is a state of its
+        // own that outranks the ore flags (HarvesterStateOf), so they may go stale behind it.
+        if (machine.IsOffNetwork || machine.IsStalled || IsOutOfCharge(machine))
             return;
 
-        var nearest = FindNearestOre(machine, terrain, out bool coreLeft);
-        machine.HasNoOre = nearest == null;
-        machine.HasOnlyCoreOre = nearest == null && coreLeft;
-        if (nearest is not Position ore)
+        var reachable = HarvesterPathing.FindReachableOre(machine, ctx, out Offset step, out bool coreLeft);
+        machine.HasNoOre = reachable == null;
+        machine.HasOnlyCoreOre = reachable == null && coreLeft;
+        if (reachable is not Position ore)
         {
             ForgetOreWork(machine);
             return;
         }
+        // With the store full there is nowhere to put the ore: it waits where it is (HarvesterState.StoreFull).
+        if (store.IsFull)
+            return;
 
-        int reach = Tweaks.Ore.HarvesterReach;
-        if (Position.DistanceSquared(ore, machine.Position) <= reach * reach)
+        if (step == default)
         {
-            WorkOre(machine, terrain, ore, store);
+            WorkOre(machine, ctx, ore, store);
             PayForWork(machine, terrain, worked: true, moved: false);
             return;
         }
-        bool moved = Crawl(machine, ctx, ore, confined: true);
-        if (moved)
-            CarvePath(machine, terrain);
-        PayForWork(machine, terrain, worked: false, moved);
+        machine.Position += step;
+        machine.Heading = step;
+        CarvePath(machine, terrain);
+        PayForWork(machine, terrain, worked: false, moved: true);
     }
 
     /// <summary>
     /// One action of work on the plain ore cell at <paramref name="at"/>: once the cell has had the work it takes, its units
-    /// go to <paramref name="store"/> and the cell is cleared. A cell whose units do not all fit stays in the ground.
+    /// go to <paramref name="store"/> and the cell is cleared (<see cref="StepEventKind.OreHarvested"/>). A cell whose
+    /// units do not all fit stays in the ground.
     /// </summary>
-    private static void WorkOre(Machine machine, ITerrainAccess terrain, Position at, OreStore store)
+    private static void WorkOre(Machine machine, MachineContext ctx, Position at, OreStore store)
     {
+        var terrain = ctx.Terrain;
         // Work belongs to one cell: if the cell it was on is gone (the tank or another harvester took it) or is no
         // longer the nearest, it starts this one from nothing.
         if (machine.OreWorkCell != at)
@@ -273,6 +283,7 @@ public static class MachineBehaviors
             return;
         terrain.SetPixel(at, TerrainPixel.Blank);
         store.Add(units);
+        ctx.Events?.Record(new StepEvent(StepEventKind.OreHarvested, at, machine.OwnerColor, machine.Type, Count: units));
         ForgetOreWork(machine);
     }
 
@@ -307,7 +318,7 @@ public static class MachineBehaviors
 
         if (machine.Charge < Tweaks.Machine.HarvesterCrawlCharge)
             return true; // flat: stranded until a pylon reaches it
-        bool moved = Crawl(machine, ctx, pylon.Position, confined: false);
+        bool moved = Crawl(machine, ctx, pylon.Position);
         // Its way home is mostly its own tunnel, but it may cut through dirt (or regrowth) outside its work area: carve
         // it open, so the pylon can see it once it arrives.
         bool carved = moved && CarvePath(machine, ctx.Terrain);
@@ -354,9 +365,9 @@ public static class MachineBehaviors
         terrain.Ledger.RecordFromCharge(heat);
     }
 
-    private static bool Crawl(Machine machine, MachineContext ctx, Position target, bool confined)
+    private static bool Crawl(Machine machine, MachineContext ctx, Position target)
     {
-        Offset step = ChooseStep(machine, ctx, target, confined);
+        Offset step = HarvesterPathing.ChooseStep(machine, ctx, target);
         if (step == default)
             return false;
         machine.Position += step;
@@ -423,103 +434,4 @@ public static class MachineBehaviors
             pylon.LastChargeGiven += given;
         }
     }
-
-    private static bool InWorkArea(Machine machine, Position p)
-    {
-        int range = Tweaks.Machine.HarvestRange;
-        return Position.DistanceSquared(p, machine.Anchor) <= range * range;
-    }
-
-    /// <summary>
-    /// The plain ore cell in the work area closest to the harvester (first in scan order on ties), or null;
-    /// <paramref name="coreLeft"/> says whether the area still holds core ore, which harvesters leave to the tank.
-    /// </summary>
-    private static Position? FindNearestOre(Machine machine, ITerrainAccess terrain, out bool coreLeft)
-    {
-        coreLeft = false;
-        int range = Tweaks.Machine.HarvestRange;
-        Position? best = null;
-        int bestDist = int.MaxValue;
-        for (int dy = -range; dy <= range; dy++)
-            for (int dx = -range; dx <= range; dx++)
-            {
-                if (dx * dx + dy * dy > range * range) continue;
-                var pos = new Position(machine.Anchor.X + dx, machine.Anchor.Y + dy);
-                if (!terrain.IsInside(pos)) continue;
-                var pixel = terrain.GetPixelRaw(pos);
-                if (Pixel.IsOreCore(pixel))
-                {
-                    coreLeft = true;
-                    continue;
-                }
-                if (!Pixel.IsOre(pixel)) continue;
-                int d = Position.DistanceSquared(pos, machine.Position);
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    best = pos;
-                }
-            }
-        return best;
-    }
-
-    // The eight crawl directions, in a fixed order so ties resolve the same way every run.
-    private static readonly Offset[] Steps =
-    [
-        new(1, 0), new(1, 1), new(0, 1), new(-1, 1), new(-1, 0), new(-1, -1), new(0, -1), new(1, -1),
-    ];
-
-    /// <summary>
-    /// The step that brings the harvester closest to <paramref name="target"/>, preferring its current heading on
-    /// ties and never straight back, through ground its footprint can cross (<see cref="IsCrawlable"/>: not rock,
-    /// concrete or base) and not onto a tank or another machine. Zero when it is boxed in. <paramref name="confined"/> keeps it in
-    /// its work area (a harvester that left it to recharge may always step back toward its anchor).
-    /// </summary>
-    private static Offset ChooseStep(Machine machine, MachineContext ctx, Position target, bool confined)
-    {
-        Offset best = default;
-        int bestScore = int.MaxValue;
-        var back = new Offset(-machine.Heading.X, -machine.Heading.Y);
-        // Planted right beside a relay or tank it already overlaps: let it crawl out rather than freeze.
-        bool alreadyCrowded = ctx.IsOccupied(machine, machine.Position);
-        int anchorDist = Position.DistanceSquared(machine.Position, machine.Anchor);
-        foreach (var step in Steps)
-        {
-            if (machine.Heading != default && step == back) continue;
-            var next = machine.Position + step;
-            bool allowed = !confined || InWorkArea(machine, next) ||
-                Position.DistanceSquared(next, machine.Anchor) < anchorDist;
-            if (!allowed || !CanStand(machine, ctx.Terrain, next) ||
-                (!alreadyCrowded && ctx.IsOccupied(machine, next)))
-                continue;
-            int score = Position.DistanceSquared(next, target) * 2 + (step == machine.Heading ? 0 : 1);
-            if (score < bestScore)
-            {
-                bestScore = score;
-                best = step;
-            }
-        }
-        return best;
-    }
-
-    private static bool CanStand(Machine machine, ITerrainAccess terrain, Position center)
-    {
-        int half = machine.BoundingBox.HalfWidth;
-        for (int dy = -half; dy <= half; dy++)
-            for (int dx = -half; dx <= half; dx++)
-            {
-                var pos = new Position(center.X + dx, center.Y + dy);
-                if (!terrain.IsInside(pos)) return false;
-                if (!IsCrawlable(terrain.GetPixelRaw(pos))) return false;
-            }
-        return true;
-    }
-
-    /// <summary>
-    /// Ground a harvester's footprint may cross: anything that does not block movement (open, settled or regrowing
-    /// dirt, scorch, gold) except a base.
-    /// </summary>
-    private static bool IsCrawlable(TerrainPixel pixel) =>
-        !Pixel.IsBlockingCollision(pixel) && !Pixel.IsBase(pixel) &&
-        pixel is not (TerrainPixel.BaseBarrier or TerrainPixel.BaseCore);
 }

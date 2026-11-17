@@ -251,6 +251,25 @@ public class StepEventTests
     }
 
     [Fact]
+    public void AHarvesterBankingOre_RecordsOreHarvested()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        HarvesterHeatTests.SeedOre(s);
+        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * -15));
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+        int store = s.Base.Store.Ore;
+
+        var events = StepUntil(s.World, e => e.Kind == StepEventKind.OreHarvested);
+
+        var harvested = Assert.Single(events, e => e.Kind == StepEventKind.OreHarvested);
+        Assert.Equal((s.Tank.Color, MachineType.Harvester, Tweaks.Ore.PlainCellUnits), (harvested.Color, harvested.Machine, harvested.Count));
+        Assert.Equal(TerrainPixel.Blank, s.World.Terrain.GetPixelRaw(harvested.Position));
+        Assert.Equal(store + harvested.Count, s.Base.Store.Ore);
+    }
+
+    [Fact]
     public void GoldUnderTheTank_IsCollected()
     {
         var s = InOpenPocket();

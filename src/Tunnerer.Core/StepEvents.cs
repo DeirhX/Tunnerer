@@ -79,6 +79,12 @@ public enum StepEventKind
     OreUnloaded,
 
     /// <summary>
+    /// A harvester banked the ore cell at <see cref="StepEvent.Position"/> into its base's store:
+    /// <see cref="StepEvent.Count"/> units. <see cref="StepEvent.Color"/> is its owner.
+    /// </summary>
+    OreHarvested,
+
+    /// <summary>
     /// An enemy bullet took health off a machine that survived it. <see cref="StepEvent.Color"/> is the machine's
     /// owner. The hit that wrecks a machine is <see cref="MachineWrecked"/> instead.
     /// </summary>
