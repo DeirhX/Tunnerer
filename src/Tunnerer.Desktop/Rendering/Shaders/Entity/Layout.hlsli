@@ -27,7 +27,8 @@
 //  12 reach area  — .x = reach (cells), .y = 0 square (relay cooling), 1 circle (pylon), .z = phase
 //  13 network coverage — .x = radius (cells), .y = cooling strength (0..1), .z = phase, .w = 1 while the tank is off network
 //  14 tether      — .x = length (cells, toward the node at +x), .y = cooling strength, .z = phase
-//  15 radar blip  — .x = life (1 just found, 0 gone), .y = echo (0 solid, 1 metal, 2 cavity, 3 heat noise),
+//  15 radar blip  — .x = life (1 just found, 0 gone), .y = echo (RadarEcho: 0 solid, 1 metal, 2 cavity, 3 heat,
+//                   4 life, 5 ore),
 //                   .z = phase, .w = flash (1 just found, 0 after a few ticks);
 //                   color.r = what heat left of the ray (0..1), color.g = a per-cell seed
 //  16 radar pulse — .x = front radius (cells), .y = fade (1 just sent, 0 at full range)

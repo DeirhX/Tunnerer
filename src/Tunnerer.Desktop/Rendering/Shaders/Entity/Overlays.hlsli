@@ -86,7 +86,8 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 // life. Green for rock and walls, amber for metal (gold, machines), a dim blue-green for the weak return of a
 // cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
 // or a thing too hot to read, is a red dot instead, more opaque the hotter the cell (data.r). Something
-// alive (another tank) is a white-violet dot in a ring.
+// alive (another tank) is a white-violet dot in a ring. Emberite ore is a small crystal: a teal diamond with a
+// violet heart, the one blip that is not round.
 float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {
     float life = saturate(params.x);
@@ -96,6 +97,24 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
     // Hold most of the brightness for the first half of the life, then let go.
     float fade = smoothstep(0.0, 0.55, life);
     float r = length(p);
+
+    if (echo > 4.5)
+    {
+        // Ore: a diamond (an L1 disc) with a teal rim and a violet heart, its glow a diamond too. Dimmer, like the
+        // others, the more heat the ray crossed.
+        float level = lerp(0.35, 1.0, rayStrength);
+        float d = abs(p.x) + abs(p.y);
+        float size = 0.62 + 0.22 * flash;
+        float body = FillAlpha(d - size, aa);
+        float rim = FillAlpha(abs(d - size * 0.82) - 0.08, aa);
+        float heart = FillAlpha(d - size * 0.45, aa);
+        float glow = exp(-d * d * (1.6 - 0.8 * flash));
+        float3 teal = float3(0.25, 0.95, 0.85);
+        float3 violet = float3(0.80, 0.45, 1.00);
+        float3 lit = teal * (body * 0.45 + rim * 0.9) + violet * heart * (0.9 + 0.6 * flash) +
+            lerp(teal, violet, 0.5) * glow * (0.20 + 0.7 * flash);
+        return float4(lit * fade * level, body * fade * level * 0.55);
+    }
 
     if (echo > 3.5)
     {

@@ -393,12 +393,18 @@ public static class Tweaks
         public const int LifeRange = 60;
         // The weak return of a tunnel or cave behind dirt.
         public const int CavityRange = 50;
+        // Emberite ore: a speck returns only from OreRangeMin, growing to OreRangeMax for a deposit FormationDepth
+        // cells deep along the ray. Only cool plain ore counts toward the depth, so a lump's warm heart adds nothing:
+        // a lump shows as heat (below) and what it holds is learned by going there.
+        public const int OreRangeMin = 40;
+        public const int OreRangeMax = 110;
         // Hot ground: barely warm from HeatRangeMin, at HeatFullTemperature and above from HeatRangeMax.
         public const int HeatRangeMin = 50;
         public const int HeatRangeMax = 120;
         // The tank sends a pulse every PulsePeriodTicks (4 s). Its front runs FrontCellsPerTick outward a tick, so
         // it reaches Range in 75 ticks (3.1 s) and the radar is quiet for the rest of the period. The period must
-        // outlast the trip: one pulse is in flight at a time.
+        // outlast the trip: one pulse is in flight at a time. The radar upgrade speeds the front up with the range
+        // (RadarReach), so the trip always takes 75 ticks.
         public const int PulsePeriodTicks = 4 * Perf.TargetFps;
         public const int FrontCellsPerTick = 2;
         // A pulse is a fan of this many rays, turned a fraction of a ray spacing each pulse so pulses fill each

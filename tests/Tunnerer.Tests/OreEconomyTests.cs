@@ -222,6 +222,9 @@ public class OreEconomyTests
         Assert.Equal(Tweaks.Radar.CavityRange * 1.4f, reach.CavityRange);
         Assert.Equal(Tweaks.Radar.HeatRangeMin * 1.4f, reach.HeatRangeMin);
         Assert.Equal(Tweaks.Radar.HeatRangeMax * 1.4f, reach.HeatRangeMax);
+        Assert.Equal(Tweaks.Radar.OreRangeMin * 1.4f, reach.OreRangeMin);
+        Assert.Equal(Tweaks.Radar.OreRangeMax * 1.4f, reach.OreRangeMax);
+        Assert.Equal(Tweaks.Radar.FrontCellsPerTick * 1.4f, reach.FrontCellsPerTick);
         Assert.Equal(Tweaks.Radar.HeatBudgetDegreeCells * 1.5f, reach.HeatBudgetDegreeCells);
     }
 }
