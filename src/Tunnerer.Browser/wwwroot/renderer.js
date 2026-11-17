@@ -12,8 +12,7 @@ export class GameRenderer {
         canvas.before(this.worldCanvas);
         this.zoom = 6;
         this.frame = null;
-        // The cell the tutorial points at, or null (guidance.js).
-        this.pointerTarget = null;
+        this.target = null;
         this.governor = new ResolutionGovernor();
         this.resize();
         window.addEventListener("resize", () => this.resize());
@@ -37,6 +36,19 @@ export class GameRenderer {
         );
         this.canvas.width = Math.round(r.width * this.dpr);
         this.canvas.height = Math.round(r.height * this.dpr);
+        this.overlayCleared = true;
+    }
+
+    // The cell the tutorial points at, or null (guidance.js). A change is drawn at once, not with the next frame from
+    // the worker.
+    get pointerTarget() {
+        return this.target;
+    }
+
+    set pointerTarget(target) {
+        const t = this.target;
+        if (t?.x === target?.x && t?.y === target?.y) return;
+        this.target = target ? { x: target.x, y: target.y } : null;
         this.overlayCleared = true;
     }
 
@@ -78,8 +90,9 @@ export class GameRenderer {
             return;
         }
         this.worldCanvas.hidden = false;
-        // Nothing new from the worker since the last draw: what is on screen is still right.
-        if (!this.gpu.draw() && !this.overlayCleared) return;
+        // Nothing new from the worker since the last draw: what is on screen is still right, unless the overlay
+        // changed or animates (the tutorial's pointer pulses).
+        if (!this.gpu.draw() && !this.overlayCleared && !this.target) return;
         c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         // The overlay is empty most of the time: clear it only when something was drawn on it (or the canvas was
         // resized), rather than filling the whole display every frame.
@@ -95,8 +108,7 @@ export class GameRenderer {
             drawn =
                 this.bearing(c, this.frame.player.home, "HOME", "#83d9cf") ||
                 drawn;
-        if (this.pointerTarget)
-            drawn = this.pointer(c, this.pointerTarget, now) || drawn;
+        if (this.target) drawn = this.pointer(c, this.target, now) || drawn;
         this.overlayDrawn = drawn;
     }
 
