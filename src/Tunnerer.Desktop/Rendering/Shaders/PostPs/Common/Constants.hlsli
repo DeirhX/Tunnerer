@@ -30,10 +30,13 @@ float2 TexelOffsetY()
 // only ever read them with Load (nearest cell) and compare exactly; never
 // interpolate. Natural materials (dirt/stone/concrete) are not told apart
 // here but by coverageTex; their code (100) just means "natural solid".
-// Gold has its own code so its veins can be drawn from the exact cells.
+// Gold and emberite ore (plain and core) have their own codes so they can be
+// drawn from the exact cells.
 // Must match TerrainAuxBuilder.
 static const float kMaterialCodeScale = 255.0;
 static const int kMaterialCodeGold = 110;
+static const int kMaterialCodeOre = 120;
+static const int kMaterialCodeOreCore = 121;
 static const int kMaterialCodeBaseFloor = 20;
 static const int kMaterialCodeBaseDoor = 30;
 static const int kMaterialCodeBaseWallMin = 40;   // wall code = 40 + owner colour index
@@ -56,6 +59,11 @@ static const float kMaterialMaskFwidthScale = 0.75;   // anti-aliasing width rel
 // ---- Gold veins -------------------------------------------------------------
 static const float kGoldVeinFalloff = 1.39;           // 1 / (2 * 0.6^2): blob width around each gold cell centre
 static const float kGoldVeinIso = 0.75;               // field value at the edge of the band
+
+// ---- Emberite ore ------------------------------------------------------------
+static const float kOreFalloff = 1.1;                 // blob width around each ore cell centre (wider than gold:
+                                                      // deposits are solid blobs, not veins)
+static const float kOreIso = 0.55;                    // field value at the edge of a deposit
 
 // ---- Stone / dirt boundary depth -------------------------------------------
 static const float kStoneContactShadowCells = 1.10;   // dirt-side shadow reach (cells; 6 screen px per cell)

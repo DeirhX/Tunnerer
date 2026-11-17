@@ -12,14 +12,14 @@ namespace Tunnerer.Tests;
 /// <summary>The HUD's decisions that do not need a window: which hint to show, the heat scale, the HUD's size.</summary>
 public class HudLogicTests
 {
-    private static int Cost(MachineType type) => MachineBehaviors.Get(type).BuildCost.Dirt;
+    private static int Cost(MachineType type) => MachineBehaviors.Get(type).OreCost;
 
     /// <summary>A live tank out in the field with nothing to build and nothing going on.</summary>
-    private static HintInputs Field(int dirt = 0) => new(
+    private static HintInputs Field(int ore = 0) => new(
         IsDead: false, HasLeftBase: true, Docked: false, InsideBase: false, RelayJustLinked: false,
         PumpingRelays: 0, PlantRefused: false, Carried: null, CarriedLink: LinkPreviewStatus.NoNetwork,
-        HeatStoreFull: false, Harvesters: 0, BuildableDirt: dirt, RelayFromBaseStore: false,
-        BaseStoreDirt: 0, CoolingDown: false);
+        HeatStoreFull: false, Harvesters: 0, SpendableOre: ore, RelayFromBaseStore: false,
+        NotEnoughOre: false, CoolingDown: false);
 
     [Fact]
     public void Hint_DeadTank_ShowsNothing()
@@ -32,7 +32,7 @@ public class HudLogicTests
     [Fact]
     public void Hint_BeforeLeavingBase_TeachesDriving()
     {
-        var (text, tone) = HintSelector.Select(Field(dirt: 5000) with { HasLeftBase = false, Docked = true });
+        var (text, tone) = HintSelector.Select(Field(ore: 500) with { HasLeftBase = false, Docked = true });
         Assert.StartsWith("WASD to drive", text);
         Assert.Equal(HintTone.Info, tone);
     }
@@ -91,46 +91,52 @@ public class HudLogicTests
     [Fact]
     public void Hint_FullHeatStore_Warns()
     {
-        var rich = Field(dirt: 5000);
+        var rich = Field(ore: 500);
         Assert.StartsWith("Base heat store full", HintSelector.Select(rich with { HeatStoreFull = true }).Text);
         Assert.StartsWith("E: build relay", HintSelector.Select(rich).Text);
     }
 
     [Fact]
-    public void Hint_BuildList_GrowsWithDirtAndHarvesters()
+    public void Hint_BuildList_GrowsWithOreAndHarvesters()
     {
         int relay = Cost(MachineType.Relay), harvester = Cost(MachineType.Harvester), pylon = Cost(MachineType.Pylon);
-        Assert.Equal($"E: build relay ({relay} dirt)", HintSelector.Select(Field(dirt: relay)).Text);
+        Assert.Equal($"E: build relay ({relay} ore)", HintSelector.Select(Field(ore: relay)).Text);
 
         int rich = Math.Max(relay, Math.Max(harvester, pylon));
-        string all = HintSelector.Select(Field(dirt: rich) with { Harvesters = 1 }).Text;
-        Assert.Equal($"E: build relay ({relay} dirt)   R: build harvester ({harvester} dirt)   T: pylon ({pylon})", all);
-        Assert.DoesNotContain("T: pylon", HintSelector.Select(Field(dirt: rich)).Text);
+        string all = HintSelector.Select(Field(ore: rich) with { Harvesters = 1 }).Text;
+        Assert.Equal($"E: build relay ({relay} ore)   R: build harvester ({harvester} ore)   T: pylon ({pylon})", all);
+        Assert.DoesNotContain("T: pylon", HintSelector.Select(Field(ore: rich)).Text);
+    }
+
+    [Fact]
+    public void Hint_NotEnoughOre_IsBad_AndSaysWhereOreComesFrom()
+    {
+        var (text, tone) = HintSelector.Select(Field() with { NotEnoughOre = true });
+        Assert.StartsWith("Not enough ore", text);
+        Assert.Equal(HintTone.Bad, tone);
     }
 
     [Fact]
     public void Hint_RelayFromBaseStore_SaysSo()
     {
         int relay = Cost(MachineType.Relay);
-        var docked = Field() with { Docked = true, BuildableDirt = relay, RelayFromBaseStore = true };
-        Assert.Equal($"E: build relay from the base store ({relay} dirt)", HintSelector.Select(docked).Text);
+        var docked = Field() with { Docked = true, SpendableOre = relay, RelayFromBaseStore = true };
+        Assert.Equal($"E: build relay from the base store ({relay} ore)", HintSelector.Select(docked).Text);
     }
 
     [Fact]
     public void Hint_DockedAndCooling_SaysSo()
     {
         var (text, tone) = HintSelector.Select(Field() with { Docked = true, CoolingDown = true });
-        Assert.Equal("Docked: cooling down and storing your dirt", text);
+        Assert.Equal("Docked: cooling down and banking your ore", text);
         Assert.Equal(HintTone.Info, tone);
     }
 
     [Fact]
-    public void Hint_Fallback_SaysHowMuchToDig()
+    public void Hint_Fallback_SaysHowMuchToMine()
     {
         int relay = Cost(MachineType.Relay);
-        Assert.Equal($"Dig {relay - 3} more dirt to build a relay", HintSelector.Select(Field(dirt: 3)).Text);
-        Assert.Equal($"Dig {relay} more dirt, or build a relay at base from the store",
-            HintSelector.Select(Field() with { BaseStoreDirt = relay }).Text);
+        Assert.Equal($"Mine {relay - 3} more ore (teal crystal) to build a relay", HintSelector.Select(Field(ore: 3)).Text);
     }
 
     [Fact]

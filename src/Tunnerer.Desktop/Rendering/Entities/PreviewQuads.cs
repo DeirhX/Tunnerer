@@ -16,13 +16,13 @@ public sealed class PreviewQuads
     private readonly record struct PlacementPreview(bool Active, MachineType Type, LinkPreview Link, float SenseHeat);
     private PlacementPreview _preview;
 
-    /// <summary>The player is tank 0: while it carries a machine, record where that machine would link or what it would sense.</summary>
-    public void Capture(World world)
+    /// <summary>The player is the tank in <paramref name="localSlot"/>: while it carries a machine, record where that machine would link or what it would sense.</summary>
+    public void Capture(World world, int localSlot)
     {
         _preview = default;
-        if (world.TankList.Count == 0)
+        if (localSlot >= world.TankList.Count)
             return;
-        var player = world.TankList.Tanks[0];
+        var player = world.TankList.Tanks[localSlot];
         if (player.IsDead || !player.IsCarryingMachine || player.CarriedMachineType is not MachineType type)
             return;
         var preview = world.PreviewPlacement(type, player.Position);

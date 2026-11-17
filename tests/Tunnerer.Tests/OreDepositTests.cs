@@ -1,0 +1,231 @@
+using Tunnerer.Core;
+using Tunnerer.Core.Config;
+using Tunnerer.Core.LevelGen;
+using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Thermal;
+using Tunnerer.Core.Types;
+
+namespace Tunnerer.Tests;
+
+/// <summary>Emberite ore as terrain: the pixels, the warm core, and how deposits are seeded (DESIGN.md §6.3).</summary>
+public class OreDepositTests
+{
+    private static readonly float CoreTemperature = Tweaks.Ore.CoreTemperature;
+    private static readonly Size MediumMap = new(800, 400);
+
+    [Theory]
+    [InlineData(TerrainPixel.Emberite, false, ThermalMaterial.Stone)]
+    [InlineData(TerrainPixel.EmberiteCore, true, ThermalMaterial.EmberiteCore)]
+    public void Ore_BlocksMovement_AndIsNoOtherKindOfGround(TerrainPixel pixel, bool core, ThermalMaterial material)
+    {
+        Assert.True(Pixel.IsOre(pixel));
+        Assert.Equal(core, Pixel.IsOreCore(pixel));
+        Assert.True(Pixel.IsBlockingCollision(pixel));
+        Assert.False(Pixel.IsDiggable(pixel), "the dig has its own rule for ore");
+        Assert.False(Pixel.IsTorchable(pixel));
+        Assert.False(Pixel.IsRock(pixel), "shots break rock; they must not break ore");
+        Assert.False(Pixel.IsMineral(pixel));
+        Assert.False(Pixel.IsGold(pixel));
+        Assert.False(Pixel.IsDirt(pixel), "ore never regrows or counts as dirt");
+        Assert.Equal(material, Pixel.GetThermalMaterial(pixel));
+        Assert.Equal(core ? Tweaks.Ore.CoreCellUnits : Tweaks.Ore.PlainCellUnits, Pixel.OreUnits(pixel));
+        Assert.False(Pixel.IsOre(TerrainPixel.Rock));
+        Assert.Equal(0, Pixel.OreUnits(TerrainPixel.Gold));
+    }
+
+    [Fact]
+    public void Core_IsPinnedWarm()
+    {
+        var engine = new TerrainHeatEngine();
+        Assert.True(engine.IsFixedTemperatureMaterial(ThermalMaterial.EmberiteCore));
+        Assert.Equal(CoreTemperature, engine.GetFixedTemperature(ThermalMaterial.EmberiteCore));
+        Assert.InRange(CoreTemperature, 50f, 90f);
+    }
+
+    [Fact]
+    public void PlaceOre_SpecksTakeOnlyDirt_DepositsAlsoTakeRock()
+    {
+        var t = new TerrainGrid(new Size(20, 20));
+        t.SetPixelRaw(new Position(5, 5), TerrainPixel.Dirt);
+        t.SetPixelRaw(new Position(6, 5), TerrainPixel.Rock);
+        t.SetPixelRaw(new Position(7, 5), TerrainPixel.Blank);
+        t.SetPixelRaw(new Position(8, 5), TerrainPixel.HotRock);
+
+        Assert.False(t.PlaceOre(new Position(6, 5), core: false, dirtOnly: true));
+        Assert.True(t.PlaceOre(new Position(5, 5), core: false, dirtOnly: true));
+        Assert.True(t.PlaceOre(new Position(6, 5), core: true, dirtOnly: false));
+        Assert.False(t.PlaceOre(new Position(7, 5), core: false, dirtOnly: false));
+        Assert.False(t.PlaceOre(new Position(8, 5), core: false, dirtOnly: false));
+        Assert.Equal(TerrainPixel.Emberite, t.GetPixelRaw(new Position(5, 5)));
+        Assert.Equal(TerrainPixel.EmberiteCore, t.GetPixelRaw(new Position(6, 5)));
+        Assert.Equal(CoreTemperature, t.GetHeatTemperature(new Position(6, 5)));
+    }
+
+    /// <summary>A rock block with a tunnel row, and a 3x3 core lump bordering it.</summary>
+    private static TerrainGrid CoreNextToTunnel(out Position core, out int tunnelY)
+    {
+        var t = new TerrainGrid(new Size(40, 30));
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 40; x++)
+                t.SetPixelRaw(new Position(x, y), TerrainPixel.Rock);
+        tunnelY = 16;
+        for (int x = 1; x < 39; x++)
+            t.SetPixelRaw(new Position(x, tunnelY), TerrainPixel.Blank);
+        core = new Position(12, 14);
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+                Assert.True(t.PlaceOre(core + new Offset(dx, dy), core: true, dirtOnly: false));
+        return t;
+    }
+
+    [Fact]
+    public void Core_HeatsTheTunnel_AndStopsWhenMinedOut_WithTheLedgerBalanced()
+    {
+        var t = CoreNextToTunnel(out var core, out int tunnelY);
+        double startEnergy = t.SumTotalThermalEnergy();
+        double startNet = t.Ledger.NetExternal;
+        double maxResidual = 0.0;
+        void Step(int n)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                t.CoolDown();
+                double residual = (t.SumTotalThermalEnergy() - startEnergy) - (t.Ledger.NetExternal - startNet);
+                maxResidual = Math.Max(maxResidual, Math.Abs(residual));
+            }
+        }
+
+        Step(300);
+        Assert.Equal(CoreTemperature, t.GetHeatTemperature(core), precision: 2);
+        var below = new Position(core.X, tunnelY);
+        float warm = t.GetAirTemperature(below);
+        Assert.True(warm > 10f, $"the tunnel beside the core should be warm. air={warm:0.0}");
+
+        // Mine the core out (as the torch does): the cells stop being pinned and the tunnel cools.
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+                t.SetPixel(core + new Offset(dx, dy), TerrainPixel.Blank);
+        Step(600);
+
+        Assert.True(t.GetAirTemperature(core) < CoreTemperature - 20f, "a mined-out core is no longer a source");
+        Assert.True(t.GetAirTemperature(below) < warm, "the tunnel cools once the source is gone");
+        Assert.True(maxResidual < 0.5, $"the core's heat must be fully accounted for. residual={maxResidual:0.0000}");
+    }
+
+    private static World SeededWorld(int seed, Size? size = null)
+    {
+        var mapSize = size ?? MediumMap;
+        var (terrain, spawns) = new ToastGenerator().Generate(mapSize, seed: seed);
+        var world = new World(mapSize, simulationSeed: seed, enableTerrainRegrowth: false, seedOre: true);
+        world.Initialize(terrain, spawns, decorationSeed: seed + 1);
+        return world;
+    }
+
+    private static int CountOreUnits(TerrainGrid terrain)
+    {
+        int units = 0;
+        for (int i = 0; i < terrain.Size.Area; i++)
+            units += Pixel.OreUnits(terrain[i]);
+        return units;
+    }
+
+    [Fact]
+    public void Seeding_IsDeterministic_AndFollowsTheSeed()
+    {
+        var small = new Size(500, 300);
+        var a = SeededWorld(8181, small);
+        var b = SeededWorld(8181, small);
+        var other = SeededWorld(9292, small);
+
+        Assert.NotEmpty(a.OreDeposits);
+        Assert.Equal(a.OreDeposits, b.OreDeposits);
+        Assert.NotEqual(a.OreDeposits, other.OreDeposits);
+        for (int i = 0; i < a.Terrain.Size.Area; i++)
+            Assert.Equal(a.Terrain[i], b.Terrain[i]);
+        Assert.Empty(TestHelpers.CreateSeededWorld(seed: 8181).OreDeposits);
+    }
+
+    [Fact]
+    public void Seeding_PlacesEveryKind_WithinItsSizeAndDistanceRules()
+    {
+        var world = SeededWorld(8181);
+        var bases = world.TankBases.Bases.Select(b => b.Position).ToArray();
+        var byKind = world.OreDeposits.ToLookup(d => d.Kind);
+        // The distance rules shrink with the map: 800x400 is about half the reference map's width.
+        double scale = OreDeposits.DistanceScale(MediumMap.Area);
+        Assert.InRange(scale, 0.5, 0.55);
+        int Scaled(int distance) => (int)(distance * scale);
+
+        // 800x400: three lumps, a dozen pockets, about fifty specks.
+        Assert.InRange(byKind[OreDepositKind.Lump].Count(), 2, 3);
+        Assert.InRange(byKind[OreDepositKind.Pocket].Count(), 10, 12);
+        Assert.InRange(byKind[OreDepositKind.Speck].Count(), 45, 53);
+
+        foreach (var d in world.OreDeposits)
+        {
+            var (min, max, fromBase) = d.Kind switch
+            {
+                OreDepositKind.Speck => (Tweaks.Ore.SpeckMinCells, Tweaks.Ore.SpeckMaxCells, Tweaks.Ore.SpeckMinDistanceFromBase),
+                OreDepositKind.Pocket => (1, Tweaks.Ore.PocketMaxCells, Tweaks.Ore.PocketMinDistanceFromBase),
+                _ => (Tweaks.Ore.LumpCoreCells, Tweaks.Ore.LumpMaxCells, Tweaks.Ore.LumpMinDistanceFromBase),
+            };
+            Assert.InRange(d.Cells, min, max);
+            Assert.Equal(d.Kind == OreDepositKind.Lump ? Tweaks.Ore.LumpCoreCells : 0, d.CoreCells);
+            int minFromBase = Scaled(fromBase);
+            Assert.All(bases, b => Assert.True(Position.DistanceSquared(d.Center, b) >= minFromBase * minFromBase,
+                $"{d.Kind} at {d.Center} too close to the base at {b}"));
+            Assert.True(Pixel.IsOre(world.Terrain.GetPixelRaw(d.Center)), "a deposit grows from its start cell");
+        }
+
+        // Most pockets reach their size; a lump's core sits at its start, pinned warm.
+        Assert.True(byKind[OreDepositKind.Pocket].Average(d => d.Cells) >= Tweaks.Ore.PocketMinCells);
+        foreach (var lump in byKind[OreDepositKind.Lump])
+        {
+            Assert.True(lump.Cells >= Tweaks.Ore.LumpMinCells / 2, $"lump at {lump.Center} has only {lump.Cells} cells");
+            Assert.Equal(TerrainPixel.EmberiteCore, world.Terrain.GetPixelRaw(lump.Center));
+            Assert.Equal(CoreTemperature, world.Terrain.GetHeatTemperature(lump.Center), precision: 2);
+        }
+        var lumps = byKind[OreDepositKind.Lump].ToArray();
+        for (int i = 0; i < lumps.Length; i++)
+            for (int j = i + 1; j < lumps.Length; j++)
+                Assert.True(Position.DistanceSquared(lumps[i].Center, lumps[j].Center) >=
+                    Scaled(Tweaks.Ore.LumpMinDistanceBetween) * Scaled(Tweaks.Ore.LumpMinDistanceBetween));
+
+        // What the deposits report is what lies in the ground.
+        Assert.Equal(world.OreDeposits.Sum(d => d.Units), CountOreUnits(world.Terrain));
+    }
+
+    [Theory]
+    [InlineData(8181)]
+    [InlineData(4242)]
+    [InlineData(77)]
+    public void SmallMap_StillGetsAFewPockets_AndALump(int seed)
+    {
+        // The desktop's default match (DesktopScreenTweaks.RenderSurfaceSize).
+        var size = new Size(320, 200);
+        var world = SeededWorld(seed, size);
+        var byKind = world.OreDeposits.ToLookup(d => d.Kind);
+
+        Assert.Equal(Tweaks.Ore.MinDistanceScale, OreDeposits.DistanceScale(size.Area));
+        Assert.True(byKind[OreDepositKind.Pocket].Count() >= Tweaks.Ore.MinPockets,
+            $"pockets={byKind[OreDepositKind.Pocket].Count()}");
+        Assert.True(byKind[OreDepositKind.Lump].Any(), "a lump fits on a 320x200 map");
+        Assert.True(world.OreDeposits.Sum(d => d.Units) >= 150, $"units={world.OreDeposits.Sum(d => d.Units)}");
+        Assert.True(OreDeposits.DistanceScale(1500L * 750) == 1.0, "the reference map keeps its rules");
+    }
+
+    [Fact]
+    [Trait("Category", "Slow")]
+    public void DefaultMap_HoldsAboutTwoAndAHalfThousandUnits_SplitBetweenTheKinds()
+    {
+        var world = SeededWorld(8181, new Size(1500, 750));
+        int total = world.OreDeposits.Sum(d => d.Units);
+        double Share(OreDepositKind kind) =>
+            world.OreDeposits.Where(d => d.Kind == kind).Sum(d => d.Units) / (double)total;
+
+        Assert.InRange(total, 2200, 2800);
+        Assert.InRange(Share(OreDepositKind.Speck), 0.10, 0.20);
+        Assert.InRange(Share(OreDepositKind.Pocket), 0.28, 0.42);
+        Assert.InRange(Share(OreDepositKind.Lump), 0.42, 0.58);
+    }
+}

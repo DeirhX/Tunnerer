@@ -49,7 +49,7 @@ public class MachinePresentationTests
     {
         foreach (var p in MachinePresentations.All)
         {
-            Assert.Equal(MachineBehaviors.Get(p.Type).BuildCost.Dirt, p.DirtCost);
+            Assert.Equal(MachineBehaviors.Get(p.Type).OreCost, p.OreCost);
             Assert.Same(MachineBehaviors.ForKey(p.BuildKey), p.Behavior);
         }
     }

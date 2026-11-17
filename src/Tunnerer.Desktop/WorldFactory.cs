@@ -14,8 +14,11 @@ using Tunnerer.Desktop.Config;
 /// <param name="TerrainSizeOverride"><c>--size</c> / <c>--large</c>; null uses the default for the mode.</param>
 /// <param name="GenMode"><see cref="LevelGenMode.Optimized"/> for <c>--fast</c>.</param>
 /// <param name="Seed">Map and simulation seed (see <c>Game.Seed</c>).</param>
+/// <param name="Players">How many bases, and so tanks, the match has.</param>
+/// <param name="CoreTapWins">The first base to tap the core wins the match (a network match is a race).</param>
 public readonly record struct WorldLaunchOptions(
-    bool TerrainTest, Size? TerrainSizeOverride, LevelGenMode GenMode, int Seed);
+    bool TerrainTest, Size? TerrainSizeOverride, LevelGenMode GenMode, int Seed,
+    int Players = Tweaks.LevelGen.DefaultPlayers, bool CoreTapWins = false);
 
 /// <param name="Parallel">Draw and materialise on several threads (only with <c>--fast</c>).</param>
 /// <param name="Seed">The seed the world was built from (<see cref="WorldLaunchOptions.Seed"/>).</param>
@@ -23,8 +26,11 @@ public sealed record BuiltWorld(World World, bool Parallel, int Seed)
 {
     public Size TerrainSize => World.Terrain.Size;
 
-    /// <summary>Seed for the enemy tank's AI.</summary>
-    public int BotSeed => Seed + 2;
+    /// <summary>Seed for the AI of the tank in <paramref name="slot"/>; each slot gets its own.</summary>
+    public int BotSeedFor(int slot) => BotSeed(Seed, slot);
+
+    /// <summary>Seed for the AI of the tank in <paramref name="slot"/> of a match with <paramref name="matchSeed"/>.</summary>
+    public static int BotSeed(int matchSeed, int slot) => matchSeed + 1 + slot;
 }
 
 /// <summary>
@@ -45,7 +51,8 @@ public static class WorldFactory
         World world = options.TerrainTest
             ? BuildTerrainTest(options.TerrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize)
             : BuildMatch(options.TerrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize,
-                options.GenMode, seed, parallel);
+                options.GenMode, seed, parallel, options.Players);
+        world.CoreTapWins = options.CoreTapWins;
         return new BuiltWorld(world, parallel, seed);
     }
 
@@ -68,13 +75,13 @@ public static class WorldFactory
         return world;
     }
 
-    private static World BuildMatch(Size size, LevelGenMode genMode, int seed, bool parallel)
+    private static World BuildMatch(Size size, LevelGenMode genMode, int seed, bool parallel, int players)
     {
         var modeLabel = parallel ? "optimized" : "deterministic";
         Console.WriteLine($"Generating terrain {size.X}x{size.Y} ({modeLabel}, seed={seed.ToString(CultureInfo.InvariantCulture)})...");
         var genWatch = Stopwatch.StartNew();
         var generator = new ToastGenerator();
-        var (terrain, spawns) = generator.Generate(size, seed, genMode);
+        var (terrain, spawns) = generator.Generate(size, seed, genMode, players);
         Console.WriteLine($"Level generated in {genWatch.Elapsed.TotalMilliseconds:F0} ms, {spawns.Length} spawns");
 
         var world = new World(
@@ -82,7 +89,8 @@ public static class WorldFactory
             parallelRegrowth: parallel,
             simulationSeed: seed,
             hotRockPocketCount: Tweaks.World.HotRockPocketCount,
-            frostRockPocketCount: Tweaks.World.FrostRockPocketCount);
+            frostRockPocketCount: Tweaks.World.FrostRockPocketCount,
+            seedOre: true);
         world.Profile.ReportSink = static line => Console.WriteLine(line);
         world.Profile.AuditEnergy = GameLaunchOptions.EnergyAudit;
         world.Initialize(terrain, spawns, decorationSeed: seed + 1, parallelMaterialize: parallel);
@@ -92,6 +100,8 @@ public static class WorldFactory
         if (world.FrostRockPockets.Count > 0)
             Console.WriteLine($"[FrostRock] {world.FrostRockPockets.Count} pocket(s) at " +
                 string.Join(", ", world.FrostRockPockets.Select(p => $"({p.X},{p.Y})")));
+        if (world.OreDeposits.Count > 0)
+            Console.WriteLine($"[Ore] {world.OreDeposits.Count} deposit(s), {world.OreDeposits.Sum(d => d.Units)} units");
         return world;
     }
 }

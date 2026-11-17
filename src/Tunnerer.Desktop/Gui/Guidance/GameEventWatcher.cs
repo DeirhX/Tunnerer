@@ -8,7 +8,8 @@ using Tunnerer.Core.Entities.Machines;
 /// <summary>
 /// Watches the player's side of the world from frame to frame and posts a toast when something changes that the
 /// player should know about: a relay linking or losing its link, a harvester starting, stalling or running dry, the
-/// base stores filling up, charge running low, leaving the network. It only reads Core state.
+/// base stores filling up, charge running low, leaving the network. It only reads Core state. What happens inside a
+/// step (harvesters banking ore) it counts from <see cref="World.StepEvents"/> in <see cref="AfterStep"/>.
 /// </summary>
 public sealed class GameEventWatcher
 {
@@ -24,7 +25,8 @@ public sealed class GameEventWatcher
     private bool _offNetwork;
     private bool _engineRunning;
     private bool _radarScattered;
-    private int _lastStore;
+    private bool _holdingOre;
+    private bool _oreHoldFull;
     private readonly int[] _upgradeLevels = new int[BaseUpgrades.Count];
     private int _upgradeRefused;
     private bool _tappingCore;
@@ -36,7 +38,22 @@ public sealed class GameEventWatcher
     /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
     public const float RadarScatteredShare = 0.08f;
 
-    public void Reset() => _primed = false;
+    public void Reset()
+    {
+        _primed = false;
+        _harvestedSinceReport = 0;
+    }
+
+    /// <summary>
+    /// Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events: counts
+    /// the ore the player's harvesters banked, however many steps a displayed frame runs.
+    /// </summary>
+    public void AfterStep(World world, Tank player)
+    {
+        foreach (ref readonly StepEvent e in world.StepEvents)
+            if (e.Kind == StepEventKind.OreHarvested && e.Color == player.Color)
+                _harvestedSinceReport += e.Count;
+    }
 
     public void Update(World world, Tank player, NotificationFeed feed, float now)
     {
@@ -67,15 +84,16 @@ public sealed class GameEventWatcher
             }
         }
 
-        bool docked = world.TankBases.CheckBaseCollision(player.Position) == home;
-        int store = home.Materials.Dirt;
-        bool storeFull = store >= home.Materials.DirtCapacity;
+        int store = home.Store.Ore;
+        bool storeFull = home.Store.IsFull;
         double heatCapacity = Math.Max(1, (int)home.Reactor.HeatCapacity) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
         bool heatStoreFull = home.ReactorHeatEnergy / heatCapacity >= 0.9;
         bool chargeLow = home.Charge < home.ChargeCapacity * 0.1 && harvesters > 0;
         bool offNetwork = player.IsOffNetwork;
         bool engineRunning = home.EngineOutputPerTick > 1.0;
         bool radarScattered = !player.IsDead && world.RadarOf(player) is { HeatLoss: >= RadarScatteredShare };
+        bool holdingOre = player.OreHeld > 0;
+        bool oreHoldFull = player.IsOreHoldFull;
 
         double coreRate = home.CoreTapPerTick * Tweaks.Perf.TargetFps;
         bool tappingCore = coreRate > 1.0;
@@ -84,7 +102,6 @@ public sealed class GameEventWatcher
         if (!_primed)
         {
             _primed = true;
-            _lastStore = store;
             _lastHarvestReport = now;
             for (int i = 0; i < BaseUpgrades.Count; i++)
                 _upgradeLevels[i] = home.Upgrades.Level((BaseUpgrade)i);
@@ -107,7 +124,7 @@ public sealed class GameEventWatcher
                 {
                     UpgradeRefusal.NotDocked => "Upgrades are bought while docked at your base.",
                     UpgradeRefusal.Maxed => "That upgrade is already at its top level.",
-                    _ => "Not enough dirt in the base store. Harvesters fill it for you.",
+                    _ => "Not enough ore in the base store. Bring ore home, or let harvesters mine it.",
                 }, NotificationKind.Warning, cooldown: 2f);
 
             if (tappingCore && !_tappingCore)
@@ -130,7 +147,7 @@ public sealed class GameEventWatcher
 
             if (harvesters > _harvesters)
                 feed.Post(now, "harvester-planted", "Harvester working",
-                    "It mines the dirt around it into your base store on its own. Keep it cool and charged.", NotificationKind.Good, cooldown: 4f);
+                    "Inside your network it mines the ore around it into your base store. Keep it cool and charged.", NotificationKind.Good, cooldown: 4f);
             if (stalled > _stalledHarvesters)
                 feed.Post(now, "harvester-stalled", "Harvester stalled: too hot",
                     "Mining heats the ground. A linked relay near it pumps that heat away.", NotificationKind.Warning);
@@ -143,8 +160,8 @@ public sealed class GameEventWatcher
                     "Its battery is low. It goes back to work once recharged.", NotificationKind.Info, cooldown: 60f);
 
             if (storeFull && !_storeFull)
-                feed.Post(now, "store-full", "Base dirt store full",
-                    "Harvesters idle until you spend dirt: dock and buy upgrades (1-4) or build machines.", NotificationKind.Warning);
+                feed.Post(now, "store-full", "Base ore store full",
+                    "Harvesters idle until you spend ore: dock and buy upgrades (1-6) or build machines.", NotificationKind.Warning);
             if (heatStoreFull && !_heatStoreFull)
                 feed.Post(now, "heat-full", "Base heat store nearly full",
                     "Relays and docking cool less until the radiator catches up.", NotificationKind.Warning);
@@ -159,17 +176,23 @@ public sealed class GameEventWatcher
                 feed.Post(now, "radar-heat", "Radar scattered by heat",
                     "Hot ground swallows the pulse: red dots show how far it got. Cool that ground to see past it.",
                     NotificationKind.Warning, cooldown: 60f);
+            // Once each per match: the first ore in the hold, and the first time the hold fills.
+            if (holdingOre && !_holdingOre)
+                feed.Post(now, "ore-collected", "Emberite collected",
+                    "Ore rides in your hold (MATERIALS). Dock, or stay inside your network, to bank it; if you die, it spills where you fall.",
+                    NotificationKind.Good, cooldown: 1e9f);
+            if (oreHoldFull && !_oreHoldFull)
+                feed.Post(now, "ore-hold-full", "Ore hold full",
+                    $"The hold takes {player.OreHoldCapacity}. Bring it into your network or dock to bank it before you dig more ore.",
+                    NotificationKind.Warning, cooldown: 1e9f);
             if (engineRunning && !_engineRunning)
                 feed.Post(now, "engine-running", "Base engine making charge",
                     "Relay heat is being turned into charge. Hotter sources make more.", NotificationKind.Good, cooldown: 120f);
 
-            // Dirt that reaches the store while the player is away came from harvesters.
-            if (!docked && store > _lastStore)
-                _harvestedSinceReport += store - _lastStore;
             if (_harvestedSinceReport > 0 && now - _lastHarvestReport >= 20f)
             {
-                feed.Post(now, "harvested", $"Harvesters delivered +{_harvestedSinceReport} dirt",
-                    $"Base store {store}/{home.Materials.DirtCapacity}.", NotificationKind.Good, cooldown: 0f);
+                feed.Post(now, "harvested", $"Harvesters delivered +{_harvestedSinceReport} ore",
+                    $"Base ore store {store}.", NotificationKind.Good, cooldown: 0f);
                 _harvestedSinceReport = 0;
                 _lastHarvestReport = now;
             }
@@ -186,7 +209,8 @@ public sealed class GameEventWatcher
         _offNetwork = offNetwork;
         _engineRunning = engineRunning;
         _radarScattered = radarScattered;
-        _lastStore = store;
+        _holdingOre = holdingOre;
+        _oreHoldFull = oreHoldFull;
         _upgradeRefused = player.UpgradeRefusedTicks;
         _tappingCore = tappingCore;
         _meetingGoal = meetingGoal;

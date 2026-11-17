@@ -3,6 +3,7 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
@@ -200,10 +201,11 @@ public class RelayHeatTests
     private static void Press(World world, bool pressed)
         => world.Advance(i => i == 0 ? Build(pressed) : default);
 
-    private static Scenario ScenarioWithTankOutsideBase(int dirt)
+    /// <summary>The tank out of its network's coverage (so its hold pays), with <paramref name="ore"/> in the hold.</summary>
+    private static Scenario ScenarioWithTankOutsideBase(int ore)
     {
         var s = CreateScenario();
-        s.Tank.Resources.Add(new MaterialAmount(dirt, 0));
+        s.Tank.Hold.Add(ore);
         s.Tank.Position = s.RelayPos; // far outside the base
         return s;
     }
@@ -211,9 +213,9 @@ public class RelayHeatTests
     [Fact]
     public void BuildKey_BuildsCarriesAndPlantsARelay()
     {
-        var s = ScenarioWithTankOutsideBase(dirt: 500);
+        var s = ScenarioWithTankOutsideBase(ore: 20);
         var world = s.World;
-        int dirtBefore = s.Tank.Resources.Current.Dirt;
+        int holdBefore = s.Tank.OreHeld, storeBefore = s.Base.Store.Ore;
 
         Press(world, true);
         Assert.True(s.Tank.IsCarryingMachine);
@@ -221,7 +223,8 @@ public class RelayHeatTests
         var relay = world.Machines.Machines[0];
         Assert.Equal(MachineType.Relay, relay.Type);
         Assert.Equal(MachineState.Transporting, relay.State);
-        Assert.Equal(dirtBefore - Tweaks.Machine.RelayDirtCost, s.Tank.Resources.Current.Dirt);
+        Assert.Equal(holdBefore - Tweaks.Ore.RelayCost, s.Tank.OreHeld);
+        Assert.Equal(storeBefore, s.Base.Store.Ore);
 
         // Holding the key does not plant; only a new press does. The relay follows the tank meanwhile.
         Press(world, true);
@@ -242,20 +245,26 @@ public class RelayHeatTests
     }
 
     [Fact]
-    public void BuildKey_DoesNothing_WithoutEnoughDirt()
+    public void BuildKey_DoesNothing_WithoutEnoughOre_AndSaysWhy()
     {
-        var s = ScenarioWithTankOutsideBase(dirt: Tweaks.Machine.RelayDirtCost - 1);
+        // The base store could pay, but the tank is outside its network, so only the hold counts.
+        var s = ScenarioWithTankOutsideBase(ore: Tweaks.Ore.RelayCost - 1);
+        Assert.True(s.Base.Store.Ore >= Tweaks.Ore.RelayCost);
 
         Press(s.World, true);
 
         Assert.False(s.Tank.IsCarryingMachine);
         Assert.Equal(0, s.World.Machines.Count);
+        Assert.Equal(BuildRefusal.NotEnoughOre, s.Tank.LastBuildRefusal);
+        Assert.True(s.Tank.BuildRefusedTicks > 0);
+        Assert.Equal(0, s.Tank.PlantRefusedTicks);
+        Assert.Contains(s.World.StepEvents.ToArray(), e => e.Kind == StepEventKind.BuildRefused && e.Machine == MachineType.Relay);
     }
 
     [Fact]
     public void BuildKey_CannotPlantInsideABase()
     {
-        var s = ScenarioWithTankOutsideBase(dirt: 500);
+        var s = ScenarioWithTankOutsideBase(ore: 20);
         Press(s.World, true);
         Press(s.World, false);
         Assert.True(s.Tank.IsCarryingMachine);
@@ -270,7 +279,7 @@ public class RelayHeatTests
     [Fact]
     public void CarriedRelay_IsLost_WhenTheTankDies()
     {
-        var s = ScenarioWithTankOutsideBase(dirt: 500);
+        var s = ScenarioWithTankOutsideBase(ore: 20);
         Press(s.World, true);
         Assert.Equal(1, s.World.Machines.Count);
 

@@ -12,6 +12,8 @@ World.cs                     World: owns every subsystem, runs Advance; Simulati
 StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
 MatchOutcome.cs              Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
 NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
+WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds heat and
+                             charge totals (what machines in a network match compare)
 StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
 Config/
   Tweaks.cs                  Every gameplay and simulation constant (const / static readonly only)
@@ -22,7 +24,8 @@ Terrain/
   TerrainGrid.cs             Pixel array, change list, SetPixel (metered) and SetPixelRaw (level gen only)
   TerrainGrid.Heat.cs        Terrain and air temperature fields, CoolDown, energy add / extract API
   TerrainGrid.HeatTiles.cs   The solver step over the tiles that are still changing
-  TerrainGrid.HotRock.cs     PlaceHotRockPocket
+  TerrainGrid.HotRock.cs     PlaceHotRockPocket, PlaceFrostRockPocket, SetPinnedPixel
+  TerrainGrid.Ore.cs         PlaceOre (level gen)
   TerrainGrid.Materialization.cs, .Decoration.cs, .Render.cs   Level-gen markers to pixels, cleanup, Draw*ToSurface
   TerrainRegrowth.cs         Dirt regrowth cellular automaton
   RegrowthTiles.cs           Which tiles hold anything for regrowth to act on
@@ -37,19 +40,23 @@ Thermal/
 Entities/
   Tank.cs                    Tank state and the per-tick order (below); delegates to Tanks/*
   Tanks/TankThermals.cs      Tank heat, network coverage floor, base sink, refrigeration, ledger bookings
-  Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, pickups; owns the tank's RNG
-  Tanks/TankBuildController.cs   Build keys: build, carry, plant
-  Tanks/TankLifecycle.cs     Damage, death, respawn, spawn shield
+  Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, mining ore into the hold, pickups; owns the
+                             tank's RNG
+  Tanks/TankBuildController.cs   Build keys: build, carry, plant; the payer rule (Quote)
+  Tanks/BuildQuote.cs        BuildQuote, OrePayer, BuildRefusal: what a machine costs here and which stock pays
+  Tanks/TankLifecycle.cs     Damage, death (the hold spills as ore, OreDrop), respawn, spawn shield
   Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
   TankTurret.cs              Aim, cooldown, bullet spawn
   TankHeatModel.cs           Heat-flow formula shared by tank contact with terrain and air
-  TankList.cs, TankBase.cs, TankBases.cs   Tank collection; bases (reactor, radiator, engine, charge, stores)
+  TankList.cs, TankBase.cs, TankBases.cs   Tank collection; bases (reactor, radiator, engine, charge, ore store)
+  BaseUpgrades.cs            BaseUpgrade (base track and tank track), levels, costs and what each level does
   SimulationContext.cs       The slice of World a tank sees during Advance
   MachineMaterializer.cs     The machine a tank carries before it is planted
   Sprite.cs                  SpriteList: short-lived markers
   DamageCause.cs
   Machines/Machine.cs        MachineType, MachineState, Machine
   Machines/MachineBehavior.cs   MachineBehavior (action, interval, cost, BuildKey, traits), MachineBehaviors table
+  Machines/HarvesterPathing.cs  Where a harvester can stand; the flood that finds the ore nearest by path
   Machines/MachineList.cs    Machine collection; wrecks dead machines (leave the network, charge to heat, scorch)
   Machines/MachinePlacementPreview.cs   Result of World.PreviewPlacement
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
@@ -61,22 +68,28 @@ Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
   VisionEye.cs               One source's sight, kept between updates, and the ray and wall casting that fills it
   Radar.cs                   A tank's radar: pulses running out from the tank and the fading contacts where they reflected
+  RadarContact.cs            What a radar return is: RadarEcho, RadarContact, RadarTarget
+  RadarReach.cs              The radar's ranges and heat budget, scaled per tank by its radar upgrade
 Collision/
   CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
   WorldSectors.cs            Sector buckets for the tank broad phase
   Raycaster.cs               Bresenham lines; HasOpenLine (the one line-of-sight test)
 Input/
   Controller.cs              ControllerOutput
+  ControllerOutputCodec.cs   ControllerOutput as 28 bits (network, input logs); quantises the aim
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
 LevelGen/
   ToastGenerator.cs          Cavern generator (LevelGenMode Deterministic or Optimized)
   GeneratorUtils.cs          Shared drawing helpers
   HotRockPockets.cs          Scatters hot rock pockets
+  FrostRockPockets.cs        Scatters frost pockets
+  OreDeposits.cs             Seeds emberite: specks, pockets and lumps with a warm core (OreDeposit, OreDepositKind)
 Rendering/
   RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
-Resources/Resources.cs       Reactor, ReactorState, MaterialAmount, MaterialContainer
+Resources/Resources.cs       Reactor, ReactorState, OreStore (a tank's hold, a base's store: ore is the only currency)
+Resources/OreDrop.cs         Puts ore back into the ground, nearest free cells first, not under tanks or machines (a dead tank's hold)
 Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, DirectionF, Color, Rect, BoundingBox
 ```
 
@@ -84,7 +97,10 @@ Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, Dir
 
 `new World(size, parallelRegrowth, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
 spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot and frost rock pockets (if
-asked; the hot ones also give the core, `World.CorePocket`) and adds one tank per spawn. Every RNG World owns
+asked; the hot ones also give the core, `World.CorePocket`), seeds emberite ore (if asked, `seedOre`;
+`World.OreDeposits`) and adds one tank per spawn. Ore is placed last and grows each deposit cell by cell from its
+start, so generation never sweeps the grid; deposit counts scale with map area (`Tweaks.Ore`), and on a small map the
+distance rules shrink and a floor of pockets and lumps applies (`OreDeposits.DistanceScale`). Every RNG World owns
 (projectiles, link map, regrowth, each tank) is seeded from `simulationSeed`, and decorations and rock pockets from
 the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
@@ -99,14 +115,19 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
    the tiles `RegrowthTiles` has marked as holding open, scorched or growing cells; every pixel write keeps the marks
    up to date, so the pass costs what has been dug, not the size of the map.
 4. **Projectiles**: `ProjectileList.Advance`.
-5. **Tanks**: `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`): idle heat, base
-   interaction (recharge, heat sink, docking), network coverage, turret aim and fire, `TankDigger.Move`, spawn
-   shield, shooting, pickups, `TankBuildController.Advance`, the upgrade keys, then `TankThermals.Advance` (exchange
-   with the grid).
-6. **Machines**: `MachineList.Advance`, then each pylon's last hand-out is booked on its route (`LinkMap.CarryCharge`).
+5. **Tanks**: `LinkMap.AgeOreFlow`, then `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`):
+   idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage, the
+   network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
+   the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
+   `TankDigger.Move`, spawn shield, shooting, pickups, `TankBuildController.Advance`, the upgrade keys, then
+   `TankThermals.Advance` (exchange with the grid).
+6. **Machines**: `MachineList.Advance` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
+   network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
+   idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
+   (`LinkMap.CarryCharge`).
 7. **Sprites**: lifetime.
-8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then `World.AdvanceSectorGoal` (the
-   core tap and its hold timer).
+8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), the bot's stand-in ore income for bases
+   marked with `World.SetBotControlled`, then `World.AdvanceSectorGoal` (the core tap and its hold timer).
 9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
    every tick.
 10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
@@ -119,7 +140,8 @@ residual over the report window, which should stay near float noise. That line s
 is off by default and never runs per tick.
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
-`Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
+`Tank.IsDockedAtOwnBase`, `Tank.IsInOwnNetwork`, `Tank.IsUnloadingOre`, `Tank.QuoteBuild` (cost, payer, stock and
+refusal for a machine), `Tank.LastBuildRefusal`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
 `World.CollectCoverageNodes`, `World.TrackVision`, `World.TrackRadar`, `World.RadarOf`, and the `CopyRenderStates` snapshot of each entity list.
 
 ### Step events
@@ -128,11 +150,12 @@ Desktop learns about one-off happenings from `World.StepEvents`, never by compar
 `Advance` clears the list first, then the code where something happens records a small `StepEvent` (kind, position,
 the tank or side's colour, and a machine type, impact target, cell count or torch flag where they apply): shots
 fired, bullet impacts, explosions, spent shrapnel, tank hits, deaths and respawns, moving, digging, pickups,
-docking and leaving the base, base service, and machines built, planted, refused, damaged and wrecked. The list
+docking and leaving the base, base service, ore unloaded by a tank or banked by a harvester, and machines built,
+planted, refused, damaged and wrecked. The list
 holds the last step's events until the next step begins, so a caller that runs several steps per frame reads it
 after each one. It is output only: nothing in the simulation reads it, so recording cannot change a result
 (`SimulationFingerprintTests`), and the `StepEventLog` reuses its storage, so recording does not allocate in steady
-state. Tanks record through `SimulationContext.Events`, projectiles through the log `ProjectileList` is built with,
+state. Tanks record through `SimulationContext.Events`, machines through `MachineContext.Events`, projectiles through the log `ProjectileList` is built with,
 and `World` itself records plantings and docking. A new kind of happening that presentation needs is a new
 `StepEventKind`, recorded where it happens (`StepEventTests` covers each kind).
 
@@ -146,7 +169,7 @@ The exchange is `TerrainHeatEngine.ComputeRegionDeltaConservative`: a cell's ter
 and with the solid cells beside it, and its air with the air beside it, but only where at least one of the two
 cells is open. The air inside solid ground carries nothing from one solid cell to the next, so ground conducts as
 its material row says; dirt is the insulator (30 times worse than stone). `ResolveCell` then applies the step to a
-cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock) and books what the
+cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock, emberite cores) and books what the
 pin removes or adds as `SunkFixedTemperature`, and it takes each material's `Loss` from unpinned ground and from
 open air, a small share of the temperature above or below ambient, booked as `SunkAmbientLoss`. The loss stands for
 heat leaving to the deep ground and to the surface. It is what gives a hot or frost pocket a halo of a fixed size
@@ -180,7 +203,8 @@ charge, or charge spent back as heat). `World.SumSystemThermalEnergy` (grid, tan
 
 The mechanics built on this (base reservoir and radiator, relays pumping heat home, the base engine and charge,
 pylons and batteries, network coverage, the tank's temperature band, hot and frost rock pockets, the sector goal and
-base upgrades) are specified in `DESIGN.md` §4; the code is in `TankBase`, `BaseUpgrades`, `MachineBehaviors`,
+upgrades) are specified in `DESIGN.md` §4, the ore economy in §6.4; the code is in `TankBase`, `BaseUpgrades`,
+`TankBuildController`, `MachineBehaviors`,
 `TankThermals`, `TankHeatModel`, `NetworkCoverage`, `HotRockPockets`, `FrostRockPockets` and `World.AdvanceSectorGoal`.
 The heat render texture encodes temperature signed (`TerrainGrid.HeatToByte`), so the terrain shader can draw ground
 below 0 as frost.
@@ -239,7 +263,9 @@ output only, like vision (`RadarTests.AWorld_RunsTheRadar_WithoutChangingTheSimu
 
 Every `PulsePeriodTicks` the radar sends a pulse from the tank's cell, which stays the pulse's origin however the
 tank moves. The pulse is a fan of `RaysPerPulse` rays, turned a fraction of a ray spacing each pulse so later pulses
-fill the gaps of earlier ones. Its front runs `FrontCellsPerTick` outward a tick to `Range`, and each ray walks only
+fill the gaps of earlier ones. Its front runs `FrontCellsPerTick` outward a tick to `Range` (both scaled by the radar
+upgrade, so a pulse always takes the same time to reach full range; `PulseFront` keeps the fraction of a cell a
+scaled front carries), and each ray walks only
 the cells the front crossed that tick, so a return appears when the front reaches it, near ones first. One pulse is
 in flight at a time; `PulseInFlight`, `PulseOrigin` and `PulseRadius` let Desktop draw its ring. A ray is a
 Bresenham line that never cuts a corner: a diagonal step goes through the side cell the line crosses first, so it
@@ -249,24 +275,32 @@ cannot slip between two cells that touch only at a corner. Along a ray:
 - another side's machine (`RadarTarget`), or gold, reflects as `Metal` and stops it;
 - another tank (a `RadarTarget` marked `Alive`) reflects as `Life` and stops it;
 - rock, concrete, hot and frost rock and another side's base walls reflect as `Solid` and stop it;
+- emberite (plain or core) reflects as `Ore` and stops it;
 - stepping from dirt into open ground (a tunnel, a cave) gives a `Cavity` return and the ray goes on, at most
   `WeakReturnsPerRay` times.
 
 A ray stops at the first thing that reflects it whether or not the return is kept, so nothing behind it answers.
 
-Each kind of thing returns only from within its own range of the pulse's origin (`Tweaks.Radar`): rock from
+Every range below, and the heat budget, comes from the `RadarReach` the pulse was sent with: `Tweaks.Radar` scaled
+by the tank's base's radar upgrade (`BaseUpgrades.RadarRangeScale`, `RadarHeatBudgetScale`), which World hands to
+`Radar.Advance`. `Radar.PulseRange` is the reach of the pulse in flight, for drawing its ring. A pulse that runs
+longer than `PulsePeriodTicks` delays the next one. Each kind of thing returns only from within its own range of the
+pulse's origin (`Tweaks.Radar`): rock from
 `SolidRangeMin` for a thin shell up to the full `Range` for a formation `FormationDepth` cells deep along the ray
-(`Radar.SolidRange` looks behind the face, only for rock beyond the near range), gold from `GoldRange`, machines
+(`Radar.FormationRange` looks behind the face, only beyond the near range), ore from `OreRangeMin` for a speck up to
+`OreRangeMax` for a deposit `FormationDepth` cells deep (the same probe, counting only plain ore no warmer than
+`HeatThreshold`, so a lump's warm heart lends its rim no reach), gold from `GoldRange`, machines
 from `MachineRange`, tanks from `LifeRange`, caves from `CavityRange`, heat from `HeatRangeMin` to `HeatRangeMax` by
 intensity. Out of range the thing still stops the ray.
 
-Heat weakens the rays. A ray starts at strength 1 and loses `HeatLossPerDegree` for every degree a cell is above
+Heat weakens the rays. A ray can cross `HeatBudgetDegreeCells` in all: it starts at strength 1 and loses 1/budget for every degree a cell is above
 `HeatThreshold`, scaled by the length of path a cell stands for along that ray (so the loss per distance is the same
 in every direction), before anything in that cell can reflect it. What it then finds is recorded with the strength
 left (`RadarContact.Strength`). Every hot cell the ray goes through gets a `Heat` contact whose strength is how hot
 the cell is (1 at `HeatFullTemperature`), at most `HeatReturnsPerRay` a ray, and the ray stops when its strength runs
 out: a few cells into very hot ground, many into warm ground. A reflector at or above `HeatScrambleTemperature`
-returns `Heat` instead of what it is. So a hot zone shows as heat marks reaching a little way into it from the side
+returns `Heat` instead of what it is; ore included, so a lump, whose core is pinned warm and heats its shell past
+that, shows as heat and its contents are found by going there. So a hot zone shows as heat marks reaching a little way into it from the side
 the pulse came from, and nothing behind them. A contact is removed as soon as the side sees its cell, and the side's
 own machines are not radar targets: the radar tells a side only what it cannot see or does not remember. `Radar.HeatLoss` is the share of
 the last finished pulse's rays that heat absorbed. Cold does nothing to the rays. This is the radar reading the heat
@@ -278,7 +312,7 @@ has changed. Contacts live at most `ContactLifetimeTicks` in a fixed ring (`Cont
 first, and never move. Each tick of a pulse, after the rays have walked, the radar reconciles the older contacts: a
 new return in a cell replaces the old contact there, and a contact the front has just passed, on the nearest ray,
 when that ray got at least that far, is checked against the world and dropped unless it still holds (the rock is
-still there, the ground still hot, a target still covers the cell) and is still news. A contact in the shadow of
+still there, the ore not yet mined, the ground still hot, a target still covers the cell) and is still news. A contact in the shadow of
 whatever its ray stopped at is not checked, so the radar never learns what it could not reach; it fades instead.
 A tick of a pulse walks about `RaysPerPulse * FrontCellsPerTick` cells and looks at each contact once; ticks
 between pulses only age contacts. Neither depends on the size of the map.
@@ -314,11 +348,11 @@ Core:
 
 1. A value in `MachineType` (`Entities/Machines/Machine.cs`).
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), added to the
-   `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, build cost
+   `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, ore cost
    and `BuildKey`, plus the traits Core reads instead of the type: `BatteryCapacity`, `IsLinkNode`,
    `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`. The action is a static method in `MachineBehaviors` taking
    `(Machine, MachineContext)`.
-3. Constants (cost, interval, battery) in `Tweaks.Machine`, colour in `Tweaks.Colors`.
+3. Constants (interval, battery) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
 4. Each `BuildKey` builds exactly one machine, so a fourth machine needs a new key: a value in `BuildKey`, a field
    in `ControllerOutput`, and its edge detection in `TankBuildController.Advance`.
 5. `NetworkStatus.Collect` counts harvesters and relays by type; extend it if the HUD should report the new one.

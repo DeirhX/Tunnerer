@@ -18,6 +18,11 @@ Run from the repository root.
 - `src/Tunnerer.Core`: the simulation. No window, graphics or input-device dependencies; `ArchitectureGuardTests`
   enforces this.
 - `src/Tunnerer.Desktop`: SDL3 window and input, renderer, HUD. It should read Core state and not own game rules.
+  - `Net`: a client's part in a network match (`docs/multiplayer-design.md`).
+- `src/Tunnerer.Protocol`: what the game client and the relay server share. It references no other project;
+  `ArchitectureGuardTests` enforces this.
+- `src/Tunnerer.Relay`: the relay server for network matches. It references only the protocol, never Core, so a
+  gameplay change needs no new relay. Run: `dotnet run --project src/Tunnerer.Relay`.
   - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
   - `Rendering/Shaders`: the HLSL it draws.
 - `tools/Tunnerer.ShaderCompiler`: build step that compiles the HLSL for SDL_GPU (DXIL, SPIR-V, MSL) on every OS.

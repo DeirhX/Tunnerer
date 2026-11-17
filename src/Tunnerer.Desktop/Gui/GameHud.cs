@@ -36,6 +36,31 @@ public partial class GameHud
     /// </summary>
     private static float ToUi(float devicePixels) => devicePixels / ImGuiPlatform.DeviceScale;
 
+    /// <summary>
+    /// False where Enter does not start a new match: in a network match that is still on for the others, when
+    /// this player's own tank is already out.
+    /// </summary>
+    public bool CanRestartMatch { get; set; } = true;
+
+    /// <summary>What to call the tank that won, when it is not the player's; null for "another tank".</summary>
+    public string? WinnerName { get; set; }
+
+    /// <summary>Where a point in the world (in cells) is on screen, in UI units.</summary>
+    public Vector2 CellToScreen(float cellX, float cellY)
+    {
+        var vp = ViewportRect;
+        return new Vector2(
+            vp.x + ToUi(cellX * Camera.Scale - Camera.X),
+            vp.y + ToUi(cellY * Camera.Scale - Camera.Y));
+    }
+
+    /// <summary>True when a screen point lies inside the game view.</summary>
+    public bool IsInView(Vector2 screen)
+    {
+        var vp = ViewportRect;
+        return screen.X >= vp.x && screen.Y >= vp.y && screen.X <= vp.x + vp.w && screen.Y <= vp.y + vp.h;
+    }
+
     public void Draw(
         nint gameTextureId,
         int texW,
@@ -57,7 +82,7 @@ public partial class GameHud
         DrawGuidance(player, world);
         DrawUpgradePanel(player);
         DrawSectorComplete(player);
-        MatchOverlay.Draw(PlayRect, player, world);
+        MatchOverlay.Draw(PlayRect, player, world, CanRestartMatch, WinnerName);
         if (showPostPassOverlay)
             PostPassOverlay.Draw(ViewportRect, heatDebugOverlayEnabled, postPassFlags);
     }

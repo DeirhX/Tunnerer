@@ -20,6 +20,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Tunnerer.Core\Tunnerer.Core.csproj" />
     <ProjectReference Include="..\..\src\Tunnerer.Desktop\Tunnerer.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\Tunnerer.Protocol\Tunnerer.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\Tunnerer.Relay\Tunnerer.Relay.csproj" />
   </ItemGroup>
 
 </Project>

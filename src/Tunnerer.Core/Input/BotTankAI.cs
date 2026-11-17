@@ -47,6 +47,30 @@ public class BotTankAI
         _gunner = new BotGunner(_rng);
     }
 
+    /// <summary>
+    /// The tank a bot in slot <paramref name="self"/> fights: the nearest other tank that is alive, or the nearest
+    /// other tank when none is. Ties go to the lower slot. Null when it is alone.
+    /// </summary>
+    public static Tank? PickEnemy(IReadOnlyList<Tank> tanks, int self)
+    {
+        Tank? best = null;
+        long bestRank = long.MaxValue;
+        for (int i = 0; i < tanks.Count; i++)
+        {
+            if (i == self)
+                continue;
+            // A dead tank ranks behind every live one, whatever the distance.
+            long rank = Position.DistanceSquared(tanks[i].Position, tanks[self].Position)
+                + (tanks[i].IsDead ? (long)int.MaxValue + 1 : 0);
+            if (rank < bestRank)
+            {
+                best = tanks[i];
+                bestRank = rank;
+            }
+        }
+        return best;
+    }
+
     public ControllerOutput GetInput(Tank tank, Tank? enemy, ITerrainPixelReadOnly terrain)
     {
         _profiles.Advance();

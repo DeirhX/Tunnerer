@@ -45,7 +45,7 @@ public sealed class EntityLayerBuilder
     public int VertexCount => _quads.VertexCount;
 
     /// <summary>Records the world after a simulation step; the previous record becomes the interpolation start.</summary>
-    public void CaptureStep(World world)
+    public void CaptureStep(World world, int localSlot)
     {
         if (_tankScratch.Length < world.TankList.Count)
             _tankScratch = new TankRenderState[world.TankList.Count];
@@ -57,8 +57,8 @@ public sealed class EntityLayerBuilder
         int machineCount = world.Machines.CopyRenderStates(_machineScratch);
         _interpolator.CaptureMachines(_machineScratch.AsSpan(0, machineCount));
 
-        _preview.Capture(world);
-        _coverage.Capture(world);
+        _preview.Capture(world, localSlot);
+        _coverage.Capture(world, localSlot);
         _links.Capture(world);
         _projectiles.Capture(world);
     }

@@ -15,6 +15,9 @@ src/
     ARCHITECTURE.md        Detailed design
   Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
+  Tunnerer.Protocol/       What a network match's clients and relay share: tick bundles and the relay's tick rule.
+                           References nothing (enforced by ArchitectureGuardTests). See docs/multiplayer-design.md.
+  Tunnerer.Relay/          The relay server (ASP.NET Core, one WebSocket endpoint). References only the protocol.
 tests/
   Tunnerer.Tests/          xUnit tests for Core and Desktop logic, plus guard tests for both
 tools/
@@ -50,9 +53,10 @@ while running:
   5. for each due step (at most 4 to catch up):
        match:
          GameSimulationStepper.AdvanceOneStep
-           scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
+           scripted commands -> keyboard / scripted input for the local slot, a BotTankAI per other slot -> World.Advance
          EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
          GameAudio.AfterStep               (plays the step's World.StepEvents, sets the loops)
+         GameHud.AfterStep                 (GameEventWatcher counts the ore harvesters banked this step)
          TerrainAuxUploader.ObserveTerrainChanges (changed cells, to repack on the next frame)
          Game.DrawTerrainChangesToSurface  (incremental update of the world pixel buffer)
            with fog of war both follow the cells the player's VisionMap says changed in the terrain
@@ -136,21 +140,26 @@ in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 `Tunnerer.Desktop/Gui/Guidance` tells the player what to do next without touching the simulation. It only reads Core
 state once per displayed frame.
 
-- `TutorialDirector` is an ordered list of next logical steps (leave the base, dig, unload, build and link a relay,
+- `TutorialDirector` is an ordered list of next logical steps (leave the base, mine ore, unload, build and link a relay,
   stay on the network, power from hot rock, harvester, relay beside it, pylon, frost). Each step knows from the world
   when it is done, so a player who acts early skips ahead; explainer steps also finish after a few seconds on screen.
   A step can name a world cell to point at.
 - `GameEventWatcher` compares the player's side of the world with the previous frame and posts toasts to a
-  `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, stores
-  full, charge low, off network, radar scattered by heat, engine running, harvester deliveries). The feed de-duplicates by key with a cooldown.
+  `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, ore
+  store full, charge low, off network, radar scattered by heat, engine running, harvester ore deliveries). The
+  deliveries are counted from `StepEventKind.OreHarvested` after every step (`AfterStep`), not from the store, so a
+  tank unloading in the same frame is not mistaken for them. The feed de-duplicates by key with a cooldown.
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
-  docked and the sector-complete banner.
+  docked (base track on keys 1-4, tank track on 5-6) and the sector-complete banner. The build panel asks
+  `Tank.QuoteBuild` for each machine's ore cost and payer; the MATERIALS plate shows the ore hold and, above it, the
+  base store or UNLOADING (`Tank.IsUnloadingOre`).
 
 Every overlay (tutorial card, toasts, status and upgrade panels, warning banners, pause and controls menus, tags) is
 drawn with `HudTheme`, which follows the bottom HUD art: chamfered gunmetal plates, a bronze frame with an amber inner
 line, amber corner brackets, amber titles, segmented bars and key caps. `HudTheme.BeginWindow` turns an ImGui window
-into such a plate, so new panels match by default.
+into such a plate, so new panels match by default. While docked, toasts stop above the upgrade panel rather than
+cover it.
 
 ## Sound
 

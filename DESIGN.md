@@ -117,7 +117,7 @@ hot ground --relay--> base engine --> charge store --pylon--> batteries
 - **Pylons** are link nodes that hand base charge to batteries in direct line of sight within a short range,
   drawing it over the link network. A link carries orange heat in and blue charge out. A relay cools a spot and a
   pylon powers one, so a dig site needs both laid out with connecting lines of sight: a small **mining camp**.
-- **Harvesters refuel.** Each mining action and each crawl step costs charge, which ends up as heat in the ground
+- **Harvesters refuel.** Each action of work on ore and each crawl step costs charge, which ends up as heat in the ground
   beside the harvester. Below a quarter full, a harvester stops mining and crawls back toward the nearest powered
   pylon of its base. It waits in the pylon's beam and goes back to work above 80%. With no pylon to go to, it works
   until the battery is flat.
@@ -158,8 +158,12 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
 - **What stops spamming relays.** A relay is only useful where it can see the network. Cooling strength falls with
   each link hop from the base, so the far end of a long chain barely holds the tank. Every node also loads the
   shared radiator. Going much further means a forward base: a big, planned decision.
+- **The network is also a drop-off** *(Prototype)*. Inside coverage the tank's ore hold unloads into the base store
+  at 4 units a second, and the base store pays for what the tank builds there (§6.4). An unlinked node accepts
+  nothing.
 - **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
-  the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node. Off network an
+  the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node, and while the
+  hold unloads, teal crystals run beside it and along the links home. Off network an
   "OFF NETWORK ~Ns" tag above the TEMP gauge shows how long until the floor reaches the safe maximum.
 
 ### 4.7 Temperature: too hot, too cold *(Prototype)*
@@ -190,17 +194,24 @@ Building has to pay off, and exploring has to lead somewhere.
   real time, so the tap has to be steady, not a lucky burst.
 - **Why it needs everything.** The core is far from both bases, so reaching it means a relay chain (the network
   leash, §4.6). By the numbers one relay by the core falls well short of the goal rate (a relay pumps 300 a tick and the engine converts at most half), so it takes several, and their heat loads
-  the radiator. Hauling the dirt for all of that is what harvesters are for.
-- **Upgrades: what the dirt store buys.** Docked at its own base, the tank spends the base dirt store with keys 1-4.
-  Each upgrade has three levels; level n costs 600 x n dirt.
-  - **Radiator:** vents one more unit (500 energy) per tick per level, so more relays and more tank cooling fit.
-  - **Network reach:** +6 cells on every coverage circle per level.
-  - **Engine:** +10% maximum efficiency per level, and warm sources convert better.
-  - **Insulation:** the off-network clock runs 25% slower per level.
-- **Harvesters are income.** Their dirt goes straight into the store that buys upgrades, so a camp of harvesters
-  near the base turns into a bigger radiator and a longer reach.
+  the radiator. Mining the ore for all of that is what harvesters are for.
+- **Upgrades: what the ore store buys.** Docked at its own base, the tank spends the base's ore store (§6.4). There
+  are two tracks of three levels each, every level costing 25, 60 and then 140 ore whichever the upgrade:
+  - The **base track**, keys 1-4:
+    - **Radiator:** vents one more unit (500 energy) per tick per level, so more relays and more tank cooling fit.
+    - **Network reach:** +6 cells on every coverage circle per level.
+    - **Engine:** +10% maximum efficiency per level, and warm sources convert better.
+    - **Insulation:** the off-network clock runs 25% slower per level.
+  - The **tank track**, keys 5-6:
+    - **Cargo hold:** +30 ore in the tank's hold per level (40, 70, 100, 130).
+    - **Radar:** +20% on every radar range and +25% on each ray's heat budget per level (§6.6). The radar is output
+      only, so this level changes nothing in the simulation but the ore it cost. A pulse that runs longer than the
+      4-second period delays the next one.
+- **Harvesters are income.** Their ore goes straight into the store that buys upgrades, so a camp of harvesters
+  inside the network turns into a bigger radiator and a longer reach.
 - **The HUD** shows the goal (core tap rate and hold timer) at the top of the base panel, an upgrade list on the left
-  of the view while docked (clear of the base's top and bottom entrances), and a banner when the sector is complete.
+  of the view while docked (clear of the base's top and bottom entrances; the base track above the tank track, with
+  the ore store, each upgrade's level, next cost and key), and a banner when the sector is complete.
 
 ## 5. The player *(Decided: mainly a builder that can also fight, as in Factorio)*
 
@@ -260,10 +271,68 @@ Rare minerals and metals sit in the terrain, and the player has reasons to colle
 - The best deposits are in the hottest ground.
 - Each sector's minerals unlock the technology for the next, so sectors cannot be skipped.
 
-### 6.4 Structures
+**Emberite (Prototype).** The first mineral is an exotic ore, emberite, the only thing machines and upgrades are
+made of (§6.4); dirt is worth nothing. It is inert as a speck but warms itself when
+enough sits together: the core of a large lump is pinned at about 90 degrees, a permanent heat source like hot rock
+until it is mined out. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core cell 3), in three kinds
+of deposit, scaled with map area:
 
-Existing: harvester, relay, pylon. All cost only dirt today, although build costs already carry a minerals
-field. Planned: conductor lines, insulating walls, haulers, turrets, props, heat pumps, generators.
+- specks of 1 to 3 cells scattered through the dirt, near the bases too (about 15% of the ore);
+- pockets of 12 to 30 cells at some distance from the bases (about 35%);
+- a few lumps of 80 to 150 cells with a warm core, far from the bases and biased toward the centre (about 50%).
+
+On a smaller map the minimum distances from the bases and between lumps shrink with the square root of its area (to
+no less than 0.4 of them), and every map gets at least three pockets and one lump when one fits, so the desktop's
+default 320x200 match has a few hundred units rather than a few dozen. 1500x750 is unchanged.
+
+Ore blocks movement; it is drawn as teal and violet crystal, the core glowing warm.
+
+**Cracking a lump.** A lump is the big prize, and it takes the tank. Its core heats the ore round it to 55-80
+degrees and the ground just outside to about 45, so a harvester at its edge senses about 39 degrees and stalls (its
+limit is 30), and the radar reads the whole lump as heat. Harvesters never mine core cells; only the tank's torch
+does. Once the core is out the lump cools: with no relay its edge is workable within about 15 seconds and the whole
+lump within half a minute, and a linked relay beside it cools it in a few seconds. Then harvesters clear the shell, a
+cell every three actions (about a minute for a hundred cells, more counting trips to a pylon). A relay planted right
+against an intact lump pumps enough heat that harvesters can already work its outer shell, stalling only within a
+few cells of the core; the core itself still waits for the tank. *(Tuning open: whether an intact core should hold
+its shell against a relay too.)*
+
+The tank's ordinary dig clears plain ore, slower than dirt; a core cell needs the torch, like rock. A plain cell gives
+1 unit and a core cell 3, into a small hold of 40 units. A full hold leaves ore in the ground (a core cell is taken only
+if all 3 units fit), so mining never destroys ore. Docking at the own base banks the hold into the base's ore store
+quickly (10 units a tick); inside the own network's coverage it unloads there too, slower (§6.4). The hold grows
+with the cargo hold upgrade (§4.8).
+When the tank dies its hold spills back into the ground as plain ore in the nearest open or dirt cells around the wreck,
+never under another tank or a machine (ore blocks links, so it would cut a relay); what does not fit within a few cells
+is lost. Torching rock no longer yields anything. The HUD shows the hold as
+"n / 40" on the MATERIALS plate, above it the base's ore store or, while the hold empties, a blinking UNLOADING
+with down arrows, and the base's ore store in the base panel.
+
+### 6.4 Structures and the ore economy *(Prototype)*
+
+Existing: harvester, relay, pylon. Planned: conductor lines, insulating walls, haulers, turrets, props, heat pumps,
+generators.
+
+**Ore is the only currency.** Digging dirt only clears it. A relay costs 4 ore, a pylon 10, a harvester 30; the
+base store starts with 30. The tank's hold is small (40), so getting ore home is the work, and the network is how:
+
+- **Who pays.** Docked at the own base, or inside the coverage of the own linked network (§4.6), the base store pays;
+  if it is short, the hold does. Outside the network only the hold counts. The build panel shows each machine's ore
+  cost and the stock that would pay (BASE or HOLD), or how far the tank is from affording it; a refused press says
+  "not enough ore" apart from "would not link".
+- **Unloading through the network.** Inside linked coverage the hold unloads into the base store at 4 units a
+  second, a unit at a time, while the store has room; docking is faster. Relays and pylons are therefore also
+  drop-off points: planting one near a dig site saves the trip home.
+- **Harvesters mine ore.** A harvester works the plain ore within 4 cells of itself (3 actions a cell), crawls
+  along the shortest path to plain ore in its work area that it can get within reach of, clearing the dirt in its
+  way, and pays charge per action as before. Rock, concrete and ore itself block its 5x5 body, so ore sealed in
+  rock is out of its reach: it passes that over for ore it can get to, and with none says it is out of ore.
+  It leaves a lump's core to the tank (§6.3): with only core left it idles and the base panel says so ("at a warm
+  core: torch it out with the tank"). Its ore reaches the base only through the network, so it works only while it
+  stands in the own linked coverage; off the network, with no ore it can reach, or with the store full (the panel
+  says "waiting: the base ore store is full"), it idles and spends nothing.
+- **The bot** does not prospect yet. As a stand-in, a base whose side the computer plays gets 0.5 ore a second.
+  The bot builds and buys nothing today, so this only keeps its store from being empty once it does.
 
 ### 6.5 The rival tank *(Proposed)*
 
@@ -283,22 +352,27 @@ The player sees only what their side sees, so that learning the shape of the wor
   something of yours stands there. The edge of sight is a gradient, never a hard line.
 - **Radar** *(Prototype)*. Every 4 seconds the tank sends a pulse: a faint ring that runs outward from where the
   tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
-  it through; rock, hot and frost rock, gold, another side's base walls, machines and tanks reflect it and stop it.
+  it through; rock, hot and frost rock, gold, emberite, another side's base walls, machines and tanks reflect it and stop it.
   Each return is a single blip at the first cell that reflected, flaring the moment the ring reaches it (near
-  things first) and fading over 10 seconds: green for rock, amber for metal, and a white-violet dot in a ring for
-  something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
+  things first) and fading over 10 seconds: green for rock, amber for metal, a small teal diamond with a violet heart
+  for emberite, and a white-violet dot in a ring for something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
   shadow, so the outline of a thing is only learned by pinging it from several sides, and successive pulses hit
   slightly different points, so a shape fills in while you wait. When a later pulse passes an old blip it checks it
   again: a blip of an enemy that has driven off, or of ground that has changed, goes out; one hidden in a new
   shadow stays until it fades. A tunnel or cave behind dirt gives a weak blue return and lets the pulse on. The
   Different things show from different distances: a large rock formation from the pulse's full 150 cells, a thin
-  wall only from about 60, gold from 90, machines from 75, a tank from 60, a cave from 50, and hot ground from 50
-  to 120 by how hot it is. Beyond its range a thing still casts its shadow but leaves no blip, so the far picture is
+  wall only from about 60, gold from 90, machines from 75, a tank from 60, a cave from 50, emberite from 40 for a
+  speck up to 110 for a deep deposit (counting only cool plain ore behind the face), and hot ground from 50 to 120 by
+  how hot it is. The radar upgrade (§4.8) lengthens all of these and speeds the ring up to match, so a longer radar
+  still pings every 4 seconds. A lump never shows as ore from afar: its warm core and the ground it heats return heat,
+  and what it holds is found by going there. Beyond its range a thing still casts its shadow but leaves no blip, so the far picture is
   only the big shapes and the detail is a surprise kept for when you get close. The
   radar reports only news: nothing in sight, nothing in remembered ground unless it has changed since, and never
   your own machines. A blip goes the moment you see its cell.
 - **Heat blinds the radar** *(Prototype)*. Hot ground absorbs the pulse: every hot cell a ray crosses takes some of
-  it, more the hotter it is, and shows as a red dot, brighter the hotter the cell. The pulse gets through many warm
+  it, more the hotter it is, and shows as a red dot whose opacity rises steeply with the heat, so it warns of danger: a trace for warm ground,
+  nearly solid for hot rock. A ray has a fixed budget of heat it can cross (250 degree-cells: about 3 cells of hot rock, 25 cells of
+  ground at 20 degrees), so the radar reaches less far the hotter the surroundings. The pulse gets through many warm
   cells but only a few very hot ones before it is spent, so a hot zone shows as red dots reaching a little way into
   it from your side, deeper where it is cooler, and nothing behind them. A return that got through warm ground is
   fainter, and anything too hot to read, hot rock included, returns only its heat. Once relays have cooled the
@@ -415,7 +489,8 @@ On the thermal integration work (branch `integrate/thermal-ledger-and-visuals` a
 - An energy-exact heat simulation over terrain and air fields, with a ledger of every source and sink.
 - A base with a finite reservoir and a radiator.
 - Relays that pump heat from a radius into the base when linked by direct line of sight through open tunnel.
-- Harvesters that roam near where they were planted, mining dirt into the base store; a relay keeps them cool.
+- Harvesters that roam near where they were planted, mining ore into the base store through the network; a relay
+  keeps them cool.
 - Tank temperature in a band around 0: docking settles it near 0, cold slows it, both extremes damage it.
 - Hot rock pockets as permanent heat sources and frost pockets as cold ones, opt-in per world.
 - Harvester, relay and pylon machines, gold as a pickup, and one bot opponent.
@@ -477,7 +552,8 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Everything useful makes heat; the radiator is the shared bottleneck | Proposed |
 | Power is converted relay heat; machines run on charge and refuel at pylons | Prototype |
 | The tank's range is set by network coverage and its heat; no second meter on the tank | Prototype |
-| The sector goal is tapping the core; the dirt store buys base upgrades | Prototype |
+| The sector goal is tapping the core; the ore store buys base and tank upgrades | Prototype |
+| Emberite ore is the only currency; the network is where the hold unloads and the store pays | Prototype |
 | Heat-seeking mobs; threat scales with heat rejected | Proposed |
 | Quenchable hot rock as the first hazard | Proposed |
 | Alerts are caused by the player's actions; headroom buys time | Proposed |
@@ -487,6 +563,8 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Radar: pulses from the tank leave blips where they reflect, well beyond sight | Prototype |
 | Hot ground absorbs the radar pulse; the cells it got through show as red dots by heat | Prototype |
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
+| The radar finds emberite (a speck from near, a deep deposit from further); a lump shows only as heat | Prototype |
+| Harvesters leave lump cores to the tank's torch; a warm core (90 degrees) keeps harvesters off its lump until it is cut out | Prototype |
 
 ## 14. Open questions
 
@@ -498,5 +576,6 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 - What exactly is at the core?
 - Is there multiplayer, and if so is it cooperative or competitive?
 - Should the bot (and later mobs) be limited to what it could see, or stay all-knowing?
+- Should an intact lump core hold its ore against a relay planted beside it, so harvesters truly wait for the tank?
 - What makes a step cheap on a very large map: bookkeeping that follows activity, or coarser simulation of ground
   nobody sees?

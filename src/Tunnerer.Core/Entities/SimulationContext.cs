@@ -36,6 +36,12 @@ public readonly record struct SimulationContext
     /// </summary>
     public Func<Tank, Links.TankCoverage>? CoverageFor { get; init; }
 
+    /// <summary>
+    /// Optional: whether a live tank or a planted machine stands on a cell. When set, a dead tank's ore does not land
+    /// under one (<see cref="Resources.OreDrop"/>).
+    /// </summary>
+    public Func<Position, bool>? IsOccupied { get; init; }
+
     /// <summary>Where the tank records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</summary>
     public StepEventLog? Events { get; init; }
 }

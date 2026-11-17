@@ -30,6 +30,8 @@ public class World
     private Position? _corePocket;
     private readonly int _frostRockPocketCount;
     private readonly List<Position> _frostRockPockets = new();
+    private readonly bool _seedOre;
+    private readonly List<LevelGen.OreDeposit> _oreDeposits = new();
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
     private readonly StepEventLog _stepEvents = new();
@@ -94,6 +96,13 @@ public class World
     /// <summary>Centres of the frost pockets placed at initialisation (empty unless the world was created with some).</summary>
     public IReadOnlyList<Position> FrostRockPockets => _frostRockPockets;
 
+    /// <summary>The emberite deposits seeded at initialisation (empty unless the world was created with ore).</summary>
+    public IReadOnlyList<LevelGen.OreDeposit> OreDeposits => _oreDeposits;
+
+    /// <summary>Whether a live tank's shape or a planted machine's square covers <paramref name="cell"/>.</summary>
+    private bool IsCellOccupied(Position cell) =>
+        _collisionSolver.TestPoint(cell, onTank: static _ => true, onMachine: static _ => true);
+
     /// <summary>
     /// Whether <paramref name="machine"/> centred on <paramref name="center"/> would overlap a live tank or another
     /// planted machine: the machine's square against the tank's shape (<see cref="TankSpriteShape"/>) or the other
@@ -141,9 +150,11 @@ public class World
         bool enableTerrainRegrowth = true,
         int hotRockPocketCount = 0,
         SimulationSettings? simulationSettings = null,
-        int frostRockPocketCount = 0)
+        int frostRockPocketCount = 0,
+        bool seedOre = false)
     {
         _hotRockPocketCount = hotRockPocketCount;
+        _seedOre = seedOre;
         _frostRockPocketCount = frostRockPocketCount;
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
@@ -175,7 +186,7 @@ public class World
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
-        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0)
+        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0 || _seedOre)
         {
             int pocketSeed = seed + 200;
             if (_hotRockPocketCount > 0)
@@ -183,8 +194,12 @@ public class World
             if (_frostRockPocketCount > 0)
                 _frostRockPockets.AddRange(LevelGen.FrostRockPockets.Place(
                     _terrain, spawns, _hotRockPockets, _frostRockPocketCount, pocketSeed + 1));
+            // Ore last, so it fills the ground the pockets left.
+            if (_seedOre)
+                _oreDeposits.AddRange(LevelGen.OreDeposits.Place(_terrain, spawns, pocketSeed + 2));
 
-            // Let the heat (and cold) spread a little before play starts so the pockets do not begin as isolated dots.
+            // Let the heat (and cold) spread a little before play starts so the pockets and ore cores do not begin as
+            // isolated dots.
             for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
                 _terrain.CoolDown();
         }
@@ -242,12 +257,15 @@ public class World
             PlantMachine = PlantMachine,
             CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
             CoverageFor = CoverageFor,
+            IsOccupied = IsCellOccupied,
             Events = _stepEvents,
         };
+        _linkMap.AgeOreFlow();
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         _linkMap.ClearHeatFlow();
         ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
-            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines), _simulationSettings.AdvanceStep));
+            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines, IsMachineOnNetwork, _stepEvents),
+            _simulationSettings.AdvanceStep));
         // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
         _linkMap.ClearChargeFlow();
         // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
@@ -256,7 +274,10 @@ public class World
                 LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
         ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
+        foreach (var tankBase in _tankBases.Bases)
+            tankBase.AdvanceBotTrickle(_simulationSettings.AdvanceStep.TotalSeconds);
         AdvanceSectorGoal();
+        LatchMatchResult();
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
         foreach (var tank in _tankList.Tanks)
         {
@@ -384,7 +405,9 @@ public class World
             foreach (var other in _tankList.Tanks)
                 if (other != tank && !other.IsDead)
                     _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize, Alive: true));
-            radar.Advance(_terrain, _terrain, tank.Position, tank.Color, _radarTargets);
+            radar.Advance(_terrain, _terrain, tank.Position, tank.Color, _radarTargets,
+                tank.Base is { } home ? RadarReach.Scaled(home.Upgrades.RadarRangeScale, home.Upgrades.RadarHeatBudgetScale)
+                    : RadarReach.Base);
         }
     }
 
@@ -426,6 +449,27 @@ public class World
         return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
     }
 
+    private readonly List<CoverageNode> _machineCoverageNodes = new();
+
+    /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
+    private bool IsMachineOnNetwork(Machine machine)
+    {
+        if (machine.OwnerBase is not TankBase owner)
+            return false;
+        NetworkCoverage.CollectNodes(owner, _machines.Machines, _machineCoverageNodes);
+        return NetworkCoverage.At(machine.Position, _machineCoverageNodes, _terrain).Covered;
+    }
+
+    /// <summary>
+    /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer: the bot does not prospect, so
+    /// its base gets <see cref="Tweaks.Ore.BotOrePerSecond"/> of ore instead (a stand-in, DESIGN.md §6.4).
+    /// </summary>
+    public void SetBotControlled(int spawnIndex)
+    {
+        if (_tankBases.GetSpawn(spawnIndex) is TankBase tankBase)
+            tankBase.IsBotControlled = true;
+    }
+
     /// <summary>What a machine of <paramref name="type"/> would do if planted at <paramref name="at"/>.</summary>
     public MachinePlacementPreview PreviewPlacement(MachineType type, Position at) =>
         MachineBehaviors.Get(type).RequiresLinkToPlant
@@ -454,32 +498,48 @@ public class World
     public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
         NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
-    /// <summary>A match is over once any tank has died with no lives left.</summary>
-    public bool IsMatchOver
+    /// <summary>
+    /// Whether the first base to tap the core wins the match (a race, DESIGN.md §4.8). Off by default: the core is
+    /// then a goal that does not end the match. Set before the first step.
+    /// </summary>
+    public bool CoreTapWins { get; set; }
+
+    /// <summary>The base that tapped the core first, once one has.</summary>
+    private TankBase? _firstToTapCore;
+
+    /// <summary>True from the step in which the match was decided; its result is then fixed.</summary>
+    private bool _matchDecided;
+
+    private (Tank Tank, MatchWinReason Reason)? _decidedWinner;
+
+    /// <summary>
+    /// The tank that has won, and how: the first to tap the core when <see cref="CoreTapWins"/>, or the only tank
+    /// with lives left. Null while the match is undecided, and after a match that ended with no tank left. Once the
+    /// step that decided the match has run, it never changes.
+    /// </summary>
+    public (Tank Tank, MatchWinReason Reason)? MatchWinner =>
+        _matchDecided ? _decidedWinner : MatchReferee.Winner(_tankList.Tanks, CoreTapWins ? _firstToTapCore : null);
+
+    /// <summary>A match is over once a tank has won, or no tank has a life left. It stays over.</summary>
+    public bool IsMatchOver => _matchDecided || MatchWinner != null || MatchReferee.NobodyIsLeft(_tankList.Tanks);
+
+    /// <summary>
+    /// Records the result the first time the referee has one, so that nothing that happens afterwards (the winner
+    /// dying, another base finishing its hold) can change it.
+    /// </summary>
+    private void LatchMatchResult()
     {
-        get
-        {
-            foreach (var tank in _tankList.Tanks)
-                if (IsOutOfLives(tank))
-                    return true;
-            return false;
-        }
+        if (_matchDecided)
+            return;
+        var winner = MatchWinner;
+        if (winner == null && !MatchReferee.NobodyIsLeft(_tankList.Tanks))
+            return;
+        _decidedWinner = winner;
+        _matchDecided = true;
     }
 
     /// <summary>How the match stands for <paramref name="player"/>.</summary>
-    public MatchOutcome MatchOutcomeFor(Tank player)
-    {
-        if (IsOutOfLives(player))
-            return MatchOutcome.Defeat;
-        if (player.IsDead)
-            return MatchOutcome.InProgress;
-        foreach (var tank in _tankList.Tanks)
-            if (tank != player && IsOutOfLives(tank))
-                return MatchOutcome.Victory;
-        return MatchOutcome.InProgress;
-    }
-
-    private static bool IsOutOfLives(Tank tank) => tank.IsDead && tank.LivesLeft <= 0;
+    public MatchOutcome MatchOutcomeFor(Tank player) => MatchReferee.OutcomeFor(player, MatchWinner?.Tank);
 
     /// <summary>
     /// The hot core, the sector goal (DESIGN.md §4.8): the large hot rock pocket at the map centre, or the nearest
@@ -508,7 +568,13 @@ public class World
             tankBase.CoreTapPerTick = tap;
             tankBase.CoreHoldSeconds = NextCoreHold(tankBase.CoreHoldSeconds, tap, dt);
             if (tankBase.CoreHoldSeconds >= Tweaks.Goal.GoalHoldSeconds)
+            {
                 tankBase.HasTappedCore = true;
+                // Bases are visited in slot order, so two that finish on the same tick always resolve the same way.
+                // A base whose tank is out of lives is out of the race, even if its hold was already running.
+                if (!MatchReferee.IsEliminated(_tankList.Tanks, tankBase))
+                    _firstToTapCore ??= tankBase;
+            }
         }
     }
 

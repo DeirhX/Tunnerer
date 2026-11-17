@@ -61,7 +61,7 @@ public class TerrainBehaviorTests
         TerrainPixel[] defined = [
             TerrainPixel.Blank, TerrainPixel.Dirt,
             TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.Decal,
-            TerrainPixel.Concrete, TerrainPixel.Gold,
+            TerrainPixel.Concrete, TerrainPixel.Gold, TerrainPixel.Emberite, TerrainPixel.EmberiteCore,
             TerrainPixel.BaseBarrier, TerrainPixel.BaseCore, TerrainPixel.BaseMin, TerrainPixel.BaseMax,
         ];
 

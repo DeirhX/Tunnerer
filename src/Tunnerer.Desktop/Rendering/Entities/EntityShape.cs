@@ -10,7 +10,7 @@ public static class EntityShape
     public const float KindTankHull = 0f;
     public const float KindTankTurret = 1f;
     public const float KindHotShot = 2f;
-    // 3 was the foam blob; the number stays free so the other kinds keep theirs.
+    public const float KindOreBeam = 3f;
     public const float KindRelay = 4f;
     public const float KindHarvester = 5f;
     public const float KindSenseRing = 6f;

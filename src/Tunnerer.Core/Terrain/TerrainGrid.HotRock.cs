@@ -30,8 +30,6 @@ public partial class TerrainGrid
     /// </summary>
     private int PlacePinnedPocket(Position center, int radius, TerrainPixel pixel, ThermalMaterial material)
     {
-        float pinned = _heatEngine.GetFixedTemperature(material);
-        double capacity = _heatEngine.GetHeatCapacity(material);
         int radiusSq = radius * radius;
         int converted = 0;
 
@@ -46,20 +44,33 @@ public partial class TerrainGrid
                 if (pos.X < 1 || pos.Y < 1 || pos.X >= Width - 1 || pos.Y >= Height - 1)
                     continue;
 
-                int offset = pos.X + pos.Y * Width;
-                TerrainPixel existing = _data[offset];
-                if (!(Pixel.IsDirt(existing) || existing == TerrainPixel.DirtGrow || Pixel.IsRock(existing)))
+                if (!IsSolidGround(_data[pos.X + pos.Y * Width]))
                     continue;
 
-                SetPixel(pos, pixel);
-                float old = _heatTemperature[offset];
-                _heatTemperature[offset] = pinned;
-                Ledger.RecordInjected((pinned - old) * capacity);
-                MarkHeatDirty(pos.X, pos.Y);
-                ActivateTileByCell(pos.X, pos.Y);
+                SetPinnedPixel(pos, pixel, material);
                 converted++;
             }
 
         return converted;
+    }
+
+    /// <summary>Dirt (grown or not) and plain rock: the ground generation may turn into pockets and deposits.</summary>
+    private static bool IsSolidGround(TerrainPixel pixel) =>
+        Pixel.IsDirt(pixel) || pixel == TerrainPixel.DirtGrow || Pixel.IsRock(pixel);
+
+    /// <summary>
+    /// Writes a fixed-temperature pixel and sets the cell to its pinned temperature at once, recording the change in
+    /// the <see cref="Ledger"/> as injected. The cell's tile is woken, so the solver steps the new source.
+    /// </summary>
+    private void SetPinnedPixel(Position pos, TerrainPixel pixel, ThermalMaterial material)
+    {
+        int offset = pos.X + pos.Y * Width;
+        SetPixel(pos, pixel);
+        float pinned = _heatEngine.GetFixedTemperature(material);
+        float old = _heatTemperature[offset];
+        _heatTemperature[offset] = pinned;
+        Ledger.RecordInjected((pinned - old) * (double)_heatEngine.GetHeatCapacity(material));
+        MarkHeatDirty(pos.X, pos.Y);
+        ActivateTileByCell(pos.X, pos.Y);
     }
 }

@@ -20,10 +20,10 @@ public class SimulationFingerprintTests
 
     // The same on every OS: Core uses DeterministicMath instead of the platform math library. A failure on one OS
     // only means something platform-dependent has crept back into the simulation.
-    private const ulong ExpectedPlayerDrivesAndShoots = 0x6967B17799831016UL;
-    private const ulong ExpectedRelayPylonHarvesterNetwork = 0xB1D29E7CC0258256UL;
-    private const ulong ExpectedEnemyMachinesShotToPieces = 0x00949F1014F3038EUL;
-    private const ulong ExpectedBotVsBot = 0x20A2DE258CB7D622UL;
+    private const ulong ExpectedPlayerDrivesAndShoots = 0x751451E6A748D188UL;
+    private const ulong ExpectedRelayPylonHarvesterNetwork = 0xE7A3D02389E878BDUL;
+    private const ulong ExpectedEnemyMachinesShotToPieces = 0xB980AEF884948355UL;
+    private const ulong ExpectedBotVsBot = 0x476AA8111B49AB1EUL;
 
     [Fact]
     public void PlayerDrivesAndShoots_MatchesRecordedFingerprint()
@@ -50,7 +50,13 @@ public class SimulationFingerprintTests
         s.World.Terrain.AddHeatRadius(s.RelayPos, 150, 8);
         RelayHeatTests.PlantRelay(s);
         Plant(s, MachineType.Pylon, Tweaks.Base.BaseSize / 2 + 6);
+        // Ore beside the harvester, which stands in the base's coverage, so it mines into the store.
+        for (int dy = -2; dy <= 2; dy++)
+            for (int dx = 3; dx <= 5; dx++)
+                s.World.Terrain.SetPixel(s.Base.Position + new Offset(dx, s.DirY * (Tweaks.Base.BaseSize / 2 + 18 + dy)),
+                    Tunnerer.Core.Terrain.TerrainPixel.Emberite);
         Plant(s, MachineType.Harvester, Tweaks.Base.BaseSize / 2 + 18);
+        int storeBefore = s.Base.Store.Ore;
 
         for (int frame = 0; frame < 400; frame++)
         {
@@ -63,6 +69,7 @@ public class SimulationFingerprintTests
             s.World.Advance(i => i == 0 ? input : TestSimulation.Idle);
         }
 
+        Assert.True(s.Base.Store.Ore > storeBefore, "the scenario must have the harvester mine ore");
         AssertFingerprint(ExpectedRelayPylonHarvesterNetwork, s.World);
     }
 
@@ -124,7 +131,7 @@ public class SimulationFingerprintTests
     private static ulong Fingerprint(World world)
     {
         var h = new Fnv64();
-        h.Add(TestSimulation.ComputeWorldStateHash(world));
+        h.Add(WorldStateHash.Compute(world));
 
         var terrain = world.Terrain;
         int area = terrain.Width * terrain.Height;
@@ -160,6 +167,7 @@ public class SimulationFingerprintTests
         {
             h.Add(tankBase.Charge);
             h.Add(tankBase.ReactorHeatEnergy);
+            h.Add(tankBase.Store.Ore);
         }
 
         foreach (var machine in world.Machines.Machines)

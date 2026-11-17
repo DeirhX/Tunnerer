@@ -6,7 +6,10 @@ using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 
-/// <summary>Network links as beams: heat flowing to the base, and charge flowing out to pylons and batteries.</summary>
+/// <summary>
+/// Network links as beams: heat flowing to the base, charge flowing out to pylons and batteries, and ore a tank
+/// unloaded into the network flowing home.
+/// </summary>
 public sealed class LinkQuads
 {
     private LinkRenderState[] _links = [];
@@ -50,6 +53,15 @@ public sealed class LinkQuads
                 Position chargeFrom = link.ChargeFlowsFromTo ? link.From : link.To;
                 Position chargeTo = link.ChargeFlowsFromTo ? link.To : link.From;
                 SubmitChargeBeam(beams, link.From, link.To, chargeFrom.X, chargeFrom.Y, chargeTo.X, chargeTo.Y, link.ChargeFlow);
+            }
+
+            // Ore on its way home: teal crystals running toward the base.
+            if (live && link.OreFlow > 0.01f)
+            {
+                Position oreFrom = link.OreFlowsFromTo ? link.From : link.To;
+                Position oreTo = link.OreFlowsFromTo ? link.To : link.From;
+                beams.Submit(new BeamKey(EntityShape.KindOreBeam, link.From, link.To),
+                    oreFrom.X, oreFrom.Y, oreTo.X, oreTo.Y, link.OreFlow, 1.5f);
             }
         }
     }

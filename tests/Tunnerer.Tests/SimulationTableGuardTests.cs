@@ -100,11 +100,11 @@ public class SimulationTableGuardTests
             .Where(p => p.Item3 != table.PairConductance(p.Item1, p.Item2))
             .Select(p => $"{p.Item1}-{p.Item2}: expected {p.Item3:R}, got {table.PairConductance(p.Item1, p.Item2):R}");
         Assert.Empty(wrong);
-        float[] airExchange = [0f, 0.035f, 0.220f, 0.450f, 0.550f, 0.220f, 0.220f];
+        float[] airExchange = [0f, 0.035f, 0.220f, 0.450f, 0.550f, 0.220f, 0.220f, 0.220f];
         foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
             Assert.Equal(airExchange[(int)m], table[m].AirExchange);
         // What leaves the map: open air and unpinned ground give a little up every tick, pinned cells nothing.
-        float[] loss = [0.0010f, 0.0003f, 0.0003f, 0f, 0f, 0f, 0f];
+        float[] loss = [0.0010f, 0.0003f, 0.0003f, 0f, 0f, 0f, 0f, 0f];
         foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
             Assert.Equal(loss[(int)m], table[m].Loss);
     }
@@ -142,6 +142,7 @@ public class SimulationTableGuardTests
         {
             "LevelGenDirt", "LevelGenRock", "LevelGenMark", "Blank", "Dirt", "DirtGrow", "Rock", "Decal",
             "BaseMin", "BaseMax", "BaseBarrier", "BaseCore", "HotRock", "FrostRock", "Concrete", "Gold",
+            "Emberite", "EmberiteCore",
         };
         string[] actual = Enum.GetNames<TerrainPixel>();
         Assert.Equal(reviewed.Order(), actual.Order());
@@ -150,6 +151,7 @@ public class SimulationTableGuardTests
     [Theory]
     [InlineData(TerrainPixel.HotRock)]
     [InlineData(TerrainPixel.FrostRock)]
+    [InlineData(TerrainPixel.EmberiteCore)]
     [InlineData(TerrainPixel.BaseBarrier)]
     [InlineData(TerrainPixel.BaseCore)]
     public void FixedTemperatureCells_StayPinned_AndTheLedgerAccountsForIt(TerrainPixel pinned)

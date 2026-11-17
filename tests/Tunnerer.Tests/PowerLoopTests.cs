@@ -79,6 +79,8 @@ public class PowerLoopTests
     public void Harvester_SpendsItsBatteryAsItWorks_AndStopsWhenFlat()
     {
         var s = RelayHeatTests.CreateScenario();
+        HarvesterHeatTests.SeedOre(s);
+        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
         var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
         harvester.Charge = Tweaks.Machine.HarvesterHeatPerHarvest * 3.5;   // three actions' worth, no pylon to go to
 
@@ -86,9 +88,9 @@ public class PowerLoopTests
 
         Assert.True(harvester.Charge < Tweaks.Machine.HarvesterHeatPerHarvest, $"charge left={harvester.Charge:0}");
         double flat = harvester.Charge;
-        int storeBefore = s.Base.Materials.Dirt;
+        int storeBefore = s.Base.Store.Ore;
         Advance(s, Tweaks.Perf.TargetFps * 5);
-        Assert.Equal(storeBefore, s.Base.Materials.Dirt);
+        Assert.Equal(storeBefore, s.Base.Store.Ore);
         Assert.Equal(flat, harvester.Charge, precision: 6);
     }
 
@@ -171,12 +173,14 @@ public class PowerLoopTests
         var s = RelayHeatTests.CreateScenario();
         var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * -6));
-        // Fill the open tunnel around the harvester with regrowing dirt, as when its walls start to recover.
+        // Ore further down the tunnel, and the open tunnel between it and the harvester filled with regrowing dirt, as
+        // when its walls start to recover. The line back to the relay stays open, so the harvester stays on the network.
+        HarvesterHeatTests.SeedOre(s, along: 10);
         var t = s.World.Terrain;
-        for (int dy = -6; dy <= 6; dy++)
+        for (int dy = 1; dy <= 6; dy++)
             for (int dx = -6; dx <= 6; dx++)
             {
-                var pos = s.RelayPos + new Offset(dx, dy);
+                var pos = s.RelayPos + new Offset(dx, s.DirY * dy);
                 if (t.GetPixelRaw(pos) == Tunnerer.Core.Terrain.TerrainPixel.Blank && Math.Abs(dx) + Math.Abs(dy) > 0)
                     t.SetPixel(pos, Tunnerer.Core.Terrain.TerrainPixel.DirtGrow);
             }
