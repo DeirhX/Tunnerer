@@ -56,7 +56,7 @@ internal static class HarvesterPathing
     }
 
     /// <summary>
-    /// The plain ore the harvester can work soonest: the cell in its work area within <c>Ore.HarvesterReach</c> of the
+    /// The plain ore (not too hot to work) the harvester can work soonest: the cell in its work area within <c>Ore.HarvesterReach</c> of the
     /// centre nearest by path that its footprint can stand on (its own position first), or null when no plain ore in
     /// the area can be got within reach of. <paramref name="firstStep"/> is the first step of that path, zero when the
     /// ore is in reach of where it stands. <paramref name="coreLeft"/> says whether the area still holds core ore,
@@ -136,7 +136,7 @@ internal static class HarvesterPathing
 
     /// <summary>
     /// The plain ore cell of the work area closest to <paramref name="center"/> and within the harvester's reach of
-    /// it (first in scan order on ties), or null.
+    /// it (first in scan order on ties), or null. Ore too hot to work (<c>HarvesterHotOreTemperature</c>) does not count.
     /// </summary>
     private static Position? OreInReach(Machine machine, ITerrainAccess terrain, Position center)
     {
@@ -152,6 +152,7 @@ internal static class HarvesterPathing
                 if (!terrain.IsInside(pos) || !InWorkArea(machine, pos)) continue;
                 var pixel = terrain.GetPixelRaw(pos);
                 if (!Pixel.IsOre(pixel) || Pixel.IsOreCore(pixel)) continue;
+                if (terrain.GetHeatTemperature(pos) >= Tweaks.Machine.HarvesterHotOreTemperature) continue;
                 bestDist = d;
                 best = pos;
             }

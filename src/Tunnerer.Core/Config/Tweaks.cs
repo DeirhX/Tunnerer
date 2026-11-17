@@ -193,7 +193,7 @@ public static class Tweaks
         // per Machine.HarvesterIntervalMs that is about 1.1 units/s, so a harvester repays its cost in under a minute.
         // They leave a lump's core to the tank's torch.
         public const int HarvesterReach = 4;
-        public const int HarvesterPlainWork = 3;
+        public const int HarvesterPlainWork = 6;
 
         // The bot does not prospect: a base whose side is played by the computer gets this much ore a second instead
         // (World.SetBotControlled). A stand-in until the bot mines.
@@ -474,8 +474,9 @@ public static class Tweaks
     {
         public const int ReactorHeatCapacity = 100;
         public const int ReactorHealthCapacity = 1000;
-        // A harvester acts (mines what it can reach, or crawls one cell) every this many milliseconds.
-        public const int HarvesterIntervalMs = 300;
+        // A harvester acts (works ore in reach, or crawls one cell) every this many milliseconds: it crawls about 6.7
+        // cells a second. Working a cell takes Ore.HarvesterPlainWork of these, so the mining rate does not depend on it.
+        public const int HarvesterIntervalMs = 150;
         // A harvester roams and mines within this distance of where it was planted.
         public const int HarvestRange = 20;
         // It clears the dirt (worth nothing) within this radius as it crawls, so its tunnel stays open; what it mines
@@ -484,7 +485,7 @@ public static class Tweaks
         // Work runs on charge, and spent charge ends up as heat in the ground around the harvester: each action that
         // works ore spends this much, a crawl step spends HarvesterCrawlCharge.
         // Starting guesses for the first-prototype spike; tune in play.
-        public const float HarvesterHeatPerHarvest = 1000f;
+        public const float HarvesterHeatPerHarvest = 500f;
         public const float HarvesterCrawlCharge = 200f;
         // About 40 s of mining on a full battery. A harvester is planted full.
         public const float HarvesterBatteryCapacity = 120_000f;
@@ -497,6 +498,10 @@ public static class Tweaks
         // lets it work at full speed. Starting guess for the spike; tune in play.
         public const float HarvesterStallTemperature = 30f;
         public const int HarvesterHeatSenseRadius = 4;
+        // Ore on a cell hotter than this is left alone, as if it were out of reach: it is the shell of a lump whose core
+        // is still in (55 to 80 degrees; ore a harvester works warms to about 25), and a harvester that went for it would
+        // sit stalled at the edge for ever. Cooled below this (a relay beside it, or the core out), it is worked again.
+        public const float HarvesterHotOreTemperature = 45f;
 
         // Pylon: a link node that hands base charge to batteries in direct line of sight within PylonRange, drawing
         // it from its base over the link network.
