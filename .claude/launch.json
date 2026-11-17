@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tunnerer-browser",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["tools/browser/serve.py", "artifacts/browser/wwwroot", "--port", "8703"],
+      "port": 8703
+    },
+    {
+      "name": "wasm-spike-single-thread",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["spikes/WasmThreads/serve.py", "spikes/WasmThreads/out/st/wwwroot", "8701"],
+      "port": 8701
+    },
+    {
+      "name": "wasm-spike-threads",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["spikes/WasmThreads/serve.py", "spikes/WasmThreads/out/mt/wwwroot", "8702"],
+      "port": 8702
+    }
+  ]
+}

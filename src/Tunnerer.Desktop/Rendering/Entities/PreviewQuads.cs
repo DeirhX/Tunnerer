@@ -3,12 +3,11 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Types;
-using Tunnerer.Desktop.Presentation;
 using Tunnerer.Core.Network;
 
 /// <summary>
 /// What the player's carried machine would do if planted now, drawn from the player tank as its
-/// <see cref="MachinePresentation.Sprite"/> says: the ground it would sense, or the ground it would reach (a relay
+/// <see cref="MachineSprites"/> says: the ground it would sense, or the ground it would reach (a relay
 /// cools, a pylon charges) and the link it would make.
 /// </summary>
 public sealed class PreviewQuads
@@ -41,7 +40,7 @@ public sealed class PreviewQuads
         float cx = quads.ScreenX(player.X);
         float cy = quads.ScreenY(player.Y);
 
-        MachineSprite sprite = MachinePresentations.Get(_preview.Type).Sprite;
+        MachineSprite sprite = MachineSprites.Get(_preview.Type);
         if (sprite.SenseRadius is float r)
         {
             quads.Add(cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f,

@@ -11,12 +11,11 @@ public class TerrainAuxUploaderTests
     private static readonly Rect Viewport = new(0, 0, 128, 96);
 
     private readonly TerrainGrid _terrain = new(TerrainSize);
-    private readonly RenderViewState _view = new();
     private readonly TerrainAuxUploader _uploader = new(TerrainSize, new TerrainAuxBuilder(), new DrawProfile());
 
     private TerrainAuxFrame Frame(bool stepped = false)
     {
-        var frame = _uploader.Prepare(TerrainView.Live(_terrain), _view, Viewport, stepped, visualTime: 0f);
+        var frame = _uploader.Prepare(TerrainView.Live(_terrain), Viewport, stepped, visualTime: 0f);
         _uploader.Commit(_terrain, frame);
         return frame;
     }

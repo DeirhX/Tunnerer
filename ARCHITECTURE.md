@@ -2,7 +2,9 @@
 
 Tunnerer is a C# / .NET 10 game that began as a port of a C++ engine (kept on the `cplusplus-legacy` branch) and has
 since grown its own thermal simulation and a GPU renderer. The simulation is platform-independent
-(`Tunnerer.Core`); everything that touches a window, a GPU or an input device lives in `Tunnerer.Desktop`.
+(`Tunnerer.Core`); the desktop host lives in `Tunnerer.Desktop`. The browser host runs Core as WebAssembly in a
+Web Worker, with a WebGL 2 backend and an installable offline shell (see `docs/browser.md`). Both hosts use the
+same procedural shaders and platform-independent rendering code in `Tunnerer.Rendering`.
 
 For build and run instructions, controls and command-line options see `README.md`.
 
@@ -13,6 +15,9 @@ Tunnerer.slnx
 src/
   Tunnerer.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
     ARCHITECTURE.md        Detailed design
+  Tunnerer.Browser.Client/ Portable browser session and presentation snapshots; references Core and Rendering.
+  Tunnerer.Browser/        WebAssembly exports, WebGL backend, browser input and offline PWA shell.
+  Tunnerer.Rendering/      Shared rendering assembly; compiles the pure rendering sources from Desktop.
   Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
   Tunnerer.Protocol/       What a network match's clients and relay share: tick bundles and the relay's tick rule.

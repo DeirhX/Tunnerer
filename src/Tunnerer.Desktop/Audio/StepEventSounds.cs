@@ -3,7 +3,6 @@ namespace Tunnerer.Desktop.Audio;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Desktop.Config;
-using Tunnerer.Desktop.Presentation;
 
 /// <summary>Whose event a one-shot is heard for.</summary>
 public enum CueHeard
@@ -41,7 +40,7 @@ public readonly record struct StepEventCue(SoundEffect Effect, float Gain, CueHe
 /// Which one-shot effect a simulation event (<see cref="World.StepEvents"/>) plays. This is the one table of event
 /// sounds: <see cref="GameAudio"/> plays what it says. Events that make no one-shot of their own (moving, digging,
 /// base service and spent shrapnel, which drive loops and the debris rattle in <see cref="GameAudio"/>) and events
-/// with no sound yet have no cue.
+/// with no sound yet have no cue. The browser client shares this file and plays the cues it picks with its own tones.
 /// </summary>
 public static class StepEventSounds
 {
@@ -53,7 +52,7 @@ public static class StepEventSounds
         StepEventKind.TankHit => new(SoundEffect.TankHit, AudioTweaks.TankHitGain, CueHeard.TrackedTank),
         StepEventKind.TankDied => new(SoundEffect.TankDeath, AudioTweaks.TankDeathGain, CueHeard.TrackedTank),
         StepEventKind.TankRespawned => new(SoundEffect.Respawn, AudioTweaks.RespawnGain, CueHeard.TrackedTank),
-        StepEventKind.MachineBuilt => new(MachinePresentations.Get(machine).BuildSound, AudioTweaks.BuildGain, CueHeard.TrackedTank),
+        StepEventKind.MachineBuilt => new(BuildSound(machine), AudioTweaks.BuildGain, CueHeard.TrackedTank),
         StepEventKind.MachinePlanted => new(SoundEffect.Plant, AudioTweaks.PlantGain, CueHeard.TrackedTank),
         StepEventKind.PlantRefused or StepEventKind.BuildRefused =>
             new(SoundEffect.PlantRefused, AudioTweaks.RefusedGain, CueHeard.Player),
@@ -72,4 +71,23 @@ public static class StepEventSounds
         CueHeard.TrackedTank => tracked,
         _ => tracked && isPlayer,
     };
+
+    /// <summary>The sound of building a machine of <paramref name="type"/>; each machine has its own.</summary>
+    public static SoundEffect BuildSound(MachineType type) =>
+        (uint)type < (uint)BuildSounds.Length ? BuildSounds[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));
+
+    private static readonly SoundEffect[] BuildSounds = BuildSoundTable(
+        (MachineType.Relay, SoundEffect.BuildRelay),
+        (MachineType.Harvester, SoundEffect.BuildHarvester),
+        (MachineType.Pylon, SoundEffect.BuildPylon));
+
+    private static SoundEffect[] BuildSoundTable(params (MachineType Type, SoundEffect Sound)[] entries)
+    {
+        var table = new SoundEffect?[Enum.GetValues<MachineType>().Length];
+        foreach (var (type, sound) in entries)
+            table[(int)type] = sound;
+        if (Array.IndexOf(table, null) >= 0)
+            throw new InvalidOperationException("Every MachineType needs a build sound.");
+        return Array.ConvertAll(table, s => s!.Value);
+    }
 }

@@ -2,30 +2,6 @@ namespace Tunnerer.Desktop.Audio;
 
 using Tunnerer.Desktop.Config;
 
-public enum SoundEffect
-{
-    Fire,
-    Impact,
-    Debris,
-    TankHit,
-    TankDeath,
-    Respawn,
-    Dock,
-    BuildRelay,
-    BuildHarvester,
-    BuildPylon,
-    Plant,
-    PlantRefused,
-    Pickup,
-    WarnOverheat,
-    WarnShield,
-    WarnEnergy,
-    EngineLoop,
-    DigLoop,
-    TorchLoop,
-    RechargeLoop,
-}
-
 /// <summary>
 /// Every sound in the game, synthesised when the game starts: filtered noise, sine partials and envelopes, written
 /// out as mono samples at <see cref="AudioTweaks.SampleRate"/>. There are no sound files. The noise generator is

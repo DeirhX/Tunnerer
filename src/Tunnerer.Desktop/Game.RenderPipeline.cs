@@ -47,11 +47,11 @@ public partial class Game
         {
             var hiResWatch = Stopwatch.StartNew();
 
-            var visibleRect = _renderViewState.ComputeVisibleWorldRect(_terrainSize, scale);
+            Rect visibleRect = renderView.VisibleCells();
             Rect? sightChanged = null;
             FogUpload fog = _fogLayer != null && _vision != null ? _fogLayer.Prepare(_vision, out sightChanged) : default;
             TerrainAuxFrame terrainAux = _terrainAuxUploader.Prepare(
-                _terrainView, _renderViewState, visibleRect, steppedSinceRender, visualTime, sightChanged);
+                _terrainView, visibleRect, steppedSinceRender, visualTime, sightChanged);
 
             _drawProfile.ScreenHiResTerrain += hiResWatch.Elapsed;
             double terrainMs = hiResWatch.Elapsed.TotalMilliseconds;

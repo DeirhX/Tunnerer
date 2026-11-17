@@ -4,16 +4,23 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Tunnerer.ShaderCompiler;
 
-// Usage: Tunnerer.ShaderCompiler --out <dir> <file.hlsl>=<vertex|fragment> [...]
+// Usage: Tunnerer.ShaderCompiler [--web] --out <dir> <file.hlsl>=<vertex|fragment> [...]
 //
 // For each HLSL file writes <name>.spv (Vulkan), <name>.dxil (Direct3D 12), <name>.msl (Metal) and <name>.json (the
 // resource counts and entry points SDL_CreateGPUShader needs). The HLSL entry point is always "main"; resources are
 // declared in SDL_GPU's register spaces through the macros in PostPs/Common/Registers.hlsli.
+// --web additionally exports GLSL ES 3.00, plus a Y-flipped FullscreenTargetVs for WebGL framebuffer textures.
 
 string? outDir = null;
+bool web = false;
 var shaders = new List<(string Path, ShaderCross.ShaderStage Stage)>();
 for (int i = 0; i < args.Length; i++)
 {
+    if (args[i] == "--web")
+    {
+        web = true;
+        continue;
+    }
     if (args[i] == "--out" && i + 1 < args.Length)
     {
         outDir = args[++i];
@@ -47,7 +54,7 @@ try
 {
     foreach (var (path, stage) in shaders)
     {
-        if (!Compiler.CompileOne(path, stage, outDir, out string error))
+        if (!Compiler.CompileOne(path, stage, outDir, web, out string error))
             return Fail($"{path}: {error}");
     }
 }
@@ -56,7 +63,7 @@ finally
     ShaderCross.Quit();
 }
 
-Console.WriteLine($"[Shaders] Compiled {shaders.Count} shader(s) to DXIL, SPIR-V and MSL in {outDir}");
+Console.WriteLine($"[Shaders] Compiled {shaders.Count} shader(s) to DXIL, SPIR-V, MSL{(web ? " and GLSL ES" : "")} in {outDir}");
 return 0;
 
 static int Fail(string message)
@@ -71,7 +78,7 @@ internal static unsafe partial class Compiler
     private const string Entrypoint = "main";
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 
-    public static bool CompileOne(string path, ShaderCross.ShaderStage stage, string outDir, out string error)
+    public static bool CompileOne(string path, ShaderCross.ShaderStage stage, string outDir, bool web, out string error)
     {
         string name = Path.GetFileNameWithoutExtension(path);
         string source = File.ReadAllText(path);
@@ -148,6 +155,12 @@ internal static unsafe partial class Compiler
         }
 
         File.WriteAllBytes(Path.Combine(outDir, name + ".spv"), spirv);
+        if (web)
+        {
+            File.WriteAllText(Path.Combine(outDir, name + ".glsl"), WebShaderCompiler.Transpile(spirv, stage));
+            if (name == "FullscreenVs")
+                File.WriteAllText(Path.Combine(outDir, "FullscreenTargetVs.glsl"), WebShaderCompiler.Transpile(spirv, stage, flipVertexY: true));
+        }
         File.WriteAllBytes(Path.Combine(outDir, name + ".dxil"), dxil);
         File.WriteAllText(Path.Combine(outDir, name + ".msl"), msl);
         var json = new ShaderMetadataFile(

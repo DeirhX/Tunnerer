@@ -8,7 +8,19 @@ public readonly record struct RenderView(
     Size ViewSize,
     Size WorldSize,
     Position CameraPixels,
-    int PixelScale);
+    int PixelScale)
+{
+    /// <summary>The terrain cells the view shows any part of, clipped to the world.</summary>
+    public Rect VisibleCells()
+    {
+        int scale = Math.Max(1, PixelScale);
+        int minX = Math.Max(0, CameraPixels.X / scale);
+        int minY = Math.Max(0, CameraPixels.Y / scale);
+        int maxX = Math.Min(WorldSize.X, (CameraPixels.X + ViewSize.X + scale - 1) / scale);
+        int maxY = Math.Min(WorldSize.Y, (CameraPixels.Y + ViewSize.Y + scale - 1) / scale);
+        return new Rect(minX, minY, Math.Max(0, maxX - minX), Math.Max(0, maxY - minY));
+    }
+}
 
 public readonly record struct GamePixelsUpload(
     RenderView View,

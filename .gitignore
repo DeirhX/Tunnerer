@@ -1,6 +1,7 @@
 # Build output
 build/
 artifacts/
+src/Tunnerer.Browser/wwwroot/shaders/
 
 # Visual Studio
 .vs/

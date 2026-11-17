@@ -14,7 +14,6 @@ public sealed class RenderViewState
     /// <summary>Camera position of the view's top-left corner, in device pixels.</summary>
     public int CamPixelX { get; private set; }
     public int CamPixelY { get; private set; }
-    public Rect LastAuxViewport { get; private set; }
     public int NativeContinuousSampleCount { get; private set; } = DesktopScreenTweaks.NativeContinuousSampleHigh;
 
     /// <summary>Device pixels per point of the window: 2 on Retina, 1 on a standard display.</summary>
@@ -100,102 +99,6 @@ public sealed class RenderViewState
     {
         CamPixelX = Math.Clamp(CamPixelX, -viewW / 2, worldPixelW - viewW / 2);
         CamPixelY = Math.Clamp(CamPixelY, -viewH / 2, worldPixelH - viewH / 2);
-    }
-
-    public Rect ComputeVisibleWorldRect(Size terrainSize, int scale)
-    {
-        int viewMinX = Math.Max(0, CamPixelX / scale);
-        int viewMinY = Math.Max(0, CamPixelY / scale);
-        int viewW = (HiResSize.X + scale - 1) / scale;
-        int viewH = (HiResSize.Y + scale - 1) / scale;
-        int viewMaxX = Math.Min(terrainSize.X, viewMinX + viewW);
-        int viewMaxY = Math.Min(terrainSize.Y, viewMinY + viewH);
-        return new Rect(viewMinX, viewMinY, viewMaxX - viewMinX, viewMaxY - viewMinY);
-    }
-
-    public static Rect? ClampToViewport(Rect? dirty, in Rect viewport)
-    {
-        if (dirty is null)
-            return null;
-        return RectMath.Intersect(dirty.Value, viewport);
-    }
-
-    public Rect? ComputeCameraRevealRect(in Rect currentViewport)
-    {
-        if (LastAuxViewport.Width == 0 || LastAuxViewport.Height == 0)
-            return currentViewport;
-
-        if (currentViewport.Left == LastAuxViewport.Left &&
-            currentViewport.Top == LastAuxViewport.Top &&
-            currentViewport.Right == LastAuxViewport.Right &&
-            currentViewport.Bottom == LastAuxViewport.Bottom)
-        {
-            return null;
-        }
-
-        Rect? reveal = null;
-
-        if (currentViewport.Left < LastAuxViewport.Left)
-            reveal = RectMath.Union(reveal, new Rect(currentViewport.Left, currentViewport.Top,
-                LastAuxViewport.Left - currentViewport.Left, currentViewport.Height));
-
-        if (currentViewport.Right > LastAuxViewport.Right)
-            reveal = RectMath.Union(reveal, new Rect(LastAuxViewport.Right, currentViewport.Top,
-                currentViewport.Right - LastAuxViewport.Right, currentViewport.Height));
-
-        if (currentViewport.Top < LastAuxViewport.Top)
-            reveal = RectMath.Union(reveal, new Rect(currentViewport.Left, currentViewport.Top,
-                currentViewport.Width, LastAuxViewport.Top - currentViewport.Top));
-
-        if (currentViewport.Bottom > LastAuxViewport.Bottom)
-            reveal = RectMath.Union(reveal, new Rect(currentViewport.Left, LastAuxViewport.Bottom,
-                currentViewport.Width, currentViewport.Bottom - LastAuxViewport.Bottom));
-
-        return reveal;
-    }
-
-    public void UpdateLastAuxViewport(in Rect viewport)
-    {
-        LastAuxViewport = viewport;
-    }
-
-    public static Rect? TryGetDirtyCellBounds(IReadOnlyList<Position> dirtyCells)
-    {
-        if (dirtyCells.Count == 0)
-            return null;
-
-        int minX = int.MaxValue;
-        int minY = int.MaxValue;
-        int maxX = int.MinValue;
-        int maxY = int.MinValue;
-        for (int i = 0; i < dirtyCells.Count; i++)
-        {
-            Position p = dirtyCells[i];
-            if (p.X < minX) minX = p.X;
-            if (p.Y < minY) minY = p.Y;
-            if (p.X > maxX) maxX = p.X;
-            if (p.Y > maxY) maxY = p.Y;
-        }
-
-        return RectMath.FromMinMaxInclusive(minX, minY, maxX, maxY);
-    }
-
-    public static Rect? MergeDirtyRects(Rect? a, Rect? b)
-    {
-        return RectMath.Union(a, b);
-    }
-
-    public static Rect? SubtractCoveredHeatRect(Rect? heat, Rect? full)
-    {
-        if (heat is null || full is null)
-            return heat;
-
-        Rect h = heat.Value;
-        Rect f = full.Value;
-        if (h.Left >= f.Left && h.Top >= f.Top && h.Right <= f.Right && h.Bottom <= f.Bottom)
-            return null;
-
-        return heat;
     }
 
     public void UpdateNativeContinuousQuality(double frameMs)

@@ -12,7 +12,8 @@ public readonly record struct TerrainAuxFrame(TerrainAuxUpload Upload, bool Cons
 /// Keeps the CPU copies of the terrain aux texture (R=heat, G=SDF, B=material class, A=scorch level) and the
 /// material coverage texture, and decides each frame which part of them to repack and upload: everything on the
 /// first frame, then only cells the simulation changed, the strip the camera revealed and, every few steps, the
-/// heat that changed.
+/// heat that changed. Every host draws from it (the desktop backend and the browser client), so a frame costs what
+/// changed in view on each of them.
 /// </summary>
 public sealed class TerrainAuxUploader
 {
@@ -23,6 +24,8 @@ public sealed class TerrainAuxUploader
     private readonly byte[] _coverage;
     private bool _fullUploadPending = true;
     private int _heatFrameCounter;
+    /// <summary>The cells the last frame kept up to date; ground outside it is repacked when the camera reaches it.</summary>
+    private Rect _lastViewport;
 
     public TerrainAuxUploader(Size terrainSize, TerrainAuxBuilder builder, DrawProfile profile)
     {
@@ -54,7 +57,7 @@ public sealed class TerrainAuxUploader
     /// its heat and scorch, which were not packed while it was out of sight.
     /// </param>
     public TerrainAuxFrame Prepare(
-        in TerrainView terrain, RenderViewState view, in Rect visibleRect, bool steppedSinceRender, float visualTime,
+        in TerrainView terrain, in Rect visibleRect, bool steppedSinceRender, float visualTime,
         Rect? sightChanged = null)
     {
         TerrainView source = terrain;
@@ -74,19 +77,18 @@ public sealed class TerrainAuxUploader
         }
         else
         {
-            Rect? terrainDirtyRect = RenderViewState.ClampToViewport(
-                RenderViewState.TryGetDirtyCellBounds(_dirtyCells), visibleRect);
+            Rect? terrainDirtyRect = RectMath.Intersect(BoundsOf(_dirtyCells), visibleRect);
             // Heat only changes on simulation steps; in-between frames have nothing new to pack.
             bool includeHeatAux = steppedSinceRender &&
                 (_heatFrameCounter++ % DesktopScreenTweaks.HeatAuxUpdateIntervalFrames) == 0;
             Rect? heatDirtyRect = includeHeatAux && grid.TryGetHeatDirtyRect(out Rect dirtyRect)
-                ? RenderViewState.ClampToViewport(dirtyRect, visibleRect)
+                ? RectMath.Intersect(dirtyRect, visibleRect)
                 : null;
 
-            Rect? cameraRevealRect = view.ComputeCameraRevealRect(visibleRect);
+            Rect? cameraRevealRect = CameraRevealRect(visibleRect);
 
             // Terrain changes and camera reveal need all four channels rebuilt.
-            Rect? fullAuxRect = RenderViewState.MergeDirtyRects(terrainDirtyRect, cameraRevealRect);
+            Rect? fullAuxRect = RectMath.Union(terrainDirtyRect, cameraRevealRect);
 
             // The build pads the rect by the blur margin; upload exactly what it wrote.
             if (fullAuxRect is Rect fullRect)
@@ -101,24 +103,22 @@ public sealed class TerrainAuxUploader
             // Heat-only R-channel fast path for the remaining visible heat area.
             Rect? heatOnlyRect = heatDirtyRect;
             if (heatOnlyRect is not null && fullAuxRect is not null)
-                heatOnlyRect = RenderViewState.SubtractCoveredHeatRect(heatOnlyRect, fullAuxRect);
+                heatOnlyRect = UnlessCoveredBy(heatOnlyRect, fullAuxRect);
 
             if (heatOnlyRect is Rect heatRect)
                 DrawProfile.Measure(ref _profile.AuxHeatPack, () =>
                     TerrainAuxBuilder.UpdateGpuTerrainAuxHeatOnly(source, _aux, heatRect));
 
             // Ground that came into sight: the full rect above already read its live channels, the rest needs them.
-            Rect? sightRect = RenderViewState.SubtractCoveredHeatRect(
-                RenderViewState.ClampToViewport(sightChanged, visibleRect), fullAuxRect);
+            Rect? sightRect = UnlessCoveredBy(RectMath.Intersect(sightChanged, visibleRect), fullAuxRect);
             if (sightRect is Rect seenRect)
                 DrawProfile.Measure(ref _profile.AuxHeatPack, () =>
                     TerrainAuxBuilder.UpdateGpuTerrainAuxHeatOnly(source, _aux, seenRect, includeScorch: true));
 
-            auxDirtyRect = RenderViewState.MergeDirtyRects(
-                RenderViewState.MergeDirtyRects(fullAuxRect, heatOnlyRect), sightRect);
+            auxDirtyRect = RectMath.Union(RectMath.Union(fullAuxRect, heatOnlyRect), sightRect);
             consumeHeatDirty = includeHeatAux;
         }
-        view.UpdateLastAuxViewport(visibleRect);
+        _lastViewport = visibleRect;
         _dirtyCells.Clear();
 
         return new TerrainAuxFrame(
@@ -136,5 +136,52 @@ public sealed class TerrainAuxUploader
         if (frame.ConsumesHeatDirty)
             terrain.ClearHeatDirtyRect();
         _fullUploadPending = false;
+    }
+
+    /// <summary>The part of <paramref name="viewport"/> that was outside the last frame's, or null when nothing new is in view.</summary>
+    private Rect? CameraRevealRect(in Rect viewport)
+    {
+        Rect last = _lastViewport;
+        if (last.Width == 0 || last.Height == 0)
+            return viewport;
+        if (viewport == last)
+            return null;
+
+        Rect? reveal = null;
+        if (viewport.Left < last.Left)
+            reveal = RectMath.Union(reveal, new Rect(viewport.Left, viewport.Top, last.Left - viewport.Left, viewport.Height));
+        if (viewport.Right > last.Right)
+            reveal = RectMath.Union(reveal, new Rect(last.Right, viewport.Top, viewport.Right - last.Right, viewport.Height));
+        if (viewport.Top < last.Top)
+            reveal = RectMath.Union(reveal, new Rect(viewport.Left, viewport.Top, viewport.Width, last.Top - viewport.Top));
+        if (viewport.Bottom > last.Bottom)
+            reveal = RectMath.Union(reveal, new Rect(viewport.Left, last.Bottom, viewport.Width, viewport.Bottom - last.Bottom));
+        return reveal;
+    }
+
+    private static Rect? BoundsOf(List<Position> cells)
+    {
+        if (cells.Count == 0)
+            return null;
+
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
+        for (int i = 0; i < cells.Count; i++)
+        {
+            Position p = cells[i];
+            if (p.X < minX) minX = p.X;
+            if (p.Y < minY) minY = p.Y;
+            if (p.X > maxX) maxX = p.X;
+            if (p.Y > maxY) maxY = p.Y;
+        }
+
+        return RectMath.FromMinMaxInclusive(minX, minY, maxX, maxY);
+    }
+
+    /// <summary><paramref name="rect"/>, or null when <paramref name="cover"/> already holds all of it.</summary>
+    private static Rect? UnlessCoveredBy(Rect? rect, Rect? cover)
+    {
+        if (rect is not Rect r || cover is not Rect c)
+            return rect;
+        return r.Left >= c.Left && r.Top >= c.Top && r.Right <= c.Right && r.Bottom <= c.Bottom ? null : rect;
     }
 }

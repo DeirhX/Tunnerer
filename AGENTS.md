@@ -28,7 +28,16 @@ Run from the repository root.
   gameplay change needs no new relay. Run: `dotnet run --project src/Tunnerer.Relay`.
   - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
   - `Rendering/Shaders`: the HLSL it draws.
-- `tools/Tunnerer.ShaderCompiler`: build step that compiles the HLSL for SDL_GPU (DXIL, SPIR-V, MSL) on every OS.
+- `src/Tunnerer.Rendering`: the rendering code every host shares (terrain fields and what a frame uploads of them,
+  entity emitters and machine sprites, the shader constant block, and the step-event sound table). Its sources are the files of `src/Tunnerer.Desktop` listed in
+  `Tunnerer.Rendering.csproj`, which `Tunnerer.Desktop.csproj` leaves out: sharing a file means adding it to both
+  lists. It references only Core (`ArchitectureGuardTests`).
+- `src/Tunnerer.Browser.Client`: the browser's match and what it draws, in plain .NET so the tests cover it.
+- `src/Tunnerer.Browser`: the WebAssembly exports and the web page (`wwwroot`: WebGL, input, HUD, offline shell).
+  Not in `Tunnerer.slnx`, because building it needs a .NET WebAssembly workload; `docs/browser.md` has the commands.
+- `tools/browser`: publish, serve and test the browser client.
+- `tools/Tunnerer.ShaderCompiler`: build step that compiles the HLSL for SDL_GPU (DXIL, SPIR-V, MSL) on every OS,
+  and with `--web` to GLSL ES for the browser.
 - `tests/Tunnerer.Tests`: xUnit tests for Core and for Desktop logic that needs no window, plus guard tests.
 
 ## Rules that tests enforce
@@ -75,9 +84,10 @@ Adding a machine:
    action, interval, colour, build cost, build key, and the traits Core reads instead of the type (`BatteryCapacity`,
    `IsLinkNode`, `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`). `MachineBehaviorTableTests` must pass.
 3. Cost, interval, colour and battery size in `Config/Tweaks.cs`.
-4. Desktop: a `MachinePresentation` (name, key, build slot, sound, and the `MachineSprite` the entity emitters draw:
-   shader shape, size, gauge, sense ring, battery, preview reach; `Presentation/MachinePresentation.cs`).
-   `MachinePresentationTests` must pass. A new shape also needs a shader branch. Only three build keys exist
+4. Desktop: a `MachinePresentation` (name, key, build slot, plant hint; `Presentation/MachinePresentation.cs`), a
+   `MachineSprite` in `MachineSprites` (what the entity emitters draw on desktop and in the browser: shader shape,
+   size, gauge, sense ring, battery, preview reach; `Rendering/Entities/MachineSprite.cs`) and its build sound in
+   `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`). `MachinePresentationTests` must pass. A new shape also needs a shader branch. Only three build keys exist
    (`BuildKey`), so a fourth machine also needs a new key. The full recipe is in `src/Tunnerer.Core/ARCHITECTURE.md`.
 
 Adding a shader:

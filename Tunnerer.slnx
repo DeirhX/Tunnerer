@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Tunnerer.Browser.Client/Tunnerer.Browser.Client.csproj" />
+    <Project Path="src/Tunnerer.Rendering/Tunnerer.Rendering.csproj" />
     <Project Path="src/Tunnerer.Core/Tunnerer.Core.csproj" />
     <Project Path="src/Tunnerer.Desktop/Tunnerer.Desktop.csproj" />
     <Project Path="src/Tunnerer.Protocol/Tunnerer.Protocol.csproj" />

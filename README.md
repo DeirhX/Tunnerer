@@ -7,6 +7,24 @@ Written in C# on .NET 10. The simulation (`Tunnerer.Core`) has no platform depen
 (`Tunnerer.Desktop`) uses SDL3 for the window, input and sound, SDL_GPU for rendering and Dear ImGui for the
 HUD. The sound effects are synthesised in code when the game starts; there are no sound files.
 
+The browser client (`Tunnerer.Browser`) runs the same Core simulation in WebAssembly, with the desktop's shaders
+and shared rendering code drawn through WebGL 2,
+keyboard/mouse and touch controls, and offline installation as a progressive web app. It currently supports
+a local match against a bot. See [Browser play and deployment](docs/browser.md).
+
+### Play in a browser
+
+```sh
+python3 tools/browser/publish.py --restore-workloads
+python3 tools/browser/serve.py
+```
+
+Open [localhost:8703](http://localhost:8703). Once the header says **OFFLINE READY**, the complete game is cached.
+Use **Install game** in Chrome/Edge, or your browser's install / Add to Home Screen menu. Building requires
+.NET 10 and Python 3 (`python` or `py` on Windows) and works on Windows, macOS and Linux; players need only a
+modern browser. Upload `artifacts/browser/wwwroot` to an HTTPS static
+host to share the game; the publish also creates `artifacts/browser/tunnerer-browser.zip`.
+
 ## Requirements
 
 - .NET 10 SDK

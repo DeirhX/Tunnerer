@@ -10,10 +10,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Tunnerer.Core\Tunnerer.Core.csproj" />
+    <ProjectReference Include="../Tunnerer.Rendering/Tunnerer.Rendering.csproj" />
     <ProjectReference Include="..\Tunnerer.Protocol\Tunnerer.Protocol.csproj" />
     <!-- Built first so CompileSdlGpuShaders can run it; nothing from it is referenced or copied. -->
     <ProjectReference Include="..\..\tools\Tunnerer.ShaderCompiler\Tunnerer.ShaderCompiler.csproj"
                       ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="DrawProfile.cs;Config/DesktopScreenTweaks.cs;Config/PostProcessPassFlags.cs;Rendering/Entities/*.cs" />
+    <Compile Remove="Config/AudioTweaks.cs;Audio/SoundEffect.cs;Audio/StepEventSounds.cs" />
+    <Compile Remove="Rendering/EntityLayerBuilder.cs;Rendering/IGameRenderBackend.cs;Rendering/RenderInputEvent.cs;Rendering/PostParamsBlock.cs" />
+    <Compile Remove="Rendering/TerrainAuxBuilder.cs;Rendering/TerrainAuxUploader.cs;Rendering/TerrainSolidField.cs;Rendering/TerrainMaterialCoverage.cs;Rendering/TerrainGrowthFade.cs;Rendering/TerrainView.cs;Rendering/FogLayer.cs;Rendering/RowParallel.cs" />
   </ItemGroup>
 
   <ItemGroup>

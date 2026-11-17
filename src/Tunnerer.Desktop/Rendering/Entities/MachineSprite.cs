@@ -2,6 +2,8 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Config;
+using Tunnerer.Core.Entities.Machines;
 
 /// <summary>Reads one value of a machine's render state for its shader.</summary>
 public delegate float MachineReading(in MachineRenderState machine);
@@ -41,3 +43,35 @@ public sealed record MachineSprite(
 /// <param name="Color">Tint of the area.</param>
 /// <param name="Circle">A circle (true) or a rounded square (false).</param>
 public sealed record MachineReach(float Radius, Color Color, bool Circle);
+
+/// <summary>Host-independent machine shapes, shared by desktop and WebGL.</summary>
+public static class MachineSprites
+{
+    public static MachineSprite Relay { get; } = new(EntityShape.KindRelay, HalfLength: 3.6f, HalfWidth: 3.6f,
+        Gauge: static (in MachineRenderState m) => m.PumpFraction,
+        Reach: new MachineReach(Tweaks.Machine.RelayCoolingRadius, Tweaks.Colors.Relay, Circle: false));
+
+    public static MachineSprite Harvester { get; } = new(EntityShape.KindHarvester, HalfLength: 3.4f, HalfWidth: 3.0f,
+        FacesHeading: true, SenseRadius: Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f, ShowsBattery: true);
+
+    public static MachineSprite Pylon { get; } = new(EntityShape.KindPylon, HalfLength: 3.6f, HalfWidth: 3.6f,
+        Gauge: static (in MachineRenderState m) => m.IsGivingCharge ? 1f : 0f,
+        Reach: new MachineReach(Tweaks.Machine.PylonRange, Tweaks.Colors.Pylon, Circle: true));
+
+    /// <summary>Every machine's sprite, indexed by <see cref="MachineType"/>.</summary>
+    public static IReadOnlyList<MachineSprite> All { get; } = BuildTable(
+        (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Pylon, Pylon));
+
+    public static MachineSprite Get(MachineType type) =>
+        (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));
+
+    private static MachineSprite[] BuildTable(params (MachineType Type, MachineSprite Sprite)[] entries)
+    {
+        var table = new MachineSprite[Enum.GetValues<MachineType>().Length];
+        foreach (var (type, sprite) in entries)
+            table[(int)type] = sprite;
+        if (Array.IndexOf(table, null) >= 0)
+            throw new InvalidOperationException("Every MachineType needs a MachineSprite.");
+        return table;
+    }
+}
