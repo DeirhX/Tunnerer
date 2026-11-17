@@ -1,7 +1,6 @@
 using Tunnerer.Core;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Desktop.Audio;
-using Tunnerer.Desktop.Presentation;
 
 namespace Tunnerer.Tests;
 
@@ -33,7 +32,7 @@ public class StepEventSoundsTests
     public void BuildingPlaysTheMachinesOwnSound()
     {
         foreach (var type in Enum.GetValues<MachineType>())
-            Assert.Equal(MachinePresentations.Get(type).BuildSound, Cue(StepEventKind.MachineBuilt, machine: type));
+            Assert.Equal(StepEventSounds.BuildSound(type), Cue(StepEventKind.MachineBuilt, machine: type));
     }
 
     [Theory]

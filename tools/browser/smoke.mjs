@@ -144,7 +144,7 @@ try {
     await page.waitForFunction(() => !window.testFrame.player.carrying);
     assert.ok(
         await page.evaluate(() =>
-            window.testEvents.some((e) => e.kind === "MachinePlanted"),
+            window.testEvents.some((e) => e.sound === "Plant"),
         ),
         "A relay must plant",
     );
@@ -153,7 +153,7 @@ try {
     await page.keyboard.up("Space");
     assert.ok(
         await page.evaluate(() =>
-            window.testEvents.some((e) => e.kind === "ShotFired"),
+            window.testEvents.some((e) => e.sound === "Fire"),
         ),
         "Firing must produce Core events",
     );

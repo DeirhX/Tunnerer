@@ -198,9 +198,11 @@ window and graphics dependencies out of the shared rendering assembly.
   before. `renderer.js` handles display density and the welcome illustration; `pace.js` picks the resolution the
   world is drawn at; `perf.js` is the `?perf` readout.
 - `main.js` / `input.js`: HUD, seed selection, session lifecycle and input. Build costs, placement, coverage, match
-  outcome and upgrade descriptions come from Core. Audio reads Core's step events.
+  outcome and upgrade descriptions come from Core. The match is built by Core's `MatchSetup`, as on the desktop.
+  Which events make a sound, for whom and how loud comes from the desktop's `StepEventSounds` table (each frame
+  lists the cues); `audio.js` only gives each a tone.
 
 World rendering uses the desktop's procedural materials, curved cave edges, lighting, heat/scorch/frost effects,
-fog, tank and machine shapes, animated beams and radar. The HTML HUD and procedural sound remain browser-specific.
+fog, tank and machine shapes, animated beams and radar. The HTML HUD and the tones of its sounds remain browser-specific.
 Network multiplayer and persistent saves are not included. The existing relay and protocol are unchanged.
 No Core gameplay constants or recorded simulation fingerprints changed.

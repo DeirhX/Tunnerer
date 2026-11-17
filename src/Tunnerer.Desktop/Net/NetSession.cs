@@ -1,6 +1,7 @@
 namespace Tunnerer.Desktop.Net;
 
 using Tunnerer.Core;
+using Tunnerer.Core.Match;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Input;
 using Tunnerer.Protocol;
@@ -116,7 +117,7 @@ public sealed class NetSession
         for (int slot = 0; slot < bots.Length; slot++)
             if ((humanMask & 1 << slot) == 0)
             {
-                bots[slot] = new BotTankAI(seed: BuiltWorld.BotSeed(matchSeed, slot));
+                bots[slot] = new BotTankAI(seed: MatchSetup.BotSeed(matchSeed, slot));
                 // Part of the simulation, so every client must mark the same slots: the bot's base gets its
                 // stand-in ore income.
                 world.SetBotControlled(slot);

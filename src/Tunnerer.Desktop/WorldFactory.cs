@@ -27,10 +27,7 @@ public sealed record BuiltWorld(World World, bool Parallel, int Seed)
     public Size TerrainSize => World.Terrain.Size;
 
     /// <summary>Seed for the AI of the tank in <paramref name="slot"/>; each slot gets its own.</summary>
-    public int BotSeedFor(int slot) => BotSeed(Seed, slot);
-
-    /// <summary>Seed for the AI of the tank in <paramref name="slot"/> of a match with <paramref name="matchSeed"/>.</summary>
-    public static int BotSeed(int matchSeed, int slot) => matchSeed + 1 + slot;
+    public int BotSeedFor(int slot) => MatchSetup.BotSeed(Seed, slot);
 }
 
 /// <summary>
@@ -78,14 +75,13 @@ public static class WorldFactory
         var modeLabel = parallel ? "optimized" : "deterministic";
         Console.WriteLine($"Generating terrain {size.X}x{size.Y} ({modeLabel}, seed={seed.ToString(CultureInfo.InvariantCulture)})...");
         var genWatch = Stopwatch.StartNew();
-        var generator = new ToastGenerator();
-        var (terrain, spawns) = generator.Generate(size, seed, genMode, players);
-        Console.WriteLine($"Level generated in {genWatch.Elapsed.TotalMilliseconds:F0} ms, {spawns.Length} spawns");
-
-        var world = new World(size, simulationSeed: seed, rules);
-        world.Profile.ReportSink = static line => Console.WriteLine(line);
-        world.Profile.AuditEnergy = GameLaunchOptions.EnergyAudit;
-        world.Initialize(terrain, spawns, decorationSeed: seed + 1, parallelMaterialize: parallel);
+        var world = MatchSetup.Build(size, seed, rules, players, genMode, parallel: parallel, configure: static w =>
+        {
+            w.Profile.ReportSink = static line => Console.WriteLine(line);
+            w.Profile.AuditEnergy = GameLaunchOptions.EnergyAudit;
+        });
+        Console.WriteLine($"Level generated and materialised in {genWatch.Elapsed.TotalMilliseconds:F0} ms, " +
+            $"{world.TankList.Count} tanks");
         if (world.HotRockPockets.Count > 0)
             Console.WriteLine($"[HotRock] {world.HotRockPockets.Count} pocket(s) at " +
                 string.Join(", ", world.HotRockPockets.Select(p => $"({p.X},{p.Y})")));

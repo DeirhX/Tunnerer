@@ -10,6 +10,9 @@
     <Compile Include="../Tunnerer.Desktop/DrawProfile.cs" Link="DrawProfile.cs" />
     <Compile Include="../Tunnerer.Desktop/Config/DesktopScreenTweaks.cs" Link="Config/DesktopScreenTweaks.cs" />
     <Compile Include="../Tunnerer.Desktop/Config/PostProcessPassFlags.cs" Link="Config/PostProcessPassFlags.cs" />
+    <Compile Include="../Tunnerer.Desktop/Config/AudioTweaks.cs" Link="Config/AudioTweaks.cs" />
+    <Compile Include="../Tunnerer.Desktop/Audio/SoundEffect.cs" Link="Audio/SoundEffect.cs" />
+    <Compile Include="../Tunnerer.Desktop/Audio/StepEventSounds.cs" Link="Audio/StepEventSounds.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/Entities/*.cs" Link="Entities/%(Filename)%(Extension)" />
     <Compile Include="../Tunnerer.Desktop/Rendering/EntityLayerBuilder.cs" Link="EntityLayerBuilder.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/IGameRenderBackend.cs" Link="IGameRenderBackend.cs" />

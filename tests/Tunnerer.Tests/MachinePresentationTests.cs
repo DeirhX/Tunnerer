@@ -32,9 +32,9 @@ public class MachinePresentationTests
     [Fact]
     public void EveryMachine_HasItsOwnBuildSound()
     {
-        var all = MachinePresentations.All;
-        Assert.Equal(all.Count, all.Select(p => p.BuildSound).Distinct().Count());
-        Assert.All(all, p => Assert.False(SoundBank.IsLoop(p.BuildSound), $"{p.Type}'s build sound is a loop."));
+        var sounds = Enum.GetValues<MachineType>().Select(StepEventSounds.BuildSound).ToArray();
+        Assert.Equal(sounds.Length, sounds.Distinct().Count());
+        Assert.All(sounds, s => Assert.False(SoundBank.IsLoop(s), $"{s} is a loop, not a build sound."));
     }
 
     [Fact]
@@ -61,10 +61,10 @@ public class MachinePresentationTests
             .Where(f => f.Name.StartsWith("Kind", StringComparison.Ordinal))
             .Select(f => (float)f.GetValue(null)!)
             .ToHashSet();
+        Assert.Equal(Enum.GetValues<MachineType>().Length, MachineSprites.All.Count);
         foreach (var p in MachinePresentations.All)
         {
-            var sprite = p.Sprite;
-            Assert.Same(MachineSprites.Get(p.Type), sprite);
+            var sprite = MachineSprites.Get(p.Type);
             Assert.True(sprite is not null, $"{p.Type} needs a MachineSprite.");
             Assert.Contains(sprite.Kind, kinds);
             Assert.True(sprite.HalfLength > 0f && sprite.HalfWidth > 0f, $"{p.Type}'s sprite needs a size.");

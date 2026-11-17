@@ -14,7 +14,8 @@ public sealed record PlayerStatus(
     bool Docked, bool OffNetwork, float SafeSeconds, bool Dead, double RespawnSeconds,
     string Outcome, string? Carrying, string? Refusal);
 
-public sealed record SceneEvent(string Kind, int X, int Y);
+/// <summary>A one-shot to play: a <c>SoundEffect</c> name and its gain relative to the master volume.</summary>
+public sealed record SceneEvent(string Sound, float Gain, int X, int Y);
 public sealed record BuildOption(int Key, string Name, int Cost, bool Affordable, string Payer);
 public sealed record UpgradeOption(int Key, string Name, string Effect, int Level, int Cost, bool Maxed);
 public sealed record PlantPreview(string Status, Position Target, float Heat);
