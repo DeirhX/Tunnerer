@@ -58,11 +58,20 @@ public static class MachineSprites
         Gauge: static (in MachineRenderState m) => m.IsGivingCharge ? 1f : 0f,
         Reach: new MachineReach(Tweaks.Machine.PylonRange, Tweaks.Colors.Pylon, Circle: true));
 
-    public static MachineSprite Get(MachineType type) => type switch
+    /// <summary>Every machine's sprite, indexed by <see cref="MachineType"/>.</summary>
+    public static IReadOnlyList<MachineSprite> All { get; } = BuildTable(
+        (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Pylon, Pylon));
+
+    public static MachineSprite Get(MachineType type) =>
+        (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));
+
+    private static MachineSprite[] BuildTable(params (MachineType Type, MachineSprite Sprite)[] entries)
     {
-        MachineType.Relay => Relay,
-        MachineType.Harvester => Harvester,
-        MachineType.Pylon => Pylon,
-        _ => throw new ArgumentOutOfRangeException(nameof(type)),
-    };
+        var table = new MachineSprite[Enum.GetValues<MachineType>().Length];
+        foreach (var (type, sprite) in entries)
+            table[(int)type] = sprite;
+        if (Array.IndexOf(table, null) >= 0)
+            throw new InvalidOperationException("Every MachineType needs a MachineSprite.");
+        return table;
+    }
 }

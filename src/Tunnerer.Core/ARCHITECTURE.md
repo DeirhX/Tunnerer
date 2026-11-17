@@ -123,7 +123,8 @@ distance rules shrink and a floor of pockets and lumps applies (`OreDeposits.Dis
 (projectiles, link map, regrowth, each tank) is seeded from `simulationSeed`, and decorations and rock pockets from
 the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
-picks the seed. The bot takes its own seed, also from `WorldFactory`.
+picks the seed. `MatchSetup` (`Match/MatchSetup.cs`) builds the match from it, for the desktop, a network match and the
+browser alike, and derives each bot's seed (`MatchSetup.BotSeed`).
 
 `World.Advance(getInput)` runs one fixed step: it goes through the world's systems, a list of `WorldSystem` (a
 profile label and what the system does each step) that `World.BuildSystems` puts together once, when the world is
@@ -427,9 +428,10 @@ Core:
 Desktop:
 
 7. A `MachinePresentation` in `MachinePresentations` (`Presentation/MachinePresentation.cs`): names, keyboard key,
-   build-panel slot, build sound, plant hint, and its `MachineSprite` (`Rendering/Entities/MachineSprite.cs`): shader
-   shape kind, body size, whether it turns to its heading or stands upright with a gauge, its sense ring, battery
-   gauge and preview reach. `MachineQuads` and `PreviewQuads` draw from it; neither switches on the type.
+   build-panel slot and plant hint. Its `MachineSprite` in `MachineSprites` (`Rendering/Entities/MachineSprite.cs`,
+   shared with the browser): shader shape kind, body size, whether it turns to its heading or stands upright with a
+   gauge, its sense ring, battery gauge and preview reach. `MachineQuads` and `PreviewQuads` draw from it; neither
+   switches on the type. Its build sound in `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`, also shared).
    `MachinePresentationTests` checks keys and slots are distinct and fit the panel, and that every sprite is complete.
 8. For a new `BuildKey`: `KeyboardController`, `GameSimulationStepper` (merges keyboard and scripted input) and
    `Game.ScriptedInput.cs` (scripted `Build` numbers).

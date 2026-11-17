@@ -2,14 +2,13 @@ namespace Tunnerer.Desktop.Presentation;
 
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Machines;
-using Tunnerer.Core.Rendering;
-using Tunnerer.Desktop.Audio;
-using Tunnerer.Desktop.Rendering.Entities;
 using static SDL3.SDL;
 
 /// <summary>
 /// How the desktop client shows and controls one machine type: its names, the keyboard key that builds it, its slot
-/// in the build panel, its build sound and how it is drawn. What it costs and does lives in Core (<see cref="MachineBehaviors"/>).
+/// in the build panel and the hint for planting it. What it costs and does lives in Core (<see cref="MachineBehaviors"/>);
+/// how it is drawn in <see cref="Rendering.Entities.MachineSprites"/> and what building it sounds like in
+/// <see cref="Audio.StepEventSounds"/>, which the browser client shares.
 /// </summary>
 /// <param name="Name">Lower-case name used in sentences ("Build a relay").</param>
 /// <param name="SlotLabel">Upper-case label on its build slot.</param>
@@ -17,7 +16,6 @@ using static SDL3.SDL;
 /// <param name="KeyLabel">How <paramref name="Key"/> is written on screen.</param>
 /// <param name="BuildSlot">Column of its slot in the build panel, from the left.</param>
 /// <param name="PlantHint">What planting it here does, after "key:" in the network panel's hint.</param>
-/// <param name="Sprite">How the entity layer draws it and its placement preview.</param>
 public sealed record MachinePresentation(
     MachineType Type,
     string Name,
@@ -25,9 +23,7 @@ public sealed record MachinePresentation(
     Scancode Key,
     string KeyLabel,
     int BuildSlot,
-    SoundEffect BuildSound,
-    string PlantHint,
-    MachineSprite Sprite)
+    string PlantHint)
 {
     public MachineBehavior Behavior => MachineBehaviors.Get(Type);
 
@@ -40,19 +36,16 @@ public sealed record MachinePresentation(
 public static class MachinePresentations
 {
     public static readonly MachinePresentation Relay = new(
-        MachineType.Relay, "relay", "RELAY", Scancode.E, "E", BuildSlot: 0, SoundEffect.BuildRelay,
-        "plant relay here - it will link (green line)",
-        MachineSprites.Relay);
+        MachineType.Relay, "relay", "RELAY", Scancode.E, "E", BuildSlot: 0,
+        "plant relay here - it will link (green line)");
 
     public static readonly MachinePresentation Harvester = new(
-        MachineType.Harvester, "harvester", "HARVEST", Scancode.R, "R", BuildSlot: 1, SoundEffect.BuildHarvester,
-        "plant harvester here - in your network it mines nearby ore into your base store",
-        MachineSprites.Harvester);
+        MachineType.Harvester, "harvester", "HARVEST", Scancode.R, "R", BuildSlot: 1,
+        "plant harvester here - in your network it mines nearby ore into your base store");
 
     public static readonly MachinePresentation Pylon = new(
-        MachineType.Pylon, "pylon", "PYLON", Scancode.T, "T", BuildSlot: 2, SoundEffect.BuildPylon,
-        "plant pylon here - it charges harvesters it can see",
-        MachineSprites.Pylon);
+        MachineType.Pylon, "pylon", "PYLON", Scancode.T, "T", BuildSlot: 2,
+        "plant pylon here - it charges harvesters it can see");
 
     /// <summary>Every machine's presentation, indexed by <see cref="MachineType"/>.</summary>
     public static readonly IReadOnlyList<MachinePresentation> All = BuildTable(Relay, Harvester, Pylon);

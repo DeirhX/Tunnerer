@@ -4,15 +4,39 @@ using System.Text.Json;
 using Tunnerer.Browser.Client;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities.Bases;
+using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Types;
 using System.Runtime.InteropServices;
+using Tunnerer.Desktop.Audio;
+using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Rendering;
 using Tunnerer.Desktop.Rendering.Entities;
 
 public class BrowserSessionTests
 {
+    [Fact]
+    public void Sounds_FollowTheDesktopTable_AndOnlyThePlayerHearsTheirOwnFeedback()
+    {
+        var session = new BrowserSession(1234);
+        int player = session.Player.Color, bot = session.World.TankList.Tanks[1].Color;
+        Position seen = session.Player.Position;
+        StepEvent[] events =
+        [
+            new(StepEventKind.Docked, seen, player),
+            new(StepEventKind.Docked, seen, bot),
+            new(StepEventKind.MachineBuilt, seen, bot, MachineType.Pylon),
+            new(StepEventKind.TankMoved, seen, player),
+        ];
+
+        var sounds = BrowserFrameBuilder.Sounds(events, session.World, session.Player, session.Vision);
+
+        Assert.Equal(
+            [(nameof(SoundEffect.Dock), AudioTweaks.DockGain), (nameof(SoundEffect.BuildPylon), AudioTweaks.BuildGain)],
+            sounds.Select(s => (s.Sound, s.Gain)));
+    }
+
     [Fact]
     [Trait("Category", "Slow")]
     public void BrowserPresentation_LeavesTheSimulationUnchanged_AndUsesCoreBuildAndUpgradeRules()
@@ -61,7 +85,7 @@ public class BrowserSessionTests
         var built = BrowserFrameBuilder.Capture(session, includeEvents: true);
         Assert.True(player.IsCarryingMachine);
         Assert.Equal(store - frame.Builds[0].Cost, home.Store.Ore);
-        Assert.Contains(built.Events, e => e.Kind == "MachineBuilt");
+        Assert.Contains(built.Events, e => e.Sound == nameof(SoundEffect.BuildRelay) && e.Gain == AudioTweaks.BuildGain);
 
         Position start = player.Position;
         for (int i = 0; i < 30; i++)

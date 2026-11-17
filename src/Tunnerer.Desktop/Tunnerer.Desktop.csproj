@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Compile Remove="DrawProfile.cs;Config/DesktopScreenTweaks.cs;Config/PostProcessPassFlags.cs;Rendering/Entities/*.cs" />
+    <Compile Remove="Config/AudioTweaks.cs;Audio/SoundEffect.cs;Audio/StepEventSounds.cs" />
     <Compile Remove="Rendering/EntityLayerBuilder.cs;Rendering/IGameRenderBackend.cs;Rendering/RenderInputEvent.cs;Rendering/PostParamsBlock.cs" />
     <Compile Remove="Rendering/TerrainAuxBuilder.cs;Rendering/TerrainAuxUploader.cs;Rendering/TerrainSolidField.cs;Rendering/TerrainMaterialCoverage.cs;Rendering/TerrainGrowthFade.cs;Rendering/TerrainView.cs;Rendering/FogLayer.cs;Rendering/RowParallel.cs" />
   </ItemGroup>

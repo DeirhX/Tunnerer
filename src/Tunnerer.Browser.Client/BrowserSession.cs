@@ -5,7 +5,6 @@ using Tunnerer.Core.Bots;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Input;
-using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
@@ -14,6 +13,7 @@ using Tunnerer.Core.Types;
 public sealed class BrowserSession
 {
     public static Size MapSize => new(1500, 750);
+    private const int BotSlot = 1;
     private readonly BotTankAI _bot;
 
     public BrowserSession(int seed)
@@ -25,12 +25,9 @@ public sealed class BrowserSession
             ThermalMaxWorkers = 1,
             ThermalParallelTileThreshold = int.MaxValue,
         };
-        var (terrain, spawns) = new ToastGenerator().Generate(MapSize, seed, LevelGenMode.Deterministic, 2);
-        World = new World(MapSize, simulationSeed: seed, rules: MatchRules.Standard with { CoreTapWins = true },
-            simulationSettings: settings);
-        World.Initialize(terrain, spawns, decorationSeed: unchecked(seed + 1));
-        World.SetBotControlled(1);
-        _bot = new BotTankAI(unchecked(seed + 2));
+        World = MatchSetup.Build(MapSize, seed, MatchRules.Standard with { CoreTapWins = true }, settings: settings);
+        World.SetBotControlled(BotSlot);
+        _bot = new BotTankAI(MatchSetup.BotSeed(seed, BotSlot));
         Vision = World.TrackVision(Player);
         Radar = World.TrackRadar(Player);
         Scene = new BrowserScene(this);
