@@ -39,12 +39,19 @@ public class TerrainTests
     }
 
     [Fact]
-    public void ClearChangeList_EmptiesIt()
+    public void DropSeenChanges_ForgetsWhatWasMarkedSeen_AndKeepsWhatCameAfter()
     {
         var t = MakeTerrain(10, 10);
         t.SetPixel(new Position(3, 3), TerrainPixel.Dirt);
-        t.ClearChangeList();
-        Assert.Empty(t.GetChangeList());
+        t.MarkChangesSeen();
+        t.SetPixel(new Position(4, 4), TerrainPixel.Dirt);
+
+        t.DropSeenChanges();
+        Assert.Equal([new Position(4, 4)], t.GetChangeList());
+
+        // Nothing new was marked, so nothing more is dropped.
+        t.DropSeenChanges();
+        Assert.Single(t.GetChangeList());
     }
 
     [Fact]

@@ -87,13 +87,13 @@ public class SimulationTableGuardTests
         // gives nearly its own half-cell value (PairConductance_IsTheTwoConductivitiesInSeries_UnlessOverridden checks that).
         const ThermalMaterial D = ThermalMaterial.Dirt, S = ThermalMaterial.Stone, B = ThermalMaterial.Base,
             E = ThermalMaterial.ConstantEnergy, H = ThermalMaterial.HotRock, F = ThermalMaterial.FrostRock,
-            A = ThermalMaterial.Air;
+            A = ThermalMaterial.Air, O = ThermalMaterial.EmberiteCore;
         (ThermalMaterial, ThermalMaterial, float)[] tuned =
         [
             (A, A, 0.240f), (D, D, 0.010f),
             (S, S, 0.300f), (S, B, 0.450f), (S, E, 0.450f), (S, H, 0.300f), (H, H, 0.300f), (H, B, 0.450f),
             (H, E, 0.450f), (S, F, 0.300f), (F, F, 0.300f), (F, H, 0.300f), (F, B, 0.450f),
-            (F, E, 0.450f),
+            (F, E, 0.450f), (O, O, 0.300f), (O, S, 0.300f), (O, B, 0.450f), (O, E, 0.450f),
         ];
         var table = Tweaks.World.ThermalMaterials;
         var wrong = tuned

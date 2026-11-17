@@ -212,12 +212,6 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
 
     public IReadOnlyList<Position> GetChangeList() => _changeList;
 
-    public void ClearChangeList()
-    {
-        _changeList.Clear();
-        _changesSeen = 0;
-    }
-
     public void MarkChangesSeen() => _changesSeen = _changeList.Count;
 
     public void DropSeenChanges()

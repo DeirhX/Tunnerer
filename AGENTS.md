@@ -8,7 +8,7 @@ Read this before changing code. `DESIGN.md` says where the game is going; `ARCHI
 Run from the repository root.
 
 - Build: `dotnet build Tunnerer.slnx`
-- Test: `dotnet test Tunnerer.slnx` (about 35 seconds; run it before every commit)
+- Test: `dotnet test Tunnerer.slnx` (about a minute; run it before every commit)
 - Fast tests: `dotnet test Tunnerer.slnx --filter "Category!=Slow"` skips tests marked
   `[Trait("Category", "Slow")]` (over ~5 s each). Use it while iterating; mark new tests over ~5 s `Slow`.
 - Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)
@@ -95,7 +95,8 @@ that tests can inject their own values.
 - **Guard tests** (each fails with the place to fix):
   - `ArchitectureGuardTests`: Core references no Desktop, SDL, ImGui or graphics packages.
   - `SourceGuardTests`: no clocks or unseeded randomness in Core; thermal code reads `SimulationSettings`, not
-    `Tweaks`; `Tweaks` has no mutable statics; no `.cs` file over 700 lines. Each is a ratchet: today's offenders
+    `Tweaks`; `Tweaks` has no mutable statics; pixels change through `SetPixel` outside level generation; no `.cs`
+    file over 700 lines. Each is a ratchet: today's offenders
     are allow-listed, a new one fails, and a fixed one fails until its entry is deleted. Split a long file; never
     raise a cap.
   - `RenderingSourceGuardTests`: SDL_GPU only in `Rendering/SdlGpu`; shader resources only through the register
