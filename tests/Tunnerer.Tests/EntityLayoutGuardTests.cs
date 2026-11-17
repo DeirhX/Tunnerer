@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using SDL3;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Desktop.Rendering;
 using Tunnerer.Desktop.Rendering.Entities;
 using Tunnerer.Desktop.Rendering.SdlGpu;
@@ -19,6 +20,7 @@ public class EntityLayoutGuardTests
     private static readonly string ShaderDir = Path.Combine(FindRepositoryRoot(), "src", "Tunnerer.Desktop", "Rendering", "Shaders");
     private static readonly string EntityPsPath = Path.Combine(ShaderDir, "EntityPs.hlsl");
     private static readonly string LayoutPath = Path.Combine(ShaderDir, "Entity", "Layout.hlsli");
+    private static readonly string OverlaysPath = Path.Combine(ShaderDir, "Entity", "Overlays.hlsli");
 
     [Fact]
     public void EntityVertex_MatchesVertexAttributeTable()
@@ -81,6 +83,30 @@ public class EntityLayoutGuardTests
         var missing = kinds.Keys.Where(name => name != fallthrough && !compared.Contains(name)).ToList();
         Assert.True(missing.Count == 0, "EntityPs main() never dispatches: " + string.Join(", ", missing));
         Assert.DoesNotContain(fallthrough, compared);
+    }
+
+    [Fact]
+    public void RadarEchoes_MatchTheBlipShader()
+    {
+        // Layout.hlsli lists the echo numbers the radar blip reads, in RadarEcho's order.
+        var listed = Regex.Match(File.ReadAllText(LayoutPath), @"echo \(RadarEcho:(?<list>[^)]*)\)");
+        Assert.True(listed.Success, "Entity/Layout.hlsli should list the radar echoes as `echo (RadarEcho: 0 solid, ...)`");
+        string list = Regex.Replace(listed.Groups["list"].Value, @"\s*//\s*", " ");
+        var shader = Regex.Matches(list, @"(?<value>\d+)\s+(?<name>\w+)")
+            .Select(m => (int.Parse(m.Groups["value"].Value, System.Globalization.CultureInfo.InvariantCulture),
+                m.Groups["name"].Value.ToUpperInvariant()));
+        var csharp = Enum.GetValues<RadarEcho>().Select(e => ((int)e, e.ToString().ToUpperInvariant()));
+        Assert.Equal(csharp, shader);
+
+        // RadarBlip tells every echo from the one below it: a comparison of `echo` with a threshold between them.
+        string overlays = Regex.Replace(File.ReadAllText(OverlaysPath), @"//[^\n]*", "");
+        int blip = overlays.IndexOf("float4 RadarBlip(", StringComparison.Ordinal);
+        Assert.True(blip >= 0, "Overlays.hlsli has no RadarBlip()");
+        var branches = Regex.Matches(overlays[blip..], @"\becho\s*[<>]\s*(?<at>[0-9.]+)")
+            .Select(m => (int)Math.Ceiling(float.Parse(m.Groups["at"].Value, System.Globalization.CultureInfo.InvariantCulture)))
+            .ToHashSet();
+        var missing = Enum.GetValues<RadarEcho>().Where(e => (int)e > 0 && !branches.Contains((int)e)).ToList();
+        Assert.True(missing.Count == 0, "RadarBlip in Overlays.hlsli has no branch for: " + string.Join(", ", missing));
     }
 
     private static void AssertConstantsMatch(string csharpPrefix, string shaderPrefix)

@@ -19,6 +19,11 @@ public sealed class HudStrip
     private const uint ReadoutColor = 0xFFAAFACDu;
     private const float ReadoutSize = 22f;
 
+    // The ore line, drawn in the chest window above the MATERIALS plates (art pixels): teal like the ore, amber once
+    // the hold is full, bright green while it unloads.
+    private const float OreLineX = MaterialsX + 126f, OreLineY = 84f, OreLineSize = 19f;
+    private const uint OreLineColor = 0xFFD8E860u, OreLineFullColor = 0xFF40C0FFu, OreLineUnloadColor = 0xFF60FF90u;
+
     /// <summary>
     /// A panel's plates, measured on the art (art pixels): the centre both lines share, the title plate's centre, and
     /// the readout plate's inner edges. The readout is centred in its plate. The levels themselves show in the art
@@ -92,10 +97,31 @@ public sealed class HudStrip
         int health = Math.Max(0, player.Reactor.Health);
         DrawReadout(dl, ShieldPlate, health.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-        // MATERIALS: the dirt in the tank's hold, which is what structures are built from.
-        DrawReadout(dl, MaterialsPlate, player.Resources.Dirt.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // MATERIALS: the ore in the tank's hold against what it takes, the currency structures are built from.
+        DrawReadout(dl, MaterialsPlate, string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{player.OreHeld} / {player.OreHoldCapacity}"));
+        // The chest line: the hold emptying into the base (docked, or through the network), else the base store.
+        string oreLine = player.IsUnloadingOre
+            ? "UNLOADING"
+            : player.Base is { } home
+                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"BASE ORE {home.Store.Ore}")
+                : "ORE";
+        DrawStripText(dl, oreLine, OreLineX, OreLineY, OreLineSize,
+            player.IsUnloadingOre ? OreLineUnloadColor : player.IsOreHoldFull ? OreLineFullColor : OreLineColor,
+            glow: 0x28806020u);
 
-        _build.Draw(dl, player, player.BuildableDirt(player.IsDockedAtOwnBase), BuildX, time);
+        if (player.IsUnloadingOre)
+        {
+            // Down arrows either side of the word, bobbing: the ore is going down into the base.
+            float bob = (time * 3f) % 1f * 5f;
+            foreach (float dx in (ReadOnlySpan<float>)[-72f, 72f])
+            {
+                float cx = OreLineX + dx, top = OreLineY - 8f + bob;
+                dl.AddTriangleFilled(At(cx - 7f, top), At(cx + 7f, top), At(cx, top + 9f), OreLineUnloadColor);
+            }
+        }
+
+        _build.Draw(dl, player, BuildX, time);
 
         // The COMMAND button stands for the base upgrades: lit while docked (keys 1-4 buy), dimmed elsewhere.
         if (!player.IsDockedAtOwnBase)

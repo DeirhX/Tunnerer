@@ -49,5 +49,8 @@ float2 LocalLight(float2 facing)
 // Charge (pylons, charge beams, battery gauges) is blue.
 static const float3 kChargeBlue = float3(0.30, 0.55, 1.00);
 static const float3 kChargeViolet = float3(0.62, 0.45, 1.00);
+// Emberite, as the terrain draws it: teal plain ore, violet core.
+static const float3 kOreTeal = float3(0.24, 0.80, 0.74);
+static const float3 kOreViolet = float3(0.72, 0.40, 0.90);
 
 #endif // TUNNERER_ENTITY_COMMON_HLSLI

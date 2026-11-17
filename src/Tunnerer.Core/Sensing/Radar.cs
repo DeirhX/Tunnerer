@@ -4,50 +4,17 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 
-/// <summary>What reflected a radar ray.</summary>
-public enum RadarEcho : byte
-{
-    /// <summary>Rock, concrete, hot or frost rock, another side's base wall. Stops the ray.</summary>
-    Solid,
-
-    /// <summary>Gold or a machine. Stops the ray.</summary>
-    Metal,
-
-    /// <summary>Open ground behind dirt: a tunnel or a cave. A weak return; the ray goes on.</summary>
-    Cavity,
-
-    /// <summary>
-    /// Hot ground the ray went through, or a reflector too hot to tell what it is. The radar learned only that it
-    /// is hot there, and how hot (<see cref="RadarContact.Strength"/>). The ray goes on, weaker.
-    /// </summary>
-    Heat,
-
-    /// <summary>Something alive: another tank. Stops the ray.</summary>
-    Life,
-}
-
-/// <summary>One radar return: the cell that reflected, what kind of thing it was and when (<see cref="Radar.Tick"/>).</summary>
-/// <param name="Strength">
-/// What was left of the ray when it reflected, 1 for a ray that crossed only cool ground down toward 0 for one
-/// that warm ground nearly absorbed. For a <see cref="RadarEcho.Heat"/> contact it is how hot the cell was instead:
-/// just above 0 at <see cref="Tweaks.Radar.HeatThreshold"/>, 1 at <see cref="Tweaks.Radar.HeatFullTemperature"/>.
-/// </param>
-public readonly record struct RadarContact(Position Position, RadarEcho Echo, int BornTick, float Strength = 1f);
-
-/// <summary>Something that is not terrain and reflects radar: a machine or a tank, as a square of cells.</summary>
-/// <param name="Alive">A tank or other living thing, which returns <see cref="RadarEcho.Life"/> instead of metal.</param>
-public readonly record struct RadarTarget(Position Position, int HalfSize, bool Alive = false);
-
 /// <summary>
 /// A tank's radar. Every <see cref="Tweaks.Radar.PulsePeriodTicks"/> the tank sends a pulse: a ring that runs
 /// outward from where the tank stood, <see cref="Tweaks.Radar.FrontCellsPerTick"/> cells a tick, to
-/// <see cref="Tweaks.Radar.Range"/>. The pulse is a fan of rays that all advance with the front. Dirt and open
+/// <see cref="Tweaks.Radar.Range"/> (both scaled by the radar upgrade, <see cref="RadarReach"/>). The pulse is a fan of rays that all advance with the front. Dirt and open
 /// ground let a ray through; the first hard thing reflects it and stops it, and that one cell becomes a
 /// <see cref="RadarContact"/> the moment the front reaches it, near things first. A contact lives for
 /// <see cref="Tweaks.Radar.ContactLifetimeTicks"/>. What lies behind a reflector is in its shadow, so a shape is only
 /// learned from several sides. Each kind of thing returns only from within its own range: a large rock formation
 /// from the pulse's full reach, a thin wall, gold, a machine, a tank or a cave only from nearer
-/// (<see cref="Tweaks.Radar.SolidRangeMin"/> and the ranges beside it). Out of its range a thing still stops the ray
+/// (<see cref="Tweaks.Radar.SolidRangeMin"/> and the ranges beside it), an ore speck from nearer still and a deep
+/// ore deposit from further (<see cref="Tweaks.Radar.OreRangeMin"/>, <see cref="Tweaks.Radar.OreRangeMax"/>). Out of its range a thing still stops the ray
 /// and returns nothing.
 /// <para>
 /// When a later pulse's front passes an old contact, the ray nearest it checks it again: a contact that no longer
@@ -55,7 +22,7 @@ public readonly record struct RadarTarget(Position Position, int HalfSize, bool 
 /// one. A contact in the shadow of whatever the ray stopped at is not checked; it stays until it fades.
 /// </para>
 /// <para>
-/// Heat weakens the rays (<see cref="Tweaks.Radar.HeatLossPerDegree"/>). A ray loses strength in every hot cell it
+/// Heat uses the rays up (<see cref="Tweaks.Radar.HeatBudgetDegreeCells"/>). A ray loses strength in every hot cell it
 /// crosses and leaves a <see cref="RadarEcho.Heat"/> contact there that says how hot the cell is, up to
 /// <see cref="Tweaks.Radar.HeatReturnsPerRay"/> a ray. The hotter the cell the more it takes, so a ray gets through
 /// many warm cells but only a few very hot ones before it runs out and stops. What it finds beyond comes back
@@ -108,6 +75,8 @@ public sealed class Radar
     private double _fanOffset;
     private int _nextPulseTick;
     private int _lostToHeat;
+    private float _front;
+    private RadarReach _reach = RadarReach.Base;
 
     public Radar(VisionMap vision)
     {
@@ -128,8 +97,17 @@ public sealed class Radar
     /// <summary>The cell the pulse in flight (or the last one) was sent from.</summary>
     public Position PulseOrigin { get; private set; }
 
-    /// <summary>How far the front of the pulse in flight has run from <see cref="PulseOrigin"/>, in cells.</summary>
+    /// <summary>How far the front of the pulse in flight has run from <see cref="PulseOrigin"/>, in whole cells.</summary>
     public int PulseRadius { get; private set; }
+
+    /// <summary>How far the front has run, with the fraction of a cell a sped-up front (<see cref="RadarReach"/>) carries.</summary>
+    public float PulseFront => _front;
+
+    /// <summary>How far the front of the pulse in flight (or the last one) runs a tick: <see cref="RadarReach.FrontCellsPerTick"/>.</summary>
+    public float PulseSpeed => _reach.FrontCellsPerTick;
+
+    /// <summary>The full reach of the pulse in flight (or the last one), in cells: <see cref="RadarReach.Range"/>.</summary>
+    public float PulseRange => _reach.Range;
 
     /// <summary>The share of the last finished pulse's rays that hot ground absorbed, 0..1.</summary>
     public float HeatLoss { get; private set; }
@@ -148,18 +126,30 @@ public sealed class Radar
     /// </summary>
     public void Advance(
         ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, Position origin, int ownColor,
-        IReadOnlyList<RadarTarget> targets)
+        IReadOnlyList<RadarTarget> targets) =>
+        Advance(terrain, heat, origin, ownColor, targets, RadarReach.Base);
+
+    /// <summary>
+    /// As <see cref="Advance(ITerrainPixelReadOnly, ITerrainHeatSource, Position, int, IReadOnlyList{RadarTarget})"/>,
+    /// with the ranges of <paramref name="reach"/> (a tank's radar upgrades). A pulse keeps the reach it was sent
+    /// with. A pulse that takes longer than <see cref="Tweaks.Radar.PulsePeriodTicks"/> to run out delays the next.
+    /// </summary>
+    public void Advance(
+        ITerrainPixelReadOnly terrain, ITerrainHeatSource heat, Position origin, int ownColor,
+        IReadOnlyList<RadarTarget> targets, RadarReach reach)
     {
         Age();
         if (!PulseInFlight)
         {
             if (Tick < _nextPulseTick)
                 return;
+            _reach = reach;
             Emit(origin);
         }
 
         int previousFront = PulseRadius;
-        PulseRadius += Tweaks.Radar.FrontCellsPerTick;
+        _front += _reach.FrontCellsPerTick;
+        PulseRadius = (int)_front;
         _newFrom = _count;
         var ownWall = (TerrainPixel)((int)TerrainPixel.BaseMin + ownColor);
         bool anyLive = false;
@@ -217,13 +207,14 @@ public sealed class Radar
         PulseInFlight = true;
         PulseOrigin = origin;
         PulseRadius = 0;
+        _front = 0f;
         _lostToHeat = 0;
         _nextPulseTick = Tick + Tweaks.Radar.PulsePeriodTicks;
         double offset = _pulseCount * PulseOffset;
         _fanOffset = offset - Math.Floor(offset);
         _pulseCount = (_pulseCount + 1) & 0xFFFF;
 
-        const int range = Tweaks.Radar.Range;
+        float range = _reach.Range;
         for (int i = 0; i < _rays.Length; i++)
         {
             double angle = 2.0 * Math.PI * (i + _fanOffset) / RayCount;
@@ -347,15 +338,14 @@ public sealed class Radar
             // Only a mark that is kept counts against the ray's allowance: hot ground in sight must not use it up
             // and leave the unseen heat beyond unmarked.
             // Hotter ground shows from further off.
-            float heatRange = Tweaks.Radar.HeatRangeMin +
-                (Tweaks.Radar.HeatRangeMax - Tweaks.Radar.HeatRangeMin) * HeatIntensity(temperature);
+            float heatRange = _reach.HeatRangeMin + (_reach.HeatRangeMax - _reach.HeatRangeMin) * HeatIntensity(temperature);
             if (ray.HeatLeft > 0 && Within(ray, heatRange) &&
                 Record(cell, RadarEcho.Heat, HeatIntensity(temperature), width, pixels, isTerrain: false))
             {
                 ray.HeatLeft--;
                 marked = true;
             }
-            ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * Tweaks.Radar.HeatLossPerDegree * ray.CellLength;
+            ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * ray.CellLength / _reach.HeatBudgetDegreeCells;
             if (ray.Strength <= 0f)
             {
                 _lostToHeat++;
@@ -368,14 +358,17 @@ public sealed class Radar
         TerrainPixel pixel = pixels[offset];
         bool target = HitsTarget(cell, _onRay, out bool alive);
         bool gold = !target && Pixel.IsGold(pixel);
+        bool ore = !target && Pixel.IsOre(pixel);
         if (target || gold || (Pixel.IsBlockingCollision(pixel) && pixel != ownWall))
         {
             // Whatever it is stops the ray, but each kind of thing only returns from within its own range.
-            RadarEcho echo = alive ? RadarEcho.Life : target || gold ? RadarEcho.Metal : RadarEcho.Solid;
-            float range = alive ? Tweaks.Radar.LifeRange
-                : target ? Tweaks.Radar.MachineRange
-                : gold ? Tweaks.Radar.GoldRange
-                : SolidRange(ray, x, y, width, pixels);
+            RadarEcho echo = alive ? RadarEcho.Life : target || gold ? RadarEcho.Metal
+                : ore ? RadarEcho.Ore : RadarEcho.Solid;
+            float range = alive ? _reach.LifeRange
+                : target ? _reach.MachineRange
+                : gold ? _reach.GoldRange
+                : ore ? FormationRange(ray, x, y, width, pixels, heat, ore: true)
+                : FormationRange(ray, x, y, width, pixels, heat, ore: false);
             if (!Within(ray, range))
                 return true;
             if (!scrambled)
@@ -389,7 +382,7 @@ public sealed class Radar
         bool dirt = Pixel.IsSoftCollision(pixel);
         if (pixel == ownWall)
             ray.WasDirt = false;
-        if (ray.WasDirt && !dirt && ray.WeakLeft > 0 && Within(ray, Tweaks.Radar.CavityRange))
+        if (ray.WasDirt && !dirt && ray.WeakLeft > 0 && Within(ray, _reach.CavityRange))
         {
             ray.WeakLeft--;
             Record(cell, RadarEcho.Cavity, ray.Strength, width, pixels, isTerrain: true);
@@ -402,14 +395,20 @@ public sealed class Radar
     private static bool Within(in Ray ray, float range) => ray.ReachSq <= range * range;
 
     /// <summary>
-    /// How far off the rock at (<paramref name="x"/>, <paramref name="y"/>) returns: a thin shell only from
-    /// <see cref="Tweaks.Radar.SolidRangeMin"/>, a formation <see cref="Tweaks.Radar.FormationDepth"/> cells deep
-    /// along the ray from the pulse's full range. Looks behind the face only when the answer depends on it.
+    /// How far off the face at (<paramref name="x"/>, <paramref name="y"/>) returns: a thin shell or a speck only from
+    /// the near range, a formation <see cref="Tweaks.Radar.FormationDepth"/> cells deep along the ray from the far
+    /// one. Rock reads from <see cref="RadarReach.SolidRangeMin"/> to the pulse's full range, counting rock behind
+    /// it; <paramref name="ore"/> reads from <see cref="RadarReach.OreRangeMin"/> to
+    /// <see cref="RadarReach.OreRangeMax"/>, counting only cool plain ore, so a lump's warm core lends its rim no
+    /// reach. Looks behind the face only when the answer depends on it.
     /// </summary>
-    private static float SolidRange(in Ray ray, int x, int y, int width, ReadOnlySpan<TerrainPixel> pixels)
+    private float FormationRange(
+        in Ray ray, int x, int y, int width, ReadOnlySpan<TerrainPixel> pixels, ITerrainHeatSource heat, bool ore)
     {
-        if (Within(ray, Tweaks.Radar.SolidRangeMin))
-            return Tweaks.Radar.SolidRangeMin;
+        float near = ore ? _reach.OreRangeMin : _reach.SolidRangeMin;
+        float far = ore ? _reach.OreRangeMax : _reach.Range;
+        if (Within(ray, near))
+            return near;
         const int full = Tweaks.Radar.FormationDepth;
         int height = pixels.Length / width;
         int depth = 0;
@@ -418,13 +417,21 @@ public sealed class Radar
             int bx = x + (int)Math.Round(ray.DirX * (depth + 1)), by = y + (int)Math.Round(ray.DirY * (depth + 1));
             if ((uint)bx >= (uint)width || (uint)by >= (uint)height)
                 break;
-            TerrainPixel behind = pixels[bx + by * width];
-            if (!Pixel.IsBlockingCollision(behind) || Pixel.IsGold(behind))
+            int behind = bx + by * width;
+            if (!(ore ? IsCoolPlainOre(pixels[behind], heat.GetHeatTemperature(behind)) : IsRock(pixels[behind])))
                 break;
             depth++;
         }
-        return Tweaks.Radar.SolidRangeMin + (Tweaks.Radar.Range - Tweaks.Radar.SolidRangeMin) * depth / (float)full;
+        return near + (far - near) * depth / (float)full;
     }
+
+    /// <summary>What reflects as <see cref="RadarEcho.Solid"/>: anything that blocks movement but gold and ore.</summary>
+    private static bool IsRock(TerrainPixel pixel) =>
+        Pixel.IsBlockingCollision(pixel) && !Pixel.IsGold(pixel) && !Pixel.IsOre(pixel);
+
+    /// <summary>Ore that adds to a deposit's reach: plain, and cool enough that the ray would not read it as heat.</summary>
+    private static bool IsCoolPlainOre(TerrainPixel pixel, float temperature) =>
+        Pixel.IsOre(pixel) && !Pixel.IsOreCore(pixel) && temperature <= Tweaks.Radar.HeatThreshold;
 
     /// <summary>
     /// Keeps the targets a ray along (<paramref name="dirX"/>, <paramref name="dirY"/>) could touch between the
@@ -578,14 +585,15 @@ public sealed class Radar
         TerrainPixel pixel = pixels[offset];
         bool holds = contact.Echo switch
         {
-            RadarEcho.Solid => Pixel.IsBlockingCollision(pixel) && !Pixel.IsGold(pixel) && pixel != ownWall,
+            RadarEcho.Solid => IsRock(pixel) && pixel != ownWall,
+            RadarEcho.Ore => Pixel.IsOre(pixel),
             RadarEcho.Metal => Pixel.IsGold(pixel) ||
                 (HitsTarget(contact.Position, targets, out bool living) && !living),
             RadarEcho.Life => HitsTarget(contact.Position, targets, out bool alive) && alive,
             RadarEcho.Cavity => !Pixel.IsSoftCollision(pixel) && !Pixel.IsBlockingCollision(pixel),
             _ => heat.GetHeatTemperature(offset) > Tweaks.Radar.HeatThreshold,
         };
-        bool isTerrain = contact.Echo is RadarEcho.Solid or RadarEcho.Cavity ||
+        bool isTerrain = contact.Echo is RadarEcho.Solid or RadarEcho.Cavity or RadarEcho.Ore ||
             (contact.Echo == RadarEcho.Metal && Pixel.IsGold(pixel));
         return holds && IsNews(offset, isTerrain, pixels);
     }

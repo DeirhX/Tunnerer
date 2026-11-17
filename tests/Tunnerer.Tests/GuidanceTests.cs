@@ -31,8 +31,8 @@ public class GuidanceTests
 
         s.Tank.Position = OutsideTheDoor(s);
         var next = tutorial.Update(s.World, s.Tank, 1f);
-        Assert.Equal("Dig for dirt", next!.Value.Title);
-        Assert.Contains("/ " + Tweaks.Machine.RelayDirtCost, next.Value.Progress);
+        Assert.Equal("Mine emberite", next!.Value.Title);
+        Assert.Contains("/ " + Tweaks.Ore.RelayCost, next.Value.Progress);
     }
 
     [Fact]

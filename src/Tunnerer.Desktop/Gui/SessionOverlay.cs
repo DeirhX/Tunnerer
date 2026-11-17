@@ -41,7 +41,8 @@ public sealed class SessionOverlay
         ("Mouse", "Aim the turret"),
         ("Left click / Space", "Fire"),
         .. MachinePresentations.InSlotOrder.Select(m =>
-            (m.KeyLabel, $"Build a {m.Name} ({m.DirtCost} dirt); press again to plant it")),
+            (m.KeyLabel, $"Build a {m.Name} ({m.OreCost} ore); press again to plant it")),
+        ("1-4 / 5-6", "Docked: buy base upgrades / tank upgrades with the base ore store"),
         ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("Esc / P", "Pause"),
         ("F1", "This screen"),
@@ -57,9 +58,9 @@ public sealed class SessionOverlay
         "Digging and firing heat your tank. Past the limit the heat burns your shield.",
         "Park in your base to cool down and repair.",
         "A relay planted in sight of your base network pumps nearby heat back to the base.",
-        "Dirt you bring home goes into the base store; a docked tank can build machines from it.",
+        "Emberite (teal crystal) is the only currency. Mine it into your hold and bring it home: docked, or inside your network, it goes into the base store, which pays for what you build there.",
         "Stay inside your network's pale circles: outside them the tank heats up. Relays widen the network.",
-        "Harvesters mine dirt for you; relays keep them cool and pylons keep them charged.",
+        "Harvesters mine ore for you inside your network; relays keep them cool and pylons keep them charged.",
         $"Each tank has {Tweaks.Tank.MaxLives} lives. Destroy the enemy tank until it has none left.",
     ];
 

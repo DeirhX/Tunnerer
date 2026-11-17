@@ -43,7 +43,9 @@ public enum StepEventKind
     /// <summary>A tank picked up a gold nugget at <see cref="StepEvent.Position"/>.</summary>
     GoldCollected,
 
-    /// <summary>A tank torched a mineral cell into its hold.</summary>
+    /// <summary>
+    /// A tank dug a cell of emberite into its hold: <see cref="StepEvent.Count"/> units (a core cell is worth more).
+    /// </summary>
     OreCollected,
 
     /// <summary>A live tank drove into its own base.</summary>
@@ -52,7 +54,7 @@ public enum StepEventKind
     /// <summary>A live tank drove out of its own base.</summary>
     Undocked,
 
-    /// <summary>A tank's own base did something for it this step: repaired its shield, cooled it or took its dirt.</summary>
+    /// <summary>A tank's own base did something for it this step: repaired its shield, cooled it or banked its ore.</summary>
     BaseServiced,
 
     /// <summary>A tank built a machine of <see cref="StepEvent.Machine"/> and now carries it.</summary>
@@ -63,6 +65,18 @@ public enum StepEventKind
 
     /// <summary>A tank refused to plant the machine it carries because it would not link.</summary>
     PlantRefused,
+
+    /// <summary>
+    /// A build key asked for a machine of <see cref="StepEvent.Machine"/> that nothing in reach could pay for (not
+    /// enough ore).
+    /// </summary>
+    BuildRefused,
+
+    /// <summary>
+    /// A tank in its own network's coverage unloaded <see cref="StepEvent.Count"/> units of ore into the network, on
+    /// their way to the base store. <see cref="StepEvent.Position"/> is the tank.
+    /// </summary>
+    OreUnloaded,
 
     /// <summary>
     /// An enemy bullet took health off a machine that survived it. <see cref="StepEvent.Color"/> is the machine's

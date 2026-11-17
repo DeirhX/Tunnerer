@@ -64,7 +64,7 @@ public class LinkMap
         // heat flow does not drop to zero for a tick at every rebuild.
         var previousFlow = new Dictionary<(int, int), Link>();
         foreach (var old in _links)
-            if (old.HeatFlow > 0.0 || old.ChargeFlow > 0.0)
+            if (old.HeatFlow > 0.0 || old.ChargeFlow > 0.0 || old.OreFlowTicks > 0)
                 previousFlow[(old.From.Id, old.To.Id)] = old;
         _links.Clear();
         _points.RemoveAll(p => !p.IsEnabled && p.Type != LinkPointType.Base);
@@ -86,6 +86,8 @@ public class LinkMap
                     link.FlowsFromTo = old.FlowsFromTo;
                     link.ChargeFlow = old.ChargeFlow;
                     link.ChargeFlowsFromTo = old.ChargeFlowsFromTo;
+                    link.OreFlowTicks = old.OreFlowTicks;
+                    link.OreFlowsFromTo = old.OreFlowsFromTo;
                 }
                 _links.Add(link);
             }
@@ -156,6 +158,26 @@ public class LinkMap
         }
     }
 
+    /// <summary>Counts down the ore flows (<see cref="Link.OreFlowTicks"/>); called once a tick before tanks act.</summary>
+    public void AgeOreFlow()
+    {
+        foreach (var link in _links)
+            if (link.OreFlowTicks > 0)
+                link.OreFlowTicks--;
+    }
+
+    /// <summary>Records ore a tank unloaded at <paramref name="node"/> travelling along the links back to its base.</summary>
+    public static void CarryOre(LinkPoint? node)
+    {
+        var point = node;
+        for (int hops = 0; point?.UpstreamLink is { } link && hops < 64; hops++)
+        {
+            link.OreFlowsFromTo = ReferenceEquals(link.From, point);
+            link.OreFlowTicks = Tweaks.Ore.LinkFlowShowTicks;
+            point = link.OreFlowsFromTo ? link.To : link.From;
+        }
+    }
+
     /// <summary>Records <paramref name="energy"/> travelling from <paramref name="source"/> back to its base.</summary>
     public static void CarryHeat(LinkPoint source, double energy)
     {
@@ -218,7 +240,9 @@ public class LinkMap
                 HeatFlow: (float)(link.HeatFlow / Tweaks.Machine.RelayHeatPumpPerTick),
                 FlowsFromTo: link.FlowsFromTo,
                 ChargeFlow: (float)(link.ChargeFlow / Tweaks.Machine.PylonChargePerAction),
-                ChargeFlowsFromTo: link.ChargeFlowsFromTo);
+                ChargeFlowsFromTo: link.ChargeFlowsFromTo,
+                OreFlow: link.OreFlowTicks / (float)Tweaks.Ore.LinkFlowShowTicks,
+                OreFlowsFromTo: link.OreFlowsFromTo);
         }
         return count;
     }

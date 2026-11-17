@@ -129,6 +129,10 @@ public partial class Game : IDisposable
         _scriptedInput = ScriptedInputConfig.FromEnvironment();
         // The terrain test has no match: no player input to script or record, and no enemy tank.
         bool aiTanks = !terrainTestMode && StartMatchInput(enableAiTanks);
+        // Every tank but the player's is the bot's; its base gets the bot's stand-in ore income.
+        if (aiTanks)
+            for (int i = 1; i < _world.TankList.Count; i++)
+                _world.SetBotControlled(i);
         _simulationStepper = new GameSimulationStepper(
             world: _world,
             p1Controller: _p1Controller,

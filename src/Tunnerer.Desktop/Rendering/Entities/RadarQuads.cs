@@ -50,12 +50,12 @@ public static class RadarQuads
     {
         if (!radar.PulseInFlight)
             return;
-        float radius = radar.PulseRadius - Tweaks.Radar.FrontCellsPerTick * (1f - quads.Alpha);
+        float radius = radar.PulseFront - radar.PulseSpeed * (1f - quads.Alpha);
         if (radius <= 0f)
             return;
         // Room for the line's glow beyond the front.
         float extent = radius + 3f;
-        float fade = 1f - radius / Tweaks.Radar.Range;
+        float fade = 1f - radius / radar.PulseRange;
         quads.Add(quads.ScreenX(radar.PulseOrigin.X), quads.ScreenY(radar.PulseOrigin.Y), 1f, 0f,
             -extent, extent, -extent, extent, EntityShape.KindRadarPulse, radius, fade, 0f, 0f);
     }

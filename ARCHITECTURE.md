@@ -136,21 +136,24 @@ in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 `Tunnerer.Desktop/Gui/Guidance` tells the player what to do next without touching the simulation. It only reads Core
 state once per displayed frame.
 
-- `TutorialDirector` is an ordered list of next logical steps (leave the base, dig, unload, build and link a relay,
+- `TutorialDirector` is an ordered list of next logical steps (leave the base, mine ore, unload, build and link a relay,
   stay on the network, power from hot rock, harvester, relay beside it, pylon, frost). Each step knows from the world
   when it is done, so a player who acts early skips ahead; explainer steps also finish after a few seconds on screen.
   A step can name a world cell to point at.
 - `GameEventWatcher` compares the player's side of the world with the previous frame and posts toasts to a
-  `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, stores
-  full, charge low, off network, radar scattered by heat, engine running, harvester deliveries). The feed de-duplicates by key with a cooldown.
+  `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, ore
+  store full, charge low, off network, radar scattered by heat, engine running, harvester ore deliveries). The feed de-duplicates by key with a cooldown.
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
-  docked and the sector-complete banner.
+  docked (base track on keys 1-4, tank track on 5-6) and the sector-complete banner. The build panel asks
+  `Tank.QuoteBuild` for each machine's ore cost and payer; the MATERIALS plate shows the ore hold and, above it, the
+  base store or UNLOADING (`Tank.IsUnloadingOre`).
 
 Every overlay (tutorial card, toasts, status and upgrade panels, warning banners, pause and controls menus, tags) is
 drawn with `HudTheme`, which follows the bottom HUD art: chamfered gunmetal plates, a bronze frame with an amber inner
 line, amber corner brackets, amber titles, segmented bars and key caps. `HudTheme.BeginWindow` turns an ImGui window
-into such a plate, so new panels match by default.
+into such a plate, so new panels match by default. While docked, toasts stop above the upgrade panel rather than
+cover it.
 
 ## Sound
 

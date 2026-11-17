@@ -7,25 +7,28 @@ using Tunnerer.Core.Types;
 
 /// <summary>
 /// The player's network coverage (DESIGN.md §4.6): a faint field around every node, and while the tank is covered
-/// (outside a base) a cool tether from the node carrying its heat away. Off network the fields brighten a little, so
-/// the way back reads at a glance.
+/// (outside a base) a cool tether from the node carrying its heat away, and while its hold unloads into the network a
+/// stream of ore crystals beside it. Off network the fields brighten a little, so the way back reads at a glance.
 /// </summary>
 public sealed class CoverageQuads
 {
     private readonly List<CoverageNode> _coverageNodes = new();
     private TankCoverage _playerCoverage;
     private bool _playerOffNetwork;
+    private bool _playerUnloading;
 
     public void Capture(World world)
     {
         _coverageNodes.Clear();
         _playerCoverage = TankCoverage.None;
         _playerOffNetwork = false;
+        _playerUnloading = false;
         if (world.TankList.Count == 0 || world.TankList.Tanks[0] is not { Base: { } home } player)
             return;
         world.CollectCoverageNodes(home, _coverageNodes);
         _playerCoverage = player.IsDead ? TankCoverage.None : player.Coverage;
         _playerOffNetwork = !player.IsDead && player.IsOffNetwork;
+        _playerUnloading = player.IsUnloadingOre && _playerCoverage.Covered;
     }
 
     /// <summary>The coverage fields around every node.</summary>
@@ -47,7 +50,10 @@ public sealed class CoverageQuads
 
     }
 
-    /// <summary>The tether, handed to <paramref name="beams"/>; <paramref name="player"/> is the interpolated player tank, where it starts.</summary>
+    /// <summary>
+    /// The tether (and the ore stream while the hold unloads), handed to <paramref name="beams"/>;
+    /// <paramref name="player"/> is the interpolated player tank, where they start.
+    /// </summary>
     public void SubmitTether(BeamFader beams, PositionF player)
     {
         if (!_playerCoverage.Covered)
@@ -60,5 +66,7 @@ public sealed class CoverageQuads
         Position node = _playerCoverage.Node;
         beams.Submit(new BeamKey(EntityShape.KindTether, node, node),
             player.X, player.Y, node.X, node.Y, _playerCoverage.Strength, 2.5f);
+        if (_playerUnloading)
+            beams.Submit(new BeamKey(EntityShape.KindOreBeam, node, node), player.X, player.Y, node.X, node.Y, 1f, 1.5f);
     }
 }

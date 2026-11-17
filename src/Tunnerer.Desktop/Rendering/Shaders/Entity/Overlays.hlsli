@@ -85,8 +85,9 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 // One radar return, on ground out of the player's sight. It flares when the pulse finds it and then fades over its
 // life. Green for rock and walls, amber for metal (gold, machines), a dim blue-green for the weak return of a
 // cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
-// or a thing too hot to read, is a red dot instead, brighter and larger the hotter the cell (data.r). Something
-// alive (another tank) is a white-violet dot in a ring.
+// or a thing too hot to read, is a red dot instead, more opaque the hotter the cell (data.r). Something
+// alive (another tank) is a white-violet dot in a ring. Emberite ore is a small crystal: a teal diamond with a
+// violet heart, the one blip that is not round.
 float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {
     float life = saturate(params.x);
@@ -96,6 +97,24 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
     // Hold most of the brightness for the first half of the life, then let go.
     float fade = smoothstep(0.0, 0.55, life);
     float r = length(p);
+
+    if (echo > 4.5)
+    {
+        // Ore: a crystal, a diamond (an L1 disc) with a violet heart and a teal rim, in a faint diamond glow.
+        // Dimmer, like the others, the more heat the ray crossed.
+        float level = lerp(0.35, 1.0, rayStrength);
+        float d = abs(p.x) + abs(p.y);
+        float size = 0.78 + 0.22 * flash;
+        float body = FillAlpha(d - size, aa);
+        float heart = FillAlpha(d - size * 0.5, aa);
+        float rim = body * (1.0 - FillAlpha(d - size * 0.72, aa));
+        float glow = exp(-d * d * (1.4 - 0.7 * flash)) * (1.0 - body);
+        float3 teal = float3(0.20, 0.90, 0.80);
+        float3 violet = float3(0.62, 0.28, 1.00);
+        float3 lit = violet * heart * (0.85 + 0.5 * flash) + violet * 0.35 * saturate(body - heart - rim) +
+            teal * rim * (0.95 + 0.5 * flash) + teal * glow * (0.18 + 0.6 * flash);
+        return float4(lit * fade * level, body * fade * level * 0.6);
+    }
 
     if (echo > 3.5)
     {
@@ -111,15 +130,15 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 
     if (echo > 2.5)
     {
-        // Heat: data.r is how hot the cell read. A dim, small dark-red dot for warm ground up to a bright, larger
-        // red one for ground hot enough to stop a ray in a few cells.
+        // Heat: a red dot of one size whose opacity is how hot the cell read (data.r). The curve is squared so the
+        // dot warns of dangerous heat: warm ground is a trace, ground at half scale a quarter, hot rock nearly solid.
+        // The flare when it is found scales the same way, so a faint mark stays faint.
         float heat = rayStrength;
-        float3 red = lerp(float3(0.60, 0.05, 0.03), float3(1.00, 0.20, 0.10), heat);
-        float level = lerp(0.35, 1.0, heat);
-        float dot = FillAlpha(r - (lerp(0.20, 0.40, heat) + 0.15 * flash), aa);
-        float halo = exp(-r * r * (2.4 - 1.0 * flash));
-        float3 glowing = red * (dot * (0.80 + 0.5 * flash) + halo * (0.18 + 0.6 * flash) * heat);
-        return float4(glowing * fade * level, dot * fade * level * 0.5);
+        float opacity = lerp(0.03, 0.90, heat * heat) * fade;
+        float dot = FillAlpha(r - 0.36, aa);
+        float halo = exp(-r * r * 2.2) * (0.15 + 0.5 * flash);
+        float3 red = float3(1.00, 0.14, 0.08);
+        return float4(red * (dot + halo) * opacity, dot * opacity * 0.6);
     }
 
     float3 color = echo < 0.5 ? float3(0.30, 1.00, 0.50)
