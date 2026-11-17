@@ -307,8 +307,8 @@ public static class Tweaks
         // The level falls from full to nothing over the last cells of a source's reach (a short reach: its outer
         // half), so sight has no hard edge.
         public const int EdgeFade = 12;
-        // Bases and machines stay put: their vision is recast every this many ticks, the tank's every tick.
-        public const int FixedSourceRefreshTicks = 6;
+        // Side of the tiles the vision map files its sources under, so a cell finds the sources that can see it.
+        public const int SourceTileSize = 32;
     }
 
     /// <summary>

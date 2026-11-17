@@ -59,6 +59,7 @@ Entities/
   Links/NetworkCoverage.cs   Coverage nodes and the coverage a tank gets at a position
 Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
+  VisionEye.cs               One source's sight, kept between updates, and the ray and wall casting that fills it
   Radar.cs                   A tank's radar: pulses running out from the tank and the fading contacts where they reflected
 Collision/
   CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
@@ -210,9 +211,25 @@ the pixel the side last saw there (an `ITerrainPixelReadOnly`; it starts as a co
 update `KnownChanges` lists the cells whose known pixel changed, either because the terrain changed in sight or
 because a cell that changed out of sight came back into it. `TryGetDirtyRect` bounds the cells whose level changed.
 
-Cost follows the cells in sight, never the size of the map: every pass walks lists of lit cells, and no pass sweeps
-the grid. The tank is recast every tick; bases and machines, which stay put, every
-`FixedSourceRefreshTicks` ticks into their own layer. Keep it that way: maps are meant to grow.
+Cost follows what changes, never the size of the map or the number of cells in sight. Each source keeps its own
+cast (a `VisionEye`: the level it gives every cell of the square it can reach), and a cell's level is the highest
+any source gives it. `World` lists every source each tick, which costs next to nothing, and the map does work only
+for:
+
+- a source that is new or has moved (a source is its position and radii: the tank when it drives, a harvester when
+  it crawls), which is cast, and one that is gone, whose cells fall back to what the other sources give them;
+- ground that blocks sight where it did not, or the reverse, inside a source's square. A tank or base, which see
+  along open lines, are cast again. A machine sees through the ground, so its rays light the same cells whatever
+  the terrain is and only the walls lit around open ground can differ: it repairs the changed cells and
+  `WallSkin` + 1 cells around them (`VisionCast.CastWindow`);
+- a changed cell that is in sight, whose `Known` pixel is brought up to date.
+
+A pixel change that blocks sight no differently (a scorch mark on open ground, regrowing dirt that settles) casts
+nothing. The map learns of changes from the terrain's change list (`ITerrainChangeTracker`), which `World` keeps to
+one step's worth; a cell written without `SetPixel` during play is not noticed, by vision or by the renderer.
+`VisionMap.CellsCastInLastUpdate` is the measure of the work, and it is zero while nothing moves and nothing is dug.
+`VisionMapTests.AMapKeptUpToDate_ShowsWhatAFreshLookShows` checks the result against a map that looks at the same
+world for the first time. Keep it that way: maps are meant to grow, and so are networks of machines.
 
 ### Radar
 

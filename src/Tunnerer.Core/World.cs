@@ -218,6 +218,7 @@ public class World
 
         _advanceCount++;
         _stepEvents.Clear();
+        _terrain.DropSeenChanges();
         _elapsed += _simulationSettings.AdvanceStep;
 
         ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
@@ -264,6 +265,7 @@ public class World
         }
         if (_trackedVisions.Count > 0)
             ProfileSection(ref Profile.Vision, UpdateVisions);
+        _terrain.MarkChangesSeen();
 
         Profile.Total += frameWatch.Elapsed;
         Profile.FrameCount++;
@@ -313,8 +315,7 @@ public class World
     }
 
     private readonly List<(Tank Tank, VisionMap Map)> _trackedVisions = new();
-    private readonly List<VisionSource> _fixedVisionSources = new();
-    private readonly List<VisionSource> _movingVisionSources = new();
+    private readonly List<VisionSource> _visionSources = new();
 
     /// <summary>
     /// Starts tracking what <paramref name="tank"/>'s side sees (fog of war) and returns the map, which every
@@ -330,7 +331,7 @@ public class World
                 return tracked.Map;
         var map = new VisionMap(_terrain);
         _trackedVisions.Add((tank, map));
-        UpdateVision(tank, map, recastFixed: true);
+        UpdateVision(tank, map);
         return map;
     }
 
@@ -363,9 +364,8 @@ public class World
 
     private void UpdateVisions()
     {
-        bool recastFixed = _advanceCount % Tweaks.Vision.FixedSourceRefreshTicks == 0;
         foreach (var (tank, map) in _trackedVisions)
-            UpdateVision(tank, map, recastFixed);
+            UpdateVision(tank, map);
 
         foreach (var (tank, radar) in _trackedRadars)
         {
@@ -388,31 +388,31 @@ public class World
         }
     }
 
-    private void UpdateVision(Tank tank, VisionMap map, bool recastFixed)
+    /// <summary>
+    /// Hands the map everything <paramref name="tank"/>'s side sees through and the cells that changed since the map
+    /// last looked. The map keeps the cast of every source that is where it was, so listing them costs next to
+    /// nothing.
+    /// </summary>
+    private void UpdateVision(Tank tank, VisionMap map)
     {
-        _movingVisionSources.Clear();
+        _visionSources.Clear();
         if (!tank.IsDead)
-            _movingVisionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius, Tweaks.Vision.TankNearRadius));
-
-        if (recastFixed)
+            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius, Tweaks.Vision.TankNearRadius));
+        if (tank.Base is TankBase owner)
         {
-            _fixedVisionSources.Clear();
-            if (tank.Base is TankBase owner)
+            int bonus = owner.Upgrades.CoverageBonusCells;
+            const int near = Tweaks.Vision.MachineNearRadius;
+            _visionSources.Add(new VisionSource(owner.Position, Tweaks.Coverage.BaseRadius + bonus, near));
+            foreach (var machine in _machines.Machines)
             {
-                int bonus = owner.Upgrades.CoverageBonusCells;
-                const int near = Tweaks.Vision.MachineNearRadius;
-                _fixedVisionSources.Add(new VisionSource(owner.Position, Tweaks.Coverage.BaseRadius + bonus, near));
-                foreach (var machine in _machines.Machines)
-                {
-                    if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner)
-                        continue;
-                    // A relay or pylon sees its whole coverage circle, through the ground, linked or not.
-                    int reach = machine.Behavior.IsLinkNode ? Tweaks.Coverage.NodeRadius + bonus : near;
-                    _fixedVisionSources.Add(new VisionSource(machine.Position, reach, reach));
-                }
+                if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner)
+                    continue;
+                // A relay or pylon sees its whole coverage circle, through the ground, linked or not.
+                int reach = machine.Behavior.IsLinkNode ? Tweaks.Coverage.NodeRadius + bonus : near;
+                _visionSources.Add(new VisionSource(machine.Position, reach, reach));
             }
         }
-        map.Update(_terrain, recastFixed ? _fixedVisionSources : null, _movingVisionSources);
+        map.Update(_terrain, _visionSources, _terrain.GetChangeList());
     }
 
     private readonly List<CoverageNode> _coverageNodes = new();

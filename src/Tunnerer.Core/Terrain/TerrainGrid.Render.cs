@@ -11,7 +11,7 @@ public partial class TerrainGrid
             var color = Pixel.GetColor(GetPixel(pos));
             surface[pos.X + pos.Y * Width] = color.ToArgb();
         }
-        _changeList.Clear();
+        ClearChangeList();
     }
 
     public void DrawAllToSurface(uint[] surface)

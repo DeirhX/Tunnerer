@@ -167,7 +167,7 @@ public class RadarTests
         terrain.SetPixelRaw(Origin, TerrainPixel.Blank);
         Box(terrain, 230, 180, 240, 220, TerrainPixel.Rock);
         var vision = new VisionMap(terrain);
-        vision.Update(terrain, None, [new VisionSource(Origin, 45, 0)]);
+        vision.Update(terrain, [new VisionSource(Origin, 45, 0)], changedCells: []);
         Assert.True(vision.IsVisible(new Position(230, 200)));
         var radar = new Radar(vision);
 
@@ -210,7 +210,7 @@ public class RadarTests
         Warm(terrain, 201, 199, 260, 201, temperature: 15);
         var vision = new VisionMap(terrain);
         // The side sees the first stretch of the warm strip, more cells than a ray may mark.
-        vision.Update(terrain, None, [new VisionSource(Origin, 0, 30)]);
+        vision.Update(terrain, [new VisionSource(Origin, 0, 30)], changedCells: []);
         Assert.True(vision.IsVisible(new Position(225, 200)) && !vision.IsVisible(new Position(235, 200)));
         var radar = new Radar(vision);
 
@@ -273,10 +273,10 @@ public class RadarTests
         Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Heat);
 
         // The side looks at the rock's face and the warm ground, then away again.
-        vision.Update(terrain, None, [new VisionSource(new Position(280, 200), 0, 45)]);
+        vision.Update(terrain, [new VisionSource(new Position(280, 200), 0, 45)], changedCells: []);
         Run(radar, terrain, Origin, 1);
         Assert.DoesNotContain(Contacts(radar), c => vision.IsVisible(c.Position));
-        vision.Update(terrain, None, None);
+        vision.Update(terrain, None, changedCells: []);
         Run(radar, terrain, Origin, 1);
 
         Assert.DoesNotContain(Contacts(radar), c => c.Position == new Position(300, 200));
@@ -290,8 +290,8 @@ public class RadarTests
         Box(terrain, 240, 180, 250, 220, TerrainPixel.Rock);
         var vision = new VisionMap(terrain);
         // The side has seen the rock's near face, then looked away.
-        vision.Update(terrain, None, [new VisionSource(new Position(236, 200), 0, 30)]);
-        vision.Update(terrain, None, None);
+        vision.Update(terrain, [new VisionSource(new Position(236, 200), 0, 30)], changedCells: []);
+        vision.Update(terrain, None, changedCells: []);
         Assert.True(vision.IsExplored(new Position(240, 200)) && !vision.IsVisible(new Position(240, 200)));
         var radar = new Radar(vision);
 
@@ -456,8 +456,8 @@ public class RadarTests
         var vision = new VisionMap(terrain);
         // The side has seen the rock wall, and only the wall, then looked away.
         var wall = Enumerable.Range(60, 281).Select(y => new VisionSource(new Position(299, y), 0, 1)).ToArray();
-        vision.Update(terrain, None, wall);
-        vision.Update(terrain, None, None);
+        vision.Update(terrain, wall, changedCells: []);
+        vision.Update(terrain, None, changedCells: []);
         Assert.True(vision.IsExplored(new Position(300, 200)) && !vision.IsExplored(new Position(303, 200)));
         var radar = new Radar(vision);
 

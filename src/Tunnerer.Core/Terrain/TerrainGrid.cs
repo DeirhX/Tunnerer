@@ -11,6 +11,7 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     private readonly float[] _airTemperature;
     private readonly int[] _neighborOffsets;
     private readonly List<Position> _changeList = new();
+    private int _changesSeen;
 
     /// <summary>The tiles regrowth still has to look at; every pixel write keeps it up to date.</summary>
     public RegrowthTiles RegrowthTiles { get; }
@@ -211,7 +212,19 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
 
     public IReadOnlyList<Position> GetChangeList() => _changeList;
 
-    public void ClearChangeList() => _changeList.Clear();
+    public void ClearChangeList()
+    {
+        _changeList.Clear();
+        _changesSeen = 0;
+    }
+
+    public void MarkChangesSeen() => _changesSeen = _changeList.Count;
+
+    public void DropSeenChanges()
+    {
+        _changeList.RemoveRange(0, _changesSeen);
+        _changesSeen = 0;
+    }
 
     public void Fill(TerrainPixel value)
     {

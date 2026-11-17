@@ -99,7 +99,9 @@ that tests can inject their own values.
     flags in `EntityShape` match `Shaders/Entity/Layout.hlsli` and the dispatch in `EntityPs.hlsl`.
   - `SimulationTableGuardTests`, `MachineBehaviorTableTests`, `MachinePresentationTests`: every enum value has its
     table entries.
-- **Vision is output only, and its cost follows what is seen.** `VisionMap` (fog of war) is read by Desktop and by
-  nothing in the simulation. Its passes walk lists of cells in sight; do not add one that sweeps the whole grid,
-  because maps are meant to grow.
+- **Vision is output only, and its cost follows what changes.** `VisionMap` (fog of war) is read by Desktop and by
+  nothing in the simulation. A source is cast when it appears or moves, or when ground that blocks sight changes
+  within its reach; sources that stand still in ground that stays as it is cost nothing. Do not add a pass that
+  recasts every source or sweeps the grid each tick, and change pixels during play through `SetPixel`, which is
+  how vision and the renderer learn of it.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.
