@@ -44,3 +44,5 @@ Mean milliseconds per tick (budget at 24 ticks/s: 41.7 ms).
 - With threads, .NET runs on a worker and the page stays responsive.
 - \*One-off: a rerun gave the expected ~2x. A second run in a hidden browser pane was ~3.4x slower overall (the
   ratios held), so trust the ratios more than the absolute numbers. Firefox and Safari were not tried.
+- A third run with the pane visible, threaded build: two bots 6.65 / 3.53 / 1.90 / 1.20 ms and heat bursts
+  23.3 / 12.0 / 6.42 / 3.77 ms at 1 / 2 / 4 / 8 workers (6.2x on eight), same hashes.
