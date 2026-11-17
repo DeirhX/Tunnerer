@@ -220,7 +220,7 @@ public class OreEconomyTests
 
         Assert.Equal(Tweaks.Radar.Range * 1.2f, longRadar.PulseRange, 3);
         Assert.Equal(Tweaks.Radar.Range, shortRadar.PulseRange, 3);
-        Assert.Equal(TestSimulation.ComputeWorldStateHash(plain), TestSimulation.ComputeWorldStateHash(upgraded));
+        Assert.Equal(WorldStateHash.Compute(plain), WorldStateHash.Compute(upgraded));
     }
 
     [Fact]

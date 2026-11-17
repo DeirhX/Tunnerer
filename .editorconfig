@@ -21,3 +21,6 @@ dotnet_code_quality.CA1822.api_surface = private, internal
 [tests/**.cs]
 # xUnit test names use underscores.
 dotnet_diagnostic.CA1707.severity = none
+# The WebSocket handshake (RFC 6455) defines its accept key with SHA-1; a test relay built by hand has to compute it.
+[tests/Tunnerer.Tests/RelayOverSocketsTests.cs]
+dotnet_diagnostic.CA5350.severity = none

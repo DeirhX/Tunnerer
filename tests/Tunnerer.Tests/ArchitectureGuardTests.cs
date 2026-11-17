@@ -17,6 +17,28 @@ public class ArchitectureGuardTests
         Assert.DoesNotContain("SDL3-CS", references);
     }
 
+    /// <summary>The relay server is built from the protocol alone, so a gameplay change never needs a new relay.</summary>
+    [Fact]
+    public void ProtocolAssembly_ReferencesNoGameProject()
+    {
+        var references = typeof(Tunnerer.Protocol.TickBundle).Assembly
+            .GetReferencedAssemblies()
+            .Select(r => r.Name ?? string.Empty);
+
+        Assert.DoesNotContain(references, name => name.StartsWith("Tunnerer.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RelayAssembly_ReferencesOnlyTheProtocol()
+    {
+        var references = typeof(Tunnerer.Relay.MatchRoom).Assembly
+            .GetReferencedAssemblies()
+            .Select(r => r.Name ?? string.Empty)
+            .Where(name => name.StartsWith("Tunnerer.", StringComparison.Ordinal));
+
+        Assert.Equal(["Tunnerer.Protocol"], references);
+    }
+
     [Fact]
     public void CoreAssembly_DoesNotContainLegacyGuiTypes()
     {

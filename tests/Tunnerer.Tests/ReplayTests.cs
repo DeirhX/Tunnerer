@@ -207,8 +207,8 @@ public class ReplayTests
             w1.Advance(i => i == 0 ? input : TestSimulation.Idle);
             w2.Advance(i => i == 0 ? input : TestSimulation.Idle);
 
-            ulong h1 = TestSimulation.ComputeWorldStateHash(w1);
-            ulong h2 = TestSimulation.ComputeWorldStateHash(w2);
+            ulong h1 = WorldStateHash.Compute(w1);
+            ulong h2 = WorldStateHash.Compute(w2);
             Assert.Equal(h1, h2);
         }
     }
@@ -224,8 +224,8 @@ public class ReplayTests
             w1.Advance(_ => TestSimulation.Idle);
             w2.Advance(_ => TestSimulation.Idle);
 
-            ulong h1 = TestSimulation.ComputeWorldStateHash(w1);
-            ulong h2 = TestSimulation.ComputeWorldStateHash(w2);
+            ulong h1 = WorldStateHash.Compute(w1);
+            ulong h2 = WorldStateHash.Compute(w2);
             Assert.Equal(h1, h2);
         }
     }

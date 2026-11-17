@@ -27,6 +27,13 @@ public partial class Game
         Scancode scancode = ev.Key.Scancode;
         bool shiftHeld = (ev.Key.Mod & Keymod.Shift) != 0;
 
+        // In a network lobby, Enter is the host starting the match with whoever is there.
+        if (scancode == Scancode.Return && _relay is { Started: false })
+        {
+            ExecuteGameCommand(GameCommand.StartNetMatch, InputCommandSources.Input);
+            return;
+        }
+
         // After a match ends, Enter starts a new one.
         if (scancode == Scancode.Return && CanRestartMatch)
         {
@@ -38,8 +45,21 @@ public partial class Game
             ExecuteGameCommand(command, InputCommandSources.Input);
     }
 
-    /// <summary>A match is running and has ended, so Enter (or a RestartMatch command) starts a new one.</summary>
-    private bool CanRestartMatch => !_terrainTestMode && _world.IsMatchOver;
+    /// <summary>
+    /// A match is running and has ended, so Enter (or a RestartMatch command) starts a new one. In a network match
+    /// that is a new match in the same room: the relay has been told this one is over, so the first player to
+    /// restart opens the room again and the others join it.
+    /// </summary>
+    private bool CanRestartMatch => !_terrainTestMode && (_world.IsMatchOver || CanRejoinMatch);
+
+    /// <summary>
+    /// The connection to a started network match is lost and the match is not over: Enter starts the game again,
+    /// which comes back to the match under the same name and replays it up to the present.
+    /// </summary>
+    private bool CanRejoinMatch => _relay is { Started: true, Failure: not null, DesyncTick: null } && !_world.IsMatchOver;
+
+    /// <summary>True when the restart that was asked for is a return to the running match, not a new match.</summary>
+    public bool RejoinRequested { get; private set; }
 
     /// <summary>True when the player asked for a new match (Enter after a match ended).</summary>
     public bool RestartRequested { get; private set; }
@@ -133,11 +153,20 @@ public partial class Game
 
     private void ExecuteGameCommand(GameCommand command, string source)
     {
+        if (command == GameCommand.StartNetMatch)
+        {
+            // The relay ignores the request from anyone but the host.
+            if (_relay is { Started: false, IsHost: true })
+                _relay.RequestStart();
+            return;
+        }
+
         if (command == GameCommand.RestartMatch)
         {
             if (CanRestartMatch)
             {
                 Console.WriteLine($"[Game] Restarting match [source={source}]");
+                RejoinRequested = CanRejoinMatch;
                 RestartRequested = true;
                 _isRunning = false;
             }
@@ -162,8 +191,7 @@ public partial class Game
 
     private DirectionF? ComputeAimDirection(IReadOnlyList<Core.Entities.Tank> tanks, in FrameInputSnapshot frameInput)
     {
-        if (tanks.Count == 0) return null;
-        var tank = tanks[0];
+        if (LocalTank is not { } tank) return null;
 
         if (!IsMouseInViewport(frameInput, out float relX, out float relY))
             return null;

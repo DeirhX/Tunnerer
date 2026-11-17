@@ -5,73 +5,100 @@ using Tunnerer.Core.Entities;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Input;
+using Tunnerer.Desktop.Net;
 
+/// <summary>
+/// Runs one simulation step: each tank takes its input from the source its slot has. The local slot is this machine's
+/// keyboard, mouse and scripted input; a slot with a bot asks the bot; any other slot idles.
+/// </summary>
 public sealed class GameSimulationStepper
 {
     private readonly World _world;
-    private readonly KeyboardController _p1Controller;
-    private readonly BotTankAI _p2AI;
-    private readonly bool _enableAiTanks;
+    private readonly int _localSlot;
+    private readonly KeyboardController _localController;
+    private readonly IReadOnlyList<BotTankAI?> _bots;
     private readonly ScriptedInputConfig _scriptedInput;
     private readonly InputRecorder _inputRecorder;
     private readonly Action<GameCommand, string> _executeCommand;
     private readonly Action<string> _requestScreenshot;
 
+    /// <param name="bots">Indexed by slot; null where no bot drives the tank.</param>
     public GameSimulationStepper(
         World world,
-        KeyboardController p1Controller,
-        BotTankAI p2AI,
-        bool enableAiTanks,
+        int localSlot,
+        KeyboardController localController,
+        IReadOnlyList<BotTankAI?> bots,
         ScriptedInputConfig scriptedInput,
         InputRecorder inputRecorder,
         Action<GameCommand, string> executeCommand,
         Action<string> requestScreenshot)
     {
         _world = world;
-        _p1Controller = p1Controller;
-        _p2AI = p2AI;
-        _enableAiTanks = enableAiTanks;
+        _localSlot = localSlot;
+        _localController = localController;
+        _bots = bots;
         _scriptedInput = scriptedInput;
         _inputRecorder = inputRecorder;
         _executeCommand = executeCommand;
         _requestScreenshot = requestScreenshot;
     }
 
-    public void AdvanceOneStep(int simFrame, IReadOnlyList<Tank> tanks, DirectionF? aimDirection, bool mouseShoot)
+    public void AdvanceOneStep(int simFrame, DirectionF? aimDirection, bool mouseShoot)
     {
         ApplyScriptCommandsForFrame(simFrame);
 
-        ControllerOutput p1Output = default;
-        _world.Advance(i =>
-        {
-            if (i == 0)
-            {
-                var kb = _p1Controller.Poll();
-                ControllerOutput scripted = _scriptedInput.Controller?.GetOutputAtFrame(simFrame) ?? default;
-                var move = _scriptedInput.Controller is null ? kb.MoveSpeed : scripted.MoveSpeed;
-                p1Output = new ControllerOutput
-                {
-                    MoveSpeed = move,
-                    ShootPrimary = kb.ShootPrimary || mouseShoot || scripted.ShootPrimary,
-                    BuildPrimary = kb.BuildPrimary || scripted.BuildPrimary,
-                    BuildSecondary = kb.BuildSecondary || scripted.BuildSecondary,
-                    BuildTertiary = kb.BuildTertiary || scripted.BuildTertiary,
-                    Upgrade = kb.Upgrade != 0 ? kb.Upgrade : scripted.Upgrade,
-                    AimDirection = aimDirection ?? default,
-                };
-                return p1Output;
-            }
+        // Quantised as it would be on the network, so a match plays the same alone, replayed or shared.
+        ControllerOutput local = ControllerOutputCodec.Quantize(SampleLocalInput(simFrame, aimDirection, mouseShoot));
+        SlotStepper.Advance(_world, _bots, slot => slot == _localSlot ? local : default);
 
-            if (!_enableAiTanks)
-                return default;
-
-            var enemy = tanks.Count > 0 ? tanks[0] : null;
-            return _p2AI.GetInput(_world.TankList.Tanks[i], enemy, _world.Terrain);
-        });
-
-        _inputRecorder.RecordFrame(p1Output.MoveSpeed, p1Output.ShootPrimary);
+        _inputRecorder.RecordFrame(local.MoveSpeed, local.ShootPrimary);
         if (_scriptedInput.ShouldCaptureScreenshot(simFrame))
             _requestScreenshot($"script_frame_{simFrame:D4}");
+    }
+
+    /// <summary>
+    /// One step of a network match: the next tick the relay sent is simulated, and the local player's input goes to
+    /// the relay to take effect in a later tick. False, with nothing done, when no tick is waiting.
+    /// </summary>
+    /// <param name="sendInput">
+    /// False while this client is replaying ticks from the past to catch up: what the player presses now belongs
+    /// to the present, and thousands of inputs at once would only pile up at the relay.
+    /// </param>
+    public bool AdvanceNetStep(
+        int simFrame, DirectionF? aimDirection, bool mouseShoot, NetSession session, bool sendInput = true)
+    {
+        if (session.Buffered == 0)
+            return false;
+        ApplyScriptCommandsForFrame(simFrame);
+
+        ControllerOutput local = SampleLocalInput(simFrame, aimDirection, mouseShoot);
+        session.TryStep();
+        // One input per tick simulated keeps this client sending at exactly the relay's rate.
+        if (sendInput)
+            session.SendInput(local);
+
+        // What was simulated for this tank, not what the keyboard says now: that is what a replay must reproduce.
+        ControllerOutput simulated = ControllerOutputCodec.Decode(session.Played[^1].Inputs[_localSlot]);
+        _inputRecorder.RecordFrame(simulated.MoveSpeed, simulated.ShootPrimary);
+        if (_scriptedInput.ShouldCaptureScreenshot(simFrame))
+            _requestScreenshot($"script_frame_{simFrame:D4}");
+        return true;
+    }
+
+    private ControllerOutput SampleLocalInput(int simFrame, DirectionF? aimDirection, bool mouseShoot)
+    {
+        var kb = _localController.Poll();
+        ControllerOutput scripted = _scriptedInput.Controller?.GetOutputAtFrame(simFrame) ?? default;
+        return new ControllerOutput
+        {
+            MoveSpeed = _scriptedInput.Controller is null ? kb.MoveSpeed : scripted.MoveSpeed,
+            ShootPrimary = kb.ShootPrimary || mouseShoot || scripted.ShootPrimary,
+            BuildPrimary = kb.BuildPrimary || scripted.BuildPrimary,
+            BuildSecondary = kb.BuildSecondary || scripted.BuildSecondary,
+            BuildTertiary = kb.BuildTertiary || scripted.BuildTertiary,
+            Upgrade = kb.Upgrade != 0 ? kb.Upgrade : scripted.Upgrade,
+            AimDirection = aimDirection ?? default,
+        };
     }
 
     public void ProcessScriptedCommands(int frame)

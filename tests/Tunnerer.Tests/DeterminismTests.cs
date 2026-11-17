@@ -22,7 +22,7 @@ public class DeterminismTests
             var input = script[frame % script.Length];
             w1.Advance(i => i == 0 ? input : TestSimulation.Idle);
             w2.Advance(i => i == 0 ? input : TestSimulation.Idle);
-            Assert.Equal(TestSimulation.ComputeWorldStateHash(w1), TestSimulation.ComputeWorldStateHash(w2));
+            Assert.Equal(WorldStateHash.Compute(w1), WorldStateHash.Compute(w2));
         }
     }
 
@@ -40,7 +40,7 @@ public class DeterminismTests
             fast.Advance(_ => TestSimulation.Idle);
             Thread.Sleep(2);
             slow.Advance(_ => TestSimulation.Idle);
-            Assert.Equal(TestSimulation.ComputeWorldStateHash(fast), TestSimulation.ComputeWorldStateHash(slow));
+            Assert.Equal(WorldStateHash.Compute(fast), WorldStateHash.Compute(slow));
         }
     }
 
@@ -57,7 +57,7 @@ public class DeterminismTests
         {
             w1.Advance(_ => TestSimulation.Idle);
             w2.Advance(_ => TestSimulation.Idle);
-            Assert.Equal(TestSimulation.ComputeWorldStateHash(w1), TestSimulation.ComputeWorldStateHash(w2));
+            Assert.Equal(WorldStateHash.Compute(w1), WorldStateHash.Compute(w2));
         }
     }
 
@@ -72,7 +72,7 @@ public class DeterminismTests
         {
             w1.Advance(_ => TestSimulation.Idle);
             w2.Advance(_ => TestSimulation.Idle);
-            if (TestSimulation.ComputeWorldStateHash(w1) != TestSimulation.ComputeWorldStateHash(w2))
+            if (WorldStateHash.Compute(w1) != WorldStateHash.Compute(w2))
             {
                 diverged = true;
                 break;
@@ -92,7 +92,7 @@ public class DeterminismTests
         {
             w1.Advance(_ => TestSimulation.Idle);
             w2.Advance(_ => TestSimulation.Idle);
-            Assert.Equal(TestSimulation.ComputeWorldStateHash(w1), TestSimulation.ComputeWorldStateHash(w2));
+            Assert.Equal(WorldStateHash.Compute(w1), WorldStateHash.Compute(w2));
         }
     }
 

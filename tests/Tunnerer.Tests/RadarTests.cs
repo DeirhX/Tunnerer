@@ -5,6 +5,7 @@ using Tunnerer.Core.Types;
 
 namespace Tunnerer.Tests;
 
+using Tunnerer.Core;
 /// <summary>
 /// The tank's radar: pulses whose rays run outward through dirt and open ground and leave a fading blip on the
 /// first hard thing they meet, which hides whatever is behind it.
@@ -655,7 +656,7 @@ public class RadarTests
             for (int i = 0; i < 150; i++)
                 world.Advance(_ => new Tunnerer.Core.Input.ControllerOutput { MoveSpeed = new Offset(1, 0) });
             contacts = radar?.ContactCount ?? 0;
-            return TestSimulation.ComputeWorldStateHash(world);
+            return WorldStateHash.Compute(world);
         }
 
         ulong plain = Run(track: false, out _);
