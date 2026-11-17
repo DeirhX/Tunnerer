@@ -1,6 +1,7 @@
 # Tunnerer.Desktop — Rendering and Sound Architecture
 
-This document describes the current rendering model used by the desktop client, including frame flow, post-processing, and profiling hooks. Sound has its own section at the end.
+This document describes the current rendering model used by the desktop client, including frame flow, display
+density, the HUD layout, post-processing and profiling hooks. Sound has its own section at the end.
 
 ## High-Level Layout
 
@@ -31,6 +32,11 @@ One HLSL source in `Rendering/Shaders`. `tools/Tunnerer.ShaderCompiler` runs bef
 SDL_GPU wants fragment textures and samplers in space2, fragment uniforms in space3 and vertex uniforms in space1, so every resource is declared through the macros in
 `PostPs/Common/Registers.hlsli`. Each texture has its own sampler at the same index (`s0`-`s2`); on the CPU all are
 the same linear-clamp sampler.
+
+The post pass shades each terrain material in its own file under `PostPs/Materials` (dirt, stone, concrete, gold,
+the base). Dug-out ground is `TunnelFloorMaterial`: a dim, low-contrast floor tinted by the rock the tunnel was
+cut through and darkened towards the walls, so tunnels read as recessed ground and not as a black void, while
+staying quiet under tanks, projectiles and pickups.
 
 ## SDL_GPU Backend
 
@@ -74,9 +80,15 @@ Upload payload (`GamePixelsUpload`) includes:
 The loop around it (polling, fixed simulation steps, composing) is described in the root `ARCHITECTURE.md`,
 "Frame loop". Each displayed frame, `Game.RenderImGuiFrame`:
 
-1. Sizes the game view (`RenderViewState`; a match leaves room for the HUD panels) and moves the camera to the
-   interpolated player.
-2. Builds the entity layer quads at the frame's step progress (`EntityLayerBuilder.Build`).
+1. Sizes the game view (`RenderViewState`: the whole window, in device pixels) and centres the camera on the
+   interpolated player. The camera may run up to half a view past the map's edges, so the player stays in the
+   middle of the screen everywhere, clear of the HUD in the bottom corners.
+2. Builds the entity layer quads at the frame's step progress (`EntityLayerBuilder.Build`). Links, charge beams
+   and coverage tethers go through `Rendering/Entities/BeamFader`, which gives them a life across frames: a new
+   beam grows from its source over 0.9 s, and one that stops being submitted keeps its last shape and, after a
+   0.12 s grace (so a one-step blip does not break it), dissolves over 0.7 s. Beams are keyed by kind and end
+   points; a charge beam by the harvester's planted anchor, so it follows a crawling harvester instead of
+   restarting.
 3. Asks `TerrainAuxUploader.Prepare` which part of the terrain aux and material coverage textures to repack:
    - on the first frame, everything;
    - after that, the cells the simulation changed (and growth fades that ended) plus the strip the camera
@@ -91,6 +103,37 @@ The loop around it (polling, fixed simulation steps, composing) is described in 
 7. `ClearFrame`; if the backend supports UI, `NewFrame` and the HUD: `GameHud.Draw` and the session overlay in a
    match, `GameHud.DrawTerrainTest` in the terrain test.
 8. `Render`.
+
+## Display density and the HUD
+
+The window is created with `SDL_WINDOW_HIGH_PIXEL_DENSITY`, so on a Retina display the game renders at the
+display's own resolution instead of being stretched by the OS.
+
+- **Game view.** The game view, the camera and the game texture are measured in device pixels. A terrain cell is
+  `DesktopScreenTweaks.PixelScale` (6) points times the pixel density, rounded to whole pixels
+  (`RenderViewState.CellPixels`: 12 on a 2x display), so cells are never resampled.
+- **UI.** ImGui lays out in UI units: points divided by `ImGuiPlatform.UiScale`, which grows the UI on displays
+  larger than 1920x1080 points. `ImGuiPlatform.DeviceScale` (UI scale times pixel density) is ImGui's framebuffer
+  scale, so text and art land on device pixels. Mouse input arrives in points and is converted for the view.
+- **HUD layout** (`Gui/HudLayout`). The bottom HUD art is one strip, 1024x223 art pixels, drawn in two parts so
+  the middle of the view stays clear: TEMP, SHIELD and MATERIALS in the bottom-left corner, BUILD STRUCTURES in
+  the bottom-right. Art coordinates still run across the whole strip; `HudLayout.At` moves the right part over.
+  `HudLayout.HudScale` draws the art 1:1 up to a 1080-unit-high display and larger above it, and shrinks it only
+  to keep at least `MinCenterGap` (404 UI units, room for the base upgrade panel) between the parts; a display
+  narrower than twice that gives half its width to the gap. `HudLayout.ArtScale` snaps the scale to whole device
+  pixels on dense displays, but only at or above the textures' own density (2 device pixels per art pixel):
+  below that snapping would only shrink the HUD.
+- **HUD art.** The PNGs in `resources/hud` are drawn at twice their layout size. Their facing ends (MATERIALS and
+  BUILD STRUCTURES) are cut along their frames with a bevel, since the art was painted as one strip. The art
+  carries no text: `HudStrip` draws titles and numbers with the UI font, placed from each panel's plates as
+  measured on the art (`HudStrip.Plate`), and centres text on the height of the '0' glyph, not on the font's line
+  box.
+- **Around the HUD.** The base upgrade panel (`GameHud.Goal`) sits at the bottom of the screen in the gap between
+  the parts. Aiming and clicks stop only over the parts (`HudLayout.Covers`, `RenderViewState.IsUnderHud`); the
+  gap is play area. Overlays that cover the view (the death veil, the hit vignette, the key reminder) use
+  `GameHud.PlayRect`, the view above the strip.
+
+`HudLogicTests` covers the scale and snapping rules, the gap and which points the HUD covers.
 
 ## Profiling Output
 
@@ -110,7 +153,7 @@ The loop around it (polling, fixed simulation steps, composing) is described in 
 | Argument | Effect |
 |----------|--------|
 | `--hidden` | Creates the window hidden (never shown) and borderless at the largest display's resolution (or at `--windowed=WxH` if given), so automated runs and performance measurement render at full size without showing anything (`TUNNERER_HIDDEN` does the same). |
-| `--windowed` / `--windowed=WxH` | Uses a normal bordered, resizable window (default 1280×720) instead of borderless fullscreen, so test runs do not cover other windows (`TUNNERER_WINDOWED` does the same). |
+| `--windowed` / `--windowed=WxH` | Uses a normal bordered, resizable window (default 1280×720 points) instead of borderless fullscreen, so test runs do not cover other windows (`TUNNERER_WINDOWED` does the same). |
 | `--display=N` / `--display=secondary` | Opens the (borderless fullscreen) window on SDL display N instead of the primary one (`TUNNERER_DISPLAY` does the same). The game logs each display's bounds as `[Display] i: WxH at (x,y)`. Use it to keep test runs off the monitor you are working on. |
 
 Without these flags the window is borderless fullscreen on the primary display.

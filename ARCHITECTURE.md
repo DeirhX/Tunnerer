@@ -45,7 +45,7 @@ deterministic either way. `Game.Run` hands a set of callbacks to `GameFrameCoord
 while running:
   1. SdlRenderer.PollEvents            -> Game.HandleEvent (session keys, ImGui, debug hotkeys)
   2. wait until a simulation step or a display frame is due (sleeps instead of spinning)
-  3. update camera / view state         (match: follow the player; terrain test: WASD pans)
+  3. update camera / view state         (match: keep the player centred; terrain test: WASD pans)
   4. capture mouse state
   5. for each due step (at most 4 to catch up):
        match:
@@ -71,7 +71,13 @@ the display allows (vsync, capped by `DesktopScreenTweaks.MaxRenderFps`) and pas
 progress*, the fraction of a step elapsed since the last one. `EntityLayerBuilder` draws tanks, projectiles, machines and links
 at that point between the previous and the latest step (`Rendering/Entities/EntityInterpolator`), and the camera follows the interpolated player, so
 motion is smooth at the display rate while the terrain only changes on steps. The cost is that what is shown
-trails the simulation by up to one step.
+trails the simulation by up to one step. Beams (links, charge, tethers) fade in and out over a fraction of a
+second in display time (`Rendering/Entities/BeamFader`), so they do not pop with the simulation.
+
+The game renders at the display's own pixel density (Retina included): the game view and camera are in device
+pixels, the UI in points. The camera keeps the player in the middle of the screen, running past the map's edges
+when it has to, and the bottom HUD is split into the two bottom corners so the middle of the view stays clear.
+`src/Tunnerer.Desktop/ARCHITECTURE.md`, "Display density and the HUD", has the detail.
 
 Automated runs are step-locked instead: one frame per step, showing exactly that step, so screenshots and timings
 are reproducible. `TUNNERER_INTERPOLATE=1` turns the in-between frames on for them.
@@ -132,7 +138,7 @@ state once per displayed frame.
   full, charge low, off network, engine running, harvester deliveries). The feed de-duplicates by key with a cooldown.
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
-  docked and the sector-complete banner.
+  docked (at the bottom of the screen, between the two parts of the bottom HUD) and the sector-complete banner.
 
 Every overlay (tutorial card, toasts, status and upgrade panels, warning banners, pause and controls menus, tags) is
 drawn with `HudTheme`, which follows the bottom HUD art: chamfered gunmetal plates, a bronze frame with an amber inner
@@ -156,9 +162,9 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 - **Core**: terrain and pixels, collision, level generation, tank movement, heat and the temperature band, relays,
   the power loop, network coverage, hot and frost rock, the sector goal and base upgrades, the thermal ledger and whole-world thermal behaviour, determinism, replays and
   recorded fingerprints, match outcome, network status, placement preview and the bot.
-- **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, layout), the tutorial and
-  event notifications (`GuidanceTests`), entity
-  interpolation (`EntityInterpolatorTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
+- **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, the HUD's scale,
+  gap and covered area), the tutorial and event notifications (`GuidanceTests`), entity
+  interpolation (`EntityInterpolatorTests`), beam fading (`BeamFaderTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
   planning (`TerrainAuxUploaderTests`), world construction (`WorldFactoryTests`), and the solid field and material
   coverage the terrain shader samples.
 - **Guard tests** keep the structure in place; `AGENTS.md` lists them.
