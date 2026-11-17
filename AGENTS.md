@@ -8,9 +8,12 @@ Read this before changing code. `DESIGN.md` says where the game is going; `ARCHI
 Run from the repository root.
 
 - Build: `dotnet build Tunnerer.slnx`
-- Test: `dotnet test Tunnerer.slnx` (about a minute; run it before every commit)
+- Test: `dotnet test Tunnerer.slnx` (about 35 seconds; run it before every commit)
 - Fast tests: `dotnet test Tunnerer.slnx --filter "Category!=Slow"` skips tests marked
-  `[Trait("Category", "Slow")]` (over ~5 s each). Use it while iterating; mark new tests over ~5 s `Slow`.
+  `[Trait("Category", "Slow")]` (over ~5 s each, and the socket tests that must run on their own, in
+  `TimedTestGroup`); about 8 seconds. Use it while iterating; mark new tests over ~5 s `Slow`. Slow tests start first
+  (`SlowFirstCollectionOrderer`), and xUnit runs a class's tests one after another, so give a slow test a class of
+  its own when its class already has one.
 - Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)
 
 ## Layout

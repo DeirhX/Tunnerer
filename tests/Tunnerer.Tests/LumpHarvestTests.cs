@@ -71,44 +71,58 @@ public class LumpHarvestTests
             $"twenty seconds after the core is out, the edge should be workable. sensed={Sense(s, center, OuterEdge):0.0}");
     }
 
-    [Trait("Category", "Slow")]
-    [Fact]
-    public void ARelay_CoolsACutLump_WithinSeconds()
+    /// <summary>
+    /// In a class of its own so that xUnit runs it beside the other lump tests: each warms its own lump for a minute
+    /// of game time first.
+    /// </summary>
+    public class CoolingTests
     {
-        var (s, center, cells) = WarmLump();
-        CutTheCore(s, cells);
-        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(-1, 0));
+        [Trait("Category", "Slow")]
+        [Fact]
+        public void ARelay_CoolsACutLump_WithinSeconds()
+        {
+            var (s, center, cells) = WarmLump();
+            CutTheCore(s, cells);
+            RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(-1, 0));
 
-        Advance(s, 10 * Tweaks.Perf.TargetFps);
+            Advance(s, 10 * Tweaks.Perf.TargetFps);
 
-        for (int away = 0; away <= OuterEdge; away++)
-            Assert.True(Sense(s, center, away) < Tweaks.Machine.HarvesterStallTemperature,
-                $"{away} cells from the centre sensed {Sense(s, center, away):0.0}");
+            for (int away = 0; away <= OuterEdge; away++)
+                Assert.True(Sense(s, center, away) < Tweaks.Machine.HarvesterStallTemperature,
+                    $"{away} cells from the centre sensed {Sense(s, center, away):0.0}");
+        }
     }
 
-    [Trait("Category", "Slow")]
-    [Fact]
-    public void AHarvester_ClearsTheShell_ButNeverTheCore()
+    /// <summary>
+    /// In a class of its own so that xUnit runs it beside the other lump tests: each warms its own lump for a minute
+    /// of game time first.
+    /// </summary>
+    public class HarvestingTests
     {
-        var (s, _, cells) = WarmLump();
-        // The tank's way in: an open bay from the tunnel to the lump, with a linked relay and a pylon to recharge at.
-        for (int dy = -4; dy <= 4; dy++)
-            for (int dx = -2; dx <= 4; dx++)
-                s.World.Terrain.SetPixel(s.RelayPos + new Offset(dx, dy), TerrainPixel.Blank);
-        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(-1, 0));
-        var pylon = new Machine(s.RelayPos + new Offset(0, s.DirY * -8), MachineType.Pylon, s.Tank.Color);
-        s.World.Machines.Add(pylon);
-        s.World.PlantMachine(pylon, s.Base);
-        var harvester = new Machine(s.RelayPos + new Offset(3, 0), MachineType.Harvester, s.Tank.Color);
-        s.World.Machines.Add(harvester);
-        s.World.PlantMachine(harvester, s.Base);
-        int cores = cells.Count(c => Pixel.IsOreCore(s.World.Terrain.GetPixelRaw(c)));
-        int plain = cells.Count - cores;
+        [Trait("Category", "Slow")]
+        [Fact]
+        public void AHarvester_ClearsTheShell_ButNeverTheCore()
+        {
+            var (s, _, cells) = WarmLump();
+            // The tank's way in: an open bay from the tunnel to the lump, with a linked relay and a pylon to recharge at.
+            for (int dy = -4; dy <= 4; dy++)
+                for (int dx = -2; dx <= 4; dx++)
+                    s.World.Terrain.SetPixel(s.RelayPos + new Offset(dx, dy), TerrainPixel.Blank);
+            RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(-1, 0));
+            var pylon = new Machine(s.RelayPos + new Offset(0, s.DirY * -8), MachineType.Pylon, s.Tank.Color);
+            s.World.Machines.Add(pylon);
+            s.World.PlantMachine(pylon, s.Base);
+            var harvester = new Machine(s.RelayPos + new Offset(3, 0), MachineType.Harvester, s.Tank.Color);
+            s.World.Machines.Add(harvester);
+            s.World.PlantMachine(harvester, s.Base);
+            int cores = cells.Count(c => Pixel.IsOreCore(s.World.Terrain.GetPixelRaw(c)));
+            int plain = cells.Count - cores;
 
-        Advance(s, 60 * Tweaks.Perf.TargetFps);
+            Advance(s, 60 * Tweaks.Perf.TargetFps);
 
-        int plainLeft = cells.Count(c => s.World.Terrain.GetPixelRaw(c) == TerrainPixel.Emberite);
-        Assert.Equal(cores, cells.Count(c => Pixel.IsOreCore(s.World.Terrain.GetPixelRaw(c))));
-        Assert.True(plain - plainLeft >= 40, $"a minute's work should clear a good part of the shell. mined={plain - plainLeft}");
+            int plainLeft = cells.Count(c => s.World.Terrain.GetPixelRaw(c) == TerrainPixel.Emberite);
+            Assert.Equal(cores, cells.Count(c => Pixel.IsOreCore(s.World.Terrain.GetPixelRaw(c))));
+            Assert.True(plain - plainLeft >= 40, $"a minute's work should clear a good part of the shell. mined={plain - plainLeft}");
+        }
     }
 }

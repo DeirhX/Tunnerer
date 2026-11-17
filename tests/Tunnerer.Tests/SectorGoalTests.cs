@@ -208,6 +208,7 @@ public class SectorGoalTests
         Assert.Equal(0, World.NextCoreHold(0.001, 0, dt));
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void EveryWorldWithPockets_HasACore_ClearOfTheBases_AndOneWithoutDoesNot()
     {
