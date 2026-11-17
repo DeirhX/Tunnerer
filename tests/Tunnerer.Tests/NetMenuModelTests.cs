@@ -416,6 +416,20 @@ public class NetMenuModelTests
         Assert.Equal("hush", settings.Secret);
     }
 
+    [Fact]
+    public void ASavedSecret_IsOnlyOfferedToTheRelayItWasSavedFor()
+    {
+        var settings = new PlayerSettings { Relay = Relay.AbsoluteUri, Secret = "hush" };
+
+        Assert.Equal("hush", Menu(settings).SecretField.Text);
+
+        // A launch with --relay to another relay that was refused: the saved secret stays home.
+        var other = new NetLaunchOptions(new Uri("ws://friend.example/play"), "friday", "Ann", 4);
+        var menu = Menu(settings, request: new NetMenuRequest(other, "Could not reach the relay."));
+        Assert.Equal(string.Empty, menu.SecretField.Text);
+        Assert.Equal(string.Empty, Launched(menu.Submit()).Secret);
+    }
+
     // ---- Remembering --------------------------------------------------------------------------------------------------------
 
     [Fact]

@@ -139,8 +139,9 @@ public partial class Game
     {
         if (_lastMatchSaved || _playerSettings is not { } settings || relay.AssignedName is not { } assigned)
             return;
-        _lastMatchSaved = true;
         settings.LastMatch = new LastMatch(relay.Address.AbsoluteUri, relay.Room, assigned, DateTimeOffset.UtcNow);
+        // A failed write says so once on the console and is not tried again every frame.
+        _lastMatchSaved = true;
         settings.Save();
     }
 }

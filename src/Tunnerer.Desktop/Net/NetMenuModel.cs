@@ -99,7 +99,7 @@ public sealed class NetMenuModel
         SecretField = new TextField(MessageCodec.MaxSecretLength, masked: true);
         SecretField.Set(previous?.Secret is { Length: > 0 } tried ? tried
             : request?.Secret is { Length: > 0 } carried ? carried
-            : settings.Secret ?? string.Empty);
+            : SavedSecretFor(Relay, settings) ?? string.Empty);
         CreateNameField = new TextField(MessageCodec.MaxTextLength);
         SeedField = new TextField(10, accepts: c => c is >= '0' and <= '9');
         _players = previous?.Players ?? settings.CreatePlayers ?? NetworkTweaks.DefaultPlayers;
@@ -187,6 +187,16 @@ public sealed class NetMenuModel
         NetMenuField.SeedValue => SeedField,
         _ => null,
     };
+
+    /// <summary>
+    /// The saved secret, only for the relay it was saved with (the settings' relay, else the default one): a secret is
+    /// a key to one relay, and a menu pointed at another (a launch with <c>--relay</c>) must not send it there.
+    /// </summary>
+    private static string? SavedSecretFor(Uri relay, PlayerSettings settings)
+    {
+        var savedFor = ParseRelay(settings.Relay) ?? new Uri(NetworkTweaks.DefaultRelay);
+        return savedFor == relay ? settings.Secret : null;
+    }
 
     private static Uri? ParseRelay(string? text) =>
         Uri.TryCreate(text, UriKind.Absolute, out Uri? uri) && uri.Scheme is "ws" or "wss" ? uri : null;
