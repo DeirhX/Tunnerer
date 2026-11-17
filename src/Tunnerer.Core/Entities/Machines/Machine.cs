@@ -67,6 +67,12 @@ public class Machine
     /// <summary>A harvester: no ore left in its work area at its last action.</summary>
     public bool HasNoOre { get; set; }
 
+    /// <summary>
+    /// A harvester: at its last action the only ore left in its work area was lump core, which only the tank's torch
+    /// takes. Implies <see cref="HasNoOre"/>.
+    /// </summary>
+    public bool HasOnlyCoreOre { get; set; }
+
     /// <summary>A harvester: actions of work done on the ore cell it is mining (a cell takes a few).</summary>
     public int OreWork { get; set; }
 

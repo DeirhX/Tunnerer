@@ -80,6 +80,12 @@ public enum HarvesterState
 
     /// <summary>No ore left in its work area: idle.</summary>
     NoOre,
+
+    /// <summary>
+    /// The only ore left in its work area is a lump's warm core, which a harvester does not mine: idle until the tank
+    /// torches it out.
+    /// </summary>
+    CoreOnly,
 }
 
 public static class MachineBehaviors
@@ -160,13 +166,14 @@ public static class MachineBehaviors
 
     /// <summary>
     /// A harvester's state, each harvester in exactly one, in this order: heading to a pylon, out of charge, off the
-    /// network, too hot, out of ore, otherwise working.
+    /// network, too hot, out of ore (or left only a core), otherwise working.
     /// </summary>
     public static HarvesterState HarvesterStateOf(Machine harvester) =>
         harvester.IsReturning ? HarvesterState.Returning
         : IsOutOfCharge(harvester) ? HarvesterState.OutOfCharge
         : harvester.IsOffNetwork ? HarvesterState.OffNetwork
         : harvester.IsStalled ? HarvesterState.TooHot
+        : harvester.HasOnlyCoreOre ? HarvesterState.CoreOnly
         : harvester.HasNoOre ? HarvesterState.NoOre
         : HarvesterState.Working;
 
@@ -193,9 +200,11 @@ public static class MachineBehaviors
 
     /// <summary>
     /// A roaming harvester (DESIGN.md §6.4): it works the ore within <c>Ore.HarvesterReach</c> of itself into its owner
-    /// base's store, a few actions a cell (<c>HarvesterPlainWork</c>, <c>HarvesterCoreWork</c>); with no ore in reach
+    /// base's store, <c>HarvesterPlainWork</c> actions a cell; with no ore in reach
     /// it crawls one cell toward the nearest ore within <c>HarvestRange</c> of where it was planted, clearing the dirt
-    /// in its way (worth nothing). It works only inside its base's network coverage, which is how its ore gets home,
+    /// in its way (worth nothing). It leaves a lump's warm core to the tank's torch (DESIGN.md §6.3), and the core's
+    /// heat keeps it off the ore around until the core is gone and the ground has cooled.
+    /// It works only inside its base's network coverage, which is how its ore gets home,
     /// and idles, spending nothing, off the network, with no ore left, or while the store is full. Working spends
     /// battery charge, which ends up as heat in the ground, and it stalls while that ground is too hot, so it needs a
     /// relay nearby to keep going. When its battery runs low it crawls back toward the nearest powered pylon of its
@@ -223,8 +232,9 @@ public static class MachineBehaviors
         if (machine.IsOffNetwork || machine.IsStalled || store.IsFull || IsOutOfCharge(machine))
             return;
 
-        var nearest = FindNearestOre(machine, terrain);
+        var nearest = FindNearestOre(machine, terrain, out bool coreLeft);
         machine.HasNoOre = nearest == null;
+        machine.HasOnlyCoreOre = nearest == null && coreLeft;
         if (nearest is not Position ore)
         {
             machine.OreWork = 0;
@@ -245,16 +255,15 @@ public static class MachineBehaviors
     }
 
     /// <summary>
-    /// One action of work on the ore cell at <paramref name="at"/>: once the cell has had the work it takes, its units
+    /// One action of work on the plain ore cell at <paramref name="at"/>: once the cell has had the work it takes, its units
     /// go to <paramref name="store"/> and the cell is cleared. A cell whose units do not all fit stays in the ground.
     /// </summary>
     private static void WorkOre(Machine machine, ITerrainAccess terrain, Position at, OreStore store)
     {
         var pixel = terrain.GetPixelRaw(at);
         machine.OreWork++;
-        int needed = Pixel.IsOreCore(pixel) ? Tweaks.Ore.HarvesterCoreWork : Tweaks.Ore.HarvesterPlainWork;
         int units = Pixel.OreUnits(pixel);
-        if (machine.OreWork < needed || store.Room < units)
+        if (machine.OreWork < Tweaks.Ore.HarvesterPlainWork || store.Room < units)
             return;
         terrain.SetPixel(at, TerrainPixel.Blank);
         store.Add(units);
@@ -409,9 +418,13 @@ public static class MachineBehaviors
         return Position.DistanceSquared(p, machine.Anchor) <= range * range;
     }
 
-    /// <summary>The ore cell in the work area closest to the harvester (first in scan order on ties), or null.</summary>
-    private static Position? FindNearestOre(Machine machine, ITerrainAccess terrain)
+    /// <summary>
+    /// The plain ore cell in the work area closest to the harvester (first in scan order on ties), or null;
+    /// <paramref name="coreLeft"/> says whether the area still holds core ore, which harvesters leave to the tank.
+    /// </summary>
+    private static Position? FindNearestOre(Machine machine, ITerrainAccess terrain, out bool coreLeft)
     {
+        coreLeft = false;
         int range = Tweaks.Machine.HarvestRange;
         Position? best = null;
         int bestDist = int.MaxValue;
@@ -420,7 +433,14 @@ public static class MachineBehaviors
             {
                 if (dx * dx + dy * dy > range * range) continue;
                 var pos = new Position(machine.Anchor.X + dx, machine.Anchor.Y + dy);
-                if (!terrain.IsInside(pos) || !Pixel.IsOre(terrain.GetPixelRaw(pos))) continue;
+                if (!terrain.IsInside(pos)) continue;
+                var pixel = terrain.GetPixelRaw(pos);
+                if (Pixel.IsOreCore(pixel))
+                {
+                    coreLeft = true;
+                    continue;
+                }
+                if (!Pixel.IsOre(pixel)) continue;
                 int d = Position.DistanceSquared(pos, machine.Position);
                 if (d < bestDist)
                 {

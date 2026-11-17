@@ -13,6 +13,7 @@ using Tunnerer.Core.Entities.Machines;
 /// <param name="HarvestersOffNetwork">Harvesters outside the network's coverage, which do not mine.</param>
 /// <param name="HarvestersTooHot">Harvesters stalled because the ground around them is too hot.</param>
 /// <param name="HarvestersNoOre">Harvesters with no ore left in their work area.</param>
+/// <param name="HarvestersCoreOnly">Harvesters whose work area holds only a lump core, waiting for the tank's torch.</param>
 /// <param name="Relays">Planted, live relays of the base.</param>
 /// <param name="PoweredRelays">Relays the base's link network reaches.</param>
 /// <param name="PumpingRelays">Relays that moved a noticeable amount of heat in their last action.</param>
@@ -27,6 +28,7 @@ public readonly record struct NetworkStatus(
     int HarvestersOffNetwork,
     int HarvestersTooHot,
     int HarvestersNoOre,
+    int HarvestersCoreOnly,
     int Relays,
     int PoweredRelays,
     int PumpingRelays,
@@ -35,9 +37,10 @@ public readonly record struct NetworkStatus(
     double VentCapacity,
     double HeatStoreFill)
 {
-    /// <summary>Harvesters that are none of returning, out of charge, off the network, too hot or out of ore.</summary>
+    /// <summary>Harvesters that are none of returning, out of charge, off the network, too hot, out of ore or left a core.</summary>
     public int HarvestersWorking =>
-        Harvesters - HarvestersTooHot - HarvestersReturning - HarvestersOutOfCharge - HarvestersOffNetwork - HarvestersNoOre;
+        Harvesters - HarvestersTooHot - HarvestersReturning - HarvestersOutOfCharge - HarvestersOffNetwork -
+        HarvestersNoOre - HarvestersCoreOnly;
 
     /// <summary>The heat-store gauge: Warn while it fills, Bad once it is (nearly) full.</summary>
     public StatusLevel HeatStoreLevel => TankBase.HeatStoreLevelOf(HeatStoreFill);
@@ -52,7 +55,7 @@ public readonly record struct NetworkStatus(
 
     internal static NetworkStatus Collect(TankBase tankBase, IReadOnlyList<Machine> machines)
     {
-        int harvesters = 0, returning = 0, outOfCharge = 0, offNetwork = 0, tooHot = 0, noOre = 0;
+        int harvesters = 0, returning = 0, outOfCharge = 0, offNetwork = 0, tooHot = 0, noOre = 0, coreOnly = 0;
         int relays = 0, powered = 0, pumping = 0;
         double inflow = 0.0;
         foreach (var machine in machines)
@@ -69,6 +72,7 @@ public readonly record struct NetworkStatus(
                     case HarvesterState.OffNetwork: offNetwork++; break;
                     case HarvesterState.TooHot: tooHot++; break;
                     case HarvesterState.NoOre: noOre++; break;
+                    case HarvesterState.CoreOnly: coreOnly++; break;
                 }
             }
             else if (machine.Behavior.IsHeatPump)
@@ -83,7 +87,7 @@ public readonly record struct NetworkStatus(
         }
 
         return new NetworkStatus(
-            harvesters, returning, outOfCharge, offNetwork, tooHot, noOre,
+            harvesters, returning, outOfCharge, offNetwork, tooHot, noOre, coreOnly,
             relays, powered, pumping,
             RelayInflow: inflow,
             RadiatorInflow: inflow - tankBase.EngineOutputPerTick,

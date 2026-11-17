@@ -128,7 +128,7 @@ public static class Tweaks
     {
         public const int PlainCellUnits = 1;
         public const int CoreCellUnits = 3;
-        public const float CoreTemperature = 70f;
+        public const float CoreTemperature = 90f;
 
         // Mining (TankDigger). The tank's dig clears a plain ore cell with this per-mille chance per dig (dirt always
         // clears), so ore is slower than dirt; a core cell needs the torch and its own chance (rock is
@@ -153,13 +153,12 @@ public static class Tweaks
         public const int PylonCost = 10;
         public const int HarvesterCost = 30;
 
-        // Harvesters (MachineBehaviors.Harvester) work ore within HarvesterReach of their centre (their footprint is
-        // 5x5, so ore beside it is 3 cells off): a plain cell takes HarvesterPlainWork actions, a core cell
-        // HarvesterCoreWork. At one action per Machine.HarvesterIntervalMs that is about 1.1 units/s from plain ore
-        // and 1.7 from a core, so a harvester repays its cost in under a minute.
+        // Harvesters (MachineBehaviors.Harvester) work plain ore within HarvesterReach of their centre (their
+        // footprint is 5x5, so ore beside it is 3 cells off): a cell takes HarvesterPlainWork actions. At one action
+        // per Machine.HarvesterIntervalMs that is about 1.1 units/s, so a harvester repays its cost in under a minute.
+        // They leave a lump's core to the tank's torch.
         public const int HarvesterReach = 4;
         public const int HarvesterPlainWork = 3;
-        public const int HarvesterCoreWork = 6;
 
         // The bot does not prospect: a base whose side is played by the computer gets this much ore a second instead
         // (World.SetBotControlled). A stand-in until the bot mines.

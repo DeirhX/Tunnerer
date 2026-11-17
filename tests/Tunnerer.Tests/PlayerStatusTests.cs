@@ -213,7 +213,7 @@ public class PlayerStatusTests
     [Fact]
     public void HeatStoreFullWithRelays_NeedsAPoweredRelay()
     {
-        var full = new NetworkStatus(0, 0, 0, 0, 0, 0, Relays: 1, PoweredRelays: 0, PumpingRelays: 0,
+        var full = new NetworkStatus(0, 0, 0, 0, 0, 0, 0, Relays: 1, PoweredRelays: 0, PumpingRelays: 0,
             RelayInflow: 0, RadiatorInflow: 0, VentCapacity: RelayHeatTests.CreateScenario().Base.VentCapacityPerTick, HeatStoreFill: 0.95);
         Assert.Equal(StatusLevel.Bad, full.HeatStoreLevel);
         Assert.False(full.IsHeatStoreFullWithRelays);

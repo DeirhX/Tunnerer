@@ -103,18 +103,26 @@ public class HarvesterHeatTests
     }
 
     [Fact]
-    public void Harvester_MinesACoreCell_ForItsThreeUnits_MoreSlowly()
+    public void Harvester_LeavesACoreCellToTheTank_AndSaysSo()
     {
         var s = RelayHeatTests.CreateScenario();
         SeedOre(s, depth: 1, length: 1, core: true);
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
-        PlantHarvester(s);
+        var harvester = PlantHarvester(s);
         int storeBefore = s.Base.Store.Ore;
+        double charge = harvester.Charge;
 
-        Advance(s, HarvestTicks(Tweaks.Ore.HarvesterCoreWork - 1));
+        // Long enough for any mining to have finished.
+        Advance(s, HarvestTicks(20));
+
         Assert.Equal(storeBefore, s.Base.Store.Ore);
-        Advance(s, HarvestTicks(2));
-        Assert.Equal(storeBefore + Tweaks.Ore.CoreCellUnits, s.Base.Store.Ore);
+        Assert.Equal(Tweaks.Ore.CoreCellUnits, OreAround(s, Tweaks.Machine.HarvestRange));
+        // One core cell beside a linked relay is not hot enough to stall it: it idles for want of plain ore.
+        Assert.Equal(HarvesterState.CoreOnly, MachineBehaviors.HarvesterStateOf(harvester));
+        Assert.True(harvester.HasNoOre);
+        Assert.Equal(1, s.World.GetNetworkStatus(s.Base).HarvestersCoreOnly);
+        Assert.Equal(0, s.World.GetNetworkStatus(s.Base).HarvestersWorking);
+        Assert.Equal(charge, harvester.Charge);
     }
 
     [Fact]
