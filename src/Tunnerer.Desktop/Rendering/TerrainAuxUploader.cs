@@ -36,7 +36,7 @@ public sealed class TerrainAuxUploader
     public void ClearDirtyCells() => _dirtyCells.Clear();
 
     /// <summary>Cells a simulation step changed; they are repacked on the next frame (and start a growth fade).</summary>
-    public void ObserveTerrainChanges(TerrainGrid terrain, IReadOnlyList<Position> changedCells, float visualTime)
+    public void ObserveTerrainChanges(ITerrainPixelReadOnly terrain, IReadOnlyList<Position> changedCells, float visualTime)
     {
         if (changedCells.Count == 0)
             return;
@@ -49,9 +49,16 @@ public sealed class TerrainAuxUploader
     /// <see cref="Commit"/> once the backend has taken the upload.
     /// </summary>
     /// <param name="steppedSinceRender">A simulation step ran since the last frame; heat only changes on steps.</param>
+    /// <param name="sightChanged">
+    /// With fog of war, the cells whose visibility changed since the last frame: ground that came into sight needs
+    /// its heat and scorch, which were not packed while it was out of sight.
+    /// </param>
     public TerrainAuxFrame Prepare(
-        TerrainGrid terrain, RenderViewState view, in Rect visibleRect, bool steppedSinceRender, float visualTime)
+        in TerrainView terrain, RenderViewState view, in Rect visibleRect, bool steppedSinceRender, float visualTime,
+        Rect? sightChanged = null)
     {
+        TerrainView source = terrain;
+        TerrainGrid grid = terrain.Grid;
         _builder.GrowthFade.CollectExpired(visualTime, _dirtyCells);
 
         Rect? auxDirtyRect;
@@ -60,8 +67,8 @@ public sealed class TerrainAuxUploader
         if (_fullUploadPending)
         {
             DrawProfile.Measure(ref _profile.ScreenAuxBuild, () =>
-                _builder.BuildGpuTerrainAuxData(terrain, _aux, _coverage));
-            auxDirtyRect = new Rect(0, 0, terrain.Size.X, terrain.Size.Y);
+                _builder.BuildGpuTerrainAuxData(source, _aux, _coverage));
+            auxDirtyRect = new Rect(0, 0, grid.Size.X, grid.Size.Y);
             coverageDirtyRect = auxDirtyRect;
             consumeHeatDirty = true;
         }
@@ -72,7 +79,7 @@ public sealed class TerrainAuxUploader
             // Heat only changes on simulation steps; in-between frames have nothing new to pack.
             bool includeHeatAux = steppedSinceRender &&
                 (_heatFrameCounter++ % DesktopScreenTweaks.HeatAuxUpdateIntervalFrames) == 0;
-            Rect? heatDirtyRect = includeHeatAux && terrain.TryGetHeatDirtyRect(out Rect dirtyRect)
+            Rect? heatDirtyRect = includeHeatAux && grid.TryGetHeatDirtyRect(out Rect dirtyRect)
                 ? RenderViewState.ClampToViewport(dirtyRect, visibleRect)
                 : null;
 
@@ -86,7 +93,7 @@ public sealed class TerrainAuxUploader
             {
                 Rect written = fullRect;
                 DrawProfile.Measure(ref _profile.AuxTerrainPack, () =>
-                    written = _builder.BuildGpuTerrainAuxRect(terrain, _aux, _coverage, fullRect));
+                    written = _builder.BuildGpuTerrainAuxRect(source, _aux, _coverage, fullRect));
                 fullAuxRect = written;
             }
             coverageDirtyRect = fullAuxRect;
@@ -98,9 +105,17 @@ public sealed class TerrainAuxUploader
 
             if (heatOnlyRect is Rect heatRect)
                 DrawProfile.Measure(ref _profile.AuxHeatPack, () =>
-                    TerrainAuxBuilder.UpdateGpuTerrainAuxHeatOnly(terrain, _aux, heatRect));
+                    TerrainAuxBuilder.UpdateGpuTerrainAuxHeatOnly(source, _aux, heatRect));
 
-            auxDirtyRect = RenderViewState.MergeDirtyRects(fullAuxRect, heatOnlyRect);
+            // Ground that came into sight: the full rect above already read its live channels, the rest needs them.
+            Rect? sightRect = RenderViewState.SubtractCoveredHeatRect(
+                RenderViewState.ClampToViewport(sightChanged, visibleRect), fullAuxRect);
+            if (sightRect is Rect seenRect)
+                DrawProfile.Measure(ref _profile.AuxHeatPack, () =>
+                    TerrainAuxBuilder.UpdateGpuTerrainAuxHeatOnly(source, _aux, seenRect, includeScorch: true));
+
+            auxDirtyRect = RenderViewState.MergeDirtyRects(
+                RenderViewState.MergeDirtyRects(fullAuxRect, heatOnlyRect), sightRect);
             consumeHeatDirty = includeHeatAux;
         }
         view.UpdateLastAuxViewport(visibleRect);

@@ -34,7 +34,7 @@ public partial class PostParamsLayoutGuardTests
         ["PostParamsLayoutVersion"] = ["PostParamsLayoutVersion"],
         ["HeatDebugOverlay"] = ["HeatDebugOverlay"],
         ["PostVignetteEnabled"] = ["PostVignetteEnabled"],
-        ["_padReserved0"] = ["_padReserved0"],
+        ["PostFogEnabled"] = ["PostFogEnabled"],
         ["PostTerrainAuxEnabled"] = ["PostTerrainAuxEnabled"],
         ["PostTankGlowEnabled"] = ["PostTankGlowEnabled"],
         ["PostTerrainHeatEnabled"] = ["PostTerrainHeatEnabled"],

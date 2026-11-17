@@ -24,8 +24,9 @@ public static class Tweaks
     {
         public static readonly TimeSpan AdvanceStep = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / Perf.TargetFps);
         public const int MaxPlayers = 8;
-        public static readonly TimeSpan DirtRecoverInterval = TimeSpan.FromMilliseconds(250);
+        public static readonly TimeSpan DirtRecoverInterval = TimeSpan.FromMilliseconds(750);
         public const int DirtRecoverSpeed = 10;
+        // Per-mille chance per regrowth check, per dirt neighbour (times the modifiers below).
         public const int DirtRegrowSpeed = 4;
         public const int DirtRegrowBlankModifier = 4;
         public const int DirtRegrowScorchedModifier = 1;
@@ -263,6 +264,77 @@ public static class Tweaks
         public const int BaseRadius = Base.BaseSize / 2 + NodeRadius;
         // Cooling strength falls by this factor per live link between a node and its base.
         public const float HopFalloff = 0.85f;
+    }
+
+    /// <summary>
+    /// Fog of war: what a side sees (<c>Sensing/VisionMap</c>). Presentation only; the simulation never reads vision.
+    /// </summary>
+    public static class Vision
+    {
+        // A tank sees this far along open tunnel...
+        public const int TankRadius = 45;
+        // ...and everything this close, through solid ground too, so digging is not blind.
+        public const int TankNearRadius = 7;
+        // A machine sees this close around itself. A link node (relay, pylon) sees its whole coverage circle
+        // (Coverage), through solid ground too.
+        public const int MachineNearRadius = 6;
+        // The walls around open ground in sight are seen this many cells deep, fading with depth.
+        public const int WallSkin = 5;
+        // The level falls from full to nothing over the last cells of a source's reach (a short reach: its outer
+        // half), so sight has no hard edge.
+        public const int EdgeFade = 12;
+        // Bases and machines stay put: their vision is recast every this many ticks, the tank's every tick.
+        public const int FixedSourceRefreshTicks = 6;
+    }
+
+    /// <summary>
+    /// The tank's radar (<c>Sensing/Radar</c>): pulses that run outward from the tank and leave blips where they
+    /// reflect, well beyond sight. Presentation only, like vision.
+    /// </summary>
+    public static class Radar
+    {
+        // How far a pulse reaches, in cells. Only a large rock formation returns from that far; everything else
+        // returns from nearer (below) and beyond its range blocks the ray without a blip.
+        public const int Range = 150;
+        // Rock, concrete and other sides' base walls: a thin shell returns from SolidRangeMin, growing to Range for
+        // a formation FormationDepth cells deep along the ray.
+        public const int SolidRangeMin = 60;
+        public const int FormationDepth = 10;
+        public const int GoldRange = 90;
+        public const int MachineRange = 75;
+        public const int LifeRange = 60;
+        // The weak return of a tunnel or cave behind dirt.
+        public const int CavityRange = 50;
+        // Hot ground: barely warm from HeatRangeMin, at HeatFullTemperature and above from HeatRangeMax.
+        public const int HeatRangeMin = 50;
+        public const int HeatRangeMax = 120;
+        // The tank sends a pulse every PulsePeriodTicks (4 s). Its front runs FrontCellsPerTick outward a tick, so
+        // it reaches Range in 75 ticks (3.1 s) and the radar is quiet for the rest of the period. The period must
+        // outlast the trip: one pulse is in flight at a time.
+        public const int PulsePeriodTicks = 4 * Perf.TargetFps;
+        public const int FrontCellsPerTick = 2;
+        // A pulse is a fan of this many rays, turned a fraction of a ray spacing each pulse so pulses fill each
+        // other's gaps. While a pulse travels each ray walks the cells the front crossed: about
+        // RaysPerPulse * FrontCellsPerTick * 1.27 = 285 cells a tick (1.27 is the mean cells per cell of distance of
+        // a walk that never cuts a corner), against 600 for the beam this replaced.
+        public const int RaysPerPulse = 112;
+        // A blip fades out over this many ticks (10 s): two and a half pulses, so the next pulse checks it first.
+        public const int ContactLifetimeTicks = 10 * Perf.TargetFps;
+        // Open ground behind dirt (a tunnel, a cave) gives a weak return and lets the ray on, this many times a ray.
+        public const int WeakReturnsPerRay = 3;
+        // A tank reflects as a square this many cells either side of its centre.
+        public const int TankHalfSize = 3;
+        // Heat weakens the pulse. A ray starts at strength 1 and every cell hotter than HeatThreshold takes
+        // HeatLossPerDegree per degree above it, per cell of path: ground at 50 stops a ray in about 6 cells, ground
+        // at 20 in about 25.
+        public const float HeatThreshold = 10f;
+        public const float HeatLossPerDegree = 0.004f;
+        // Each hot cell a ray goes through is marked with how hot it is, at most this many a ray, at full intensity
+        // from HeatFullTemperature up.
+        public const int HeatReturnsPerRay = 10;
+        public const float HeatFullTemperature = 60f;
+        // A reflector this hot returns only its heat: the blip says "heat", not what the thing is.
+        public const float HeatScrambleTemperature = 40f;
     }
 
     public static class Weapon

@@ -56,6 +56,9 @@ Entities/
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
   Links/LinkPoint.cs, Link.cs, LinkMap.cs   Link network: nodes, edges, rebuild, power and flow
   Links/NetworkCoverage.cs   Coverage nodes and the coverage a tank gets at a position
+Sensing/
+  VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
+  Radar.cs                   A tank's radar: pulses running out from the tank and the fading contacts where they reflected
 Collision/
   CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
   WorldSectors.cs            Sector buckets for the tank broad phase
@@ -89,7 +92,8 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
 
 1. **Collision**: `CollisionSolver.Update` rebuilds the tank sector index.
 2. **Heat**: `TerrainGrid.CoolDown` (see below). The energy-balance residual is measured here for the profile.
-3. **Regrowth**: `TerrainRegrowth.Advance`.
+3. **Regrowth**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
+   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open.
 4. **Projectiles**: `ProjectileList.Advance`.
 5. **Tanks**: `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`): idle heat, base
    interaction (recharge, heat sink, docking), network coverage, turret aim and fire, `TankDigger.Move`, spawn
@@ -101,6 +105,8 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
    core tap and its hold timer).
 9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
    every tick.
+10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
+    out by `World.TrackRadar` runs its pulse on (see "Radar" below).
 
 `SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per section
 above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / parallel ticks) and `[ProfileE]`
@@ -108,7 +114,7 @@ above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / 
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
 `Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
-`World.CollectCoverageNodes`, and the `CopyRenderStates` snapshot of each entity list.
+`World.CollectCoverageNodes`, `World.TrackVision`, `World.TrackRadar`, `World.RadarOf`, and the `CopyRenderStates` snapshot of each entity list.
 
 ### Step events
 
@@ -153,6 +159,88 @@ base upgrades) are specified in `DESIGN.md` §4; the code is in `TankBase`, `Bas
 `TankThermals`, `TankHeatModel`, `NetworkCoverage`, `HotRockPockets`, `FrostRockPockets` and `World.AdvanceSectorGoal`.
 The heat render texture encodes temperature signed (`TerrainGrid.HeatToByte`), so the terrain shader can draw ground
 below 0 as frost.
+
+## Vision
+
+`World.TrackVision(tank)` returns a `VisionMap` for that tank's side and keeps it up to date at the end of every
+`Advance`. A world nobody asked pays nothing. The map is output only: nothing in the simulation reads it, so
+tracking cannot change a result (`VisionMapTests.TrackingVision_DoesNotChangeTheSimulation`, and the recorded
+fingerprints do not move).
+
+A side sees through `VisionSource`s (numbers in `Tweaks.Vision`):
+
+- its tank, along open lines of sight to `TankRadius`, and everything within `TankNearRadius`, through solid ground
+  too, so digging is not blind;
+- its base, along open lines of sight over its coverage circle (the radius of `NetworkCoverage`);
+- its link nodes (relays, pylons), over their whole coverage circles, through solid ground too, linked or not;
+- every other planted machine of its base, `MachineNearRadius` around itself.
+
+A source casts a Bresenham ray to each cell on the edge of its square, cut to a circle. A ray stops at the first
+cell that blocks a link (`Pixel.BlocksLink`, the rule links and coverage use). The walls around the open cells in
+sight are then lit `WallSkin` cells deep, less with every cell of depth. Each cell gets a level, 255 in plain sight
+and fading over the last `EdgeFade` cells of the source's reach (a short reach: its outer half), so sight has no hard
+edge anywhere.
+
+The map holds, per cell: the level (`LevelAt`, `IsVisible`), whether it was ever seen (`IsExplored`), and `Known`,
+the pixel the side last saw there (an `ITerrainPixelReadOnly`; it starts as a copy of the terrain). After each
+update `KnownChanges` lists the cells whose known pixel changed, either because the terrain changed in sight or
+because a cell that changed out of sight came back into it. `TryGetDirtyRect` bounds the cells whose level changed.
+
+Cost follows the cells in sight, never the size of the map: every pass walks lists of lit cells, and no pass sweeps
+the grid. The tank is recast every tick; bases and machines, which stay put, every
+`FixedSourceRefreshTicks` ticks into their own layer. Keep it that way: maps are meant to grow.
+
+### Radar
+
+`World.TrackRadar(tank)` returns that tank's `Radar` (and tracks its side's vision, which the radar needs). It is
+output only, like vision (`RadarTests.AWorld_RunsTheRadar_WithoutChangingTheSimulation`). Numbers are in
+`Tweaks.Radar`.
+
+Every `PulsePeriodTicks` the radar sends a pulse from the tank's cell, which stays the pulse's origin however the
+tank moves. The pulse is a fan of `RaysPerPulse` rays, turned a fraction of a ray spacing each pulse so later pulses
+fill the gaps of earlier ones. Its front runs `FrontCellsPerTick` outward a tick to `Range`, and each ray walks only
+the cells the front crossed that tick, so a return appears when the front reaches it, near ones first. One pulse is
+in flight at a time; `PulseInFlight`, `PulseOrigin` and `PulseRadius` let Desktop draw its ring. A ray is a
+Bresenham line that never cuts a corner: a diagonal step goes through the side cell the line crosses first, so it
+cannot slip between two cells that touch only at a corner. Along a ray:
+
+- dirt and open ground let it through, and so do the walls of the tank's own base;
+- another side's machine (`RadarTarget`), or gold, reflects as `Metal` and stops it;
+- another tank (a `RadarTarget` marked `Alive`) reflects as `Life` and stops it;
+- rock, concrete, hot and frost rock and another side's base walls reflect as `Solid` and stop it;
+- stepping from dirt into open ground (a tunnel, a cave) gives a `Cavity` return and the ray goes on, at most
+  `WeakReturnsPerRay` times.
+
+A ray stops at the first thing that reflects it whether or not the return is kept, so nothing behind it answers.
+
+Each kind of thing returns only from within its own range of the pulse's origin (`Tweaks.Radar`): rock from
+`SolidRangeMin` for a thin shell up to the full `Range` for a formation `FormationDepth` cells deep along the ray
+(`Radar.SolidRange` looks behind the face, only for rock beyond the near range), gold from `GoldRange`, machines
+from `MachineRange`, tanks from `LifeRange`, caves from `CavityRange`, heat from `HeatRangeMin` to `HeatRangeMax` by
+intensity. Out of range the thing still stops the ray.
+
+Heat weakens the rays. A ray starts at strength 1 and loses `HeatLossPerDegree` for every degree a cell is above
+`HeatThreshold`, scaled by the length of path a cell stands for along that ray (so the loss per distance is the same
+in every direction), before anything in that cell can reflect it. What it then finds is recorded with the strength
+left (`RadarContact.Strength`). Every hot cell the ray goes through gets a `Heat` contact whose strength is how hot
+the cell is (1 at `HeatFullTemperature`), at most `HeatReturnsPerRay` a ray, and the ray stops when its strength runs
+out: a few cells into very hot ground, many into warm ground. A reflector at or above `HeatScrambleTemperature`
+returns `Heat` instead of what it is. So a hot zone shows as heat marks reaching a little way into it from the side
+the pulse came from, and nothing behind them. A contact is removed as soon as the side sees its cell, and the side's
+own machines are not radar targets: the radar tells a side only what it cannot see or does not remember. `Radar.HeatLoss` is the share of
+the last finished pulse's rays that heat absorbed. Cold does nothing to the rays. This is the radar reading the heat
+field, not changing it.
+
+A return becomes a `RadarContact` (cell, echo, birth tick, strength) unless it tells the side nothing: the cell is in
+sight, or it is terrain the side has explored and remembers as it is now. So remembered ground only shows where it
+has changed. Contacts live at most `ContactLifetimeTicks` in a fixed ring (`ContactCount`, `ContactAt`), oldest
+first, and never move. Each tick of a pulse, after the rays have walked, the radar reconciles the older contacts: a
+new return in a cell replaces the old contact there, and a contact the front has just passed, on the nearest ray,
+when that ray got at least that far, is checked against the world and dropped unless it still holds (the rock is
+still there, the ground still hot, a target still covers the cell) and is still news. A contact in the shadow of
+whatever its ray stopped at is not checked, so the radar never learns what it could not reach; it fades instead.
+A tick of a pulse walks about `RaysPerPulse * FrontCellsPerTick` cells and looks at each contact once; ticks
+between pulses only age contacts. Neither depends on the size of the map.
 
 ## Links
 

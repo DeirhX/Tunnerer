@@ -23,6 +23,7 @@ public sealed class GameEventWatcher
     private bool _chargeLow;
     private bool _offNetwork;
     private bool _engineRunning;
+    private bool _radarScattered;
     private int _lastStore;
     private readonly int[] _upgradeLevels = new int[BaseUpgrades.Count];
     private int _upgradeRefused;
@@ -31,6 +32,9 @@ public sealed class GameEventWatcher
     private bool _tappedCore;
     private int _harvestedSinceReport;
     private float _lastHarvestReport;
+
+    /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
+    public const float RadarScatteredShare = 0.08f;
 
     public void Reset() => _primed = false;
 
@@ -71,6 +75,7 @@ public sealed class GameEventWatcher
         bool chargeLow = home.Charge < home.ChargeCapacity * 0.1 && harvesters > 0;
         bool offNetwork = player.IsOffNetwork;
         bool engineRunning = home.EngineOutputPerTick > 1.0;
+        bool radarScattered = !player.IsDead && world.RadarOf(player) is { HeatLoss: >= RadarScatteredShare };
 
         double coreRate = home.CoreTapPerTick * Tweaks.Perf.TargetFps;
         bool tappingCore = coreRate > 1.0;
@@ -150,6 +155,10 @@ public sealed class GameEventWatcher
                 feed.Post(now, "off-network", "Off network",
                     "Your tank heats up out here. Head back inside the pale circles, or extend the network with a relay.",
                     NotificationKind.Warning, cooldown: 90f);
+            if (radarScattered && !_radarScattered)
+                feed.Post(now, "radar-heat", "Radar scattered by heat",
+                    "Hot ground swallows the pulse: red dots show how far it got. Cool that ground to see past it.",
+                    NotificationKind.Warning, cooldown: 60f);
             if (engineRunning && !_engineRunning)
                 feed.Post(now, "engine-running", "Base engine making charge",
                     "Relay heat is being turned into charge. Hotter sources make more.", NotificationKind.Good, cooldown: 120f);
@@ -176,6 +185,7 @@ public sealed class GameEventWatcher
         _chargeLow = chargeLow;
         _offNetwork = offNetwork;
         _engineRunning = engineRunning;
+        _radarScattered = radarScattered;
         _lastStore = store;
         _upgradeRefused = player.UpgradeRefusedTicks;
         _tappingCore = tappingCore;

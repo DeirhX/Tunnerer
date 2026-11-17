@@ -7,6 +7,7 @@ using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.LevelGen;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Audio;
@@ -44,6 +45,13 @@ public partial class Game : IDisposable
     private readonly GameCommandController _commandController = new();
     private readonly float[] _gpuTankHeatGlow = new float[Tweaks.World.MaxPlayers * 4];
     private readonly TerrainAuxUploader _terrainAuxUploader;
+    /// <summary>The player's vision and the fog texture built from it; both null when fog of war is off.</summary>
+    private readonly VisionMap? _vision;
+    private readonly FogLayer? _fogLayer;
+    /// <summary>The player's radar, which shows blips on ground out of sight; null when fog of war is off.</summary>
+    private readonly Radar? _radar;
+    /// <summary>What the renderer draws the terrain from: the world, or with fog what the player last saw of it.</summary>
+    private readonly TerrainView _terrainView;
     private bool _compositeChanged = true;
     private bool _steppedSinceRender = true;
     private readonly Stopwatch _renderClock = Stopwatch.StartNew();
@@ -65,7 +73,8 @@ public partial class Game : IDisposable
         LevelGenMode genMode = LevelGenMode.Deterministic,
         PerfCaptureOptions? perfCapture = null,
         bool enableAiTanks = true,
-        bool terrainTestMode = false)
+        bool terrainTestMode = false,
+        bool fogOfWar = true)
     {
         _terrainTestMode = terrainTestMode;
         _automatedRun = IsAutomatedRun(perfCapture);
@@ -96,6 +105,14 @@ public partial class Game : IDisposable
         _terrainSize = built.TerrainSize;
         _p2AI = new BotTankAI(seed: built.BotSeed);
         _entityLayer.CaptureStep(_world);
+        // The player is the first tank; the terrain test has none, and so no fog.
+        if (fogOfWar && _world.TankList.Count > 0)
+        {
+            _vision = _world.TrackVision(_world.TankList.Tanks[0]);
+            _fogLayer = new FogLayer(_terrainSize);
+            _radar = _world.TrackRadar(_world.TankList.Tanks[0]);
+        }
+        _terrainView = _vision != null ? TerrainView.Fogged(_world.Terrain, _vision) : TerrainView.Live(_world.Terrain);
 
         _worldPixels = new uint[_terrainSize.Area];
         _compositePixels = new uint[_terrainSize.Area];
@@ -240,12 +257,27 @@ public partial class Game : IDisposable
         _steppedSinceRender = true;
         _entityLayer.CaptureStep(_world);
 
-        var changedCells = _world.Terrain.GetChangeList();
+        // With fog the renderer follows what the player knows of the terrain, not the terrain: a change out of
+        // sight is drawn when the player next sees the cell.
+        var changedCells = _vision?.KnownChanges ?? _world.Terrain.GetChangeList();
         _audio.AfterStep(_world);
-        _terrainAuxUploader.ObserveTerrainChanges(_world.Terrain, changedCells, VisualTime);
+        _terrainAuxUploader.ObserveTerrainChanges(_terrainView.Pixels, changedCells, VisualTime);
 
-        DrawProfile.Measure(ref _drawProfile.TerrainDraw,
-            () => _world.Terrain.DrawChangesToSurface(_worldPixels));
+        DrawProfile.Measure(ref _drawProfile.TerrainDraw, DrawTerrainChangesToSurface);
+    }
+
+    private void DrawTerrainChangesToSurface()
+    {
+        if (_vision == null)
+        {
+            _world.Terrain.DrawChangesToSurface(_worldPixels);
+            return;
+        }
+
+        int width = _terrainSize.X;
+        foreach (Position cell in _vision.KnownChanges)
+            _worldPixels[cell.X + cell.Y * width] = Pixel.GetColor(_vision.Known.GetPixelRaw(cell)).ToArgb();
+        _world.Terrain.ClearChangeList();
     }
 
     private void LoadHudSprites()

@@ -38,7 +38,7 @@ public partial class Game
         float visualTime = VisualTime;
         _entityLayer.Build(
             renderView, stepProgress, turnSeconds: _paused ? 0f : dt, snapHeadings: !_interpolateFrames,
-            visualSeconds: visualTime);
+            visualSeconds: visualTime, vision: _vision, radar: _radar);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
 
@@ -47,8 +47,10 @@ public partial class Game
             var hiResWatch = Stopwatch.StartNew();
 
             var visibleRect = _renderViewState.ComputeVisibleWorldRect(_terrainSize, scale);
+            Rect? sightChanged = null;
+            FogUpload fog = _fogLayer != null && _vision != null ? _fogLayer.Prepare(_vision, out sightChanged) : default;
             TerrainAuxFrame terrainAux = _terrainAuxUploader.Prepare(
-                _world.Terrain, _renderViewState, visibleRect, steppedSinceRender, visualTime);
+                _terrainView, _renderViewState, visibleRect, steppedSinceRender, visualTime, sightChanged);
 
             _drawProfile.ScreenHiResTerrain += hiResWatch.Elapsed;
             double terrainMs = hiResWatch.Elapsed.TotalMilliseconds;
@@ -57,7 +59,7 @@ public partial class Game
             int tankHeatGlowCount = 0;
             DrawProfile.Measure(ref _drawProfile.ScreenTankGlowBuild, () =>
                 tankHeatGlowCount = _terrainAuxBuilder.BuildGpuTankHeatGlowData(
-                    _world.TankList.Tanks, _entityLayer.InterpolateTankPositions(stepProgress), renderView, _gpuTankHeatGlow));
+                    _world.TankList.Tanks, _entityLayer.InterpolateTankPositions(stepProgress), renderView, _gpuTankHeatGlow, _vision));
 
             _drawProfile.ScreenHiResEntities += hiResWatch.Elapsed;
 
@@ -79,7 +81,8 @@ public partial class Game
                     SampleCount: _renderViewState.NativeContinuousSampleCount),
                 Entities: new EntityLayerUpload(
                     Vertices: _entityLayer.Vertices,
-                    VertexCount: _entityLayer.VertexCount));
+                    VertexCount: _entityLayer.VertexCount),
+                Fog: fog);
             DrawProfile.Measure(ref _drawProfile.ScreenBackendUpload, () =>
                 _renderBackend.UploadGamePixels(upload));
             _compositeChanged = false;

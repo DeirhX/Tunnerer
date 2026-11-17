@@ -95,4 +95,7 @@ that tests can inject their own values.
     flags in `EntityShape` match `Shaders/Entity/Layout.hlsli` and the dispatch in `EntityPs.hlsl`.
   - `SimulationTableGuardTests`, `MachineBehaviorTableTests`, `MachinePresentationTests`: every enum value has its
     table entries.
+- **Vision is output only, and its cost follows what is seen.** `VisionMap` (fog of war) is read by Desktop and by
+  nothing in the simulation. Its passes walk lists of cells in sight; do not add one that sweeps the whole grid,
+  because maps are meant to grow.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.

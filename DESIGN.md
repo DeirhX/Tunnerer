@@ -141,6 +141,8 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
 - **Coverage.** The base and every powered relay and pylon cover a circle around themselves. A position is covered
   when it is inside a node's circle and in direct line of sight through open ground, the same rule links use, so
   coverage follows your tunnels.
+- **Relays hold the ground open** *(Prototype)*. No new dirt grows within the range of a planted relay or pylon,
+  linked or not, so tunnels along a network stay dug. Elsewhere dirt closes in again, slowly.
 - **Inside coverage** the tank's heat goes down the links into the base reactor, so it competes with the relays for
   the same radiator. Coverage only takes heat away; it never chills the tank below 0.
 - **Outside coverage** the tank's heat floor climbs steadily. Work heat from digging and firing still sheds into the
@@ -192,8 +194,8 @@ Building has to pay off, and exploring has to lead somewhere.
   - **Insulation:** the off-network clock runs 25% slower per level.
 - **Harvesters are income.** Their dirt goes straight into the store that buys upgrades, so a camp of harvesters
   near the base turns into a bigger radiator and a longer reach.
-- **The HUD** shows the goal (core tap rate and hold timer) at the top of the base panel, an upgrade list above the
-  bottom panel while docked, and a banner when the sector is complete.
+- **The HUD** shows the goal (core tap rate and hold timer) at the top of the base panel, an upgrade list on the left
+  of the view while docked (clear of the base's top and bottom entrances), and a banner when the sector is complete.
 
 ## 5. The player *(Decided: mainly a builder that can also fight, as in Factorio)*
 
@@ -262,6 +264,49 @@ field. Planned: conductor lines, insulating walls, haulers, turrets, props, heat
 
 The opposing tank stops being the centre of the game. It becomes one possible sector twist: a competitor for the
 same deposits.
+
+### 6.6 Fog of war and radar *(Prototype)*
+
+The player sees only what their side sees, so that learning the shape of the world takes travelling through it.
+
+- **Three kinds of ground.** *In sight*: shown live. *Remembered*: seen before, shown as it was last seen, drained
+  toward a cool blue-grey and dimmed, with no entities and no live heat. *Unknown*: never seen, black.
+- **What sees.** The tank sees along open tunnel (about 45 cells) and a little through solid ground around itself.
+  The base sees along open ground over its coverage circle. A relay or pylon sees its whole coverage circle, through
+  the ground, whether or not it is linked; every other machine sees a few cells around itself. The network is
+  therefore the player's eyes as well as its cooling line (§4.6): a place stays lit, with its live heat, only while
+  something of yours stands there. The edge of sight is a gradient, never a hard line.
+- **Radar** *(Prototype)*. Every 4 seconds the tank sends a pulse: a faint ring that runs outward from where the
+  tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
+  it through; rock, hot and frost rock, gold, another side's base walls, machines and tanks reflect it and stop it.
+  Each return is a single blip at the first cell that reflected, flaring the moment the ring reaches it (near
+  things first) and fading over 10 seconds: green for rock, amber for metal, and a white-violet dot in a ring for
+  something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
+  shadow, so the outline of a thing is only learned by pinging it from several sides, and successive pulses hit
+  slightly different points, so a shape fills in while you wait. When a later pulse passes an old blip it checks it
+  again: a blip of an enemy that has driven off, or of ground that has changed, goes out; one hidden in a new
+  shadow stays until it fades. A tunnel or cave behind dirt gives a weak blue return and lets the pulse on. The
+  Different things show from different distances: a large rock formation from the pulse's full 150 cells, a thin
+  wall only from about 60, gold from 90, machines from 75, a tank from 60, a cave from 50, and hot ground from 50
+  to 120 by how hot it is. Beyond its range a thing still casts its shadow but leaves no blip, so the far picture is
+  only the big shapes and the detail is a surprise kept for when you get close. The
+  radar reports only news: nothing in sight, nothing in remembered ground unless it has changed since, and never
+  your own machines. A blip goes the moment you see its cell.
+- **Heat blinds the radar** *(Prototype)*. Hot ground absorbs the pulse: every hot cell a ray crosses takes some of
+  it, more the hotter it is, and shows as a red dot, brighter the hotter the cell. The pulse gets through many warm
+  cells but only a few very hot ones before it is spent, so a hot zone shows as red dots reaching a little way into
+  it from your side, deeper where it is cooler, and nothing behind them. A return that got through warm ground is
+  fainter, and anything too hot to read, hot rock included, returns only its heat. Once relays have cooled the
+  ground the next pulse clears the dots. This is the radar's tie to heat (pillar 2). Still open: whether pinging should cost heat,
+  and whether the tank's own heat should weaken its radar.
+- **It is information, not physics.** Vision never changes the simulation: heat, machines and mobs run the same
+  seen or unseen. Whether unseen ground may be simulated more cheaply is a separate question (below).
+
+**Larger maps.** Sectors are meant to grow well beyond today's largest map (1500 by 750), so the cost of a step
+has to follow what is active, not the area of the map. Vision already works that way. The heat solver steps only
+active regions but still does bookkeeping over the grid, and that is the first thing to make proportional to
+activity. Simulating unseen ground more coarsely is the option after that; it would have to keep energy conserved
+and results deterministic, and the freeze rule (§7.3) already covers whole sectors the player has left.
 
 ## 7. World structure: sectors
 
@@ -433,6 +478,10 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Alerts are caused by the player's actions; headroom buys time | Proposed |
 | No skill tree across saves | Proposed |
 | Rival tank becomes an optional sector twist | Proposed |
+| Fog of war: the player sees what their tank, base and machines see; the rest is remembered or unknown | Prototype |
+| Radar: pulses from the tank leave blips where they reflect, well beyond sight | Prototype |
+| Hot ground absorbs the radar pulse; the cells it got through show as red dots by heat | Prototype |
+| Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
 
 ## 14. Open questions
 
@@ -443,3 +492,6 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 - How is the output drop under alert calculated?
 - What exactly is at the core?
 - Is there multiplayer, and if so is it cooperative or competitive?
+- Should the bot (and later mobs) be limited to what it could see, or stay all-knowing?
+- What makes a step cheap on a very large map: bookkeeping that follows activity, or coarser simulation of ground
+  nobody sees?

@@ -18,6 +18,7 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
           --size=WxH          Terrain size in cells.
           --large             Terrain size 1500x750.
           --no-ai             No enemy tank.
+          --no-fog            No fog of war: the whole map is shown live.
           --fast              Parallel level generation and regrowth (another map per seed; still reproducible).
 
         Display
@@ -48,6 +49,7 @@ int perfWarmupFrames = 180;
 int perfMeasureFrames = 900;
 string? perfCsvPath = null;
 bool enableAiTanks = true;
+bool fogOfWar = true;
 int? displayIndex = DesktopDisplayOptions.Parse(Environment.GetEnvironmentVariable("TUNNERER_DISPLAY"));
 Size? windowedSize = DesktopDisplayOptions.ParseWindowed(Environment.GetEnvironmentVariable("TUNNERER_WINDOWED"));
 bool hiddenWindow = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_HIDDEN"));
@@ -118,6 +120,10 @@ foreach (var arg in args)
     {
         enableAiTanks = false;
     }
+    else if (arg == "--no-fog")
+    {
+        fogOfWar = false;
+    }
     else if (arg.StartsWith("--seed=", StringComparison.Ordinal))
     {
         if (int.TryParse(arg[7..], out int seedValue) && seedValue != 0)
@@ -147,7 +153,7 @@ Tunnerer.Desktop.PerfCaptureOptions? perfOptions = perfMode
     ? new Tunnerer.Desktop.PerfCaptureOptions(perfWarmupFrames, perfMeasureFrames, perfCsvPath)
     : null;
 var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, enableAiTanks,
-    terrainTestMode: terrainTestMode);
+    terrainTestMode: terrainTestMode, fogOfWar: fogOfWar);
 game.Run();
 
 // Enter after a match ends starts a new match. The renderer is not built to be created twice in one process,

@@ -21,7 +21,7 @@ public unsafe struct PostParamsBlock
     public float TexelSizeX, TexelSizeY, PixelScale, Time;
     public float WorldSizeX, WorldSizeY, CameraPixelsX, CameraPixelsY;
     public float ViewSizeX, ViewSizeY, UseTerrainAux, PostParamsLayoutVersion;
-    public float HeatDebugOverlay, PostVignetteEnabled, _padReserved0, PostTerrainAuxEnabled;
+    public float HeatDebugOverlay, PostVignetteEnabled, PostFogEnabled, PostTerrainAuxEnabled;
     public float PostTankGlowEnabled, PostTerrainHeatEnabled, PostThermalRegionsEnabled, ThermalTileSizeCells;
     public float ThermalTileHeatThreshold01, _padReserved1, VignetteStrength, VignetteInnerRadius;
     public float VignetteOuterRadius, _padReserved2, TerrainMaskCaveDarken, TerrainMaskSolidLift;
@@ -58,6 +58,7 @@ public unsafe struct PostParamsBlock
         PostProcessPassFlags passes = upload.PostProcess.PassFlags;
         cb.HeatDebugOverlay = BoolToFloat(upload.PostProcess.HeatDebugOverlayEnabled);
         cb.PostVignetteEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.Vignette));
+        cb.PostFogEnabled = BoolToFloat(upload.Fog.Data != null);
         cb.PostTerrainAuxEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.TerrainAux));
         cb.PostTankGlowEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.TankGlow));
         cb.PostTerrainHeatEnabled = BoolToFloat(HasPass(passes, PostProcessPassFlags.TerrainHeat));

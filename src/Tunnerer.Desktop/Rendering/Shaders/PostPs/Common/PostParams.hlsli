@@ -25,7 +25,7 @@ cbuffer PostParams : FRAGMENT_UNIFORMS(0)
     float PostParamsLayoutVersion;  // Must match kPostParamsLayoutVersion
     float HeatDebugOverlay;         // > 0.5 to show temperature color overlay
     float PostVignetteEnabled;      // > 0.5 to run vignette
-    float _padReserved0;
+    float PostFogEnabled;           // > 0.5 to run fog of war (fogTex is bound)
     float PostTerrainAuxEnabled;    // > 0.5 to run terrain texture pass
     float PostTankGlowEnabled;      // > 0.5 to run tank glow pass
     float PostTerrainHeatEnabled;   // > 0.5 to run terrain heat/scorch pass

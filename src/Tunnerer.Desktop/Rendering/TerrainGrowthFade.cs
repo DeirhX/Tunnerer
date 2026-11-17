@@ -33,7 +33,7 @@ public sealed class TerrainGrowthFade
     public byte StampAt(int index) => (uint)index < (uint)_stamps.Length ? _stamps[index] : (byte)0;
 
     /// <summary>Stamps cells that just regrew; clears the stamp of cells that were dug out again.</summary>
-    public void ObserveChanges(TerrainGrid terrain, IReadOnlyList<Position> changedCells, float timeSeconds)
+    public void ObserveChanges(ITerrainPixelReadOnly terrain, IReadOnlyList<Position> changedCells, float timeSeconds)
     {
         if (_stamps.Length != terrain.Width * terrain.Height)
             Reset(new Size(terrain.Width, terrain.Height));

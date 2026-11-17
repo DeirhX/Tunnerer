@@ -13,24 +13,24 @@ public partial class GameHud
 {
     private float _sectorCompleteAt = float.NaN;
 
-    // The upgrade panel's margin from the HUD parts and the bottom edge, and its widest. The HUD always leaves a gap of
-    // at least HudLayout.MinCenterGap, so the panel is at least that less the margins wide.
-    private const float UpgradePanelMargin = 12f, UpgradePanelMinW = 300f, UpgradePanelMaxW = 460f;
+    // The upgrade panel's margin from the view's left edge and the HUD below it, its share of the view's width and
+    // the limits on that. The widest still ends left of a base whose far wall the tank is touching.
+    private const float UpgradePanelMargin = 14f, UpgradePanelShare = 0.3f, UpgradePanelMinW = 300f, UpgradePanelMaxW = 400f;
 
     /// <summary>
-    /// The upgrade list while the tank is docked at its own base, at the bottom of the screen in the gap between the
-    /// HUD's two parts, so it stays clear of the tank in the middle of the view.
+    /// The upgrade list while the tank is docked at its own base, on the left of the view just above the HUD. The
+    /// base's entrances are at its top and bottom, so the panel keeps clear of the ground above and below the base
+    /// as well as of the tank in the middle of the view.
     /// </summary>
     private void DrawUpgradePanel(Tank player)
     {
         if (!player.IsDockedAtOwnBase || player.Base is not { } home)
             return;
 
-        var (gapMinX, gapMaxX) = _strip.Gap;
-        // On a display too narrow for the gap the panel keeps a readable width and overlaps the HUD parts.
-        float width = Math.Clamp(gapMaxX - gapMinX - 2f * UpgradePanelMargin, UpgradePanelMinW, UpgradePanelMaxW);
-        var anchor = new Vector2(MathF.Floor((gapMinX + gapMaxX) * 0.5f), ImGui.GetIO().DisplaySize.Y - UpgradePanelMargin);
-        if (HudTheme.BeginWindow("##Upgrades", anchor, new Vector2(0.5f, 1f), width))
+        var vp = ViewportRect;
+        float width = Math.Clamp(vp.w * UpgradePanelShare, UpgradePanelMinW, UpgradePanelMaxW);
+        var anchor = new Vector2(vp.x + UpgradePanelMargin, MathF.Floor(ViewBottom(vp) - UpgradePanelMargin));
+        if (HudTheme.BeginWindow("##Upgrades", anchor, new Vector2(0f, 1f), width))
         {
             HudTheme.TitleRow($"BASE UPGRADES    dirt store {home.Materials.Dirt}", 19f);
             var dl = ImGui.GetWindowDrawList();

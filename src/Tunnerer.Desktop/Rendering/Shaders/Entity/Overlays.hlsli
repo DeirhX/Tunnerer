@@ -1,9 +1,10 @@
 // ============================================================================
-// Entity/Overlays.hlsli — Ground areas: sense ring, reach area, coverage
+// Entity/Overlays.hlsli — Ground areas: sense ring, reach area, coverage; radar blips and pulse
 // ============================================================================
 //
 // Faint fields drawn on the ground around a machine, the carried machine or a
-// network node, under machines and tanks.
+// network node, under machines and tanks. Radar blips are drawn over the fog,
+// on ground the player cannot see.
 // ============================================================================
 
 #ifndef TUNNERER_ENTITY_OVERLAYS_HLSLI
@@ -79,6 +80,70 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
     float3 cool = lerp(tint, float3(0.70, 0.95, 1.0), 0.3);
     float glow = (rim * 0.16 + inside * 0.025) * level * quadFade;
     return float4(cool * glow, (rim * 0.04 + inside * 0.02) * level * quadFade);
+}
+
+// One radar return, on ground out of the player's sight. It flares when the pulse finds it and then fades over its
+// life. Green for rock and walls, amber for metal (gold, machines), a dim blue-green for the weak return of a
+// cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
+// or a thing too hot to read, is a red dot instead, brighter and larger the hotter the cell (data.r). Something
+// alive (another tank) is a white-violet dot in a ring.
+float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
+{
+    float life = saturate(params.x);
+    float echo = params.y;
+    float flash = saturate(params.w);
+    float rayStrength = saturate(data.r);
+    // Hold most of the brightness for the first half of the life, then let go.
+    float fade = smoothstep(0.0, 0.55, life);
+    float r = length(p);
+
+    if (echo > 3.5)
+    {
+        // Life: a white-violet dot inside a thin ring, larger than any other return so it is never taken for ore.
+        float3 violet = float3(0.85, 0.60, 1.00);
+        float level = lerp(0.45, 1.0, rayStrength);
+        float dot = FillAlpha(r - (0.42 + 0.20 * flash), aa);
+        float ring = FillAlpha(abs(r - 1.25) - 0.10, aa) * 0.7;
+        float halo = exp(-r * r * (0.9 - 0.4 * flash));
+        float3 lit = violet * (dot * (0.9 + 0.6 * flash) + ring * 0.6 + halo * (0.30 + 0.7 * flash));
+        return float4(lit * fade * level, max(dot, ring * 0.5) * fade * level * 0.5);
+    }
+
+    if (echo > 2.5)
+    {
+        // Heat: data.r is how hot the cell read. A dim, small dark-red dot for warm ground up to a bright, larger
+        // red one for ground hot enough to stop a ray in a few cells.
+        float heat = rayStrength;
+        float3 red = lerp(float3(0.60, 0.05, 0.03), float3(1.00, 0.20, 0.10), heat);
+        float level = lerp(0.35, 1.0, heat);
+        float dot = FillAlpha(r - (lerp(0.20, 0.40, heat) + 0.15 * flash), aa);
+        float halo = exp(-r * r * (2.4 - 1.0 * flash));
+        float3 glowing = red * (dot * (0.80 + 0.5 * flash) + halo * (0.18 + 0.6 * flash) * heat);
+        return float4(glowing * fade * level, dot * fade * level * 0.5);
+    }
+
+    float3 color = echo < 0.5 ? float3(0.30, 1.00, 0.50)
+        : echo < 1.5 ? float3(1.00, 0.80, 0.30)
+        : float3(0.25, 0.70, 0.80);
+    float strength = (echo > 1.5 ? 0.55 : 1.0) * lerp(0.28, 1.0, rayStrength);
+
+    float core = FillAlpha(r - (0.30 + 0.22 * flash) * lerp(0.7, 1.0, rayStrength), aa);
+    float glow = exp(-r * r * (1.8 - 1.0 * flash));
+    float3 light = color * (core * (0.75 + 0.6 * flash) + glow * (0.22 + 0.75 * flash));
+    return float4(light * fade * strength, core * fade * strength * 0.5);
+}
+
+// The front of the radar pulse running out from where the tank sent it: a thin, faint green line with a fainter wake
+// behind it, fading as it nears full range. Pure glow (zero alpha), so the terrain under it shows through.
+float4 RadarPulse(float2 p, float4 params, float aa)
+{
+    float radius = params.x;
+    float fade = saturate(params.y);
+    float d = length(p) - radius;
+    float edge = exp(-d * d * 1.5);
+    float wake = d < 0.0 ? exp(d * 0.25) : 0.0;
+    float glow = (edge * 0.16 + wake * 0.035) * fade;
+    return float4(float3(0.35, 1.00, 0.60) * glow, 0.0);
 }
 
 #endif // TUNNERER_ENTITY_OVERLAYS_HLSLI
