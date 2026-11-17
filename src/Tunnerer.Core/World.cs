@@ -117,7 +117,8 @@ public class World
             if (TankSpriteShape.OverlapsSquare(tank.Direction, tank.Position, center, half))
                 return true;
         }
-        foreach (var other in _machines.Machines)
+        _machines.CollectNear(center, half + Tweaks.Machine.BoundingBoxHalfSize, _nearMachines, inListOrder: false);
+        foreach (var other in _nearMachines)
         {
             if (ReferenceEquals(other, machine) || !other.IsAlive || other.State != MachineState.Planted) continue;
             int reach = half + other.BoundingBox.HalfWidth;
@@ -263,7 +264,7 @@ public class World
         ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
         _linkMap.ClearHeatFlow();
         ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
-            new MachineContext(_terrain, IsMachineSpotOccupied, _machines.Machines, IsMachineOnNetwork, _stepEvents),
+            new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents),
             _simulationSettings.AdvanceStep));
         // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
         _linkMap.ClearChargeFlow();
@@ -437,27 +438,17 @@ public class World
         map.Update(_terrain, _visionSources, _terrain.GetChangeList());
     }
 
-    private readonly List<CoverageNode> _coverageNodes = new();
+    // Scratch for one question about the machines near a place; no such question is asked while another is open.
+    private readonly List<Machine> _nearMachines = new();
 
     /// <summary>The network coverage of <paramref name="tank"/>'s own base where the tank stands (DESIGN.md §4.6).</summary>
-    public TankCoverage CoverageFor(Tank tank)
-    {
-        if (tank.Base == null)
-            return TankCoverage.None;
-        NetworkCoverage.CollectNodes(tank.Base, _machines.Machines, _coverageNodes);
-        return NetworkCoverage.At(tank.Position, _coverageNodes, _terrain);
-    }
-
-    private readonly List<CoverageNode> _machineCoverageNodes = new();
+    public TankCoverage CoverageFor(Tank tank) => tank.Base == null
+        ? TankCoverage.None
+        : NetworkCoverage.At(tank.Position, tank.Base, _machines, _terrain, _nearMachines);
 
     /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
-    private bool IsMachineOnNetwork(Machine machine)
-    {
-        if (machine.OwnerBase is not TankBase owner)
-            return false;
-        NetworkCoverage.CollectNodes(owner, _machines.Machines, _machineCoverageNodes);
-        return NetworkCoverage.At(machine.Position, _machineCoverageNodes, _terrain).Covered;
-    }
+    private bool IsMachineOnNetwork(Machine machine) => machine.OwnerBase is TankBase owner &&
+        NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines).Covered;
 
     /// <summary>
     /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer: the bot does not prospect, so

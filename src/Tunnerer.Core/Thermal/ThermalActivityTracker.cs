@@ -20,6 +20,8 @@ internal sealed class ThermalActivityTracker
 {
     private readonly bool[] _active;
     private readonly bool[] _stepped;
+    // Counts, per tile, the times it became active or was stepped: unchanged means its heat has not been touched.
+    private readonly int[] _disturbances;
     private readonly List<int> _activeTiles = new();
     private readonly List<int> _steppedTiles = new();
     private readonly int _width;
@@ -44,6 +46,7 @@ internal sealed class ThermalActivityTracker
         TileCount = _tileCountX * _tileCountY;
         _active = new bool[TileCount];
         _stepped = new bool[TileCount];
+        _disturbances = new int[TileCount];
     }
 
     public int TileCount { get; }
@@ -69,7 +72,27 @@ internal sealed class ThermalActivityTracker
         if (_active[tile])
             return;
         _active[tile] = true;
+        _disturbances[tile]++;
         _activeTiles.Add(tile);
+    }
+
+    /// <summary>
+    /// A number that stays the same for as long as no heat in the given cells can have changed: none of their tiles
+    /// has been written to or stepped. Negative while one of the tiles is active, when no such promise can be made.
+    /// Whoever found nothing to do in an area can keep the number and skip looking again until it differs.
+    /// </summary>
+    public long QuietStamp(int minX, int minY, int maxX, int maxY)
+    {
+        long stamp = 0;
+        for (int ty = minY / _tileSize; ty <= maxY / _tileSize; ty++)
+            for (int tx = minX / _tileSize; tx <= maxX / _tileSize; tx++)
+            {
+                int tile = tx + ty * _tileCountX;
+                if (_active[tile])
+                    return -1;
+                stamp += _disturbances[tile];
+            }
+        return stamp;
     }
 
     /// <summary>
@@ -117,6 +140,8 @@ internal sealed class ThermalActivityTracker
         if (_stepped[tile])
             return;
         _stepped[tile] = true;
+        // A step can change a ring tile by less than what makes it active.
+        _disturbances[tile]++;
         _steppedTiles.Add(tile);
     }
 

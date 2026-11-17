@@ -79,22 +79,25 @@ public partial class TerrainGrid
         }
 
         int radiusSq = radius * radius;
-        ForEachInRadius(center, radius, (nx, ny, dx, dy) =>
-        {
-            int dist2 = dx * dx + dy * dy;
-            if (dist2 > radiusSq) return;
-            float falloff = 1f - (float)dist2 / radiusSq;
-            int scaled = (int)(amount * falloff);
-            if (scaled == 0) return;
-            int offset = nx + ny * Width;
-            float old = _heatTemperature[offset];
-            AddToTerrainField(offset, scaled);
-            float next = _heatTemperature[offset];
-            Ledger.RecordInjected((double)scaled * TerrainCapacityAt(offset));
-            if (ShouldMarkHeatDirty(old, next))
-                MarkHeatDirty(nx, ny);
-            ActivateTileByCell(nx, ny);
-        });
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+            {
+                int dx = nx - center.X, dy = ny - center.Y;
+                int dist2 = dx * dx + dy * dy;
+                if (dist2 > radiusSq) continue;
+                float falloff = 1f - (float)dist2 / radiusSq;
+                int scaled = (int)(amount * falloff);
+                if (scaled == 0) continue;
+                int offset = nx + ny * Width;
+                float old = _heatTemperature[offset];
+                AddToTerrainField(offset, scaled);
+                float next = _heatTemperature[offset];
+                Ledger.RecordInjected((double)scaled * TerrainCapacityAt(offset));
+                if (ShouldMarkHeatDirty(old, next))
+                    MarkHeatDirty(nx, ny);
+                ActivateTileByCell(nx, ny);
+            }
     }
 
     /// <summary>
@@ -118,12 +121,14 @@ public partial class TerrainGrid
     {
         float sum = 0f;
         int count = 0;
-        ForEachInRadius(center, radius, (nx, ny, _, _) =>
-        {
-            int idx = ny * Width + nx;
-            sum += _heatEngine.GetTemperatureAt(_heatTemperature, _heatTemperature.Length, idx);
-            count++;
-        });
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+            {
+                int idx = ny * Width + nx;
+                sum += _heatEngine.GetTemperatureAt(_heatTemperature, _heatTemperature.Length, idx);
+                count++;
+            }
         return count > 0 ? sum / (count * 255f) : 0f;
     }
 
@@ -131,20 +136,21 @@ public partial class TerrainGrid
     {
         float sum = 0f;
         int count = 0;
-        ForEachInRadius(center, radius, (nx, ny, _, _) =>
-        {
-            int idx = ny * Width + nx;
-            sum += _heatEngine.GetTemperatureAt(_airTemperature, _airTemperature.Length, idx);
-            count++;
-        });
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+            {
+                int idx = ny * Width + nx;
+                sum += _heatEngine.GetTemperatureAt(_airTemperature, _airTemperature.Length, idx);
+                count++;
+            }
         return count > 0 ? sum / count : 0f;
     }
 
     public int CountCellsInRadiusArea(Position center, int radius)
     {
-        int count = 0;
-        ForEachInRadius(center, radius, (_, _, _, _) => count++);
-        return count;
+        var area = AreaAround(center, radius);
+        return Math.Max(0, area.MaxX - area.MinX + 1) * Math.Max(0, area.MaxY - area.MinY + 1);
     }
 
     /// <summary>
@@ -168,26 +174,28 @@ public partial class TerrainGrid
 
         int applied = 0;
         int i = 0;
-        ForEachInRadius(center, radius, (nx, ny, _, _) =>
-        {
-            int delta = baseDelta;
-            if (i < remainderAbs)
-                delta += remainderSign;
-            i++;
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+            {
+                int delta = baseDelta;
+                if (i < remainderAbs)
+                    delta += remainderSign;
+                i++;
 
-            if (delta == 0)
-                return;
+                if (delta == 0)
+                    continue;
 
-            int offset = nx + ny * Width;
-            float old = _heatTemperature[offset];
-            AddToTerrainField(offset, delta);
-            float next = _heatTemperature[offset];
-            Ledger.RecordInjected((double)delta * TerrainCapacityAt(offset));
-            if (ShouldMarkHeatDirty(old, next))
-                MarkHeatDirty(nx, ny);
-            ActivateTileByCell(nx, ny);
-            applied += delta;
-        });
+                int offset = nx + ny * Width;
+                float old = _heatTemperature[offset];
+                AddToTerrainField(offset, delta);
+                float next = _heatTemperature[offset];
+                Ledger.RecordInjected((double)delta * TerrainCapacityAt(offset));
+                if (ShouldMarkHeatDirty(old, next))
+                    MarkHeatDirty(nx, ny);
+                ActivateTileByCell(nx, ny);
+                applied += delta;
+            }
 
         return applied;
     }
@@ -207,25 +215,27 @@ public partial class TerrainGrid
 
         int applied = 0;
         int i = 0;
-        ForEachInRadius(center, radius, (nx, ny, _, _) =>
-        {
-            int delta = baseDelta;
-            if (i < remainderAbs)
-                delta += remainderSign;
-            i++;
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+            {
+                int delta = baseDelta;
+                if (i < remainderAbs)
+                    delta += remainderSign;
+                i++;
 
-            if (delta == 0)
-                return;
+                if (delta == 0)
+                    continue;
 
-            int offset = nx + ny * Width;
-            float old = _airTemperature[offset];
-            _heatEngine.AddEnergyAt(_airTemperature, offset, delta);
-            float next = _airTemperature[offset];
-            Ledger.RecordInjected((double)(next - old) * _heatEngine.AirHeatCapacity);
-            MirrorAirIntoTerrainFieldIfAirCell(nx, ny, offset, next);
-            ActivateTileByCell(nx, ny);
-            applied += (int)MathF.Round(next - old);
-        });
+                int offset = nx + ny * Width;
+                float old = _airTemperature[offset];
+                _heatEngine.AddEnergyAt(_airTemperature, offset, delta);
+                float next = _airTemperature[offset];
+                Ledger.RecordInjected((double)(next - old) * _heatEngine.AirHeatCapacity);
+                MirrorAirIntoTerrainFieldIfAirCell(nx, ny, offset, next);
+                ActivateTileByCell(nx, ny);
+                applied += (int)MathF.Round(next - old);
+            }
 
         return applied;
     }
@@ -311,7 +321,10 @@ public partial class TerrainGrid
     public double SumHeatCapacityInRadiusArea(Position center, int radius, ThermalField field)
     {
         double sum = 0.0;
-        ForEachInRadius(center, radius, (nx, ny, _, _) => sum += FieldCapacityAt(field, nx + ny * Width));
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+                sum += FieldCapacityAt(field, nx + ny * Width);
         return sum;
     }
 
@@ -332,7 +345,10 @@ public partial class TerrainGrid
             return 0.0;
 
         float deltaTemperature = (float)(energy / capacity);
-        ForEachInRadius(center, radius, (nx, ny, _, _) => ApplyFieldDelta(nx, ny, field, deltaTemperature));
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+                ApplyFieldDelta(nx, ny, field, deltaTemperature);
         return energy;
     }
 
@@ -350,29 +366,32 @@ public partial class TerrainGrid
         float ambient = _simulationSettings.ThermalAmbientTemperature;
         float[] temperatures = FieldArray(field);
         double available = 0.0;
-        ForEachInRadius(center, radius, (nx, ny, _, _) =>
-        {
-            int offset = nx + ny * Width;
-            if (CannotExtractFrom(offset, field))
-                return; // a heat source or sink, not storage: nothing to take
-            float excess = temperatures[offset] - ambient;
-            if (excess > 0f)
-                available += excess * FieldCapacityAt(field, offset);
-        });
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+            {
+                int offset = nx + ny * Width;
+                if (CannotExtractFrom(offset, field))
+                    continue; // a heat source or sink, not storage: nothing to take
+                float excess = temperatures[offset] - ambient;
+                if (excess > 0f)
+                    available += excess * FieldCapacityAt(field, offset);
+            }
         if (available <= 0.0)
             return 0.0;
 
         double take = Math.Min(maxEnergy, available);
         float fraction = (float)(take / available);
-        ForEachInRadius(center, radius, (nx, ny, _, _) =>
-        {
-            int offset = nx + ny * Width;
-            if (CannotExtractFrom(offset, field))
-                return;
-            float excess = temperatures[offset] - ambient;
-            if (excess > 0f)
-                ApplyFieldDelta(nx, ny, field, -excess * fraction);
-        });
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+            {
+                int offset = nx + ny * Width;
+                if (CannotExtractFrom(offset, field))
+                    continue;
+                float excess = temperatures[offset] - ambient;
+                if (excess > 0f)
+                    ApplyFieldDelta(nx, ny, field, -excess * fraction);
+            }
         return take;
     }
 
@@ -386,18 +405,20 @@ public partial class TerrainGrid
         float ambient = _simulationSettings.ThermalAmbientTemperature;
         float[] temperatures = FieldArray(field);
         double energy = 0.0, weighted = 0.0;
-        ForEachInRadius(center, radius, (nx, ny, _, _) =>
-        {
-            int offset = nx + ny * Width;
-            if (CannotExtractFrom(offset, field))
-                return;
-            float excess = temperatures[offset] - ambient;
-            if (excess <= 0f)
-                return;
-            double e = excess * FieldCapacityAt(field, offset);
-            energy += e;
-            weighted += e * excess;
-        });
+        var area = AreaAround(center, radius);
+        for (int ny = area.MinY; ny <= area.MaxY; ny++)
+            for (int nx = area.MinX; nx <= area.MaxX; nx++)
+            {
+                int offset = nx + ny * Width;
+                if (CannotExtractFrom(offset, field))
+                    continue;
+                float excess = temperatures[offset] - ambient;
+                if (excess <= 0f)
+                    continue;
+                double e = excess * FieldCapacityAt(field, offset);
+                energy += e;
+                weighted += e * excess;
+            }
         return energy > 0.0 ? weighted / energy : 0.0;
     }
 
@@ -426,20 +447,26 @@ public partial class TerrainGrid
         return _heatEngine.SumTotalEnergy(_heatTemperature, _airTemperature, _data);
     }
 
-    private void ForEachInRadius(Position center, int radius, Action<int, int, int, int> visitor)
+    /// <summary>
+    /// The cells of the map within <paramref name="radius"/> of <paramref name="center"/> along both axes (a square):
+    /// x from MinX to MaxX and y from MinY to MaxY, none when a Max is below its Min. Area functions visit them row
+    /// by row, which fixes the order sums are taken in.
+    /// </summary>
+    private (int MinX, int MinY, int MaxX, int MaxY) AreaAround(Position center, int radius) => (
+        Math.Max(0, center.X - radius), Math.Max(0, center.Y - radius),
+        Math.Min(Width - 1, center.X + radius), Math.Min(Height - 1, center.Y + radius));
+
+    /// <summary>
+    /// A number that stays the same for as long as no temperature within <paramref name="radius"/> of
+    /// <paramref name="center"/> can have changed; negative while heat there is on the move. A relay that found no
+    /// heat to pump keeps it and looks again only once it differs.
+    /// </summary>
+    public long QuietHeatStamp(Position center, int radius)
     {
-        int w = Width, h = Height;
-        for (int dy = -radius; dy <= radius; dy++)
-        {
-            int ny = center.Y + dy;
-            if ((uint)ny >= (uint)h) continue;
-            for (int dx = -radius; dx <= radius; dx++)
-            {
-                int nx = center.X + dx;
-                if ((uint)nx >= (uint)w) continue;
-                visitor(nx, ny, dx, dy);
-            }
-        }
+        var area = AreaAround(center, radius);
+        return area.MaxX < area.MinX || area.MaxY < area.MinY
+            ? 0
+            : _thermalActivity.QuietStamp(area.MinX, area.MinY, area.MaxX, area.MaxY);
     }
 
     public bool TryGetHeatDirtyRect(out Rect dirtyRect) => _thermalActivity.TryGetDirtyRect(out dirtyRect);

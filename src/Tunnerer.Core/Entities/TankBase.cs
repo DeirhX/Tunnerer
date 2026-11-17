@@ -189,25 +189,23 @@ public class TankBase
     /// the radiator rate in <see cref="Advance"/>. Returns the energy taken from the ground.
     /// <paramref name="limitedByBase"/> is true when the base could not take all of <paramref name="maxEnergy"/>
     /// (reactor room after the engine's share), whatever the ground had to give.
+    /// <paramref name="groundWasCold"/> is true when the base had room and the ground had no heat at all to give.
     /// </summary>
     public double AbsorbHeatFrom(ITerrainHeatSource terrain, Position center, int radius, double maxEnergy,
-        out bool limitedByBase, out double engineOutput)
+        out bool limitedByBase, out double engineOutput, out bool groundWasCold)
     {
         engineOutput = 0.0;
+        groundWasCold = false;
         double eta = UpgradedEngineEfficiency(terrain.ExtractableHeatTemperature(center, radius, TerrainGrid.ThermalField.Terrain));
         double chargeRoom = Math.Max(0.0, ChargeCapacity - Charge);
-        double reactorRoom = ReactorRoomEnergy;
-        // Take only what the reactor can hold after the engine's share: (1 - eta) E fits while the charge store has
-        // room, and E - chargeRoom fits once it is full.
-        double budget = Math.Min(maxEnergy, reactorRoom + chargeRoom);
-        if (eta < 1.0)
-            budget = Math.Min(budget, reactorRoom / (1.0 - eta));
+        double budget = PumpBudget(eta, maxEnergy);
         limitedByBase = budget < maxEnergy;
         if (budget <= 0.0)
             return 0.0;
 
         double absorbed = terrain.ExtractEnergyInRadiusArea(center, radius, budget, TerrainGrid.ThermalField.Terrain);
         absorbed += terrain.ExtractEnergyInRadiusArea(center, radius, budget - absorbed, TerrainGrid.ThermalField.Air);
+        groundWasCold = absorbed == 0.0;
 
         double toCharge = Math.Min(eta * absorbed, chargeRoom);
         if (toCharge > 0.0)
@@ -222,6 +220,26 @@ public class TankBase
         _engineInputThisTick += absorbed;
         _engineOutputThisTick += toCharge;
         return absorbed;
+    }
+
+    /// <summary>
+    /// What <see cref="AbsorbHeatFrom"/> reports as limited by the base when the ground has no heat to give (heat it
+    /// would take at ambient, where the engine makes nothing of it), without looking at the ground.
+    /// </summary>
+    public bool LimitsPumpFromColdGround(double maxEnergy) => PumpBudget(UpgradedEngineEfficiency(0.0), maxEnergy) < maxEnergy;
+
+    /// <summary>
+    /// The most heat the base can take in one pump. Only what the reactor can hold after the engine's share:
+    /// (1 - eta) E fits while the charge store has room, and E - chargeRoom fits once it is full.
+    /// </summary>
+    private double PumpBudget(double eta, double maxEnergy)
+    {
+        double chargeRoom = Math.Max(0.0, ChargeCapacity - Charge);
+        double reactorRoom = ReactorRoomEnergy;
+        double budget = Math.Min(maxEnergy, reactorRoom + chargeRoom);
+        if (eta < 1.0)
+            budget = Math.Min(budget, reactorRoom / (1.0 - eta));
+        return budget;
     }
 
     /// <summary>Takes up to <paramref name="amount"/> out of the charge store and returns what was taken.</summary>

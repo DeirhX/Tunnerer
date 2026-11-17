@@ -59,7 +59,7 @@ Entities/
   Machines/Machine.cs        MachineType, MachineState, Machine
   Machines/MachineBehavior.cs   MachineBehavior (action, interval, cost, BuildKey, traits), MachineBehaviors table
   Machines/HarvesterPathing.cs  Where a harvester can stand; the flood that finds the ore nearest by path
-  Machines/MachineList.cs    Machine collection; wrecks dead machines (leave the network, charge to heat, scorch)
+  Machines/MachineList.cs    Machine collection, filed by place (`CollectNear`); wrecks dead machines (leave the network, charge to heat, scorch)
   Machines/MachinePlacementPreview.cs   Result of World.PreviewPlacement
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
@@ -130,7 +130,11 @@ picks the seed. The bot takes its own seed, also from `WorldFactory`.
 6. **Machines**: `MachineList.Advance` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
-   (`LinkMap.CarryCharge`).
+   (`LinkMap.CarryCharge`). A machine that needs the machines near a place (a pylon its batteries, a harvester the
+   nodes that cover it, anything asking whether a spot is taken) asks `MachineList.CollectNear`, which returns them
+   in list order, and never walks the whole list. A relay that found no heat to pump keeps the ground's
+   `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
+   in its reach.
 7. **Sprites**: lifetime.
 8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), the bot's stand-in ore income for bases
    marked with `World.SetBotControlled`, then `World.AdvanceSectorGoal` (the core tap and its hold timer).
