@@ -1,7 +1,7 @@
 namespace Tunnerer.Tests;
 
-using Tunnerer.Core.Input;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Bots;
 
 public class BotEnemyChoiceTests
 {

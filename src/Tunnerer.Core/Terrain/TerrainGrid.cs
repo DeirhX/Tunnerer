@@ -3,6 +3,7 @@ namespace Tunnerer.Core.Terrain;
 using System.Diagnostics;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Regrowth;
 
 public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
 {

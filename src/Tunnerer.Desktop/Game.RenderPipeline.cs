@@ -7,6 +7,7 @@ using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Core.Entities.Tanks;
 using System.Diagnostics;
 
 public partial class Game
@@ -16,7 +17,7 @@ public partial class Game
     /// camera are drawn at that point.
     /// </param>
     private void RenderImGuiFrame(
-        IReadOnlyList<Core.Entities.Tank> tanks, in FrameInputSnapshot frameInput, float stepProgress)
+        IReadOnlyList<Tank> tanks, in FrameInputSnapshot frameInput, float stepProgress)
     {
         var (winW, winH) = _renderer.GetWindowSize();
         float dt = _interpolateFrames
@@ -76,8 +77,8 @@ public partial class Game
                     Count: tankHeatGlowCount),
                 TerrainAux: terrainAux.Upload,
                 NativeContinuous: new NativeContinuousUpload(
-                    SourcePixels: _compositePixels,
-                    SourceChanged: _compositeChanged,
+                    SourcePixels: _worldPixels,
+                    SourceChanged: _worldPixelsChanged,
                     SampleCount: _renderViewState.NativeContinuousSampleCount),
                 Entities: new EntityLayerUpload(
                     Vertices: _entityLayer.Vertices,
@@ -85,7 +86,7 @@ public partial class Game
                 Fog: fog);
             DrawProfile.Measure(ref _drawProfile.ScreenBackendUpload, () =>
                 _renderBackend.UploadGamePixels(upload));
-            _compositeChanged = false;
+            _worldPixelsChanged = false;
             _terrainAuxUploader.Commit(_world.Terrain, terrainAux);
             _drawProfile.ScreenUpload += hiResWatch.Elapsed;
             double uploadMs = hiResWatch.Elapsed.TotalMilliseconds;

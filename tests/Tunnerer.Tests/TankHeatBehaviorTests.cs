@@ -1,6 +1,4 @@
-using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;

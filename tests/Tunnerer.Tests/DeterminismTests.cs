@@ -1,9 +1,9 @@
 using Tunnerer.Core;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 namespace Tunnerer.Tests;
 

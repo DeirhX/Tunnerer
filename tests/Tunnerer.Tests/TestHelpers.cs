@@ -1,10 +1,11 @@
 namespace Tunnerer.Tests;
 
 using Tunnerer.Core;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.LevelGen;
+using Tunnerer.Core.Match;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Entities.Tanks;
 
 internal static class TestHelpers
 {
@@ -25,10 +26,13 @@ internal static class TestHelpers
         var world = new World(
             mapSize,
             simulationSeed: seed,
-            enableTerrainRegrowth: enableTerrainRegrowth,
-            hotRockPocketCount: hotRockPocketCount,
-            frostRockPocketCount: frostRockPocketCount,
-            seedOre: seedOre);
+            rules: new MatchRules
+            {
+                TerrainRegrowth = enableTerrainRegrowth,
+                HotRockPockets = hotRockPocketCount,
+                FrostRockPockets = frostRockPocketCount,
+                SeedOre = seedOre,
+            });
         world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;
     }

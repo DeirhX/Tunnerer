@@ -1,11 +1,10 @@
 using System.Numerics;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Core.Network;
 
 namespace Tunnerer.Tests;
 

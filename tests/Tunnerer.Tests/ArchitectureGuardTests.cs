@@ -60,7 +60,6 @@ public class SimulationProfileTests
         {
             FrameCount = 100,
             Total = TimeSpan.FromMilliseconds(100),
-            Collision = TimeSpan.FromMilliseconds(10),
         };
 
         var previousOut = Console.Out;
@@ -88,7 +87,6 @@ public class SimulationProfileTests
             ReportSink = lines.Add,
             FrameCount = 100,
             Total = TimeSpan.FromMilliseconds(100),
-            Collision = TimeSpan.FromMilliseconds(10),
         };
 
         profile.Report();
@@ -107,5 +105,33 @@ public class SimulationProfileTests
 
         Assert.Equal(4, lines.Count);
         Assert.StartsWith("[ProfileE]", lines[3], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AWorldsSections_AreItsSystemsInStepOrder_AndOnlyThoseItHas()
+    {
+        var plain = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false);
+        var withCore = TestHelpers.CreateSeededWorld(hotRockPocketCount: 4);
+
+        Assert.Equal(
+            ["coll", "heat", "proj", "tanks", "machines", "bases", "match", "links", "dock", "vision"],
+            plain.Profile.Sections);
+        Assert.Equal(
+            ["coll", "heat", "regrow", "proj", "tanks", "machines", "bases", "goal", "match", "links", "dock", "vision"],
+            withCore.Profile.Sections);
+    }
+
+    [Fact]
+    public void AWorldsReport_TimesEverySystem()
+    {
+        var lines = new List<string>();
+        var world = TestHelpers.CreateSeededWorld();
+        world.Profile.ReportSink = lines.Add;
+
+        TestSimulation.AdvanceIdle(world, frames: 100);
+
+        string sections = lines.Single(line => line.StartsWith("[Profile] ", StringComparison.Ordinal));
+        foreach (string label in world.Profile.Sections)
+            Assert.Contains($" {label}=", sections, StringComparison.Ordinal);
     }
 }

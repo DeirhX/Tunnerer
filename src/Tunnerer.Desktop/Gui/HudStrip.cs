@@ -2,9 +2,9 @@ namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
 using ImGuiNET;
-using Tunnerer.Core;
 using Tunnerer.Core.Entities;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Core.Entities.Tanks;
 using static Tunnerer.Desktop.Gui.HudLayout;
 
 /// <summary>

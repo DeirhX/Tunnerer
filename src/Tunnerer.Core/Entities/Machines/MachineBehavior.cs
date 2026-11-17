@@ -4,6 +4,7 @@ using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Network;
 
 /// <summary>What a machine's action can see and touch.</summary>
 /// <param name="IsOccupied">
@@ -214,7 +215,7 @@ public static class MachineBehaviors
         machine.ColdGroundStamp = groundWasCold ? quiet : -1;
         machine.LastPumpLimitedByBase = limited;
         machine.LastChargeMade = engineOutput;
-        Links.LinkMap.CarryHeat(machine.LinkPoint, machine.LastPumpedEnergy);
+        LinkMap.CarryHeat(machine.LinkPoint, machine.LastPumpedEnergy);
     }
 
     /// <summary>

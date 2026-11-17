@@ -1,12 +1,12 @@
-using Tunnerer.Core;
+using Tunnerer.Core.Match;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
+using Tunnerer.Core.Entities.Bases;
 using static Tunnerer.Tests.TankHeatTestHelpers;
 
 namespace Tunnerer.Tests;
@@ -203,9 +203,9 @@ public class SectorGoalTests
         double dt = Tweaks.World.AdvanceStep.TotalSeconds;
         double goalPerTick = Tweaks.Goal.GoalChargePerSecond * dt;
 
-        Assert.Equal(dt, World.NextCoreHold(0, goalPerTick, dt), precision: 9);
-        Assert.Equal(10 - dt * Tweaks.Goal.GoalHoldDecay, World.NextCoreHold(10, goalPerTick * 0.5, dt), precision: 9);
-        Assert.Equal(0, World.NextCoreHold(0.001, 0, dt));
+        Assert.Equal(dt, SectorGoal.NextHold(0, goalPerTick, dt), precision: 9);
+        Assert.Equal(10 - dt * Tweaks.Goal.GoalHoldDecay, SectorGoal.NextHold(10, goalPerTick * 0.5, dt), precision: 9);
+        Assert.Equal(0, SectorGoal.NextHold(0.001, 0, dt));
     }
 
     [Trait("Category", "Slow")]
@@ -257,9 +257,22 @@ public class SectorGoalTests
         for (int i = 0; i < Tweaks.Perf.TargetFps * 4; i++)
         {
             world.Advance(_ => default);
-            maxTap = Math.Max(maxTap, home.CoreTapPerTick);
+            maxTap = Math.Max(maxTap, world.CoreTapOf(home)!.TapPerTick);
         }
 
         Assert.True(maxTap > 0, "a linked relay at the core's edge should make charge that counts toward the goal");
+    }
+
+    [Fact]
+    public void ABaseAddedAfterTheGoalWasBuilt_StillHasACoreTap()
+    {
+        var world = TestHelpers.CreateSeededWorld(seed: 8181, hotRockPocketCount: 4);
+        int before = world.TankBases.Bases.Count;
+
+        world.TankBases.AddBase(new Position(5, 5), before);
+
+        var late = world.TankBases.Bases[before];
+        Assert.NotNull(world.CoreTapOf(late));
+        Assert.False(world.CoreTapOf(late)!.HasTapped);
     }
 }

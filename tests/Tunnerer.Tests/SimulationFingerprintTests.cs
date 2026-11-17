@@ -4,6 +4,7 @@ using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Bots;
 
 namespace Tunnerer.Tests;
 

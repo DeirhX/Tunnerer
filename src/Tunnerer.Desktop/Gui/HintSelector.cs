@@ -1,8 +1,8 @@
 namespace Tunnerer.Desktop.Gui;
 
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Desktop.Presentation;
+using Tunnerer.Core.Network;
 
 /// <summary>How a hint line is coloured.</summary>
 public enum HintTone { Dim, Info, Good, Warn, Bad }

@@ -63,7 +63,7 @@ while running:
            the player knows, not the terrain's own change list
        terrain test, or paused in an automated run:
          scripted commands and screenshots only; the world does not step
-  6. if a step was due: WorldCompositeRenderer.Compose   marker sprites over a copy of the terrain
+  6. if a step was due: mark the world pixels changed, for the next upload
   7. Game.RenderImGuiFrame
        EntityLayerBuilder.Build          (entity quads at the frame's step progress; with fog only those in sight)
        FogLayer.Prepare                  (repack the fog texture where the player's vision changed)
@@ -123,9 +123,7 @@ Detail, and recipes for adding machines, projectiles, materials and collidable e
 ```
 TerrainGrid
    | DrawChangesToSurface (change list)
-worldPixels[w*h]
-   | copy + draw marker sprites (WorldCompositeRenderer)
-compositePixels[w*h]                  terrain aux data (heat, solid field, material, scorch), material coverage,
+worldPixels[w*h]                      terrain aux data (heat, solid field, material, scorch), material coverage,
    |                                  fog of war (how well each cell is seen, explored)
    |                                     |
    +------------- IGameRenderBackend.UploadGamePixels -------------+
@@ -143,9 +141,9 @@ pixels, aux and coverage data are built from `VisionMap.Known` through a `Terrai
 for cells in sight. The fog pass then only tones the frame, and the entity layer leaves out what is out of sight
 and draws the radar's blips on the ground the player cannot see.
 
-The composite buffer keeps entity drawing from corrupting the terrain surface. It holds only the cell-resolution
-entities; links, relays, pylons, harvesters, tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
-in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
+Nothing is drawn into the world pixels but terrain: links, relays, pylons, harvesters, tanks and projectiles are drawn
+procedurally at screen resolution by the entity layer. Shader passes and backend detail are in
+`src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 ## Guidance: tutorial and notifications
 

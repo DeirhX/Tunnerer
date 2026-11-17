@@ -1,10 +1,10 @@
 namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Presentation;
+using Tunnerer.Core.Network;
 
 /// <summary>
 /// What the player's carried machine would do if planted now, drawn from the player tank as its

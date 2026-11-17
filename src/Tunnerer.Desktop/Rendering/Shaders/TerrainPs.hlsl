@@ -15,9 +15,6 @@
 // smoothed here; the post pass (TerrainAuxPass) re-draws every natural material
 // from the blurred coverage texture (t2) and owns those edges.
 //
-// Entity pixels (tanks, bases, projectiles) are passed through unmodified;
-// they are identified by alpha < 1.0 in the source texture.
-//
 // Bindings: t0 = world colours, t1 = aux (.g solid field used here), t2 = material
 // coverage (only its .a regrow stamps are read here).
 // ============================================================================
@@ -48,11 +45,6 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
     // Uses derivatives, so evaluated before any early-out.
     TerrainEdge edge = EvalTerrainEdge(worldCell);
 
-    // ---- Entity early-out -------------------------------------------------
-    // Entity pixels (tanks, projectiles, bases) carry alpha < 1.0.
-    if (nearestSample.a < 0.999)
-        return nearestSample;
-
     // Fail-safe against CPU/HLSL cbuffer drift: keep terrain unfiltered if
     // layout version does not match the shader expectation.
     if (abs(PostParamsLayoutVersion - kPostParamsLayoutVersion) > 0.001)
@@ -68,8 +60,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
         float push = max(0.0, 0.75 - edge.distCells);
         int2 solidCell = clamp(int2(floor(worldCell + edge.normal * push)), int2(0, 0), maxCell);
         // Sampled at the texel centre, so bilinear returns the cell's exact colour.
-        float4 inside = sourceTex.Sample(s0, (float2(solidCell) + 0.5) / WorldSize);
-        solidColor = inside.a < 0.999 ? nearestSample.rgb : inside.rgb;
+        solidColor = sourceTex.Sample(s0, (float2(solidCell) + 0.5) / WorldSize).rgb;
     }
     else
     {

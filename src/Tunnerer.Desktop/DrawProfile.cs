@@ -3,7 +3,6 @@ namespace Tunnerer.Desktop;
 public class DrawProfile
 {
     public TimeSpan TerrainDraw;
-    public TimeSpan ObjectsDraw;
     public TimeSpan ScreenDraw;
     public TimeSpan ScreenHiResTerrain;
     public TimeSpan ScreenHiResEntities;
@@ -33,7 +32,7 @@ public class DrawProfile
     public void Report()
     {
         if (FrameCount == 0) return;
-        Console.WriteLine($"[Draw]    terrain={Avg(TerrainDraw):F3} objects={Avg(ObjectsDraw):F3} " +
+        Console.WriteLine($"[Draw]    terrain={Avg(TerrainDraw):F3} " +
             $"screen={Avg(ScreenDraw):F3} | total={Avg(TotalFrame):F3} ms (avg over {FrameCount} frames)");
         Console.WriteLine($"[Screen]  hiresTerrain={Avg(ScreenHiResTerrain):F3} hiresEntities={Avg(ScreenHiResEntities):F3} " +
             $"upload={Avg(ScreenUpload):F3} ui={Avg(ScreenUi):F3} imguiRender={Avg(ScreenImGuiRender):F3} ms");
@@ -48,7 +47,7 @@ public class DrawProfile
 
     public void Reset()
     {
-        TerrainDraw = ObjectsDraw = ScreenDraw = TotalFrame = TimeSpan.Zero;
+        TerrainDraw = ScreenDraw = TotalFrame = TimeSpan.Zero;
         ScreenHiResTerrain = ScreenHiResEntities = ScreenUpload = TimeSpan.Zero;
         ScreenBackendUpload = ScreenAuxBuild = AuxTerrainPack = AuxHeatPack = TimeSpan.Zero;
         ScreenTankGlowBuild = TimeSpan.Zero;

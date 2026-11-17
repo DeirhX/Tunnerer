@@ -1,10 +1,10 @@
-using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Bots;
+using Tunnerer.Core.Entities.Tanks;
 using static Tunnerer.Tests.TankHeatTestHelpers;
 
 namespace Tunnerer.Tests;

@@ -1,3 +1,4 @@
+using Tunnerer.Core.Match;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.LevelGen;
@@ -116,7 +117,7 @@ public class OreDepositTests
     {
         var mapSize = size ?? MediumMap;
         var (terrain, spawns) = new ToastGenerator().Generate(mapSize, seed: seed);
-        var world = new World(mapSize, simulationSeed: seed, enableTerrainRegrowth: false, seedOre: true);
+        var world = new World(mapSize, simulationSeed: seed, new MatchRules { TerrainRegrowth = false, SeedOre = true });
         world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;
     }

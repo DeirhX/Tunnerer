@@ -1,8 +1,9 @@
 namespace Tunnerer.Desktop;
 
 using Tunnerer.Core;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Input;
+using Tunnerer.Core.Bots;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// Advances the world one step with each tank driven by its slot's source: a slot with a bot asks the bot, every

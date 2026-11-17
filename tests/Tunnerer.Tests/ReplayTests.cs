@@ -4,6 +4,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Bots;
 
 namespace Tunnerer.Tests;
 

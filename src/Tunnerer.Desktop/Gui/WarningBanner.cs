@@ -2,8 +2,8 @@ namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
 using ImGuiNET;
-using Tunnerer.Core.Entities;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// One banner at a time at the top of the game view, most urgent first: overheating, frostbite, chilled, low shield,

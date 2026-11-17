@@ -1,10 +1,10 @@
 namespace Tunnerer.Core.Rendering;
 
 using Tunnerer.Core.Entities;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 public readonly record struct TankRenderState(
     Position Position,
@@ -58,8 +58,3 @@ public readonly record struct LinkRenderState(
     bool ChargeFlowsFromTo = true,
     float OreFlow = 0f,
     bool OreFlowsFromTo = true);
-
-public readonly record struct SpriteRenderState(
-    Position Position,
-    SpriteType Type,
-    bool IsAlive);

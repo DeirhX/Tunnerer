@@ -2,7 +2,7 @@ namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
 using ImGuiNET;
-using Tunnerer.Core.Entities;
+using Tunnerer.Core.Entities.Tanks;
 using static Tunnerer.Desktop.Gui.HudDraw;
 
 /// <summary>

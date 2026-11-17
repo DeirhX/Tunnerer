@@ -8,11 +8,14 @@ using Tunnerer.Core.Collision;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Entities.Machines;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Tanks;
 using System.Diagnostics;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Sensing;
+using Tunnerer.Core.Match;
+using Tunnerer.Core.Network;
+using Tunnerer.Core.Regrowth;
+using Tunnerer.Core.Entities.Bases;
 
 public class World
 {
@@ -22,16 +25,17 @@ public class World
     private readonly ProjectileList _projectiles;
     private readonly MachineList _machines = new();
     private readonly LinkMap _linkMap;
-    private readonly SpriteList _sprites = new();
     private readonly CollisionSolver _collisionSolver;
-    private readonly TerrainRegrowth _terrainRegrowth;
-    private readonly int _hotRockPocketCount;
+    private readonly TerrainRegrowth? _terrainRegrowth;
     private readonly List<Position> _hotRockPockets = new();
-    private Position? _corePocket;
-    private readonly int _frostRockPocketCount;
     private readonly List<Position> _frostRockPockets = new();
-    private readonly bool _seedOre;
     private readonly List<LevelGen.OreDeposit> _oreDeposits = new();
+    private readonly MatchResult _matchResult;
+    private SectorGoal? _sectorGoal;
+    // What tanks and machines see of the world each step; the same every step, so built once.
+    private readonly SimulationContext _tankContext;
+    private readonly MachineContext _machineContext;
+    private WorldSystem[] _systems;
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
     private readonly StepEventLog _stepEvents = new();
@@ -76,7 +80,6 @@ public class World
     public ProjectileList Projectiles => _projectiles;
     public MachineList Machines => _machines;
     public LinkMap LinkMap => _linkMap;
-    public SpriteList Sprites => _sprites;
     public CollisionSolver CollisionSolver => _collisionSolver;
     public int AdvanceCount => _advanceCount;
     public SimulationSettings Settings => _simulationSettings;
@@ -144,18 +147,14 @@ public class World
         _stepEvents.Record(new StepEvent(StepEventKind.MachinePlanted, machine.Position, machine.OwnerColor, machine.Type));
     }
 
+    /// <param name="rules">Which optional systems the world runs; null is <c>new MatchRules()</c> (see <see cref="MatchRules"/>).</param>
     public World(
         Size terrainSize,
         int simulationSeed = 0,
-        bool enableTerrainRegrowth = true,
-        int hotRockPocketCount = 0,
-        SimulationSettings? simulationSettings = null,
-        int frostRockPocketCount = 0,
-        bool seedOre = false)
+        MatchRules? rules = null,
+        SimulationSettings? simulationSettings = null)
     {
-        _hotRockPocketCount = hotRockPocketCount;
-        _seedOre = seedOre;
-        _frostRockPocketCount = frostRockPocketCount;
+        Rules = rules ?? new MatchRules();
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
@@ -163,8 +162,30 @@ public class World
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
-        _terrainRegrowth = new TerrainRegrowth(enableTerrainRegrowth, _simulationSeed);
+        if (Rules.TerrainRegrowth)
+            _terrainRegrowth = new TerrainRegrowth(_simulationSeed);
+        _matchResult = new MatchResult(_tankList.Tanks);
+        _tankContext = new SimulationContext
+        {
+            Terrain = _terrain,
+            Heat = _terrain,
+            Projectiles = _projectiles,
+            CheckBaseCollision = _tankBases.CheckBaseCollision,
+            Settings = _simulationSettings,
+            Machines = _machines,
+            PlantMachine = PlantMachine,
+            CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
+            CoverageFor = CoverageFor,
+            IsOccupied = IsCellOccupied,
+            IsTankBlocked = _collisionSolver.BlocksTank,
+            Events = _stepEvents,
+        };
+        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents);
+        _systems = BuildSystems();
     }
+
+    /// <summary>The optional systems this world runs with, fixed at construction.</summary>
+    public MatchRules Rules { get; }
 
     public void Initialize(TerrainGrid generatedTerrain, Position[] spawns,
         int? decorationSeed = null, bool parallelMaterialize = false)
@@ -185,16 +206,21 @@ public class World
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
-        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0 || _seedOre)
+        if (Rules.HotRockPockets > 0 || Rules.FrostRockPockets > 0 || Rules.SeedOre)
         {
             int pocketSeed = seed + 200;
-            if (_hotRockPocketCount > 0)
-                _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, pocketSeed, out _corePocket));
-            if (_frostRockPocketCount > 0)
+            if (Rules.HotRockPockets > 0)
+            {
+                _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(
+                    _terrain, spawns, Rules.HotRockPockets, pocketSeed, out Position? core));
+                if (core is Position corePosition)
+                    _sectorGoal = new SectorGoal(corePosition, _tankBases.Bases);
+            }
+            if (Rules.FrostRockPockets > 0)
                 _frostRockPockets.AddRange(LevelGen.FrostRockPockets.Place(
-                    _terrain, spawns, _hotRockPockets, _frostRockPocketCount, pocketSeed + 1));
+                    _terrain, spawns, _hotRockPockets, Rules.FrostRockPockets, pocketSeed + 1));
             // Ore last, so it fills the ground the pockets left.
-            if (_seedOre)
+            if (Rules.SeedOre)
                 _oreDeposits.AddRange(LevelGen.OreDeposits.Place(_terrain, spawns, pocketSeed + 2));
 
             // Let the heat (and cold) spread a little before play starts so the pockets and ore cores do not begin as
@@ -213,7 +239,9 @@ public class World
                 _tankList.AddTank(i, tankBase, tankSeed, _simulationSettings);
             }
         }
-        _terrainRegrowth.Survey(_terrain);
+        _terrainRegrowth?.Survey(_terrain);
+        // The world now knows whether it has a core, and so whether the sector goal runs.
+        _systems = BuildSystems();
     }
 
     private static int SeedFromSpawns(Position[] spawns)
@@ -229,67 +257,22 @@ public class World
 
     public void Advance(Func<int, ControllerOutput> getInput)
     {
-        var frameWatch = Stopwatch.StartNew();
+        long stepStart = Stopwatch.GetTimestamp();
 
         _advanceCount++;
         _stepEvents.Clear();
         _terrain.DropSeenChanges();
         _elapsed += _simulationSettings.AdvanceStep;
 
-        ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
-        ProfileSection(ref Profile.Cooldown, _terrain.CoolDown);
-        Profile.CooldownSim += _terrain.LastCoolDownProfile.Simulate;
-        Profile.CooldownApply += _terrain.LastCoolDownProfile.Apply;
-        Profile.CooldownActiveTiles += _terrain.LastCoolDownProfile.ActiveTiles;
-        Profile.CooldownSteppedTiles += _terrain.LastCoolDownProfile.SteppedTiles;
-        if (_terrain.LastCoolDownProfile.SteppedTiles > 0) Profile.CooldownSteppedFrames++;
-        if (_terrain.LastCoolDownProfile.UsedParallel) Profile.CooldownParallelFrames++;
-        ProfileSection(ref Profile.Regrow, AdvanceRegrowth);
-        ProfileSection(ref Profile.Projectiles, () => _projectiles.Advance(_collisionSolver));
-        var simCtx = new SimulationContext
+        for (int i = 0; i < _systems.Length; i++)
         {
-            Terrain = _terrain,
-            Heat = _terrain,
-            Projectiles = _projectiles,
-            CheckBaseCollision = _tankBases.CheckBaseCollision,
-            Settings = _simulationSettings,
-            Machines = _machines,
-            PlantMachine = PlantMachine,
-            CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
-            CoverageFor = CoverageFor,
-            IsOccupied = IsCellOccupied,
-            IsTankBlocked = _collisionSolver.BlocksTank,
-            Events = _stepEvents,
-        };
-        _linkMap.AgeOreFlow();
-        ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
-        _linkMap.ClearHeatFlow();
-        ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
-            new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents),
-            _simulationSettings.AdvanceStep));
-        // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
-        _linkMap.ClearChargeFlow();
-        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
-        foreach (var machine in _machines.Machines)
-            if (machine.IsAlive)
-                LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
-        ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
-        ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
-        foreach (var tankBase in _tankBases.Bases)
-            tankBase.AdvanceBotTrickle(_simulationSettings.AdvanceStep.TotalSeconds);
-        AdvanceSectorGoal();
-        LatchMatchResult();
-        ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
-        foreach (var tank in _tankList.Tanks)
-        {
-            tank.ObserveBaseExit(_tankBases);
-            tank.ObserveDocking(_stepEvents);
+            long systemStart = Stopwatch.GetTimestamp();
+            _systems[i].Advance(getInput);
+            Profile.AddSectionTime(i, Stopwatch.GetElapsedTime(systemStart));
         }
-        if (_trackedVisions.Count > 0)
-            ProfileSection(ref Profile.Vision, UpdateVisions);
         _terrain.MarkChangesSeen();
 
-        Profile.Total += frameWatch.Elapsed;
+        Profile.Total += Stopwatch.GetElapsedTime(stepStart);
         Profile.FrameCount++;
 
         if (Profile.FrameCount >= 100)
@@ -297,6 +280,77 @@ public class World
             AuditEnergy();
             Profile.Report();
         }
+    }
+
+    /// <summary>
+    /// The systems one step runs, in order. A system the world does not have (no regrowth in its rules, no core to
+    /// tap) is left out, and so costs nothing. The profile reports one section per system, under its label.
+    /// </summary>
+    private WorldSystem[] BuildSystems()
+    {
+        double seconds = _simulationSettings.AdvanceStep.TotalSeconds;
+        var systems = new List<WorldSystem>
+        {
+            new("coll", _ => _collisionSolver.Update(_tankList, _machines)),
+            new("heat", _ => AdvanceHeat()),
+        };
+        if (_terrainRegrowth is TerrainRegrowth regrowth)
+            systems.Add(new("regrow", _ => AdvanceRegrowth(regrowth)));
+        systems.Add(new("proj", _ => _projectiles.Advance(_collisionSolver)));
+        systems.Add(new("tanks", getInput =>
+        {
+            _linkMap.AgeOreFlow();
+            _tankList.Advance(in _tankContext, getInput);
+        }));
+        systems.Add(new("machines", _ => AdvanceMachines()));
+        systems.Add(new("bases", _ =>
+        {
+            _tankBases.Advance(_terrain);
+            foreach (var tankBase in _tankBases.Bases)
+                tankBase.AdvanceBotTrickle(seconds);
+        }));
+        if (_sectorGoal is SectorGoal goal)
+            systems.Add(new("goal", _ => goal.Advance(_machines, _tankList.Tanks, seconds)));
+        systems.Add(new("match", _ => _matchResult.Latch(RaceWinner)));
+        systems.Add(new("links", _ => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep)));
+        systems.Add(new("dock", _ =>
+        {
+            foreach (var tank in _tankList.Tanks)
+            {
+                tank.ObserveBaseExit(_tankBases);
+                tank.ObserveDocking(_stepEvents);
+            }
+        }));
+        systems.Add(new("vision", _ => UpdateVisions()));
+
+        Profile.SetSections(systems.Select(system => system.Label));
+        return systems.ToArray();
+    }
+
+    /// <summary>One step of the heat solver, with its parts added to the profile.</summary>
+    private void AdvanceHeat()
+    {
+        _terrain.CoolDown();
+        var heat = _terrain.LastCoolDownProfile;
+        Profile.CooldownSim += heat.Simulate;
+        Profile.CooldownApply += heat.Apply;
+        Profile.CooldownActiveTiles += heat.ActiveTiles;
+        Profile.CooldownSteppedTiles += heat.SteppedTiles;
+        if (heat.SteppedTiles > 0) Profile.CooldownSteppedFrames++;
+        if (heat.UsedParallel) Profile.CooldownParallelFrames++;
+    }
+
+    /// <summary>Machines act, then each pylon's last hand-out is booked on its route.</summary>
+    private void AdvanceMachines()
+    {
+        _linkMap.ClearHeatFlow();
+        _machines.Advance(_machineContext, _simulationSettings.AdvanceStep);
+        // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
+        _linkMap.ClearChargeFlow();
+        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
+        foreach (var machine in _machines.Machines)
+            if (machine.IsAlive)
+                LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
     }
 
     /// <summary>
@@ -326,14 +380,14 @@ public class World
     private readonly List<RegrowthBlocker> _regrowthBlockers = new();
 
     /// <summary>Regrows dirt, except within the range of a planted relay or pylon, which keeps its ground open.</summary>
-    private void AdvanceRegrowth()
+    private void AdvanceRegrowth(TerrainRegrowth regrowth)
     {
         _regrowthBlockers.Clear();
         foreach (var machine in _machines.Machines)
             if (machine.IsAlive && machine.State == MachineState.Planted && machine.Behavior.IsLinkNode)
                 _regrowthBlockers.Add(new RegrowthBlocker(
                     machine.Position, Tweaks.Coverage.NodeRadius + (machine.OwnerBase?.Upgrades.CoverageBonusCells ?? 0)));
-        _terrainRegrowth.Advance(_terrain, _regrowthBlockers);
+        regrowth.Advance(_terrain, _regrowthBlockers);
     }
 
     private readonly List<(Tank Tank, VisionMap Map)> _trackedVisions = new();
@@ -503,44 +557,20 @@ public class World
         NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
     /// <summary>
-    /// Whether the first base to tap the core wins the match (a race, DESIGN.md §4.8). Off by default: the core is
-    /// then a goal that does not end the match. Set before the first step.
+    /// The base whose win the match counts as a race win: the first to tap the core, when the rules make the core a
+    /// race (<see cref="MatchRules.CoreTapWins"/>); otherwise null.
     /// </summary>
-    public bool CoreTapWins { get; set; }
-
-    /// <summary>The base that tapped the core first, once one has.</summary>
-    private TankBase? _firstToTapCore;
-
-    /// <summary>True from the step in which the match was decided; its result is then fixed.</summary>
-    private bool _matchDecided;
-
-    private (Tank Tank, MatchWinReason Reason)? _decidedWinner;
+    private TankBase? RaceWinner => Rules.CoreTapWins ? _sectorGoal?.FirstToTapCore : null;
 
     /// <summary>
-    /// The tank that has won, and how: the first to tap the core when <see cref="CoreTapWins"/>, or the only tank
-    /// with lives left. Null while the match is undecided, and after a match that ended with no tank left. Once the
-    /// step that decided the match has run, it never changes.
+    /// The tank that has won, and how: the first to tap the core when <see cref="MatchRules.CoreTapWins"/>, or the
+    /// only tank with lives left. Null while the match is undecided, and after a match that ended with no tank left.
+    /// Once the step that decided the match has run, it never changes.
     /// </summary>
-    public (Tank Tank, MatchWinReason Reason)? MatchWinner =>
-        _matchDecided ? _decidedWinner : MatchReferee.Winner(_tankList.Tanks, CoreTapWins ? _firstToTapCore : null);
+    public (Tank Tank, MatchWinReason Reason)? MatchWinner => _matchResult.Winner(RaceWinner);
 
     /// <summary>A match is over once a tank has won, or no tank has a life left. It stays over.</summary>
-    public bool IsMatchOver => _matchDecided || MatchWinner != null || MatchReferee.NobodyIsLeft(_tankList.Tanks);
-
-    /// <summary>
-    /// Records the result the first time the referee has one, so that nothing that happens afterwards (the winner
-    /// dying, another base finishing its hold) can change it.
-    /// </summary>
-    private void LatchMatchResult()
-    {
-        if (_matchDecided)
-            return;
-        var winner = MatchWinner;
-        if (winner == null && !MatchReferee.NobodyIsLeft(_tankList.Tanks))
-            return;
-        _decidedWinner = winner;
-        _matchDecided = true;
-    }
+    public bool IsMatchOver => _matchResult.IsOver(RaceWinner);
 
     /// <summary>How the match stands for <paramref name="player"/>.</summary>
     public MatchOutcome MatchOutcomeFor(Tank player) => MatchReferee.OutcomeFor(player, MatchWinner?.Tank);
@@ -549,123 +579,19 @@ public class World
     /// The hot core, the sector goal (DESIGN.md §4.8): the large hot rock pocket at the map centre, or the nearest
     /// spot to it clear of the bases. Null when the world has no hot rock.
     /// </summary>
-    public Position? CorePocket => _corePocket;
+    public Position? CorePocket => _sectorGoal?.Core;
 
     /// <summary>
-    /// Sums the charge each base's relays near the core made this tick and advances that base's hold timer: it grows
-    /// while the tap meets the goal rate and drains faster while it falls short. The base that holds it long enough
-    /// has tapped the core.
+    /// How <paramref name="tankBase"/> stands on the sector goal: its tap, its hold timer and whether it has tapped
+    /// the core. Null in a world without a core, and for a null or foreign base.
     /// </summary>
-    private void AdvanceSectorGoal()
-    {
-        if (CorePocket is not Position core)
-            return;
-        int radiusSq = Tweaks.Goal.CoreTapRadius * Tweaks.Goal.CoreTapRadius;
-        double dt = _simulationSettings.AdvanceStep.TotalSeconds;
-        foreach (var tankBase in _tankBases.Bases)
-        {
-            double tap = 0.0;
-            foreach (var machine in _machines.Machines)
-                if (machine.IsAlive && machine.Type == MachineType.Relay && machine.OwnerBase == tankBase &&
-                    Position.DistanceSquared(machine.Position, core) <= radiusSq)
-                    tap += machine.LastChargeMade;
-            tankBase.CoreTapPerTick = tap;
-            tankBase.CoreHoldSeconds = NextCoreHold(tankBase.CoreHoldSeconds, tap, dt);
-            if (tankBase.CoreHoldSeconds >= Tweaks.Goal.GoalHoldSeconds)
-            {
-                tankBase.HasTappedCore = true;
-                // Bases are visited in slot order, so two that finish on the same tick always resolve the same way.
-                // A base whose tank is out of lives is out of the race, even if its hold was already running.
-                if (!MatchReferee.IsEliminated(_tankList.Tanks, tankBase))
-                    _firstToTapCore ??= tankBase;
-            }
-        }
-    }
-
-    /// <summary>
-    /// One step of the core-tap hold timer: it grows by <paramref name="dt"/> while the tap meets the goal rate and
-    /// drains <c>GoalHoldDecay</c> times as fast (never below zero) while it falls short.
-    /// </summary>
-    public static double NextCoreHold(double hold, double tapPerTick, double dt)
-    {
-        double goalPerTick = Tweaks.Goal.GoalChargePerSecond * dt;
-        return tapPerTick >= goalPerTick ? hold + dt : Math.Max(0.0, hold - dt * Tweaks.Goal.GoalHoldDecay);
-    }
-
-    private static void ProfileSection(ref TimeSpan accumulator, Action action)
-    {
-        var w = Stopwatch.StartNew();
-        action();
-        accumulator += w.Elapsed;
-    }
+    public CoreTap? CoreTapOf(TankBase? tankBase) => tankBase is null ? null : _sectorGoal?.TapOf(tankBase);
 
 }
 
-public class SimulationProfile
-{
-    public Action<string>? ReportSink { get; set; }
 
-    /// <summary>
-    /// Adds the <c>[ProfileE]</c> line to each report: the system's thermal energy and how far it strays from the
-    /// ledger over the report window. Off by default, because it sums every cell of the map.
-    /// </summary>
-    public bool AuditEnergy { get; set; }
-
-    public TimeSpan Collision;
-    public TimeSpan Cooldown;
-    public TimeSpan CooldownSim;
-    public TimeSpan CooldownApply;
-    public long CooldownActiveTiles;
-    public long CooldownSteppedTiles;
-    public int CooldownSteppedFrames;
-    public int CooldownParallelFrames;
-    public double ThermalEnergy;
-    public double ThermalLedgerResidual;
-    public TimeSpan Regrow;
-    public TimeSpan Projectiles;
-    public TimeSpan Tanks;
-    public TimeSpan Harvesters;
-    public TimeSpan Sprites;
-    public TimeSpan Bases;
-    public TimeSpan Links;
-    public TimeSpan Vision;
-    public TimeSpan Total;
-    public int FrameCount;
-
-    public void Report()
-    {
-        if (FrameCount == 0) return;
-        if (ReportSink is null)
-        {
-            Reset();
-            return;
-        }
-
-        ReportSink($"[Profile] coll={Avg(Collision):F3} cool={Avg(Cooldown):F3} regrow={Avg(Regrow):F3} " +
-            $"bases={Avg(Bases):F3} proj={Avg(Projectiles):F3} tanks={Avg(Tanks):F3} harv={Avg(Harvesters):F3} " +
-            $"spr={Avg(Sprites):F3} links={Avg(Links):F3} vision={Avg(Vision):F3} " +
-            $"| total={Avg(Total):F3} ms (avg over {FrameCount} frames)");
-        ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolApply={Avg(CooldownApply):F3} ms");
-        ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} steppedTiles={AvgCount(CooldownSteppedTiles):F1} " +
-            $"steppedFrames={CooldownSteppedFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
-        if (AuditEnergy)
-            ReportSink($"[ProfileE] thermal={ThermalEnergy:F3} ledgerResidual={ThermalLedgerResidual:F5} (over {FrameCount} frames)");
-        Reset();
-    }
-
-    private double Avg(TimeSpan ts) => ts.TotalMilliseconds / FrameCount;
-    private double AvgCount(long count) => FrameCount == 0 ? 0 : (double)count / FrameCount;
-
-    public void Reset()
-    {
-        Collision = Cooldown = CooldownSim = CooldownApply
-            = Regrow = Projectiles = Tanks = Harvesters = Sprites = Bases = Links = Vision = Total = TimeSpan.Zero;
-        CooldownActiveTiles = 0;
-        CooldownSteppedTiles = 0;
-        CooldownSteppedFrames = 0;
-        CooldownParallelFrames = 0;
-        ThermalEnergy = 0;
-        ThermalLedgerResidual = 0;
-        FrameCount = 0;
-    }
-}
+/// <summary>
+/// One system of a world step (<see cref="World.Advance"/>): the label its time is reported under, and what it does
+/// each step, given the step's input.
+/// </summary>
+internal readonly record struct WorldSystem(string Label, Action<Func<int, ControllerOutput>> Advance);
