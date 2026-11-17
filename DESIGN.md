@@ -293,7 +293,9 @@ The player sees only what their side sees, so that learning the shape of the wor
   radar reports only news: nothing in sight, nothing in remembered ground unless it has changed since, and never
   your own machines. A blip goes the moment you see its cell.
 - **Heat blinds the radar** *(Prototype)*. Hot ground absorbs the pulse: every hot cell a ray crosses takes some of
-  it, more the hotter it is, and shows as a red dot, brighter the hotter the cell. The pulse gets through many warm
+  it, more the hotter it is, and shows as a red dot whose opacity is the heat: faint for warm ground, solid for hot
+  rock. A ray has a fixed budget of heat it can cross (250 degree-cells: about 3 cells of hot rock, 25 cells of
+  ground at 20 degrees), so the radar reaches less far the hotter the surroundings. The pulse gets through many warm
   cells but only a few very hot ones before it is spent, so a hot zone shows as red dots reaching a little way into
   it from your side, deeper where it is cooler, and nothing behind them. A return that got through warm ground is
   fainter, and anything too hot to read, hot rock included, returns only its heat. Once relays have cooled the

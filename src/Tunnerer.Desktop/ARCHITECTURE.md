@@ -95,8 +95,8 @@ Core decides what is seen; the renderer only shows it.
   a white-violet dot in a ring for something alive. A blip flares
   for a few ticks when the beam finds it, which is what shows the sweep, then fades over the contact's life. A blip
   whose cell has come into sight is not drawn. A return that crossed warm ground is smaller and dimmer (the
-  contact's strength, sent in the vertex colour), and a `Heat` contact is drawn as a red dot, brighter and larger
-  the hotter the cell (its strength). `GameEventWatcher` posts "Radar scattered by heat" when `Radar.HeatLoss` passes `RadarScatteredShare`.
+  contact's strength, sent in the vertex colour), and a `Heat` contact is drawn as a red dot whose opacity is how hot
+  the cell is (its strength). `GameEventWatcher` posts "Radar scattered by heat" when `Radar.HeatLoss` passes `RadarScatteredShare`.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
 

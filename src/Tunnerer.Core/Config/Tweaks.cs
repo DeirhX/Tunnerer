@@ -324,15 +324,16 @@ public static class Tweaks
         public const int WeakReturnsPerRay = 3;
         // A tank reflects as a square this many cells either side of its centre.
         public const int TankHalfSize = 3;
-        // Heat weakens the pulse. A ray starts at strength 1 and every cell hotter than HeatThreshold takes
-        // HeatLossPerDegree per degree above it, per cell of path: ground at 50 stops a ray in about 6 cells, ground
-        // at 20 in about 25.
+        // Heat uses the pulse up. A ray can cross HeatBudgetDegreeCells in all: every cell hotter than HeatThreshold
+        // takes its degrees above the threshold, per cell of path, and the ray stops when the budget is gone. That
+        // is about 3 cells of hot rock at 100, 6 cells of ground at 50, 25 cells at 20: the hotter the surroundings,
+        // the shorter the radar reaches.
         public const float HeatThreshold = 10f;
-        public const float HeatLossPerDegree = 0.004f;
-        // Each hot cell a ray goes through is marked with how hot it is, at most this many a ray, at full intensity
-        // from HeatFullTemperature up.
-        public const int HeatReturnsPerRay = 10;
-        public const float HeatFullTemperature = 60f;
+        public const float HeatBudgetDegreeCells = 250f;
+        // Each hot cell a ray goes through is marked with how hot it is, at most this many a ray. The mark is at
+        // full intensity at HeatFullTemperature (hot rock) and above.
+        public const int HeatReturnsPerRay = 16;
+        public const float HeatFullTemperature = 100f;
         // A reflector this hot returns only its heat: the blip says "heat", not what the thing is.
         public const float HeatScrambleTemperature = 40f;
     }

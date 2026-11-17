@@ -219,7 +219,7 @@ Each kind of thing returns only from within its own range of the pulse's origin 
 from `MachineRange`, tanks from `LifeRange`, caves from `CavityRange`, heat from `HeatRangeMin` to `HeatRangeMax` by
 intensity. Out of range the thing still stops the ray.
 
-Heat weakens the rays. A ray starts at strength 1 and loses `HeatLossPerDegree` for every degree a cell is above
+Heat weakens the rays. A ray can cross `HeatBudgetDegreeCells` in all: it starts at strength 1 and loses 1/budget for every degree a cell is above
 `HeatThreshold`, scaled by the length of path a cell stands for along that ray (so the loss per distance is the same
 in every direction), before anything in that cell can reflect it. What it then finds is recorded with the strength
 left (`RadarContact.Strength`). Every hot cell the ray goes through gets a `Heat` contact whose strength is how hot

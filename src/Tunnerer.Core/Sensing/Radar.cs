@@ -55,7 +55,7 @@ public readonly record struct RadarTarget(Position Position, int HalfSize, bool 
 /// one. A contact in the shadow of whatever the ray stopped at is not checked; it stays until it fades.
 /// </para>
 /// <para>
-/// Heat weakens the rays (<see cref="Tweaks.Radar.HeatLossPerDegree"/>). A ray loses strength in every hot cell it
+/// Heat uses the rays up (<see cref="Tweaks.Radar.HeatBudgetDegreeCells"/>). A ray loses strength in every hot cell it
 /// crosses and leaves a <see cref="RadarEcho.Heat"/> contact there that says how hot the cell is, up to
 /// <see cref="Tweaks.Radar.HeatReturnsPerRay"/> a ray. The hotter the cell the more it takes, so a ray gets through
 /// many warm cells but only a few very hot ones before it runs out and stops. What it finds beyond comes back
@@ -355,7 +355,7 @@ public sealed class Radar
                 ray.HeatLeft--;
                 marked = true;
             }
-            ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * Tweaks.Radar.HeatLossPerDegree * ray.CellLength;
+            ray.Strength -= (temperature - Tweaks.Radar.HeatThreshold) * ray.CellLength / Tweaks.Radar.HeatBudgetDegreeCells;
             if (ray.Strength <= 0f)
             {
                 _lostToHeat++;

@@ -85,7 +85,7 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 // One radar return, on ground out of the player's sight. It flares when the pulse finds it and then fades over its
 // life. Green for rock and walls, amber for metal (gold, machines), a dim blue-green for the weak return of a
 // cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
-// or a thing too hot to read, is a red dot instead, brighter and larger the hotter the cell (data.r). Something
+// or a thing too hot to read, is a red dot instead, more opaque the hotter the cell (data.r). Something
 // alive (another tank) is a white-violet dot in a ring.
 float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {
@@ -111,15 +111,14 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 
     if (echo > 2.5)
     {
-        // Heat: data.r is how hot the cell read. A dim, small dark-red dot for warm ground up to a bright, larger
-        // red one for ground hot enough to stop a ray in a few cells.
+        // Heat: a red dot of one size whose opacity is how hot the cell read (data.r): barely there for warm
+        // ground, solid for hot rock. The flare when it is found scales with the heat too, so a faint mark stays faint.
         float heat = rayStrength;
-        float3 red = lerp(float3(0.60, 0.05, 0.03), float3(1.00, 0.20, 0.10), heat);
-        float level = lerp(0.35, 1.0, heat);
-        float dot = FillAlpha(r - (lerp(0.20, 0.40, heat) + 0.15 * flash), aa);
-        float halo = exp(-r * r * (2.4 - 1.0 * flash));
-        float3 glowing = red * (dot * (0.80 + 0.5 * flash) + halo * (0.18 + 0.6 * flash) * heat);
-        return float4(glowing * fade * level, dot * fade * level * 0.5);
+        float opacity = lerp(0.10, 1.0, heat) * fade;
+        float dot = FillAlpha(r - 0.36, aa);
+        float halo = exp(-r * r * 2.2) * (0.15 + 0.5 * flash);
+        float3 red = float3(1.00, 0.14, 0.08);
+        return float4(red * (dot + halo) * opacity, dot * opacity * 0.6);
     }
 
     float3 color = echo < 0.5 ? float3(0.30, 1.00, 0.50)

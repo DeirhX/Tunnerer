@@ -536,7 +536,8 @@ public class RadarTests
         {
             Assert.Equal(RadarEcho.Heat, c.Echo);
             Assert.InRange(c.Position.X, 240, 247);
-            Assert.Equal(1f, c.Strength);
+            // 60 degrees reads a little over half way from the threshold (10) to full (100).
+            Assert.Equal(50f / 90f, c.Strength, 3);
         });
         // The ray along the axis marks each cell it went through (the sixth is float rounding of 5 * 0.2).
         Assert.Equal([240, 241, 242, 243, 244, 245],
@@ -563,8 +564,8 @@ public class RadarTests
         Assert.Equal(245, hot.Deepest);
         // 25 degrees takes 0.06 a cell, so the ray would last 17 cells: the marks stop at the cap instead.
         Assert.Equal(240 + Tweaks.Radar.HeatReturnsPerRay - 1, warm.Deepest);
-        Assert.Equal(1f, hot.Strength);
-        Assert.InRange(warm.Strength, 0.25f, 0.35f);
+        Assert.Equal(50f / 90f, hot.Strength, 3);
+        Assert.Equal(15f / 90f, warm.Strength, 3);
     }
 
     [Fact]
