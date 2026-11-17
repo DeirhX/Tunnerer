@@ -47,9 +47,6 @@ public static class PostPassOverlay
 
     private static void DrawToggleStatusLine(bool enabled, string label)
     {
-        Vector4 color = enabled
-            ? new Vector4(0.36f, 0.96f, 0.49f, 1.0f)
-            : new Vector4(0.92f, 0.33f, 0.33f, 1.0f);
-        ColoredText(color, $"{label}: {(enabled ? "ON" : "OFF")}");
+        ColoredText(enabled ? HudTheme.Good : HudTheme.Danger, $"{label}: {(enabled ? "ON" : "OFF")}");
     }
 }

@@ -52,8 +52,7 @@ public sealed class VisionMap
     private byte[] _before = [];
     private int _update;
 
-    private bool _hasDirtyRect;
-    private int _dirtyMinX, _dirtyMinY, _dirtyMaxX, _dirtyMaxY;
+    private DirtyRect _dirty;
 
     /// <summary>Starts with nothing seen; <see cref="Known"/> starts as a copy of <paramref name="terrain"/>.</summary>
     public VisionMap(ITerrainPixelReadOnly terrain)
@@ -107,15 +106,9 @@ public sealed class VisionMap
     public int CellsCastInLastUpdate { get; private set; }
 
     /// <summary>The cells whose level or explored flag changed since <see cref="ClearDirtyRect"/>, as one rectangle.</summary>
-    public bool TryGetDirtyRect(out Rect dirtyRect)
-    {
-        dirtyRect = _hasDirtyRect
-            ? RectMath.FromMinMaxInclusive(_dirtyMinX, _dirtyMinY, _dirtyMaxX, _dirtyMaxY)
-            : default;
-        return _hasDirtyRect;
-    }
+    public bool TryGetDirtyRect(out Rect dirtyRect) => _dirty.TryGet(out dirtyRect);
 
-    public void ClearDirtyRect() => _hasDirtyRect = false;
+    public void ClearDirtyRect() => _dirty.Clear();
 
     /// <summary>
     /// Brings vision and <see cref="Known"/> up to date. <paramref name="sources"/> is everything that sees right
@@ -338,20 +331,7 @@ public sealed class VisionMap
         spare.Push(levels);
     }
 
-    private void MarkDirty(int x, int y)
-    {
-        if (!_hasDirtyRect)
-        {
-            _hasDirtyRect = true;
-            _dirtyMinX = _dirtyMaxX = x;
-            _dirtyMinY = _dirtyMaxY = y;
-            return;
-        }
-        if (x < _dirtyMinX) _dirtyMinX = x;
-        if (x > _dirtyMaxX) _dirtyMaxX = x;
-        if (y < _dirtyMinY) _dirtyMinY = y;
-        if (y > _dirtyMaxY) _dirtyMaxY = y;
-    }
+    private void MarkDirty(int x, int y) => _dirty.Include(x, y);
 
     private sealed class KnownTerrain : ITerrainPixelReadOnly
     {

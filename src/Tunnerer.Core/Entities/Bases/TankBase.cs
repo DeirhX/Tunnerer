@@ -149,6 +149,12 @@ public class TankBase
     /// <summary>Charge the engine made from relay heat during the last tick.</summary>
     public double EngineOutputPerTick { get; private set; }
 
+    /// <summary><see cref="EngineOutputPerTick"/> as a rate per second.</summary>
+    public double EngineOutputPerSecond => EngineOutputPerTick * Tweaks.Perf.TargetFps;
+
+    /// <summary>The engine made a noticeable amount of charge during the last tick.</summary>
+    public bool IsEngineRunning => EngineOutputPerTick > 1.0;
+
     /// <summary>Heat relays delivered during the last tick (the engine's input).</summary>
     public double EngineInputPerTick { get; private set; }
 
@@ -285,7 +291,7 @@ public class TankBase
 
         // The reactor is a finite sink: it can only absorb as much energy as it still has room for,
         // and only heat that is actually present in the surroundings.
-        double room = Math.Max(0, (int)Reactor.HeatCapacity - (int)Reactor.Heat) * energyPerUnit - _reactorHeatRemainder;
+        double room = ReactorRoomEnergy;
         double absorbed = 0.0;
         double Pull(int radius, double cap, TerrainGrid.ThermalField field)
         {

@@ -38,10 +38,10 @@ public static class FrostRockPockets
             int radius = rng.Next(Tweaks.World.FrostRockMinRadius, Tweaks.World.FrostRockMaxRadius + 1);
 
             var pixel = terrain.GetPixelRaw(pos);
-            if (!(Pixel.IsDirt(pixel) || pixel == TerrainPixel.DirtGrow || Pixel.IsRock(pixel)))
+            if (!Pixel.IsSolidGround(pixel))
                 continue;
-            if (TooClose(pos, bases, minFromBaseSq) || TooClose(pos, hotPockets, minFromHotSq) ||
-                TooClose(pos, centers, minBetweenSq))
+            if (GeneratorUtils.TooClose(pos, bases, minFromBaseSq) || GeneratorUtils.TooClose(pos, hotPockets, minFromHotSq) ||
+                GeneratorUtils.TooClose(pos, centers, minBetweenSq))
                 continue;
 
             if (terrain.PlaceFrostRockPocket(pos, radius) > 0)
@@ -49,13 +49,5 @@ public static class FrostRockPockets
         }
 
         return centers;
-    }
-
-    private static bool TooClose(Position pos, IReadOnlyList<Position> others, int minDistanceSq)
-    {
-        foreach (var other in others)
-            if (Position.DistanceSquared(pos, other) < minDistanceSq)
-                return true;
-        return false;
     }
 }

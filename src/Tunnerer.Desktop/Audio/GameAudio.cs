@@ -167,25 +167,10 @@ public sealed class GameAudio : IDisposable
                         shrapnelY += e.Position.Y;
                     }
                     break;
-                case StepEventKind.BulletImpact:
-                    // However many bullets burst in a step, only a couple are heard.
-                    if (impacts < AudioTweaks.ImpactsPerStep)
-                        Play(SoundEffect.Impact, e.Position, AudioTweaks.ImpactGain, 0.92f + 0.04f * ((_step + impacts) % 5));
-                    impacts++;
-                    break;
-                case StepEventKind.OreCollected when index >= 0:
-                    PlayPickup(index, e);
-                    break;
-                case StepEventKind.ShotFired when index >= 0:
-                    int shots = _tanks[index].Shots++;
-                    Play(SoundEffect.Fire, e.Position, AudioTweaks.FireGain, 0.96f + 0.02f * (shots % 5), index);
-                    break;
                 default:
-                    // A tank's own sounds are heard only for the tracked tanks.
-                    if (IsTankSound(e.Kind) && index < 0)
-                        break;
-                    if (StepEventSounds.TryGetCue(e, playerColor, out SoundEffect effect, out float gain))
-                        Play(effect, e.Position, gain, 1f, index);
+                    if (StepEventSounds.CueFor(e.Kind, e.Machine) is { } cue &&
+                        StepEventSounds.Hears(cue, tracked: index >= 0, isPlayer: e.Color == playerColor))
+                        PlayCue(cue, e.Position, index, ref impacts);
                     break;
             }
         }
@@ -216,10 +201,32 @@ public sealed class GameAudio : IDisposable
         }
     }
 
-    /// <summary>Events about a tank itself (as opposed to a bullet, explosion or machine it was involved with).</summary>
-    private static bool IsTankSound(StepEventKind kind) => kind is StepEventKind.TankHit or StepEventKind.TankDied
-        or StepEventKind.TankRespawned or StepEventKind.MachineBuilt or StepEventKind.MachinePlanted
-        or StepEventKind.PlantRefused or StepEventKind.BuildRefused or StepEventKind.OreUnloaded or StepEventKind.Docked;
+    /// <summary>
+    /// Plays an event's one-shot as its <see cref="CueVoice"/> says. <paramref name="index"/> is the tracked tank the
+    /// event is about, or -1; <paramref name="bursts"/> counts this step's <see cref="CueVoice.Burst"/> cues.
+    /// </summary>
+    private void PlayCue(in StepEventCue cue, Position position, int index, ref int bursts)
+    {
+        switch (cue.Voice)
+        {
+            case CueVoice.Burst:
+                // However many burst in a step, only a couple are heard.
+                if (bursts < AudioTweaks.ImpactsPerStep)
+                    Play(cue.Effect, position, cue.Gain, 0.92f + 0.04f * ((_step + bursts) % 5));
+                bursts++;
+                break;
+            case CueVoice.ShotCycle when index >= 0:
+                int shots = _tanks[index].Shots++;
+                Play(cue.Effect, position, cue.Gain, 0.96f + 0.02f * (shots % 5), index);
+                break;
+            case CueVoice.PickupStreak when index >= 0:
+                PlayPickup(index, position, cue);
+                break;
+            default:
+                Play(cue.Effect, position, cue.Gain, 1f, index);
+                break;
+        }
+    }
 
     /// <summary>Index of the tank of <paramref name="color"/> among the tracked ones, or -1.</summary>
     private static int TankIndex(IReadOnlyList<Tank> tanks, int color)
@@ -276,7 +283,7 @@ public sealed class GameAudio : IDisposable
     }
 
     /// <summary>Ore picked up; runs of pickups climb in pitch, and a burst of them sounds once.</summary>
-    private void PlayPickup(int index, in StepEvent e)
+    private void PlayPickup(int index, Position position, in StepEventCue cue)
     {
         ref TankTrack track = ref _tanks[index];
         int sinceLast = _step - track.LastPickupStep;
@@ -285,7 +292,7 @@ public sealed class GameAudio : IDisposable
         track.PickupStreak = track.LastPickupStep != 0 && sinceLast <= 12 ? Math.Min(track.PickupStreak + 1, 8) : 0;
         track.LastPickupStep = _step;
         float pitch = 0.75f * (1f + 0.04f * track.PickupStreak);
-        Play(SoundEffect.Pickup, e.Position, AudioTweaks.PickupGain, pitch, index);
+        Play(cue.Effect, position, cue.Gain, pitch, index);
     }
 
     /// <summary>

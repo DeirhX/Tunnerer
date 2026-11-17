@@ -39,6 +39,7 @@ public class World
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
     private readonly StepEventLog _stepEvents = new();
+    private readonly SideSensing _sensing;
 
     private int _advanceCount;
     private TimeSpan _elapsed;
@@ -123,7 +124,7 @@ public class World
         _machines.CollectNear(center, half + Tweaks.Machine.BoundingBoxHalfSize, _nearMachines, inListOrder: false);
         foreach (var other in _nearMachines)
         {
-            if (ReferenceEquals(other, machine) || !other.IsAlive || other.State != MachineState.Planted) continue;
+            if (ReferenceEquals(other, machine) || !other.IsStanding) continue;
             int reach = half + other.BoundingBox.HalfWidth;
             if (Math.Abs(other.Position.X - center.X) <= reach && Math.Abs(other.Position.Y - center.Y) <= reach)
                 return true;
@@ -180,6 +181,7 @@ public class World
             IsTankBlocked = _collisionSolver.BlocksTank,
             Events = _stepEvents,
         };
+        _sensing = new SideSensing(_terrain, _machines, _tankList);
         _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents);
         _systems = BuildSystems();
     }
@@ -321,7 +323,7 @@ public class World
                 tank.ObserveDocking(_stepEvents);
             }
         }));
-        systems.Add(new("vision", _ => UpdateVisions()));
+        systems.Add(new("vision", _ => _sensing.Advance()));
 
         Profile.SetSections(systems.Select(system => system.Label));
         return systems.ToArray();
@@ -384,114 +386,26 @@ public class World
     {
         _regrowthBlockers.Clear();
         foreach (var machine in _machines.Machines)
-            if (machine.IsAlive && machine.State == MachineState.Planted && machine.Behavior.IsLinkNode)
+            if (machine.IsStanding && machine.Behavior.IsLinkNode)
                 _regrowthBlockers.Add(new RegrowthBlocker(
-                    machine.Position, Tweaks.Coverage.NodeRadius + (machine.OwnerBase?.Upgrades.CoverageBonusCells ?? 0)));
+                    machine.Position, machine.OwnerBase?.Upgrades.NodeCoverageRadius ?? Tweaks.Coverage.NodeRadius));
         regrowth.Advance(_terrain, _regrowthBlockers);
     }
 
-    private readonly List<(Tank Tank, VisionMap Map)> _trackedVisions = new();
-    private readonly List<VisionSource> _visionSources = new();
-
     /// <summary>
     /// Starts tracking what <paramref name="tank"/>'s side sees (fog of war) and returns the map, which every
-    /// <see cref="Advance"/> then keeps up to date. The side sees through its tank, its base and its machines:
-    /// the tank and the base along open tunnel, link nodes (relays, pylons) over their whole coverage circles, every
-    /// machine a little around itself. Vision is output only: nothing in the simulation reads it, and a world nobody asks
-    /// pays nothing for it.
+    /// <see cref="Advance"/> then keeps up to date (<see cref="SideSensing.TrackVision"/>). Output only.
     /// </summary>
-    public VisionMap TrackVision(Tank tank)
-    {
-        foreach (var tracked in _trackedVisions)
-            if (tracked.Tank == tank)
-                return tracked.Map;
-        var map = new VisionMap(_terrain);
-        _trackedVisions.Add((tank, map));
-        UpdateVision(tank, map);
-        return map;
-    }
-
-    private readonly List<(Tank Tank, Radar Radar)> _trackedRadars = new();
-    private readonly List<RadarTarget> _radarTargets = new();
+    public VisionMap TrackVision(Tank tank) => _sensing.TrackVision(tank);
 
     /// <summary>
-    /// Starts <paramref name="tank"/>'s radar and returns it; every <see cref="Advance"/> then runs its pulses
-    /// while the tank lives. It reports only what the tank's side cannot already see, so it tracks that side's vision too
-    /// (<see cref="TrackVision"/>). Output only, like vision.
+    /// Starts <paramref name="tank"/>'s radar and returns it (<see cref="SideSensing.TrackRadar"/>); it tracks that
+    /// side's vision too. Output only, like vision.
     /// </summary>
-    public Radar TrackRadar(Tank tank)
-    {
-        foreach (var tracked in _trackedRadars)
-            if (tracked.Tank == tank)
-                return tracked.Radar;
-        var radar = new Radar(TrackVision(tank));
-        _trackedRadars.Add((tank, radar));
-        return radar;
-    }
+    public Radar TrackRadar(Tank tank) => _sensing.TrackRadar(tank);
 
     /// <summary>The radar <see cref="TrackRadar"/> started for <paramref name="tank"/>, or null if none was.</summary>
-    public Radar? RadarOf(Tank tank)
-    {
-        foreach (var tracked in _trackedRadars)
-            if (tracked.Tank == tank)
-                return tracked.Radar;
-        return null;
-    }
-
-    private void UpdateVisions()
-    {
-        foreach (var (tank, map) in _trackedVisions)
-            UpdateVision(tank, map);
-
-        foreach (var (tank, radar) in _trackedRadars)
-        {
-            if (tank.IsDead)
-            {
-                radar.Idle();
-                continue;
-            }
-            // Everything that is not terrain and reflects: the other tanks and planted machines. The side's own
-            // machines are left out: it knows where it put them, so their echo would tell it nothing.
-            _radarTargets.Clear();
-            foreach (var machine in _machines.Machines)
-                if (machine.IsAlive && machine.State == MachineState.Planted &&
-                    (tank.Base is null || machine.OwnerBase != tank.Base))
-                    _radarTargets.Add(new RadarTarget(machine.Position, machine.BoundingBox.HalfWidth));
-            foreach (var other in _tankList.Tanks)
-                if (other != tank && !other.IsDead)
-                    _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize, Alive: true));
-            radar.Advance(_terrain, _terrain, tank.Position, tank.Color, _radarTargets,
-                tank.Base is { } home ? RadarReach.Scaled(home.Upgrades.RadarRangeScale, home.Upgrades.RadarHeatBudgetScale)
-                    : RadarReach.Base);
-        }
-    }
-
-    /// <summary>
-    /// Hands the map everything <paramref name="tank"/>'s side sees through and the cells that changed since the map
-    /// last looked. The map keeps the cast of every source that is where it was, so listing them costs next to
-    /// nothing.
-    /// </summary>
-    private void UpdateVision(Tank tank, VisionMap map)
-    {
-        _visionSources.Clear();
-        if (!tank.IsDead)
-            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius, Tweaks.Vision.TankNearRadius));
-        if (tank.Base is TankBase owner)
-        {
-            int bonus = owner.Upgrades.CoverageBonusCells;
-            const int near = Tweaks.Vision.MachineNearRadius;
-            _visionSources.Add(new VisionSource(owner.Position, Tweaks.Coverage.BaseRadius + bonus, near));
-            foreach (var machine in _machines.Machines)
-            {
-                if (!machine.IsAlive || machine.State != MachineState.Planted || machine.OwnerBase != owner)
-                    continue;
-                // A relay or pylon sees its whole coverage circle, through the ground, linked or not.
-                int reach = machine.Behavior.IsLinkNode ? Tweaks.Coverage.NodeRadius + bonus : near;
-                _visionSources.Add(new VisionSource(machine.Position, reach, reach));
-            }
-        }
-        map.Update(_terrain, _visionSources, _terrain.GetChangeList());
-    }
+    public Radar? RadarOf(Tank tank) => _sensing.RadarOf(tank);
 
     // Scratch for one question about the machines near a place; no such question is asked while another is open.
     private readonly List<Machine> _nearMachines = new();

@@ -122,10 +122,10 @@ public partial class GameHud
                 _ => HudTheme.Teal,
             };
             HudTheme.DrawPanel(dl, min, max, accent, fade);
-            uint a = (uint)(fade * 255f) << 24;
-            HudTheme.TextAt(dl, titleSize, new Vector2(min.X + padX, min.Y + padY), n.Title, (accent & 0x00FFFFFFu) | a);
+            uint a = (uint)(fade * 255f);
+            HudTheme.TextAt(dl, titleSize, new Vector2(min.X + padX, min.Y + padY), n.Title, HudTheme.WithAlphaByte(accent, a));
             HudTheme.TextAt(dl, detailSize, new Vector2(min.X + padX, min.Y + padY + titleSize + 5f), n.Detail,
-                (HudTheme.Text & 0x00FFFFFFu) | a, wrap);
+                HudTheme.WithAlphaByte(HudTheme.Text, a), wrap);
             y += h + 8f;
         }
     }
@@ -150,8 +150,8 @@ public partial class GameHud
         if (onScreen)
         {
             float r = 26f + 6f * pulse;
-            dl.AddCircle(new Vector2(sx, sy), r, (uint)(0x80 + 0x7F * pulse) << 24 | (HudTheme.Amber & 0x00FFFFFFu), 48, 3f);
-            dl.AddCircle(new Vector2(sx, sy), r + 5f, (uint)(0x30 + 0x30 * pulse) << 24 | (HudTheme.Amber & 0x00FFFFFFu), 48, 1.5f);
+            dl.AddCircle(new Vector2(sx, sy), r, HudTheme.WithAlphaByte(HudTheme.Amber, (uint)(0x80 + 0x7F * pulse)), 48, 3f);
+            dl.AddCircle(new Vector2(sx, sy), r + 5f, HudTheme.WithAlphaByte(HudTheme.Amber, (uint)(0x30 + 0x30 * pulse)), 48, 1.5f);
             float bob = 8f * MathF.Sin(_time * 4f);
             var tip = new Vector2(sx, sy - r - 6f + bob);
             dl.AddTriangleFilled(tip, tip + new Vector2(-12f, -20f), tip + new Vector2(12f, -20f), color);
@@ -170,7 +170,7 @@ public partial class GameHud
         var at = center + dir * t;
         var side = new Vector2(-dir.Y, dir.X);
         var head = at + dir * 18f;
-        dl.AddTriangleFilled(head, at - dir * 6f + side * 14f, at - dir * 6f - side * 14f, (uint)(0xB0 + 0x4F * pulse) << 24 | (HudTheme.Amber & 0x00FFFFFFu));
+        dl.AddTriangleFilled(head, at - dir * 6f + side * 14f, at - dir * 6f - side * 14f, HudTheme.WithAlphaByte(HudTheme.Amber, (uint)(0xB0 + 0x4F * pulse)));
         dl.AddTriangle(head, at - dir * 6f + side * 14f, at - dir * 6f - side * 14f, HudTheme.BronzeDark, 1.5f);
         int cells = (int)MathF.Round(len * ImGuiPlatform.DeviceScale / MathF.Max(1, cam.Scale));
         HudTheme.DrawTag(dl, at - dir * 40f, $"{cells} m", HudTheme.Amber);

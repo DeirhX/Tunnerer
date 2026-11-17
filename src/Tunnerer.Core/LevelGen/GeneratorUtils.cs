@@ -2,6 +2,7 @@ namespace Tunnerer.Core.LevelGen;
 
 using System.Runtime.CompilerServices;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Collision;
 using Tunnerer.Core.Terrain;
 
 public static class GeneratorUtils
@@ -62,15 +63,15 @@ public static class GeneratorUtils
 
     public static void DrawLine(TerrainGrid terrain, Position from, Position to, TerrainPixel value)
     {
-        WalkBresenham(from, to, (x, y) =>
-            terrain.SetPixelRaw(new Position(x, y), value));
+        Raycaster.BresenhamLine(from, to, pos => terrain.SetPixelRaw(pos, value));
     }
 
     public static void DrawThickLine(TerrainGrid terrain, Position from, Position to, TerrainPixel value, int radius)
     {
         int w = terrain.Width, h = terrain.Height;
-        WalkBresenham(from, to, (cx, cy) =>
+        Raycaster.BresenhamLine(from, to, center =>
         {
+            int cx = center.X, cy = center.Y;
             for (int dy = -radius; dy <= radius; dy++)
                 for (int dx = -radius; dx <= radius; dx++)
                 {
@@ -79,6 +80,15 @@ public static class GeneratorUtils
                         terrain.SetPixelRaw(new Position(nx, ny), value);
                 }
         });
+    }
+
+    /// <summary>Whether <paramref name="pos"/> lies closer than the square root of <paramref name="minDistanceSq"/> to any of <paramref name="others"/>.</summary>
+    public static bool TooClose(Position pos, IReadOnlyList<Position> others, int minDistanceSq)
+    {
+        foreach (var other in others)
+            if (Position.DistanceSquared(pos, other) < minDistanceSq)
+                return true;
+        return false;
     }
 
     public static void SetOutside(TerrainGrid terrain, TerrainPixel value)
@@ -93,23 +103,6 @@ public static class GeneratorUtils
         {
             terrain.SetPixelRaw(new Position(0, y), value);
             terrain.SetPixelRaw(new Position(w - 1, y), value);
-        }
-    }
-
-    private static void WalkBresenham(Position from, Position to, Action<int, int> visit)
-    {
-        int x0 = from.X, y0 = from.Y, x1 = to.X, y1 = to.Y;
-        int dx = Math.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-        int dy = -Math.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-        int err = dx + dy;
-
-        while (true)
-        {
-            visit(x0, y0);
-            if (x0 == x1 && y0 == y1) break;
-            int e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x0 += sx; }
-            if (e2 <= dx) { err += dx; y0 += sy; }
         }
     }
 }

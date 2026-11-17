@@ -89,7 +89,7 @@ public partial class Game : IDisposable
         // Automated runs display exactly one frame per simulation step so their screenshots and timings are
         // reproducible; TUNNERER_INTERPOLATE=1 turns the in-between frames back on for them.
         _interpolateFrames = !_automatedRun ||
-            string.Equals(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"), "1", StringComparison.Ordinal);
+            DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_INTERPOLATE"));
         _visualClock = _automatedRun ? VisualClock.StepLocked(Tweaks.World.AdvanceStep) : VisualClock.RealTime();
         Seed = relay?.Config.Seed ?? ResolveSeed(IsInteractiveSession);
         var windowSize = DesktopScreenTweaks.WindowSize;

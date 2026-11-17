@@ -6,6 +6,7 @@ using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Entities.Bases;
+using Tunnerer.Desktop.Presentation;
 
 /// <summary>What the tutorial asks of the player right now.</summary>
 /// <param name="Progress">Optional progress line (e.g. "Dirt 87 / 150") and fill fraction.</param>
@@ -43,8 +44,6 @@ public sealed class TutorialDirector
     private bool _unloadedHaul;
 
     public bool IsComplete => _index >= _steps.Length;
-    public int StepCount => _steps.Length;
-    public int StepIndex => _index;
 
     /// <summary>Seconds the current step has been shown.</summary>
     private float ShownFor(float now) => float.IsNaN(_shownSince) ? 0f : now - _shownSince;
@@ -60,8 +59,8 @@ public sealed class TutorialDirector
 
             new("Mine emberite",
                 "The teal crystal is emberite ore, what everything is paid with. Drive into it to mine it into your hold (MATERIALS). The hold is small: bring it home.",
-                static (_, w, p) => p.OreHeld >= Tweaks.Ore.RelayCost || OwnsAny(w, p, MachineType.Relay),
-                Progress: static (_, p) => Ratio("Ore", p.OreHeld, Tweaks.Ore.RelayCost)),
+                static (_, w, p) => p.OreHeld >= Cost(MachineType.Relay) || OwnsAny(w, p, MachineType.Relay),
+                Progress: static (_, p) => Ratio("Ore", p.OreHeld, Cost(MachineType.Relay))),
 
             new("Mind your temperature",
                 "Digging heats the tank (TEMP). Above 100° it burns your shield. Drive back into your base: it cools you down and banks your ore.",
@@ -69,10 +68,10 @@ public sealed class TutorialDirector
                 Target: static (_, p) => p.Base?.Position),
 
             new("Build a relay",
-                $"Press E to pick up a relay ({Tweaks.Ore.RelayCost} ore; inside your network the base store pays). Drive out of the base and press E again where the line to your network shows green.",
+                $"Press {Key(MachineType.Relay)} to pick up a relay ({Cost(MachineType.Relay)} ore; inside your network the base store pays). Drive out of the base and press {Key(MachineType.Relay)} again where the line to your network shows green.",
                 static (_, w, p) => OwnsPowered(w, p, MachineType.Relay),
-                Progress: static (w, p) => p.IsCarryingMachine ? ("Carrying it: find a spot with a green line, then press E", 1f)
-                    : Ratio("Ore you can spend", p.QuoteBuild(MachineType.Relay).Stock, Tweaks.Ore.RelayCost)),
+                Progress: static (w, p) => p.IsCarryingMachine ? ($"Carrying it: find a spot with a green line, then press {Key(MachineType.Relay)}", 1f)
+                    : Ratio("Ore you can spend", p.QuoteBuild(MachineType.Relay).Stock, Cost(MachineType.Relay))),
 
             new("Stay on your network",
                 "The pale circles are your network. Inside them the links pull heat out of your tank and your hold unloads into the base. Outside, the OFF NETWORK clock runs: get back before it reaches 0, or plant another relay to reach further.",
@@ -82,15 +81,15 @@ public sealed class TutorialDirector
             new("Turn hot rock into power",
                 "Red rock is hot. Plant a relay near it (its line must reach your network). It pumps the heat home, and your base engine turns it into charge.",
                 static (t, _, _) => t._engineRan,
-                Progress: static (_, p) => p.Base is { } b ? ($"Engine +{b.EngineOutputPerTick * Tweaks.Perf.TargetFps / 1000.0:0.0}k charge/s", b.EngineOutputPerTick > 1.0 ? 1f : 0f) : null,
+                Progress: static (_, p) => p.Base is { } b ? ($"Engine +{b.EngineOutputPerSecond / 1000.0:0.0}k charge/s", b.IsEngineRunning ? 1f : 0f) : null,
                 Target: static (w, p) => Nearest(w.HotRockPockets, p.Base?.Position ?? p.Position)),
 
             new("Build a harvester",
-                $"Harvesters mine emberite into your base store on their own, while they stand inside your network. Press R to build one ({Tweaks.Ore.HarvesterCost} ore) and plant it near ore, inside your network.",
+                $"Harvesters mine emberite into your base store on their own, while they stand inside your network. Press {Key(MachineType.Harvester)} to build one ({Cost(MachineType.Harvester)} ore) and plant it near ore, inside your network.",
                 static (_, w, p) => OwnsAny(w, p, MachineType.Harvester),
                 Progress: static (w, p) => p.IsCarryingMachine && p.CarriedMachineType == MachineType.Harvester
-                    ? ("Carrying it: drive near ore, inside your network, and press R", 1f)
-                    : Ratio("Ore you can spend", p.QuoteBuild(MachineType.Harvester).Stock, Tweaks.Ore.HarvesterCost)),
+                    ? ($"Carrying it: drive near ore, inside your network, and press {Key(MachineType.Harvester)}", 1f)
+                    : Ratio("Ore you can spend", p.QuoteBuild(MachineType.Harvester).Stock, Cost(MachineType.Harvester))),
 
             new("Keep the harvester cool",
                 "Mining heats the ground, and a harvester stalls when its ring turns orange. Plant a linked relay close to it to pump that heat away.",
@@ -98,7 +97,7 @@ public sealed class TutorialDirector
                 Target: static (w, p) => FirstHarvester(w, p)),
 
             new("Power the harvester",
-                $"Harvesters run on a battery (the bar above them). Press T to build a pylon ({Tweaks.Ore.PylonCost} ore) where it can see the harvester: it recharges batteries from your base's charge.",
+                $"Harvesters run on a battery (the bar above them). Press {Key(MachineType.Pylon)} to build a pylon ({Cost(MachineType.Pylon)} ore) where it can see the harvester: it recharges batteries from your base's charge.",
                 static (_, w, p) => OwnsPowered(w, p, MachineType.Pylon),
                 Target: static (w, p) => FirstHarvester(w, p)),
 
@@ -120,8 +119,8 @@ public sealed class TutorialDirector
                 "Chain relays to the hot core at the centre. Relays beside it must make the goal rate of charge, held for a minute. More relays there, a bigger radiator and a better engine all help.",
                 static (_, w, p) => w.CorePocket == null || w.CoreTapOf(p.Base) is { HasTapped: true },
                 Progress: static (w, p) => w.CoreTapOf(p.Base) is { } b
-                    ? ($"Core tap {b.TapPerTick * Tweaks.Perf.TargetFps / 1000.0:0.0}k / {Tweaks.Goal.GoalChargePerSecond / 1000.0:0.0}k charge/s, held {b.HoldSeconds:0} / {Tweaks.Goal.GoalHoldSeconds:0} s",
-                        (float)Math.Clamp(b.HoldSeconds / Tweaks.Goal.GoalHoldSeconds, 0.0, 1.0))
+                    ? ($"Core tap {b.TapPerSecond / 1000.0:0.0}k / {Tweaks.Goal.GoalChargePerSecond / 1000.0:0.0}k charge/s, held {b.HoldSeconds:0} / {Tweaks.Goal.GoalHoldSeconds:0} s",
+                        b.HoldFraction)
                     : null,
                 Target: static (w, _) => w.CorePocket),
         ];
@@ -159,34 +158,34 @@ public sealed class TutorialDirector
     {
         if (player.Base is not { } home || player.IsDead)
             return;
-        bool docked = DockedAtHome(world, player);
+        bool docked = player.IsDockedAtOwnBase;
         if (!docked)
             _hasLeftBase = true;
         // A real haul: the tank came home with at least a relay's worth of ore and docked.
-        if (!docked && player.OreHeld >= Tweaks.Ore.RelayCost)
+        if (!docked && player.OreHeld >= Cost(MachineType.Relay))
             _carriedHaul = true;
         if (docked && _carriedHaul)
             _unloadedHaul = true;
         if (player.IsOffNetwork)
             _wasOffNetwork = true;
-        else if (_wasOffNetwork && (player.Coverage.Covered || DockedAtHome(world, player)))
+        else if (_wasOffNetwork && (player.Coverage.Covered || player.IsDockedAtOwnBase))
             _cameBackCovered = true;
-        if (home.EngineOutputPerTick > 1.0)
+        if (home.IsEngineRunning)
             _engineRan = true;
         foreach (var frost in world.FrostRockPockets)
             if (Position.DistanceSquared(frost, player.Position) <= 14 * 14)
                 _nearFrost = true;
     }
 
+    private static int Cost(MachineType type) => MachineBehaviors.Get(type).OreCost;
+
+    private static string Key(MachineType type) => MachinePresentations.Get(type).KeyLabel;
+
     private static (string, float) Ratio(string label, int have, int need) =>
         ($"{label} {Math.Min(have, need)} / {need}", Math.Clamp(have / (float)need, 0f, 1f));
 
-    private static bool DockedAtHome(World world, Tank player) =>
-        player.Base != null && world.TankBases.CheckBaseCollision(player.Position) == player.Base;
-
     private static IEnumerable<Machine> Owned(World world, Tank player, MachineType type) =>
-        world.Machines.Machines.Where(m => m.IsAlive && m.State == MachineState.Planted && m.Type == type &&
-                                           m.OwnerBase == player.Base && player.Base != null);
+        world.Machines.Machines.Where(m => player.Base != null && m.StandsFor(player.Base) && m.Type == type);
 
     private static bool OwnsAny(World world, Tank player, MachineType type) => Owned(world, player, type).Any();
 

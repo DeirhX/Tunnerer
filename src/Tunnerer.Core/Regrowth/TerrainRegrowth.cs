@@ -62,7 +62,7 @@ public sealed class TerrainRegrowth
 
     /// <summary>True for a pixel regrowth does something with: it grows dirt in, fades, or finishes growing.</summary>
     public static bool ActsOn(TerrainPixel pixel) =>
-        pixel == TerrainPixel.Blank || pixel == TerrainPixel.DirtGrow || Pixel.IsScorched(pixel);
+        Pixel.IsOpenGround(pixel) || pixel == TerrainPixel.DirtGrow;
 
     /// <summary>
     /// Looks over the whole map once and gives every cell that can change its appointment. From then on the terrain

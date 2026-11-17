@@ -62,9 +62,9 @@ public static class HotRockPockets
             int radius = Tweaks.World.HotRockMinRadius
                 + (int)Math.Round((Tweaks.World.HotRockMaxRadius - Tweaks.World.HotRockMinRadius) * (1.0 - fraction));
 
-            if (!IsSolidGround(terrain.GetPixelRaw(pos)))
+            if (!Pixel.IsSolidGround(terrain.GetPixelRaw(pos)))
                 continue;
-            if (TooClose(pos, bases, minFromBaseSq) || TooClose(pos, centers, minBetweenSq))
+            if (GeneratorUtils.TooClose(pos, bases, minFromBaseSq) || GeneratorUtils.TooClose(pos, centers, minBetweenSq))
                 continue;
 
             if (terrain.PlaceHotRockPocket(pos, radius) > 0)
@@ -76,7 +76,7 @@ public static class HotRockPockets
 
     private static Position? FindCoreSite(TerrainGrid terrain, IReadOnlyList<Position> bases, Position middle, int minFromBaseSq)
     {
-        if (!TooClose(middle, bases, minFromBaseSq))
+        if (!GeneratorUtils.TooClose(middle, bases, minFromBaseSq))
             return middle;
         int margin = Tweaks.LevelGen.BorderWidth + Tweaks.World.HotRockCoreRadius + 2;
         int maxRadius = Math.Min(terrain.Width, terrain.Height) / 2;
@@ -87,20 +87,10 @@ public static class HotRockPockets
                 var p = new Position(middle.X + (int)Math.Round(DeterministicMath.Cos(angle) * r), middle.Y + (int)Math.Round(DeterministicMath.Sin(angle) * r));
                 if (p.X < margin || p.Y < margin || p.X >= terrain.Width - margin || p.Y >= terrain.Height - margin)
                     continue;
-                if (!TooClose(p, bases, minFromBaseSq))
+                if (!GeneratorUtils.TooClose(p, bases, minFromBaseSq))
                     return p;
             }
         return null;
     }
 
-    private static bool IsSolidGround(TerrainPixel pixel) =>
-        Pixel.IsDirt(pixel) || pixel == TerrainPixel.DirtGrow || Pixel.IsRock(pixel);
-
-    private static bool TooClose(Position pos, IReadOnlyList<Position> others, int minDistanceSq)
-    {
-        foreach (var other in others)
-            if (Position.DistanceSquared(pos, other) < minDistanceSq)
-                return true;
-        return false;
-    }
 }

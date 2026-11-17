@@ -204,6 +204,5 @@ internal static class HarvesterPathing
     /// dirt, scorch) except a base.
     /// </summary>
     private static bool IsCrawlable(TerrainPixel pixel) =>
-        !Pixel.IsBlockingCollision(pixel) && !Pixel.IsBase(pixel) &&
-        pixel is not (TerrainPixel.BaseBarrier or TerrainPixel.BaseCore);
+        !Pixel.IsBlockingCollision(pixel) && !Pixel.IsAnyBaseCell(pixel);
 }

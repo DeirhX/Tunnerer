@@ -41,8 +41,7 @@ public static class OreDrop
         if (pos.X < 1 || pos.Y < 1 || pos.X >= terrain.Width - 1 || pos.Y >= terrain.Height - 1)
             return false;
         var pixel = terrain.GetPixelRaw(pos);
-        return pixel == TerrainPixel.Blank || pixel == TerrainPixel.DirtGrow || Pixel.IsScorched(pixel) ||
-            Pixel.IsDirt(pixel);
+        return Pixel.IsOpenGround(pixel) || Pixel.IsSoil(pixel);
     }
 
     private static Offset[] BuildOffsets(int radius)

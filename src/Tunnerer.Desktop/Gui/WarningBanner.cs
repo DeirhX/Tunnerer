@@ -81,7 +81,7 @@ public sealed class WarningBanner
         float h = titleSz.Y + (sub != null ? subSz.Y + 6f : 0f) + 22f;
         var min = new Vector2(MathF.Floor(cx - w * 0.5f), y - 8f);
         HudTheme.DrawPanel(dl, min, min + new Vector2(w, h), accent);
-        uint titleColor = blink ? accent : (accent & 0x00FFFFFFu) | 0xC0000000u;
+        uint titleColor = blink ? accent : HudTheme.WithAlphaByte(accent, 0xC0);
         HudTheme.TextAt(dl, titleSize, new Vector2(MathF.Floor(cx - titleSz.X * 0.5f), y + 3f), title, titleColor);
         if (sub != null)
             HudTheme.TextAt(dl, subSize, new Vector2(MathF.Floor(cx - subSz.X * 0.5f), y + 9f + titleSz.Y), sub, HudTheme.Text);

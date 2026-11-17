@@ -18,9 +18,8 @@ public sealed unsafe class SdlGpuTextureLoader : ITextureLoader
         StbImage.stbi_set_flip_vertically_on_load(0);
     }
 
-    public nint LoadTexture(string path, bool linear = false)
+    public nint LoadTexture(string path)
     {
-        _ = linear;
         if (!File.Exists(path))
             throw new FileNotFoundException($"Texture file not found: {path}", path);
 
