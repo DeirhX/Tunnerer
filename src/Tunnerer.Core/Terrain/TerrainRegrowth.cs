@@ -1,6 +1,5 @@
 namespace Tunnerer.Core.Terrain;
 
-using System.Diagnostics;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 
@@ -251,7 +250,9 @@ public sealed class TerrainRegrowth
         int untilNext = (passTick - _tick % PassTicks + PassTicks) % PassTicks;
         if (untilNext == 0)
             untilNext = PassTicks;
-        Debug.Assert(untilNext + (passes - 1) * PassTicks < RegrowthSchedule.WheelTicks, "An appointment must fit in the wheel.");
+        // An appointment must fit in the wheel, or it would wrap into an earlier slot and fire early. The longest
+        // settle fits at today's frame rate; a faster one (longer passes in ticks) would cut the wait short here.
+        passes = Math.Min(passes, (RegrowthSchedule.WheelTicks - 1 - untilNext) / PassTicks + 1);
         return _tick + untilNext + (passes - 1) * PassTicks;
     }
 
