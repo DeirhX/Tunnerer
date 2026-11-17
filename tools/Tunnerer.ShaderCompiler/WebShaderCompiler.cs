@@ -20,6 +20,9 @@ internal static unsafe partial class WebShaderCompiler
                 Check(CreateOptions(compiler, out nint options), context);
                 Check(SetUInt(options, 0x2000008, 300), context); // GLSL_VERSION
                 Check(SetBool(options, 0x2000009, 1), context); // GLSL_ES
+                // GLSL ES fragment shaders default to mediump, which phones may give 16 bits: too few for the
+                // procedural materials' noise and for world coordinates. HLSL float is 32 bits; keep it so.
+                Check(SetBool(options, 0x200000B, 1), context); // GLSL_ES_DEFAULT_FLOAT_PRECISION_HIGHP
                 Check(SetBool(options, 0x1000004, flipVertexY ? (byte)1 : (byte)0), context); // FLIP_VERTEX_Y
                 Check(InstallOptions(compiler, options), context);
                 Check(Resources(compiler, out nint resources), context);

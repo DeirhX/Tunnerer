@@ -1,3 +1,8 @@
+// A failure of the graphics hardware or driver, as opposed to one of loading the game.
+export class GraphicsError extends Error {
+    name = "GraphicsError";
+}
+
 // Draws the desktop shaders, translated at publish time from their original HLSL.
 export class WebGlRenderer {
     constructor(canvas) {
@@ -7,11 +12,21 @@ export class WebGlRenderer {
             antialias: false,
             depth: false,
             stencil: false,
+            // The procedural terrain is pixel-heavy: ask for the discrete GPU where a machine has two.
+            powerPreference: "high-performance",
+            // A software renderer stalls on these shaders until the browser drops the context. Say so at once.
+            failIfMajorPerformanceCaveat: true,
         });
-        if (!this.gl)
-            throw new Error(
-                "WebGL 2 is unavailable. Enable hardware acceleration and reload the page.",
+        if (!this.gl) {
+            const software = document
+                .createElement("canvas")
+                .getContext("webgl2");
+            throw new GraphicsError(
+                software
+                    ? "This browser is drawing without graphics acceleration, which is too slow for the game. Turn on hardware acceleration in its settings and reload the page"
+                    : "WebGL 2 is unavailable. Use a current browser with hardware acceleration turned on",
             );
+        }
         this.mapTextures = [];
         this.mapWidth = this.mapHeight = 0;
         this.targetWidth = this.targetHeight = 0;
@@ -19,8 +34,8 @@ export class WebGlRenderer {
         this.samplerBindings = new Map();
         canvas.addEventListener("webglcontextlost", (e) => {
             e.preventDefault();
-            this.error = new Error(
-                "The graphics context was lost. Reload the page to restore the game.",
+            this.error = new GraphicsError(
+                "The graphics context was lost. Reload the page to restore the game",
             );
         });
     }
@@ -90,7 +105,7 @@ export class WebGlRenderer {
             if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
                 const error = gl.getShaderInfoLog(shader);
                 gl.deleteShader(shader);
-                throw new Error(`Shader compilation failed: ${error}`);
+                throw new GraphicsError(`Shader compilation failed: ${error}`);
             }
             gl.attachShader(program, shader);
             return shader;
@@ -101,7 +116,7 @@ export class WebGlRenderer {
             gl.deleteShader(shader);
         }
         if (!gl.getProgramParameter(program, gl.LINK_STATUS))
-            throw new Error(
+            throw new GraphicsError(
                 `Shader linking failed: ${gl.getProgramInfoLog(program)}`,
             );
         const block = gl.getUniformBlockIndex(program, "PostParamsBlock");
@@ -128,13 +143,18 @@ export class WebGlRenderer {
         this.hasFrame = false;
     }
 
+    // Takes one frame from the worker: a header of int32 values, then the parts it points at (BrowserScene.cs).
+    // Every packet must be taken, in order: each carries only the texels that changed since the one before.
     accept(packet) {
         const gl = this.gl;
+        const header = new Int32Array(packet.buffer, packet.byteOffset, 24);
+        const uniformBytes = packet.subarray(header[0], header[0] + header[1]);
         const uniforms = new Float32Array(
-            packet.uniforms.buffer,
-            packet.uniforms.byteOffset,
-            packet.uniforms.byteLength / 4,
+            packet.buffer,
+            packet.byteOffset + header[0],
+            header[1] / 4,
         );
+        const vertices = packet.subarray(header[2], header[2] + header[3]);
         const width = uniforms[4],
             height = uniforms[5];
         if (this.mapWidth !== width || this.mapHeight !== height) {
@@ -156,23 +176,31 @@ export class WebGlRenderer {
                 );
                 this.mapTextures.push(texture);
             }
+            this.postTextures = [
+                this.sceneTexture,
+                ...this.mapTextures.slice(1),
+            ];
         }
-        const [x, y, w, h] = packet.rect;
-        if (w && h) {
-            for (let i = 0; i < 4; i++) {
-                gl.bindTexture(gl.TEXTURE_2D, this.mapTextures[i]);
-                gl.texSubImage2D(
-                    gl.TEXTURE_2D,
-                    0,
-                    x,
-                    y,
-                    w,
-                    h,
-                    gl.RGBA,
-                    gl.UNSIGNED_BYTE,
-                    packet.textures[i],
-                );
-            }
+        this.uploadedBytes = 0;
+        for (let i = 0; i < 4; i++) {
+            const at = 4 + 5 * i,
+                offset = header[at],
+                w = header[at + 3],
+                h = header[at + 4];
+            if (w <= 0 || h <= 0) continue;
+            gl.bindTexture(gl.TEXTURE_2D, this.mapTextures[i]);
+            gl.texSubImage2D(
+                gl.TEXTURE_2D,
+                0,
+                header[at + 1],
+                header[at + 2],
+                w,
+                h,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                packet.subarray(offset, offset + w * h * 4),
+            );
+            this.uploadedBytes += w * h * 4;
         }
         this.width = uniforms[8];
         this.height = uniforms[9];
@@ -180,11 +208,12 @@ export class WebGlRenderer {
         this.cameraX = uniforms[6] / this.scale;
         this.cameraY = uniforms[7] / this.scale;
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uniforms);
-        gl.bufferData(gl.UNIFORM_BUFFER, packet.uniforms, gl.DYNAMIC_DRAW);
+        gl.bufferData(gl.UNIFORM_BUFFER, uniformBytes, gl.DYNAMIC_DRAW);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, packet.vertices, gl.DYNAMIC_DRAW);
-        this.vertexCount = packet.vertices.byteLength / 48;
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+        this.vertexCount = vertices.byteLength / 48;
         this.hasFrame = true;
+        this.fresh = true;
     }
 
     bindTextures(program, textures, sceneName) {
@@ -215,9 +244,11 @@ export class WebGlRenderer {
         }
     }
 
+    // Draws the last accepted frame once; false when there is nothing new to draw.
     draw() {
         if (this.error) throw this.error;
-        if (!this.hasFrame) return;
+        if (!this.hasFrame || !this.fresh) return false;
+        this.fresh = false;
         const gl = this.gl;
         if (
             this.targetWidth !== this.width ||
@@ -251,7 +282,7 @@ export class WebGlRenderer {
                 gl.checkFramebufferStatus(gl.FRAMEBUFFER) !==
                 gl.FRAMEBUFFER_COMPLETE
             )
-                throw new Error("Could not create the terrain render target.");
+                throw new GraphicsError("Could not create the terrain render target.");
         }
         gl.viewport(0, 0, this.width, this.height);
         gl.disable(gl.BLEND);
@@ -262,7 +293,7 @@ export class WebGlRenderer {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         this.bindTextures(
             this.postProgram,
-            [this.sceneTexture, ...this.mapTextures.slice(1)],
+            this.postTextures,
             "sceneTex",
         );
         gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -273,5 +304,6 @@ export class WebGlRenderer {
         gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
         gl.disable(gl.BLEND);
         gl.bindVertexArray(null);
+        return true;
     }
 }

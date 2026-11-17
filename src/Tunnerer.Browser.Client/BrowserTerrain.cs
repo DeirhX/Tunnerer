@@ -5,90 +5,80 @@ using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Rendering;
 
-/// <summary>The desktop renderer's terrain fields, packed into bounded uploads for WebGL.</summary>
+/// <summary>One of the renderer's world-sized textures: its CPU copy and the part a frame must upload (null: nothing).</summary>
+public readonly record struct TerrainTexture(byte[] Data, Rect? Dirty);
+
+/// <summary>
+/// The four world-sized textures WebGL draws the terrain from: the ground's colour, the desktop renderer's aux and
+/// material coverage fields, and the fog. The desktop's own <see cref="TerrainAuxUploader"/> and
+/// <see cref="FogLayer"/> decide what a frame repacks, so a frame costs what changed in view; this class adds the
+/// colour texture, which desktop keeps in a format WebGL cannot take.
+/// </summary>
 public sealed class BrowserTerrain
 {
+    public const int Color = 0, Aux = 1, Coverage = 2, Fog = 3, TextureCount = 4;
+
     private readonly TerrainGrid _grid;
     private readonly VisionMap _vision;
-    private readonly TerrainAuxBuilder _builder = new();
-    private readonly byte[] _aux, _coverage;
-    private readonly byte[][] _uploads = [[], [], [], []];
-    private readonly List<Position> _expired = new();
-    private Rect _covered;
-    private bool _dirty = true;
+    private readonly TerrainAuxUploader _aux;
+    private readonly FogLayer _fog;
+    private readonly byte[] _color;
+    private readonly TerrainTexture[] _textures = new TerrainTexture[TextureCount];
+    private Rect? _colorDirty;
+    private bool _stepped;
 
     public BrowserTerrain(TerrainGrid grid, VisionMap vision)
     {
         _grid = grid;
         _vision = vision;
-        _aux = new byte[grid.Size.Area * 4];
-        _coverage = new byte[grid.Size.Area * 4];
-        _builder.GrowthFade.Reset(grid.Size);
-        // Match desktop's initial live-channel snapshot. Zero is deep cold in the signed heat encoding;
-        // leaving unseen neighbours at zero would add a false frost rim wherever fog is softened.
-        // After this one startup copy, only cells in sight refresh their live channels.
+        _aux = new TerrainAuxUploader(grid.Size, new TerrainAuxBuilder(), new Tunnerer.Desktop.DrawProfile());
+        _fog = new FogLayer(grid.Size);
+        _color = new byte[grid.Size.Area * 4];
         for (int cell = 0; cell < grid.Size.Area; cell++)
-        {
-            _aux[cell * 4] = TerrainGrid.HeatToByte(grid.GetHeatTemperature(cell));
-            _aux[cell * 4 + 3] = grid.GetScorchIntensity(cell);
-        }
+            WriteColor(cell);
+        _colorDirty = new Rect(0, 0, grid.Width, grid.Height);
     }
 
-    public Rect UploadRect { get; private set; }
-    public byte[] Texture(int index) => _uploads[index];
+    /// <summary>What the last <see cref="Prepare"/> left to upload of texture <paramref name="index"/>.</summary>
+    public TerrainTexture Texture(int index) => _textures[index];
 
+    /// <summary>Takes in what a simulation step changed of the ground the player knows.</summary>
     public void ObserveStep(float time)
     {
-        _dirty = true;
-        _builder.GrowthFade.ObserveChanges(_vision.Known, _vision.KnownChanges, time);
+        _stepped = true;
+        IReadOnlyList<Position> changes = _vision.KnownChanges;
+        _aux.ObserveTerrainChanges(_vision.Known, changes, time);
+        for (int i = 0; i < changes.Count; i++)
+        {
+            Position cell = changes[i];
+            WriteColor(cell.X + cell.Y * _grid.Width);
+            _colorDirty = RectMath.Union(_colorDirty, new Rect(cell.X, cell.Y, 1, 1));
+        }
     }
 
-    public void Prepare(Rect view, float time)
+    /// <summary>Repacks what changed since the last frame; <paramref name="visible"/> is the cells in view.</summary>
+    public void Prepare(in Rect visible, float time)
     {
-        _expired.Clear();
-        _builder.GrowthFade.CollectExpired(time, _expired);
-        if (_expired.Count > 0)
-            _dirty = true;
-        if (!_dirty && (_covered.Left == 0 || view.Left >= _covered.Left + 4) &&
-            (_covered.Right == _grid.Width || view.Right <= _covered.Right - 4) &&
-            (_covered.Top == 0 || view.Top >= _covered.Top + 4) &&
-            (_covered.Bottom == _grid.Height || view.Bottom <= _covered.Bottom - 4))
-        {
-            UploadRect = default;
-            return;
-        }
-        int x0 = Math.Max(0, view.Left - 12), y0 = Math.Max(0, view.Top - 12);
-        int x1 = Math.Min(_grid.Width, view.Right + 12), y1 = Math.Min(_grid.Height, view.Bottom + 12);
-        if (x1 <= x0 || y1 <= y0)
-        {
-            UploadRect = default;
-            return;
-        }
-        var requested = new Rect(x0, y0, x1 - x0, y1 - y0);
-        UploadRect = _builder.BuildGpuTerrainAuxRect(TerrainView.Fogged(_grid, _vision), _aux, _coverage, requested);
-        _covered = UploadRect;
-        _dirty = false;
-        int bytes = UploadRect.Width * UploadRect.Height * 4;
-        for (int i = 0; i < _uploads.Length; i++)
-            if (_uploads[i].Length != bytes)
-                _uploads[i] = new byte[bytes];
-        for (int y = 0; y < UploadRect.Height; y++)
-        {
-            int row = (y + UploadRect.Y) * _grid.Width + UploadRect.X;
-            int target = y * UploadRect.Width * 4;
-            Buffer.BlockCopy(_aux, row * 4, _uploads[1], target, UploadRect.Width * 4);
-            Buffer.BlockCopy(_coverage, row * 4, _uploads[2], target, UploadRect.Width * 4);
-            for (int x = 0; x < UploadRect.Width; x++)
-            {
-                int cell = row + x, p = target + x * 4;
-                var color = Pixel.GetColor(_vision.Known.GetPixelRaw(cell));
-                _uploads[0][p] = color.R;
-                _uploads[0][p + 1] = color.G;
-                _uploads[0][p + 2] = color.B;
-                _uploads[0][p + 3] = 255;
-                _uploads[3][p] = _vision.LevelAt(cell);
-                _uploads[3][p + 1] = _vision.IsExplored(cell) ? (byte)255 : (byte)0;
-            }
-        }
+        FogUpload fog = _fog.Prepare(_vision, out Rect? sightChanged);
+        TerrainAuxFrame frame = _aux.Prepare(
+            TerrainView.Fogged(_grid, _vision), visible, _stepped, time, sightChanged);
+        _aux.Commit(_grid, frame);
+        _stepped = false;
+
+        _textures[Color] = new TerrainTexture(_color, _colorDirty);
+        _textures[Aux] = new TerrainTexture(frame.Upload.Data!, frame.Upload.DirtyRect);
+        _textures[Coverage] = new TerrainTexture(frame.Upload.MaterialCoverage!, frame.Upload.MaterialCoverageDirtyRect);
+        _textures[Fog] = new TerrainTexture(fog.Data!, fog.DirtyRect);
+        _colorDirty = null;
+    }
+
+    private void WriteColor(int cell)
+    {
+        var color = Pixel.GetColor(_vision.Known.GetPixelRaw(cell));
+        int p = cell * 4;
+        _color[p] = color.R;
+        _color[p + 1] = color.G;
+        _color[p + 2] = color.B;
+        _color[p + 3] = 255;
     }
 }

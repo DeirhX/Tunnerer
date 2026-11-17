@@ -25,7 +25,8 @@ def package(output):
     digest.update((root / "sw.js").read_bytes())
     manifest = {"version": digest.hexdigest()[:24],
                 "urls": ["./" + p.relative_to(root).as_posix() for p in assets]}
-    (root / "assets-manifest.js").write_text("self.tunnererAssets = " + json.dumps(manifest) + ";\n")
+    # The same bytes on every OS: no locale encoding, no translated line ends.
+    (root / "assets-manifest.js").write_bytes(("self.tunnererAssets = " + json.dumps(manifest) + ";\n").encode())
     archive = output / "tunnerer-browser.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
         for path in sorted(root.rglob("*")):

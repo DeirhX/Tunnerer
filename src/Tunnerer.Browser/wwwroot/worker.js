@@ -3,6 +3,8 @@ import { dotnet } from "./_framework/dotnet.js";
 let api;
 self.onmessage = async ({ data }) => {
     try {
+        let stepped = false;
+        const began = performance.now();
         if (data.type === "start") {
             if (!api) {
                 const runtime = await dotnet
@@ -19,11 +21,15 @@ self.onmessage = async ({ data }) => {
             if (data.input) {
                 const i = data.input;
                 api.Step(i.x, i.y, i.fire, i.aimX, i.aimY, i.build, i.upgrade);
+                stepped = true;
             }
         } else {
             return;
         }
-        api.Render(
+        const simulated = performance.now();
+        // One buffer holds everything the frame draws (layout: BrowserScene.cs). The view is of the runtime's own
+        // memory, so copy it out before the next call; the copy is handed to the page without another one.
+        const view = api.Render(
             data.width,
             data.height,
             data.scale,
@@ -31,20 +37,19 @@ self.onmessage = async ({ data }) => {
             data.delta || 0,
             data.time || 0,
         );
-        const uniforms = api.Uniforms(),
-            vertices = api.Vertices();
-        const textures = [0, 1, 2, 3].map((i) => api.Texture(i));
-        const render = {
-            uniforms,
-            vertices,
-            textures,
-            rect: api.TextureRect(),
+        const packet = view.slice();
+        view.dispose();
+        // The HUD only changes when the simulation steps.
+        const state =
+            stepped || data.type === "start"
+                ? JSON.parse(api.GetFrame(stepped))
+                : null;
+        const timing = {
+            step: stepped ? simulated - began : null,
+            render: performance.now() - simulated,
         };
-        const state = JSON.parse(api.GetFrame(!!data.input));
-        self.postMessage({ type: "frame", state, render }, [
-            uniforms.buffer,
-            vertices.buffer,
-            ...textures.map((t) => t.buffer),
+        self.postMessage({ type: "frame", state, packet, timing }, [
+            packet.buffer,
         ]);
     } catch (error) {
         self.postMessage({

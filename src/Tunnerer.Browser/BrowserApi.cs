@@ -31,25 +31,17 @@ public static partial class BrowserApi
         Session.Advance(input);
     }
 
+    /// <summary>
+    /// Builds a frame and returns it as one buffer (layout: <see cref="BrowserScene"/>). The view is of the runtime's
+    /// own memory: the caller copies it out and disposes it before calling in again.
+    /// </summary>
     [JSExport]
-    public static void Render(int width, int height, int scale, double alpha, double delta, double time) =>
-        Session.Scene.Render(width, height, scale, (float)alpha, (float)delta, (float)time);
-
-    [JSExport]
-    public static byte[] Uniforms() => Session.Scene.Uniforms;
-
-    [JSExport]
-    public static byte[] Vertices() => Session.Scene.Vertices;
-
-    [JSExport]
-    public static int[] TextureRect()
+    [return: JSMarshalAs<JSType.MemoryView>]
+    public static ArraySegment<byte> Render(int width, int height, int scale, double alpha, double delta, double time)
     {
-        var r = Session.Scene.Terrain.UploadRect;
-        return [r.X, r.Y, r.Width, r.Height];
+        Session.Scene.Render(width, height, scale, (float)alpha, (float)delta, (float)time);
+        return Session.Scene.Packet;
     }
-
-    [JSExport]
-    public static byte[] Texture(int index) => Session.Scene.Terrain.UploadRect.Width == 0 ? [] : Session.Scene.Terrain.Texture(index);
 
     [JSExport]
     public static string GetFrame(bool includeEvents) =>

@@ -7,6 +7,7 @@
   <!-- Shared source, existing namespaces and file locations. This assembly has no native dependencies. -->
   <ItemGroup>
     <ProjectReference Include="../Tunnerer.Core/Tunnerer.Core.csproj" />
+    <Compile Include="../Tunnerer.Desktop/DrawProfile.cs" Link="DrawProfile.cs" />
     <Compile Include="../Tunnerer.Desktop/Config/DesktopScreenTweaks.cs" Link="Config/DesktopScreenTweaks.cs" />
     <Compile Include="../Tunnerer.Desktop/Config/PostProcessPassFlags.cs" Link="Config/PostProcessPassFlags.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/Entities/*.cs" Link="Entities/%(Filename)%(Extension)" />
@@ -15,6 +16,7 @@
     <Compile Include="../Tunnerer.Desktop/Rendering/RenderInputEvent.cs" Link="RenderInputEvent.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/PostParamsBlock.cs" Link="PostParamsBlock.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/TerrainAuxBuilder.cs" Link="TerrainAuxBuilder.cs" />
+    <Compile Include="../Tunnerer.Desktop/Rendering/TerrainAuxUploader.cs" Link="TerrainAuxUploader.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/TerrainSolidField.cs" Link="TerrainSolidField.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/TerrainMaterialCoverage.cs" Link="TerrainMaterialCoverage.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/TerrainGrowthFade.cs" Link="TerrainGrowthFade.cs" />

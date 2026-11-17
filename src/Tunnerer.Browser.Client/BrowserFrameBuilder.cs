@@ -50,7 +50,7 @@ public static class BrowserFrameBuilder
             home.ChargeFill, home.HeatStoreFill, player.IsDockedAtOwnBase, player.IsOffNetwork,
             player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds,
             world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString(), refusal);
-        return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, session.View, status,
+        return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
             events.ToArray(), builds, upgrades, preview, goal);
     }
 }

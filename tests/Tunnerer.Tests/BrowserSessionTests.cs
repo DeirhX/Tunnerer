@@ -34,8 +34,21 @@ public class BrowserSessionTests
         var desktopEntities = new EntityLayerBuilder();
         desktopEntities.CaptureStep(session.World, 0);
         desktopEntities.Build(session.Scene.View, 1, 0, false, 0, session.Vision, session.Radar);
-        Assert.Equal(MemoryMarshal.AsBytes(desktopEntities.Vertices.AsSpan(0, desktopEntities.VertexCount)).ToArray(), session.Scene.Vertices);
+        Assert.Equal(MemoryMarshal.AsBytes(desktopEntities.Vertices.AsSpan(0, desktopEntities.VertexCount)).ToArray(), session.Scene.Vertices.ToArray());
         Assert.Equal(Marshal.SizeOf<PostParamsBlock>(), session.Scene.Uniforms.Length);
+
+        // The first packet carries the four world-sized textures; a frame in which nothing changed carries none.
+        int[] header = MemoryMarshal.Cast<byte, int>(session.Scene.Packet.AsSpan(0, BrowserScene.HeaderInts * 4)).ToArray();
+        int mapBytes = BrowserSession.MapSize.Area * 4;
+        for (int t = 0; t < BrowserTerrain.TextureCount; t++)
+            Assert.Equal([0, 0, BrowserSession.MapSize.X, BrowserSession.MapSize.Y], header[(5 + 5 * t)..(9 + 5 * t)]);
+        Assert.Equal(header[4 + 5 * 3] + mapBytes, session.Scene.Packet.Count);
+        session.Scene.Render(1280, 720, 6, 1, 0, 0);
+        header = MemoryMarshal.Cast<byte, int>(session.Scene.Packet.AsSpan(0, BrowserScene.HeaderInts * 4)).ToArray();
+        for (int t = 0; t < BrowserTerrain.TextureCount; t++)
+            Assert.Equal(0, header[7 + 5 * t]);
+        Assert.Equal(BrowserScene.HeaderInts * 4 + header[1] + header[3], session.Scene.Packet.Count);
+        Assert.Equal(desktopEntities.VertexCount * Marshal.SizeOf<EntityVertex>(), header[3]);
 
         int upgradeCost = home.Upgrades.NextCost(BaseUpgrade.Radiator);
         int store = home.Store.Ore;
@@ -55,8 +68,9 @@ public class BrowserSessionTests
             session.Advance(new ControllerOutput { MoveSpeed = new Offset(0, -1) });
         Assert.True(player.Position.Y < start.Y);
         session.Scene.Render(int.MaxValue, int.MaxValue, 1, 1, 0, 1);
-        Assert.True(session.View.Width <= 640);
-        Assert.True(session.View.Height <= 400);
+        Rect visible = session.Scene.View.VisibleCells();
+        Assert.True(visible.Width <= 640);
+        Assert.True(visible.Height <= 400);
         // A live projectile in visible open ground must become the same hot-shot quad used by desktop.
         session.World.Projectiles.Add(Projectile.CreateBullet(home.Position, new VectorF(1, 0), player.Color));
         session.Advance(default);

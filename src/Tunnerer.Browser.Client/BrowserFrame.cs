@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 using Tunnerer.Core.Types;
 
 public sealed record BrowserFrame(
-    int Seed, int Tick, int TickRate, Rect View, PlayerStatus Player,
+    int Seed, int Tick, int TickRate, PlayerStatus Player,
     SceneEvent[] Events, BuildOption[] Builds,
     UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal);
 

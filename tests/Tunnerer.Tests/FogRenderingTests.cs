@@ -62,7 +62,6 @@ public class FogRenderingTests
     public void GroundOutOfSight_KeepsTheHeatItLastShowed_UntilItIsSeenAgain()
     {
         var uploader = new TerrainAuxUploader(TerrainSize, new TerrainAuxBuilder(), new DrawProfile());
-        var view = new RenderViewState();
         var fog = new FogLayer(TerrainSize);
         TerrainView fogged = TerrainView.Fogged(_terrain, _vision);
 
@@ -73,7 +72,7 @@ public class FogRenderingTests
             TerrainAuxFrame frame = default;
             for (int i = 0; i < 2; i++)
             {
-                frame = uploader.Prepare(fogged, view, Viewport, steppedSinceRender: true, visualTime: 0f, sightChanged);
+                frame = uploader.Prepare(fogged, Viewport, steppedSinceRender: true, visualTime: 0f, sightChanged);
                 uploader.Commit(_terrain, frame);
                 sightChanged = null;
             }
@@ -99,16 +98,15 @@ public class FogRenderingTests
     public void WithoutFog_HeatIsShownEverywhere()
     {
         var uploader = new TerrainAuxUploader(TerrainSize, new TerrainAuxBuilder(), new DrawProfile());
-        var view = new RenderViewState();
         TerrainView live = TerrainView.Live(_terrain);
-        TerrainAuxFrame frame = uploader.Prepare(live, view, Viewport, steppedSinceRender: true, visualTime: 0f);
+        TerrainAuxFrame frame = uploader.Prepare(live, Viewport, steppedSinceRender: true, visualTime: 0f);
         uploader.Commit(_terrain, frame);
         byte cold = frame.Upload.Data![Index(Unseen) * 4];
 
         _terrain.AddHeat(Unseen, 200);
         for (int i = 0; i < 2; i++)
         {
-            frame = uploader.Prepare(live, view, Viewport, steppedSinceRender: true, visualTime: 0f);
+            frame = uploader.Prepare(live, Viewport, steppedSinceRender: true, visualTime: 0f);
             uploader.Commit(_terrain, frame);
         }
 

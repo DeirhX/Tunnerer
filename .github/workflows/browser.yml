@@ -7,8 +7,14 @@ on:
 
 jobs:
   browser:
-    # Like the desktop smoke run, exercise the full material shaders through Metal.
-    runs-on: macos-latest
+    # Every OS publishes the browser client: the shader translation loads a native library per OS and the publish
+    # tools are scripts, so each must be shown to work. The game itself is then run on macOS only: like the desktop
+    # smoke run, that exercises the full material shaders through Metal.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -22,20 +28,24 @@ jobs:
           node-version: "22"
       - run: dotnet workload install wasm-tools
       - name: Publish the installable game
-        run: python3 tools/browser/publish.py
+        run: python tools/browser/publish.py
       - name: Check browser host formatting
+        if: runner.os == 'macOS'
         run: dotnet format src/Tunnerer.Browser/Tunnerer.Browser.csproj --verify-no-changes --no-restore
+      - name: Script tests
+        run: node --test tools/browser/pace.test.mjs
       - name: Browser smoke tests
+        if: runner.os == 'macOS'
         # Hosted macOS GPUs can be unavailable; keep build/format blocking and retain diagnostics.
         # This follows the desktop graphics smoke run in dotnet-tests.yml.
         continue-on-error: true
         run: |
           npm install --prefix artifacts/browser-tests playwright@1.65.1
           artifacts/browser-tests/node_modules/.bin/playwright install --with-deps chromium
-          python3 tools/browser/serve.py > artifacts/browser-server.log 2>&1 &
+          python tools/browser/serve.py > artifacts/browser-server.log 2>&1 &
           PLAYWRIGHT_MODULE="$PWD/artifacts/browser-tests/node_modules/playwright/index.mjs" node tools/browser/smoke.mjs
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: runner.os == 'macOS' && always()
         with:
           name: tunnerer-browser
           path: |

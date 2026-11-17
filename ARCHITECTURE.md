@@ -15,7 +15,7 @@ Tunnerer.slnx
 src/
   Tunnerer.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
     ARCHITECTURE.md        Detailed design
-  Tunnerer.Browser.Client/ Portable browser session and presentation snapshots; references only Core.
+  Tunnerer.Browser.Client/ Portable browser session and presentation snapshots; references Core and Rendering.
   Tunnerer.Browser/        WebAssembly exports, WebGL backend, browser input and offline PWA shell.
   Tunnerer.Rendering/      Shared rendering assembly; compiles the pure rendering sources from Desktop.
   Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.

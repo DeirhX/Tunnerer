@@ -2,6 +2,7 @@ import { GameInput } from "./input.js";
 import { GameRenderer } from "./renderer.js";
 import { GameAudio } from "./audio.js";
 import { setupInstallation } from "./install.js";
+import { PerfReadout } from "./perf.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
@@ -16,6 +17,13 @@ let lastTime = performance.now(),
     accumulator = 0,
     visualTime = 0,
     lastRenderTime = 0;
+// The view last asked of the worker, and whether the frame shown while paused has been asked for.
+let sentView = {},
+    pausedFrameSent = false;
+// Add ?perf to the address for a readout of frame and simulation times.
+const perf = new URLSearchParams(location.search).has("perf")
+    ? new PerfReadout(renderer)
+    : null;
 $("upgrades").open = !matchMedia("(pointer: coarse)").matches;
 const input = new GameInput(canvas, (action, direction) => {
     if (action === "pause") {
@@ -99,7 +107,7 @@ function reset() {
     worker?.terminate();
     worker = null;
     state = null;
-    renderer.frame = renderer.previous = null;
+    renderer.frame = null;
     playing = busy = paused = false;
     input.enabled = false;
     input.clear();
@@ -140,7 +148,7 @@ async function start() {
     try {
         await renderer.initialize();
     } catch (error) {
-        fail(error.message);
+        fail(error.message, error.name === "GraphicsError" ? "" : undefined);
         return;
     }
     worker = new Worker(new URL("./worker.js", import.meta.url), {
@@ -155,11 +163,12 @@ async function start() {
         }
         if (data.type !== "frame") return;
         busy = false;
-        const changed = !state || state.tick !== data.state.tick;
-        state = data.state;
-        renderer.accept(state, data.render);
-        input.aimOffset = renderer.gpu.scale / (2 * renderer.dpr);
-        if (changed) {
+        // The worker sends the HUD's state only with frames that follow a simulation step.
+        renderer.accept(data.state, data.packet);
+        perf?.frame(data.timing, renderer.gpu.uploadedBytes);
+        input.aimOffset = renderer.cellSize / 2;
+        if (data.state) {
+            state = data.state;
             audio.play(state.events);
             updateHud(state);
         }
@@ -190,11 +199,12 @@ async function start() {
     });
 }
 
-function fail(message) {
+// `advice` follows the reason; graphics failures bring their own.
+function fail(message, advice = " Check your connection and try again.") {
     console.error(message);
     reset();
-    $("loading").textContent =
-        `Could not start the game: ${String(message).split("\n")[0]}. Check your connection and try again.`;
+    const reason = String(message).split("\n")[0].replace(/\.$/, "");
+    $("loading").textContent = `Could not start the game: ${reason}.${advice}`;
 }
 
 let noticeUntil = 0,
@@ -324,7 +334,16 @@ function animate(now) {
             ? Math.min(accumulator + elapsed, dt * 4)
             : 0;
     lastTime = now;
-    if (playing && !busy && !document.hidden) {
+    renderer.governor.pace(elapsed, playing && !paused && !document.hidden);
+    const view = renderer.viewSize();
+    // A paused world stands still: one frame shows it, and another is only needed when the window changes size.
+    const wanted =
+        !paused ||
+        !pausedFrameSent ||
+        view.width !== sentView.width ||
+        view.height !== sentView.height ||
+        view.scale !== sentView.scale;
+    if (playing && !busy && !document.hidden && wanted) {
         const step =
             !paused &&
             state.player.outcome === "InProgress" &&
@@ -337,14 +356,17 @@ function animate(now) {
             alpha: paused ? 1 : Math.min(1, accumulator / dt),
             delta: paused ? 0 : Math.min(0.1, (now - lastRenderTime) / 1000),
             time: visualTime,
-            ...renderer.viewSize(),
+            ...view,
         });
+        sentView = view;
+        pausedFrameSent = paused;
         lastRenderTime = now;
     }
     try {
-        renderer.draw(now, paused);
+        renderer.draw(now);
+        perf?.displayed(elapsed);
     } catch (error) {
-        fail(error.message);
+        fail(error.message, error.name === "GraphicsError" ? "" : undefined);
     }
     if (now > noticeUntil) $("notice").classList.remove("visible");
     requestAnimationFrame(animate);

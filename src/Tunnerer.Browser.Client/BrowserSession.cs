@@ -19,6 +19,7 @@ public sealed class BrowserSession
     public BrowserSession(int seed)
     {
         Seed = seed;
+        // The browser runtime has one thread (docs/browser.md says why), so the heat solver is told not to split its work.
         var settings = SimulationSettings.FromTweaks() with
         {
             ThermalMaxWorkers = 1,
@@ -50,6 +51,4 @@ public sealed class BrowserSession
         World.Advance(i => i == 0 ? input : _bot.GetInput(tanks[i], Player, World));
         Scene.CaptureStep();
     }
-
-    public Rect View => Scene.CellView;
 }

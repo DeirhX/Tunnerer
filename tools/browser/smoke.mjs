@@ -35,7 +35,8 @@ async function observe(context) {
             constructor(...args) {
                 super(...args);
                 this.addEventListener("message", ({ data }) => {
-                    if (data.type === "frame") {
+                    // Frames between simulation steps carry no HUD state.
+                    if (data.type === "frame" && data.state) {
                         window.testFrame = data.state;
                         window.testEvents = [
                             ...(window.testEvents || []),

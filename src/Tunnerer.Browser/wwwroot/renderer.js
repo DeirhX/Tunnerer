@@ -1,4 +1,5 @@
 import { WebGlRenderer } from "./webgl.js";
+import { ResolutionGovernor } from "./pace.js";
 
 export class GameRenderer {
     constructor(canvas) {
@@ -11,6 +12,7 @@ export class GameRenderer {
         canvas.before(this.worldCanvas);
         this.zoom = 6;
         this.frame = null;
+        this.governor = new ResolutionGovernor();
         this.resize();
         window.addEventListener("resize", () => this.resize());
     }
@@ -33,35 +35,49 @@ export class GameRenderer {
         );
         this.canvas.width = Math.round(r.width * this.dpr);
         this.canvas.height = Math.round(r.height * this.dpr);
+        this.overlayCleared = true;
+    }
+
+    // Device pixels per CSS pixel of the world canvas; the HUD canvas keeps this.dpr.
+    get worldDpr() {
+        return this.dpr * this.governor.scale;
     }
 
     viewSize() {
-        const width = this.canvas.width,
-            height = this.canvas.height;
+        const width = Math.max(1, Math.round(this.width * this.worldDpr)),
+            height = Math.max(1, Math.round(this.height * this.worldDpr));
         const scale = Math.max(
             1,
-            Math.round(this.zoom * this.dpr),
+            Math.round(this.zoom * this.worldDpr),
             Math.ceil(width / 620),
             Math.ceil(height / 380),
         );
         return { width, height, scale };
     }
 
+    // CSS pixels per terrain cell in the frame on screen.
+    get cellSize() {
+        return (this.gpu.scale * this.width) / this.gpu.width;
+    }
+
     accept(state, packet) {
-        this.frame = state;
+        if (state) this.frame = state;
         this.gpu.accept(packet);
     }
 
     draw(now) {
         const c = this.ctx;
-        c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         if (!this.frame) {
             this.worldCanvas.hidden = true;
+            c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
             this.drawLanding(c, now);
             return;
         }
         this.worldCanvas.hidden = false;
-        this.gpu.draw();
+        // Nothing new from the worker since the last draw: what is on screen is still right.
+        if (!this.gpu.draw() && !this.overlayCleared) return;
+        this.overlayCleared = false;
+        c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         c.clearRect(0, 0, this.width, this.height);
         if (this.frame.goal)
             this.bearing(c, this.frame.goal.position, "CORE", "#e9a367");
@@ -70,7 +86,7 @@ export class GameRenderer {
     }
 
     bearing(c, target, label, color) {
-        const scale = this.gpu.scale / this.dpr;
+        const scale = this.cellSize;
         const dx = (target.x + 0.5 - this.gpu.cameraX) * scale - this.width / 2;
         const dy =
             (target.y + 0.5 - this.gpu.cameraY) * scale - this.height / 2;

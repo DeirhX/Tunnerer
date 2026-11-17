@@ -14,7 +14,7 @@ using Tunnerer.Core.Types;
 
 public static class Bench
 {
-    private const ulong ExpectedBotVsBot = 0x6F7A9451675E7A1CUL; // SimulationFingerprintTests
+    private const ulong ExpectedBotVsBot = 0xBE06ADA8362A015CUL; // SimulationFingerprintTests
 
     public static void RunAll(Action<string> log, int[] workerCounts, int ticks)
     {

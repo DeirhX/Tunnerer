@@ -5,13 +5,35 @@ using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Rendering;
 
-/// <summary>Runs the shared desktop presentation pipeline; the browser only uploads its bytes and draws.</summary>
+/// <summary>
+/// Runs the shared desktop presentation pipeline and packs what a frame draws into one buffer; the browser only
+/// uploads its parts and draws.
+/// </summary>
+/// <remarks>
+/// The packet starts with <see cref="HeaderInts"/> little-endian int32 values, then the parts they point at, each
+/// starting on a multiple of four bytes (webgl.js reads the same layout):
+/// <list type="bullet">
+/// <item>0, 1: offset and byte length of the shader constants (<see cref="PostParamsBlock"/>).</item>
+/// <item>2, 3: offset and byte length of the entity vertices (<see cref="EntityVertex"/>).</item>
+/// <item>4 + 5t .. 8 + 5t, for each terrain texture t of <see cref="BrowserTerrain"/>: offset of its texels, then the
+/// x, y, width and height of the rectangle they replace. Width 0: the texture is unchanged.</item>
+/// </list>
+/// </remarks>
 public sealed class BrowserScene
 {
+    public const int HeaderInts = 4 + 5 * BrowserTerrain.TextureCount;
+
+    /// <summary>A packet buffer this much larger than a frame needs is let go (the first frame carries the whole map).</summary>
+    private const int ShrinkFactor = 4;
+    private const int MinPacketBytes = 64 * 1024;
+
     private readonly BrowserSession _session;
     private readonly EntityLayerBuilder _entities = new();
     private readonly TerrainAuxBuilder _glowBuilder = new();
     private readonly float[] _glows = new float[PostParamsBlock.MaxTankGlows * 4];
+    private readonly int[] _header = new int[HeaderInts];
+    private byte[] _packet = new byte[MinPacketBytes];
+    private int _packetLength;
     private float _visualTime;
 
     public BrowserScene(BrowserSession session)
@@ -23,9 +45,12 @@ public sealed class BrowserScene
 
     public BrowserTerrain Terrain { get; }
     public RenderView View { get; private set; }
-    public byte[] Uniforms { get; private set; } = [];
-    public byte[] Vertices { get; private set; } = [];
-    public Rect CellView { get; private set; }
+
+    /// <summary>The last frame, laid out as the remarks describe. Valid until the next <see cref="Render"/>.</summary>
+    public ArraySegment<byte> Packet => new(_packet, 0, _packetLength);
+
+    public ReadOnlySpan<byte> Uniforms => _packet.AsSpan(_header[0], _header[1]);
+    public ReadOnlySpan<byte> Vertices => _packet.AsSpan(_header[2], _header[3]);
 
     public void CaptureStep()
     {
@@ -45,17 +70,58 @@ public sealed class BrowserScene
         var camera = new Position((int)MathF.Round(center.X * scale) - width / 2,
             (int)MathF.Round(center.Y * scale) - height / 2);
         View = new RenderView(new Size(width, height), _session.World.Terrain.Size, camera, scale);
-        CellView = new Rect((int)MathF.Floor(camera.X / (float)scale), (int)MathF.Floor(camera.Y / (float)scale),
-            (width + scale - 1) / scale + 1, (height + scale - 1) / scale + 1);
-        Terrain.Prepare(CellView, time);
+        Terrain.Prepare(View.VisibleCells(), time);
         _entities.Build(View, alpha, Math.Clamp(delta, 0f, 0.1f), snapHeadings: false, time, _session.Vision, _session.Radar);
-        Vertices = MemoryMarshal.AsBytes(_entities.Vertices.AsSpan(0, _entities.VertexCount)).ToArray();
         int glowCount = _glowBuilder.BuildGpuTankHeatGlowData(_session.World.TankList.Tanks, positions, View, _glows, _session.Vision);
         var upload = new GamePixelsUpload(View,
             new PostProcessUploadOptions(false, PostProcessPassFlags.All & ~PostProcessPassFlags.ThermalRegions, default, time),
-            new TankGlowUpload(_glows, glowCount), new TerrainAuxUpload(Terrain.Texture(1), null, Terrain.Texture(2), null),
-            new NativeContinuousUpload(null, false, 4), default, new FogUpload(Terrain.Texture(3), null));
-        var block = PostParamsBlock.Build(upload, time);
-        Uniforms = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref block, 1)).ToArray();
+            new TankGlowUpload(_glows, glowCount),
+            new TerrainAuxUpload(Terrain.Texture(BrowserTerrain.Aux).Data, null, Terrain.Texture(BrowserTerrain.Coverage).Data, null),
+            new NativeContinuousUpload(null, false, DesktopScreenTweaks.NativeContinuousSampleHigh), default,
+            new FogUpload(Terrain.Texture(BrowserTerrain.Fog).Data, null));
+        PostParamsBlock block = PostParamsBlock.Build(upload, time);
+        Pack(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref block, 1)),
+            MemoryMarshal.AsBytes(_entities.Vertices.AsSpan(0, _entities.VertexCount)));
+    }
+
+    private void Pack(ReadOnlySpan<byte> uniforms, ReadOnlySpan<byte> vertices)
+    {
+        int width = _session.World.Terrain.Width;
+        int length = HeaderInts * sizeof(int);
+        _header[0] = length;
+        _header[1] = uniforms.Length;
+        length += uniforms.Length;
+        _header[2] = length;
+        _header[3] = vertices.Length;
+        length += vertices.Length;
+        for (int t = 0; t < BrowserTerrain.TextureCount; t++)
+        {
+            Rect rect = Terrain.Texture(t).Dirty ?? default;
+            int at = 4 + 5 * t;
+            _header[at] = length;
+            _header[at + 1] = rect.X;
+            _header[at + 2] = rect.Y;
+            _header[at + 3] = rect.Width;
+            _header[at + 4] = rect.Height;
+            length += rect.Width * rect.Height * 4;
+        }
+
+        if (length > _packet.Length || (_packet.Length > MinPacketBytes && length < _packet.Length / ShrinkFactor))
+            _packet = new byte[Math.Max(MinPacketBytes, length)];
+        _packetLength = length;
+
+        MemoryMarshal.AsBytes(_header.AsSpan()).CopyTo(_packet);
+        uniforms.CopyTo(_packet.AsSpan(_header[0]));
+        vertices.CopyTo(_packet.AsSpan(_header[2]));
+        for (int t = 0; t < BrowserTerrain.TextureCount; t++)
+        {
+            TerrainTexture texture = Terrain.Texture(t);
+            if (texture.Dirty is not Rect rect)
+                continue;
+            int rowBytes = rect.Width * 4;
+            int target = _header[4 + 5 * t];
+            for (int y = rect.Top; y < rect.Bottom; y++, target += rowBytes)
+                Buffer.BlockCopy(texture.Data, (y * width + rect.X) * 4, _packet, target, rowBytes);
+        }
     }
 }

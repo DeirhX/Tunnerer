@@ -3,8 +3,9 @@
 This document describes the current rendering model used by the desktop client, including frame flow, display
 density, the HUD layout, post-processing and profiling hooks. Sound has its own section at the end.
 
-The platform-independent rendering files (terrain fields, entity emitters and interpolation, machine sprites,
-lighting settings and uniform layout) are compiled by `Tunnerer.Rendering` and used by both Desktop and Browser.
+The platform-independent rendering files (terrain fields and the uploader that decides what a frame repacks of
+them, the fog layer, entity emitters and interpolation, machine sprites, lighting settings and uniform layout) are
+compiled by `Tunnerer.Rendering` and used by both Desktop and Browser.
 They retain the file paths and namespaces shown here. The browser publish translates the same HLSL to GLSL ES
 with SPIRV-Cross and draws it with WebGL 2; the SDL_GPU backend, ImGui and sound device remain in Desktop.
 
@@ -133,7 +134,8 @@ The loop around it (polling, fixed simulation steps, composing) is described in 
    points; a charge beam by the harvester's planted anchor, so it follows a crawling harvester instead of
    restarting.
    With fog of war, `FogLayer.Prepare` then repacks the fog texture where the player's vision changed.
-3. Asks `TerrainAuxUploader.Prepare` which part of the terrain aux and material coverage textures to repack:
+3. Asks `TerrainAuxUploader.Prepare` which part of the terrain aux and material coverage textures to repack,
+   given the cells in view (`RenderView.VisibleCells`):
    - on the first frame, everything;
    - after that, the cells the simulation changed (and growth fades that ended) plus the strip the camera
      revealed, in all four channels (`TerrainAuxBuilder.BuildGpuTerrainAuxRect`, padded by the blur margin);
