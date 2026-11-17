@@ -34,6 +34,13 @@ public partial class Game
     /// </summary>
     private bool SimulationPaused => _paused && !IsNetMatch;
 
+    /// <summary>
+    /// Nothing in the world is moving: a local match is paused, or the relay is holding a network match for
+    /// everyone. Sound loops and animation that runs on frame time stop with it. The frame loop itself keeps
+    /// running in a held network match, because the connection still has to be served.
+    /// </summary>
+    private bool WorldStandsStill => SimulationPaused || _relay is { Started: true, IsPaused: true };
+
     /// <summary>Tells the relay this client's world is built, with its hash, and gets ready to step from bundles.</summary>
     private void StartNetSession(RelayConnection relay)
     {

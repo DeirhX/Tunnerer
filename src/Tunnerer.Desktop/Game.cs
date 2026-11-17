@@ -194,7 +194,7 @@ public partial class Game : IDisposable
                 onBeforeSimulationBatch: () =>
                 {
                     _terrainAuxUploader.ClearDirtyCells();
-                    _audio.SetPaused(SimulationPaused);
+                    _audio.SetPaused(WorldStandsStill);
                     updateView();
                 },
                 captureFrameInput: CaptureFrameInput,

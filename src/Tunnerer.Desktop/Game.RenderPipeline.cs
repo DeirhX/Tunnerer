@@ -37,7 +37,7 @@ public partial class Game
             PixelScale: scale);
         float visualTime = VisualTime;
         _entityLayer.Build(
-            renderView, stepProgress, turnSeconds: SimulationPaused ? 0f : dt, snapHeadings: !_interpolateFrames,
+            renderView, stepProgress, turnSeconds: WorldStandsStill ? 0f : dt, snapHeadings: !_interpolateFrames,
             visualSeconds: visualTime, vision: _vision, radar: _radar);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
