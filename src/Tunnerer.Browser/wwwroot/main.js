@@ -3,6 +3,7 @@ import { GameRenderer } from "./renderer.js";
 import { GameAudio } from "./audio.js";
 import { setupInstallation } from "./install.js";
 import { PerfReadout } from "./perf.js";
+import { Simulation } from "./simulation.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
@@ -151,9 +152,8 @@ async function start() {
         fail(error.message, error.name === "GraphicsError" ? "" : undefined);
         return;
     }
-    worker = new Worker(new URL("./worker.js", import.meta.url), {
-        type: "module",
-    });
+    // A worker with the single-thread runtime, or the threaded runtime behind the same messages (simulation.js).
+    worker = new Simulation();
     worker.onerror = (e) =>
         fail(e.message || "The game worker could not start.");
     worker.onmessage = ({ data }) => {
@@ -163,14 +163,23 @@ async function start() {
         }
         if (data.type !== "frame") return;
         busy = false;
-        // The worker sends the HUD's state only with frames that follow a simulation step.
+        // The HUD's state comes only with frames that follow a simulation step.
         renderer.accept(data.state, data.packet);
-        perf?.frame(data.timing, renderer.gpu.uploadedBytes);
+        perf?.frame(
+            data.timing,
+            renderer.gpu.uploadedBytes,
+            worker.heatWorkers,
+        );
         input.aimOffset = renderer.cellSize / 2;
         if (data.state) {
             state = data.state;
             audio.play(state.events);
             updateHud(state);
+            // For whoever follows the match from outside the page's code: the smoke test does.
+            canvas.dataset.heatWorkers = String(worker.heatWorkers);
+            window.dispatchEvent(
+                new CustomEvent("tunnerer-step", { detail: state }),
+            );
         }
         if (!playing) {
             playing = true;

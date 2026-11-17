@@ -1,0 +1,12 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- The single-thread and the threaded runtime are two builds of this project. Their intermediate files differ
+       and must not mix, so the threaded build keeps its own. -->
+  <PropertyGroup Condition="'$(WasmEnableThreads)' == 'true'">
+    <BaseOutputPath>out\threads\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>out\threads\obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+</Project>

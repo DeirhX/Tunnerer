@@ -3,8 +3,9 @@
 Tunnerer is a C# / .NET 10 game that began as a port of a C++ engine (kept on the `cplusplus-legacy` branch) and has
 since grown its own thermal simulation and a GPU renderer. The simulation is platform-independent
 (`Tunnerer.Core`); the desktop host lives in `Tunnerer.Desktop`. The browser host runs Core as WebAssembly in a
-Web Worker, with a WebGL 2 backend and an installable offline shell (see `docs/browser.md`). Both hosts use the
-same procedural shaders and platform-independent rendering code in `Tunnerer.Rendering`.
+Web Worker (or, where the host and browser allow, on several threads), with a WebGL 2 backend and an installable
+offline shell (see `docs/browser.md`). Both hosts use the same procedural shaders and platform-independent
+rendering code in `Tunnerer.Rendering`.
 
 For build and run instructions, controls and command-line options see `README.md`.
 

@@ -32,6 +32,8 @@ jobs:
       # the Release build compiles ahead of time.
       - name: Publish the installable game
         run: python tools/browser/publish.py --restore-workloads
+      - name: Publish it with the threaded runtime as well
+        run: python tools/browser/publish.py --threads --restore-workloads --output artifacts/browser-threads
       - name: Check browser host formatting
         if: runner.os == 'macOS'
         run: dotnet format src/Tunnerer.Browser/Tunnerer.Browser.csproj --verify-no-changes --no-restore
@@ -46,12 +48,18 @@ jobs:
           npm install --prefix artifacts/browser-tests playwright@1.65.1
           artifacts/browser-tests/node_modules/.bin/playwright install --with-deps chromium
           python tools/browser/serve.py > artifacts/browser-server.log 2>&1 &
-          PLAYWRIGHT_MODULE="$PWD/artifacts/browser-tests/node_modules/playwright/index.mjs" node tools/browser/smoke.mjs
+          export PLAYWRIGHT_MODULE="$PWD/artifacts/browser-tests/node_modules/playwright/index.mjs"
+          node tools/browser/smoke.mjs
+          # The same again in the threaded runtime, which needs the isolation headers.
+          python tools/browser/serve.py artifacts/browser-threads/wwwroot --port 8704 --isolate > artifacts/browser-threads-server.log 2>&1 &
+          SMOKE_THREADS=1 BROWSER_URL=http://localhost:8704 node tools/browser/smoke.mjs
       - uses: actions/upload-artifact@v4
         if: runner.os == 'macOS' && always()
         with:
           name: tunnerer-browser
           path: |
             artifacts/browser/tunnerer-browser.zip
+            artifacts/browser-threads/tunnerer-browser.zip
             artifacts/browser-tests/*.png
             artifacts/browser-server.log
+            artifacts/browser-threads-server.log

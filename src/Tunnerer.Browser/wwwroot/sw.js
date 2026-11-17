@@ -1,12 +1,21 @@
 // publish.py creates this manifest from the complete published output, including all .NET runtime assets.
-importScripts("./assets-manifest.js");
+importScripts("./assets-manifest.js", "./threads.js");
 const root = new URL("./", self.location.href);
 const cachePrefix = `tunnerer-${encodeURIComponent(root.pathname)}-`;
 const cacheName = cachePrefix + self.tunnererAssets.version;
-const urls = new Set(
-    self.tunnererAssets.urls.map((url) => new URL(url, root).href),
-);
+const absolute = (list) => list.map((url) => new URL(url, root).href);
+const urls = new Set(absolute(self.tunnererAssets.urls));
 urls.add(root.href);
+// A deployment with two .NET runtimes lists each apart from the rest (publish.py --threads). A browser plays in
+// one of them, so only that one is fetched and kept ahead of time. Should the page come to a different answer
+// than this worker did (threads.js), the other runtime is kept from the moment the page first loads it.
+const runtimes = self.tunnererAssets.runtimes || {};
+const mine = self.tunnererThreads.use ? "threads" : "single";
+const onDemand = new Set();
+for (const [name, list] of Object.entries(runtimes)) {
+    const kept = name === mine ? urls : onDemand;
+    for (const url of absolute(list)) kept.add(url);
+}
 
 self.addEventListener("install", (event) => {
     // Installation is atomic: a failed fetch leaves the previous working app active.
@@ -78,6 +87,17 @@ self.addEventListener("fetch", (event) => {
                         .match(request)
                         .then((cached) => cached || fetch(request)),
                 ),
+        );
+    } else if (onDemand.has(url.href)) {
+        event.respondWith(
+            (async () => {
+                const cache = await caches.open(cacheName);
+                const cached = await cache.match(request);
+                if (cached) return cached;
+                const response = await fetch(request);
+                if (response.ok) await cache.put(request, response.clone());
+                return response;
+            })(),
         );
     }
 });

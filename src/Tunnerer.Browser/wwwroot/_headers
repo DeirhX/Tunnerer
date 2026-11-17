@@ -1,4 +1,6 @@
 # Netlify / Cloudflare Pages. Other hosts should send equivalent headers.
+# A deployment published with --threads also gets the two cross-origin isolation headers here (publish.py adds
+# them); without them it plays on one thread.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

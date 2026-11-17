@@ -3,6 +3,7 @@ namespace Tunnerer.Tests;
 using System.Text.Json;
 using Tunnerer.Browser.Client;
 using Tunnerer.Core;
+using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Bases;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Input;
@@ -77,5 +78,34 @@ public class BrowserSessionTests
         session.Scene.Render(1280, 720, 6, 1, 0, 2);
         Assert.Contains(MemoryMarshal.Cast<byte, EntityVertex>(session.Scene.Vertices).ToArray(),
             v => v.Kind == EntityShape.KindHotShot);
+    }
+}
+
+public class BrowserSessionThreadsTests
+{
+    /// <summary>
+    /// What lets the browser pick its runtime per device: the world does not depend on how many threads step its
+    /// heat. tools/browser/smoke.mjs asks the same of the two WebAssembly runtimes.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Slow")]
+    public void HeatWorkers_DoNotChangeTheWorld()
+    {
+        // Fewer steps than a profile report covers, so its count of steps solved on threads is still there to read.
+        static (ulong World, int ParallelSteps, SimulationSettings Settings) Play(int heatWorkers)
+        {
+            var session = new BrowserSession(1234, heatWorkers);
+            for (int i = 0; i < 90; i++)
+                session.Advance(default);
+            return (session.Fingerprint(), session.World.Profile.CooldownParallelFrames, session.World.Settings);
+        }
+
+        var single = Play(1);
+        var threaded = Play(4);
+        Assert.Equal(0, single.ParallelSteps);
+        Assert.True(threaded.ParallelSteps > 0, "The match must give the heat solver enough to split.");
+        Assert.Equal(4, threaded.Settings.ThermalMaxWorkers);
+        Assert.Equal(Tweaks.World.ThermalParallelTileThreshold, threaded.Settings.ThermalParallelTileThreshold);
+        Assert.Equal(single.World, threaded.World);
     }
 }

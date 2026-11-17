@@ -46,3 +46,6 @@ slower, so trust the ratios more than the absolute numbers.
   and all worker counts.
 - With threads, .NET runs on a worker and the page stays responsive.
 - Firefox and Safari were not tried.
+
+The browser client has since taken this up as an opt-in second runtime; `docs/browser.md` ("Two runtimes") has
+what was found in WebKit.
