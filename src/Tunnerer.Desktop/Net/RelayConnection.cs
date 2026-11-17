@@ -16,7 +16,7 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
 {
     private readonly ClientWebSocket _socket;
     private readonly CancellationTokenSource _closing = new();
-    private readonly ConcurrentQueue<Message> _inbox = new();
+    private readonly ConcurrentQueue<(Message Message, TimeSpan Arrived)> _inbox = new();
     private readonly Channel<byte[]> _outbox = Channel.CreateUnbounded<byte[]>(
         new UnboundedChannelOptions { SingleReader = true });
     private readonly Queue<TickBundle> _bundles = new();
@@ -107,7 +107,7 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
             socket.ConnectAsync(relay, limit.Token).GetAwaiter().GetResult();
             socket.SendAsync(MessageCodec.Encode(hello), WebSocketMessageType.Binary, true, limit.Token)
                 .GetAwaiter().GetResult();
-            Message? answer = ReadAsync(socket, limit.Token).GetAwaiter().GetResult();
+            Message? answer = ReadAsync(socket, new byte[MessageCodec.MaxMessageBytes], limit.Token).GetAwaiter().GetResult();
             return answer switch
             {
                 Welcome welcome => new RelayConnection(socket, welcome, hello.Room),
@@ -130,9 +130,9 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     /// <summary>Takes in everything the relay has sent since the last call. Call once per frame, on the game thread.</summary>
     public void Pump()
     {
-        while (_inbox.TryDequeue(out Message? message))
+        while (_inbox.TryDequeue(out var received))
         {
-            switch (message)
+            switch (received.Message)
             {
                 case Tick tick: _bundles.Enqueue(tick.Bundle); break;
                 case Roster roster: Roster = roster.Names; break;
@@ -155,7 +155,8 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
                     break;
                 case Pong pong when _pingPending && pong.Id == _pingId:
                     _pingPending = false;
-                    LatencyMs = (int)Math.Round((_clock.Elapsed - _pingSentAt).TotalMilliseconds);
+                    // Timed to when the answer arrived, not to when the game loop got round to reading it.
+                    LatencyMs = (int)Math.Round((received.Arrived - _pingSentAt).TotalMilliseconds);
                     break;
                 case Desync desync: DesyncTick ??= desync.AtTick; break;
                 case Refusal refusal: Failure ??= refusal.Reason; break;
@@ -183,7 +184,9 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
         get
         {
             if (Failure is { } failure)
-                return $"Disconnected: {failure}";
+                return Started && DesyncTick == null
+                    ? $"Disconnected: {failure} Press Enter to reconnect and rejoin the match."
+                    : $"Disconnected: {failure}";
             if (DesyncTick is int tick)
                 return $"The players' games went out of sync at tick {tick}. The match cannot continue.";
             if (!Started)
@@ -215,10 +218,17 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
 
     public void SendHash(int tick, ulong hash) => Send(new Hash(tick, hash));
 
+    public void SendMatchOver(int tick) => Send(new MatchOver(tick));
+
     public bool TryReceive([NotNullWhen(true)] out TickBundle? bundle) => _bundles.TryDequeue(out bundle);
+
+    private bool _disposed;
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
         _closing.Cancel();
         _outbox.Writer.TryComplete();
         _socket.Abort();
@@ -232,8 +242,9 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     {
         try
         {
-            while (await ReadAsync(_socket, _closing.Token).ConfigureAwait(false) is { } message)
-                _inbox.Enqueue(message);
+            byte[] buffer = new byte[MessageCodec.MaxMessageBytes];
+            while (await ReadAsync(_socket, buffer, _closing.Token).ConfigureAwait(false) is { } message)
+                _inbox.Enqueue((message, _clock.Elapsed));
             _lost = "the relay closed the connection.";
         }
         catch (InvalidDataException e)
@@ -260,9 +271,8 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
         }
     }
 
-    private static async Task<Message?> ReadAsync(ClientWebSocket socket, CancellationToken cancel)
+    private static async Task<Message?> ReadAsync(ClientWebSocket socket, byte[] buffer, CancellationToken cancel)
     {
-        byte[] buffer = new byte[MessageCodec.MaxMessageBytes];
         int length = 0;
         while (true)
         {

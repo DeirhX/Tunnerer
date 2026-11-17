@@ -17,12 +17,12 @@ public static class DesyncReport
         writer.WriteLine(string.Create(inv, $"# Tunnerer desync report: worlds differed at tick {desyncTick}"));
         writer.WriteLine(string.Create(inv, $"# written by slot {slot}, build {buildId}, at tick {world.AdvanceCount}"));
         writer.WriteLine("# Compare this file with another player's. The first tick whose digest differs is where the");
-        writer.WriteLine("# worlds went apart, and the part that differs (state, heat or charge) says in what.");
+        writer.WriteLine("# worlds went apart, and the part that differs (state, heat, charge or economy) says in what.");
         writer.WriteLine("# MatchRecording.Load reads this file; Replay() rebuilds the match tick by tick.");
         writer.WriteLine("#");
-        writer.WriteLine("# digests this client reported: tick state heat charge");
+        writer.WriteLine("# digests this client reported: tick state heat charge economy");
         foreach (var (tick, digest) in digests)
-            writer.WriteLine(string.Create(inv, $"#   {tick} {digest.State:X16} {digest.Heat:X16} {digest.Charge:X16}"));
+            writer.WriteLine(string.Create(inv, $"#   {tick} {digest.State:X16} {digest.Heat:X16} {digest.Charge:X16} {digest.Economy:X16}"));
         writer.WriteLine("#");
         writer.WriteLine(string.Create(inv, $"# tanks at tick {world.AdvanceCount}: slot x y heat health lives"));
         var tanks = world.TankList.Tanks;

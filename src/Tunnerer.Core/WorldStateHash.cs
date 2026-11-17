@@ -124,22 +124,43 @@ public static class WorldStateHash
     }
 
     /// <summary>
-    /// What machines in a network match compare: <see cref="Compute"/> plus the two totals that cover what it does
-    /// not read, the heat field and the stored charge. The parts are kept apart so that, when two machines differ,
+    /// What machines in a network match compare: <see cref="Compute"/> plus what it does not read: the totals of
+    /// the heat field and of the stored charge, and the bases' ore and upgrades. The parts are kept apart so that, when two machines differ,
     /// the first thing known is where.
     /// </summary>
     public static SyncDigest ComputeSync(World world) => new(
         Compute(world),
         BitConverter.DoubleToUInt64Bits(world.SumSystemThermalEnergy()),
-        BitConverter.DoubleToUInt64Bits(world.SumSystemCharge()));
+        BitConverter.DoubleToUInt64Bits(world.SumSystemCharge()),
+        ComputeEconomy(world));
+
+    /// <summary>
+    /// Every base's ore store and upgrade levels, which <see cref="Compute"/> does not read (its value is pinned
+    /// by the fingerprint tests). Without it two machines could disagree about what a base can pay for until the
+    /// difference reached a tank or the terrain.
+    /// </summary>
+    private static ulong ComputeEconomy(World world)
+    {
+        ulong hash = 1469598103934665603UL;
+        foreach (var tankBase in world.TankBases.Bases)
+        {
+            hash = (hash ^ (uint)tankBase.Store.Ore) * 1099511628211UL;
+            hash = (hash ^ (uint)tankBase.Store.Capacity) * 1099511628211UL;
+            for (int upgrade = 0; upgrade < Entities.BaseUpgrades.Count; upgrade++)
+                hash = (hash ^ (uint)tankBase.Upgrades.Level((Entities.BaseUpgrade)upgrade)) * 1099511628211UL;
+        }
+        return hash;
+    }
 }
 
 /// <summary>A world's state for comparison between machines (<see cref="WorldStateHash.ComputeSync"/>).</summary>
 /// <param name="State">Terrain pixels, tanks, machines, links, projectiles and sprites.</param>
 /// <param name="Heat">The bits of the total thermal energy: terrain, air, tanks and bases.</param>
 /// <param name="Charge">The bits of the total stored charge.</param>
-public readonly record struct SyncDigest(ulong State, ulong Heat, ulong Charge)
+/// <param name="Economy">Every base's ore store and upgrade levels.</param>
+public readonly record struct SyncDigest(ulong State, ulong Heat, ulong Charge, ulong Economy)
 {
-    /// <summary>The three parts as one number, which is what travels.</summary>
-    public ulong Combined => (State * 1099511628211UL ^ Heat) * 1099511628211UL ^ Charge;
+    /// <summary>The four parts as one number, which is what travels.</summary>
+    public ulong Combined =>
+        ((State * 1099511628211UL ^ Heat) * 1099511628211UL ^ Charge) * 1099511628211UL ^ Economy;
 }

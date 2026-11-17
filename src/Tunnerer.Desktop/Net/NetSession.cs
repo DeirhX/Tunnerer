@@ -25,6 +25,7 @@ public sealed class NetSession
     private readonly BundleBuffer _buffer = new();
     private readonly List<TickBundle> _played = [];
     private readonly Queue<(int Tick, SyncDigest Digest)> _digests = new();
+    private bool _matchOverSent;
 
     /// <param name="world">A world built from the match settings and not yet stepped.</param>
     public NetSession(ILockstepLink link, World world)
@@ -94,6 +95,12 @@ public sealed class NetSession
             if (_digests.Count > DigestsKept)
                 _digests.Dequeue();
             _link.SendHash(_world.AdvanceCount, digest.Combined);
+        }
+        // The relay does not simulate, so it has to be told: a finished match gives its room up for the next one.
+        if (_world.IsMatchOver && !_matchOverSent)
+        {
+            _matchOverSent = true;
+            _link.SendMatchOver(_world.AdvanceCount);
         }
         return true;
     }

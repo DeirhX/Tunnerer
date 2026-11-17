@@ -195,6 +195,9 @@ if (!string.IsNullOrWhiteSpace(dumpSoundsDirectory))
     return;
 }
 bool restartRequested;
+bool rejoin;
+// Set for the process a restart starts when the player is coming back to a match after losing the connection.
+const string RejoinVariable = "TUNNERER_NET_REJOIN";
 var mode = fastGen ? LevelGenMode.Optimized : LevelGenMode.Deterministic;
 Tunnerer.Desktop.PerfCaptureOptions? perfOptions = perfMode
     ? new Tunnerer.Desktop.PerfCaptureOptions(perfWarmupFrames, perfMeasureFrames, perfCsvPath)
@@ -206,10 +209,13 @@ if (relayUri != null && !terrainTestMode)
     var proposed = Tunnerer.Desktop.Net.NetLaunch.ProposeConfig(
         GameLaunchOptions.Seed ?? Random.Shared.Next(1, int.MaxValue),
         terrainSize ?? (players > 2 ? NetworkTweaks.LargeMatchMapSize : DesktopScreenTweaks.RenderSurfaceSize), mode, players);
+    var netOptions = new Tunnerer.Desktop.Net.NetLaunchOptions(relayUri, room, playerName, players, relaySecret);
     try
     {
-        relay = Tunnerer.Desktop.Net.NetLaunch.Join(
-            new Tunnerer.Desktop.Net.NetLaunchOptions(relayUri, room, playerName, players, relaySecret), proposed);
+        // Started again by a player whose connection broke: their slot may still be held by the dead connection.
+        relay = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable(RejoinVariable))
+            ? Tunnerer.Desktop.Net.NetLaunch.Rejoin(netOptions, proposed, Tunnerer.Desktop.Net.NetLaunch.RejoinPatience)
+            : Tunnerer.Desktop.Net.NetLaunch.Join(netOptions, proposed);
     }
     catch (Tunnerer.Desktop.Net.RelayException e)
     {
@@ -226,15 +232,17 @@ using (relay)
         terrainTestMode: terrainTestMode, fogOfWar: fogOfWar, relay: relay);
     game.Run();
     restartRequested = game.RestartRequested;
+    rejoin = game.RejoinRequested;
 }
 
-// Enter after a match ends starts a new match. The renderer is not built to be created twice in one process,
+// Enter after a match ends starts a new match, and Enter after losing the connection comes back to the match. The renderer is not built to be created twice in one process,
 // so the new match runs in a fresh process with the same arguments (the old window has been closed by now).
 if (restartRequested && Environment.ProcessPath is { } exePath)
 {
     var start = new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = false };
     foreach (var arg in args)
         start.ArgumentList.Add(arg);
+    start.Environment[RejoinVariable] = rejoin ? "1" : "0";
     System.Diagnostics.Process.Start(start);
 }
 

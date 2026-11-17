@@ -380,4 +380,75 @@ public class MatchRoomTests
         Assert.Equal(TimeSpan.Zero, room.EmptyFor);
         Assert.Equal(0, room.TicksClosed);
     }
+
+    [Fact]
+    public void PlayerWhoseClientGoesQuiet_IdlesAfterHalfASecond()
+    {
+        var (room, a, _) = RunningRoom();
+        room.Handle(0, new Input(7));
+        int silentTicks = (int)(Config.TicksPerSecond * MatchRoom.SilentSeconds);
+
+        room.CloseTicksUpTo(silentTicks + 2);
+
+        uint[] slot0 = [.. a.Of<Tick>().Select(t => t.Bundle.Inputs[0])];
+        Assert.All(slot0[..silentTicks], input => Assert.Equal(7u, input));
+        Assert.All(slot0[silentTicks..], input => Assert.Equal(LockstepRoom.NeutralInput, input));
+    }
+
+    [Fact]
+    public void MatchOver_FinishesTheRoom_OnlyForATickThatWasPlayed()
+    {
+        var (room, _, _) = RunningRoom();
+        room.CloseTicksUpTo(10);
+
+        room.Handle(0, new MatchOver(11));
+        room.Handle(0, new MatchOver(0));
+        Assert.False(room.IsOver);
+
+        room.Handle(1, new MatchOver(10));
+        Assert.True(room.IsOver);
+    }
+
+    [Fact]
+    public void MatchOver_BeforeTheStart_IsIgnored()
+    {
+        var room = new MatchRoom("r", Build, Config);
+        room.Join(new FakePeer(), "Ann", Build, out _);
+
+        room.Handle(0, new MatchOver(1));
+
+        Assert.False(room.IsOver);
+    }
+
+    [Fact]
+    public void FinishedMatch_PlaysOnForTheResultScreens_ThenItsClockStands()
+    {
+        var (room, _, _) = RunningRoom();
+        room.AdvanceClock(Ticks(10));
+        room.Handle(0, new MatchOver(10));
+        int afterTheEnd = MatchRoom.SecondsPlayedAfterTheEnd * Config.TicksPerSecond;
+
+        room.AdvanceClock(Ticks(afterTheEnd - 1));
+        Assert.Equal(10 + afterTheEnd - 1, room.TicksClosed);
+
+        room.AdvanceClock(Ticks(1));
+        room.AdvanceClock(Ticks(500));
+        Assert.Equal(10 + afterTheEnd, room.TicksClosed);
+    }
+
+    [Fact]
+    public void PlayersWithTheSameName_GetANumber_SoEachCanComeBackAsThemself()
+    {
+        var room = new MatchRoom("r", Build, Config with { Slots = 3 });
+        var a = new FakePeer();
+        room.Join(a, "Ann", Build, out _);
+        room.Join(new FakePeer(), "ann", Build, out _);
+        room.Join(new FakePeer(), new string('x', MessageCodec.MaxTextLength), Build, out _);
+
+        Assert.Equal(new Roster(["Ann", "ann (2)", new string('x', MessageCodec.MaxTextLength)]), a.Of<Roster>().Last());
+
+        room.Leave(2);
+        room.Join(new FakePeer(), "Ann", Build, out _);
+        Assert.Equal("Ann (3)", a.Of<Roster>().Last().Names[2]);
+    }
 }

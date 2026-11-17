@@ -402,6 +402,85 @@ public class RelayOverSocketsTests
         WaitFor(() => hub.RoomCount == 0, []);
     }
 
+    /// <summary>
+    /// Reports the match over from <paramref name="a"/> and returns once the relay has read the report: the pause
+    /// sent after it has been announced, and a connection's messages are handled in order.
+    /// </summary>
+    private static void ReportMatchOver(RelayConnection a, RelayConnection b)
+    {
+        WaitFor(() => a.TryReceive(out TickBundle? _), a, b);
+        a.SendMatchOver(1);
+        a.SetPaused(true);
+        WaitFor(() => a.IsPaused, a, b);
+    }
+
+    [Fact]
+    public async Task FinishedMatch_GivesItsRoomUp_SoTheSameNamesCanPlayAgain()
+    {
+        var (app, play) = await StartRelayAsync();
+        await using var _ = app;
+        var hub = app.Services.GetRequiredService<RelayHub>();
+        using var a = NetLaunch.Join(Options(play, "Ann"), Config(seed: 42));
+        var b = NetLaunch.Join(Options(play, "Bob"), Config(seed: 42));
+        a.SendReady(1);
+        b.SendReady(1);
+        WaitFor(() => a.Started && b.Started, a, b);
+
+        // Bob has quit; Ann still looks at the result. Bob starting the game again must get a new lobby with his
+        // own settings, not the finished match back.
+        ReportMatchOver(a, b);
+        b.Dispose();
+        using var bobAgain = NetLaunch.Join(Options(play, "Bob"), Config(seed: 43));
+        Assert.Equal(43, bobAgain.Config.Seed);
+
+        Assert.Equal(0, bobAgain.Slot);
+        Assert.False(bobAgain.Started);
+        Assert.Equal(1, hub.RoomCount);
+        Assert.Null(a.Failure);
+    }
+
+    [Fact]
+    public async Task FinishedMatchEveryoneHasLeft_IsDeletedWithoutTheGrace()
+    {
+        var (app, play) = await StartRelayAsync();
+        await using var _ = app;
+        var hub = app.Services.GetRequiredService<RelayHub>();
+        var a = NetLaunch.Join(Options(play, "Ann"), Config(seed: 42));
+        var b = NetLaunch.Join(Options(play, "Bob"), Config(seed: 42));
+        a.SendReady(1);
+        b.SendReady(1);
+        WaitFor(() => a.Started && b.Started, a, b);
+        ReportMatchOver(a, b);
+
+        a.Dispose();
+        b.Dispose();
+
+        WaitFor(() => hub.RoomCount == 0, []);
+    }
+
+    [Fact]
+    public async Task PlayerComingBackTooEarly_KeepsTrying_UntilTheirSlotIsFree()
+    {
+        var (app, play) = await StartRelayAsync();
+        await using var _ = app;
+        using var a = NetLaunch.Join(Options(play, "Ann"), Config(seed: 42));
+        var b = NetLaunch.Join(Options(play, "Bob"), Config(seed: 42));
+        a.SendReady(1);
+        b.SendReady(1);
+        WaitFor(() => a.Started && b.Started, a, b);
+
+        // Bob's old connection is still up when he comes back, as it is until the relay finds it dead.
+        var returning = Task.Run(() => NetLaunch.Rejoin(
+            Options(play, "Bob"), Config(seed: 43), TimeSpan.FromSeconds(10), between: TimeSpan.FromMilliseconds(50)));
+        await Task.Delay(300);
+        Assert.False(returning.IsCompleted);
+        b.Dispose();
+
+        using var back = await returning;
+        WaitFor(() => back.Rejoined, a, back);
+        Assert.Equal(1, back.Slot);
+    }
+
     [Fact]
     public async Task LosingTheRelay_ShowsAsAFailure()
     {

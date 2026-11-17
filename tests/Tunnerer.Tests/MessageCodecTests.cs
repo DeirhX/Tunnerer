@@ -25,6 +25,7 @@ public class MessageCodecTests
         new Tick(new TickBundle(123_456, [1u, 2u, 3u, 4u])),
         new Hash(240, 0xDEADBEEFCAFEF00D),
         new Desync(48),
+        new MatchOver(7200),
         new Refusal("This room is full."),
     };
 
@@ -152,5 +153,18 @@ public class MessageCodecTests
         Assert.Equal(7, protocol);
         Assert.False(MessageCodec.TryReadHelloProtocol(hello.AsSpan(0, 4), out _));
         Assert.False(MessageCodec.TryReadHelloProtocol(MessageCodec.Encode(new Ping(1)), out _));
+    }
+
+    [Fact]
+    public void NameLongerThanAnyClientSends_IsRejected()
+    {
+        var hello = new Hello(MessageCodec.ProtocolVersion, "b", "Ann", "room", Config);
+        byte[] bytes = MessageCodec.Encode(hello);
+        // The build id "b" is the first text: one length-prefixed byte right after the kind and the protocol.
+        int at = 1 + sizeof(int);
+        int longer = MessageCodec.MaxTextLength * 3 + 1;
+        byte[] forged = [.. bytes[..at], (byte)longer, (byte)(longer >> 8), .. new byte[longer], .. bytes[(at + 3)..]];
+
+        Assert.Throws<InvalidDataException>(() => MessageCodec.Decode(forged));
     }
 }

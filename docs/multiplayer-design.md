@@ -65,7 +65,8 @@ The server is the clock. Clients never decide which tick an input belongs to.
 
 Properties:
 
-- **A slow client never stalls the others.** Its tank repeats its last input until its packets arrive.
+- **A slow client never stalls the others.** Its tank repeats its last input until its packets arrive, for
+  half a second at most; then it idles (§5).
 - **No key press is dropped.** Core detects key presses as edges between consecutive inputs
   (`TankBuildController`, `Tank` upgrades), so the server queues inputs instead of keeping only the newest.
 - **A backlog drains.** A queue more than one deep means that player's inputs are played late, and at one input
@@ -118,8 +119,9 @@ Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
 | C to S | `SetPaused { paused }` | Hold the match for everyone, or let it run |
 | S to C | `PauseState { paused, bySlot }` | The match is held or running, and who asked |
 | both | `Ping { id }`, `Pong { id }` | Times the round trip, once a second |
+| C to S | `MatchOver { n }` | By this client's simulation the match was decided at tick `n`; the room is finished |
 
-Still to add: a lobby `Configure` and ending a match by command.
+Still to add: a lobby `Configure`.
 
 Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
 
@@ -137,10 +139,20 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
 4. **Play.** As §4.
 5. **Pause.** Escape opens the local menu without stopping the simulation. P pauses for everyone: the relay
    stops closing ticks, and its clock does not count the pause, until anyone presses P again.
-6. **End.** Core reports the outcome; clients show it. The host can restart with a new seed in the same room.
+6. **End.** Core reports the outcome; clients show it and tell the relay (`MatchOver`), which does not simulate
+   and would not know. The first report is believed, for a tick the relay has closed. A finished room closes
+   ticks for 30 more seconds, for the result screens, and then its clock stands. It gives its name up: the next
+   hello for that name opens a new room, and an empty finished room is deleted at once, with no grace.
+7. **Again.** Enter on the result screen starts the game again with the same arguments. The first player to do
+   so opens the room anew, with a new seed unless `--seed` fixed it, and is its host; the others join that
+   lobby with Enter. A player still looking at the old result stays connected to the old room, which is frozen.
 
 ### Disconnect and rejoin
 
+- **A silent client's tank idles.** A slot with nothing queued repeats its last input, but only for half a
+  second (`MatchRoom.SilentSeconds`); then it plays the neutral input until the client sends again. A client
+  that has fallen behind stops sending while it catches up, and without this limit its tank would drive and
+  fire on with the keys it last held.
 - A dropped client's slot keeps receiving neutral input (no move, no fire). The room continues. The relay finds a
   client that vanished without closing (the connection to Caddy stays up, so TCP says nothing) by WebSocket
   pings: after seven seconds of silence from it the relay pings, and with no answer within ten more it ends the
@@ -160,6 +172,11 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
   and it survives restarting the game.) A step on the default map measured about
   10 ms on a development Mac (2026-11-17, mostly the heat solver), a quarter of a tick, so ten minutes of play
   replays in about two and a half. That is tolerable for a short match and too slow for a long one.
+- **Coming back after a lost connection.** The client says "Disconnected ... Press Enter to reconnect"; Enter
+  starts the game again with the same arguments, which rejoins as above. The relay may not have found the old
+  connection dead yet, and the slot is taken until it has, so the returning game keeps trying for 40 seconds
+  (`NetLaunch.RejoinPatience`) before it gives up. The window is closed meanwhile; the console says why. If
+  the relay itself was restarted the room is gone, and the player opens a new lobby instead.
 - **Late join** of a new player is the same mechanism plus a free slot, but a tank and base cannot appear
   mid-match in Core today. Not in the first tranche.
 - A world snapshot (which the sector save in DESIGN §12.2 needs anyway) later replaces the fast-forward.
@@ -174,12 +191,12 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
   it, so a client far behind, replaying to catch up, is checked too. A report for a tick the relay has not closed
   yet is ignored. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus the bits of
   the total thermal energy and of the total stored charge, which cover the heat field the state hash does not
-  read.
+  read, and a hash of every base's ore store and upgrade levels, which it does not read either.
 - **Its cost does not yet follow activity.** Both the state hash and the energy total walk the whole grid once
   a second. That is small on today's maps and will not be on much larger ones; summing per active tile, or
   hashing the terrain in turns, is the fix when maps grow.
 - **On desync** the match stops and every client writes `artifacts/debug/desync_<room>_tick<n>_slot<k>.txt`:
-  the digests it reported around the tick, split into state, heat and charge, where its tanks stand, and the
+  the digests it reported around the tick, split into state, heat, charge and economy, where its tanks stand, and the
   match as a `MatchRecording` (settings, which slots were players, every tick's inputs). Comparing two
   players' files shows when and in what the worlds went apart; `MatchRecording.Load(...).Replay()` rebuilds the
   match tick by tick in a test. `TUNNERER_NET_FAULT_TICK=n` makes one client diverge on purpose, to exercise
@@ -238,7 +255,9 @@ Determinism risks to check before trusting it:
   name can take that slot, which among friends is accepted (see the open questions).
 - **Limits.** What exists, and nothing else:
   - a message is at most 4096 bytes, and every length inside it is checked while decoding;
-  - names, room names and build ids are cut to 64 characters, a refusal reason to 240, the shared secret to 256
+  - at most 1024 connections are open at once, greeted or not;
+  - two players in a room never share a name: the second "Ann" is "Ann (2)", and comes back under that name;
+  - names, room names and build ids are cut to 64 characters (a longer one in a hello is rejected), a refusal reason to 240, the shared secret to 256
     (the relay will not start with a longer one);
   - a match has 2 to 8 slots, maps of 64 to 4096 cells a side and 10 to 120 ticks a second, or the hello is
     rejected;
@@ -247,7 +266,8 @@ Determinism risks to check before trusting it:
   - a slot queues at most 4 inputs;
   - at most 64 rooms are open at once;
   - a client has 10 seconds to say hello, and a silent connection ends as described in §5;
-  - a room nobody is in is kept 5 minutes once its match has started.
+  - a room nobody is in is kept 5 minutes once its match has started, and not at all once the match is over;
+  - a finished match closes ticks for 30 more seconds.
 
 Since Core has no platform dependencies, the relay could later run the simulation headless to arbitrate hashes
 or serve snapshots. The first tranche does not need it.
@@ -320,12 +340,17 @@ Each step is testable without the next.
 5. **Robustness** (done; the relay on Starfish runs protocol 3 with a secret since 2026-11-17). The sync digest with heat and
    charge, the desync report and `MatchRecording`, rejoin by name with catch-up, pause for everyone, the
    round-trip time on screen, and the relay's shared secret. Protocol version 3.
-6. **Review fixes** (done; the relay on Starfish still runs protocol 3 and has to be updated to protocol 4 before
-   clients of this build can join). A started room survives being empty; dead connections
+6. **Review fixes** (done). A started room survives being empty; dead connections
    are found within about 20 seconds; the match result is fixed once decided (`World.MatchWinner`); the sync hash
    covers the whole match; a full input queue loses no key edge; the secret has its own limit; a client of
    another protocol is told to update; limits on match settings and message rate. Protocol version 4.
-7. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
+7. **Match end and silent clients** (done; the relay on Starfish runs protocol 4 and has to be updated to
+   protocol 5 before clients of this build can join). Clients report the end of the match, a finished room gives
+   its name up so Enter plays again in the same room, and a connected slot that sends nothing for half a second
+   idles. Protocol version 5. With it: Enter reconnects after a lost connection, the sync digest covers base
+   ore and upgrades, names in a room are unique, the round trip is timed to the answer's arrival and not to the
+   next simulation step, and the relay caps its connections.
+8. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
 
 ## 11. Open questions
 

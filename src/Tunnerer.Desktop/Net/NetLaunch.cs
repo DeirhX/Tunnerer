@@ -31,6 +31,34 @@ public static class NetLaunch
     public static MatchConfig ProposeConfig(int seed, Size mapSize, LevelGenMode genMode, int players) => new(
         seed, mapSize.X, mapSize.Y, (int)genMode, players, Tweaks.Perf.TargetFps, ControllerOutputCodec.KeyMask);
 
+    /// <summary>How long a player coming back after a lost connection keeps trying to get in.</summary>
+    public static readonly TimeSpan RejoinPatience = TimeSpan.FromSeconds(40);
+
+    /// <summary>
+    /// Joins as <see cref="Join(NetLaunchOptions, MatchConfig)"/> does, trying again for <paramref name="patience"/>
+    /// when it fails. A player whose connection broke comes back before the relay has noticed that the old one is
+    /// dead (it takes up to twenty seconds), and until then their slot is still taken; the network that broke may
+    /// also need a moment.
+    /// </summary>
+    /// <exception cref="RelayException">Still refused or unreachable when the patience ran out.</exception>
+    public static RelayConnection Rejoin(
+        NetLaunchOptions options, MatchConfig proposed, TimeSpan patience, TimeSpan? between = null)
+    {
+        var tried = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            try
+            {
+                return Join(options, proposed);
+            }
+            catch (RelayException e) when (tried.Elapsed < patience)
+            {
+                Console.WriteLine($"[Net] {e.Message} Trying again.");
+                Thread.Sleep(between ?? TimeSpan.FromSeconds(2));
+            }
+        }
+    }
+
     /// <exception cref="RelayException">The relay could not be reached, or it refused the request.</exception>
     public static RelayConnection Join(NetLaunchOptions options, MatchConfig proposed)
     {

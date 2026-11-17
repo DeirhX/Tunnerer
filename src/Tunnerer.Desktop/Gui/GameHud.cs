@@ -36,7 +36,10 @@ public partial class GameHud
     /// </summary>
     private static float ToUi(float devicePixels) => devicePixels / ImGuiPlatform.DeviceScale;
 
-    /// <summary>False where a finished match cannot be restarted with Enter (a network match).</summary>
+    /// <summary>
+    /// False where Enter does not start a new match: in a network match that is still on for the others, when
+    /// this player's own tank is already out.
+    /// </summary>
     public bool CanRestartMatch { get; set; } = true;
 
     /// <summary>What to call the tank that won, when it is not the player's; null for "another tank".</summary>

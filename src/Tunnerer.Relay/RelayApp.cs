@@ -13,12 +13,24 @@ public static class RelayApp
 
     public static readonly TimeSpan DefaultKeepAliveTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// Most connections open at once, whether or not they have said hello. Far more than the rooms can seat
+    /// (<see cref="RelayHub.MaxRooms"/> of eight), and few enough that strangers opening sockets cannot exhaust
+    /// the machine.
+    /// </summary>
+    public const int MaxConnections = 1024;
+
     /// <exception cref="InvalidOperationException">The configured secret is longer than the protocol carries.</exception>
     public static WebApplication Build(
         string[] args, TimeSpan? keepAliveInterval = null, TimeSpan? keepAliveTimeout = null)
     {
         var builder = WebApplication.CreateSlimBuilder(args);
         RelayHub.CheckedSecret(builder.Configuration);
+        builder.WebHost.ConfigureKestrel(kestrel =>
+        {
+            kestrel.Limits.MaxConcurrentConnections = MaxConnections;
+            kestrel.Limits.MaxConcurrentUpgradedConnections = MaxConnections;
+        });
         builder.Services.AddSingleton<RelayHub>();
         var app = builder.Build();
         app.UseWebSockets(new WebSocketOptions

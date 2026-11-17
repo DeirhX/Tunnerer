@@ -197,4 +197,43 @@ public class NetSessionTests
 
         Assert.Throws<InvalidOperationException>(() => session.Bots = NoBots);
     }
+
+    [Fact]
+    public void DecidedMatch_IsReportedToTheRelayOnce_WithTheTickItWasDecidedAt()
+    {
+        var relay = new InMemoryRelay(Slots, seed: 1, maxDelay: 0);
+        var world = CreateWorld();
+        var session = new NetSession(relay.LinkFor(0), world) { Bots = NoBots };
+        relay.Advance();
+        StepAll(session);
+        Assert.Null(relay.LinkFor(0).MatchOverTick);
+
+        // Every tank but the first loses its last life.
+        foreach (var tank in world.TankList.Tanks.Skip(1))
+        {
+            tank.LivesLeft = 1;
+            tank.Die();
+        }
+        relay.Advance();
+        StepAll(session);
+        Assert.Equal(2, relay.LinkFor(0).MatchOverTick);
+
+        relay.Advance();
+        StepAll(session);
+        Assert.Equal(2, relay.LinkFor(0).MatchOverTick);
+    }
+
+    [Fact]
+    public void SyncDigest_SeesABasesOreAndUpgrades()
+    {
+        var world = CreateWorld();
+        SyncDigest before = WorldStateHash.ComputeSync(world);
+
+        world.TankBases.Bases[0].Store.Ore += 1;
+
+        SyncDigest after = WorldStateHash.ComputeSync(world);
+        Assert.Equal(before.State, after.State);
+        Assert.NotEqual(before.Economy, after.Economy);
+        Assert.NotEqual(before.Combined, after.Combined);
+    }
 }

@@ -12,6 +12,9 @@ public interface ILockstepLink
     /// <summary>Reports the hash of the local world after <paramref name="tick"/> ticks, for the relay to compare.</summary>
     void SendHash(int tick, ulong hash);
 
+    /// <summary>Reports that, by the local simulation, the match was decided at <paramref name="tick"/>.</summary>
+    void SendMatchOver(int tick);
+
     /// <summary>The next bundle from the relay, in tick order, if one has arrived.</summary>
     bool TryReceive([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TickBundle? bundle);
 }

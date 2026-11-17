@@ -67,11 +67,13 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         Task writing = peer.WriteAsync(stopping);
         MatchRoom? room = null;
         int slot = -1;
+        // One buffer for the whole connection: each message is decoded before the next is read into it.
+        byte[] buffer = new byte[MessageCodec.MaxMessageBytes];
         try
         {
             using var helloLimit = CancellationTokenSource.CreateLinkedTokenSource(served.Token);
             helloLimit.CancelAfter(HelloTimeout);
-            if (await SocketPeer.ReadFrameAsync(socket, helloLimit.Token) is not { } first)
+            if (await SocketPeer.ReadFrameAsync(socket, buffer, helloLimit.Token) is not { } first)
                 return;
             // The protocol number is read before the rest: a client of another protocol sends a hello this relay
             // may not be able to decode, and should still be told to update.
@@ -92,7 +94,7 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
                 StartClock(room, stopping);
 
             var rate = new MessageRate(MaxMessagesPerSecond);
-            while (await SocketPeer.ReadFrameAsync(socket, served.Token) is { } frame)
+            while (await SocketPeer.ReadFrameAsync(socket, buffer, served.Token) is { } frame)
             {
                 if (rate.Exceeded())
                     throw new InvalidDataException($"The client sends more than {MaxMessagesPerSecond} messages a second.");
@@ -138,6 +140,13 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         // Joining happens under the hub's lock, so a room cannot be forgotten between being found and being joined.
         lock (_lock)
         {
+            // A finished match gives its name up: whoever asks for it next opens a new room. Players still looking
+            // at the old result stay connected to the old room, which gets no more ticks.
+            if (_rooms.TryGetValue(hello.Room, out MatchRoom? finished) && finished.IsOver)
+            {
+                _rooms.Remove(hello.Room);
+                RelayLog.RoomClosed(logger, finished.Code, finished.TicksClosed);
+            }
             if (!_rooms.TryGetValue(hello.Room, out MatchRoom? room))
             {
                 if (_rooms.Count >= MaxRooms)
@@ -159,8 +168,8 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
     }
 
     /// <summary>
-    /// Deletes the room if it is empty: at once while it is a lobby, and once it has been empty for
-    /// <see cref="EmptyRoomGrace"/> when its match has started. Returns whether the room is gone.
+    /// Deletes the room if it is empty: at once while it is a lobby or its match is over, and once it has been
+    /// empty for <see cref="EmptyRoomGrace"/> when its match is still on. Returns whether the room is gone.
     /// </summary>
     private bool Forget(MatchRoom room)
     {
@@ -168,7 +177,7 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         {
             if (!_rooms.TryGetValue(room.Code, out MatchRoom? known) || known != room)
                 return true;
-            if (!room.IsEmpty || (room.IsRunning && room.EmptyFor < EmptyRoomGrace))
+            if (!room.IsEmpty || (room.IsRunning && !room.IsOver && room.EmptyFor < EmptyRoomGrace))
                 return false;
             _rooms.Remove(room.Code);
             RelayLog.RoomClosed(logger, room.Code, room.TicksClosed);
@@ -187,7 +196,8 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
     {
         lock (_lock)
         {
-            if (!_clocked.Add(room))
+            // A room that has given its name up (its match is over and a new room has it) gets no clock.
+            if (!_rooms.TryGetValue(room.Code, out MatchRoom? known) || known != room || !_clocked.Add(room))
                 return;
         }
         _ = Task.Run(async () =>
@@ -265,10 +275,13 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
             }
         }
 
-        /// <summary>The bytes of the client's next message, or null when it closed the connection.</summary>
-        public static async Task<ArraySegment<byte>?> ReadFrameAsync(WebSocket socket, CancellationToken cancel)
+        /// <summary>
+        /// The bytes of the client's next message, read into <paramref name="buffer"/>, or null when it closed the
+        /// connection.
+        /// </summary>
+        public static async Task<ArraySegment<byte>?> ReadFrameAsync(
+            WebSocket socket, byte[] buffer, CancellationToken cancel)
         {
-            byte[] buffer = new byte[MessageCodec.MaxMessageBytes];
             int length = 0;
             while (true)
             {

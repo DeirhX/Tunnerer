@@ -61,6 +61,11 @@ internal sealed class InMemoryRelay
 
         public void SendHash(int tick, ulong hash) => _up.Enqueue((NextArrival(ref _lastUpAt), 0, tick, hash, true));
 
+        /// <summary>The tick at which this client reported the match decided, or null.</summary>
+        public int? MatchOverTick { get; private set; }
+
+        public void SendMatchOver(int tick) => MatchOverTick = tick;
+
         public bool TryReceive([NotNullWhen(true)] out TickBundle? bundle)
         {
             bundle = null;

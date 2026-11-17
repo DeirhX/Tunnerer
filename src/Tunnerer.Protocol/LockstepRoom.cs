@@ -12,6 +12,11 @@ using System.Collections.Immutable;
 /// not replaced, because the game reads key presses as changes between consecutive inputs: dropping one in the
 /// middle could swallow a press. A disconnected slot plays the neutral input.
 /// <para>
+/// The repeat has a limit: a connected slot that has sent nothing for <c>silentTicks</c> ticks in a row plays the
+/// neutral input until it sends again. A client that has fallen behind stops sending while it catches up, and its
+/// tank must not drive and fire on by itself for as long as that takes.
+/// </para>
+/// <para>
 /// A queue more than one deep is a backlog: every input in it is played late, and since a client sends one input
 /// per tick it would never shrink. So while a slot has a backlog, an input whose keys are the same as the next
 /// one's is skipped. That loses no key press or release, only an aim on the way to the next aim.
@@ -33,6 +38,8 @@ public sealed class LockstepRoom
     private readonly uint[] _last;
     private readonly bool[] _connected;
     private readonly int[] _dropped;
+    private readonly int[] _silentFor;
+    private readonly int _silentTicks;
     private readonly List<TickBundle> _log = [];
     private readonly Dictionary<int, ulong> _hashes = [];
 
@@ -40,10 +47,17 @@ public sealed class LockstepRoom
     /// The bits of an input that are keys. With the default, every bit, only an input identical to the next is
     /// ever skipped.
     /// </param>
-    public LockstepRoom(int slots, uint keyMask = uint.MaxValue)
+    /// <param name="silentTicks">
+    /// How many ticks in a row a connected slot's last input is repeated while it sends nothing; after that it
+    /// plays the neutral input. With the default it is repeated without limit.
+    /// </param>
+    public LockstepRoom(int slots, uint keyMask = uint.MaxValue, int silentTicks = int.MaxValue)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(slots, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(silentTicks, 1);
         _keyMask = keyMask;
+        _silentTicks = silentTicks;
+        _silentFor = new int[slots];
         _queues = new List<uint>[slots];
         for (int i = 0; i < slots; i++)
             _queues[i] = new List<uint>(MaxQueuedInputs);
@@ -112,7 +126,10 @@ public sealed class LockstepRoom
     /// <summary>The slot's client is back and its inputs count again.</summary>
     public void Reconnect(int slot) => _connected[slot] = true;
 
-    /// <summary>Makes the bundle for the next tick from one queued input per slot, or the slot's last input.</summary>
+    /// <summary>
+    /// Makes the bundle for the next tick from one queued input per slot, or the slot's last input (the neutral
+    /// input once the slot has been silent for too long).
+    /// </summary>
     public TickBundle CloseTick()
     {
         var inputs = ImmutableArray.CreateBuilder<uint>(Slots);
@@ -125,6 +142,11 @@ public sealed class LockstepRoom
             {
                 _last[slot] = queue[0];
                 queue.RemoveAt(0);
+                _silentFor[slot] = 0;
+            }
+            else if (_silentFor[slot] < _silentTicks && ++_silentFor[slot] == _silentTicks)
+            {
+                _last[slot] = NeutralInput;
             }
             inputs.Add(_last[slot]);
         }

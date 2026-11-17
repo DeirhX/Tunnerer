@@ -10,7 +10,7 @@ using System.Text;
 public static class MessageCodec
 {
     /// <summary>Changes whenever the bytes of any message change. Client and relay must match.</summary>
-    public const int ProtocolVersion = 4;
+    public const int ProtocolVersion = 5;
 
     /// <summary>No message is longer than this; a longer frame is an error.</summary>
     public const int MaxMessageBytes = 4096;
@@ -57,7 +57,7 @@ public static class MessageCodec
 
     private enum Kind : byte
     {
-        Hello = 1, Welcome, Roster, Ready, Start, Input, Tick, Hash, Desync, Refusal, StartRequest, Rejoined, Log, SetPaused, PauseState, Ping, Pong,
+        Hello = 1, Welcome, Roster, Ready, Start, Input, Tick, Hash, Desync, Refusal, StartRequest, Rejoined, Log, SetPaused, PauseState, Ping, Pong, MatchOver,
     }
 
     public static byte[] Encode(Message message)
@@ -146,6 +146,10 @@ public static class MessageCodec
                 w.Write((byte)Kind.Pong);
                 w.Write(m.Id);
                 break;
+            case MatchOver m:
+                w.Write((byte)Kind.MatchOver);
+                w.Write(m.AtTick);
+                break;
             case Refusal m:
                 w.Write((byte)Kind.Refusal);
                 WriteText(w, m.Reason, MaxReasonLength);
@@ -178,13 +182,14 @@ public static class MessageCodec
                 Kind.Tick => new Tick(new TickBundle(r.ReadInt32(), ReadList(r, static x => x.ReadUInt32()))),
                 Kind.Hash => new Hash(r.ReadInt32(), r.ReadUInt64()),
                 Kind.Desync => new Desync(r.ReadInt32()),
-                Kind.Refusal => new Refusal(ReadText(r)),
+                Kind.Refusal => new Refusal(ReadText(r, MaxReasonLength * 3)),
                 Kind.Rejoined => new Rejoined(r.ReadByte()),
                 Kind.Log => ReadLog(r),
                 Kind.SetPaused => new SetPaused(r.ReadBoolean()),
                 Kind.PauseState => new PauseState(r.ReadBoolean(), r.ReadByte()),
                 Kind.Ping => new Ping(r.ReadUInt32()),
                 Kind.Pong => new Pong(r.ReadUInt32()),
+                Kind.MatchOver => new MatchOver(r.ReadInt32()),
                 var unknown => throw new InvalidDataException($"Unknown message type {(byte)unknown}."),
             };
             if (stream.Position != stream.Length)
@@ -204,7 +209,7 @@ public static class MessageCodec
         w.Write(utf8);
     }
 
-    private static string ReadText(BinaryReader r, int maxBytes = MaxReasonLength * 3)
+    private static string ReadText(BinaryReader r, int maxBytes = MaxTextLength * 3)
     {
         int length = r.ReadUInt16();
         if (length > maxBytes)

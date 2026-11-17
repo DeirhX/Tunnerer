@@ -92,7 +92,10 @@ the relay gives you. The lobby shows who is in. The match starts when the room i
 presses Enter; bots play the tanks nobody took. It is a race: the first base to tap the core wins, and a tank out
 of lives is out. The first player's `--seed`, `--size`, `--fast` and `--players` decide the match for everyone.
 All players must run the same build, and every machine must be fast enough to simulate the map in real time.
-P pauses and resumes the match for everyone; Escape only opens your own menu.
+P pauses and resumes the match for everyone; Escape only opens your own menu. When the match is over, Enter
+plays again in the same room: the first player to press it opens the room, the others join. If you lose the
+connection mid-match, Enter reconnects: the game restarts, rejoins under your name and replays the match up to
+the present.
 
 A player whose connection dies is dropped by the relay after about 20 seconds and can come back under the same name. A
 player who loses the relay is told so on screen. A started match with nobody in it waits five minutes for players

@@ -102,5 +102,12 @@ public sealed record Hash(int AtTick, ulong Value) : Message;
 /// <summary>Relay to clients: two of you reported different worlds after <paramref name="AtTick"/> ticks.</summary>
 public sealed record Desync(int AtTick) : Message;
 
+/// <summary>
+/// Client to relay: by my simulation the match was decided at <paramref name="AtTick"/>. The room is then finished:
+/// it closes ticks a little longer for the result screens, and the next player to ask for its name opens a new
+/// room.
+/// </summary>
+public sealed record MatchOver(int AtTick) : Message;
+
 /// <summary>Relay to client: the request was refused, or the match cannot go on. The connection closes after it.</summary>
 public sealed record Refusal(string Reason) : Message;

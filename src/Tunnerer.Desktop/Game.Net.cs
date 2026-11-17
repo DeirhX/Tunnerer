@@ -185,6 +185,7 @@ public partial class Game
             return;
         }
 
+        _hud.CanRestartMatch = _world.IsMatchOver;
         var winner = _world.MatchWinner?.Tank;
         _hud.WinnerName = winner != null && winner.Color < _slotNames.Length ? _slotNames[winner.Color] : null;
         DrawNameTags(drawnTankPositions);

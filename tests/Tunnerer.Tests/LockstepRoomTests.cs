@@ -29,6 +29,30 @@ public class LockstepRoomTests
     }
 
     [Fact]
+    public void SilentSlot_StopsRepeatingAfterTheLimit_AndPlaysAgainWhenItSends()
+    {
+        var room = new LockstepRoom(slots: 2, silentTicks: 3);
+        room.Submit(0, 7);
+        room.Submit(1, 9);
+        room.CloseTick();
+
+        // Slot 1 keeps sending; slot 0 has gone quiet with its key down.
+        var played = new List<uint>();
+        for (int tick = 0; tick < 5; tick++)
+        {
+            room.Submit(1, 9);
+            var bundle = room.CloseTick();
+            played.Add(bundle.Inputs[0]);
+            Assert.Equal(9u, bundle.Inputs[1]);
+        }
+        Assert.Equal([7u, 7u, LockstepRoom.NeutralInput, LockstepRoom.NeutralInput, LockstepRoom.NeutralInput], played);
+
+        room.Submit(0, 5);
+        Assert.Equal(5u, room.CloseTick().Inputs[0]);
+        Assert.Equal(5u, room.CloseTick().Inputs[0]);
+    }
+
+    [Fact]
     public void FullQueue_DropsTheOldestAndCountsIt()
     {
         var room = new LockstepRoom(slots: 1);

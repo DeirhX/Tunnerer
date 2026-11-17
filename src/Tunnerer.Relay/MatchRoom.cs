@@ -34,6 +34,7 @@ public sealed class MatchRoom
     private double _matchSeconds;
     private TimeSpan _emptyFor;
     private int _pausedBySlot;
+    private int? _overAtTick;
     // Who played each slot when the match started: a player who drops out comes back under the same name.
     private string[] _startNames = [];
 
@@ -46,8 +47,22 @@ public sealed class MatchRoom
         _names = new string[config.Slots];
         Array.Fill(_names, string.Empty);
         _readyHashes = new ulong?[config.Slots];
-        _lockstep = new LockstepRoom(config.Slots, config.InputKeyMask);
+        _lockstep = new LockstepRoom(
+            config.Slots, config.InputKeyMask, Math.Max(1, (int)(config.TicksPerSecond * SilentSeconds)));
     }
+
+    /// <summary>
+    /// How long a connected slot's last input is repeated while its client sends nothing; then its tank idles
+    /// until the client sends again. Longer than any gap an ordinary connection makes, short enough that a tank
+    /// whose player's machine has stalled does not drive far.
+    /// </summary>
+    public const double SilentSeconds = 0.5;
+
+    /// <summary>
+    /// How long a finished match goes on closing ticks, for the result screens. After that its clock stands, so a
+    /// window left open on the result does not make the room's log grow all night.
+    /// </summary>
+    public const int SecondsPlayedAfterTheEnd = 30;
 
     public string Code { get; }
     public string BuildId { get; }
@@ -58,6 +73,19 @@ public sealed class MatchRoom
 
     /// <summary>True while a running match is held: no ticks are closed until someone resumes it.</summary>
     public bool IsPaused { get; private set; }
+
+    /// <summary>
+    /// True once a client has reported the match decided. A finished room is not kept when empty, nobody can come
+    /// back to it, and the next player to ask for its name gets a new room.
+    /// </summary>
+    public bool IsOver
+    {
+        get
+        {
+            lock (_lock)
+                return _overAtTick is not null;
+        }
+    }
 
     /// <summary>True when nobody is connected. A lobby is then forgotten at once, a running match after a grace period.</summary>
     public bool IsEmpty
@@ -111,11 +139,27 @@ public sealed class MatchRoom
                 return -1;
             }
             _peers[slot] = peer;
-            _names[slot] = string.IsNullOrWhiteSpace(name) ? $"Player {slot + 1}" : name;
+            _names[slot] = UniqueName(string.IsNullOrWhiteSpace(name) ? $"Player {slot + 1}" : name.Trim());
             peer.Send(new Welcome(slot, Config));
             Broadcast(new Roster([.. _names]));
             return slot;
         }
+    }
+
+    /// <summary>
+    /// The name as it will stand in the roster: with a number after it when someone here already has it. A
+    /// player comes back to a match by name, so two players must not share one. The numbered name is what the
+    /// second player would have to rejoin under; their lobby shows it.
+    /// </summary>
+    private string UniqueName(string name)
+    {
+        string candidate = name;
+        for (int n = 2; _names.Contains(candidate, StringComparer.OrdinalIgnoreCase); n++)
+        {
+            string suffix = string.Create(System.Globalization.CultureInfo.InvariantCulture, $" ({n})");
+            candidate = name[..Math.Min(name.Length, MessageCodec.MaxTextLength - suffix.Length)] + suffix;
+        }
+        return candidate;
     }
 
     /// <summary>
@@ -198,6 +242,12 @@ public sealed class MatchRoom
                     _pausedBySlot = slot;
                     Broadcast(new PauseState(IsPaused, slot));
                     break;
+                // Every client simulates the same match, so the first to say so is believed. The tick must be one
+                // the relay has closed: nobody can have simulated a later one.
+                case MatchOver over when IsRunning && _overAtTick is null &&
+                                         over.AtTick > 0 && over.AtTick <= _lockstep.NextTick:
+                    _overAtTick = over.AtTick;
+                    break;
                 case Ping ping:
                     _peers[slot]?.Send(new Pong(ping.Id));
                     break;
@@ -216,7 +266,8 @@ public sealed class MatchRoom
     /// <summary>
     /// Lets <paramref name="elapsed"/> wall time go by and closes the ticks that are now due. The match clock runs
     /// only while the match is on, not paused, and someone is connected: a room nobody is in waits, so bots do not
-    /// play on alone and a returning player does not face a stretch of catch-up, and a pause is not counted. The
+    /// play on alone and a returning player does not face a stretch of catch-up, and a pause is not counted. A
+    /// finished match stops <see cref="SecondsPlayedAfterTheEnd"/> seconds after its end. The
     /// number of ticks due follows the total match time, so a late call is made up at once and the rate does not
     /// drift.
     /// </summary>
@@ -233,6 +284,9 @@ public sealed class MatchRoom
             }
             _emptyFor = TimeSpan.Zero;
             if (IsPaused)
+                return;
+            if (_overAtTick is int overAt &&
+                _lockstep.NextTick >= overAt + SecondsPlayedAfterTheEnd * Config.TicksPerSecond)
                 return;
             _matchSeconds += elapsed.TotalSeconds;
             CloseTicksUpTo((int)(_matchSeconds * Config.TicksPerSecond));
