@@ -39,12 +39,14 @@ Entities/
   Tanks/TankThermals.cs      Tank heat, network coverage floor, base sink, refrigeration, ledger bookings
   Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, mining ore into the hold, pickups; owns the
                              tank's RNG
-  Tanks/TankBuildController.cs   Build keys: build, carry, plant
+  Tanks/TankBuildController.cs   Build keys: build, carry, plant; the payer rule (Quote)
+  Tanks/BuildQuote.cs        BuildQuote, OrePayer, BuildRefusal: what a machine costs here and which stock pays
   Tanks/TankLifecycle.cs     Damage, death (the hold spills as ore, OreDrop), respawn, spawn shield
   Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
   TankTurret.cs              Aim, cooldown, bullet spawn
   TankHeatModel.cs           Heat-flow formula shared by tank contact with terrain and air
-  TankList.cs, TankBase.cs, TankBases.cs   Tank collection; bases (reactor, radiator, engine, charge, stores)
+  TankList.cs, TankBase.cs, TankBases.cs   Tank collection; bases (reactor, radiator, engine, charge, ore store)
+  BaseUpgrades.cs            BaseUpgrade (base track and tank track), levels, costs and what each level does
   SimulationContext.cs       The slice of World a tank sees during Advance
   MachineMaterializer.cs     The machine a tank carries before it is planted
   Sprite.cs                  SpriteList: short-lived markers
@@ -61,6 +63,7 @@ Entities/
 Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
   Radar.cs                   A tank's radar: pulses running out from the tank and the fading contacts where they reflected
+  RadarReach.cs              The radar's ranges and heat budget, scaled per tank by its radar upgrade
 Collision/
   CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
   WorldSectors.cs            Sector buckets for the tank broad phase
@@ -78,7 +81,7 @@ LevelGen/
 Rendering/
   RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
-Resources/Resources.cs       Reactor, ReactorState, MaterialAmount (dirt and ore), MaterialContainer
+Resources/Resources.cs       Reactor, ReactorState, OreStore (a tank's hold, a base's store: ore is the only currency)
 Resources/OreDrop.cs         Puts ore back into the ground, nearest free cells first (a dead tank's hold)
 Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, DirectionF, Color, Rect, BoundingBox
 ```
@@ -89,7 +92,8 @@ Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, Dir
 spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot and frost rock pockets (if
 asked; the hot ones also give the core, `World.CorePocket`), seeds emberite ore (if asked, `seedOre`;
 `World.OreDeposits`) and adds one tank per spawn. Ore is placed last and grows each deposit cell by cell from its
-start, so generation never sweeps the grid; deposit counts scale with map area (`Tweaks.Ore`). Every RNG World owns
+start, so generation never sweeps the grid; deposit counts scale with map area (`Tweaks.Ore`), and on a small map the
+distance rules shrink and a floor of pockets and lumps applies (`OreDeposits.DistanceScale`). Every RNG World owns
 (projectiles, link map, regrowth, each tank) is seeded from `simulationSeed`, and decorations and rock pockets from
 the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
@@ -102,14 +106,18 @@ picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in paralle
 3. **Regrowth**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
    pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open.
 4. **Projectiles**: `ProjectileList.Advance`.
-5. **Tanks**: `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`): idle heat, base
-   interaction (recharge, heat sink, docking), network coverage, turret aim and fire, `TankDigger.Move`, spawn
-   shield, shooting, pickups, `TankBuildController.Advance`, the upgrade keys, then `TankThermals.Advance` (exchange
-   with the grid).
-6. **Machines**: `MachineList.Advance`, then each pylon's last hand-out is booked on its route (`LinkMap.CarryCharge`).
+5. **Tanks**: `LinkMap.AgeOreFlow`, then `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`):
+   idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage, the
+   network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
+   the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
+   `TankDigger.Move`, spawn shield, shooting, pickups, `TankBuildController.Advance`, the upgrade keys, then
+   `TankThermals.Advance` (exchange with the grid).
+6. **Machines**: `MachineList.Advance` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
+   network at its position, before it works), then each pylon's last hand-out is booked on its route
+   (`LinkMap.CarryCharge`).
 7. **Sprites**: lifetime.
-8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then `World.AdvanceSectorGoal` (the
-   core tap and its hold timer).
+8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), the bot's stand-in ore income for bases
+   marked with `World.SetBotControlled`, then `World.AdvanceSectorGoal` (the core tap and its hold timer).
 9. **Links**: `LinkMap.Advance` rebuilds the network every `Tweaks.World.RefreshLinkMapInterval` (200 ms), not
    every tick.
 10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
@@ -120,7 +128,8 @@ above), `[Profile+]` (heat solver parts), `[Profile++]` (active tiles, sparse / 
 (thermal energy and the ledger residual, which should stay near float noise).
 
 Queries Desktop asks instead of computing itself: `World.MatchOutcomeFor` / `IsMatchOver`,
-`Tank.IsDockedAtOwnBase`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
+`Tank.IsDockedAtOwnBase`, `Tank.IsInOwnNetwork`, `Tank.IsUnloadingOre`, `Tank.QuoteBuild` (cost, payer, stock and
+refusal for a machine), `Tank.LastBuildRefusal`, `World.GetNetworkStatus`, `World.PreviewPlacement`, `World.CoverageFor`,
 `World.CollectCoverageNodes`, `World.TrackVision`, `World.TrackRadar`, `World.RadarOf`, and the `CopyRenderStates` snapshot of each entity list.
 
 ### Step events
@@ -162,7 +171,8 @@ charge, or charge spent back as heat). `World.SumSystemThermalEnergy` (grid, tan
 
 The mechanics built on this (base reservoir and radiator, relays pumping heat home, the base engine and charge,
 pylons and batteries, network coverage, the tank's temperature band, hot and frost rock pockets, the sector goal and
-base upgrades) are specified in `DESIGN.md` §4; the code is in `TankBase`, `BaseUpgrades`, `MachineBehaviors`,
+upgrades) are specified in `DESIGN.md` §4, the ore economy in §6.4; the code is in `TankBase`, `BaseUpgrades`,
+`TankBuildController`, `MachineBehaviors`,
 `TankThermals`, `TankHeatModel`, `NetworkCoverage`, `HotRockPockets`, `FrostRockPockets` and `World.AdvanceSectorGoal`.
 The heat render texture encodes temperature signed (`TerrainGrid.HeatToByte`), so the terrain shader can draw ground
 below 0 as frost.
@@ -220,7 +230,11 @@ cannot slip between two cells that touch only at a corner. Along a ray:
 
 A ray stops at the first thing that reflects it whether or not the return is kept, so nothing behind it answers.
 
-Each kind of thing returns only from within its own range of the pulse's origin (`Tweaks.Radar`): rock from
+Every range below, and the heat budget, comes from the `RadarReach` the pulse was sent with: `Tweaks.Radar` scaled
+by the tank's base's radar upgrade (`BaseUpgrades.RadarRangeScale`, `RadarHeatBudgetScale`), which World hands to
+`Radar.Advance`. `Radar.PulseRange` is the reach of the pulse in flight, for drawing its ring. A pulse that runs
+longer than `PulsePeriodTicks` delays the next one. Each kind of thing returns only from within its own range of the
+pulse's origin (`Tweaks.Radar`): rock from
 `SolidRangeMin` for a thin shell up to the full `Range` for a formation `FormationDepth` cells deep along the ray
 (`Radar.SolidRange` looks behind the face, only for rock beyond the near range), gold from `GoldRange`, machines
 from `MachineRange`, tanks from `LifeRange`, caves from `CavityRange`, heat from `HeatRangeMin` to `HeatRangeMax` by
@@ -280,11 +294,11 @@ Core:
 
 1. A value in `MachineType` (`Entities/Machines/Machine.cs`).
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), added to the
-   `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, build cost
+   `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, ore cost
    and `BuildKey`, plus the traits Core reads instead of the type: `BatteryCapacity`, `IsLinkNode`,
    `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`. The action is a static method in `MachineBehaviors` taking
    `(Machine, MachineContext)`.
-3. Constants (cost, interval, battery) in `Tweaks.Machine`, colour in `Tweaks.Colors`.
+3. Constants (interval, battery) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
 4. Each `BuildKey` builds exactly one machine, so a fourth machine needs a new key: a value in `BuildKey`, a field
    in `ControllerOutput`, and its edge detection in `TankBuildController.Advance`.
 5. `NetworkStatus.Collect` counts harvesters and relays by type; extend it if the HUD should report the new one.

@@ -97,6 +97,12 @@ Core decides what is seen; the renderer only shows it.
   whose cell has come into sight is not drawn. A return that crossed warm ground is smaller and dimmer (the
   contact's strength, sent in the vertex colour), and a `Heat` contact is drawn as a red dot whose opacity is how hot
   the cell is (its strength). `GameEventWatcher` posts "Radar scattered by heat" when `Radar.HeatLoss` passes `RadarScatteredShare`.
+  The pulse ring fades out at `Radar.PulseRange`, which the radar upgrade lengthens.
+- **Ore on the network.** Links carry three beams: heat home (orange, `KindLink`), charge out (blue,
+  `KindChargeBeam`) and ore home (`KindOreBeam`, `OreBeam` in `Shaders/Entity/Beams.hlsli`: teal crystals with a violet
+  glint, tumbling toward the base). `LinkQuads` draws the ore beam from `LinkRenderState.OreFlow`, which Core keeps up
+  for a moment after each unit passes (`Link.OreFlowTicks`), and `CoverageQuads` draws one from the tank to its
+  covering node beside the tether while `Tank.IsUnloadingOre`.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
 
@@ -175,14 +181,15 @@ from repeating on the frames drawn between steps.
 | Tank hit | `TankHit` |
 | Tank death, respawn | `TankDied`, `TankRespawned` |
 | Build relay / harvester / pylon, plant | `MachineBuilt` (the machine's own build sound), `MachinePlanted` (a tank that dies drops its machine silently) |
-| Plant refused | `PlantRefused` (player only) |
+| Plant refused | `PlantRefused`, and `BuildRefused` (not enough ore) (player only) |
 | Pickup | `GoldCollected`, `OreCollected`. At most every 3 steps; a run of pickups climbs in pitch. |
+| Ore unloaded | `OreUnloaded` (player only): the pickup sound, quieter, once per unit unloaded through the network |
 | Dock | `Docked` (player only; a respawn is not a docking) |
 | Warnings | Player only, most urgent first like the HUD banner: overheating, low shield, running hot. The thresholds are shared with the HUD through `PlayerWarnings`. Each repeats at its own interval while it lasts. These follow the tank's state, not events. |
 | Engine loop | Per tank, while alive: idle, or louder and higher on steps with `TankMoved` |
 | Dig loop | Per tank: `TankDug` |
 | Torch loop | Per tank: `TankDug` with `Torch` set |
-| Recharge loop | Player, docked, and `BaseServiced` (the base is repairing, cooling or unloading it) |
+| Recharge loop | Player, docked, and `BaseServiced` (the base is repairing, cooling or banking its ore) |
 
 Loops are held for a few steps after their last trigger, because a digging tank only clears cells on some steps,
 and the mixer glides loop volume, pan and pitch so nothing clicks.
