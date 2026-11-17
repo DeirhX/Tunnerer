@@ -80,39 +80,6 @@ public class WorldThermalSimulationTests
             $"Expected measurable dissipation when connected to base sink. start={startHeat}, end={endHeat}");
     }
 
-    [Trait("Category", "Slow")]
-    [Fact]
-    public void WorldAdvance_BaseConnectedTunnel_ExternalHeat_ConvergesToBaseTemperature()
-    {
-        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9898);
-        using var visual = TestVisualTrace.Start(nameof(WorldAdvance_BaseConnectedTunnel_ExternalHeat_ConvergesToBaseTemperature));
-        var basePos = RequireBasePosition(tank);
-
-        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: 72);
-
-        var hotspotPos = basePos + new Offset(1, 66);
-        world.Terrain.AddHeatRadius(hotspotPos, amount: 255, radius: 12);
-        visual.Capture(world, "after_heat_injection");
-
-        float startHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 8) * 255f;
-        float startBaseTemperature = world.Terrain.SampleAverageHeat(basePos, radius: 6) * 255f;
-
-        // ~335 s: the walls of the tunnel hold what was blasted into them and give it up slowly.
-        AdvanceUntil(world, maxFrames: 24 * 420, () =>
-            world.Terrain.SampleAverageHeat(hotspotPos, radius: 8) * 255f <= 6f,
-            visual,
-            "settle");
-
-        float endHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 8) * 255f;
-        float endBaseTemperature = world.Terrain.SampleAverageHeat(basePos, radius: 6) * 255f;
-        visual.Capture(world, "end");
-
-        Assert.True(endHotspot < startHotspot * 0.25f,
-            $"Expected strong decay through base-connected tunnel. startHotspot={startHotspot:0.00}, endHotspot={endHotspot:0.00}");
-        Assert.True(endHotspot <= endBaseTemperature + 12f,
-            $"Expected hotspot to converge near base temperature. endHotspot={endHotspot:0.00}, endBaseTemperature={endBaseTemperature:0.00}, startBaseTemperature={startBaseTemperature:0.00}");
-    }
-
     [Fact]
     public void WorldAdvance_NoExternalHeating_SystemEnergyDoesNotIncreasePerTick()
     {
@@ -274,6 +241,7 @@ public class WorldThermalSimulationTests
             $"Expected one-shot outside-wall hotspot to cool near zero eventually. afterHit={hotspotAfterHit:0.00}, afterSettle={hotspotAfterSettle:0.00}");
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void WorldAdvance_ShootWaitRevisit_HotspotShouldDissipateBeforeReturn()
     {
@@ -442,68 +410,109 @@ public class WorldThermalSimulationTests
             $"Expected base interior to remain near ambient after driving out. baseAfterDriveOut={baseAfterDriveOut:0.00}, baseAfterSettle={baseAfterSettle:0.00}");
     }
 
-    [Trait("Category", "Slow")]
-    [Fact]
-    public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange()
+    /// <summary>One of the longest runs, in a class of its own so that xUnit runs it beside the others.</summary>
+    public class BaseTunnelTests
     {
-        var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9903, enableTerrainRegrowth: false);
-        using var visual = TestVisualTrace.Start(nameof(WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange));
-        var basePos = RequireBasePosition(tank);
-        int half = Tweaks.Base.BaseSize / 2;
-
-        int firstOutsideDy = half + 1;
-        CarveVerticalLine(world.Terrain, basePos, firstOutsideDy, firstOutsideDy + 56);
-
-        var doorPos = basePos + new Offset(0, half);
-        Assert.Equal(ThermalMaterial.Base, Pixel.GetThermalMaterial(world.Terrain.GetPixelRaw(doorPos)));
-
-        var hotspotPos = basePos + new Offset(1, firstOutsideDy + 34);
-        world.Terrain.AddHeatRadius(hotspotPos, amount: 255, radius: 10);
-        visual.Capture(world, "after_heat_injection");
-
-        var heatEngine = new TerrainHeatEngine(world.Settings);
-        double SumTunnelEnergy()
+        [Trait("Category", "Slow")]
+        [Fact]
+        public void WorldAdvance_BaseConnectedTunnel_ExternalHeat_ConvergesToBaseTemperature()
         {
-            double sum = 0.0;
-            int y0 = basePos.Y + firstOutsideDy;
-            int y1 = basePos.Y + firstOutsideDy + 56;
-            for (int y = y0; y <= y1; y++)
+            var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9898);
+            using var visual = TestVisualTrace.Start(nameof(WorldAdvance_BaseConnectedTunnel_ExternalHeat_ConvergesToBaseTemperature));
+            var basePos = RequireBasePosition(tank);
+
+            CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: 72);
+
+            var hotspotPos = basePos + new Offset(1, 66);
+            world.Terrain.AddHeatRadius(hotspotPos, amount: 255, radius: 12);
+            visual.Capture(world, "after_heat_injection");
+
+            float startHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 8) * 255f;
+            float startBaseTemperature = world.Terrain.SampleAverageHeat(basePos, radius: 6) * 255f;
+
+            // ~335 s: the walls of the tunnel hold what was blasted into them and give it up slowly.
+            AdvanceUntil(world, maxFrames: 24 * 420, () =>
+                world.Terrain.SampleAverageHeat(hotspotPos, radius: 8) * 255f <= 6f,
+                visual,
+                "settle");
+
+            float endHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 8) * 255f;
+            float endBaseTemperature = world.Terrain.SampleAverageHeat(basePos, radius: 6) * 255f;
+            visual.Capture(world, "end");
+
+            Assert.True(endHotspot < startHotspot * 0.25f,
+                $"Expected strong decay through base-connected tunnel. startHotspot={startHotspot:0.00}, endHotspot={endHotspot:0.00}");
+            Assert.True(endHotspot <= endBaseTemperature + 12f,
+                $"Expected hotspot to converge near base temperature. endHotspot={endHotspot:0.00}, endBaseTemperature={endBaseTemperature:0.00}, startBaseTemperature={startBaseTemperature:0.00}");
+        }
+    }
+
+    /// <summary>One of the longest runs, in a class of its own so that xUnit runs it beside the others.</summary>
+    public class ExteriorTunnelTests
+    {
+        [Trait("Category", "Slow")]
+        [Fact]
+        public void WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange()
+        {
+            var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9903, enableTerrainRegrowth: false);
+            using var visual = TestVisualTrace.Start(nameof(WorldAdvance_ExteriorTunnelHotspot_CoolsViaBaseBoundaryExchange));
+            var basePos = RequireBasePosition(tank);
+            int half = Tweaks.Base.BaseSize / 2;
+
+            int firstOutsideDy = half + 1;
+            CarveVerticalLine(world.Terrain, basePos, firstOutsideDy, firstOutsideDy + 56);
+
+            var doorPos = basePos + new Offset(0, half);
+            Assert.Equal(ThermalMaterial.Base, Pixel.GetThermalMaterial(world.Terrain.GetPixelRaw(doorPos)));
+
+            var hotspotPos = basePos + new Offset(1, firstOutsideDy + 34);
+            world.Terrain.AddHeatRadius(hotspotPos, amount: 255, radius: 10);
+            visual.Capture(world, "after_heat_injection");
+
+            var heatEngine = new TerrainHeatEngine(world.Settings);
+            double SumTunnelEnergy()
             {
-                for (int x = basePos.X - 1; x <= basePos.X + 1; x++)
+                double sum = 0.0;
+                int y0 = basePos.Y + firstOutsideDy;
+                int y1 = basePos.Y + firstOutsideDy + 56;
+                for (int y = y0; y <= y1; y++)
                 {
-                    var p = new Position(x, y);
-                    if (!world.Terrain.IsInside(p))
-                        continue;
-                    float c = heatEngine.GetHeatCapacity(Pixel.GetThermalMaterial(world.Terrain.GetPixelRaw(p)));
-                    sum += world.Terrain.GetHeatTemperature(p) * c;
+                    for (int x = basePos.X - 1; x <= basePos.X + 1; x++)
+                    {
+                        var p = new Position(x, y);
+                        if (!world.Terrain.IsInside(p))
+                            continue;
+                        float c = heatEngine.GetHeatCapacity(Pixel.GetThermalMaterial(world.Terrain.GetPixelRaw(p)));
+                        sum += world.Terrain.GetHeatTemperature(p) * c;
+                    }
                 }
+
+                return sum;
             }
 
-            return sum;
+            float startHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 6) * 255f;
+            var energySamples = new List<string>();
+            double startTunnelEnergy = SumTunnelEnergy();
+            // ~235 s: heat blasted into insulating walls leaves through the tunnel and the ground's slow loss.
+            const int maxFrames = 24 * 300;
+            for (int i = 0; i < maxFrames; i++)
+            {
+                if ((i % 120) == 0)
+                    energySamples.Add($"{i}:{SumTunnelEnergy():0.0}");
+
+                if (world.Terrain.SampleAverageHeat(hotspotPos, radius: 6) * 255f <= 8f)
+                    break;
+
+                world.Advance(_ => default);
+                visual.Capture(world, $"settle_exterior_{i:D4}");
+            }
+
+            float endHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 6) * 255f;
+            double endTunnelEnergy = SumTunnelEnergy();
+            Assert.True(endHotspot < startHotspot * 0.35f,
+                $"Expected strong decay through base boundary exchange. startHotspot={startHotspot:0.00}, endHotspot={endHotspot:0.00}");
+            Assert.True(endHotspot <= 8f,
+                $"Expected exterior tunnel hotspot to cool near ambient eventually. endHotspot={endHotspot:0.00}, tunnelEnergyStart={startTunnelEnergy:0.0}, tunnelEnergyEnd={endTunnelEnergy:0.0}, tunnelEnergySamples=[{string.Join(", ", energySamples)}]");
         }
-
-        float startHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 6) * 255f;
-        var energySamples = new List<string>();
-        double startTunnelEnergy = SumTunnelEnergy();
-        // ~235 s: heat blasted into insulating walls leaves through the tunnel and the ground's slow loss.
-        const int maxFrames = 24 * 300;
-        for (int i = 0; i < maxFrames; i++)
-        {
-            if ((i % 120) == 0)
-                energySamples.Add($"{i}:{SumTunnelEnergy():0.0}");
-
-            if (world.Terrain.SampleAverageHeat(hotspotPos, radius: 6) * 255f <= 8f)
-                break;
-
-            world.Advance(_ => default);
-            visual.Capture(world, $"settle_exterior_{i:D4}");
-        }
-
-        float endHotspot = world.Terrain.SampleAverageHeat(hotspotPos, radius: 6) * 255f;
-        double endTunnelEnergy = SumTunnelEnergy();
-        Assert.True(endHotspot < startHotspot * 0.35f,
-            $"Expected strong decay through base boundary exchange. startHotspot={startHotspot:0.00}, endHotspot={endHotspot:0.00}");
-        Assert.True(endHotspot <= 8f,
-            $"Expected exterior tunnel hotspot to cool near ambient eventually. endHotspot={endHotspot:0.00}, tunnelEnergyStart={startTunnelEnergy:0.0}, tunnelEnergyEnd={endTunnelEnergy:0.0}, tunnelEnergySamples=[{string.Join(", ", energySamples)}]");
     }
 }
