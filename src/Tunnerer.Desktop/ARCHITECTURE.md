@@ -30,7 +30,7 @@ One HLSL source in `Rendering/Shaders`. `tools/Tunnerer.ShaderCompiler` runs bef
   fails the build where it is edited. It also fails when a texture has no sampler at its index.
 
 SDL_GPU wants fragment textures and samplers in space2, fragment uniforms in space3 and vertex uniforms in space1, so every resource is declared through the macros in
-`PostPs/Common/Registers.hlsli`. Each texture has its own sampler at the same index (`s0`-`s2`); on the CPU all are
+`PostPs/Common/Registers.hlsli`. Each texture has its own sampler at the same index (`s0`-`s3`); on the CPU all are
 the same linear-clamp sampler.
 
 The post pass shades each terrain material in its own file under `PostPs/Materials` (dirt, stone, concrete, gold,
@@ -74,6 +74,44 @@ Upload payload (`GamePixelsUpload`) includes:
 - the composed world image the terrain pass samples (`NativeContinuousUpload`)
 - tank glow array
 - terrain auxiliary mask texture data + dirty rect, and the material coverage texture data + dirty rect
+- the fog of war texture data + dirty rect (`FogUpload`; null data means no fog)
+
+## Fog of war
+
+In a match (unless `--no-fog`) `Game` asks Core for the player's `VisionMap` (`World.TrackVision`) and draws from it.
+Core decides what is seen; the renderer only shows it.
+
+- **Remembered terrain.** `TerrainView` says where the renderer reads terrain from. With fog its pixels are
+  `VisionMap.Known`, the terrain as the player last saw it, so the world pixel buffer, the solid field, the aux
+  material channel and the material coverage all show last-seen ground with no special cases. After a step `Game`
+  feeds them `VisionMap.KnownChanges` in place of the terrain's change list. Heat and scorch come from the live
+  grid, so `TerrainAuxBuilder` writes them only for cells in sight; ground that comes into sight gets them through
+  the `sightChanged` rect of `TerrainAuxUploader.Prepare`.
+- **Fog texture.** `FogLayer` keeps one RGBA texel per cell (R = visibility level, G = explored) and repacks the
+  rectangle in which vision changed. It is the post pass's fourth texture (`fogTex`, t3).
+- **Fog pass.** `Passes/FogPass.hlsli` runs last in `PostPs`: cells in sight are left alone, explored cells out of
+  sight are drained toward a cool blue-grey and dimmed, cells never seen are near black. A small blur softens the
+  cell steps. `PostFogEnabled` turns it off when there is no fog data.
+- **Entities.** The entity layer is drawn after the post pass, so the emitters leave out what is out of sight
+  (`Rendering/Entities/Sight.cs`): tanks, machines, shots, and links with neither end in sight. The player's own
+  tank and machines always show, because each sees the ground it stands on. A tank out of sight casts no heat glow.
+- **Radar blips.** `Game` also asks for the player's `Radar` (`World.TrackRadar`). `RadarQuads` draws one small
+  quad per contact (`KindRadarBlip`, `RadarBlip` in `Shaders/Entity/Overlays.hlsli`), first in the entity layer so
+  everything else is on top: green for rock and walls, amber for metal, dim blue-green for a cave,
+  a white-violet dot in a ring for something alive, and for emberite a small diamond, teal-rimmed with a violet
+  heart (the only blip that is not round). `Layout.hlsli` lists the echo numbers in `RadarEcho`'s order and
+  `EntityLayoutGuardTests.RadarEchoes_MatchTheBlipShader` checks it and the branches of `RadarBlip`. A blip flares
+  for a few ticks when the beam finds it, which is what shows the sweep, then fades over the contact's life. A blip
+  whose cell has come into sight is not drawn. A return that crossed warm ground is smaller and dimmer (the
+  contact's strength, sent in the vertex colour), and a `Heat` contact is drawn as a red dot whose opacity is how hot
+  the cell is (its strength). `GameEventWatcher` posts "Radar scattered by heat" when `Radar.HeatLoss` passes `RadarScatteredShare`.
+  The pulse ring is drawn at `Radar.PulseFront` (moving `Radar.PulseSpeed` a tick, faster with the radar upgrade)
+  and fades out at `Radar.PulseRange`, which the upgrade lengthens.
+- **Ore on the network.** Links carry three beams: heat home (orange, `KindLink`), charge out (blue,
+  `KindChargeBeam`) and ore home (`KindOreBeam`, `OreBeam` in `Shaders/Entity/Beams.hlsli`: teal crystals with a violet
+  glint, tumbling toward the base). `LinkQuads` draws the ore beam from `LinkRenderState.OreFlow`, which Core keeps up
+  for a moment after each unit passes (`Link.OreFlowTicks`), and `CoverageQuads` draws one from the tank to its
+  covering node beside the tether while `Tank.IsUnloadingOre`.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
 
@@ -89,6 +127,7 @@ The loop around it (polling, fixed simulation steps, composing) is described in 
    0.12 s grace (so a one-step blip does not break it), dissolves over 0.7 s. Beams are keyed by kind and end
    points; a charge beam by the harvester's planted anchor, so it follows a crawling harvester instead of
    restarting.
+   With fog of war, `FogLayer.Prepare` then repacks the fog texture where the player's vision changed.
 3. Asks `TerrainAuxUploader.Prepare` which part of the terrain aux and material coverage textures to repack:
    - on the first frame, everything;
    - after that, the cells the simulation changed (and growth fades that ended) plus the strip the camera
@@ -119,7 +158,7 @@ display's own resolution instead of being stretched by the OS.
   the middle of the view stays clear: TEMP, SHIELD and MATERIALS in the bottom-left corner, BUILD STRUCTURES in
   the bottom-right. Art coordinates still run across the whole strip; `HudLayout.At` moves the right part over.
   `HudLayout.HudScale` draws the art 1:1 up to a 1080-unit-high display and larger above it, and shrinks it only
-  to keep at least `MinCenterGap` (404 UI units, room for the base upgrade panel) between the parts; a display
+  to keep at least `MinCenterGap` (404 UI units, so the tank and the ground around it stay clear) between the parts; a display
   narrower than twice that gives half its width to the gap. `HudLayout.ArtScale` snaps the scale to whole device
   pixels on dense displays, but only at or above the textures' own density (2 device pixels per art pixel):
   below that snapping would only shrink the HUD.
@@ -128,8 +167,8 @@ display's own resolution instead of being stretched by the OS.
   carries no text: `HudStrip` draws titles and numbers with the UI font, placed from each panel's plates as
   measured on the art (`HudStrip.Plate`), and centres text on the height of the '0' glyph, not on the font's line
   box.
-- **Around the HUD.** The base upgrade panel (`GameHud.Goal`) sits at the bottom of the screen in the gap between
-  the parts. Aiming and clicks stop only over the parts (`HudLayout.Covers`, `RenderViewState.IsUnderHud`); the
+- **Around the HUD.** The base upgrade panel (`GameHud.Goal`) sits on the left of the view, just above the left
+  part, clear of the tank and of the base's entrances above and below it. Aiming and clicks stop only over the parts (`HudLayout.Covers`, `RenderViewState.IsUnderHud`); the
   gap is play area. Overlays that cover the view (the death veil, the hit vignette, the key reminder) use
   `GameHud.PlayRect`, the view above the strip.
 
@@ -188,14 +227,15 @@ from repeating on the frames drawn between steps.
 | Tank hit | `TankHit` |
 | Tank death, respawn | `TankDied`, `TankRespawned` |
 | Build relay / harvester / pylon, plant | `MachineBuilt` (the machine's own build sound), `MachinePlanted` (a tank that dies drops its machine silently) |
-| Plant refused | `PlantRefused` (player only) |
+| Plant refused | `PlantRefused`, and `BuildRefused` (not enough ore) (player only) |
 | Pickup | `GoldCollected`, `OreCollected`. At most every 3 steps; a run of pickups climbs in pitch. |
+| Ore unloaded | `OreUnloaded` (player only): the pickup sound, quieter, once per unit unloaded through the network |
 | Dock | `Docked` (player only; a respawn is not a docking) |
 | Warnings | Player only, most urgent first like the HUD banner: overheating, low shield, running hot. The thresholds are shared with the HUD through `PlayerWarnings`. Each repeats at its own interval while it lasts. These follow the tank's state, not events. |
 | Engine loop | Per tank, while alive: idle, or louder and higher on steps with `TankMoved` |
 | Dig loop | Per tank: `TankDug` |
 | Torch loop | Per tank: `TankDug` with `Torch` set |
-| Recharge loop | Player, docked, and `BaseServiced` (the base is repairing, cooling or unloading it) |
+| Recharge loop | Player, docked, and `BaseServiced` (the base is repairing, cooling or banking its ore) |
 
 Loops are held for a few steps after their last trigger, because a digging tank only clears cells on some steps,
 and the mixer glides loop volume, pan and pitch so nothing clicks.

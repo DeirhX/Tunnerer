@@ -21,6 +21,7 @@ public sealed unsafe partial class SdlGpuBackend
     private readonly GpuTransferBuffer _pixelUpload = new(SDL.GPUTransferBufferUsage.Upload);
     private readonly WorldDataTexture _terrainAux = new("terrain aux");
     private readonly WorldDataTexture _materialCoverage = new("material coverage");
+    private readonly WorldDataTexture _fog = new("fog of war");
     private readonly GpuBuffer _entityVertices = new("entity vertices", SDL.GPUBufferUsageFlags.Vertex);
     private readonly GpuTransferBuffer _entityUpload = new(SDL.GPUTransferBufferUsage.Upload);
     private readonly List<PendingTextureUpload> _pendingTextureUploads = [];
@@ -32,7 +33,8 @@ public sealed unsafe partial class SdlGpuBackend
 
     /// <summary>
     /// A world-sized RGBA8 texture (one texel per terrain cell), created from the full CPU array and then patched
-    /// with dirty rectangles: the terrain aux texture (t1) and the material coverage texture (t2).
+    /// with dirty rectangles: the terrain aux texture (t1), the material coverage texture (t2) and the fog of war
+    /// texture (t3, post pass only).
     /// </summary>
     private sealed class WorldDataTexture(string name)
     {
@@ -97,6 +99,7 @@ public sealed unsafe partial class SdlGpuBackend
         _pixelUpload.Release(_device);
         _terrainAux.Release(_device);
         _materialCoverage.Release(_device);
+        _fog.Release(_device);
         _entityVertices.Release(_device);
         _entityUpload.Release(_device);
     }
@@ -113,6 +116,7 @@ public sealed unsafe partial class SdlGpuBackend
         StageWorldData(_terrainAux, upload.TerrainAux.Data, upload.View.WorldSize, upload.TerrainAux.DirtyRect);
         StageWorldData(_materialCoverage, upload.TerrainAux.MaterialCoverage, upload.View.WorldSize,
             upload.TerrainAux.MaterialCoverageDirtyRect);
+        StageWorldData(_fog, upload.Fog.Data, upload.View.WorldSize, upload.Fog.DirtyRect);
 
         bool useNativeContinuous = upload.NativeContinuous.SourcePixels != null &&
                                    upload.View.WorldSize.X > 0 &&
@@ -142,7 +146,8 @@ public sealed unsafe partial class SdlGpuBackend
         nint postPass = BeginPass(cmd, _post.Handle, SDL.GPULoadOp.DontCare);
         SDL.PushGPUFragmentUniformData(cmd, 0, (nint)(&postParams), (uint)sizeof(PostParamsBlock));
         DrawFullscreen(postPass, _postPipeline, _post.Width, _post.Height,
-            [_scene.Handle, AuxTextureOrFallback(_terrainAux), AuxTextureOrFallback(_materialCoverage)]);
+            [_scene.Handle, AuxTextureOrFallback(_terrainAux), AuxTextureOrFallback(_materialCoverage),
+             AuxTextureOrFallback(_fog)]);
         DrawEntities(postPass, upload.Entities.VertexCount);
         SDL.EndGPURenderPass(postPass);
         _displayTexture = _post.Handle;
@@ -150,7 +155,8 @@ public sealed unsafe partial class SdlGpuBackend
 
     /// <summary>
     /// SDL_GPU needs a texture in every sampler slot. Before the first aux upload there is none, so a 1x1 empty
-    /// texture stands in; the shaders ignore aux data then (UseTerrainAux = 0).
+    /// texture stands in; the shaders ignore aux data then (UseTerrainAux = 0), and fog without data
+    /// (PostFogEnabled = 0).
     /// </summary>
     private nint AuxTextureOrFallback(WorldDataTexture data) =>
         data.Texture.Handle != nint.Zero ? data.Texture.Handle : _emptyTexture;

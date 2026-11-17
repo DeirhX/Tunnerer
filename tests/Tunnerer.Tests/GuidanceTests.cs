@@ -1,3 +1,4 @@
+using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Types;
@@ -31,8 +32,8 @@ public class GuidanceTests
 
         s.Tank.Position = OutsideTheDoor(s);
         var next = tutorial.Update(s.World, s.Tank, 1f);
-        Assert.Equal("Dig for dirt", next!.Value.Title);
-        Assert.Contains("/ " + Tweaks.Machine.RelayDirtCost, next.Value.Progress);
+        Assert.Equal("Mine emberite", next!.Value.Title);
+        Assert.Contains("/ " + Tweaks.Ore.RelayCost, next.Value.Progress);
     }
 
     [Fact]
@@ -92,6 +93,49 @@ public class GuidanceTests
         s.World.PlantMachine(harvester, s.Base);
         events.Update(s.World, s.Tank, feed, 2f);
         Assert.Contains(feed.Active, n => n.Key == "harvester-planted");
+    }
+
+    [Fact]
+    public void Events_ReportWhatHarvestersBanked_NotWhatTheTankUnloaded_WhenAFrameRunsSeveralSteps()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        HarvesterHeatTests.SeedOre(s, depth: 6, length: 9);
+        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * -15));
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+        Advance(s, 12);
+        // The tank stands in the same coverage, unloading its hold through the network while the harvester works.
+        s.Tank.Position = s.RelayPos + new Offset(0, s.DirY * -8);
+        s.Tank.Hold.Ore = Tweaks.Ore.TankHold;
+        var feed = new NotificationFeed();
+        var events = new GameEventWatcher();
+        float now = 0f;
+        events.Update(s.World, s.Tank, feed, now);
+
+        const int stepsPerFrame = 4;
+        int harvested = 0, unloaded = 0;
+        Notification? report = null;
+        for (int frame = 0; frame < 400 && report == null; frame++)
+        {
+            for (int i = 0; i < stepsPerFrame; i++)
+            {
+                s.World.Advance(_ => default);
+                events.AfterStep(s.World, s.Tank);
+                foreach (var e in s.World.StepEvents)
+                {
+                    if (e.Kind == StepEventKind.OreHarvested) harvested += e.Count;
+                    if (e.Kind == StepEventKind.OreUnloaded) unloaded += e.Count;
+                }
+            }
+            now += stepsPerFrame / (float)Tweaks.Perf.TargetFps;
+            events.Update(s.World, s.Tank, feed, now);
+            report = feed.Active.FirstOrDefault(n => n.Key == "harvested");
+        }
+
+        Assert.NotNull(report);
+        Assert.True(harvested > 0 && unloaded > 0, $"both should have reached the store. harvested={harvested}, unloaded={unloaded}");
+        Assert.Equal($"Harvesters delivered +{harvested} ore", report.Title);
     }
 
     [Fact]

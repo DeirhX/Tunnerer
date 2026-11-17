@@ -3,6 +3,7 @@ namespace Tunnerer.Desktop.Rendering.Entities;
 using Tunnerer.Core;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 
 /// <summary>Projectiles: glowing shots with a trail.</summary>
@@ -19,7 +20,7 @@ public sealed class ProjectileQuads
         _projectileCount = world.Projectiles.CopyRenderStates(_projectiles);
     }
 
-    public void Emit(EntityQuads quads)
+    public void Emit(EntityQuads quads, VisionMap? vision)
     {
         float scale = quads.View.PixelScale;
         float alpha = quads.Alpha;
@@ -31,8 +32,14 @@ public sealed class ProjectileQuads
 
             // The snapshot is where the shot is after the latest step; it got there along its velocity.
             float back = 1f - alpha;
-            float px = (projectile.Position.X - projectile.Velocity.X * back) * scale - quads.View.CameraPixels.X;
-            float py = (projectile.Position.Y - projectile.Velocity.Y * back) * scale - quads.View.CameraPixels.Y;
+            float drawnX = projectile.Position.X - projectile.Velocity.X * back;
+            float drawnY = projectile.Position.Y - projectile.Velocity.Y * back;
+            // Sight is tested where the shot is drawn, not where the step left it: a fast shot that has just
+            // entered sight is still drawn a few cells back, and must not show in the fog there.
+            if (!Sight.Sees(vision, drawnX, drawnY))
+                continue;
+            float px = drawnX * scale - quads.View.CameraPixels.X;
+            float py = drawnY * scale - quads.View.CameraPixels.Y;
             if (quads.IsOffScreen(px, py, 6f * scale))
                 continue;
 

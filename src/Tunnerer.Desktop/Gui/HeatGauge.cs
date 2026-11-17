@@ -143,22 +143,4 @@ public sealed class HeatGauge(HudLayout layout)
         var pos = At(centerX, -24f);
         HudTheme.DrawTag(dl, pos, text, urgent && (int)(time * 4f) % 2 == 0 ? HudTheme.Danger : HudTheme.Warn, size);
     }
-
-    /// <summary>
-    /// Temperature bar under the readout, on the same scale as the orb: a blue frost zone left of the ambient
-    /// mark, green to amber up to the safe-maximum mark, and red beyond it.
-    /// </summary>
-    public void DrawBar(ImDrawListPtr dl, Tank player, float x, float y, float w, float barH, float time)
-    {
-        float heat = player.Heat;
-        float X(float t) => x + w * HeatScale.Fraction(t);
-        dl.AddRectFilled(At(x - 1f, y - 1f), At(x + w + 1f, y + barH + 1f), 0xC0000000u);
-        dl.AddRectFilled(At(X(Tweaks.Tank.HeatSafeMax), y), At(x + w, y + barH), 0x503040FFu); // danger zone
-        uint col = HeatScale.Color(heat);
-        if (player.IsAboveSafeHeat && (int)(time * 4f) % 2 == 0)
-            col = 0xFF8080FFu;
-        dl.AddRectFilled(At(x, y), At(X(heat), y + barH), col);
-        dl.AddLine(At(X(0f), y - 1f), At(X(0f), y + barH + 1f), 0x80FFFFFFu, S(1f));
-        dl.AddLine(At(X(Tweaks.Tank.HeatSafeMax), y - 2f), At(X(Tweaks.Tank.HeatSafeMax), y + barH + 2f), 0xFF4060FFu, S(1f));
-    }
 }

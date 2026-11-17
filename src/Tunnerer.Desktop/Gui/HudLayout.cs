@@ -33,8 +33,8 @@ public sealed class HudLayout
     public const float LeftW = BuildX, RightW = BuildPanelW;
 
     /// <summary>
-    /// The narrowest clear gap between the two parts, in UI units (not scaled with the art): room for the base upgrade
-    /// panel and its margins. Displays too narrow for it shrink the HUD.
+    /// The narrowest clear gap between the two parts, in UI units (not scaled with the art), so the tank in the middle
+    /// of the view and the ground around it stay clear. Displays too narrow for it shrink the HUD.
     /// </summary>
     public const float MinCenterGap = 404f;
 
@@ -132,9 +132,6 @@ public sealed class HudLayout
     public Vector2 At(float x, float y) =>
         Origin + new Vector2(x, y) * Scale + new Vector2(x >= BuildX ? RightShift : 0f, 0f);
     public Vector2 At(Vector2 p) => At(p.X, p.Y);
-
-    /// <summary>The open gap between the two parts this frame: screen x from the left part's end to the right part's start.</summary>
-    public (float MinX, float MaxX) Gap => (Origin.X + LeftW * Scale, At(BuildX, 0f).X);
 
     /// <summary>An art length in screen pixels.</summary>
     public float S(float v) => v * Scale;

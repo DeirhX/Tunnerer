@@ -127,15 +127,16 @@ public sealed class GameAudio : IDisposable
 
 
     /// <summary>Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events.</summary>
-    public void AfterStep(World world)
+    public void AfterStep(World world, int localSlot)
     {
         if (_mixer is null) return;
 
         _step++;
         var tanks = world.TankList.Tanks;
-        if (tanks.Count > 0)
-            _listener = tanks[0].Position;
-        int playerColor = tanks.Count > 0 ? tanks[0].Color : -1;
+        Tank? player = localSlot < tanks.Count ? tanks[localSlot] : null;
+        if (player != null)
+            _listener = player.Position;
+        int playerColor = player?.Color ?? -1;
 
         for (int i = 0; i < _tanks.Length; i++)
             _tanks[i].Moved = _tanks[i].Dug = _tanks[i].Torched = false;
@@ -202,8 +203,8 @@ public sealed class GameAudio : IDisposable
                 0.9f + 0.05f * (_step % 5));
         }
 
-        if (tanks.Count > 0)
-            ObserveWarnings(tanks[0]);
+        if (player != null)
+            ObserveWarnings(player);
 
         if (_capturePath is not null)
         {
@@ -218,7 +219,7 @@ public sealed class GameAudio : IDisposable
     /// <summary>Events about a tank itself (as opposed to a bullet, explosion or machine it was involved with).</summary>
     private static bool IsTankSound(StepEventKind kind) => kind is StepEventKind.TankHit or StepEventKind.TankDied
         or StepEventKind.TankRespawned or StepEventKind.MachineBuilt or StepEventKind.MachinePlanted
-        or StepEventKind.PlantRefused or StepEventKind.Docked;
+        or StepEventKind.PlantRefused or StepEventKind.BuildRefused or StepEventKind.OreUnloaded or StepEventKind.Docked;
 
     /// <summary>Index of the tank of <paramref name="color"/> among the tracked ones, or -1.</summary>
     private static int TankIndex(IReadOnlyList<Tank> tanks, int color)

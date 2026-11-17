@@ -1,6 +1,7 @@
 namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 
 /// <summary>Tanks: a hull (treads rolling with the distance driven) and a turret, in the team colour.</summary>
@@ -17,7 +18,7 @@ public static class TankQuads
     /// </summary>
     public static void Emit(
         EntityQuads quads, EntityInterpolator interpolator, ReadOnlySpan<PositionF> positions,
-        float turnSeconds, bool snapHeadings, bool protectedBlinkOn)
+        float turnSeconds, bool snapHeadings, bool protectedBlinkOn, VisionMap? vision)
     {
         ReadOnlySpan<TankRenderState> tanks = interpolator.Tanks;
         float scale = quads.View.PixelScale;
@@ -26,7 +27,7 @@ public static class TankQuads
             ref readonly TankRenderState tank = ref tanks[i];
             // Turn every hull, even a dead one's, so it faces the right way when it reappears.
             float heading = interpolator.UpdateHullHeading(i, tank.Direction, turnSeconds, snapHeadings);
-            if (tank.IsDead)
+            if (tank.IsDead || !Sight.Sees(vision, tank.Position))
                 continue;
 
             // The tank occupies whole cells; its position is the centre of its middle cell.

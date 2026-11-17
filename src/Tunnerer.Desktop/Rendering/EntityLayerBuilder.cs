@@ -3,6 +3,7 @@ namespace Tunnerer.Desktop.Rendering;
 using System.Runtime.InteropServices;
 using Tunnerer.Core;
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Rendering.Entities;
 
@@ -17,7 +18,7 @@ public struct EntityVertex
 }
 
 /// <summary>
-/// Turns simulation snapshots into the entity layer's quads: network coverage, links, the placement preview,
+/// Turns simulation snapshots into the entity layer's quads: radar blips, network coverage, links, the placement preview,
 /// machines, tanks and projectiles, in that order (later ones draw on top). <see cref="EntityInterpolator"/> places
 /// tanks and machines between the last two simulation steps; each family's emitter in <c>Rendering/Entities</c>
 /// writes its quads. It only reads render snapshots; nothing here feeds back into the simulation.
@@ -44,7 +45,7 @@ public sealed class EntityLayerBuilder
     public int VertexCount => _quads.VertexCount;
 
     /// <summary>Records the world after a simulation step; the previous record becomes the interpolation start.</summary>
-    public void CaptureStep(World world)
+    public void CaptureStep(World world, int localSlot)
     {
         if (_tankScratch.Length < world.TankList.Count)
             _tankScratch = new TankRenderState[world.TankList.Count];
@@ -56,8 +57,8 @@ public sealed class EntityLayerBuilder
         int machineCount = world.Machines.CopyRenderStates(_machineScratch);
         _interpolator.CaptureMachines(_machineScratch.AsSpan(0, machineCount));
 
-        _preview.Capture(world);
-        _coverage.Capture(world);
+        _preview.Capture(world, localSlot);
+        _coverage.Capture(world, localSlot);
         _links.Capture(world);
         _projectiles.Capture(world);
     }
@@ -73,25 +74,32 @@ public sealed class EntityLayerBuilder
     /// displayed frame, used to swing hulls round to a new heading (zero while paused, so they hold still);
     /// <paramref name="snapHeadings"/> puts them on the new heading at once (step-locked automated runs).
     /// <paramref name="visualSeconds"/> is the game's visual clock, which drives every animation (pulses, blinking).
+    /// With fog of war, <paramref name="vision"/> is the player's: tanks, machines, shots and links out of its sight
+    /// are left out, and <paramref name="radar"/>'s blips are drawn on the ground it cannot see.
     /// </summary>
-    public void Build(in RenderView view, float alpha, float turnSeconds, bool snapHeadings, float visualSeconds)
+    public void Build(
+        in RenderView view, float alpha, float turnSeconds, bool snapHeadings, float visualSeconds,
+        VisionMap? vision = null, Radar? radar = null)
     {
         _quads.Begin(view, visualSeconds % AnimationPhaseWrapSeconds, alpha);
         bool protectedBlinkOn = (long)(visualSeconds * 1000f) / ProtectedBlinkMilliseconds % 2 == 0;
         ReadOnlySpan<PositionF> tankPositions = _interpolator.InterpolateTankPositions(alpha);
+
+        if (radar != null && vision != null)
+            RadarQuads.Emit(_quads, radar, vision);
 
         // Beams (links, charge, the tether) under machines, machines under tanks (a tank carrying one draws on top).
         _coverage.Emit(_quads);
         _beams.Begin(visualSeconds);
         if (tankPositions.Length > 0)
             _coverage.SubmitTether(_beams, tankPositions[0]);
-        _links.Submit(_beams);
-        MachineQuads.SubmitChargeBeams(_beams, _interpolator, alpha);
+        _links.Submit(_beams, vision);
+        MachineQuads.SubmitChargeBeams(_beams, _interpolator, alpha, vision);
         _beams.Emit(_quads);
         if (tankPositions.Length > 0)
             _preview.Emit(_quads, tankPositions[0]);
-        MachineQuads.Emit(_quads, _interpolator, turnSeconds, snapHeadings);
-        TankQuads.Emit(_quads, _interpolator, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn);
-        _projectiles.Emit(_quads);
+        MachineQuads.Emit(_quads, _interpolator, turnSeconds, snapHeadings, vision);
+        TankQuads.Emit(_quads, _interpolator, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn, vision);
+        _projectiles.Emit(_quads, vision);
     }
 }

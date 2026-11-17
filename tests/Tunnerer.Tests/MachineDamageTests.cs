@@ -145,7 +145,7 @@ public class MachineDamageTests
                 s.World.Advance(_ => default);
             }
             Assert.Empty(s.World.Machines.Machines);
-            return TestSimulation.ComputeWorldStateHash(s.World);
+            return WorldStateHash.Compute(s.World);
         }
 
         Assert.Equal(Run(), Run());

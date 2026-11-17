@@ -61,6 +61,24 @@ public class Machine
     /// <summary>True while a low harvester is heading back to a pylon to recharge.</summary>
     public bool IsReturning { get; set; }
 
+    /// <summary>A harvester: out of its base's network coverage at its last action, so it held its ore work.</summary>
+    public bool IsOffNetwork { get; set; }
+
+    /// <summary>A harvester: no ore left in its work area at its last action.</summary>
+    public bool HasNoOre { get; set; }
+
+    /// <summary>
+    /// A harvester: at its last action the only ore left in its work area was lump core, which only the tank's torch
+    /// takes. Implies <see cref="HasNoOre"/>.
+    /// </summary>
+    public bool HasOnlyCoreOre { get; set; }
+
+    /// <summary>A harvester: actions of work done on <see cref="OreWorkCell"/> (a cell takes a few).</summary>
+    public int OreWork { get; set; }
+
+    /// <summary>A harvester: the ore cell its <see cref="OreWork"/> belongs to. Work never carries to another cell.</summary>
+    public Position? OreWorkCell { get; set; }
+
     /// <summary>The pylon that charged this battery at its last action, or null; drawn as a charge beam.</summary>
     public Machine? ChargingFrom { get; set; }
 

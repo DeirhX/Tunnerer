@@ -8,7 +8,7 @@ Read this before changing code. `DESIGN.md` says where the game is going; `ARCHI
 Run from the repository root.
 
 - Build: `dotnet build Tunnerer.slnx`
-- Test: `dotnet test Tunnerer.slnx` (about 20 seconds; run it before every commit)
+- Test: `dotnet test Tunnerer.slnx` (about 40 seconds; run it before every commit)
 - Fast tests: `dotnet test Tunnerer.slnx --filter "Category!=Slow"` skips tests marked
   `[Trait("Category", "Slow")]` (over ~5 s each). Use it while iterating; mark new tests over ~5 s `Slow`.
 - Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)
@@ -18,6 +18,11 @@ Run from the repository root.
 - `src/Tunnerer.Core`: the simulation. No window, graphics or input-device dependencies; `ArchitectureGuardTests`
   enforces this.
 - `src/Tunnerer.Desktop`: SDL3 window and input, renderer, HUD. It should read Core state and not own game rules.
+  - `Net`: a client's part in a network match (`docs/multiplayer-design.md`).
+- `src/Tunnerer.Protocol`: what the game client and the relay server share. It references no other project;
+  `ArchitectureGuardTests` enforces this.
+- `src/Tunnerer.Relay`: the relay server for network matches. It references only the protocol, never Core, so a
+  gameplay change needs no new relay. Run: `dotnet run --project src/Tunnerer.Relay`.
   - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
   - `Rendering/Shaders`: the HLSL it draws.
 - `tools/Tunnerer.ShaderCompiler`: build step that compiles the HLSL for SDL_GPU (DXIL, SPIR-V, MSL) on every OS.
@@ -95,4 +100,7 @@ that tests can inject their own values.
     flags in `EntityShape` match `Shaders/Entity/Layout.hlsli` and the dispatch in `EntityPs.hlsl`.
   - `SimulationTableGuardTests`, `MachineBehaviorTableTests`, `MachinePresentationTests`: every enum value has its
     table entries.
+- **Vision is output only, and its cost follows what is seen.** `VisionMap` (fog of war) is read by Desktop and by
+  nothing in the simulation. Its passes walk lists of cells in sight; do not add one that sweeps the whole grid,
+  because maps are meant to grow.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.

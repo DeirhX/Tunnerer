@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Config;
 
+using System.Collections.Immutable;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
@@ -24,8 +25,9 @@ public static class Tweaks
     {
         public static readonly TimeSpan AdvanceStep = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / Perf.TargetFps);
         public const int MaxPlayers = 8;
-        public static readonly TimeSpan DirtRecoverInterval = TimeSpan.FromMilliseconds(250);
+        public static readonly TimeSpan DirtRecoverInterval = TimeSpan.FromMilliseconds(750);
         public const int DirtRecoverSpeed = 10;
+        // Per-mille chance per regrowth check, per dirt neighbour (times the modifiers below).
         public const int DirtRegrowSpeed = 4;
         public const int DirtRegrowBlankModifier = 4;
         public const int DirtRegrowScorchedModifier = 1;
@@ -59,6 +61,9 @@ public static class Tweaks
             // Frost rock conducts like stone and is pinned far below ambient: a permanent cold source (see the frost
             // pocket constants below).
             (ThermalMaterial.FrostRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: -60f)),
+            // The core of an emberite lump conducts like stone and is pinned warm (Ore.CoreTemperature): enough ore
+            // together heats itself. Plain ore is stone.
+            (ThermalMaterial.EmberiteCore, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: Ore.CoreTemperature)),
         ],
         // Tuned values the series rule cannot produce (it would give dirt-stone 0.0783 and dirt against a sink
         // 0.0857): dirt stays a poor conductor against rock and a slightly better one against bases and gold.
@@ -66,6 +71,7 @@ public static class Tweaks
             new(ThermalMaterial.Dirt, ThermalMaterial.Stone, 0.07f),
             new(ThermalMaterial.Dirt, ThermalMaterial.HotRock, 0.07f),
             new(ThermalMaterial.Dirt, ThermalMaterial.FrostRock, 0.07f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.EmberiteCore, 0.07f),
             new(ThermalMaterial.Dirt, ThermalMaterial.Base, 0.09f),
             new(ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy, 0.1f),
             // Between two pinned sinks: cell temperatures never depend on these, but the ledger's rounding does when
@@ -113,6 +119,84 @@ public static class Tweaks
         public const int ThermalSaturationStepIntervalFrames = 4;
     }
 
+    /// <summary>
+    /// Emberite ore (DESIGN.md §6.3): deposits seeded at generation (LevelGen.OreDeposits) and mined by the tank.
+    /// Deposit counts scale with map area (one per <c>*EveryCells</c> cells), so the 1500x750 map gets about 2,500
+    /// units: about 15% in specks, 35% in pockets and 50% in lumps. Starting values; tune in play.
+    /// </summary>
+    public static class Ore
+    {
+        public const int PlainCellUnits = 1;
+        public const int CoreCellUnits = 3;
+        public const float CoreTemperature = 90f;
+
+        // Mining (TankDigger). The tank's dig clears a plain ore cell with this per-mille chance per dig (dirt always
+        // clears), so ore is slower than dirt; a core cell needs the torch and its own chance (rock is
+        // World.DigThroughRockChance). The hold is small: a full one leaves ore in the ground.
+        public const int DigOreChance = 300;
+        public const int TorchCoreChance = 150;
+        public const int TankHold = 40;
+
+        // The economy (DESIGN.md §6.4): ore is the only currency. A base starts with BaseStartingStore and holds up to
+        // BaseStoreCapacity. Docked, the hold empties into the store at Base.HomeAbsorbOre a tick; inside the coverage
+        // of its own linked network (Coverage) it unloads at NetworkUnloadPerSecond, slower, so relays and pylons are
+        // also drop-off points.
+        public const int BaseStartingStore = 30;
+        public const int BaseStoreCapacity = 20000;
+        public const int NetworkUnloadPerSecond = 4;
+        // How long a link shows ore passing (Link.OreFlowTicks): a little over the gap between two units.
+        public const int LinkFlowShowTicks = Perf.TargetFps / NetworkUnloadPerSecond + 6;
+
+        // Build costs, paid in ore (Entities/Tanks/TankBuildController: the base store inside the own network, else
+        // the hold).
+        public const int RelayCost = 4;
+        public const int PylonCost = 10;
+        public const int HarvesterCost = 30;
+
+        // Harvesters (MachineBehaviors.Harvester) work plain ore within HarvesterReach of their centre (their
+        // footprint is 5x5, so ore beside it is 3 cells off): a cell takes HarvesterPlainWork actions. At one action
+        // per Machine.HarvesterIntervalMs that is about 1.1 units/s, so a harvester repays its cost in under a minute.
+        // They leave a lump's core to the tank's torch.
+        public const int HarvesterReach = 4;
+        public const int HarvesterPlainWork = 3;
+
+        // The bot does not prospect: a base whose side is played by the computer gets this much ore a second instead
+        // (World.SetBotControlled). A stand-in until the bot mines.
+        public const double BotOrePerSecond = 0.5;
+        // A dead tank's hold goes back into the ground as plain ore within this many cells (OreDrop).
+        public const int DeathDropRadius = 6;
+
+        // Specks: 1-3 cells of ore in dirt, anywhere but right beside a base.
+        public const int SpeckEveryCells = 6000;
+        public const int SpeckMinCells = 1;
+        public const int SpeckMaxCells = 3;
+        public const int SpeckMinDistanceFromBase = 30;
+
+        // Pockets: irregular blobs at some distance from the bases.
+        public const int PocketEveryCells = 27500;
+        public const int PocketMinCells = 12;
+        public const int PocketMaxCells = 30;
+        public const int PocketMinDistanceFromBase = 60;
+
+        // Lumps: large blobs with a warm core, far from the bases and biased toward the map centre
+        // (uniform sample ^ bias, as for hot rock).
+        public const int LumpEveryCells = 125000;
+        public const int LumpMinCells = 80;
+        public const int LumpMaxCells = 150;
+        public const int LumpCoreCells = 12;
+        public const int LumpMinDistanceFromBase = 130;
+        public const int LumpMinDistanceBetween = 90;
+        public const double LumpCentreBias = 1.3;
+
+        // Small maps: the minimum distances above shrink with the map, by the square root of its area against
+        // DistanceReferenceArea, but never below MinDistanceScale of them, and every map gets at least MinPockets
+        // pockets and MinLumps lumps when they fit. The reference map (1500x750) is unchanged.
+        public const int DistanceReferenceArea = 1500 * 750;
+        public const double MinDistanceScale = 0.4;
+        public const int MinPockets = 3;
+        public const int MinLumps = 1;
+    }
+
     public static class Base
     {
         public const int MinDistance = 150;
@@ -122,8 +206,6 @@ public static class Tweaks
         public const int InitialHealth = 2000;
         public const int HeatCapacity = 100;
         public const int HealthCapacity = 2000;
-        public const int MaterialDirtCapacity = 2000;
-        public const int MaterialMineralsCapacity = 20000;
         // Radiator. At 1 unit per tick (500 energy/tick), two relays (300 each) out-pump it, so the reservoir fills
         // and pumping stops: the shared exit is the real bottleneck. Starting value for the first-prototype spike.
         public const int HeatCooldown = 1;
@@ -144,8 +226,8 @@ public static class Tweaks
         public const int HomeRechargeHealth = 3;
         public const int ForeignCooldownHeat = 2;
         public const int ForeignRechargeHealth = 1;
-        public const int HomeAbsorbDirt = 15;
-        public const int HomeAbsorbMinerals = 15;
+        // Ore banked per tick while docked: a full hold empties in a few ticks.
+        public const int HomeAbsorbOre = 10;
 
         // Power (DESIGN.md §4.5). Heat relays deliver passes through the base engine on its way to the dimensional-link
         // cold sink; a fraction becomes charge: eta = clamp(dT / (dT + EngineTemperatureScale), 0, EngineMaxEfficiency),
@@ -164,18 +246,26 @@ public static class Tweaks
         public const float RadiatorWarnLoad = 0.8f;         // Warn from here; Bad past 1, when the store fills
     }
 
-    /// <summary>Base upgrades bought with the dirt store (DESIGN.md §4.8). Starting values; tune in play.</summary>
+    /// <summary>
+    /// Upgrades bought with the base's ore store while docked (DESIGN.md §4.8): a base track and a tank track, each
+    /// upgrade with MaxLevel levels. Starting values; tune in play.
+    /// </summary>
     public static class Upgrades
     {
         public const int MaxLevel = 3;
-        // Level n costs CostPerLevel * n dirt from the base store.
-        public const int CostPerLevel = 600;
+        // What level 1, 2 and 3 of any upgrade cost, in ore from the base store.
+        public static readonly ImmutableArray<int> LevelCosts = [25, 60, 140];
         public const int RadiatorUnitsPerLevel = 1;
         public const int ReachCellsPerLevel = 6;
         public const double EngineEfficiencyPerLevel = 0.1;
         // Each engine level multiplies the temperature scale by this, so warm sources convert better too.
         public const double EngineScalePerLevel = 0.8;
         public const float InsulationPerLevel = 0.25f;
+        // Tank track. The cargo hold takes this much more ore per level (Ore.TankHold 40, then 70, 100, 130).
+        public const int CargoHoldPerLevel = 30;
+        // Each radar level adds this share of every radar range, and this share of the heat budget of its rays.
+        public const float RadarRangePerLevel = 0.2f;
+        public const float RadarHeatBudgetPerLevel = 0.25f;
     }
 
     /// <summary>
@@ -202,8 +292,6 @@ public static class Tweaks
         public const int InitialHealth = 1000;
         public const int HeatCapacity = 100;
         public const int HealthCapacity = 1000;
-        public const int ResourceDirtCapacity = 10000;
-        public const int ResourceMineralsCapacity = 10000;
         public const int IdleHeatGain = 0;
         public const int MoveHeatGain = 0;
         public const int CoolingPickupGold = 14;
@@ -265,6 +353,84 @@ public static class Tweaks
         public const float HopFalloff = 0.85f;
     }
 
+    /// <summary>
+    /// Fog of war: what a side sees (<c>Sensing/VisionMap</c>). Presentation only; the simulation never reads vision.
+    /// </summary>
+    public static class Vision
+    {
+        // A tank sees this far along open tunnel...
+        public const int TankRadius = 45;
+        // ...and everything this close, through solid ground too, so digging is not blind.
+        public const int TankNearRadius = 7;
+        // A machine sees this close around itself. A link node (relay, pylon) sees its whole coverage circle
+        // (Coverage), through solid ground too.
+        public const int MachineNearRadius = 6;
+        // The walls around open ground in sight are seen this many cells deep, fading with depth.
+        public const int WallSkin = 5;
+        // The level falls from full to nothing over the last cells of a source's reach (a short reach: its outer
+        // half), so sight has no hard edge.
+        public const int EdgeFade = 12;
+        // Bases and machines stay put: their vision is recast every this many ticks, the tank's every tick.
+        public const int FixedSourceRefreshTicks = 6;
+    }
+
+    /// <summary>
+    /// The tank's radar (<c>Sensing/Radar</c>): pulses that run outward from the tank and leave blips where they
+    /// reflect, well beyond sight. Presentation only, like vision.
+    /// </summary>
+    public static class Radar
+    {
+        // How far a pulse reaches, in cells. Only a large rock formation returns from that far; everything else
+        // returns from nearer (below) and beyond its range blocks the ray without a blip.
+        public const int Range = 150;
+        // Rock, concrete and other sides' base walls: a thin shell returns from SolidRangeMin, growing to Range for
+        // a formation FormationDepth cells deep along the ray.
+        public const int SolidRangeMin = 60;
+        public const int FormationDepth = 10;
+        public const int GoldRange = 90;
+        public const int MachineRange = 75;
+        public const int LifeRange = 60;
+        // The weak return of a tunnel or cave behind dirt.
+        public const int CavityRange = 50;
+        // Emberite ore: a speck returns only from OreRangeMin, growing to OreRangeMax for a deposit FormationDepth
+        // cells deep along the ray. Only cool plain ore counts toward the depth, so a lump's warm heart adds nothing:
+        // a lump shows as heat (below) and what it holds is learned by going there.
+        public const int OreRangeMin = 40;
+        public const int OreRangeMax = 110;
+        // Hot ground: barely warm from HeatRangeMin, at HeatFullTemperature and above from HeatRangeMax.
+        public const int HeatRangeMin = 50;
+        public const int HeatRangeMax = 120;
+        // The tank sends a pulse every PulsePeriodTicks (4 s). Its front runs FrontCellsPerTick outward a tick, so
+        // it reaches Range in 75 ticks (3.1 s) and the radar is quiet for the rest of the period. The period must
+        // outlast the trip: one pulse is in flight at a time. The radar upgrade speeds the front up with the range
+        // (RadarReach), so the trip always takes 75 ticks.
+        public const int PulsePeriodTicks = 4 * Perf.TargetFps;
+        public const int FrontCellsPerTick = 2;
+        // A pulse is a fan of this many rays, turned a fraction of a ray spacing each pulse so pulses fill each
+        // other's gaps. While a pulse travels each ray walks the cells the front crossed: about
+        // RaysPerPulse * FrontCellsPerTick * 1.27 = 285 cells a tick (1.27 is the mean cells per cell of distance of
+        // a walk that never cuts a corner), against 600 for the beam this replaced.
+        public const int RaysPerPulse = 112;
+        // A blip fades out over this many ticks (10 s): two and a half pulses, so the next pulse checks it first.
+        public const int ContactLifetimeTicks = 10 * Perf.TargetFps;
+        // Open ground behind dirt (a tunnel, a cave) gives a weak return and lets the ray on, this many times a ray.
+        public const int WeakReturnsPerRay = 3;
+        // A tank reflects as a square this many cells either side of its centre.
+        public const int TankHalfSize = 3;
+        // Heat uses the pulse up. A ray can cross HeatBudgetDegreeCells in all: every cell hotter than HeatThreshold
+        // takes its degrees above the threshold, per cell of path, and the ray stops when the budget is gone. That
+        // is about 3 cells of hot rock at 100, 6 cells of ground at 50, 25 cells at 20: the hotter the surroundings,
+        // the shorter the radar reaches.
+        public const float HeatThreshold = 10f;
+        public const float HeatBudgetDegreeCells = 250f;
+        // Each hot cell a ray goes through is marked with how hot it is, at most this many a ray. The mark is at
+        // full intensity at HeatFullTemperature (hot rock) and above.
+        public const int HeatReturnsPerRay = 16;
+        public const float HeatFullTemperature = 100f;
+        // A reflector this hot returns only its heat: the blip says "heat", not what the thing is.
+        public const float HeatScrambleTemperature = 40f;
+    }
+
     public static class Weapon
     {
         public const int CannonBulletSpeed = 3;
@@ -279,11 +445,11 @@ public static class Tweaks
         public const int HarvesterIntervalMs = 300;
         // A harvester roams and mines within this distance of where it was planted.
         public const int HarvestRange = 20;
-        // It eats settled dirt within this radius of itself into the owner base's store. Crawling through solid dirt
-        // that is about 5 new cells per step, roughly 16 dirt/s, so it repays HarvesterDirtCost in about a minute.
+        // It clears the dirt (worth nothing) within this radius as it crawls, so its tunnel stays open; what it mines
+        // is ore (Ore.HarvesterReach).
         public const int HarvesterMineRadius = 2;
         // Work runs on charge, and spent charge ends up as heat in the ground around the harvester: each action that
-        // mines dirt spends this much, a crawl step that mines nothing spends HarvesterCrawlCharge.
+        // works ore spends this much, a crawl step spends HarvesterCrawlCharge.
         // Starting guesses for the first-prototype spike; tune in play.
         public const float HarvesterHeatPerHarvest = 1000f;
         public const float HarvesterCrawlCharge = 200f;
@@ -298,11 +464,9 @@ public static class Tweaks
         // lets it work at full speed. Starting guess for the spike; tune in play.
         public const float HarvesterStallTemperature = 30f;
         public const int HarvesterHeatSenseRadius = 4;
-        public const int HarvesterDirtCost = 1000;
 
         // Pylon: a link node that hands base charge to batteries in direct line of sight within PylonRange, drawing
         // it from its base over the link network.
-        public const int PylonDirtCost = 300;
         public const int PylonIntervalMs = 200;
         public const int PylonRange = 12;
         public const float PylonChargePerAction = 6000f;
@@ -312,7 +476,6 @@ public static class Tweaks
 
         // Relay: a heat pipe. Planted within line of sight of a powered link network it pulls heat out of the
         // surrounding square (half-width RelayCoolingRadius) and pumps it into its owner's base reactor.
-        public const int RelayDirtCost = 150;
         public const int RelayCoolingRadius = 12;
         public const float RelayHeatPumpPerTick = 300f;
     }
@@ -357,7 +520,8 @@ public static class Tweaks
         public const int DirtSpawnProgression = 70;
         public const int DirtTargetPercent = 65;
         public const int TreeSize = 150;
-        public const int MaxPlayers = 2;
+        // Bases on a map unless a match asks for another number (up to World.MaxPlayers).
+        public const int DefaultPlayers = 2;
         public const int MinSpawnDistanceSq = 150 * 150;
         public const int SmoothingSteps = -1; // -1 = smooth until convergence (matches C++)
         public static int TargetDirtAmount(Size size) => size.X * size.Y * DirtTargetPercent / 100;

@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Tunnerer.Core\Tunnerer.Core.csproj" />
+    <ProjectReference Include="..\Tunnerer.Protocol\Tunnerer.Protocol.csproj" />
     <!-- Built first so CompileSdlGpuShaders can run it; nothing from it is referenced or copied. -->
     <ProjectReference Include="..\..\tools\Tunnerer.ShaderCompiler\Tunnerer.ShaderCompiler.csproj"
                       ReferenceOutputAssembly="false" Private="false" />

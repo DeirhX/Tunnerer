@@ -15,6 +15,9 @@ src/
     ARCHITECTURE.md        Detailed design
   Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
+  Tunnerer.Protocol/       What a network match's clients and relay share: tick bundles and the relay's tick rule.
+                           References nothing (enforced by ArchitectureGuardTests). See docs/multiplayer-design.md.
+  Tunnerer.Relay/          The relay server (ASP.NET Core, one WebSocket endpoint). References only the protocol.
 tests/
   Tunnerer.Tests/          xUnit tests for Core and Desktop logic, plus guard tests for both
 tools/
@@ -50,16 +53,20 @@ while running:
   5. for each due step (at most 4 to catch up):
        match:
          GameSimulationStepper.AdvanceOneStep
-           scripted commands -> keyboard / scripted input for player 1, BotTankAI for player 2 -> World.Advance
+           scripted commands -> keyboard / scripted input for the local slot, a BotTankAI per other slot -> World.Advance
          EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
          GameAudio.AfterStep               (plays the step's World.StepEvents, sets the loops)
+         GameHud.AfterStep                 (GameEventWatcher counts the ore harvesters banked this step)
          TerrainAuxUploader.ObserveTerrainChanges (changed cells, to repack on the next frame)
-         TerrainGrid.DrawChangesToSurface  (incremental update of the world pixel buffer)
+         Game.DrawTerrainChangesToSurface  (incremental update of the world pixel buffer)
+           with fog of war both follow the cells the player's VisionMap says changed in the terrain
+           the player knows, not the terrain's own change list
        terrain test, or paused in an automated run:
          scripted commands and screenshots only; the world does not step
   6. if a step was due: WorldCompositeRenderer.Compose   marker sprites over a copy of the terrain
   7. Game.RenderImGuiFrame
-       EntityLayerBuilder.Build          (entity quads at the frame's step progress)
+       EntityLayerBuilder.Build          (entity quads at the frame's step progress; with fog only those in sight)
+       FogLayer.Prepare                  (repack the fog texture where the player's vision changed)
        TerrainAuxUploader.Prepare        (repack changed, revealed and heated terrain; dirty rects to upload)
        TerrainAuxBuilder.BuildGpuTankHeatGlowData
        IGameRenderBackend.UploadGamePixels, then TerrainAuxUploader.Commit
@@ -82,6 +89,12 @@ when it has to, and the bottom HUD is split into the two bottom corners so the m
 Automated runs are step-locked instead: one frame per step, showing exactly that step, so screenshots and timings
 are reproducible. `TUNNERER_INTERPOLATE=1` turns the in-between frames on for them.
 
+A network match (`--net`, `Game.Net.cs`) is deterministic lockstep: every client runs the whole simulation and
+only inputs travel. `Net/NetSession` sends the local player's input to the relay (`Tunnerer.Relay`), steps the world
+only from the tick bundles the relay sends back, never from the local clock, and reports a world hash once a second
+so a client that drifts apart is caught. Bots drive the slots nobody took, seeded the same on every client. The
+pause menu opens over a running game. `docs/multiplayer-design.md` has the protocol and the relay.
+
 Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
 A run counts as *automated* when it is scripted, hidden or a perf capture. Automated runs and the terrain test are
 not *interactive* (`Game.IsInteractiveSession`): they keep a fixed seed, make no sound, never pause on their own,
@@ -98,6 +111,9 @@ and Escape quits at once.
 7. **Sprites** - lifetime
 8. **Bases** - reactor heat sink and radiator
 9. **LinkMap** - which machines are connected to a powered base (line of sight, range); rebuilt every 200 ms
+10. **Vision** - fog of war for each side someone asked to track (`World.TrackVision`): what its tank, base and
+    machines see, and the terrain as it last saw it; and the tank's radar (`World.TrackRadar`), whose turning beam
+    leaves fading contacts where it reflects beyond sight. Output only; the steps above never read them
 
 Detail, and recipes for adding machines, projectiles, materials and collidable entities, are in
 `src/Tunnerer.Core/ARCHITECTURE.md`.
@@ -109,16 +125,23 @@ TerrainGrid
    | DrawChangesToSurface (change list)
 worldPixels[w*h]
    | copy + draw marker sprites (WorldCompositeRenderer)
-compositePixels[w*h]                  terrain aux data (heat, solid field, material, scorch), material coverage
+compositePixels[w*h]                  terrain aux data (heat, solid field, material, scorch), material coverage,
+   |                                  fog of war (how well each cell is seen, explored)
    |                                     |
    +------------- IGameRenderBackend.UploadGamePixels -------------+
                          |
               terrain + post-process shaders (SDL_GPU)  ->  game texture
+              (the post pass ends with the fog: remembered ground drained and dimmed, unknown ground black)
                          |
               entity layer: link, machine, placement preview, tank and projectile quads (EntityLayerBuilder -> EntityPs)
                          |
               ImGui: viewport image, HUD, overlays  ->  window
 ```
+
+With fog of war (on in a match unless `--no-fog`) the terrain drawn is the terrain the player last saw: the world
+pixels, aux and coverage data are built from `VisionMap.Known` through a `TerrainView`, and heat is only repacked
+for cells in sight. The fog pass then only tones the frame, and the entity layer leaves out what is out of sight
+and draws the radar's blips on the ground the player cannot see.
 
 The composite buffer keeps entity drawing from corrupting the terrain surface. It holds only the cell-resolution
 entities; links, relays, pylons, harvesters, tanks and projectiles are drawn procedurally at screen resolution by the entity layer. Shader passes and backend detail are
@@ -129,21 +152,26 @@ in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 `Tunnerer.Desktop/Gui/Guidance` tells the player what to do next without touching the simulation. It only reads Core
 state once per displayed frame.
 
-- `TutorialDirector` is an ordered list of next logical steps (leave the base, dig, unload, build and link a relay,
+- `TutorialDirector` is an ordered list of next logical steps (leave the base, mine ore, unload, build and link a relay,
   stay on the network, power from hot rock, harvester, relay beside it, pylon, frost). Each step knows from the world
   when it is done, so a player who acts early skips ahead; explainer steps also finish after a few seconds on screen.
   A step can name a world cell to point at.
 - `GameEventWatcher` compares the player's side of the world with the previous frame and posts toasts to a
-  `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, stores
-  full, charge low, off network, engine running, harvester deliveries). The feed de-duplicates by key with a cooldown.
+  `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, ore
+  store full, charge low, off network, radar scattered by heat, engine running, harvester ore deliveries). The
+  deliveries are counted from `StepEventKind.OreHarvested` after every step (`AfterStep`), not from the store, so a
+  tank unloading in the same frame is not mistaken for them. The feed de-duplicates by key with a cooldown.
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
-  docked (at the bottom of the screen, between the two parts of the bottom HUD) and the sector-complete banner.
+  docked (base track on keys 1-4, tank track on 5-6) and the sector-complete banner. The build panel asks
+  `Tank.QuoteBuild` for each machine's ore cost and payer; the MATERIALS plate shows the ore hold and, above it, the
+  base store or UNLOADING (`Tank.IsUnloadingOre`).
 
 Every overlay (tutorial card, toasts, status and upgrade panels, warning banners, pause and controls menus, tags) is
 drawn with `HudTheme`, which follows the bottom HUD art: chamfered gunmetal plates, a bronze frame with an amber inner
 line, amber corner brackets, amber titles, segmented bars and key caps. `HudTheme.BeginWindow` turns an ImGui window
-into such a plate, so new panels match by default.
+into such a plate, so new panels match by default. While docked, toasts stop above the upgrade panel rather than
+cover it.
 
 ## Sound
 
@@ -161,12 +189,17 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 - **Core**: terrain and pixels, collision, level generation, tank movement, heat and the temperature band, relays,
   the power loop, network coverage, hot and frost rock, the sector goal and base upgrades, the thermal ledger and whole-world thermal behaviour, determinism, replays and
-  recorded fingerprints, match outcome, network status, placement preview and the bot.
+  recorded fingerprints, match outcome, network status, placement preview, fog of war and radar (`VisionMapTests`, `RadarTests`), emberite ore (deposits, mining,
+  the economy, the radar's echo) and the bot.
 - **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, the HUD's scale,
-  gap and covered area), the tutorial and event notifications (`GuidanceTests`), entity
+  gap and covered area), the tutorial and
+  event notifications (`GuidanceTests`), entity
   interpolation (`EntityInterpolatorTests`), beam fading (`BeamFaderTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
-  planning (`TerrainAuxUploaderTests`), world construction (`WorldFactoryTests`), and the solid field and material
+  planning (`TerrainAuxUploaderTests`), fog rendering (`FogRenderingTests`), world construction (`WorldFactoryTests`), and the solid field and material
   coverage the terrain shader samples.
+- **Network matches**: the input codec and messages (`MessageCodecTests`), the relay's rooms and tick rule
+  (`MatchRoomTests`, `LockstepRoomTests`), client sessions (`NetSessionTests`), recordings, and a relay over real
+  sockets (`RelayOverSocketsTests`, which never run in parallel with the rest).
 - **Guard tests** keep the structure in place; `AGENTS.md` lists them.
 
 The window, GPU backend and sound device have no unit tests. They are checked with scripted hidden runs that save

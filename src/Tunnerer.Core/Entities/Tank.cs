@@ -5,6 +5,7 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Entities.Projectiles;
+using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Tanks;
@@ -25,14 +26,16 @@ public class Tank
     public int Color { get; }
     public int Direction { get; set; }
     public Reactor Reactor { get; }
-    public MaterialContainer Resources { get; }
+
+    /// <summary>The tank's ore hold (DESIGN.md §6.3): what it mines, carries home and may build with.</summary>
+    public OreStore Hold { get; }
     public int LivesLeft { get; set; }
     public bool IsDead => Reactor.Health <= 0;
     public TankBase? Base { get; }
 
     /// <summary>
     /// True while the tank is alive and inside its own base: it builds from the base store, is cooled and
-    /// unloads its dirt there. Bases never overlap, so this is the same as asking which base the tank is in.
+    /// unloads its ore there. Bases never overlap, so this is the same as asking which base the tank is in.
     /// </summary>
     public bool IsDockedAtOwnBase => !IsDead && Base != null && Base.IsInside(Position);
     public TankTurret Turret { get; }
@@ -135,8 +138,26 @@ public class Tank
         }
     }
 
-    /// <summary>How full the tank's dirt hold is, 0 to 1.</summary>
-    public float HoldFill => Math.Clamp(Resources.Dirt / (float)Math.Max(1, Resources.DirtCapacity), 0f, 1f);
+    /// <summary>How full the tank's ore hold is, 0 to 1.</summary>
+    public float HoldFill => Math.Clamp(Hold.Ore / (float)Math.Max(1, Hold.Capacity), 0f, 1f);
+
+    /// <summary>Emberite in the tank's hold, in units (DESIGN.md §6.3).</summary>
+    public int OreHeld => Hold.Ore;
+
+    /// <summary>How much emberite the hold takes (<see cref="Tweaks.Ore.TankHold"/> plus the base's cargo hold upgrades).</summary>
+    public int OreHoldCapacity => Hold.Capacity;
+
+    /// <summary>True when the hold has no room for another unit: the tank's dig leaves ore in the ground.</summary>
+    public bool IsOreHoldFull => Hold.IsFull;
+
+    /// <summary>
+    /// True while the live tank is docked at its own base or inside the coverage of its own linked network (as of its
+    /// last tick): there the base store pays for what it builds, and its hold unloads (DESIGN.md §6.4).
+    /// </summary>
+    public bool IsInOwnNetwork => IsDockedAtOwnBase || (!IsDead && Coverage.Covered);
+
+    /// <summary>True on ticks the hold is emptying into the base store: docked, or through the network.</summary>
+    public bool IsUnloadingOre { get; private set; }
 
     /// <summary>
     /// True once the live tank has been outside every base at the end of a tick: the player has driven out of the
@@ -171,8 +192,14 @@ public class Tank
     /// <summary>Counts down after a respawn; while positive, enemy fire does no damage.</summary>
     public int SpawnProtectionTicks => _lifecycle.SpawnProtectionTicks;
 
+    /// <summary>Counts down after a build key press was refused; <see cref="LastBuildRefusal"/> says why.</summary>
+    public int BuildRefusedTicks => _build.RefusedTicks;
+
+    /// <summary>Why the last refused build key press did nothing (valid while <see cref="BuildRefusedTicks"/> runs).</summary>
+    public BuildRefusal LastBuildRefusal => _build.LastRefusal;
+
     /// <summary>Counts down after the tank refused to plant a relay that would not link.</summary>
-    public int PlantRefusedTicks => _build.PlantRefusedTicks;
+    public int PlantRefusedTicks => LastBuildRefusal == BuildRefusal.WillNotLink ? BuildRefusedTicks : 0;
 
     /// <summary>True while the tank carries a machine (a relay) it has built but not planted yet.</summary>
     public bool IsCarryingMachine => _build.IsCarrying;
@@ -188,9 +215,7 @@ public class Tank
         Reactor = new Reactor(
             initial: new ReactorState(Tweaks.Tank.InitialHeat, Tweaks.Tank.InitialHealth),
             capacity: new ReactorState(Tweaks.Tank.HeatCapacity, Tweaks.Tank.HealthCapacity));
-        Resources = new MaterialContainer(
-            initial: new MaterialAmount(0, 0),
-            capacity: new MaterialAmount(Tweaks.Tank.ResourceDirtCapacity, Tweaks.Tank.ResourceMineralsCapacity));
+        Hold = new OreStore(0, tankBase.Upgrades.TankHoldCapacity);
         Turret = new TankTurret(color);
         _build = new TankBuildController(this, color);
         _lifecycle = new TankLifecycle(this, _build);
@@ -205,16 +230,19 @@ public class Tank
         _lifecycle.BeginTick();
         _build.BeginTick();
         _thermals.BeginTick();
+        IsUnloadingOre = false;
+        SyncHoldCapacity();
 
         if (IsDead)
         {
-            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Heat.Ledger, ctx.Events);
+            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Terrain, ctx.Heat.Ledger, ctx.Events, ctx.IsOccupied);
             return;
         }
 
         _thermals.AddIdleHeat(ctx.Heat.Ledger);
         AdvanceBaseInteraction(in ctx);
         _thermals.AdvanceNetworkCoverage(in ctx);
+        AdvanceNetworkUnload(in ctx);
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
         _digger.Move(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
@@ -243,7 +271,7 @@ public class Tank
 
     /// <summary>
     /// Upgrade keys (edge triggered): docked at its own base, the tank buys the next level of the chosen upgrade from
-    /// the base's dirt store. Anywhere else, for a maxed upgrade, or when the store cannot pay, the press is refused
+    /// the base's ore store. Anywhere else, for a maxed upgrade, or when the store cannot pay, the press is refused
     /// and <see cref="LastUpgradeRefusal"/> says why.
     /// </summary>
     private void AdvanceUpgrades(ControllerOutput input)
@@ -258,27 +286,34 @@ public class Tank
         UpgradeRefusal refusal = !IsDockedAtOwnBase ? UpgradeRefusal.NotDocked
             : Base!.Upgrades.IsMaxed(upgrade) ? UpgradeRefusal.Maxed
             : Base.TryBuyUpgrade(upgrade) ? UpgradeRefusal.None
-            : UpgradeRefusal.CannotPay;
+            : UpgradeRefusal.NotEnoughOre;
+        SyncHoldCapacity();
         // A successful press clears any earlier refusal, so its message does not linger over the purchase.
         LastUpgradeRefusal = refusal;
         UpgradeRefusedTicks = refusal != UpgradeRefusal.None ? 48 : 0;
     }
 
     /// <summary>
-    /// Dirt available to build with: the tank's own, or the base store if that is larger while docked at the own
-    /// base (docking moves the tank's dirt into the store). A machine is affordable when its cost fits.
+    /// What building <paramref name="type"/> here would cost and which stock would pay (DESIGN.md §6.4): in the own
+    /// network (<see cref="IsInOwnNetwork"/>) the base store, else, or when the store is short, the hold. The HUD
+    /// asks this; the build key follows the same answer.
     /// </summary>
-    public int BuildableDirt(bool dockedAtOwnBase) => _build.BuildableDirt(dockedAtOwnBase);
+    public BuildQuote QuoteBuild(MachineType type) => _build.Quote(type);
 
-    /// <summary>The store that pays for <paramref name="type"/>, or null if neither can.</summary>
-    public MaterialContainer? BuildPayer(MachineType type, bool dockedAtOwnBase) => _build.BuildPayer(type, dockedAtOwnBase);
+    /// <summary>The store <paramref name="quote"/> is paid from, or null when nothing can pay.</summary>
+    internal OreStore? PayerStore(in BuildQuote quote) => quote.Payer switch
+    {
+        OrePayer.Hold => Hold,
+        OrePayer.BaseStore => Base?.Store,
+        _ => null,
+    };
 
-    /// <summary>
-    /// True when building <paramref name="type"/> now would be paid from the base store: docked at the own base and
-    /// the tank's hold cannot pay but the store can.
-    /// </summary>
-    public bool BuildsFromBaseStore(MachineType type) =>
-        IsDockedAtOwnBase && Base != null && ReferenceEquals(BuildPayer(type, dockedAtOwnBase: true), Base.Materials);
+    /// <summary>The hold takes what the cargo hold upgrades of the base allow.</summary>
+    private void SyncHoldCapacity()
+    {
+        if (Base != null)
+            Hold.SetCapacity(Base.Upgrades.TankHoldCapacity);
+    }
 
     /// <summary>End of a world tick: latches <see cref="HasLeftBase"/> once the live tank is outside every base.</summary>
     internal void ObserveBaseExit(TankBases bases)
@@ -299,7 +334,7 @@ public class Tank
     }
 
     /// <summary>
-    /// Any base the tank is in recharges it and sinks heat around it; its own base also takes its dirt and
+    /// Any base the tank is in recharges it and sinks heat around it; its own base also banks its ore and
     /// pumps its heat into the base reservoir.
     /// </summary>
     private const float BaseServicedHeatDrop = 0.05f;
@@ -309,19 +344,46 @@ public class Tank
         var baseColl = ctx.CheckBaseCollision(Position);
         if (baseColl == null) return;
 
-        (int health, float heat, int dirt) = (Reactor.Health, Heat, Resources.Dirt);
+        (int health, float heat) = (Reactor.Health, Heat);
         baseColl.RechargeTank(Reactor, Color);
         bool atOwnBase = baseColl.Color == Color;
         _thermals.SinkAtBase(ctx.Heat, baseColl, atOwnBase);
 
         if (atOwnBase)
         {
-            baseColl.AbsorbResources(Resources, new MaterialAmount(Tweaks.Base.HomeAbsorbDirt, Tweaks.Base.HomeAbsorbMinerals));
+            int banked = Hold.MoveTo(baseColl.Store, Tweaks.Base.HomeAbsorbOre);
+            IsUnloadingOre = banked > 0;
             _thermals.PumpHeatAtBase(baseColl);
             // A tank that is only shedding the last fraction of a degree near 0 is not being serviced any more.
-            if (Reactor.Health > health || Heat < heat - BaseServicedHeatDrop || Resources.Dirt < dirt)
+            if (Reactor.Health > health || Heat < heat - BaseServicedHeatDrop || banked > 0)
                 ctx.Events?.Record(new StepEvent(StepEventKind.BaseServiced, Position, Color));
         }
+    }
+
+    // Unload rate credit, in units times ticks per second: a unit moves each time it reaches TargetFps.
+    private int _unloadCredit;
+
+    /// <summary>
+    /// Inside the coverage of its own linked network (not in a base, where docking banks faster) the hold unloads
+    /// into the base store at <see cref="Tweaks.Ore.NetworkUnloadPerSecond"/>, one unit at a time, as long as the
+    /// store has room. Each unit travels home along the links from the covering node.
+    /// </summary>
+    private void AdvanceNetworkUnload(in SimulationContext ctx)
+    {
+        var store = Base?.Store;
+        if (store == null || !Coverage.Covered || Hold.Ore == 0 || store.IsFull)
+        {
+            _unloadCredit = 0;
+            return;
+        }
+        IsUnloadingOre = true;
+        _unloadCredit += Tweaks.Ore.NetworkUnloadPerSecond;
+        if (_unloadCredit < Tweaks.Perf.TargetFps)
+            return;
+        _unloadCredit -= Tweaks.Perf.TargetFps;
+        int moved = Hold.MoveTo(store, 1);
+        Links.LinkMap.CarryOre(Coverage.Point);
+        ctx.Events?.Record(new StepEvent(StepEventKind.OreUnloaded, Position, Color, Count: moved));
     }
 
     private void AdvanceTurretAim(ControllerOutput input)
@@ -359,8 +421,12 @@ public class Tank
         _lifecycle.OnSpawned();
     }
 
-    /// <summary>Destroys the tank: it loses a life, drops what it carries and explodes.</summary>
-    public void Die(ProjectileList? projectiles = null) => _lifecycle.Die(projectiles);
+    /// <summary>
+    /// Destroys the tank: it loses a life, drops what it carries and explodes. The ore in its hold spills into
+    /// <paramref name="terrain"/> around it (lost when there is none).
+    /// </summary>
+    public void Die(ProjectileList? projectiles = null, ITerrainPixelAccessor? terrain = null) =>
+        _lifecycle.Die(projectiles, terrain);
 
     private static int HashSeed(int color, Position pos)
     {

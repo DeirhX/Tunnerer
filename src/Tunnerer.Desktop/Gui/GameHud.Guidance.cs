@@ -26,6 +26,9 @@ public partial class GameHud
 
     private const float CardWidth = 470f;
 
+    /// <summary>Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events.</summary>
+    public void AfterStep(World world, Tank player) => _events.AfterStep(world, player);
+
     private void DrawGuidance(Tank player, World world)
     {
         if (!ReferenceEquals(world, _watchedWorld))
@@ -106,6 +109,9 @@ public partial class GameHud
             float slide = (1f - Math.Clamp(age * 5f, 0f, 1f)) * -30f;
             var detailSz = HudTheme.Measure(detailSize, n.Detail, wrap);
             float h = padY + titleSize + 5f + detailSz.Y + padY;
+            // Docked, the upgrade panel fills the left of the view below: show only the toasts that fit above it.
+            if (y + h > _upgradePanelTop - 8f)
+                break;
             var min = new Vector2(x + slide, y);
             var max = new Vector2(x + slide + CardWidth, y + h);
             uint accent = n.Kind switch

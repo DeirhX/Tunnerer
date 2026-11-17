@@ -148,7 +148,7 @@ public class StepEventTests
     public void BuildingAndPlanting_RecordBuiltAndPlanted()
     {
         var s = RelayHeatTests.CreateScenario();
-        s.Tank.Resources.Add(new MaterialAmount(5000, 0));
+        s.Tank.Hold.Add(s.Tank.OreHoldCapacity);
 
         var built = Step(s.World, new ControllerOutput { BuildSecondary = true });
         Assert.Contains(built, e => e.Kind == StepEventKind.MachineBuilt && e.Machine == MachineType.Harvester && e.Color == s.Tank.Color);
@@ -165,7 +165,7 @@ public class StepEventTests
     public void RelayThatWouldNotLink_IsRefused()
     {
         var s = RelayHeatTests.CreateScenario(blockLineOfSight: true);
-        s.Tank.Resources.Add(new MaterialAmount(5000, 0));
+        s.Tank.Hold.Add(s.Tank.OreHoldCapacity);
         Step(s.World, new ControllerOutput { BuildPrimary = true });
         Step(s.World);
 
@@ -223,15 +223,50 @@ public class StepEventTests
     }
 
     [Fact]
-    public void TorchingRock_RecordsTorchDiggingAndOre()
+    public void TorchingRock_RecordsTorchDigging_ButYieldsNoOre()
     {
         var s = InOpenPocket();
         Fill(s.World.Terrain, s.RelayPos, 12, TerrainPixel.Rock, fromDx: 5);
         var torch = new ControllerOutput { MoveSpeed = new Offset(1, 0), ShootPrimary = true, AimDirection = new DirectionF(1, 0) };
 
-        var events = StepUntil(s.World, e => e.Kind == StepEventKind.OreCollected, tank0: torch);
+        var events = StepUntil(s.World, e => e.Kind == StepEventKind.TankDug && e.Torch, tank0: torch);
+        for (int i = 0; i < 60; i++)
+            events.AddRange(Step(s.World, torch));
         Assert.Contains(events, e => e.Kind == StepEventKind.TankDug && e.Torch && e.Color == s.Tank.Color);
-        Assert.Contains(events, e => e.Kind == StepEventKind.OreCollected && e.Color == s.Tank.Color);
+        Assert.DoesNotContain(events, e => e.Kind == StepEventKind.OreCollected);
+        Assert.Equal(0, s.Tank.OreHeld);
+    }
+
+    [Fact]
+    public void DiggingOre_RecordsOreCollected()
+    {
+        var s = InOpenPocket();
+        Fill(s.World.Terrain, s.RelayPos, 12, TerrainPixel.Emberite, fromDx: 5);
+        var right = new ControllerOutput { MoveSpeed = new Offset(1, 0) };
+
+        var collected = StepUntil(s.World, e => e.Kind == StepEventKind.OreCollected, tank0: right)
+            .First(e => e.Kind == StepEventKind.OreCollected);
+        Assert.Equal(s.Tank.Color, collected.Color);
+        Assert.Equal(Tweaks.Ore.PlainCellUnits, collected.Count);
+    }
+
+    [Fact]
+    public void AHarvesterBankingOre_RecordsOreHarvested()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        HarvesterHeatTests.SeedOre(s);
+        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * -15));
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+        int store = s.Base.Store.Ore;
+
+        var events = StepUntil(s.World, e => e.Kind == StepEventKind.OreHarvested);
+
+        var harvested = Assert.Single(events, e => e.Kind == StepEventKind.OreHarvested);
+        Assert.Equal((s.Tank.Color, MachineType.Harvester, Tweaks.Ore.PlainCellUnits), (harvested.Color, harvested.Machine, harvested.Count));
+        Assert.Equal(TerrainPixel.Blank, s.World.Terrain.GetPixelRaw(harvested.Position));
+        Assert.Equal(store + harvested.Count, s.Base.Store.Ore);
     }
 
     [Fact]
