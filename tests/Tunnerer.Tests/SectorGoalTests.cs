@@ -262,4 +262,17 @@ public class SectorGoalTests
 
         Assert.True(maxTap > 0, "a linked relay at the core's edge should make charge that counts toward the goal");
     }
+
+    [Fact]
+    public void ABaseAddedAfterTheGoalWasBuilt_StillHasACoreTap()
+    {
+        var world = TestHelpers.CreateSeededWorld(seed: 8181, hotRockPocketCount: 4);
+        int before = world.TankBases.Bases.Count;
+
+        world.TankBases.AddBase(new Position(5, 5), before);
+
+        var late = world.TankBases.Bases[before];
+        Assert.NotNull(world.CoreTapOf(late));
+        Assert.False(world.CoreTapOf(late)!.HasTapped);
+    }
 }

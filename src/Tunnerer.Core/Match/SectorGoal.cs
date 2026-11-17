@@ -17,17 +17,20 @@ public sealed class SectorGoal
     // Scratch for the machines near the core, refilled every tick.
     private readonly List<Machine> _nearCore = new();
     private readonly IReadOnlyList<TankBase> _bases;
-    // One per base, in the order of _bases.
-    private readonly CoreTap[] _taps;
+    // One per base, in the order of _bases. Grown by SyncTaps, so a base added after the goal was built still gets one.
+    private readonly List<CoreTap> _taps = new();
 
-    /// <param name="bases">The match's bases, all of them added already.</param>
+    /// <param name="bases">The match's bases; the list may grow after this, and the goal follows it.</param>
     public SectorGoal(Position core, IReadOnlyList<TankBase> bases)
     {
         Core = core;
         _bases = bases;
-        _taps = new CoreTap[bases.Count];
-        for (int i = 0; i < _taps.Length; i++)
-            _taps[i] = new CoreTap();
+    }
+
+    private void SyncTaps()
+    {
+        while (_taps.Count < _bases.Count)
+            _taps.Add(new CoreTap());
     }
 
     /// <summary>Where the core is: the large hot rock pocket at the map centre, or the nearest spot to it clear of the bases.</summary>
@@ -39,7 +42,8 @@ public sealed class SectorGoal
     /// <summary>How <paramref name="tankBase"/> stands on the goal, or null for a base that is not in the match.</summary>
     public CoreTap? TapOf(TankBase tankBase)
     {
-        for (int i = 0; i < _taps.Length; i++)
+        SyncTaps();
+        for (int i = 0; i < _taps.Count; i++)
             if (_bases[i] == tankBase)
                 return _taps[i];
         return null;
@@ -49,9 +53,10 @@ public sealed class SectorGoal
     {
         const int radius = Tweaks.Goal.CoreTapRadius;
         const int radiusSq = radius * radius;
+        SyncTaps();
         // In list order, so each base's tap is summed in the same order on every machine.
         machines.CollectNear(Core, radius, _nearCore);
-        for (int b = 0; b < _taps.Length; b++)
+        for (int b = 0; b < _taps.Count; b++)
         {
             TankBase tankBase = _bases[b];
             CoreTap state = _taps[b];
