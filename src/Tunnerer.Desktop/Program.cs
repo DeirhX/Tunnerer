@@ -19,7 +19,7 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
           --large             Terrain size 1500x750.
           --no-ai             No enemy tank.
           --no-fog            No fog of war: the whole map is shown live.
-          --fast              Parallel level generation and regrowth (another map per seed; still reproducible).
+          --fast              Parallel level generation (another map per seed; still reproducible).
 
         Network match (see docs/multiplayer-design.md)
           --net[=ROOM]        Join ROOM (default: lobby) on the shared relay. The first player in opens the room

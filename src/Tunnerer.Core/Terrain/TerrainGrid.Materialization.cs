@@ -24,7 +24,7 @@ public partial class TerrainGrid
                 _data[i] = MaterializePixel(_data[i]);
         }
 
-        RegrowthTiles.MarkAll();
+        RegrowthWrites.NoteBulkWrite();
     }
 
     private static TerrainPixel MaterializePixel(TerrainPixel p) => p switch

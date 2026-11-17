@@ -132,8 +132,17 @@ public static class Tweaks
         // settle steps: a cut-off near them makes flows switch on and off, and a halo that should have settled
         // keeps twitching and never sleeps.
         public const float ThermalFlowCutoff = 1e-7f;
-        // Side of the tiles regrowth works in (RegrowthTiles).
+        // Side of the tiles regrowth keeps its appointments in (RegrowthSchedule); a tile with none holds no memory.
         public const int RegrowthTileSize = 32;
+        // Side of the regions that each take their regrowth pass on a tick of their own, which spreads a large map's
+        // work over the ticks between passes. It has to stay several times a look-out's reach: a look-out is recast
+        // when ground in its sight changes, so ground in one view should change on one tick, not on many (at 256
+        // vision cost three times as much).
+        public const int RegrowthRegionSize = 1024;
+        // The longest an open cell waits to be looked at again, and growing dirt to settle, in passes. The waits are
+        // drawn from the chances above; the few that would be longer end here (two and three in a hundred thousand).
+        public const int RegrowthLongestLookPasses = 80;
+        public const int RegrowthLongestSettlePasses = 1024;
         // Tiles are stepped on several threads from this many up; fewer are not worth handing out.
         public const int ThermalParallelTileThreshold = 32;
         public const int ThermalMaxWorkers = 0; // 0 => default scheduler/CPU count

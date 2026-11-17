@@ -27,8 +27,10 @@ Terrain/
   TerrainGrid.HotRock.cs     PlaceHotRockPocket, PlaceFrostRockPocket, SetPinnedPixel
   TerrainGrid.Ore.cs         PlaceOre (level gen)
   TerrainGrid.Materialization.cs, .Decoration.cs, .Render.cs   Level-gen markers to pixels, cleanup, Draw*ToSurface
-  TerrainRegrowth.cs         Dirt regrowth cellular automaton
-  RegrowthTiles.cs           Which tiles hold anything for regrowth to act on
+  TerrainRegrowth.cs         Dirt regrowth: the rules, applied to each cell when its appointment comes
+  RegrowthSchedule.cs        The appointments: at most one per cell, filed by tick
+  RegrowthWrites.cs          The pixel writes regrowth has yet to hear of
+  RegrowthBlockers.cs        Where no dirt grows (relay and pylon range), filed by map area
   TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
   ITerrain*.cs               Narrow interfaces over TerrainGrid (pixel read / write, heat source, change tracker)
 Thermal/
@@ -95,7 +97,7 @@ Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, Dir
 
 ## World
 
-`new World(size, parallelRegrowth, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
+`new World(size, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
 spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot and frost rock pockets (if
 asked; the hot ones also give the core, `World.CorePocket`), seeds emberite ore (if asked, `seedOre`;
 `World.OreDeposits`) and adds one tank per spawn. Ore is placed last and grows each deposit cell by cell from its
@@ -104,16 +106,20 @@ distance rules shrink and a floor of pockets and lumps applies (`OreDeposits.Dis
 (projectiles, link map, regrowth, each tank) is seeded from `simulationSeed`, and decorations and rock pockets from
 the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
-picks the seed. `parallelRegrowth` (`--fast`) runs regrowth over rows in parallel, with the same result. The bot takes its own seed, also from `WorldFactory`.
+picks the seed. The bot takes its own seed, also from `WorldFactory`.
 
 `World.Advance(getInput)` runs one fixed step, in this order:
 
 1. **Collision**: `CollisionSolver.Update` rebuilds the tank sector index.
 2. **Heat**: `TerrainGrid.CoolDown` (see below). The energy-balance residual is measured here for the profile.
 3. **Regrowth**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
-   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open. A pass visits only
-   the tiles `RegrowthTiles` has marked as holding open, scorched or growing cells; every pixel write keeps the marks
-   up to date, so the pass costs what has been dug, not the size of the map.
+   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open. Nothing scans the
+   map: each cell that can change (open ground with more than two dirt neighbours, scorch, dirt still growing) has
+   an appointment in `RegrowthSchedule` at the tick it is next looked at, with the wait drawn so that the odds are
+   those of rolling on every pass. Pixel writes (`RegrowthWrites`) start new appointments, and so does a blocker
+   going away. Open ground away from dirt or inside a blocker has none and costs nothing. The map is cut into
+   regions of `RegrowthRegionSize` cells that each take their pass on a tick of their own, so a large map's
+   regrowth is spread over the ticks between passes.
 4. **Projectiles**: `ProjectileList.Advance`.
 5. **Tanks**: `LinkMap.AgeOreFlow`, then `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`):
    idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage, the

@@ -204,7 +204,7 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
 
 Determinism risks to check before trusting it:
 
-- Parallel paths (`TerrainGrid.HeatTiles`, regrowth) are documented as deterministic; a four-instance soak test
+- The parallel path (`TerrainGrid.HeatTiles`) is documented as deterministic; a four-instance soak test
   with mixed `--fast` settings should confirm it.
 - Mixed CPU architectures (Apple Silicon and x64). .NET does not fuse multiply-add on its own and transcendentals
   go through `DeterministicMath`, so this should hold, but it has only been tested per OS, not per architecture

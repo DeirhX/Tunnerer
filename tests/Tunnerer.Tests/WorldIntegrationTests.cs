@@ -85,7 +85,7 @@ public class WorldIntegrationTests
     }
 
     [Fact]
-    public void RegrowPass_UsesStagedWrites_NoBoundaryArtifacts()
+    public void Regrowth_WritesNoLevelGenPixels()
     {
         // Run several regrow passes and verify no LevelGen pixels leak into the materialized terrain
         var (world, _) = SetupWorld();

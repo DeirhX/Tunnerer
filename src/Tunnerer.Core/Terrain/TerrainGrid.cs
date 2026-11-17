@@ -13,8 +13,8 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     private readonly List<Position> _changeList = new();
     private int _changesSeen;
 
-    /// <summary>The tiles regrowth still has to look at; every pixel write keeps it up to date.</summary>
-    public RegrowthTiles RegrowthTiles { get; }
+    /// <summary>The pixel writes regrowth has yet to hear of; every pixel write keeps it up to date.</summary>
+    public RegrowthWrites RegrowthWrites { get; } = new();
 
     public Size Size { get; }
     public int Width => Size.X;
@@ -35,7 +35,6 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         _airTemperature = new float[size.Area];
         _heatEngine = new TerrainHeatEngine(simulationSettings);
         _neighborOffsets = BuildNeighborOffsets(size.X);
-        RegrowthTiles = new RegrowthTiles(size.X, size.Y);
         _thermalActivity = new ThermalActivityTracker(size.X, size.Y, Math.Max(8, simulationSettings.ThermalActiveTileSize));
         _computeTileDelta = ComputeTileDelta;
         _applyTileStep = ApplyTileStep;
@@ -65,8 +64,8 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
 
     public void SetPixelRaw(int offset, TerrainPixel value)
     {
+        RegrowthWrites.Note(offset, _data[offset], value);
         _data[offset] = value;
-        RegrowthTiles.NoteWrite(offset, value);
     }
     public TerrainPixel GetPixelRaw(Position pos) => _data[pos.X + pos.Y * Width];
     public TerrainPixel GetPixelRaw(int offset) => _data[offset];
@@ -79,7 +78,7 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
         TerrainPixel previous = _data[offset];
         RecordMaterialChangeEnergy(offset, previous, value);
         _data[offset] = value;
-        RegrowthTiles.NoteWrite(offset, value);
+        RegrowthWrites.Note(offset, previous, value);
         MirrorAirIfCellBecameAir(pos, offset, previous, value);
         WakeHeatIfMaterialChanged(pos, offset, previous, value);
         if (value == TerrainPixel.Decal)
@@ -223,7 +222,7 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     public void Fill(TerrainPixel value)
     {
         Array.Fill(_data, value);
-        RegrowthTiles.MarkAll();
+        RegrowthWrites.NoteBulkWrite();
     }
 
     public ReadOnlySpan<TerrainPixel> Data => _data;

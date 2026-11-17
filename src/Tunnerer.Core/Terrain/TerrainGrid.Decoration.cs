@@ -12,7 +12,7 @@ public partial class TerrainGrid
         PlaceGoldVeins(rng, w, h);
         PlaceConcreteRuins(rng, w, h);
         CleanupIsolatedPixels(w, h);
-        RegrowthTiles.MarkAll();
+        RegrowthWrites.NoteBulkWrite();
     }
 
     /// <summary>

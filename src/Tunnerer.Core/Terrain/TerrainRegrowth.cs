@@ -1,186 +1,266 @@
 namespace Tunnerer.Core.Terrain;
 
+using System.Diagnostics;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
 
-/// <summary>A circle in which no new dirt grows: the range of a planted relay or pylon.</summary>
-public readonly record struct RegrowthBlocker(Position Center, int Radius);
-
 /// <summary>
-/// Cellular automata that regrows dirt terrain in blank and scorched areas, except inside a
-/// <see cref="RegrowthBlocker"/>, where open ground stays open (growth already under way still finishes). Every roll is a hash of the seed, the
-/// step and the cell, and rows are applied in order, so the parallel path (<c>--fast</c>) gives exactly the same
-/// result as the sequential one. A pass visits only the tiles <see cref="RegrowthTiles"/> has marked, so it costs
-/// what has been dug or scorched, not the size of the map.
+/// Regrows dirt in open and scorched ground, except inside a <see cref="RegrowthBlocker"/>, where open ground stays
+/// open (growth already under way still finishes).
+/// <para>
+/// The rules are per pass, a pass being every <see cref="Tweaks.World.DirtRecoverInterval"/>: an open cell with more
+/// than two dirt neighbours has a chance to start growing, scorch fades a step and has a smaller chance, and growing
+/// dirt has a chance to settle into dirt. Growing dirt is not yet a dirt neighbour, so a tunnel closes from its walls
+/// inward, a layer at a time.
+/// </para>
+/// <para>
+/// No pass scans the map. Each cell that can change has an appointment (<see cref="RegrowthSchedule"/>) at the tick
+/// it is next looked at, drawn so that the odds are those of rolling on every pass, and new ones come from the pixel
+/// writes the terrain lists (<see cref="RegrowthWrites"/>). A cell that cannot change has none: solid ground, open
+/// ground away from dirt or inside a blocker. So a step costs what is growing, fading or was just dug, not the
+/// size of the map or the length of its tunnels.
+/// </para>
+/// <para>
+/// The map is cut into regions that each take their pass on a tick of their own, which spreads the work over the
+/// ticks between passes while ground in one place still changes together. Every roll is a hash of the seed, the
+/// tick and the cell, so a run repeats exactly.
+/// </para>
 /// </summary>
 public sealed class TerrainRegrowth
 {
-    private readonly bool _parallel;
+    private const int NeighbourCount = 8;
+    private const int RegionSize = Tweaks.World.RegrowthRegionSize;
+
+    private static readonly int PassTicks =
+        (int)((Tweaks.World.DirtRecoverInterval.Ticks + Tweaks.World.AdvanceStep.Ticks / 2) / Tweaks.World.AdvanceStep.Ticks);
+
+    // An open cell is looked at as often as if all eight neighbours were dirt, and then grows with the share of that
+    // chance its real neighbours give it. The odds per pass come out the same, and nothing has to be redrawn when a
+    // neighbour is dug or settles.
+    private static readonly PassWait OpenLook = new(
+        Math.Min(1000, Tweaks.World.DirtRegrowSpeed * Tweaks.World.DirtRegrowBlankModifier * NeighbourCount),
+        Tweaks.World.RegrowthLongestLookPasses);
+    private static readonly PassWait Settling = new(Tweaks.World.DirtRecoverSpeed, Tweaks.World.RegrowthLongestSettlePasses);
+
     private readonly bool _enabled;
     private readonly int _simulationSeed;
-    private readonly List<(int offset, TerrainPixel value)> _writes = new();
-    private TimeSpan _regrowAccumulator;
+    private readonly RegrowthBlockerIndex _blockers = new();
+    private readonly List<RegrowthBlocker> _lifted = new();
+    private readonly List<int> _due = new();
+    private RegrowthSchedule? _schedule;
+    private byte[] _passTickOfRegion = [];
+    private int _regionsX;
+    private int _tick;
 
-    public TerrainRegrowth(bool parallel, bool enabled, int simulationSeed)
+    public TerrainRegrowth(bool enabled, int simulationSeed)
     {
-        _parallel = parallel;
         _enabled = enabled;
         _simulationSeed = simulationSeed;
     }
 
-    public void Advance(TerrainGrid terrain, int advanceCount, IReadOnlyList<RegrowthBlocker> blockers)
-    {
-        _regrowAccumulator += Tweaks.World.AdvanceStep;
-        if (_regrowAccumulator < Tweaks.World.DirtRecoverInterval)
-            return;
-        _regrowAccumulator -= Tweaks.World.DirtRecoverInterval;
+    /// <summary>Cells looked at by the last <see cref="Advance"/>: what the step cost.</summary>
+    public int CellsVisitedInLastAdvance { get; private set; }
 
+    /// <summary>Cells waiting to be looked at. None are left once nothing on the map can still change.</summary>
+    public int CellsWaiting => _schedule?.Count ?? 0;
+
+    /// <summary>True for a pixel regrowth does something with: it grows dirt in, fades, or finishes growing.</summary>
+    public static bool ActsOn(TerrainPixel pixel) =>
+        pixel == TerrainPixel.Blank || pixel == TerrainPixel.DirtGrow || Pixel.IsScorched(pixel);
+
+    /// <summary>
+    /// Looks over the whole map once and gives every cell that can change its appointment. From then on the terrain
+    /// lists the writes that matter. A world does this when it is built; <see cref="Advance"/> does it if it was not
+    /// done, or if the terrain was since written in bulk.
+    /// </summary>
+    public void Survey(TerrainGrid terrain)
+    {
         if (!_enabled)
             return;
 
         int w = terrain.Width, h = terrain.Height;
-        if (h <= 2)
+        _schedule = new RegrowthSchedule(w, h);
+        _regionsX = (w + RegionSize - 1) / RegionSize;
+        _passTickOfRegion = new byte[_regionsX * ((h + RegionSize - 1) / RegionSize)];
+        for (int region = 0; region < _passTickOfRegion.Length; region++)
+            _passTickOfRegion[region] = (byte)(FastRandom.Hash32((uint)_simulationSeed ^ (uint)region * 0x9e3779b9u) % (uint)PassTicks);
+
+        ReadOnlySpan<TerrainPixel> pixels = terrain.Data;
+        for (int y = 1; y < h - 1; y++)
+            for (int x = 1; x < w - 1; x++)
+                if (ActsOn(pixels[x + y * w]))
+                    Look(terrain, x, y, fresh: true);
+        terrain.RegrowthWrites.MarkSurveyed();
+    }
+
+    public void Advance(TerrainGrid terrain, IReadOnlyList<RegrowthBlocker> blockers)
+    {
+        CellsVisitedInLastAdvance = 0;
+        if (!_enabled)
             return;
 
-        // A row reads only raw pixels (writes are staged) and touches only its own scorch, so rows can run in any
-        // order; the staged writes are applied afterwards in row order.
-        RegrowthTiles tiles = terrain.RegrowthTiles;
-        tiles.BeginPass();
-        _writes.Clear();
-        if (_parallel)
+        _tick++;
+        if (_schedule == null || !terrain.RegrowthWrites.Surveyed)
+            Survey(terrain);
+        RegrowthSchedule schedule = _schedule!;
+
+        // Ground a blocker kept open is free to grow again once the blocker is gone.
+        if (_blockers.Update(blockers, terrain.Width, terrain.Height, _lifted))
+            foreach (RegrowthBlocker blocker in _lifted)
+                LookAtOpenGroundIn(terrain, blocker);
+
+        HearOfWrites(terrain);
+        schedule.TakeDue(_tick, _due);
+        foreach (int cell in _due)
+            Keep(terrain, cell);
+        ClearAndGiveBackAfterABurst(_due);
+        // Regrowth's own writes are heard of at once, so the list is empty again when the step ends.
+        HearOfWrites(terrain);
+    }
+
+    private void HearOfWrites(TerrainGrid terrain)
+    {
+        List<int> cells = terrain.RegrowthWrites.Cells;
+        int w = terrain.Width;
+        for (int i = 0; i < cells.Count; i++)
         {
-            var rows = new List<(int offset, TerrainPixel value)>?[h];
-            Parallel.For(1, h - 1, y =>
+            int x = cells[i] % w, y = cells[i] / w;
+            if (Pixel.IsDirt(terrain.GetPixelRaw(cells[i])))
             {
-                if (!RowHasMarkedTile(tiles, y))
-                    return;
-                var writes = new List<(int offset, TerrainPixel value)>();
-                RegrowRow(terrain, advanceCount, y, blockers, writes);
-                if (writes.Count > 0)
-                    rows[y] = writes;
-            });
-            foreach (var row in rows)
-                if (row != null)
-                    _writes.AddRange(row);
+                // New dirt: an open cell beside it may now have enough dirt neighbours to grow.
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                        if ((dx != 0 || dy != 0) && IsInterior(terrain, x + dx, y + dy))
+                            Look(terrain, x + dx, y + dy, fresh: false);
+            }
+            if (IsInterior(terrain, x, y))
+                Look(terrain, x, y, fresh: true);
+        }
+        ClearAndGiveBackAfterABurst(cells);
+    }
+
+    /// <summary>Empties a work list. One that a burst (a long tunnel dug at once) left far larger than it now needs is let go.</summary>
+    private static void ClearAndGiveBackAfterABurst(List<int> list)
+    {
+        const int keptCapacity = 4096;
+        bool mostlyUnused = list.Capacity > keptCapacity && list.Count < list.Capacity / 16;
+        list.Clear();
+        if (mostlyUnused)
+            list.Capacity = keptCapacity;
+    }
+
+    private void LookAtOpenGroundIn(TerrainGrid terrain, RegrowthBlocker blocker)
+    {
+        int r = blocker.Radius;
+        int minY = Math.Max(1, blocker.Center.Y - r), maxY = Math.Min(terrain.Height - 2, blocker.Center.Y + r);
+        int minX = Math.Max(1, blocker.Center.X - r), maxX = Math.Min(terrain.Width - 2, blocker.Center.X + r);
+        for (int y = minY; y <= maxY; y++)
+            for (int x = minX; x <= maxX; x++)
+                Look(terrain, x, y, fresh: false);
+    }
+
+    /// <summary>
+    /// Gives a cell the appointment its pixel calls for. With <paramref name="fresh"/> the cell was just written, so
+    /// any appointment it has belongs to what it was and is replaced or dropped; without it, only an open cell that
+    /// has none is given one.
+    /// </summary>
+    private void Look(TerrainGrid terrain, int x, int y, bool fresh)
+    {
+        CellsVisitedInLastAdvance++;
+        RegrowthSchedule schedule = _schedule!;
+        int cell = x + y * terrain.Width;
+        TerrainPixel pixel = terrain.GetPixelRaw(cell);
+        if (pixel == TerrainPixel.Blank)
+        {
+            if (!fresh && schedule.Has(x, y))
+                return;
+            // Whether a blocker covers the cell is asked when the appointment comes: blockers come and go.
+            if (terrain.CountDirtNeighbors(new Position(x, y)) > 2)
+                schedule.Set(x, y, PassTickAfter(x, y, OpenLook.Passes(Roll(cell, 0))));
+            else if (fresh)
+                schedule.Clear(x, y);
+        }
+        else if (!fresh)
+        {
+            return;
+        }
+        else if (pixel == TerrainPixel.DirtGrow)
+        {
+            schedule.Set(x, y, PassTickAfter(x, y, Settling.Passes(Roll(cell, 4))));
+        }
+        else if (Pixel.IsScorched(pixel))
+        {
+            schedule.Set(x, y, PassTickAfter(x, y, 1));
         }
         else
         {
-            for (int y = 1; y < h - 1; y++)
-            {
-                // A tile row with no marked tile is skipped whole.
-                if (!RowHasMarkedTile(tiles, y))
-                {
-                    y = (y / RegrowthTiles.TileSize + 1) * RegrowthTiles.TileSize - 1;
-                    continue;
-                }
-                RegrowRow(terrain, advanceCount, y, blockers, _writes);
-            }
+            schedule.Clear(x, y);
         }
-        tiles.EndPass();
+    }
 
-        foreach (var (offset, value) in _writes)
+    /// <summary>A cell's appointment has come: applies the rule for the pixel it holds now.</summary>
+    private void Keep(TerrainGrid terrain, int cell)
+    {
+        CellsVisitedInLastAdvance++;
+        int x = cell % terrain.Width, y = cell / terrain.Width;
+        var pos = new Position(x, y);
+        TerrainPixel pixel = terrain.GetPixelRaw(cell);
+        if (pixel == TerrainPixel.Blank)
         {
+            // Too few dirt neighbours, or kept open by a blocker: no further appointment. New dirt beside it, or
+            // the blocker going, gives it one again.
+            int neighbors = terrain.CountDirtNeighbors(pos);
+            if (neighbors <= 2 || _blockers.IsBlocked(x, y))
+                return;
             // SetPixel (not SetPixelRaw): a material change moves energy, which the thermal ledger must see.
-            terrain.SetPixel(new Position(offset % w, offset / w), value);
+            if (Roll(cell, 1) % NeighbourCount < (uint)neighbors)
+                terrain.SetPixel(pos, TerrainPixel.DirtGrow);
+            else
+                _schedule!.Set(x, y, PassTickAfter(x, y, OpenLook.Passes(Roll(cell, 0))));
         }
-    }
-
-    private static bool RowHasMarkedTile(RegrowthTiles tiles, int y)
-    {
-        int tileY = y / RegrowthTiles.TileSize;
-        for (int tileX = 0; tileX < tiles.CountX; tileX++)
-            if (tiles.IsMarked(tileX, tileY))
-                return true;
-        return false;
-    }
-
-    private static bool IsBlocked(int x, int y, IReadOnlyList<RegrowthBlocker> blockers)
-    {
-        for (int i = 0; i < blockers.Count; i++)
+        else if (Pixel.IsScorched(pixel))
         {
-            RegrowthBlocker blocker = blockers[i];
-            int dx = x - blocker.Center.X, dy = y - blocker.Center.Y;
-            if (dx * dx + dy * dy <= blocker.Radius * blocker.Radius)
-                return true;
-        }
-        return false;
-    }
-
-    private void RegrowRow(
-        TerrainGrid terrain, int advanceCount, int y, IReadOnlyList<RegrowthBlocker> blockers,
-        List<(int offset, TerrainPixel value)> writes)
-    {
-        int w = terrain.Width;
-        RegrowthTiles tiles = terrain.RegrowthTiles;
-        int tileY = y / RegrowthTiles.TileSize;
-        for (int tileX = 0; tileX < tiles.CountX; tileX++)
-        {
-            if (!tiles.IsMarked(tileX, tileY))
-                continue;
-
-            int from = Math.Max(1, tileX * RegrowthTiles.TileSize);
-            int to = Math.Min(w - 1, (tileX + 1) * RegrowthTiles.TileSize);
-            bool found = false;
-            for (int x = from; x < to; x++)
+            int neighbors = terrain.CountDirtNeighbors(pos);
+            int chance = Tweaks.World.DirtRegrowSpeed * neighbors * Tweaks.World.DirtRegrowScorchedModifier;
+            if (neighbors > 2 && Roll(cell, 2) % 1000u < (uint)chance && !_blockers.IsBlocked(x, y))
             {
-                var pos = new Position(x, y);
-                var pix = terrain.GetPixelRaw(pos);
-
-                if (pix == TerrainPixel.Blank)
-                {
-                    found = true;
-                    int neighbors = terrain.CountDirtNeighbors(pos);
-                    if (TryQueueDirtRegrow(advanceCount, x, y, neighbors, Tweaks.World.DirtRegrowBlankModifier, 0) &&
-                        !IsBlocked(x, y, blockers))
-                        writes.Add((x + y * w, TerrainPixel.DirtGrow));
-                }
-                else if (Pixel.IsScorched(pix))
-                {
-                    found = true;
-                    int offset = x + y * w;
-                    int neighbors = terrain.CountDirtNeighbors(pos);
-                    if (TryQueueDirtRegrow(advanceCount, x, y, neighbors, Tweaks.World.DirtRegrowScorchedModifier, 1) &&
-                        !IsBlocked(x, y, blockers))
-                    {
-                        writes.Add((offset, TerrainPixel.DirtGrow));
-                        terrain.SetScorchIntensity(offset, 0);
-                    }
-                    else
-                    {
-                        int cur = terrain.GetScorchIntensity(offset);
-                        int next = Math.Max(0, cur - Tweaks.World.DecalIntensityDecay);
-                        terrain.SetScorchIntensity(offset, (byte)next);
-                        if (next <= 0)
-                            writes.Add((offset, TerrainPixel.Blank));
-                    }
-                }
-                else if (pix == TerrainPixel.DirtGrow)
-                {
-                    found = true;
-                    if (Roll1000(advanceCount, x, y, 4) < Tweaks.World.DirtRecoverSpeed)
-                        writes.Add((x + y * w, TerrainPixel.Dirt));
-                }
+                terrain.SetPixel(pos, TerrainPixel.DirtGrow);
+                return;
             }
 
-            if (found)
-                tiles.NoteFound(tileX, tileY);
+            int faded = Math.Max(0, terrain.GetScorchIntensity(cell) - Tweaks.World.DecalIntensityDecay);
+            terrain.SetScorchIntensity(cell, (byte)faded);
+            if (faded <= 0)
+                terrain.SetPixel(pos, TerrainPixel.Blank);
+            else
+                _schedule!.Set(x, y, PassTickAfter(x, y, 1));
+        }
+        else if (pixel == TerrainPixel.DirtGrow)
+        {
+            terrain.SetPixel(pos, TerrainPixel.Dirt);
         }
     }
 
-    private bool TryQueueDirtRegrow(int advanceCount, int x, int y, int neighbors, int modifier, uint salt)
+    private static bool IsInterior(TerrainGrid terrain, int x, int y) =>
+        x > 0 && y > 0 && x < terrain.Width - 1 && y < terrain.Height - 1;
+
+    /// <summary>The tick of the cell's region's pass, <paramref name="passes"/> passes from now (at least one).</summary>
+    private int PassTickAfter(int x, int y, int passes)
     {
-        if (neighbors <= 2) return false;
-        int chance = Tweaks.World.DirtRegrowSpeed * neighbors * modifier;
-        return Roll1000(advanceCount, x, y, salt) < chance;
+        int passTick = _passTickOfRegion[x / RegionSize + y / RegionSize * _regionsX];
+        int untilNext = (passTick - _tick % PassTicks + PassTicks) % PassTicks;
+        if (untilNext == 0)
+            untilNext = PassTicks;
+        Debug.Assert(untilNext + (passes - 1) * PassTicks < RegrowthSchedule.WheelTicks, "An appointment must fit in the wheel.");
+        return _tick + untilNext + (passes - 1) * PassTicks;
     }
 
-    private int Roll1000(int advanceCount, int x, int y, uint salt)
+    private uint Roll(int cell, uint salt)
     {
         uint mixed = (uint)_simulationSeed
-            ^ (uint)advanceCount * 0x9e3779b9u
-            ^ (uint)(x * 73856093)
-            ^ (uint)(y * 19349663)
+            ^ (uint)_tick * 0x9e3779b9u
+            ^ (uint)cell * 73856093u
             ^ (salt * 83492791u);
-        return (int)(FastRandom.Hash32(mixed) % 1000u);
+        return FastRandom.Hash32(mixed);
     }
 }

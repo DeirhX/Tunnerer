@@ -145,7 +145,6 @@ public class World
 
     public World(
         Size terrainSize,
-        bool parallelRegrowth = false,
         int simulationSeed = 0,
         bool enableTerrainRegrowth = true,
         int hotRockPocketCount = 0,
@@ -163,7 +162,7 @@ public class World
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
-        _terrainRegrowth = new TerrainRegrowth(parallelRegrowth, enableTerrainRegrowth, _simulationSeed);
+        _terrainRegrowth = new TerrainRegrowth(enableTerrainRegrowth, _simulationSeed);
     }
 
     public void Initialize(TerrainGrid generatedTerrain, Position[] spawns,
@@ -182,7 +181,6 @@ public class World
             _tankBases.AddBase(spawns[i], i);
 
         _tankBases.CreateBasesInTerrain(_terrain);
-        _terrain.RegrowthTiles.Rebuild(_terrain.Data);
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
@@ -214,6 +212,7 @@ public class World
                 _tankList.AddTank(i, tankBase, tankSeed, _simulationSettings);
             }
         }
+        _terrainRegrowth.Survey(_terrain);
     }
 
     private static int SeedFromSpawns(Position[] spawns)
@@ -332,7 +331,7 @@ public class World
             if (machine.IsAlive && machine.State == MachineState.Planted && machine.Behavior.IsLinkNode)
                 _regrowthBlockers.Add(new RegrowthBlocker(
                     machine.Position, Tweaks.Coverage.NodeRadius + (machine.OwnerBase?.Upgrades.CoverageBonusCells ?? 0)));
-        _terrainRegrowth.Advance(_terrain, _advanceCount, _regrowthBlockers);
+        _terrainRegrowth.Advance(_terrain, _regrowthBlockers);
     }
 
     private readonly List<(Tank Tank, VisionMap Map)> _trackedVisions = new();

@@ -41,7 +41,11 @@ Run from the repository root.
 - **Heat costs what is changing, not the map.** The solver steps only tiles where heat still changes
   (`ThermalActivityTracker`); settled ground is left alone until something writes heat into it or digs it. Do not
   add a heat pass that visits every cell each tick, and wake a tile (`ActivateTileByCell`) from anything new that
-  changes a temperature or a cell's material. Regrowth follows the same rule through `RegrowthTiles`.
+  changes a temperature or a cell's material.
+- **Regrowth costs what is growing, not the map.** `TerrainRegrowth` keeps an appointment for each cell that can
+  change (open ground beside dirt, scorch, dirt still growing) and looks at nothing else; it hears of new ones from
+  pixel writes (`RegrowthWrites`). Do not add a regrowth pass that scans the map or its tiles, and write pixels
+  through `SetPixel` or `SetPixelRaw` so that it hears of them.
 - **Shaders compile for every GPU API.** Every build compiles each shader to DXIL, SPIR-V and MSL, on every OS. Declare
   resources with the macros in `Rendering/Shaders/PostPs/Common/Registers.hlsli`, never `register()`, and give
   every `Texture2D` a `SamplerState` at the same index (`RenderingSourceGuardTests` and the shader build step

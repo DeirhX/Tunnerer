@@ -41,7 +41,7 @@ tools/
 
 `Program.cs` parses the command line and constructs `Game`. The constructor opens the window and GPU backend,
 asks `WorldFactory.Build` for the world (a generated match level, or the static patterns of `--terrain-test`) and
-sets up input. `--fast` only makes level generation, materialisation and regrowth parallel; the simulation is
+sets up input. `--fast` only makes level generation and materialisation parallel; the simulation is
 deterministic either way. `Game.Run` hands a set of callbacks to `GameFrameCoordinator`, which owns the loop:
 
 ```
@@ -92,7 +92,7 @@ and Escape quits at once.
 
 1. **Collision** - rebuild the sector lookup for tanks and machines
 2. **Thermal** - `TerrainGrid.CoolDown`: heat diffusion between cells (only the tiles still changing, in parallel when many)
-3. **Regrowth** - dirt recovery by cellular automaton
+3. **Regrowth** - dirt grows back into open and scorched ground (only the cells that can change are looked at)
 4. **Projectiles** - movement, impacts, explosions
 5. **Tanks** - input, turret, movement, digging, shooting, building, heat exchange with terrain and base
 6. **Machines** - relays pump heat to their base, harvesters mine and roam, pylons charge batteries
