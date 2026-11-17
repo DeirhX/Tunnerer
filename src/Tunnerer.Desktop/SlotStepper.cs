@@ -17,7 +17,7 @@ public static class SlotStepper
     {
         IReadOnlyList<Tank> tanks = world.TankList.Tanks;
         world.Advance(slot => slot < bots.Count && bots[slot] is { } bot
-            ? bot.GetInput(tanks[slot], BotTankAI.PickEnemy(tanks, slot), world.Terrain)
+            ? bot.GetInput(tanks[slot], BotTankAI.PickEnemy(tanks, slot), world)
             : inputForSlot(slot));
     }
 }

@@ -59,29 +59,28 @@ internal sealed class BotGunner
             : 0;
     }
 
+    /// <summary>True while the bot has a clear line of sight to a live enemy (as of <see cref="UpdateLineOfSight"/>).</summary>
+    public bool EnemyInSight => _losStreak > 0;
+
     /// <summary>
-    /// Decides whether to fire this plan and where to aim: at the enemy when there is one, along the move otherwise.
-    /// While aimed fire is not yet allowed it only digs, aiming along the move so stray digging shots miss the enemy.
+    /// Decides whether to fire at the enemy this plan and where to aim. With the enemy in sight and aimed fire allowed
+    /// the turret follows it; otherwise it points along the move, where the bot is going and where its torch has to
+    /// point to cut through, so nothing it fires while digging is aimed at the enemy.
     /// </summary>
-    public (bool Shoot, DirectionF Aim) Plan(Position self, Tank? enemy, bool hasTarget, bool hasLos, bool retreat,
-        Offset move, bool shouldDig, BotBehaviorProfile profile)
+    public (bool Shoot, DirectionF Aim) Plan(Position self, Tank? enemy, bool hasLos, bool retreat, Offset move,
+        BotBehaviorProfile profile)
     {
-        bool shoot = retreat && hasLos
-            ? _rng.Next(1000) < Math.Max(profile.ShootChanceLosPermille, RetreatShootChancePermille)
-            : hasLos
-                ? _rng.Next(1000) < profile.ShootChanceLosPermille
-                : shouldDig && _rng.Next(1000) < profile.ShootChanceDigPermille;
-        var aim = hasTarget ? AimTowards(self, enemy!.Position) : AimTowardsOffset(move);
         bool mayFire = _frame >= OpeningGraceFrames && _frame >= _holdFireUntilFrame && _losStreak >= ReactionFrames;
-        if (hasLos && !mayFire)
-        {
-            shoot = shouldDig;
-            aim = AimTowardsOffset(move);
-        }
-        else if (hasLos && shoot)
-        {
+        if (!hasLos || !mayFire || enemy == null)
+            return (false, AimTowardsOffset(move));
+
+        int chance = retreat
+            ? Math.Max(profile.ShootChanceLosPermille, RetreatShootChancePermille)
+            : profile.ShootChanceLosPermille;
+        bool shoot = _rng.Next(1000) < chance;
+        var aim = AimTowards(self, enemy.Position);
+        if (shoot)
             aim = Rotate(aim, (_rng.NextDouble() * 2.0 - 1.0) * AimSpreadRadians);
-        }
         return (shoot, aim);
     }
 

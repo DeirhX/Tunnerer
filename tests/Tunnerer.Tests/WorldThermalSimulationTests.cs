@@ -155,7 +155,7 @@ public class WorldThermalSimulationTests
                     return default;
 
                 Tank enemy = tanks[0];
-                return bot.GetInput(tanks[i], enemy, world.Terrain);
+                return bot.GetInput(tanks[i], enemy, world);
             });
 
             for (int i = 0; i < tanks.Count; i++)

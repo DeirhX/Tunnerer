@@ -42,6 +42,12 @@ public readonly record struct SimulationContext
     /// </summary>
     public Func<Position, bool>? IsOccupied { get; init; }
 
+    /// <summary>
+    /// Optional: whether another tank or another side's machine stops a tank from standing at a position facing a
+    /// sprite direction (<see cref="Collision.CollisionSolver.BlocksTank"/>). When null, tanks collide with terrain only.
+    /// </summary>
+    public Func<Tank, Position, int, bool>? IsTankBlocked { get; init; }
+
     /// <summary>Where the tank records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</summary>
     public StepEventLog? Events { get; init; }
 }

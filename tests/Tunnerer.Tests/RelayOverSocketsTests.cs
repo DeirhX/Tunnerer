@@ -616,11 +616,20 @@ public class RelayOverSocketsTests
             Assert.Equal(0b0011, back.HumanMask);
             // The rejoining client's own world, stepped from the relay's log, is the one the client that stayed has.
             Assert.Equal(WorldStateHash.ComputeSync(worldA), WorldStateHash.ComputeSync(worldBack));
-            // And the match is not an idle one: the bots and the players moved their tanks.
+            // And the match is not an idle one: the bots and the players moved their tanks. A bot may be back where it
+            // started by now (it goes home to cool after torching its way out through rock), so for a bot having
+            // driven out of its base counts too.
             var untouched = CreateFourTankWorld(42);
             for (int slot = 0; slot < 4; slot++)
-                Assert.NotEqual(untouched.TankList.Tanks[slot].Position, worldBack.TankList.Tanks[slot].Position);
+            {
+                var tank = worldBack.TankList.Tanks[slot];
+                bool isBot = (back.HumanMask & 1 << slot) == 0;
+                Assert.True(tank.Position != untouched.TankList.Tanks[slot].Position || (isBot && tank.HasLeftBase),
+                    $"the tank in slot {slot} never moved");
+            }
             Assert.Null(a.DesyncTick);
+            // The match is short at this pace; the first latency sample comes with the first answered ping.
+            WaitFor(() => back.LatencyMs != null, back);
             Assert.NotNull(back.LatencyMs);
         }
     }

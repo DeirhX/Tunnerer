@@ -258,6 +258,7 @@ public class World
             CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
             CoverageFor = CoverageFor,
             IsOccupied = IsCellOccupied,
+            IsTankBlocked = _collisionSolver.BlocksTank,
             Events = _stepEvents,
         };
         _linkMap.AgeOreFlow();
@@ -459,6 +460,19 @@ public class World
         if (_tankBases.GetSpawn(spawnIndex) is TankBase tankBase)
             tankBase.IsBotControlled = true;
     }
+
+    /// <summary>
+    /// What would stop <paramref name="tank"/> if it stepped by <paramref name="move"/> now: the answer its own move
+    /// gets (<see cref="CollisionSolver.ProbeTankStep"/>). The bot asks this instead of reading single cells.
+    /// </summary>
+    public StepObstacle ProbeTankStep(Tank tank, Offset move) => _collisionSolver.ProbeTankStep(tank, move);
+
+    /// <summary>
+    /// The ground temperature a tank standing at <paramref name="at"/> would exchange heat with: the average over the
+    /// cells under and around it, as the tank's own heat step samples it. The bot asks this to stay off scorching ground.
+    /// </summary>
+    public float GroundHeatAt(Position at) =>
+        _terrain.SampleAverageHeat(at, _simulationSettings.TankDigRadius) * 255f;
 
     /// <summary>What a machine of <paramref name="type"/> would do if planted at <paramref name="at"/>.</summary>
     public MachinePlacementPreview PreviewPlacement(MachineType type, Position at) =>

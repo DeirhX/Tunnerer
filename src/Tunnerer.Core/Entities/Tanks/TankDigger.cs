@@ -7,7 +7,7 @@ using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 
 /// <summary>
-/// The tank against the terrain: moving, bumping into it with its sprite shape, digging and torching through it,
+/// The tank against the terrain: moving, bumping into it (and into other tanks and machines) with its sprite shape, digging and torching through it,
 /// and picking items up. Owns the tank's random stream (direction at birth, torching through rock).
 /// </summary>
 internal sealed class TankDigger
@@ -28,7 +28,8 @@ internal sealed class TankDigger
 
     /// <summary>
     /// Moves one step by <paramref name="speed"/>. Blocked by terrain, the tank digs instead; with the torch firing
-    /// along the move it may get through in the same tick.
+    /// along the move it may get through in the same tick. Another tank or another side's machine stops it
+    /// (<see cref="CollisionSolver.BlocksTank"/>).
     /// </summary>
     public void Move(in SimulationContext ctx, Offset speed, DirectionF torchHeading, bool torchUse)
     {
@@ -45,25 +46,27 @@ internal sealed class TankDigger
             return;
         _moveCredit -= 1f;
 
-        int dir = OffsetToDirection(speed);
+        int dir = TankSpriteShape.DirectionOf(speed);
         var newPos = _tank.Position + speed;
 
-        var collision = TestCollision(ctx.Terrain, newPos, dir);
-        if (collision != CollisionType.None)
+        if (CollisionSolver.TestTankTerrain(ctx.Terrain, newPos, dir) != StepObstacle.None)
         {
             DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse, ctx.Events);
 
-            int torchDir = OffsetToDirection(new Offset(
+            int torchDir = TankSpriteShape.DirectionOf(new Offset(
                 (int)MathF.Round(torchHeading.X),
                 (int)MathF.Round(torchHeading.Y)));
 
             if (!(torchUse && torchDir == dir))
                 return;
 
-            collision = TestCollision(ctx.Terrain, newPos, dir);
-            if (collision != CollisionType.None)
+            if (CollisionSolver.TestTankTerrain(ctx.Terrain, newPos, dir) != StepObstacle.None)
                 return;
         }
+
+        // Another tank or another side's machine in the way stops the step; the ground in front is dug all the same.
+        if (ctx.IsTankBlocked?.Invoke(_tank, newPos, dir) == true)
+            return;
 
         _tank.Direction = dir;
         _tank.Position = newPos;
@@ -94,19 +97,6 @@ internal sealed class TankDigger
     {
         int dir = _rng.NextInt(8);
         return dir >= 4 ? dir + 1 : dir;
-    }
-
-    private static CollisionType TestCollision(ITerrainPixelAccessor terrain, Position pos, int dir)
-    {
-        var result = CollisionType.None;
-        TankSpriteShape.ForEachPixel(dir, pos, (_, worldPos) =>
-        {
-            var pix = terrain.GetPixel(worldPos);
-            if (Pixel.IsBlockingCollision(pix)) { result = CollisionType.Blocked; return false; }
-            if (Pixel.IsSoftCollision(pix)) result = CollisionType.Dirt;
-            return true;
-        });
-        return result;
     }
 
     private void DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse,
@@ -182,26 +172,5 @@ internal sealed class TankDigger
         _tank.Hold.Add(units);
         events?.Record(new StepEvent(StepEventKind.OreCollected, worldPos, _tank.Color, Count: units));
         return true;
-    }
-
-    /// <summary>
-    /// Maps a signed (dx,dy) offset to one of 8 sprite directions.
-    /// Layout: 0=NE, 1=N, 2=NW, 3=E, 5=W, 6=SE, 7=S, 8=SW (index 4 is unused).
-    /// </summary>
-    private static int OffsetToDirection(Offset speed)
-    {
-        int dx = Math.Sign(speed.X), dy = Math.Sign(speed.Y);
-        return (dx, dy) switch
-        {
-            (1, -1) => 0,
-            (0, -1) => 1,
-            (-1, -1) => 2,
-            (1, 0) => 3,
-            (-1, 0) => 5,
-            (1, 1) => 6,
-            (0, 1) => 7,
-            (-1, 1) => 8,
-            _ => 1,
-        };
     }
 }

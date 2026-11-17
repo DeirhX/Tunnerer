@@ -22,8 +22,8 @@ public class SimulationFingerprintTests
     // only means something platform-dependent has crept back into the simulation.
     private const ulong ExpectedPlayerDrivesAndShoots = 0x0536351EB23893B1UL;
     private const ulong ExpectedRelayPylonHarvesterNetwork = 0xE7A3D02389E878BDUL;
-    private const ulong ExpectedEnemyMachinesShotToPieces = 0xB980AEF884948355UL;
-    private const ulong ExpectedBotVsBot = 0x2411AF645D7B4367UL;
+    private const ulong ExpectedEnemyMachinesShotToPieces = 0xDB55AE54E7FB3960UL;
+    private const ulong ExpectedBotVsBot = 0x6F7A9451675E7A1CUL;
 
     [Fact]
     public void PlayerDrivesAndShoots_MatchesRecordedFingerprint()
@@ -80,7 +80,7 @@ public class SimulationFingerprintTests
         var tanks = world.TankList.Tanks;
         var bots = new[] { new BotTankAI(seed: 11), new BotTankAI(seed: 22) };
         for (int frame = 0; frame < 1200; frame++)
-            world.Advance(i => bots[i].GetInput(tanks[i], tanks[1 - i], world.Terrain));
+            world.Advance(i => bots[i].GetInput(tanks[i], tanks[1 - i], world));
 
         AssertFingerprint(ExpectedBotVsBot, world);
     }

@@ -7,7 +7,8 @@ using Tunnerer.Core.Types;
 /// The tank's one shape: the cells of its sprite bitmap (<see cref="TankSprites.Sprites"/>) that are not transparent,
 /// for the direction it faces. Everything that asks where a tank is reads this: bumping into terrain while moving and
 /// picking items up (<see cref="TankDigger"/>), projectiles hitting it (<c>CollisionSolver.TestPoint</c>) and crawling
-/// machines that may not step onto it (<c>World.IsMachineSpotOccupied</c>). Tanks do not collide with each other.
+/// machines that may not step onto it (<c>World.IsMachineSpotOccupied</c>), and tanks bumping into another tank or
+/// another side's machine (<c>CollisionSolver.BlocksTank</c>).
 /// </summary>
 /// <remarks>
 /// The sprite is the source because it is what the player sees: the Desktop hull and tracks are drawn to cover the
@@ -49,6 +50,46 @@ public static class TankSpriteShape
                     return true;
             }
         return false;
+    }
+
+    /// <summary>
+    /// Whether the tank facing <paramref name="dirA"/> at <paramref name="a"/> shares a cell with the tank facing
+    /// <paramref name="dirB"/> at <paramref name="b"/>.
+    /// </summary>
+    public static bool Overlaps(int dirA, Position a, int dirB, Position b)
+    {
+        if (Math.Abs(a.X - b.X) > 2 * Radius || Math.Abs(a.Y - b.Y) > 2 * Radius)
+            return false;
+        var sprite = Bitmap(dirA);
+        for (int sy = 0; sy < Size; sy++)
+            for (int sx = 0; sx < Size; sx++)
+            {
+                if (sprite[sx + sy * Size] == 0) continue;
+                if (Contains(dirB, b, new Position(a.X - Radius + sx, a.Y - Radius + sy)))
+                    return true;
+            }
+        return false;
+    }
+
+    /// <summary>
+    /// The sprite direction a tank faces after a step by <paramref name="move"/>.
+    /// Layout: 0=NE, 1=N, 2=NW, 3=E, 5=W, 6=SE, 7=S, 8=SW (index 4 is unused).
+    /// </summary>
+    public static int DirectionOf(Offset move)
+    {
+        int dx = Math.Sign(move.X), dy = Math.Sign(move.Y);
+        return (dx, dy) switch
+        {
+            (1, -1) => 0,
+            (0, -1) => 1,
+            (-1, -1) => 2,
+            (1, 0) => 3,
+            (-1, 0) => 5,
+            (1, 1) => 6,
+            (0, 1) => 7,
+            (-1, 1) => 8,
+            _ => 1,
+        };
     }
 
     /// <summary>

@@ -6,6 +6,9 @@ using Tunnerer.Core.Config;
 /// One of the bot's play styles: when it retreats, how readily it fires, how often it replans and how it rates tiles.
 /// <see cref="RetreatHeatBudgetFraction"/> is a share of <c>Tank.HeatBudgetCapacity</c>: in a fight the bot backs off
 /// once its heat budget (room left before it overheats, coolant included) falls below it.
+/// <see cref="TargetPull"/> is what a step straight at the target is worth on the scale of the tile bonuses (a step
+/// straight away costs as much): against the gap between open ground and dirt it decides how far out of its way the
+/// bot follows a tunnel before it digs toward the target instead.
 /// </summary>
 internal readonly record struct BotBehaviorProfile(
     string Name,
@@ -18,10 +21,9 @@ internal readonly record struct BotBehaviorProfile(
     int ReplanLosMax,
     int ReplanTunnelMin,
     int ReplanTunnelMax,
-    float DistanceWeight,
+    float TargetPull,
     float OpenTileBonus,
-    float SoftTileBonus,
-    float HardTileBonus);
+    float SoftTileBonus);
 
 /// <summary>Cycles the bot through its play styles every few seconds so it does not feel scripted.</summary>
 internal sealed class BotProfileCycle
@@ -41,10 +43,9 @@ internal sealed class BotProfileCycle
             ReplanLosMax: 9,
             ReplanTunnelMin: 7,
             ReplanTunnelMax: 14,
-            DistanceWeight: 0.012f,
+            TargetPull: 24f,
             OpenTileBonus: 46f,
-            SoftTileBonus: 10f,
-            HardTileBonus: -4f),
+            SoftTileBonus: 10f),
         new(
             Name: "balanced",
             LowHealthRatio: 0.50f,
@@ -56,10 +57,9 @@ internal sealed class BotProfileCycle
             ReplanLosMax: 12,
             ReplanTunnelMin: 8,
             ReplanTunnelMax: 20,
-            DistanceWeight: 0.015f,
+            TargetPull: 30f,
             OpenTileBonus: 36f,
-            SoftTileBonus: 12f,
-            HardTileBonus: 2f),
+            SoftTileBonus: 12f),
         new(
             Name: "rush",
             LowHealthRatio: 0.30f,
@@ -71,10 +71,9 @@ internal sealed class BotProfileCycle
             ReplanLosMax: 8,
             ReplanTunnelMin: 6,
             ReplanTunnelMax: 12,
-            DistanceWeight: 0.020f,
+            TargetPull: 40f,
             OpenTileBonus: 26f,
-            SoftTileBonus: 16f,
-            HardTileBonus: 10f),
+            SoftTileBonus: 16f),
     };
 
     private int _activeIdx;
