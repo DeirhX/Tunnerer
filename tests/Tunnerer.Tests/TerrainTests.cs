@@ -251,13 +251,13 @@ public class TerrainTests
         AssertClosedRockSystemConverges(width: 1, height: 64, hotIndex: 0, hotTemperature: 220f, steps: 30000, tolerance: 3f);
     }
 
+    [Trait("Category", "Slow")]
     [Fact]
     public void TerrainHeatEngine_SquareClosedSystem_ConvergesToInitialEnergyMean()
     {
-        // Hot spot in the centre of a square. It is within tolerance after a few hundred steps at most; the rest of
-        // the run checks that the total energy does not drift once the block has settled.
+        // Hot spot in the centre of a square.
         const int size = 32;
-        AssertClosedRockSystemConverges(size, size, hotIndex: size / 2 + (size / 2) * size, hotTemperature: 255f, steps: 10000, tolerance: 2f);
+        AssertClosedRockSystemConverges(size, size, hotIndex: size / 2 + (size / 2) * size, hotTemperature: 255f, steps: 60000, tolerance: 2f);
     }
 
     /// <summary>
@@ -288,6 +288,38 @@ public class TerrainTests
         Assert.True(maxAbsDrift <= 0.5, $"Total energy drifted by {maxAbsDrift:0.0000} from {startEnergy:0.0000}");
         Assert.All(terrain, t => Assert.InRange(t, expected - tolerance, expected + tolerance));
         Assert.All(air, a => Assert.InRange(a, expected - tolerance, expected + tolerance));
+    }
+
+    [Fact]
+    public void TerrainHeatEngine_ConservativeAirField_ClosedSystem_PreservesTotalEnergy()
+    {
+        const int width = 32;
+        const int height = 32;
+        var engine = new TerrainHeatEngine(FullGridHeatStep.LosslessSettings());
+        var terrain = new float[width * height];
+        var air = new float[width * height];
+        var pixels = new TerrainPixel[width * height];
+
+        for (int i = 0; i < pixels.Length; i++)
+            pixels[i] = TerrainPixel.Rock;
+
+        int cx = width / 2;
+        int cy = height / 2;
+        terrain[cx + cy * width] = 255f;
+
+        double startEnergy = engine.SumTotalEnergy(terrain, air, pixels);
+        double maxAbsDrift = 0.0;
+        for (int step = 0; step < 20000; step++)
+        {
+            FullGridHeatStep.Step(engine, terrain, air, pixels, width, height);
+            double now = engine.SumTotalEnergy(terrain, air, pixels);
+            double drift = Math.Abs(now - startEnergy);
+            if (drift > maxAbsDrift)
+                maxAbsDrift = drift;
+        }
+
+        Assert.True(maxAbsDrift <= 0.5,
+            $"Expected conservative closed-system behavior. start={startEnergy:0.000}, maxAbsDrift={maxAbsDrift:0.000}");
     }
 
     private static double SumHeat(TerrainGrid terrain)

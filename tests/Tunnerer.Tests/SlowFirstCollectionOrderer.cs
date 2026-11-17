@@ -57,12 +57,14 @@ public sealed class SlowFirstCollectionOrderer : ITestCollectionOrderer
         int slow = 0, tests = 0;
         foreach (var type in classes)
         {
+            // A class marked Slow makes every test in it slow, as the Category filter sees it.
+            bool slowClass = type.GetCustomAttributesData().Any(IsSlowTrait);
             foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             {
                 if (!method.IsDefined(typeof(FactAttribute), inherit: true))
                     continue;
                 tests++;
-                if (method.GetCustomAttributesData().Any(IsSlowTrait))
+                if (slowClass || method.GetCustomAttributesData().Any(IsSlowTrait))
                     slow++;
             }
         }
