@@ -21,10 +21,14 @@ public class RelayOverSocketsTests
 {
     private static readonly Size MapSize = new(320, 200);
 
-    /// <summary>Short keep-alive times, so that a connection that went silent is found within a second.</summary>
+    /// <summary>
+    /// Short keep-alive times, so that a connection that went silent is found within a few seconds. The timeout is
+    /// not shorter: on a loaded build machine a healthy client can take most of a second to answer a ping, and the
+    /// relay would drop it too.
+    /// </summary>
     private static readonly TimeSpan QuickInterval = TimeSpan.FromMilliseconds(300);
 
-    private static readonly TimeSpan QuickTimeout = TimeSpan.FromMilliseconds(600);
+    private static readonly TimeSpan QuickTimeout = TimeSpan.FromSeconds(2);
 
     private static async Task<(WebApplication App, Uri Play)> StartRelayAsync(string secret = "", bool quickKeepAlive = false)
     {
@@ -244,7 +248,8 @@ public class RelayOverSocketsTests
         WaitFor(() => a.Started, a);
         Assert.Equal(2, a.PlayersHere);
 
-        WaitFor(() => a.PlayersHere == 1, a);
+        WaitFor(() => a.PlayersHere == 1 || a.Failure != null, a);
+        Assert.Null(a.Failure);
 
         using var back = NetLaunch.Join(Options(play, "Bob"), Config(seed: 1));
         WaitFor(() => back.Rejoined, back, a);
@@ -263,7 +268,7 @@ public class RelayOverSocketsTests
         // Several keep-alive periods in a lobby with nothing to say, during which the busy client never pumps, as
         // when its game loop is building a world.
         var until = Stopwatch.StartNew();
-        WaitFor(() => { other.Pump(); return until.Elapsed > TimeSpan.FromSeconds(2.5); }, other);
+        WaitFor(() => { other.Pump(); return until.Elapsed > TimeSpan.FromSeconds(4); }, other);
 
         busy.Pump();
         Assert.Null(busy.Failure);
