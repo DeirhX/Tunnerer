@@ -45,6 +45,8 @@ def main():
     parser.add_argument("--configuration", choices=["Debug", "Release"], default="Release")
     parser.add_argument("--no-aot", action="store_true", help="Faster local builds; slower game execution.")
     parser.add_argument("--package-only", action="store_true", help="Repackage an already published wwwroot.")
+    parser.add_argument("--restore-workloads", action="store_true",
+                        help="First install the .NET workloads this publish needs (changes the SDK installation).")
     args = parser.parse_args()
     output = args.output.resolve()
     if not args.package_only:
@@ -66,8 +68,15 @@ def main():
         for path in shader_dir.iterdir():
             if path.suffix != ".glsl":
                 path.unlink()
-        command = [dotnet, "publish", str(repo / "src/Tunnerer.Browser/Tunnerer.Browser.csproj"),
-                   "-c", args.configuration, "-o", str(output)]
+        project = str(repo / "src/Tunnerer.Browser/Tunnerer.Browser.csproj")
+        if args.restore_workloads:
+            # Which workload that is depends on the SDK in use (wasm-tools on .NET 10, wasm-tools-net10 on later
+            # ones), so let the SDK say. It has to read the project as the publish will: only a Release build
+            # compiles ahead of time, which is what needs the workload, and 'workload restore' takes no
+            # configuration option, hence the environment variable.
+            subprocess.run([dotnet, "workload", "restore", project], cwd=repo,
+                           env={**env, "Configuration": args.configuration}, check=True)
+        command = [dotnet, "publish", project, "-c", args.configuration, "-o", str(output)]
         if args.no_aot:
             command.append("-p:RunAOTCompilation=false")
         subprocess.run(command, cwd=repo, env=env, check=True)

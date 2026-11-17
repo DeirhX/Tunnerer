@@ -15,8 +15,7 @@ a local match against a bot. See [Browser play and deployment](docs/browser.md).
 ### Play in a browser
 
 ```sh
-dotnet workload install wasm-tools
-python3 tools/browser/publish.py
+python3 tools/browser/publish.py --restore-workloads
 python3 tools/browser/serve.py
 ```
 

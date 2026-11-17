@@ -34,7 +34,7 @@ Run from the repository root.
   lists. It references only Core (`ArchitectureGuardTests`).
 - `src/Tunnerer.Browser.Client`: the browser's match and what it draws, in plain .NET so the tests cover it.
 - `src/Tunnerer.Browser`: the WebAssembly exports and the web page (`wwwroot`: WebGL, input, HUD, offline shell).
-  Not in `Tunnerer.slnx`, because building it needs the `wasm-tools` workload; `docs/browser.md` has the commands.
+  Not in `Tunnerer.slnx`, because building it needs a .NET WebAssembly workload; `docs/browser.md` has the commands.
 - `tools/browser`: publish, serve and test the browser client.
 - `tools/Tunnerer.ShaderCompiler`: build step that compiles the HLSL for SDL_GPU (DXIL, SPIR-V, MSL) on every OS,
   and with `--web` to GLSL ES for the browser.

@@ -26,11 +26,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      # Restore the workloads the project asks for, not a fixed name: the hosted images can default to a newer SDK
-      # than the project targets, which then needs wasm-tools-net10 rather than wasm-tools.
-      - run: dotnet workload restore src/Tunnerer.Browser/Tunnerer.Browser.csproj
+      # The publisher installs the workload itself rather than this file naming one: the hosted images can default
+      # to a newer SDK than the project targets, which then needs wasm-tools-net10 rather than wasm-tools. A plain
+      # 'dotnet workload restore' finds nothing to install, because it reads the project as a Debug build and only
+      # the Release build compiles ahead of time.
       - name: Publish the installable game
-        run: python tools/browser/publish.py
+        run: python tools/browser/publish.py --restore-workloads
       - name: Check browser host formatting
         if: runner.os == 'macOS'
         run: dotnet format src/Tunnerer.Browser/Tunnerer.Browser.csproj --verify-no-changes --no-restore

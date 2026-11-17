@@ -6,14 +6,18 @@ It uses the real `Tunnerer.Core` assembly compiled to WebAssembly. No simulation
 
 ## Build and run
 
-Install the .NET 10 SDK, its `wasm-tools` workload, and Python 3. Players need WebGL 2 and WebAssembly;
+Install the .NET 10 SDK or a later one, its WebAssembly workload, and Python 3. Players need WebGL 2 and WebAssembly;
 hardware acceleration should be enabled in the browser. Run from the repository root:
 
 ```sh
-dotnet workload install wasm-tools
-python3 tools/browser/publish.py
+python3 tools/browser/publish.py --restore-workloads
 python3 tools/browser/serve.py
 ```
+
+`--restore-workloads` installs the workload the SDK in use needs for this project (`wasm-tools` on .NET 10,
+`wasm-tools-net10` on later SDKs); it is only needed the first time, and it may ask for administrator rights
+where the SDK is installed for all users. Installing that workload by name with `dotnet workload install` does
+the same.
 
 The tools run the same on Windows, macOS and Linux; where Python is installed as `python` or `py` (Windows), use
 that name. Open `http://localhost:8703`. Release publishes use AOT compilation. For quicker local iteration use
