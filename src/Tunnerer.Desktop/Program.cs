@@ -1,6 +1,7 @@
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Desktop.Net;
 
 // Numbers in logs, CSV files and scripts use '.' as the decimal separator whatever the system language is.
 System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
@@ -51,170 +52,47 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
     return;
 }
 
-Size? terrainSize = null;
-bool fastGen = false;
-bool perfMode = false;
-bool terrainTestMode = false;
-int perfWarmupFrames = 180;
-int perfMeasureFrames = 900;
-string? perfCsvPath = null;
-bool enableAiTanks = true;
-bool fogOfWar = true;
-int? displayIndex = DesktopDisplayOptions.Parse(Environment.GetEnvironmentVariable("TUNNERER_DISPLAY"));
-Size? windowedSize = DesktopDisplayOptions.ParseWindowed(Environment.GetEnvironmentVariable("TUNNERER_WINDOWED"));
-bool hiddenWindow = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_HIDDEN"));
-float? volume = AudioOptions.ParseVolume(Environment.GetEnvironmentVariable("TUNNERER_VOLUME"));
-bool mute = DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable("TUNNERER_MUTE"));
-string? audioCapturePath = Environment.GetEnvironmentVariable("TUNNERER_AUDIO_CAPTURE");
-string? dumpSoundsDirectory = null;
-Uri? relayUri = null;
-string room = "lobby";
-string playerName = Environment.UserName;
-int players = NetworkTweaks.DefaultPlayers;
-string relaySecret = Environment.GetEnvironmentVariable("TUNNERER_RELAY_SECRET") ?? string.Empty;
-foreach (var arg in args)
-{
-    if (arg == "--large")
-        terrainSize = new Size(1500, 750);
-    else if (arg == "--fast")
-        fastGen = true;
-    else if (arg == "--perf")
-        perfMode = true;
-    else if (arg == "--terrain-test")
-        terrainTestMode = true;
-    else if (arg.StartsWith("--perf-warmup=", StringComparison.Ordinal) && int.TryParse(arg[14..], out int warmup))
-        perfWarmupFrames = Math.Max(0, warmup);
-    else if (arg.StartsWith("--perf-frames=", StringComparison.Ordinal) && int.TryParse(arg[14..], out int frames))
-        perfMeasureFrames = Math.Max(1, frames);
-    else if (arg.StartsWith("--perf-csv=", StringComparison.Ordinal))
-        perfCsvPath = arg[11..];
-    else if (arg.StartsWith("--size=", StringComparison.Ordinal))
-    {
-        var parts = arg[7..].Split('x');
-        if (parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h))
-            terrainSize = new Size(w, h);
-    }
-    else if (arg == "--windowed" || arg.StartsWith("--windowed=", StringComparison.Ordinal))
-    {
-        string value = arg.Length > "--windowed".Length ? arg["--windowed=".Length..] : string.Empty;
-        var parsed = DesktopDisplayOptions.ParseWindowed(value, flagPresent: true);
-        if (parsed is null)
-            Console.WriteLine($"[Args] Unknown window size '{value}', expected WxH (at least 320x200). Using fullscreen.");
-        else
-            windowedSize = parsed;
-    }
-    else if (arg == "--hidden")
-    {
-        hiddenWindow = true;
-    }
-    else if (arg.StartsWith("--display=", StringComparison.Ordinal))
-    {
-        var parsed = DesktopDisplayOptions.Parse(arg[10..]);
-        if (parsed is null)
-            Console.WriteLine($"[Args] Unknown display '{arg[10..]}', expected a number or 'secondary'. Using the default.");
-        else
-            displayIndex = parsed;
-    }
-    else if (arg.StartsWith("--volume=", StringComparison.Ordinal))
-    {
-        var parsed = AudioOptions.ParseVolume(arg[9..]);
-        if (parsed is null)
-            Console.WriteLine($"[Args] Unknown volume '{arg[9..]}', expected a number from 0 to 100. Using the default.");
-        else
-            volume = parsed;
-    }
-    else if (arg == "--mute")
-    {
-        mute = true;
-    }
-    else if (arg.StartsWith("--dump-sounds=", StringComparison.Ordinal))
-    {
-        dumpSoundsDirectory = arg[14..];
-    }
-    else if (arg == "--no-ai" || arg == "--disable-ai")
-    {
-        enableAiTanks = false;
-    }
-    else if (arg == "--no-fog")
-    {
-        fogOfWar = false;
-    }
-    else if (arg == "--energy-audit")
-    {
-        GameLaunchOptions.EnergyAudit = true;
-    }
-    else if (arg.StartsWith("--relay=", StringComparison.Ordinal))
-    {
-        if (Uri.TryCreate(arg[8..], UriKind.Absolute, out Uri? parsed) && parsed.Scheme is "ws" or "wss")
-            relayUri = parsed;
-        else
-            Console.WriteLine($"[Args] Unknown relay '{arg[8..]}', expected a ws:// or wss:// address. Playing a local match.");
-    }
-    else if (arg == "--net" || arg.StartsWith("--net=", StringComparison.Ordinal))
-    {
-        relayUri ??= new Uri(NetworkTweaks.DefaultRelay);
-        if (arg.Length > 6)
-            room = arg[6..];
-    }
-    else if (arg.StartsWith("--room=", StringComparison.Ordinal) && arg.Length > 7)
-    {
-        room = arg[7..];
-    }
-    else if (arg.StartsWith("--name=", StringComparison.Ordinal) && arg.Length > 7)
-    {
-        playerName = arg[7..];
-    }
-    else if (arg.StartsWith("--secret=", StringComparison.Ordinal))
-    {
-        relaySecret = arg[9..];
-    }
-    else if (arg.StartsWith("--players=", StringComparison.Ordinal))
-    {
-        if (int.TryParse(arg[10..], out int count) && count is >= 2 and <= Tunnerer.Core.Config.Tweaks.World.MaxPlayers)
-            players = count;
-        else
-            Console.WriteLine($"[Args] Unknown player count '{arg[10..]}', expected 2 to 8. Using {players}.");
-    }
-    else if (arg.StartsWith("--seed=", StringComparison.Ordinal))
-    {
-        if (int.TryParse(arg[7..], out int seedValue) && seedValue != 0)
-            GameLaunchOptions.Seed = seedValue;
-        else
-            Console.WriteLine($"[Args] Unknown seed '{arg[7..]}', expected a non-zero whole number. Using a new map.");
-    }
-    else
-    {
-        Console.WriteLine($"[Args] Unknown option '{arg}' ignored. Run with --help to list the options.");
-    }
-}
+var launchWarnings = new List<string>();
+var launch = LaunchArguments.Parse(args, Environment.GetEnvironmentVariable, launchWarnings);
+foreach (string warning in launchWarnings)
+    Console.WriteLine(warning);
 
-DesktopDisplayOptions.DisplayIndex = displayIndex;
-DesktopDisplayOptions.WindowedSize = windowedSize;
-DesktopDisplayOptions.Hidden = hiddenWindow;
-AudioOptions.Volume = volume ?? AudioOptions.DefaultVolume;
-AudioOptions.Muted = mute;
+Size? terrainSize = launch.TerrainSize;
+GameLaunchOptions.Seed = launch.Seed;
+GameLaunchOptions.EnergyAudit = launch.EnergyAudit;
+DesktopDisplayOptions.DisplayIndex = launch.DisplayIndex;
+DesktopDisplayOptions.WindowedSize = launch.WindowedSize;
+DesktopDisplayOptions.Hidden = launch.Hidden;
+AudioOptions.Volume = launch.Volume ?? AudioOptions.DefaultVolume;
+AudioOptions.Muted = launch.Mute;
+string? audioCapturePath = Environment.GetEnvironmentVariable("TUNNERER_AUDIO_CAPTURE");
 AudioOptions.CapturePath = string.IsNullOrWhiteSpace(audioCapturePath) ? null : audioCapturePath.Trim();
-if (!string.IsNullOrWhiteSpace(dumpSoundsDirectory))
+if (!string.IsNullOrWhiteSpace(launch.DumpSoundsDirectory))
 {
-    Tunnerer.Desktop.Audio.GameAudio.DumpEffects(dumpSoundsDirectory);
+    Tunnerer.Desktop.Audio.GameAudio.DumpEffects(launch.DumpSoundsDirectory);
     return;
 }
 bool restartRequested;
 bool rejoin;
+Tunnerer.Desktop.Net.RelaunchRequest? relaunch;
 // Set for the process a restart starts when the player is coming back to a match after losing the connection.
 const string RejoinVariable = "TUNNERER_NET_REJOIN";
-var mode = fastGen ? LevelGenMode.Optimized : LevelGenMode.Deterministic;
-Tunnerer.Desktop.PerfCaptureOptions? perfOptions = perfMode
-    ? new Tunnerer.Desktop.PerfCaptureOptions(perfWarmupFrames, perfMeasureFrames, perfCsvPath)
+// Set for the process a restart starts when the player left a network match: it opens the network menu.
+const string NetMenuVariable = "TUNNERER_NET_MENU";
+var mode = launch.FastGen ? LevelGenMode.Optimized : LevelGenMode.Deterministic;
+Tunnerer.Desktop.PerfCaptureOptions? perfOptions = launch.Perf
+    ? new Tunnerer.Desktop.PerfCaptureOptions(launch.PerfWarmupFrames, launch.PerfMeasureFrames, launch.PerfCsvPath)
     : null;
 Tunnerer.Desktop.Net.RelayConnection? relay = null;
-if (relayUri != null && !terrainTestMode)
+Tunnerer.Desktop.Net.NetMenuRequest? openNetMenu =
+    DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable(NetMenuVariable)) ? new NetMenuRequest(Secret: launch.Secret) : null;
+if (launch.Net is { } netOptions && !launch.TerrainTest)
 {
     // The first player into the room decides the match; everyone builds what the relay hands back.
     var proposed = Tunnerer.Desktop.Net.NetLaunch.ProposeConfig(
-        GameLaunchOptions.Seed ?? Random.Shared.Next(1, int.MaxValue),
-        terrainSize ?? (players > 2 ? NetworkTweaks.LargeMatchMapSize : DesktopScreenTweaks.RenderSurfaceSize), mode, players);
-    var netOptions = new Tunnerer.Desktop.Net.NetLaunchOptions(relayUri, room, playerName, players, relaySecret);
+        launch.Seed ?? Random.Shared.Next(1, int.MaxValue),
+        terrainSize ?? (launch.Players > 2 ? NetworkTweaks.LargeMatchMapSize : DesktopScreenTweaks.RenderSurfaceSize),
+        mode, launch.Players);
     try
     {
         // Started again by a player whose connection broke: their slot may still be held by the dead connection.
@@ -225,30 +103,50 @@ if (relayUri != null && !terrainTestMode)
     catch (Tunnerer.Desktop.Net.RelayException e)
     {
         Console.WriteLine($"[Net] {e.Message}");
-        return;
+        // A person who started the game from a shortcut would otherwise see nothing at all. They get a local match
+        // with the network menu open and the relay's reason on it. Nobody is there to read it in an automated run.
+        if (Tunnerer.Desktop.Game.IsAutomatedRun(perfOptions))
+            return;
+        openNetMenu = new NetMenuRequest(netOptions, e.Message);
+        // The map the refused launch asked for is not the one the menu's local match needs: no huge map to build
+        // just to be able to show a menu.
+        terrainSize = null;
+        GameLaunchOptions.Seed = null;
     }
-    terrainSize = new Size(relay.Config.MapWidth, relay.Config.MapHeight);
-    mode = (LevelGenMode)relay.Config.GenMode;
+    if (relay != null)
+    {
+        terrainSize = new Size(relay.Config.MapWidth, relay.Config.MapHeight);
+        mode = (LevelGenMode)relay.Config.GenMode;
+    }
 }
 
 using (relay)
 {
-    var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, enableAiTanks,
-        terrainTestMode: terrainTestMode, fogOfWar: fogOfWar, relay: relay);
+    var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, launch.EnableAiTanks,
+        terrainTestMode: launch.TerrainTest, fogOfWar: launch.FogOfWar, relay: relay, openNetMenu: openNetMenu);
     game.Run();
     restartRequested = game.RestartRequested;
     rejoin = game.RejoinRequested;
+    relaunch = game.Relaunch;
 }
 
 // Enter after a match ends starts a new match, and Enter after losing the connection comes back to the match. The renderer is not built to be created twice in one process,
-// so the new match runs in a fresh process with the same arguments (the old window has been closed by now).
+// so the new match runs in a fresh process with the same arguments (the old window has been closed by now). The
+// network menu asks for other arguments: a match in the room the player chose, or a local one with the menu open.
 if (restartRequested && Environment.ProcessPath is { } exePath)
 {
     var start = new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = false };
-    foreach (var arg in args)
+    foreach (string arg in relaunch is null ? args : launch.Relaunch(relaunch.Net))
         start.ArgumentList.Add(arg);
     start.Environment[RejoinVariable] = rejoin ? "1" : "0";
+    start.Environment[NetMenuVariable] = relaunch?.OpenNetMenu == true ? "1" : "0";
+    if (relaunch?.Net is { } chosen)
+    {
+        // The secret goes in the environment, where a process list does not show it.
+        if (chosen.Secret.Length > 0)
+            start.Environment[NetLaunchOptions.SecretVariable] = chosen.Secret;
+        else
+            start.Environment.Remove(NetLaunchOptions.SecretVariable);
+    }
     System.Diagnostics.Process.Start(start);
 }
-
-

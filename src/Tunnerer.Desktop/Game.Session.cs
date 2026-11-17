@@ -27,7 +27,11 @@ public partial class Game
     /// </summary>
     private bool IsInteractiveSession => !_terrainTestMode && !_automatedRun;
 
-    private static bool IsAutomatedRun(PerfCaptureOptions? perfCapture)
+    /// <summary>
+    /// A scripted, perf-capture or hidden run, which nobody plays: it never waits for a menu, so a refused network
+    /// launch ends it.
+    /// </summary>
+    public static bool IsAutomatedRun(PerfCaptureOptions? perfCapture)
     {
         if (perfCapture is not null || DesktopDisplayOptions.Hidden)
             return true;
@@ -63,7 +67,9 @@ public partial class Game
     }
 
     /// <summary>
-    /// Handles Escape, P, F1, Q and the sound keys (M, - and =), and pauses when the window loses focus. Returns true when the event was consumed.
+    /// Handles Escape, P, F1, Q, N, L and the sound keys (M, - and =), and pauses when the window loses focus. Returns
+    /// true when the event was consumed. While the network menu is open it takes every key (see
+    /// <see cref="HandleNetMenuEvent"/>).
     /// </summary>
     private bool HandleSessionEvent(Event ev)
     {
@@ -73,6 +79,9 @@ public partial class Game
                 _paused = true;
             return false;
         }
+
+        if (IsInteractiveSession && _paused && _showNetMenu && HandleNetMenuEvent(ev))
+            return true;
 
         if (ev.Type != (uint)EventType.KeyDown)
             return false;
@@ -91,9 +100,9 @@ public partial class Game
             return false;
         }
 
-        switch (scancode)
+        switch (SessionKeys.Classify(scancode, _paused, _showControls, IsNetMatch, NetMenuHasTextInput))
         {
-            case Scancode.Escape:
+            case SessionKey.Escape:
                 if (isRepeat)
                     return true;
                 if (_showControls)
@@ -101,26 +110,34 @@ public partial class Game
                 else
                     _paused = !_paused;
                 return true;
-            case Scancode.P:
+            case SessionKey.Pause:
                 if (!isRepeat)
                     HandleSessionCommand(GameCommand.TogglePause);
                 return true;
-            case Scancode.F1:
+            case SessionKey.Controls:
                 if (!isRepeat)
                     HandleSessionCommand(GameCommand.ToggleControls);
                 return true;
-            case Scancode.M:
+            case SessionKey.Mute:
                 if (!isRepeat)
                     _audio.ToggleMute();
                 return true;
-            case Scancode.Minus:
+            case SessionKey.VolumeDown:
                 _audio.AdjustVolume(-0.05f);
                 return true;
-            case Scancode.Equals:
+            case SessionKey.VolumeUp:
                 _audio.AdjustVolume(0.05f);
                 return true;
-            case Scancode.Q when _paused && !_showControls:
+            case SessionKey.Quit:
                 _isRunning = false;
+                return true;
+            case SessionKey.NetworkMatch:
+                if (!isRepeat)
+                    OpenNetMenu();
+                return true;
+            case SessionKey.LeaveNetworkMatch:
+                if (!isRepeat)
+                    LeaveNetworkMatch();
                 return true;
             default:
                 return false;
@@ -178,11 +195,23 @@ public partial class Game
     {
         if (!IsInteractiveSession && !_paused)
             return;
+        if (!_paused)
+        {
+            _leaveArmed = false;
+            _showNetMenu = false;
+        }
+
+        if (_paused && _showNetMenu && _netMenu is { } menu)
+        {
+            ApplyNetMenuResult(_netMenuView.Draw(_hud.PlayRect, menu));
+            return;
+        }
 
         var sound = new SoundMenuState(_audio.Enabled, AudioOptions.Volume, AudioOptions.Muted);
         SessionOverlayAction action = _sessionOverlay.Draw(
             _hud.PlayRect, _paused, _showControls, Seed, ReplayArguments, deltaTime, ref sound,
-            showKeyReminder: IsInteractiveSession);
+            showKeyReminder: IsInteractiveSession,
+            network: new PauseNetworkEntry(IsNetMatch, _leaveArmed));
         // The menu only says what the player asked for; GameAudio owns the setting.
         if (sound.Muted != AudioOptions.Muted)
             _audio.SetMuted(sound.Muted);
@@ -199,6 +228,12 @@ public partial class Game
                 break;
             case SessionOverlayAction.Back:
                 _showControls = false;
+                break;
+            case SessionOverlayAction.NetworkMatch:
+                OpenNetMenu();
+                break;
+            case SessionOverlayAction.LeaveNetworkMatch:
+                LeaveNetworkMatch();
                 break;
             case SessionOverlayAction.Quit:
                 _isRunning = false;

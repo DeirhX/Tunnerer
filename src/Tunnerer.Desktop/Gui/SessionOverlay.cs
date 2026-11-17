@@ -11,8 +11,15 @@ public enum SessionOverlayAction
     Resume,
     ShowControls,
     Back,
+    NetworkMatch,
+    LeaveNetworkMatch,
     Quit,
 }
+
+/// <summary>What the pause menu's network button says: open the network menu, or leave the match the player is in.</summary>
+/// <param name="InNetworkMatch">The player is in a network match, so the button leaves it.</param>
+/// <param name="ConfirmLeave">Leaving was asked for once and a started match wants it asked again.</param>
+public readonly record struct PauseNetworkEntry(bool InNetworkMatch, bool ConfirmLeave);
 
 /// <summary>
 /// Sound settings as the pause menu shows them. The menu changes <see cref="Volume"/> and <see cref="Muted"/>
@@ -45,6 +52,7 @@ public sealed class SessionOverlay
         ("1-4 / 5-6", "Docked: buy base upgrades / tank upgrades with the base ore store"),
         ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("Esc / P", "Pause"),
+        ("N / L", "Paused: open the network menu / leave the network match"),
         ("F1", "This screen"),
         ("F2", "Show or hide the tutorial"),
         ("M, - / =", "Mute sound, volume down / up"),
@@ -81,7 +89,8 @@ public sealed class SessionOverlay
         string replayArguments,
         float deltaTime,
         ref SoundMenuState sound,
-        bool showKeyReminder = true)
+        bool showKeyReminder = true,
+        PauseNetworkEntry network = default)
     {
         if (viewport.w <= 0 || viewport.h <= 0)
             return SessionOverlayAction.None;
@@ -108,13 +117,14 @@ public sealed class SessionOverlay
 
         var displaySize = ImGui.GetIO().DisplaySize;
         dl.AddRectFilled(Vector2.Zero, displaySize, Dim);
-        return showControls ? DrawControls(dl, viewport) : DrawPauseMenu(dl, viewport, seed, replayArguments, ref sound);
+        return showControls ? DrawControls(dl, viewport) : DrawPauseMenu(dl, viewport, seed, replayArguments, ref sound, network);
     }
 
     private SessionOverlayAction DrawPauseMenu(
-        ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed, string replayArguments, ref SoundMenuState sound)
+        ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed, string replayArguments, ref SoundMenuState sound,
+        PauseNetworkEntry network)
     {
-        const float panelW = 380f, panelH = 434f, buttonW = 300f, buttonH = 46f, gap = 12f;
+        const float panelW = 380f, panelH = 492f, buttonW = 300f, buttonH = 46f, gap = 12f;
         Vector2 min = PanelOrigin(vp, panelW, panelH);
         DrawPanel(dl, min, new Vector2(panelW, panelH));
 
@@ -127,6 +137,11 @@ public sealed class SessionOverlay
         float by = min.Y + 84f;
         if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), "Resume", "Esc"))
             action = SessionOverlayAction.Resume;
+        by += buttonH + gap;
+        string networkLabel = !network.InNetworkMatch ? "Network match"
+            : network.ConfirmLeave ? "Leave? Press again" : "Leave network match";
+        if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), networkLabel, network.InNetworkMatch ? "L" : "N"))
+            action = network.InNetworkMatch ? SessionOverlayAction.LeaveNetworkMatch : SessionOverlayAction.NetworkMatch;
         by += buttonH + gap;
         if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), "Controls", "F1"))
             action = SessionOverlayAction.ShowControls;
@@ -204,10 +219,7 @@ public sealed class SessionOverlay
 
         HudTheme.DrawButton(dl, min, max, label, key, hovered, enabled);
 
-        if (!hovered || !_pressArmed || !ImGui.IsMouseReleased(ImGuiMouseButton.Left))
-            return false;
-        Vector2 pressedAt = ImGui.GetIO().MouseClickedPos[0];
-        return pressedAt.X >= min.X && pressedAt.Y >= min.Y && pressedAt.X < max.X && pressedAt.Y < max.Y;
+        return MenuInput.Clicked(min, size, hovered, _pressArmed);
     }
 
     /// <summary>

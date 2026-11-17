@@ -35,6 +35,13 @@ public partial class Game
             return;
         }
 
+        // In the lobby, L leaves the room for the network menu (a started match asks from the pause menu).
+        if (scancode == Scancode.L && _relay is { Started: false } && IsInteractiveSession)
+        {
+            LeaveNetworkMatch();
+            return;
+        }
+
         // After a match ends, Enter starts a new one.
         if (scancode == Scancode.Return && CanRestartMatch)
         {

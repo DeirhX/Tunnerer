@@ -102,6 +102,11 @@ so a client that drifts apart is caught. Bots drive the slots nobody took, seede
 pause menu opens over a running game. `docs/multiplayer-design.md` has the protocol and the relay.
 
 Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
+The pause menu's network entry (`Game.NetMenu.cs`, `Gui/NetMenuView.cs`) only collects choices: `Net/NetMenuModel` is the menu
+without ImGui (screens, fields, validation, the launch Enter produces), `Net/PlayerSettings` is `settings.ini`, and
+`Net/LaunchArguments` parses the command line and builds the one for the next run. The game then closes and `Program.cs`
+starts it again in the match (the secret goes in `TUNNERER_RELAY_SECRET`, never in the arguments); a launch the relay
+refuses comes back as a local match with the menu open (`docs/multiplayer-lobby-ux.md`).
 A run counts as *automated* when it is scripted, hidden or a perf capture. Automated runs and the terrain test are
 not *interactive* (`Game.IsInteractiveSession`): they keep a fixed seed, make no sound, never pause on their own,
 and Escape quits at once.
@@ -205,6 +210,9 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
   (`MatchRoomTests`, `LockstepRoomTests`), client sessions (`NetSessionTests`), recordings, and a relay over real
   sockets (`RelayOverSocketsTests`; the tests that wait on a timer or a paced match are its nested classes in
   `TimedTestGroup`, which never run in parallel with the rest, and the quick run skips them).
+  The network menu: `LaunchArgumentsTests` (the command line and the arguments of the next run, the secret kept out
+  of them), `NetMenuModelTests`, `PlayerSettingsTests`, `TextInputSuppressesHotkeysTests` and `NetMenuRefusalTests`
+  (what the real relay says to a refused launch).
 - **Guard tests** keep the structure in place; `AGENTS.md` lists them.
 
 How the suite stays quick: a test over about five seconds is marked `[Trait("Category", "Slow")]`, so

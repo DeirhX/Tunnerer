@@ -42,6 +42,12 @@ public partial class GameHud
     /// </summary>
     public bool CanRestartMatch { get; set; } = true;
 
+    /// <summary>
+    /// True in a network lobby, before the match starts: the view is dimmed and none of the panels, gauges or guidance
+    /// are drawn, so the lobby plate is all there is to read.
+    /// </summary>
+    public bool WaitingForPlayers { get; set; }
+
     /// <summary>What to call the tank that won, when it is not the player's; null for "another tank".</summary>
     public string? WinnerName { get; set; }
 
@@ -74,6 +80,8 @@ public partial class GameHud
     {
         _time += MathF.Max(0f, deltaTime);
         DrawGameViewport(gameTextureId, texW, texH);
+        if (WaitingForPlayers)
+            return;
         DrawCrosshair();
         DrawHitFeedback(player);
         _strip.Draw(player, _time);
@@ -121,6 +129,8 @@ public partial class GameHud
             ImGui.SetCursorPos(Vector2.Zero);
             ImGui.Image(gameTextureId, new Vector2(ToUi(texW), ToUi(texH)));
             ViewportRect = (cursorPos.X, cursorPos.Y, ToUi(texW), ToUi(texH));
+            if (WaitingForPlayers)
+                ImGui.GetWindowDrawList().AddRectFilled(Vector2.Zero, displaySize, 0xC0000000u);
         }
         ImGui.End();
         ImGui.PopStyleVar(2);

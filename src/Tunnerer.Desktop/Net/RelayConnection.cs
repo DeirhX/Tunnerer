@@ -39,10 +39,12 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
         public static KeepAlive Default { get; } = new(TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(10));
     }
 
-    private RelayConnection(ClientWebSocket socket, Welcome welcome, string room)
+    private RelayConnection(ClientWebSocket socket, Welcome welcome, Hello hello, Uri address)
     {
         _socket = socket;
-        Room = room;
+        Address = address;
+        Room = hello.Room;
+        RequestedName = hello.Name;
         Slot = welcome.Slot;
         Config = welcome.Config;
         Roster = [];
@@ -50,8 +52,21 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
         _ = Task.Run(WriteLoopAsync);
     }
 
+    /// <summary>The relay's address.</summary>
+    public Uri Address { get; }
+
     /// <summary>The room this client is in.</summary>
     public string Room { get; }
+
+    /// <summary>The name this client asked for in its hello.</summary>
+    public string RequestedName { get; }
+
+    /// <summary>
+    /// The name the relay gave this client, which it must use to come back to the match. It differs from
+    /// <see cref="RequestedName"/> when someone in the room already had the name ("Ann (2)"). Null until the relay's
+    /// first roster has arrived.
+    /// </summary>
+    public string? AssignedName => Slot < Roster.Length && Roster[Slot].Length > 0 ? Roster[Slot] : null;
 
     /// <summary>The slot the relay gave this client: which tank it drives.</summary>
     public int Slot { get; }
@@ -110,7 +125,7 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
             Message? answer = ReadAsync(socket, new byte[MessageCodec.MaxMessageBytes], limit.Token).GetAwaiter().GetResult();
             return answer switch
             {
-                Welcome welcome => new RelayConnection(socket, welcome, hello.Room),
+                Welcome welcome => new RelayConnection(socket, welcome, hello, relay),
                 Refusal refusal => throw new RelayException(refusal.Reason),
                 _ => throw new RelayException("The relay closed the connection without an answer."),
             };
