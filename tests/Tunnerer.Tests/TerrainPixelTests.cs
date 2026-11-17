@@ -74,7 +74,7 @@ public class TerrainPixelTests
         [
             TerrainPixel.Blank, TerrainPixel.Dirt,
             TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.Decal,
-            TerrainPixel.Concrete, TerrainPixel.Gold, TerrainPixel.Emberite, TerrainPixel.EmberiteCore,
+            TerrainPixel.Concrete, TerrainPixel.Emberite, TerrainPixel.EmberiteCore,
             TerrainPixel.BaseMin, TerrainPixel.BaseBarrier, TerrainPixel.BaseCore
         ];
 

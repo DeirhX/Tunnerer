@@ -173,7 +173,7 @@ public sealed class GameAudio : IDisposable
                         Play(SoundEffect.Impact, e.Position, AudioTweaks.ImpactGain, 0.92f + 0.04f * ((_step + impacts) % 5));
                     impacts++;
                     break;
-                case StepEventKind.GoldCollected or StepEventKind.OreCollected when index >= 0:
+                case StepEventKind.OreCollected when index >= 0:
                     PlayPickup(index, e);
                     break;
                 case StepEventKind.ShotFired when index >= 0:
@@ -275,7 +275,7 @@ public sealed class GameAudio : IDisposable
         }
     }
 
-    /// <summary>A gold nugget or ore picked up; runs of pickups climb in pitch, and a burst of them sounds once.</summary>
+    /// <summary>Ore picked up; runs of pickups climb in pitch, and a burst of them sounds once.</summary>
     private void PlayPickup(int index, in StepEvent e)
     {
         ref TankTrack track = ref _tanks[index];
@@ -284,7 +284,7 @@ public sealed class GameAudio : IDisposable
             return;
         track.PickupStreak = track.LastPickupStep != 0 && sinceLast <= 12 ? Math.Min(track.PickupStreak + 1, 8) : 0;
         track.LastPickupStep = _step;
-        float pitch = (e.Kind == StepEventKind.GoldCollected ? 1f : 0.75f) * (1f + 0.04f * track.PickupStreak);
+        float pitch = 0.75f * (1f + 0.04f * track.PickupStreak);
         Play(SoundEffect.Pickup, e.Position, AudioTweaks.PickupGain, pitch, index);
     }
 

@@ -28,7 +28,7 @@ public sealed class ThermalLedger
     /// <summary>Energy removed by base cooling of a tank standing in a base and by the base-centre sink.</summary>
     public double SunkBase { get; private set; }
 
-    /// <summary>Energy removed from tanks by cooling pickups; negative if a tank was clamped up to zero heat.</summary>
+    /// <summary>Energy a wrecked tank still held when it respawned cold (<c>TankThermals.ResetForSpawn</c>).</summary>
     public double SunkTank { get; private set; }
 
     /// <summary>

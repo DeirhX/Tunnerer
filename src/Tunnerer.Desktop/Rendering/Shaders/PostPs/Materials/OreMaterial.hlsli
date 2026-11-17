@@ -10,7 +10,7 @@
 //   1. Seat shadow   — a dark rim just outside the deposit
 //   2. Crystal body  — teal shading into violet, broken into angular facets
 //                      with bright glints, so it reads as crystal rather than
-//                      rock (grey), gold (amber) or hot rock (red heat)
+//                      rock (grey) or hot rock (red heat)
 //   3. Core glow     — a slow warm pulse (magenta to ember) over core cells
 // ============================================================================
 

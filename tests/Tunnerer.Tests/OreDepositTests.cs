@@ -26,12 +26,11 @@ public class OreDepositTests
         Assert.False(Pixel.IsTorchable(pixel));
         Assert.False(Pixel.IsRock(pixel), "shots break rock; they must not break ore");
         Assert.False(Pixel.IsMineral(pixel));
-        Assert.False(Pixel.IsGold(pixel));
         Assert.False(Pixel.IsDirt(pixel), "ore never regrows or counts as dirt");
         Assert.Equal(material, Pixel.GetThermalMaterial(pixel));
         Assert.Equal(core ? Tweaks.Ore.CoreCellUnits : Tweaks.Ore.PlainCellUnits, Pixel.OreUnits(pixel));
         Assert.False(Pixel.IsOre(TerrainPixel.Rock));
-        Assert.Equal(0, Pixel.OreUnits(TerrainPixel.Gold));
+        Assert.Equal(0, Pixel.OreUnits(TerrainPixel.Concrete));
     }
 
     [Fact]

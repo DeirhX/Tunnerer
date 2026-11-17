@@ -15,7 +15,7 @@ using Tunnerer.Desktop.Config;
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct PostParamsBlock
 {
-    public const float LayoutVersion = 4.0f;
+    public const float LayoutVersion = 5.0f;
     public const int MaxTankGlows = 8;
 
     public float TexelSizeX, TexelSizeY, PixelScale, Time;
@@ -26,7 +26,6 @@ public unsafe struct PostParamsBlock
     public float ThermalTileHeatThreshold01, _padReserved1, VignetteStrength, VignetteInnerRadius;
     public float VignetteOuterRadius, _padReserved2, TerrainMaskCaveDarken, TerrainMaskSolidLift;
     public float _padReserved3, TerrainMaskRimLift, _padReserved4, Quality;
-    public float MaterialGoldR, MaterialGoldG, MaterialGoldB, MaterialGoldStrength;
     public float MaterialScorchedR, MaterialScorchedG, MaterialScorchedB, MaterialScorchedStrength;
     public float MaterialPulseFreq, MaterialPulseMin, MaterialPulseRange, MaterialPulsePad;
     public float NativeSmoothingEnabled, _padReserved5, NativeSampleFactor, NativeCurvingEnabled;
@@ -80,10 +79,6 @@ public unsafe struct PostParamsBlock
         cb.TerrainMaskSolidLift = DesktopScreenTweaks.PostTerrainMaskSolidLift;
         cb.TerrainMaskRimLift = DesktopScreenTweaks.PostTerrainMaskRimLift;
         cb.Quality = 2f; // full detail; the vignette pass runs from Quality 2
-        cb.MaterialGoldR = DesktopScreenTweaks.PostMaterialEmissiveGoldR;
-        cb.MaterialGoldG = DesktopScreenTweaks.PostMaterialEmissiveGoldG;
-        cb.MaterialGoldB = DesktopScreenTweaks.PostMaterialEmissiveGoldB;
-        cb.MaterialGoldStrength = DesktopScreenTweaks.PostMaterialEmissiveGoldStrength;
         cb.MaterialScorchedR = DesktopScreenTweaks.PostMaterialEmissiveScorchedR;
         cb.MaterialScorchedG = DesktopScreenTweaks.PostMaterialEmissiveScorchedG;
         cb.MaterialScorchedB = DesktopScreenTweaks.PostMaterialEmissiveScorchedB;

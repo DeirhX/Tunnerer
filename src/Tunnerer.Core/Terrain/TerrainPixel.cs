@@ -20,7 +20,6 @@ public enum TerrainPixel : byte
     HotRock = (byte)'h',
     FrostRock = (byte)'f',
     Concrete = (byte)'C',
-    Gold = (byte)'E',
     // Emberite ore (DESIGN.md §6.3): the resource machines are made of. Plain ore is inert; a core cell sits at the
     // heart of a large lump and is pinned warm.
     Emberite = (byte)'o',
@@ -50,7 +49,6 @@ public readonly record struct TerrainBehavior(
     bool Diggable,
     bool Concrete,
     bool Mineral,
-    bool Gold,
     bool Base,
     bool Scorched,
     Color DisplayColor,
@@ -77,64 +75,60 @@ public static class Pixel
 
         Set(TerrainPixel.Blank, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x00, 0x00, 0x00)));
         Set(TerrainPixel.Dirt, new(
             BlocksMovement: false, SoftCollision: true, Diggable: true,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0xc3, 0x79, 0x30)));
         Set(TerrainPixel.DirtGrow, new(
             BlocksMovement: false, SoftCollision: false, Diggable: true,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x6a, 0x29, 0x02)));
         Set(TerrainPixel.Rock, new(
             BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: true, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: true, Base: false, Scorched: false,
             DisplayColor: new Color(0x9a, 0x9a, 0x9a)));
         Set(TerrainPixel.Decal, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: true,
+            Concrete: false, Mineral: false, Base: false, Scorched: true,
             DisplayColor: new Color(0x38, 0x30, 0x28)));
         Set(TerrainPixel.Concrete, new(
             BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: true, Mineral: true, Gold: false, Base: false, Scorched: false,
+            Concrete: true, Mineral: true, Base: false, Scorched: false,
             DisplayColor: new Color(0x90, 0x90, 0x95)));
-        Set(TerrainPixel.Gold, new(
-            BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: true, Base: false, Scorched: false,
-            DisplayColor: new Color(0xC9, 0xA8, 0x37)));
         Set(TerrainPixel.BaseBarrier, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x50, 0x54, 0x5C)));
         Set(TerrainPixel.HotRock, new(
             BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0xd0, 0x40, 0x10)));
         Set(TerrainPixel.FrostRock, new(
             BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x9c, 0xd8, 0xf0)));
         // Ore blocks movement but is neither diggable nor mineral: the tank's dig has its own rule for it
         // (TankDigger), shots do not break it and it never regrows.
         Set(TerrainPixel.Emberite, new(
             BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x3c, 0xb8, 0xb0), Ore: true));
         Set(TerrainPixel.EmberiteCore, new(
             BlocksMovement: true, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0xb0, 0x5c, 0xd8), Ore: true));
         Set(TerrainPixel.BaseCore, new(
             BlocksMovement: false, SoftCollision: false, Diggable: false,
-            Concrete: false, Mineral: false, Gold: false, Base: false, Scorched: false,
+            Concrete: false, Mineral: false, Base: false, Scorched: false,
             DisplayColor: new Color(0x3A, 0x3E, 0x46)));
 
         var baseColor = new Color(0x58, 0x5C, 0x64);
         for (byte b = (byte)TerrainPixel.BaseMin; b <= (byte)TerrainPixel.BaseMax; b++)
             table[b] = new(
                 BlocksMovement: true, SoftCollision: false, Diggable: false,
-                Concrete: false, Mineral: false, Gold: false, Base: true, Scorched: false,
+                Concrete: false, Mineral: false, Base: true, Scorched: false,
                 DisplayColor: baseColor);
 
         return table;
@@ -162,7 +156,6 @@ public static class Pixel
     public static bool IsConcrete(TerrainPixel p) => _behaviors[(int)p].Concrete;
     public static bool IsRock(TerrainPixel p) => _behaviors[(int)p].Rock;
     public static bool IsMineral(TerrainPixel p) => _behaviors[(int)p].Mineral;
-    public static bool IsGold(TerrainPixel p) => _behaviors[(int)p].Gold;
     public static bool IsEmpty(TerrainPixel p) => p == TerrainPixel.Blank;
 
     /// <summary>True for emberite ore, plain or core.</summary>
@@ -198,7 +191,7 @@ public static class Pixel
             TerrainPixel.HotRock => ThermalMaterial.HotRock,
             TerrainPixel.FrostRock => ThermalMaterial.FrostRock,
             TerrainPixel.EmberiteCore => ThermalMaterial.EmberiteCore,
-            TerrainPixel.BaseCore or TerrainPixel.Gold => ThermalMaterial.ConstantEnergy,
+            TerrainPixel.BaseCore => ThermalMaterial.ConstantEnergy,
             TerrainPixel.BaseBarrier => ThermalMaterial.Base,
             _ when b.Base => ThermalMaterial.Base,
             _ when b.SoftCollision => ThermalMaterial.Dirt,

@@ -329,7 +329,6 @@ public static class Tweaks
         public const int HealthCapacity = 1000;
         public const int IdleHeatGain = 0;
         public const int MoveHeatGain = 0;
-        public const int CoolingPickupGold = 14;
 
         public const float HeatMax = 100f;
         public const float HeatDigPerPixel = 0.008f;
@@ -422,7 +421,6 @@ public static class Tweaks
         // a formation FormationDepth cells deep along the ray.
         public const int SolidRangeMin = 60;
         public const int FormationDepth = 10;
-        public const int GoldRange = 90;
         public const int MachineRange = 75;
         public const int LifeRange = 60;
         // The weak return of a tunnel or cave behind dirt.
@@ -559,9 +557,6 @@ public static class Tweaks
         public const int SmoothingSteps = -1; // -1 = smooth until convergence (matches C++)
         public static int TargetDirtAmount(Size size) => size.X * size.Y * DirtTargetPercent / 100;
 
-        public const int GoldVeinCountDivisor = 40;
-        public const int GoldVeinMinLength = 5;
-        public const int GoldVeinMaxLength = 16;
         public const int RuinAreaPerRuin = 16000;
         public const int RuinWallMinLength = 2;
         public const int RuinWallMaxLength = 5;

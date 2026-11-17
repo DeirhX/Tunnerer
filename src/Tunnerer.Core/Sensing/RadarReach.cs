@@ -11,7 +11,6 @@ using Tunnerer.Core.Config;
 public readonly record struct RadarReach(
     float Range,
     float SolidRangeMin,
-    float GoldRange,
     float MachineRange,
     float LifeRange,
     float CavityRange,
@@ -32,7 +31,6 @@ public readonly record struct RadarReach(
     public static RadarReach Scaled(float rangeScale, float heatBudgetScale) => new(
         Range: Tweaks.Radar.Range * rangeScale,
         SolidRangeMin: Tweaks.Radar.SolidRangeMin * rangeScale,
-        GoldRange: Tweaks.Radar.GoldRange * rangeScale,
         MachineRange: Tweaks.Radar.MachineRange * rangeScale,
         LifeRange: Tweaks.Radar.LifeRange * rangeScale,
         CavityRange: Tweaks.Radar.CavityRange * rangeScale,

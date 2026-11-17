@@ -249,7 +249,6 @@ public class Tank
         _digger.Move(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
         _lifecycle.UpdateSpawnProtection(ctx.CheckBaseCollision(Position) == Base, input.ShootPrimary);
         AdvanceShooting(input, in ctx);
-        _digger.CollectPickups(ctx.Terrain, ctx.Heat, ctx.Events);
         _build.Advance(in ctx, input);
         AdvanceUpgrades(input);
         _thermals.Advance(ctx.Heat);

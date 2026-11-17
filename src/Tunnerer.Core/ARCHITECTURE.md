@@ -51,12 +51,12 @@ Entities/
   Tanks/TankTurret.cs        Aim, cooldown, bullet spawn
   Tanks/TankHeatModel.cs     Heat-flow formula shared by tank contact with terrain and air
   Tanks/TankThermals.cs      Tank heat, network coverage floor, base sink, refrigeration, ledger bookings
-  Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, mining ore into the hold, pickups; owns the
+  Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, mining ore into the hold; owns the
                              tank's RNG
   Tanks/TankBuildController.cs   Build keys: build, carry, plant; the payer rule (Quote)
   Tanks/BuildQuote.cs        BuildQuote, OrePayer, BuildRefusal: what a machine costs here and which stock pays
   Tanks/TankLifecycle.cs     Damage, death (the hold spills as ore, OreDrop), respawn, spawn shield
-  Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
+  Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, bullet hits, planting
   Bases/TankBase.cs, TankBases.cs   Bases (reactor, radiator, engine, charge, ore store)
   Bases/BaseUpgrades.cs      BaseUpgrade (base track and tank track), levels, costs and what each level does
   DamageCause.cs
@@ -143,7 +143,7 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage, the
    network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
    the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
-   `TankDigger.Move`, spawn shield, shooting, pickups, `TankBuildController.Advance`, the upgrade keys, then
+   `TankDigger.Move`, spawn shield, shooting, `TankBuildController.Advance`, the upgrade keys, then
    `TankThermals.Advance` (exchange with the grid).
 6. **machines**: `MachineList.Advance` with the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
@@ -180,7 +180,7 @@ refusal for a machine), `Tank.LastBuildRefusal`, `World.GetNetworkStatus`, `Worl
 Desktop learns about one-off happenings from `World.StepEvents`, never by comparing state between steps. Each
 `Advance` clears the list first, then the code where something happens records a small `StepEvent` (kind, position,
 the tank or side's colour, and a machine type, impact target, cell count or torch flag where they apply): shots
-fired, bullet impacts, explosions, spent shrapnel, tank hits, deaths and respawns, moving, digging, pickups,
+fired, bullet impacts, explosions, spent shrapnel, tank hits, deaths and respawns, moving, digging, mining ore into the hold,
 docking and leaving the base, base service, ore unloaded by a tank or banked by a harvester, and machines built,
 planted, refused, damaged and wrecked. The list
 holds the last step's events until the next step begins, so a caller that runs several steps per frame reads it
@@ -303,7 +303,7 @@ Bresenham line that never cuts a corner: a diagonal step goes through the side c
 cannot slip between two cells that touch only at a corner. Along a ray:
 
 - dirt and open ground let it through, and so do the walls of the tank's own base;
-- another side's machine (`RadarTarget`), or gold, reflects as `Metal` and stops it;
+- another side's machine (`RadarTarget`) reflects as `Metal` and stops it;
 - another tank (a `RadarTarget` marked `Alive`) reflects as `Life` and stops it;
 - rock, concrete, hot and frost rock and another side's base walls reflect as `Solid` and stop it;
 - emberite (plain or core) reflects as `Ore` and stops it;
@@ -320,7 +320,7 @@ pulse's origin (`Tweaks.Radar`): rock from
 `SolidRangeMin` for a thin shell up to the full `Range` for a formation `FormationDepth` cells deep along the ray
 (`Radar.FormationRange` looks behind the face, only beyond the near range), ore from `OreRangeMin` for a speck up to
 `OreRangeMax` for a deposit `FormationDepth` cells deep (the same probe, counting only plain ore no warmer than
-`HeatThreshold`, so a lump's warm heart lends its rim no reach), gold from `GoldRange`, machines
+`HeatThreshold`, so a lump's warm heart lends its rim no reach), machines
 from `MachineRange`, tanks from `LifeRange`, caves from `CavityRange`, heat from `HeatRangeMin` to `HeatRangeMax` by
 intensity. Out of range the thing still stops the ray.
 
@@ -448,7 +448,7 @@ Desktop:
    - `HeatCapacity`: energy per degree.
    - `Conductivity`: the conductance of half a cell. Two touching cells conduct their halves in series,
      `ka * kb / (ka + kb)`, so a material against itself conducts half its value and against a much better
-     conductor (a base, a gold core) nearly all of it. Air's value is the air field's, between neighbouring cells.
+     conductor (a base core) nearly all of it. Air's value is the air field's, between neighbouring cells.
      A pair that needs a value the rule cannot produce gets a `ThermalPairOverride` in the table's override list
      (either order; today only pairs of pinned sinks). The engine copies the pair table once
      at construction, so the solver's inner loop pays one array read.

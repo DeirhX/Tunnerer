@@ -156,14 +156,6 @@ internal sealed class TankThermals
         }
     }
 
-    /// <summary>A cooling pickup (gold) takes heat out of the tank; it never chills the tank below ambient.</summary>
-    public void CoolFromPickup(int cooling, ThermalLedger ledger)
-    {
-        float cooledHeat = Math.Max(_tank.Heat - cooling, Math.Min(_tank.Heat, 0f));
-        ledger.RecordSunkTank((_tank.Heat - cooledHeat) * ThermalCapacity);
-        _tank.Heat = cooledHeat;
-    }
-
     /// <summary>
     /// The end-of-tick heat step: action heat from digging and shooting, exchange with the terrain and air under the
     /// tank, overheat and frostbite damage, and the off-network floor.
