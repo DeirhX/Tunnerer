@@ -157,7 +157,7 @@ public sealed class GameEventWatcher
                     NotificationKind.Warning, cooldown: 90f);
             if (radarScattered && !_radarScattered)
                 feed.Post(now, "radar-heat", "Radar scattered by heat",
-                    "Hot ground swallows the pulse: orange static marks its edge. Cool that ground to see past it.",
+                    "Hot ground swallows the pulse: red dots show how far it got. Cool that ground to see past it.",
                     NotificationKind.Warning, cooldown: 60f);
             if (engineRunning && !_engineRunning)
                 feed.Post(now, "engine-running", "Base engine making charge",

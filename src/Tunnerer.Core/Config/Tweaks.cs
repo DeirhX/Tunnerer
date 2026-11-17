@@ -293,8 +293,21 @@ public static class Tweaks
     /// </summary>
     public static class Radar
     {
-        // How far a pulse reaches, in cells.
+        // How far a pulse reaches, in cells. Only a large rock formation returns from that far; everything else
+        // returns from nearer (below) and beyond its range blocks the ray without a blip.
         public const int Range = 150;
+        // Rock, concrete and other sides' base walls: a thin shell returns from SolidRangeMin, growing to Range for
+        // a formation FormationDepth cells deep along the ray.
+        public const int SolidRangeMin = 60;
+        public const int FormationDepth = 10;
+        public const int GoldRange = 90;
+        public const int MachineRange = 75;
+        public const int LifeRange = 60;
+        // The weak return of a tunnel or cave behind dirt.
+        public const int CavityRange = 50;
+        // Hot ground: barely warm from HeatRangeMin, at HeatFullTemperature and above from HeatRangeMax.
+        public const int HeatRangeMin = 50;
+        public const int HeatRangeMax = 120;
         // The tank sends a pulse every PulsePeriodTicks (4 s). Its front runs FrontCellsPerTick outward a tick, so
         // it reaches Range in 75 ticks (3.1 s) and the radar is quiet for the rest of the period. The period must
         // outlast the trip: one pulse is in flight at a time.

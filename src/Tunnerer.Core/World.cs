@@ -369,7 +369,7 @@ public class World
                     _radarTargets.Add(new RadarTarget(machine.Position, machine.BoundingBox.HalfWidth));
             foreach (var other in _tankList.Tanks)
                 if (other != tank && !other.IsDead)
-                    _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize));
+                    _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize, Alive: true));
             radar.Advance(_terrain, _terrain, tank.Position, tank.Color, _radarTargets);
         }
     }

@@ -57,9 +57,6 @@ public sealed class HudStrip
     /// <summary>Screen y of the strip's top edge, as of the last frame drawn.</summary>
     public float Top => _layout.Origin.Y;
 
-    /// <summary>The open gap between the two parts, as of the last frame drawn: screen x of its left and right edges.</summary>
-    public (float MinX, float MaxX) Gap => _layout.Gap;
-
     private Vector2 At(float x, float y) => _layout.At(x, y);
     private float S(float v) => _layout.S(v);
 

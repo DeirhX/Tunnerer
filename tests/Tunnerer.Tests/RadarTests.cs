@@ -116,7 +116,7 @@ public class RadarTests
     {
         var terrain = Dirt();
         var radar = Blind(terrain);
-        RadarTarget[] targets = [new RadarTarget(new Position(200, 120), 2)];
+        RadarTarget[] targets = [new RadarTarget(new Position(200, 140), 2)];
 
         Pulse(radar, terrain, Origin, targets);
 
@@ -126,7 +126,7 @@ public class RadarTests
         {
             Assert.Equal(RadarEcho.Metal, c.Echo);
             Assert.InRange(c.Position.X, 198, 202);
-            Assert.InRange(c.Position.Y, 118, 122);
+            Assert.InRange(c.Position.Y, 138, 142);
         });
     }
 
@@ -177,6 +177,33 @@ public class RadarTests
     }
 
     [Fact]
+    public void ALivingTarget_ReturnsLife_AndAMachineMetal()
+    {
+        var terrain = Dirt();
+        var radar = Blind(terrain);
+        RadarTarget[] targets =
+        [
+            new RadarTarget(new Position(260, 200), 3, Alive: true),
+            new RadarTarget(new Position(200, 260), 3),
+        ];
+
+        Pulse(radar, terrain, Origin, targets);
+
+        var contacts = Contacts(radar);
+        Assert.Contains(contacts, c => c.Echo == RadarEcho.Life);
+        Assert.Contains(contacts, c => c.Echo == RadarEcho.Metal);
+        Assert.All(contacts.Where(c => c.Echo == RadarEcho.Life), c => Assert.InRange(c.Position.X, 257, 263));
+        Assert.All(contacts.Where(c => c.Echo == RadarEcho.Metal), c => Assert.InRange(c.Position.Y, 257, 263));
+
+        // The tank drives off: the next pulse finds it in its new place and drops the old blips.
+        targets[0] = new RadarTarget(new Position(240, 160), 3, Alive: true);
+        Pulse(radar, terrain, Origin, targets);
+        var life = Contacts(radar).Where(c => c.Echo == RadarEcho.Life).ToList();
+        Assert.NotEmpty(life);
+        Assert.All(life, c => Assert.InRange(c.Position.Y, 157, 163));
+    }
+
+    [Fact]
     public void HotGroundInSight_DoesNotUseUpTheHeatMarks()
     {
         var terrain = Dirt();
@@ -192,6 +219,45 @@ public class RadarTests
         var onAxis = Contacts(radar).Where(c => c.Echo == RadarEcho.Heat && c.Position.Y == Origin.Y).ToList();
         Assert.Equal(Tweaks.Radar.HeatReturnsPerRay, onAxis.Count);
         Assert.All(onAxis, c => Assert.False(vision.IsVisible(c.Position)));
+    }
+
+    [Fact]
+    public void ALargeFormation_IsSeenFromAfar_AThinWallOnlyFromNear()
+    {
+        static List<RadarContact> Ping(int faceX, int thickness)
+        {
+            var terrain = Dirt();
+            Box(terrain, faceX, 150, faceX + thickness - 1, 250, TerrainPixel.Rock);
+            var radar = Blind(terrain);
+            Pulse(radar, terrain, Origin);
+            return Contacts(radar);
+        }
+
+        int far = Origin.X + 130, near = Origin.X + Tweaks.Radar.SolidRangeMin - 10;
+        Assert.Contains(Ping(far, thickness: 30), c => c.Echo == RadarEcho.Solid && c.Position.X == far);
+        Assert.Empty(Ping(far, thickness: 2));
+        Assert.Contains(Ping(near, thickness: 2), c => c.Echo == RadarEcho.Solid && c.Position.X == near);
+        // Half the depth of a full formation carries about half the way from the near range to the full one.
+        int mid = Origin.X + (Tweaks.Radar.SolidRangeMin + Tweaks.Radar.Range) / 2;
+        Assert.NotEmpty(Ping(mid - 15, thickness: Tweaks.Radar.FormationDepth / 2 + 1));
+        Assert.Empty(Ping(mid + 15, thickness: Tweaks.Radar.FormationDepth / 2 + 1));
+    }
+
+    [Fact]
+    public void ATankBeyondItsRange_ReturnsNothing_ButStillShadowsWhatIsBehindIt()
+    {
+        var terrain = Dirt();
+        Box(terrain, 300, 150, 330, 250, TerrainPixel.Rock);
+        var radar = Blind(terrain);
+        int away = Tweaks.Radar.LifeRange + 20;
+        RadarTarget[] targets = [new RadarTarget(new Position(Origin.X + away, Origin.Y), 3, Alive: true)];
+
+        Pulse(radar, terrain, Origin, targets);
+
+        var contacts = Contacts(radar);
+        Assert.DoesNotContain(contacts, c => c.Echo == RadarEcho.Life);
+        Assert.Contains(contacts, c => c.Echo == RadarEcho.Solid && c.Position.Y is >= 170 and <= 190);
+        Assert.DoesNotContain(contacts, c => c.Position.Y is >= 197 and <= 203);
     }
 
     [Fact]
@@ -221,19 +287,19 @@ public class RadarTests
     public void RememberedGround_BlipsOnlyWhereItHasChanged()
     {
         var terrain = Dirt();
-        Box(terrain, 300, 180, 310, 220, TerrainPixel.Rock);
+        Box(terrain, 240, 180, 250, 220, TerrainPixel.Rock);
         var vision = new VisionMap(terrain);
         // The side has seen the rock's near face, then looked away.
-        vision.Update(terrain, None, [new VisionSource(new Position(296, 200), 0, 30)]);
+        vision.Update(terrain, None, [new VisionSource(new Position(236, 200), 0, 30)]);
         vision.Update(terrain, None, None);
-        Assert.True(vision.IsExplored(new Position(300, 200)) && !vision.IsVisible(new Position(300, 200)));
+        Assert.True(vision.IsExplored(new Position(240, 200)) && !vision.IsVisible(new Position(240, 200)));
         var radar = new Radar(vision);
 
         Pulse(radar, terrain, Origin);
         Assert.Equal(0, radar.ContactCount);
 
         // Something tunnels through the remembered dirt in front of it: news.
-        Box(terrain, 285, 190, 290, 210, TerrainPixel.Blank);
+        Box(terrain, 225, 190, 230, 210, TerrainPixel.Blank);
         Pulse(radar, terrain, Origin);
         var contacts = Contacts(radar);
         Assert.NotEmpty(contacts);
@@ -418,10 +484,10 @@ public class RadarTests
     [Fact]
     public void ATarget_ReflectsExactlyLikeGoldInTheSameCells()
     {
-        // Small targets scattered round the tank, seen from a dozen nearby places: a ray that grazes one must
-        // still find it, whatever culling picks the targets a ray can touch.
+        // Small targets scattered round the tank (all within a machine's range), seen from a dozen nearby places: a
+        // ray that grazes one must still find it, whatever culling picks the targets a ray can touch.
         RadarTarget[] targets = Enumerable.Range(0, 60)
-            .Select(i => new RadarTarget(new Position(60 + i * 97 % 280, 60 + i * 53 % 280), i % 3))
+            .Select(i => new RadarTarget(new Position(170 + i * 97 % 60, 170 + i * 53 % 60), i % 3))
             .ToArray();
         var plain = Dirt();
         var gilded = Dirt();

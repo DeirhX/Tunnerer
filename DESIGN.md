@@ -194,8 +194,8 @@ Building has to pay off, and exploring has to lead somewhere.
   - **Insulation:** the off-network clock runs 25% slower per level.
 - **Harvesters are income.** Their dirt goes straight into the store that buys upgrades, so a camp of harvesters
   near the base turns into a bigger radiator and a longer reach.
-- **The HUD** shows the goal (core tap rate and hold timer) at the top of the base panel, an upgrade list above the
-  bottom panel while docked, and a banner when the sector is complete.
+- **The HUD** shows the goal (core tap rate and hold timer) at the top of the base panel, an upgrade list on the left
+  of the view while docked (clear of the base's top and bottom entrances), and a banner when the sector is complete.
 
 ## 5. The player *(Decided: mainly a builder that can also fight, as in Factorio)*
 
@@ -280,11 +280,16 @@ The player sees only what their side sees, so that learning the shape of the wor
   tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
   it through; rock, hot and frost rock, gold, another side's base walls, machines and tanks reflect it and stop it.
   Each return is a single blip at the first cell that reflected, flaring the moment the ring reaches it (near
-  things first) and fading over 10 seconds: green for rock, amber for metal. What lies behind a reflector is in its
+  things first) and fading over 10 seconds: green for rock, amber for metal, and a white-violet dot in a ring for
+  something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
   shadow, so the outline of a thing is only learned by pinging it from several sides, and successive pulses hit
   slightly different points, so a shape fills in while you wait. When a later pulse passes an old blip it checks it
   again: a blip of an enemy that has driven off, or of ground that has changed, goes out; one hidden in a new
   shadow stays until it fades. A tunnel or cave behind dirt gives a weak blue return and lets the pulse on. The
+  Different things show from different distances: a large rock formation from the pulse's full 150 cells, a thin
+  wall only from about 60, gold from 90, machines from 75, a tank from 60, a cave from 50, and hot ground from 50
+  to 120 by how hot it is. Beyond its range a thing still casts its shadow but leaves no blip, so the far picture is
+  only the big shapes and the detail is a surprise kept for when you get close. The
   radar reports only news: nothing in sight, nothing in remembered ground unless it has changed since, and never
   your own machines. A blip goes the moment you see its cell.
 - **Heat blinds the radar** *(Prototype)*. Hot ground absorbs the pulse: every hot cell a ray crosses takes some of

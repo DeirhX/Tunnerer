@@ -205,12 +205,19 @@ Bresenham line that never cuts a corner: a diagonal step goes through the side c
 cannot slip between two cells that touch only at a corner. Along a ray:
 
 - dirt and open ground let it through, and so do the walls of the tank's own base;
-- a machine or another tank (`RadarTarget`), or gold, reflects as `Metal` and stops it;
+- another side's machine (`RadarTarget`), or gold, reflects as `Metal` and stops it;
+- another tank (a `RadarTarget` marked `Alive`) reflects as `Life` and stops it;
 - rock, concrete, hot and frost rock and another side's base walls reflect as `Solid` and stop it;
 - stepping from dirt into open ground (a tunnel, a cave) gives a `Cavity` return and the ray goes on, at most
   `WeakReturnsPerRay` times.
 
 A ray stops at the first thing that reflects it whether or not the return is kept, so nothing behind it answers.
+
+Each kind of thing returns only from within its own range of the pulse's origin (`Tweaks.Radar`): rock from
+`SolidRangeMin` for a thin shell up to the full `Range` for a formation `FormationDepth` cells deep along the ray
+(`Radar.SolidRange` looks behind the face, only for rock beyond the near range), gold from `GoldRange`, machines
+from `MachineRange`, tanks from `LifeRange`, caves from `CavityRange`, heat from `HeatRangeMin` to `HeatRangeMax` by
+intensity. Out of range the thing still stops the ray.
 
 Heat weakens the rays. A ray starts at strength 1 and loses `HeatLossPerDegree` for every degree a cell is above
 `HeatThreshold`, scaled by the length of path a cell stands for along that ray (so the loss per distance is the same

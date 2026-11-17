@@ -83,9 +83,10 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 }
 
 // One radar return, on ground out of the player's sight. It flares when the pulse finds it and then fades over its
-// life. Green for rock and walls, amber for metal (gold, machines, tanks), a dim blue-green for the weak return of a
+// life. Green for rock and walls, amber for metal (gold, machines), a dim blue-green for the weak return of a
 // cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
-// or a thing too hot to read, is a red dot instead, brighter and larger the hotter the cell (data.r).
+// or a thing too hot to read, is a red dot instead, brighter and larger the hotter the cell (data.r). Something
+// alive (another tank) is a white-violet dot in a ring.
 float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {
     float life = saturate(params.x);
@@ -95,6 +96,18 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
     // Hold most of the brightness for the first half of the life, then let go.
     float fade = smoothstep(0.0, 0.55, life);
     float r = length(p);
+
+    if (echo > 3.5)
+    {
+        // Life: a white-violet dot inside a thin ring, larger than any other return so it is never taken for ore.
+        float3 violet = float3(0.85, 0.60, 1.00);
+        float level = lerp(0.45, 1.0, rayStrength);
+        float dot = FillAlpha(r - (0.42 + 0.20 * flash), aa);
+        float ring = FillAlpha(abs(r - 1.25) - 0.10, aa) * 0.7;
+        float halo = exp(-r * r * (0.9 - 0.4 * flash));
+        float3 lit = violet * (dot * (0.9 + 0.6 * flash) + ring * 0.6 + halo * (0.30 + 0.7 * flash));
+        return float4(lit * fade * level, max(dot, ring * 0.5) * fade * level * 0.5);
+    }
 
     if (echo > 2.5)
     {
