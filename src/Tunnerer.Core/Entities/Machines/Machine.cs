@@ -73,8 +73,11 @@ public class Machine
     /// </summary>
     public bool HasOnlyCoreOre { get; set; }
 
-    /// <summary>A harvester: actions of work done on the ore cell it is mining (a cell takes a few).</summary>
+    /// <summary>A harvester: actions of work done on <see cref="OreWorkCell"/> (a cell takes a few).</summary>
     public int OreWork { get; set; }
+
+    /// <summary>A harvester: the ore cell its <see cref="OreWork"/> belongs to. Work never carries to another cell.</summary>
+    public Position? OreWorkCell { get; set; }
 
     /// <summary>The pylon that charged this battery at its last action, or null; drawn as a charge beam.</summary>
     public Machine? ChargingFrom { get; set; }

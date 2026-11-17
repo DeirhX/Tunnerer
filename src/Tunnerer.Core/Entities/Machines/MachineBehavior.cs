@@ -237,7 +237,7 @@ public static class MachineBehaviors
         machine.HasOnlyCoreOre = nearest == null && coreLeft;
         if (nearest is not Position ore)
         {
-            machine.OreWork = 0;
+            ForgetOreWork(machine);
             return;
         }
 
@@ -260,14 +260,26 @@ public static class MachineBehaviors
     /// </summary>
     private static void WorkOre(Machine machine, ITerrainAccess terrain, Position at, OreStore store)
     {
-        var pixel = terrain.GetPixelRaw(at);
+        // Work belongs to one cell: if the cell it was on is gone (the tank or another harvester took it) or is no
+        // longer the nearest, it starts this one from nothing.
+        if (machine.OreWorkCell != at)
+        {
+            machine.OreWorkCell = at;
+            machine.OreWork = 0;
+        }
         machine.OreWork++;
-        int units = Pixel.OreUnits(pixel);
+        int units = Pixel.OreUnits(terrain.GetPixelRaw(at));
         if (machine.OreWork < Tweaks.Ore.HarvesterPlainWork || store.Room < units)
             return;
         terrain.SetPixel(at, TerrainPixel.Blank);
         store.Add(units);
+        ForgetOreWork(machine);
+    }
+
+    private static void ForgetOreWork(Machine machine)
+    {
         machine.OreWork = 0;
+        machine.OreWorkCell = null;
     }
 
     /// <summary>

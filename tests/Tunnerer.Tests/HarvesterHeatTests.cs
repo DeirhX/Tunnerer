@@ -103,6 +103,26 @@ public class HarvesterHeatTests
     }
 
     [Fact]
+    public void Harvester_StartsACellFromNothing_WhenTheOneItWasWorkingIsTaken()
+    {
+        var (s, harvester) = Networked();
+        int partial = Tweaks.Ore.HarvesterPlainWork - 1;
+        for (int i = 0; i < HarvestTicks(partial) && harvester.OreWork < partial; i++)
+            s.World.Advance(_ => default);
+        Assert.Equal(partial, harvester.OreWork);
+        var taken = Assert.NotNull(harvester.OreWorkCell);
+        int storeBefore = s.Base.Store.Ore;
+
+        s.World.Terrain.SetPixel(taken, TerrainPixel.Blank); // the tank, or another harvester, got there first
+        for (int i = 0; i < HarvestTicks(1) && harvester.OreWorkCell == taken; i++)
+            s.World.Advance(_ => default);
+
+        Assert.NotEqual(taken, harvester.OreWorkCell);
+        Assert.Equal(1, harvester.OreWork);
+        Assert.Equal(storeBefore, s.Base.Store.Ore);
+    }
+
+    [Fact]
     public void Harvester_LeavesACoreCellToTheTank_AndSaysSo()
     {
         var s = RelayHeatTests.CreateScenario();
