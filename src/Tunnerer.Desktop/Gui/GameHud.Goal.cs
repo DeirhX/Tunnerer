@@ -13,6 +13,12 @@ public partial class GameHud
 {
     private float _sectorCompleteAt = float.NaN;
 
+    /// <summary>
+    /// The top edge of the upgrade panel as last drawn, or +infinity while it is not shown: the toasts above it stop
+    /// short of it rather than cover its title.
+    /// </summary>
+    private float _upgradePanelTop = float.PositiveInfinity;
+
     // The upgrade panel's margin from the view's left edge and the HUD below it, its share of the view's width and
     // the limits on that. The widest still ends left of a base whose far wall the tank is touching.
     private const float UpgradePanelMargin = 14f, UpgradePanelShare = 0.3f, UpgradePanelMinW = 300f, UpgradePanelMaxW = 400f;
@@ -24,6 +30,7 @@ public partial class GameHud
     /// </summary>
     private void DrawUpgradePanel(Tank player)
     {
+        _upgradePanelTop = float.PositiveInfinity;
         if (!player.IsDockedAtOwnBase || player.Base is not { } home)
             return;
 
@@ -32,6 +39,7 @@ public partial class GameHud
         var anchor = new Vector2(vp.x + UpgradePanelMargin, MathF.Floor(ViewBottom(vp) - UpgradePanelMargin));
         if (HudTheme.BeginWindow("##Upgrades", anchor, new Vector2(0f, 1f), width))
         {
+            _upgradePanelTop = ImGui.GetWindowPos().Y;
             HudTheme.TitleRow($"UPGRADES    base ore store {home.Store.Ore}", 19f);
             var dl = ImGui.GetWindowDrawList();
             float rowW = ImGui.GetContentRegionAvail().X;
