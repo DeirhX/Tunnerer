@@ -52,7 +52,6 @@ public partial class PostParamsLayoutGuardTests
         ["TerrainMaskRimLift"] = ["TerrainMaskRimLift"],
         ["_padReserved4"] = ["_padReserved4"],
         ["Quality"] = ["Quality"],
-        ["MaterialEmissiveGold"] = ["MaterialGoldR", "MaterialGoldG", "MaterialGoldB", "MaterialGoldStrength"],
         ["MaterialEmissiveScorched"] =
             ["MaterialScorchedR", "MaterialScorchedG", "MaterialScorchedB", "MaterialScorchedStrength"],
         ["MaterialEmissivePulse"] = ["MaterialPulseFreq", "MaterialPulseMin", "MaterialPulseRange", "MaterialPulsePad"],

@@ -137,7 +137,7 @@ public class MachineList
                 var pos = new Position(center.X + dx, center.Y + dy);
                 if (!terrain.IsInside(pos)) continue;
                 var pix = terrain.GetPixelRaw(pos);
-                // Open ground and dirt burn; rock, gold and base cells keep their material.
+                // Open ground and dirt burn; rock and base cells keep their material.
                 if (pix == TerrainPixel.Blank || Pixel.IsScorched(pix) || Pixel.IsDiggable(pix))
                     terrain.SetPixel(pos, TerrainPixel.Decal); // metered: a dirt cell's heat change is booked
             }

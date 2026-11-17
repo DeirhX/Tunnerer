@@ -86,14 +86,15 @@ public class RadarTests
     {
         var terrain = Dirt();
         Box(terrain, 240, 180, 250, 220, TerrainPixel.Rock);
-        Box(terrain, 280, 198, 284, 202, TerrainPixel.Gold);
+        // A machine behind the rock, within a machine's range of the origin.
+        RadarTarget[] machine = [new RadarTarget(new Position(265, 200), HalfSize: 2)];
         var radar = Blind(terrain);
 
-        Pulse(radar, terrain, Origin);
+        Pulse(radar, terrain, Origin, machine);
         Assert.DoesNotContain(Contacts(radar), c => c.Echo == RadarEcho.Metal);
 
-        // From below, the gold is in the clear.
-        Pulse(radar, terrain, new Position(282, 290));
+        // From below, the machine is in the clear.
+        Pulse(radar, terrain, new Position(265, 260), machine);
         Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Metal && c.Position.Y == 202);
     }
 
@@ -453,7 +454,7 @@ public class RadarTests
     {
         var terrain = Dirt();
         Box(terrain, 300, 60, 300, 340, TerrainPixel.Rock);
-        Box(terrain, 303, 150, 306, 250, TerrainPixel.Gold);
+        Box(terrain, 303, 150, 306, 250, TerrainPixel.Rock);
         var vision = new VisionMap(terrain);
         // The side has seen the rock wall, and only the wall, then looked away.
         var wall = Enumerable.Range(60, 281).Select(y => new VisionSource(new Position(299, y), 0, 1)).ToArray();
@@ -483,29 +484,31 @@ public class RadarTests
     }
 
     [Fact]
-    public void ATarget_ReflectsExactlyLikeGoldInTheSameCells()
+    public void ATarget_ReflectsFromTheSameCellsAsRockThere()
     {
-        // Small targets scattered round the tank (all within a machine's range), seen from a dozen nearby places: a
-        // ray that grazes one must still find it, whatever culling picks the targets a ray can touch.
+        // Small targets scattered round the tank, seen from a dozen nearby places: a ray that grazes one must still
+        // find it, whatever culling picks the targets a ray can touch. Rock in the same cells is the reference; every
+        // target is within the range of both (under SolidRangeMin), so only where the rays stop is compared.
         RadarTarget[] targets = Enumerable.Range(0, 60)
             .Select(i => new RadarTarget(new Position(170 + i * 97 % 60, 170 + i * 53 % 60), i % 3))
             .ToArray();
         var plain = Dirt();
-        var gilded = Dirt();
+        var rocky = Dirt();
         foreach (var t in targets)
-            Box(gilded, t.Position.X - t.HalfSize, t.Position.Y - t.HalfSize,
-                t.Position.X + t.HalfSize, t.Position.Y + t.HalfSize, TerrainPixel.Gold);
+            Box(rocky, t.Position.X - t.HalfSize, t.Position.Y - t.HalfSize,
+                t.Position.X + t.HalfSize, t.Position.Y + t.HalfSize, TerrainPixel.Rock);
         var byTarget = Blind(plain);
-        var byGold = Blind(gilded);
+        var byRock = Blind(rocky);
 
         foreach (var origin in Enumerable.Range(0, 12).Select(k => new Position(185 + k * 3, 190 + k * 7 % 25)))
         {
             Pulse(byTarget, plain, origin, targets);
-            Pulse(byGold, gilded, origin);
+            Pulse(byRock, rocky, origin);
         }
 
         Assert.NotEmpty(Contacts(byTarget));
-        Assert.Equal(Contacts(byGold), Contacts(byTarget));
+        Assert.All(Contacts(byTarget), c => Assert.Equal(RadarEcho.Metal, c.Echo));
+        Assert.Equal(Contacts(byRock).Select(c => c.Position), Contacts(byTarget).Select(c => c.Position));
     }
 
     /// <summary>Brings the ground in the box, which starts at 0, to <paramref name="temperature"/> degrees.</summary>

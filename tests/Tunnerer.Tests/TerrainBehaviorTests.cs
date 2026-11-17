@@ -61,7 +61,7 @@ public class TerrainBehaviorTests
         TerrainPixel[] defined = [
             TerrainPixel.Blank, TerrainPixel.Dirt,
             TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.Decal,
-            TerrainPixel.Concrete, TerrainPixel.Gold, TerrainPixel.Emberite, TerrainPixel.EmberiteCore,
+            TerrainPixel.Concrete, TerrainPixel.Emberite, TerrainPixel.EmberiteCore,
             TerrainPixel.BaseBarrier, TerrainPixel.BaseCore, TerrainPixel.BaseMin, TerrainPixel.BaseMax,
         ];
 
@@ -75,14 +75,6 @@ public class TerrainBehaviorTests
         var magenta = new Color(0xff, 0x00, 0xff);
         var color = Pixel.GetColor((TerrainPixel)255);
         Assert.Equal(magenta, color);
-    }
-
-    [Fact]
-    public void Gold_IsCollectible()
-    {
-        Assert.True(Pixel.IsGold(TerrainPixel.Gold));
-        Assert.False(Pixel.IsBlockingCollision(TerrainPixel.Gold));
-        Assert.False(Pixel.IsSoftCollision(TerrainPixel.Gold));
     }
 
     [Fact]
@@ -155,7 +147,6 @@ public class TerrainBehaviorTests
     [Theory]
     [InlineData(TerrainPixel.Blank)]
     [InlineData(TerrainPixel.Decal)]
-    [InlineData(TerrainPixel.Gold)]
     [InlineData(TerrainPixel.BaseBarrier)]
     public void NotTorchable_PixelTypes(TerrainPixel pix)
     {

@@ -83,7 +83,7 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 }
 
 // One radar return, on ground out of the player's sight. It flares when the pulse finds it and then fades over its
-// life. Green for rock and walls, amber for metal (gold, machines), a dim blue-green for the weak return of a
+// life. Green for rock and walls, amber for metal (machines), a dim blue-green for the weak return of a
 // cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
 // or a thing too hot to read, is a red dot instead, more opaque the hotter the cell (data.r). Something
 // alive (another tank) is a white-violet dot in a ring. Emberite ore is a small crystal: a teal diamond with a

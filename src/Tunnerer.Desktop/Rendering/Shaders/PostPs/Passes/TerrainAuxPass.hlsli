@@ -247,27 +247,7 @@ float3 NaturalMaterialMasks(float3 coverage)
     return total > 1e-4 ? m / total : float3(0.0, 0.0, 0.0);
 }
 
-// Gold veins are one cell wide and wander diagonally, so they are drawn from
-// the exact gold cells rather than from a blurred field: a sum of Gaussian
-// blobs at the gold cell centres of the 3x3 neighbourhood. Its kGoldVeinIso
-// isoline is a band about one cell wide that stays connected across diagonal steps.
-float GoldVeinField(float2 worldCell, int2 cell, int2 cellMax)
-{
-    float field = 0.0;
-    for (int oy = -1; oy <= 1; oy++)
-    {
-        for (int ox = -1; ox <= 1; ox++)
-        {
-            int2 c = clamp(cell + int2(ox, oy), int2(0, 0), cellMax);
-            float isGold = DecodeMaterialCode(auxTex.Load(int3(c, 0)).b) == kMaterialCodeGold ? 1.0 : 0.0;
-            float2 d = worldCell - (float2(c) + 0.5);
-            field += isGold * exp(-dot(d, d) * kGoldVeinFalloff);
-        }
-    }
-    return field;
-}
-
-// Emberite deposits are drawn from their exact cells like gold: x = the field of
+// Emberite deposits are drawn from their exact cells: x = the field of
 // all ore cells (its kOreIso isoline is the deposit's edge), y = the field of the
 // core cells alone (where the lump glows warm).
 float2 OreField(float2 worldCell, int2 cell, int2 cellMax)
@@ -377,7 +357,6 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
         float concreteMask = naturalMasks.y;
         float dirtMask = naturalMasks.z;
         float naturalTotal = stoneMask + concreteMask + dirtMask;
-        float goldField = GoldVeinField(worldCell, auxCell, auxMax);
         float2 oreField = OreField(worldCell, auxCell, auxMax);
         float baseMask = terrainFactor * baseInfluence;
         // Stone margin gradient (per cell) for the stone/dirt depth cue.
@@ -443,9 +422,6 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             color = lerp(color, lerp(floorColor, materialColor, edge.coverage), natural * saturate(naturalTotal));
         }
 
-        // Gold is a pickup the tank drives through, so it stays visible whatever
-        // the cave/solid field says around it.
-        ApplyGoldVein(color, worldCell, goldField, terrainFactor * (1.0 - baseInfluence), lightDir);
         ApplyOreDeposit(color, worldCell, oreField, terrainFactor * (1.0 - baseInfluence), lightDir);
 
         ApplyBaseMaterial(color, worldCell, auxCell, auxMax, materialCodeNearest, baseMask);

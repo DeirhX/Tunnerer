@@ -85,6 +85,25 @@ Adding a shader:
 1. The `.hlsl` file in `Rendering/Shaders`, entry point `main`, resources declared with the register macros.
 2. An `SdlGpuShader` item (with `Stage`) in `Tunnerer.Desktop.csproj`.
 
+Removing a system (the gold pickup was the first; its commit is a worked example):
+
+1. Find every reference: `git grep -n -i <name>` over the whole repository, shaders and docs included, and again
+   for its types, its `Tweaks` constants, its `StepEventKind` values and any `TerrainPixel` it adds.
+2. Core: its `MatchRules` flag and its entry in `World.BuildSystems`; the state it keeps; its `Tweaks` section;
+   its `StepEventKind` values; its `TerrainPixel` rows (and the name list in `SimulationTableGuardTests`); its
+   level-generation step. Delete what only it called (gold was the only pickup, so the pickup step went too) and
+   rewrite comments that list it beside other things.
+3. Desktop: the HUD, guidance, sound (`StepEventSounds`) and presentation that read it. In the renderer: its material
+   code in `TerrainAuxBuilder` and `Constants.hlsli`, its shader files and their `#include`, and any `PostParams`
+   row. Remove a row from `PostParamsBlock` and `PostParams.hlsli` together and raise the layout version on both
+   (`PostParamsLayoutGuardTests`).
+4. Tests: delete the tests of what was removed. A test that only used it as a stand-in keeps what it tests with
+   something else; check that the replacement still reaches the case (ranges differ between things).
+5. If level generation or the simulation changes, update the constants in `SimulationFingerprintTests` and say so
+   in the commit message.
+6. Docs: `DESIGN.md` (what is in the game, ranges, the decision log), the architecture files, and these
+   checklists.
+
 Tuning a number: constants live in `Config/Tweaks.cs`. Thermal code reads them through `SimulationSettings`, so
 that tests can inject their own values.
 

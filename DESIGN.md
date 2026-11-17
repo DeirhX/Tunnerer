@@ -260,7 +260,7 @@ The tank is what the player watches, so the screen is built around it.
   narrow screen the HUD shrinks before the gap closes. Panels that appear while docked, such as the upgrade list,
   sit to the side of the tank, clear of the base's entrances above and below it.
 - **Tunnels read as ground.** Dug-out ground is a dim floor tinted by the rock it was cut through and darker
-  towards the walls, not a black void. It stays quiet so tanks, shots and pickups stand out on it.
+  towards the walls, not a black void. It stays quiet so tanks, shots and ore stand out on it.
 
 ## 6. The world
 
@@ -375,7 +375,7 @@ The player sees only what their side sees, so that learning the shape of the wor
   something of yours stands there. The edge of sight is a gradient, never a hard line.
 - **Radar** *(Prototype)*. Every 4 seconds the tank sends a pulse: a faint ring that runs outward from where the
   tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
-  it through; rock, hot and frost rock, gold, emberite, another side's base walls, machines and tanks reflect it and stop it.
+  it through; rock, hot and frost rock, emberite, another side's base walls, machines and tanks reflect it and stop it.
   Each return is a single blip at the first cell that reflected, flaring the moment the ring reaches it (near
   things first) and fading over 10 seconds: green for rock, amber for metal, a small teal diamond with a violet heart
   for emberite, and a white-violet dot in a ring for something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
@@ -384,7 +384,7 @@ The player sees only what their side sees, so that learning the shape of the wor
   again: a blip of an enemy that has driven off, or of ground that has changed, goes out; one hidden in a new
   shadow stays until it fades. A tunnel or cave behind dirt gives a weak blue return and lets the pulse on. The
   Different things show from different distances: a large rock formation from the pulse's full 150 cells, a thin
-  wall only from about 60, gold from 90, machines from 75, a tank from 60, a cave from 50, emberite from 40 for a
+  wall only from about 60, machines from 75, a tank from 60, a cave from 50, emberite from 40 for a
   speck up to 110 for a deep deposit (counting only cool plain ore behind the face), and hot ground from 50 to 120 by
   how hot it is. The radar upgrade (§4.8) lengthens all of these and speeds the ring up to match, so a longer radar
   still pings every 4 seconds. A lump never shows as ore from afar: its warm core and the ground it heats return heat,
@@ -523,7 +523,6 @@ On `master` (2026-11-17) the game has:
 - Fog of war and the tank's radar pulse (§6.6).
 - Network matches for up to 8 players through a relay server, in deterministic lockstep, with bots in the empty
   slots (`docs/multiplayer-design.md`); locally, one bot opponent.
-- Gold as a pickup.
 - A tutorial of next steps and event notifications, synthesised sound, and rendering at the display's own pixel
   density with the screen layout of §5.4.
 
@@ -601,6 +600,7 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
 | The radar finds emberite (a speck from near, a deep deposit from further); a lump shows only as heat | Prototype |
 | Harvesters leave lump cores to the tank's torch; a warm core (90 degrees) keeps harvesters off its lump until it is cut out | Prototype |
+| Gold, a pickup left from the original game, is retired: emberite is the only resource on the map | Decided |
 
 ## 14. Open questions
 

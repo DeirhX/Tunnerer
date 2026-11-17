@@ -9,7 +9,6 @@ public partial class TerrainGrid
         var rng = new Random(seed);
         int w = Width, h = Height;
 
-        PlaceGoldVeins(rng, w, h);
         PlaceConcreteRuins(rng, w, h);
         CleanupIsolatedPixels(w, h);
         NoteBulkWrite();
@@ -69,60 +68,6 @@ public partial class TerrainGrid
 
     private static bool IsCaveFloor(TerrainPixel p) =>
         p is TerrainPixel.Blank or TerrainPixel.Dirt or TerrainPixel.DirtGrow;
-
-    private void PlaceGoldVeins(Random rng, int w, int h)
-    {
-        var rockBoundary = new List<int>();
-        for (int y = 3; y < h - 3; y++)
-        {
-            int row = y * w;
-            for (int x = 3; x < w - 3; x++)
-            {
-                int offset = row + x;
-                if (_data[offset] != TerrainPixel.Rock) continue;
-                bool nearCave = false;
-                for (int dy = -2; dy <= 2 && !nearCave; dy++)
-                    for (int dx = -2; dx <= 2 && !nearCave; dx++)
-                    {
-                        int nx = x + dx, ny = y + dy;
-                        if ((uint)nx < (uint)w && (uint)ny < (uint)h && IsCaveFloor(_data[nx + ny * w]))
-                            nearCave = true;
-                    }
-                if (nearCave) rockBoundary.Add(offset);
-            }
-        }
-
-        int veinCount = Math.Max(6, rockBoundary.Count / Tweaks.LevelGen.GoldVeinCountDivisor);
-        for (int v = 0; v < veinCount && rockBoundary.Count > 0; v++)
-        {
-            int pick = rng.Next(rockBoundary.Count);
-            int co = rockBoundary[pick];
-            int vx = co % w, vy = co / w;
-
-            int veinLen = rng.Next(Tweaks.LevelGen.GoldVeinMinLength, Tweaks.LevelGen.GoldVeinMaxLength);
-            int dirX = rng.Next(-1, 2), dirY = rng.Next(-1, 2);
-            if (dirX == 0 && dirY == 0) dirX = 1;
-
-            for (int step = 0; step < veinLen; step++)
-            {
-                if (vx < 2 || vx >= w - 2 || vy < 2 || vy >= h - 2) break;
-
-                int offset = vx + vy * w;
-                if (_data[offset] == TerrainPixel.Rock)
-                {
-                    _data[offset] = TerrainPixel.Gold;
-                }
-                else if (!Pixel.IsGold(_data[offset]))
-                    break;
-
-                vx += dirX;
-                vy += dirY;
-                if (rng.Next(3) == 0) dirX = Math.Clamp(dirX + rng.Next(-1, 2), -1, 1);
-                if (rng.Next(3) == 0) dirY = Math.Clamp(dirY + rng.Next(-1, 2), -1, 1);
-                if (dirX == 0 && dirY == 0) dirX = rng.Next(2) * 2 - 1;
-            }
-        }
-    }
 
     private void PlaceConcreteRuins(Random rng, int w, int h)
     {

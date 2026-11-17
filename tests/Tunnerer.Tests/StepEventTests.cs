@@ -271,17 +271,6 @@ public class StepEventTests
     }
 
     [Fact]
-    public void GoldUnderTheTank_IsCollected()
-    {
-        var s = InOpenPocket();
-        s.World.Terrain.SetPixel(s.Tank.Position, TerrainPixel.Gold);
-
-        var gold = Assert.Single(Step(s.World), e => e.Kind == StepEventKind.GoldCollected);
-        Assert.Equal(s.Tank.Color, gold.Color);
-        Assert.Equal(s.Tank.Position, gold.Position);
-    }
-
-    [Fact]
     public void Recording_DoesNotAllocateOnceTheLogHasGrown()
     {
         var log = new StepEventLog();

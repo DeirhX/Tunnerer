@@ -231,7 +231,6 @@ public class OreEconomyTests
         Assert.Equal(RadarReach.Scaled(1f, 1f), RadarReach.Base);
         Assert.Equal(Tweaks.Radar.Range * 1.4f, reach.Range);
         Assert.Equal(Tweaks.Radar.SolidRangeMin * 1.4f, reach.SolidRangeMin);
-        Assert.Equal(Tweaks.Radar.GoldRange * 1.4f, reach.GoldRange);
         Assert.Equal(Tweaks.Radar.MachineRange * 1.4f, reach.MachineRange);
         Assert.Equal(Tweaks.Radar.LifeRange * 1.4f, reach.LifeRange);
         Assert.Equal(Tweaks.Radar.CavityRange * 1.4f, reach.CavityRange);

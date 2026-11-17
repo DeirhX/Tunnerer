@@ -201,7 +201,7 @@ internal static class HarvesterPathing
 
     /// <summary>
     /// Ground a harvester's footprint may cross: anything that does not block movement (open, settled or regrowing
-    /// dirt, scorch, gold) except a base.
+    /// dirt, scorch) except a base.
     /// </summary>
     private static bool IsCrawlable(TerrainPixel pixel) =>
         !Pixel.IsBlockingCollision(pixel) && !Pixel.IsBase(pixel) &&

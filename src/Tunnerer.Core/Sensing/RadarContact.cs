@@ -9,7 +9,7 @@ public enum RadarEcho : byte
     /// <summary>Rock, concrete, hot or frost rock, another side's base wall. Stops the ray.</summary>
     Solid,
 
-    /// <summary>Gold or a machine. Stops the ray.</summary>
+    /// <summary>A machine. Stops the ray.</summary>
     Metal,
 
     /// <summary>Open ground behind dirt: a tunnel or a cave. A weak return; the ray goes on.</summary>

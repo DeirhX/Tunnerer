@@ -28,7 +28,7 @@ public static class StepEventSounds
                 (SoundEffect.PlantRefused, AudioTweaks.RefusedGain),
             StepEventKind.OreUnloaded when isPlayer => (SoundEffect.Pickup, AudioTweaks.UnloadGain),
             StepEventKind.Docked when isPlayer => (SoundEffect.Dock, AudioTweaks.DockGain),
-            StepEventKind.GoldCollected or StepEventKind.OreCollected => (SoundEffect.Pickup, AudioTweaks.PickupGain),
+            StepEventKind.OreCollected => (SoundEffect.Pickup, AudioTweaks.PickupGain),
             _ => (default(SoundEffect), 0f),
         };
         return gain > 0f;

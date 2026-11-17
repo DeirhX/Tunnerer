@@ -8,7 +8,7 @@
 
 #include "Registers.hlsli"
 
-static const float kPostParamsLayoutVersion = 4.0;
+static const float kPostParamsLayoutVersion = 5.0;
 
 cbuffer PostParams : FRAGMENT_UNIFORMS(0)
 {
@@ -51,7 +51,6 @@ cbuffer PostParams : FRAGMENT_UNIFORMS(0)
     float Quality;                  // 0 = minimal, higher = enable extra shading detail
 
     // ---- Material emissive ------------------------------------------------
-    float4 MaterialEmissiveGold;    // .rgb = gold vein glow, .a = intensity
     float4 MaterialEmissiveScorched;// .rgb = scorch glow color, .a = intensity
     float4 MaterialEmissivePulse;   // .x = speed, .y = base, .z = amplitude, .w = unused
 

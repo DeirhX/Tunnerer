@@ -12,7 +12,7 @@
 //   in sight    — the frame as it is
 //   remembered  — explored but out of sight: drained of most colour toward a
 //                 cool blue-grey and dimmed. Some colour is kept so stone, dirt
-//                 and gold can still be told apart, and the blue cast keeps
+//                 and ore can still be told apart, and the blue cast keeps
 //                 remembered ground clear of the orange of live heat.
 //   unknown     — never seen: near black
 //

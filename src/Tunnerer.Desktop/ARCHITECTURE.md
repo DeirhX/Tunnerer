@@ -33,10 +33,10 @@ SDL_GPU wants fragment textures and samplers in space2, fragment uniforms in spa
 `PostPs/Common/Registers.hlsli`. Each texture has its own sampler at the same index (`s0`-`s3`); on the CPU all are
 the same linear-clamp sampler.
 
-The post pass shades each terrain material in its own file under `PostPs/Materials` (dirt, stone, concrete, gold,
+The post pass shades each terrain material in its own file under `PostPs/Materials` (dirt, stone, concrete,
 ore, the base). Dug-out ground is `TunnelFloorMaterial`: a dim, low-contrast floor tinted by the rock the tunnel was
 cut through and darkened towards the walls, so tunnels read as recessed ground and not as a black void, while
-staying quiet under tanks, projectiles and pickups.
+staying quiet under tanks and projectiles.
 
 ## SDL_GPU Backend
 
@@ -228,7 +228,7 @@ from repeating on the frames drawn between steps.
 | Tank death, respawn | `TankDied`, `TankRespawned` |
 | Build relay / harvester / pylon, plant | `MachineBuilt` (the machine's own build sound), `MachinePlanted` (a tank that dies drops its machine silently) |
 | Plant refused | `PlantRefused`, and `BuildRefused` (not enough ore) (player only) |
-| Pickup | `GoldCollected`, `OreCollected`. At most every 3 steps; a run of pickups climbs in pitch. |
+| Pickup | `OreCollected`. At most every 3 steps; a run of pickups climbs in pitch. |
 | Ore unloaded | `OreUnloaded` (player only): the pickup sound, quieter, once per unit unloaded through the network |
 | Dock | `Docked` (player only; a respawn is not a docking) |
 | Warnings | Player only, most urgent first like the HUD banner: overheating, low shield, running hot. The thresholds are shared with the HUD through `PlayerWarnings`. Each repeats at its own interval while it lasts. These follow the tank's state, not events. |

@@ -321,7 +321,7 @@ public sealed class SoundBank
         return samples;
     }
 
-    /// <summary>Gold or ore picked up: two bright bell notes.</summary>
+    /// <summary>Ore picked up: two bright bell notes.</summary>
     private static float[] Pickup()
     {
         var samples = Buffer(0.42f);

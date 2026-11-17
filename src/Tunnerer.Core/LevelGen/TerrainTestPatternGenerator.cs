@@ -50,7 +50,7 @@ public static class TerrainTestPatternGenerator
         FillRect(grid, margin, y, w, stripH, TerrainPixel.Rock);
         y += stripH + gutter;
 
-        FillRect(grid, margin, y, w, stripH, TerrainPixel.Gold);
+        FillRect(grid, margin, y, w, stripH, TerrainPixel.Emberite);
         y += stripH + gutter;
 
         FillRect(grid, margin, y, w, stripH, TerrainPixel.Concrete);
@@ -147,14 +147,14 @@ public static class TerrainTestPatternGenerator
         FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Rock);
         x += blockW + gutter;
 
-        // Vertical split: dirt | gold
+        // Vertical split: dirt | concrete
         FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Dirt);
-        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Gold);
+        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Concrete);
         x += blockW + gutter;
 
-        // Vertical split: stone | gold
+        // Vertical split: stone | ore
         FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Rock);
-        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Gold);
+        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Emberite);
         x += blockW + gutter;
 
         // Vertical split: concrete | dirt
@@ -176,12 +176,12 @@ public static class TerrainTestPatternGenerator
         DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Dirt, TerrainPixel.Rock);
         x += blockW + gutter;
 
-        // Diagonal stone/gold
-        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Rock, TerrainPixel.Gold);
+        // Diagonal stone/ore
+        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Rock, TerrainPixel.Emberite);
         x += blockW + gutter;
 
-        // Diagonal dirt/gold
-        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Dirt, TerrainPixel.Gold);
+        // Diagonal dirt/ore
+        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Dirt, TerrainPixel.Emberite);
         x += blockW + gutter;
 
         // Horizontal split: dirt over stone
@@ -328,7 +328,7 @@ public static class TerrainTestPatternGenerator
         // Isolated single pixels (various materials)
         TerrainPixel[] singles =
         [
-            TerrainPixel.Dirt, TerrainPixel.Rock, TerrainPixel.Gold, TerrainPixel.Concrete, TerrainPixel.Emberite,
+            TerrainPixel.Dirt, TerrainPixel.Rock, TerrainPixel.Concrete, TerrainPixel.Emberite,
             TerrainPixel.EmberiteCore,
         ];
         foreach (var mat in singles)

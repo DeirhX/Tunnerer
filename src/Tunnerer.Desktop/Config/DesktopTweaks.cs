@@ -246,13 +246,9 @@ public static class DesktopScreenTweaks
     public const float PostTerrainMaskCaveDarken = 0.12f;
     public const float PostTerrainMaskSolidLift = 0.04f;
     public const float PostTerrainMaskRimLift = 0.07f;
-    public const float PostMaterialEmissiveGoldR = 0.95f;
-    public const float PostMaterialEmissiveGoldG = 0.75f;
-    public const float PostMaterialEmissiveGoldB = 0.20f;
     public const float PostMaterialEmissiveScorchedR = 0.7059f;
     public const float PostMaterialEmissiveScorchedG = 0.3137f;
     public const float PostMaterialEmissiveScorchedB = 0.1176f;
-    public const float PostMaterialEmissiveGoldStrength = 0.95f;
     public const float PostMaterialEmissiveScorchedStrength = 0.32f;
     public const float PostMaterialEmissivePulseFreq = 3.0f;
     public const float PostMaterialEmissivePulseMin = 0.8f;

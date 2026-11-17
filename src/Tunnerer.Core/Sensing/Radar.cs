@@ -12,7 +12,7 @@ using Tunnerer.Core.Types;
 /// <see cref="RadarContact"/> the moment the front reaches it, near things first. A contact lives for
 /// <see cref="Tweaks.Radar.ContactLifetimeTicks"/>. What lies behind a reflector is in its shadow, so a shape is only
 /// learned from several sides. Each kind of thing returns only from within its own range: a large rock formation
-/// from the pulse's full reach, a thin wall, gold, a machine, a tank or a cave only from nearer
+/// from the pulse's full reach, a thin wall, a machine, a tank or a cave only from nearer
 /// (<see cref="Tweaks.Radar.SolidRangeMin"/> and the ranges beside it), an ore speck from nearer still and a deep
 /// ore deposit from further (<see cref="Tweaks.Radar.OreRangeMin"/>, <see cref="Tweaks.Radar.OreRangeMax"/>). Out of its range a thing still stops the ray
 /// and returns nothing.
@@ -357,16 +357,14 @@ public sealed class Radar
         bool scrambled = temperature >= Tweaks.Radar.HeatScrambleTemperature;
         TerrainPixel pixel = pixels[offset];
         bool target = HitsTarget(cell, _onRay, out bool alive);
-        bool gold = !target && Pixel.IsGold(pixel);
         bool ore = !target && Pixel.IsOre(pixel);
-        if (target || gold || (Pixel.IsBlockingCollision(pixel) && pixel != ownWall))
+        if (target || (Pixel.IsBlockingCollision(pixel) && pixel != ownWall))
         {
             // Whatever it is stops the ray, but each kind of thing only returns from within its own range.
-            RadarEcho echo = alive ? RadarEcho.Life : target || gold ? RadarEcho.Metal
+            RadarEcho echo = alive ? RadarEcho.Life : target ? RadarEcho.Metal
                 : ore ? RadarEcho.Ore : RadarEcho.Solid;
             float range = alive ? _reach.LifeRange
                 : target ? _reach.MachineRange
-                : gold ? _reach.GoldRange
                 : ore ? FormationRange(ray, x, y, width, pixels, heat, ore: true)
                 : FormationRange(ray, x, y, width, pixels, heat, ore: false);
             if (!Within(ray, range))
@@ -425,9 +423,9 @@ public sealed class Radar
         return near + (far - near) * depth / (float)full;
     }
 
-    /// <summary>What reflects as <see cref="RadarEcho.Solid"/>: anything that blocks movement but gold and ore.</summary>
+    /// <summary>What reflects as <see cref="RadarEcho.Solid"/>: anything that blocks movement but ore.</summary>
     private static bool IsRock(TerrainPixel pixel) =>
-        Pixel.IsBlockingCollision(pixel) && !Pixel.IsGold(pixel) && !Pixel.IsOre(pixel);
+        Pixel.IsBlockingCollision(pixel) && !Pixel.IsOre(pixel);
 
     /// <summary>Ore that adds to a deposit's reach: plain, and cool enough that the ray would not read it as heat.</summary>
     private static bool IsCoolPlainOre(TerrainPixel pixel, float temperature) =>
@@ -587,14 +585,12 @@ public sealed class Radar
         {
             RadarEcho.Solid => IsRock(pixel) && pixel != ownWall,
             RadarEcho.Ore => Pixel.IsOre(pixel),
-            RadarEcho.Metal => Pixel.IsGold(pixel) ||
-                (HitsTarget(contact.Position, targets, out bool living) && !living),
+            RadarEcho.Metal => HitsTarget(contact.Position, targets, out bool living) && !living,
             RadarEcho.Life => HitsTarget(contact.Position, targets, out bool alive) && alive,
             RadarEcho.Cavity => !Pixel.IsSoftCollision(pixel) && !Pixel.IsBlockingCollision(pixel),
             _ => heat.GetHeatTemperature(offset) > Tweaks.Radar.HeatThreshold,
         };
-        bool isTerrain = contact.Echo is RadarEcho.Solid or RadarEcho.Cavity or RadarEcho.Ore ||
-            (contact.Echo == RadarEcho.Metal && Pixel.IsGold(pixel));
+        bool isTerrain = contact.Echo is RadarEcho.Solid or RadarEcho.Cavity or RadarEcho.Ore;
         return holds && IsNews(offset, isTerrain, pixels);
     }
 }

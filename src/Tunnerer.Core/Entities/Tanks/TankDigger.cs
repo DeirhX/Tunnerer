@@ -74,24 +74,6 @@ internal sealed class TankDigger
         _thermals.AddMoveHeat(ctx.Heat.Ledger);
     }
 
-    /// <summary>Picks up items under the tank's sprite shape: gold cools the tank.</summary>
-    public void CollectPickups(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, StepEventLog? events)
-    {
-        TankSpriteShape.ForEachPixel(_tank.Direction, _tank.Position, (_, worldPos) =>
-        {
-            if (!terrain.IsInside(worldPos)) return true;
-
-            var pix = terrain.GetPixelRaw(worldPos);
-            if (Pixel.IsGold(pix))
-            {
-                terrain.SetPixel(worldPos, TerrainPixel.Blank);
-                _thermals.CoolFromPickup(Tweaks.Tank.CoolingPickupGold, heat.Ledger);
-                events?.Record(new StepEvent(StepEventKind.GoldCollected, worldPos, _tank.Color));
-            }
-            return true;
-        });
-    }
-
     /// <summary>Picks a random 8-direction index, skipping the unused center index (4).</summary>
     public int RandomDirection()
     {
