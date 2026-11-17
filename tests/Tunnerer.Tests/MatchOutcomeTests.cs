@@ -1,3 +1,4 @@
+using Tunnerer.Core.Match;
 using Tunnerer.Core;
 using Tunnerer.Core.Types;
 
@@ -64,7 +65,7 @@ public class MatchOutcomeTests
     {
         var size = new Size(480, 300);
         var (terrain, spawns) = new Core.LevelGen.ToastGenerator().Generate(size, seed: 42, playerCount: 4);
-        var world = new World(size, simulationSeed: 42, hotRockPocketCount: 3) { CoreTapWins = coreTapWins };
+        var world = new World(size, simulationSeed: 42, new MatchRules { HotRockPockets = 3, CoreTapWins = coreTapWins });
         world.Initialize(terrain, spawns, decorationSeed: 43);
         return world;
     }

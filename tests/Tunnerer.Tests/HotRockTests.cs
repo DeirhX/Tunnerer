@@ -1,3 +1,4 @@
+using Tunnerer.Core.Match;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
@@ -231,7 +232,7 @@ public class HotRockTests
         {
             var (terrain, spawns) = new ToastGenerator().Generate(TestHelpers.DefaultMapSize, seed: seed);
             var world = new World(TestHelpers.DefaultMapSize, simulationSeed: seed,
-                hotRockPocketCount: 4);
+                new MatchRules { HotRockPockets = 4 });
             world.Initialize(terrain, spawns);
             return world.HotRockPockets;
         }

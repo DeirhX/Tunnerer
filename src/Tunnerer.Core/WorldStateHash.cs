@@ -124,6 +124,14 @@ public static class WorldStateHash
     }
 
     /// <summary>
+    /// What a client reports when its world is built, before the first tick: <see cref="Compute"/> plus the world's
+    /// <see cref="Match.MatchRules"/>, which a freshly built world's state may not show (whether the core ends the
+    /// match, for one). The relay refuses to start when two clients report different numbers.
+    /// </summary>
+    public static ulong ComputeReady(World world) =>
+        (Compute(world) ^ world.Rules.Fingerprint()) * 1099511628211UL;
+
+    /// <summary>
     /// What machines in a network match compare: <see cref="Compute"/> plus what it does not read: the totals of
     /// the heat field and of the stored charge, and the bases' ore and upgrades. The parts are kept apart so that, when two machines differ,
     /// the first thing known is where.

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Tunnerer.Core.Match;
 using Tunnerer.Core;
 using Tunnerer.Core.Collision;
 using Tunnerer.Core.Config;
@@ -57,7 +58,7 @@ public class TankShapeTests
     public void TerrainBlocksExactlyTheTankShape(int dir, int dx, int dy)
     {
         var size = new Size(100, 100);
-        var world = new World(size, simulationSeed: TestHelpers.DefaultSeed, enableTerrainRegrowth: false);
+        var world = new World(size, simulationSeed: TestHelpers.DefaultSeed, new MatchRules { TerrainRegrowth = false });
         for (int i = 0; i < size.Area; i++) world.Terrain[i] = TerrainPixel.Blank;
         world.TankBases.AddBase(new Position(20, 20), 0);
         var tank = world.TankList.AddTank(0, world.TankBases.GetSpawn(0)!);

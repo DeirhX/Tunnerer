@@ -334,7 +334,7 @@ Each step is testable without the next.
    Playing from the office network is still to do.
 4. **Four players** (done; the relay on Starfish runs protocol 2 since 2026-11-17). The level generator places any number of bases
    (`ToastGenerator.SelectSpawns`); `MatchReferee` decides a match of any size, and in a network match the
-   first base to tap the core wins (`World.CoreTapWins`); a lobby plate, host start, bots in open slots, name
+   first base to tap the core wins (`MatchRules.CoreTapWins`); a lobby plate, host start, bots in open slots, name
    tags over tanks in sight, and a warning when a machine falls behind. Joining is still by command line
    (`--net=ROOM`); a menu for it is not built. Protocol version 2.
 5. **Robustness** (done; the relay on Starfish runs protocol 3 with a secret since 2026-11-17). The sync digest with heat and

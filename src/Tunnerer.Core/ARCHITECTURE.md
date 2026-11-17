@@ -10,11 +10,15 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 ```
 World.cs                     World: owns every subsystem, runs Advance; SimulationProfile (per-section timings)
 StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
-MatchOutcome.cs              Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
 NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
 WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds heat and
                              charge totals (what machines in a network match compare)
 StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
+Match/
+  MatchRules.cs              Which optional systems a world runs (regrowth, pockets, ore, the core race); World.Rules
+  MatchOutcome.cs            MatchReferee: Victory / Defeat / InProgress for one tank (World.MatchOutcomeFor)
+  MatchResult.cs             Latches the referee's first answer (World.MatchWinner, World.IsMatchOver)
+  SectorGoal.cs              The core tap: each base's tap and hold timer, and the first base to tap the core
 Config/
   Tweaks.cs                  Every gameplay and simulation constant (const / static readonly only)
   SimulationSettings.cs      The thermal and tank-heat constants, copied from Tweaks; tests inject their own
@@ -99,9 +103,12 @@ Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, Dir
 
 ## World
 
-`new World(size, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
-spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot and frost rock pockets (if
-asked; the hot ones also give the core, `World.CorePocket`), seeds emberite ore (if asked, `seedOre`;
+`new World(size, simulationSeed, rules)` creates the subsystems. `MatchRules` says which optional systems the world
+runs: regrowth, hot and frost rock pockets, ore, and whether tapping the core wins the match. It is the one switch for
+them (a system that can be turned off gets a flag there), and it is mixed into the hash clients compare before a
+network match starts (`WorldStateHash.ComputeReady`). `World.Initialize(terrain, spawns, ...)` copies in a generated
+level, materializes it, builds the bases, places hot and frost rock pockets (if the rules ask; the hot ones also give
+the core, `World.CorePocket`, and with it the `SectorGoal`), seeds emberite ore (if the rules ask, `SeedOre`;
 `World.OreDeposits`) and adds one tank per spawn. Ore is placed last and grows each deposit cell by cell from its
 start, so generation never sweeps the grid; deposit counts scale with map area (`Tweaks.Ore`), and on a small map the
 distance rules shrink and a floor of pockets and lumps applies (`OreDeposits.DistanceScale`). Every RNG World owns
@@ -139,7 +146,8 @@ picks the seed. The bot takes its own seed, also from `WorldFactory`.
    in its reach.
 7. **Sprites**: lifetime.
 8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), the bot's stand-in ore income for bases
-   marked with `World.SetBotControlled`, then `World.AdvanceSectorGoal` (the core tap and its hold timer).
+   marked with `World.SetBotControlled`, then `SectorGoal.Advance` (the core tap and its hold timer, when the world has a core) and
+   `MatchResult.Latch` (the result, fixed once the referee has one).
 9. **Links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
    (200 ms), not every tick, and at once when a machine's point is switched off.
 10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
@@ -217,7 +225,7 @@ The mechanics built on this (base reservoir and radiator, relays pumping heat ho
 pylons and batteries, network coverage, the tank's temperature band, hot and frost rock pockets, the sector goal and
 upgrades) are specified in `DESIGN.md` §4, the ore economy in §6.4; the code is in `TankBase`, `BaseUpgrades`,
 `TankBuildController`, `MachineBehaviors`,
-`TankThermals`, `TankHeatModel`, `NetworkCoverage`, `HotRockPockets`, `FrostRockPockets` and `World.AdvanceSectorGoal`.
+`TankThermals`, `TankHeatModel`, `NetworkCoverage`, `HotRockPockets`, `FrostRockPockets` and `SectorGoal`.
 The heat render texture encodes temperature signed (`TerrainGrid.HeatToByte`), so the terrain shader can draw ground
 below 0 as frost.
 

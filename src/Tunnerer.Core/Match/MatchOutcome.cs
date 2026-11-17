@@ -1,4 +1,4 @@
-namespace Tunnerer.Core;
+namespace Tunnerer.Core.Match;
 
 using Tunnerer.Core.Entities;
 

@@ -13,6 +13,7 @@ using Tunnerer.Core.Entities.Tanks;
 using System.Diagnostics;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Sensing;
+using Tunnerer.Core.Match;
 
 public class World
 {
@@ -25,13 +26,11 @@ public class World
     private readonly SpriteList _sprites = new();
     private readonly CollisionSolver _collisionSolver;
     private readonly TerrainRegrowth _terrainRegrowth;
-    private readonly int _hotRockPocketCount;
     private readonly List<Position> _hotRockPockets = new();
-    private Position? _corePocket;
-    private readonly int _frostRockPocketCount;
     private readonly List<Position> _frostRockPockets = new();
-    private readonly bool _seedOre;
     private readonly List<LevelGen.OreDeposit> _oreDeposits = new();
+    private readonly MatchResult _matchResult;
+    private SectorGoal? _sectorGoal;
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
     private readonly StepEventLog _stepEvents = new();
@@ -144,18 +143,14 @@ public class World
         _stepEvents.Record(new StepEvent(StepEventKind.MachinePlanted, machine.Position, machine.OwnerColor, machine.Type));
     }
 
+    /// <param name="rules">Which optional systems the world runs; null is <c>new MatchRules()</c> (see <see cref="MatchRules"/>).</param>
     public World(
         Size terrainSize,
         int simulationSeed = 0,
-        bool enableTerrainRegrowth = true,
-        int hotRockPocketCount = 0,
-        SimulationSettings? simulationSettings = null,
-        int frostRockPocketCount = 0,
-        bool seedOre = false)
+        MatchRules? rules = null,
+        SimulationSettings? simulationSettings = null)
     {
-        _hotRockPocketCount = hotRockPocketCount;
-        _seedOre = seedOre;
-        _frostRockPocketCount = frostRockPocketCount;
+        Rules = rules ?? new MatchRules();
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
@@ -163,8 +158,12 @@ public class World
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
-        _terrainRegrowth = new TerrainRegrowth(enableTerrainRegrowth, _simulationSeed);
+        _terrainRegrowth = new TerrainRegrowth(Rules.TerrainRegrowth, _simulationSeed);
+        _matchResult = new MatchResult(_tankList.Tanks);
     }
+
+    /// <summary>The optional systems this world runs with, fixed at construction.</summary>
+    public MatchRules Rules { get; }
 
     public void Initialize(TerrainGrid generatedTerrain, Position[] spawns,
         int? decorationSeed = null, bool parallelMaterialize = false)
@@ -185,16 +184,21 @@ public class World
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
-        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0 || _seedOre)
+        if (Rules.HotRockPockets > 0 || Rules.FrostRockPockets > 0 || Rules.SeedOre)
         {
             int pocketSeed = seed + 200;
-            if (_hotRockPocketCount > 0)
-                _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(_terrain, spawns, _hotRockPocketCount, pocketSeed, out _corePocket));
-            if (_frostRockPocketCount > 0)
+            if (Rules.HotRockPockets > 0)
+            {
+                _hotRockPockets.AddRange(LevelGen.HotRockPockets.Place(
+                    _terrain, spawns, Rules.HotRockPockets, pocketSeed, out Position? core));
+                if (core is Position corePosition)
+                    _sectorGoal = new SectorGoal(corePosition);
+            }
+            if (Rules.FrostRockPockets > 0)
                 _frostRockPockets.AddRange(LevelGen.FrostRockPockets.Place(
-                    _terrain, spawns, _hotRockPockets, _frostRockPocketCount, pocketSeed + 1));
+                    _terrain, spawns, _hotRockPockets, Rules.FrostRockPockets, pocketSeed + 1));
             // Ore last, so it fills the ground the pockets left.
-            if (_seedOre)
+            if (Rules.SeedOre)
                 _oreDeposits.AddRange(LevelGen.OreDeposits.Place(_terrain, spawns, pocketSeed + 2));
 
             // Let the heat (and cold) spread a little before play starts so the pockets and ore cores do not begin as
@@ -277,8 +281,8 @@ public class World
         ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
         foreach (var tankBase in _tankBases.Bases)
             tankBase.AdvanceBotTrickle(_simulationSettings.AdvanceStep.TotalSeconds);
-        AdvanceSectorGoal();
-        LatchMatchResult();
+        _sectorGoal?.Advance(_tankBases.Bases, _machines, _tankList.Tanks, _simulationSettings.AdvanceStep.TotalSeconds);
+        _matchResult.Latch(RaceWinner);
         ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
         foreach (var tank in _tankList.Tanks)
         {
@@ -503,44 +507,20 @@ public class World
         NetworkCoverage.CollectNodes(owner, _machines.Machines, into);
 
     /// <summary>
-    /// Whether the first base to tap the core wins the match (a race, DESIGN.md §4.8). Off by default: the core is
-    /// then a goal that does not end the match. Set before the first step.
+    /// The base whose win the match counts as a race win: the first to tap the core, when the rules make the core a
+    /// race (<see cref="MatchRules.CoreTapWins"/>); otherwise null.
     /// </summary>
-    public bool CoreTapWins { get; set; }
-
-    /// <summary>The base that tapped the core first, once one has.</summary>
-    private TankBase? _firstToTapCore;
-
-    /// <summary>True from the step in which the match was decided; its result is then fixed.</summary>
-    private bool _matchDecided;
-
-    private (Tank Tank, MatchWinReason Reason)? _decidedWinner;
+    private TankBase? RaceWinner => Rules.CoreTapWins ? _sectorGoal?.FirstToTapCore : null;
 
     /// <summary>
-    /// The tank that has won, and how: the first to tap the core when <see cref="CoreTapWins"/>, or the only tank
-    /// with lives left. Null while the match is undecided, and after a match that ended with no tank left. Once the
-    /// step that decided the match has run, it never changes.
+    /// The tank that has won, and how: the first to tap the core when <see cref="MatchRules.CoreTapWins"/>, or the
+    /// only tank with lives left. Null while the match is undecided, and after a match that ended with no tank left.
+    /// Once the step that decided the match has run, it never changes.
     /// </summary>
-    public (Tank Tank, MatchWinReason Reason)? MatchWinner =>
-        _matchDecided ? _decidedWinner : MatchReferee.Winner(_tankList.Tanks, CoreTapWins ? _firstToTapCore : null);
+    public (Tank Tank, MatchWinReason Reason)? MatchWinner => _matchResult.Winner(RaceWinner);
 
     /// <summary>A match is over once a tank has won, or no tank has a life left. It stays over.</summary>
-    public bool IsMatchOver => _matchDecided || MatchWinner != null || MatchReferee.NobodyIsLeft(_tankList.Tanks);
-
-    /// <summary>
-    /// Records the result the first time the referee has one, so that nothing that happens afterwards (the winner
-    /// dying, another base finishing its hold) can change it.
-    /// </summary>
-    private void LatchMatchResult()
-    {
-        if (_matchDecided)
-            return;
-        var winner = MatchWinner;
-        if (winner == null && !MatchReferee.NobodyIsLeft(_tankList.Tanks))
-            return;
-        _decidedWinner = winner;
-        _matchDecided = true;
-    }
+    public bool IsMatchOver => _matchResult.IsOver(RaceWinner);
 
     /// <summary>How the match stands for <paramref name="player"/>.</summary>
     public MatchOutcome MatchOutcomeFor(Tank player) => MatchReferee.OutcomeFor(player, MatchWinner?.Tank);
@@ -549,48 +529,7 @@ public class World
     /// The hot core, the sector goal (DESIGN.md §4.8): the large hot rock pocket at the map centre, or the nearest
     /// spot to it clear of the bases. Null when the world has no hot rock.
     /// </summary>
-    public Position? CorePocket => _corePocket;
-
-    /// <summary>
-    /// Sums the charge each base's relays near the core made this tick and advances that base's hold timer: it grows
-    /// while the tap meets the goal rate and drains faster while it falls short. The base that holds it long enough
-    /// has tapped the core.
-    /// </summary>
-    private void AdvanceSectorGoal()
-    {
-        if (CorePocket is not Position core)
-            return;
-        int radiusSq = Tweaks.Goal.CoreTapRadius * Tweaks.Goal.CoreTapRadius;
-        double dt = _simulationSettings.AdvanceStep.TotalSeconds;
-        foreach (var tankBase in _tankBases.Bases)
-        {
-            double tap = 0.0;
-            foreach (var machine in _machines.Machines)
-                if (machine.IsAlive && machine.Type == MachineType.Relay && machine.OwnerBase == tankBase &&
-                    Position.DistanceSquared(machine.Position, core) <= radiusSq)
-                    tap += machine.LastChargeMade;
-            tankBase.CoreTapPerTick = tap;
-            tankBase.CoreHoldSeconds = NextCoreHold(tankBase.CoreHoldSeconds, tap, dt);
-            if (tankBase.CoreHoldSeconds >= Tweaks.Goal.GoalHoldSeconds)
-            {
-                tankBase.HasTappedCore = true;
-                // Bases are visited in slot order, so two that finish on the same tick always resolve the same way.
-                // A base whose tank is out of lives is out of the race, even if its hold was already running.
-                if (!MatchReferee.IsEliminated(_tankList.Tanks, tankBase))
-                    _firstToTapCore ??= tankBase;
-            }
-        }
-    }
-
-    /// <summary>
-    /// One step of the core-tap hold timer: it grows by <paramref name="dt"/> while the tap meets the goal rate and
-    /// drains <c>GoalHoldDecay</c> times as fast (never below zero) while it falls short.
-    /// </summary>
-    public static double NextCoreHold(double hold, double tapPerTick, double dt)
-    {
-        double goalPerTick = Tweaks.Goal.GoalChargePerSecond * dt;
-        return tapPerTick >= goalPerTick ? hold + dt : Math.Max(0.0, hold - dt * Tweaks.Goal.GoalHoldDecay);
-    }
+    public Position? CorePocket => _sectorGoal?.Core;
 
     private static void ProfileSection(ref TimeSpan accumulator, Action action)
     {

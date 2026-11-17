@@ -46,7 +46,7 @@ public partial class Game
     {
         _netSession = new NetSession(relay, _world);
         _hud.CanRestartMatch = false;
-        ulong hash = WorldStateHash.Compute(_world);
+        ulong hash = WorldStateHash.ComputeReady(_world);
         relay.SendReady(hash);
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"[Net] Slot {relay.Slot}, seed {relay.Config.Seed}, world hash {hash:X16}. Waiting for the match to start."));

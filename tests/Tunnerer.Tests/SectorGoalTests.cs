@@ -1,3 +1,4 @@
+using Tunnerer.Core.Match;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
@@ -203,9 +204,9 @@ public class SectorGoalTests
         double dt = Tweaks.World.AdvanceStep.TotalSeconds;
         double goalPerTick = Tweaks.Goal.GoalChargePerSecond * dt;
 
-        Assert.Equal(dt, World.NextCoreHold(0, goalPerTick, dt), precision: 9);
-        Assert.Equal(10 - dt * Tweaks.Goal.GoalHoldDecay, World.NextCoreHold(10, goalPerTick * 0.5, dt), precision: 9);
-        Assert.Equal(0, World.NextCoreHold(0.001, 0, dt));
+        Assert.Equal(dt, SectorGoal.NextHold(0, goalPerTick, dt), precision: 9);
+        Assert.Equal(10 - dt * Tweaks.Goal.GoalHoldDecay, SectorGoal.NextHold(10, goalPerTick * 0.5, dt), precision: 9);
+        Assert.Equal(0, SectorGoal.NextHold(0.001, 0, dt));
     }
 
     [Trait("Category", "Slow")]
