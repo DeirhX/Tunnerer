@@ -5,7 +5,7 @@ using Tunnerer.Core.Types;
 
 public sealed record BrowserFrame(
     int Seed, int Tick, int TickRate, PlayerStatus Player,
-    SceneEvent[] Events, BuildOption[] Builds,
+    SoundFrame Sounds, BuildOption[] Builds,
     UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal, GuidanceStatus Guidance);
 
 public sealed record PlayerStatus(
@@ -14,8 +14,6 @@ public sealed record PlayerStatus(
     bool Docked, bool OffNetwork, float SafeSeconds, bool Dead, double RespawnSeconds,
     string Outcome, string? Carrying);
 
-/// <summary>A one-shot to play: a <c>SoundEffect</c> name and its gain relative to the master volume.</summary>
-public sealed record SceneEvent(string Sound, float Gain, int X, int Y);
 public sealed record BuildOption(int Key, string Name, int Cost, bool Affordable, string Payer);
 public sealed record UpgradeOption(int Key, string Name, string Effect, int Level, int Cost, bool Maxed);
 public sealed record PlantPreview(string Status, Position Target, float Heat);
@@ -36,4 +34,5 @@ public sealed record GoalStatus(Position Position, double Output, double Require
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(BrowserFrame))]
+[JsonSerializable(typeof(SoundBankLayout))]
 public partial class BrowserJsonContext : JsonSerializerContext;

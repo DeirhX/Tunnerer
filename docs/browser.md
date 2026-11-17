@@ -204,11 +204,15 @@ window and graphics dependencies out of the shared rendering assembly.
   outcome and upgrade descriptions come from Core. `guidance.js` shows the desktop's tutorial card (F2 hides it),
   toasts, hint line and warning banner as each frame after a step carries them (`guidance`), and the renderer points
   at the tutorial's target. The match is built by Core's `MatchSetup`, as on the desktop.
-  Which events make a sound, for whom and how loud comes from the desktop's `StepEventSounds` table (each frame
-  lists the cues); `audio.js` only gives each a tone.
+  What sounds, for whom, how loud, where and at what pitch is decided by the desktop's `SoundDirector` after each
+  step; the frame after the step lists the one-shots it started and where each loop (engines, digging, torch,
+  recharge) stands (`sounds`). The samples are the desktop's `SoundBank`, synthesised in .NET the first time the
+  player turns sound on and sent with the next frame (`BrowserSoundBank`). `audio.js` plays them with Web Audio: one-shots through a gain and a stereo panner, at most four of an
+  effect at once, and loops that glide to each step's values. Opening the menu suspends sound, and the loops fall
+  silent when the match ends. As on the desktop, what is heard follows distance, not sight.
 
 World rendering uses the desktop's procedural materials, curved cave edges, lighting, heat/scorch/frost effects,
-fog, tank and machine shapes, animated beams and radar. The HUD says what the desktop's says; its HTML layout and
-the tones of its sounds remain browser-specific.
+fog, tank and machine shapes, animated beams and radar. The HUD says what the desktop's says and the sounds are the
+desktop's; the HUD's HTML layout remains browser-specific, and there is no volume control yet (sound is on or off).
 Network multiplayer and persistent saves are not included. The existing relay and protocol are unchanged.
 No Core gameplay constants or recorded simulation fingerprints changed.

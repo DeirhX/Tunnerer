@@ -19,24 +19,45 @@ using Tunnerer.Desktop.Rendering.Entities;
 public class BrowserSessionTests
 {
     [Fact]
-    public void Sounds_FollowTheDesktopTable_AndOnlyThePlayerHearsTheirOwnFeedback()
+    public void Sounds_AreTheDesktopDirectors_HandedOverOnce_WithEveryLoop()
     {
         var session = new BrowserSession(1234);
-        int player = session.Player.Color, bot = session.World.TankList.Tanks[1].Color;
-        Position seen = session.Player.Position;
-        StepEvent[] events =
-        [
-            new(StepEventKind.Docked, seen, player),
-            new(StepEventKind.Docked, seen, bot),
-            new(StepEventKind.MachineBuilt, seen, bot, MachineType.Pylon),
-            new(StepEventKind.TankMoved, seen, player),
-        ];
+        for (int i = 0; i < 3; i++)
+            session.Advance(new ControllerOutput { MoveSpeed = new Offset(0, 1) });
+        session.Advance(new ControllerOutput { BuildPrimary = true });
 
-        var sounds = BrowserFrameBuilder.Sounds(events, session.World, session.Player, session.Vision);
+        var sounds = BrowserFrameBuilder.Capture(session, includeEvents: true).Sounds;
 
-        Assert.Equal(
-            [(nameof(SoundEffect.Dock), AudioTweaks.DockGain), (nameof(SoundEffect.BuildPylon), AudioTweaks.BuildGain)],
-            sounds.Select(s => (s.Sound, s.Gain)));
+        // The player's own build, heard where it happens: at full gain, centred, as the desktop plays it.
+        Assert.Contains(new SoundPlay(nameof(SoundEffect.BuildRelay), AudioTweaks.BuildGain, 0f, 1f), sounds.Play);
+        Assert.Equal(SoundDirector.MaxTrackedTanks * 3 + 1, sounds.Loops.Length);
+        Assert.Equal(nameof(SoundEffect.EngineLoop), sounds.Loops[0].Effect);
+        Assert.Equal(nameof(SoundEffect.RechargeLoop), sounds.Loops[^1].Effect);
+        Assert.True(sounds.Loops[0].Gain > 0f, "The player's engine runs.");
+        Assert.Equal(0f, sounds.Loops[3 * 3].Gain);   // a fourth tank that is not there
+        // A frame without a step starts nothing again; the loops stay where they are.
+        var again = BrowserFrameBuilder.Capture(session, includeEvents: false).Sounds;
+        Assert.Empty(again.Play);
+        Assert.Equal(sounds.Loops, again.Loops);
+    }
+
+    [Fact]
+    public void SoundBank_PacksEveryDesktopEffect_OneAfterAnother()
+    {
+        var bank = new BrowserSoundBank();
+        var effects = bank.Layout.Effects;
+
+        Assert.Equal(AudioTweaks.SampleRate, bank.Layout.SampleRate);
+        Assert.Equal(Enum.GetNames<SoundEffect>(), effects.Select(e => e.Effect));
+        Assert.Equal(0, effects[0].Offset);
+        for (int i = 1; i < effects.Length; i++)
+            Assert.Equal(effects[i - 1].Offset + effects[i - 1].Length, effects[i].Offset);
+        Assert.Equal(bank.Samples.Length, effects[^1].Offset + effects[^1].Length);
+        Assert.All(effects, e => Assert.Equal(SoundBank.IsLoop(Enum.Parse<SoundEffect>(e.Effect)), e.Loop));
+        Assert.Equal(bank.Samples.Length * 4, bank.ToBytes().Length);
+        var desktop = new SoundBank()[SoundEffect.Fire];
+        var fire = effects.Single(e => e.Effect == nameof(SoundEffect.Fire));
+        Assert.Equal(desktop, bank.Samples.AsSpan(fire.Offset, fire.Length).ToArray());
     }
 
     [Fact]
@@ -56,7 +77,7 @@ public class BrowserSessionTests
         Assert.Equal(1, session.World.Settings.ThermalMaxWorkers);
         Assert.Equal(player.Position.X, frame.Player.Position.X);
         Assert.Contains("\"tickRate\":24", json, StringComparison.Ordinal);
-        Assert.Empty(frame.Events);
+        Assert.Empty(frame.Sounds.Play);
         var desktopEntities = new EntityLayerBuilder();
         desktopEntities.CaptureStep(session.World, 0);
         desktopEntities.Build(session.Scene.View, 1, 0, false, 0, session.Vision, session.Radar);
@@ -87,7 +108,7 @@ public class BrowserSessionTests
         var built = BrowserFrameBuilder.Capture(session, includeEvents: true);
         Assert.True(player.IsCarryingMachine);
         Assert.Equal(store - frame.Builds[0].Cost, home.Store.Ore);
-        Assert.Contains(built.Events, e => e.Sound == nameof(SoundEffect.BuildRelay) && e.Gain == AudioTweaks.BuildGain);
+        Assert.Contains(built.Sounds.Play, e => e.Effect == nameof(SoundEffect.BuildRelay) && e.Gain == AudioTweaks.BuildGain);
 
         Position start = player.Position;
         for (int i = 0; i < 30; i++)

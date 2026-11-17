@@ -5,48 +5,19 @@ using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Bases;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Tanks;
-using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
-using Tunnerer.Desktop.Audio;
-using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Gui.Guidance;
 
 /// <summary>Presentation data. Costs, coverage, placement and match outcome are queried from Core.</summary>
 public static class BrowserFrameBuilder
 {
-    /// <summary>
-    /// The one-shots <paramref name="events"/> play for the player, as <see cref="StepEventSounds"/> (shared with the desktop)
-    /// picks them and only where the player can see: who hears what, the effect and its gain come from that table.
-    /// </summary>
-    public static SceneEvent[] Sounds(ReadOnlySpan<StepEvent> events, World world, Tank player, VisionMap vision)
-    {
-        var sounds = new List<SceneEvent>();
-        int bursts = 0;
-        foreach (StepEvent e in events)
-        {
-            if (StepEventSounds.CueFor(e.Kind, e.Machine) is not { } cue || !vision.IsVisible(e.Position))
-                continue;
-            // The desktop hears tank events for the tanks it tracks; every tank of a browser match is tracked.
-            bool tracked = e.Color >= 0 && world.TankList.Tanks.Any(t => t.Color == e.Color);
-            if (!StepEventSounds.Hears(cue, tracked, isPlayer: e.Color == player.Color))
-                continue;
-            // However many burst in a step, only a couple are heard (as on the desktop).
-            if (cue.Voice == CueVoice.Burst && bursts++ >= AudioTweaks.ImpactsPerStep)
-                continue;
-            sounds.Add(new SceneEvent(cue.Effect.ToString(), cue.Gain, e.Position.X, e.Position.Y));
-        }
-        return [.. sounds];
-    }
-
     public static BrowserFrame Capture(BrowserSession session, bool includeEvents)
     {
         ArgumentNullException.ThrowIfNull(session);
         var world = session.World;
         var player = session.Player;
         var home = player.Base!;
-        var vision = session.Vision;
-        var events = includeEvents ? Sounds(world.StepEvents, world, player, vision) : [];
         var builds = MachineBehaviors.All.Select(b =>
         {
             BuildQuote quote = player.QuoteBuild(b.Type);
@@ -74,7 +45,7 @@ public static class BrowserFrameBuilder
             player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds,
             world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString());
         return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
-            events, builds, upgrades, preview, goal, Guidance(session.Guidance));
+            session.Sounds.Frame(takePlays: includeEvents), builds, upgrades, preview, goal, Guidance(session.Guidance));
     }
 
     /// <summary>What <paramref name="guidance"/> says now, as the page shows it.</summary>

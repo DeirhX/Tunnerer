@@ -61,7 +61,7 @@ while running:
          GameSimulationStepper.AdvanceOneStep
            scripted commands -> keyboard / scripted input for the local slot, a BotTankAI per other slot -> World.Advance
          EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
-         GameAudio.AfterStep               (plays the step's World.StepEvents, sets the loops)
+         GameAudio.AfterStep               (SoundDirector plays the step's World.StepEvents, sets the loops)
          GameHud.AfterStep                 (GameEventWatcher counts the ore harvesters banked this step)
          TerrainAuxUploader.ObserveTerrainChanges (changed cells, to repack on the next frame)
          Game.DrawTerrainChangesToSurface  (incremental update of the world pixel buffer)
@@ -186,13 +186,14 @@ cover it.
 
 ## Sound
 
-`Tunnerer.Desktop/Audio` turns the simulation into sound without the simulation knowing. `GameAudio` runs once
+`Tunnerer.Desktop/Audio` turns the simulation into sound without the simulation knowing. `SoundDirector` runs once
 after every simulation step, never per displayed frame, so an effect cannot repeat on the frames shown between
 steps. It does not compare the world between steps: Core lists what happened during the step in `World.StepEvents`
-(a shot, an impact, a death, a planting, a docking...) and `GameAudio` starts the matching effect, placed in stereo
-and attenuated by distance from the player's tank. All effects are
-synthesised at start-up (`SoundBank`), mixed by `SoundMixer` and played through an SDL audio device. Automated runs
-open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
+(a shot, an impact, a death, a planting, a docking...) and `SoundDirector` starts the matching effect, placed in
+stereo and attenuated by distance from the player's tank, into an `ISoundSink`. All effects are synthesised
+(`SoundBank`). On the desktop `GameAudio` gives the director its mixer (`SoundMixer`), played through an SDL audio
+device; automated runs open no device. The browser shares `SoundDirector` and `SoundBank`: its sink records each
+step's sounds into the frame, and the page plays them with the bank's samples (`docs/browser.md`). Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 ## Tests
 

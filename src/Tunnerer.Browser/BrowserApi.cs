@@ -85,6 +85,24 @@ public static partial class BrowserApi
         double stepMs, double frameMs);
 
     /// <summary>
+    /// Synthesises the desktop's sound bank and hands it to <see cref="DeliverSounds"/> before the promise resolves.
+    /// The page asks for it once, when the player first turns sound on.
+    /// </summary>
+    [JSExport]
+    public static Task SoundBank()
+    {
+        var bank = new BrowserSoundBank();
+        DeliverSounds(bank.ToBytes(), JsonSerializer.Serialize(bank.Layout, BrowserJsonContext.Default.SoundBankLayout));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Hands the sound bank to JavaScript (frames.js), which copies the samples before it returns.</summary>
+    /// <param name="samples">Every effect's samples (32-bit floats) one after another; a view good for the call.</param>
+    /// <param name="layout">Where each effect lies (<see cref="SoundBankLayout"/>), as JSON.</param>
+    [JSImport("deliverSounds", "frames.js")]
+    private static partial void DeliverSounds([JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> samples, string layout);
+
+    /// <summary>
     /// Plays <paramref name="ticks"/> steps of a match nobody watches (the player idle, the bot playing) and returns
     /// its <see cref="BrowserSession.Fingerprint"/> in hexadecimal: how a browser, a runtime or a number of heat
     /// workers is shown to compute the same world as another. The match being played is left alone.

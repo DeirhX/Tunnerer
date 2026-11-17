@@ -75,6 +75,7 @@ $("sound").onclick = async () => {
 };
 $("menu").addEventListener("close", () => {
     paused = false;
+    audio.setPaused(false);
     input.clear();
     input.enabled = playing && state?.player.outcome === "InProgress";
     accumulator = 0;
@@ -95,6 +96,7 @@ document.addEventListener("visibilitychange", () => {
 function openMenu() {
     if ($("menu").open) return;
     paused = true;
+    audio.setPaused(true);
     input.enabled = false;
     input.clear();
     $("menu-title").textContent =
@@ -112,6 +114,9 @@ function openMenu() {
 
 function reset() {
     worker?.terminate();
+    audio.quiet();
+    // A sound bank asked of the ended match never comes: the next match asks again.
+    audio.requested = false;
     worker = null;
     state = null;
     renderer.frame = null;
@@ -171,6 +176,7 @@ async function start() {
         }
         if (data.type !== "frame") return;
         busy = false;
+        if (data.sounds) audio.load(data.sounds);
         // The HUD's state comes only with frames that follow a simulation step.
         renderer.accept(data.state, data.packet);
         perf?.frame(
@@ -181,7 +187,7 @@ async function start() {
         input.aimOffset = renderer.cellSize / 2;
         if (data.state) {
             state = data.state;
-            audio.play(state.events);
+            audio.play(state.sounds);
             updateHud(state);
             // For whoever follows the match from outside the page's code: the smoke test does.
             canvas.dataset.heatWorkers = String(worker.heatWorkers);
@@ -206,14 +212,23 @@ async function start() {
         if (state.player.outcome !== "InProgress") {
             input.enabled = false;
             input.clear();
+            audio.quiet();
         }
     };
     worker.postMessage({
         type: "start",
         seed,
         time: 0,
+        sounds: askForSounds(),
         ...renderer.viewSize(),
     });
+}
+
+// Whether this request should bring the sound bank: once, after sound is first turned on.
+function askForSounds() {
+    if (!audio.wantsBank) return false;
+    audio.requested = true;
+    return true;
 }
 
 // `advice` follows the reason; graphics failures bring their own.
@@ -335,6 +350,7 @@ function animate(now) {
             alpha: paused ? 1 : Math.min(1, accumulator / dt),
             delta: paused ? 0 : Math.min(0.1, (now - lastRenderTime) / 1000),
             time: visualTime,
+            sounds: askForSounds(),
             ...view,
         });
         sentView = view;

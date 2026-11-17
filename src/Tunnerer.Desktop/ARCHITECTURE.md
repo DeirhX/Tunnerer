@@ -211,9 +211,10 @@ writes either.
 
 | File | Role |
 |------|------|
-| `GameAudio.cs` | Decides what to play. Called after every simulation step. |
-| `StepEventSounds.cs` | The one table of event sounds: for each simulation event, the one-shot effect, its gain, whose events it is heard for (anyone's, a tracked tank's, the player's) and how it varies (plain, a capped burst, a cycling shot pitch, a rising pickup streak). `GameAudio` plays what it says; tested without a device. A new event sound is one row. |
-| `SoundBank.cs` | Synthesises every effect at start-up (filtered noise, sine partials, envelopes) as mono 48 kHz samples. No sound files; the noise is seeded per effect, so the bank is the same on every run. |
+| `SoundDirector.cs` | Decides what to play, into an `ISoundSink`. Called after every simulation step. Shared with the browser (`Tunnerer.Rendering`), whose sink records the sounds into the frame. |
+| `GameAudio.cs` | The desktop's sound: the bank, the mixer (the director's sink), the device, volume, mute, pause and capture. |
+| `StepEventSounds.cs` | The one table of event sounds: for each simulation event, the one-shot effect, its gain, whose events it is heard for (anyone's, a tracked tank's, the player's) and how it varies (plain, a capped burst, a cycling shot pitch, a rising pickup streak). `SoundDirector` plays what it says; tested without a device. A new event sound is one row. |
+| `SoundBank.cs` | Synthesises every effect at start-up (in the browser, when sound is first turned on) (filtered noise, sine partials, envelopes) as mono 48 kHz samples. No sound files; the noise is seeded per effect, so the bank is the same on every run. |
 | `SoundMixer.cs` | Mixes one-shot voices and continuous loops to stereo, applies master volume, pause and a soft limiter. |
 | `SdlAudioOutput.cs` | The SDL audio device. SDL calls back on its own thread for samples and the mixer fills the buffer (512 samples, about 11 ms). |
 | `WavFile.cs` | WAV writer for captures and `--dump-sounds`. |
@@ -222,7 +223,7 @@ writes either.
 
 Sound does not work out what happened by comparing the world between steps. Core records it: `World.StepEvents`
 lists what happened during the last step (see `src/Tunnerer.Core/ARCHITECTURE.md`), and `Game` calls
-`GameAudio.AfterStep` after every step, so when one display frame runs several steps each step's events are played
+`GameAudio.AfterStep` (and so `SoundDirector.AfterStep`) after every step, so when one display frame runs several steps each step's events are played
 in turn before the next step clears them. Triggering on steps rather than displayed frames is what keeps an effect
 from repeating on the frames drawn between steps.
 

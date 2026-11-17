@@ -7,7 +7,8 @@ export async function startRuntime(dotnet, config = {}) {
         .withDiagnosticTracing(false)
         .withConfig(config)
         .create();
-    let delivered = null;
+    let delivered = null,
+        sounds = null;
     runtime.setModuleImports("frames.js", {
         // .NET hands over each frame here. `packet` is one buffer with everything the frame draws (layout:
         // BrowserScene.cs), as a view of the runtime's memory that is good for the length of this call. The copy
@@ -20,6 +21,13 @@ export async function startRuntime(dotnet, config = {}) {
                 timing: { step: stepMs < 0 ? null : stepMs, render: frameMs },
             };
         },
+        // The sound bank (BrowserSoundBank): every effect's samples, copied out of the runtime's memory as above.
+        deliverSounds: (samples, layout) => {
+            sounds = {
+                samples: new Float32Array(samples.slice().buffer),
+                layout: JSON.parse(layout),
+            };
+        },
     });
     await runtime.runMain();
     const exports = await runtime.getAssemblyExports(
@@ -28,7 +36,8 @@ export async function startRuntime(dotnet, config = {}) {
     const api = exports.Tunnerer.Browser.BrowserApi;
     return {
         // Answers one request of the page, { type: "start" } or { type: "render" }, with the frame message it
-        // waits for. A render request with `input` steps the simulation once before the frame is built.
+        // waits for. A render request with `input` steps the simulation once before the frame is built. A request
+        // with `sounds` also gets the sound bank, as the frame's `sounds`.
         async answer(data) {
             if (data.type === "start")
                 await api.Start(data.seed, data.heatWorkers);
@@ -51,6 +60,12 @@ export async function startRuntime(dotnet, config = {}) {
             );
             const { packet, hud, timing } = delivered;
             delivered = null;
+            let bank = null;
+            if (data.sounds) {
+                await api.SoundBank();
+                bank = sounds;
+                sounds = null;
+            }
             // The HUD's state comes only with frames after which it may differ: the first, and those that follow
             // a step.
             return {
@@ -58,6 +73,7 @@ export async function startRuntime(dotnet, config = {}) {
                 state: hud ? JSON.parse(hud) : null,
                 packet,
                 timing,
+                sounds: bank,
             };
         },
         // The world a short match nobody watches ends with (BrowserApi.Fingerprint), for comparing runtimes.

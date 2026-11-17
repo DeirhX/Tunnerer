@@ -8,6 +8,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
+using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Gui.Guidance;
 
 /// <summary>The browser's local match. All game rules and bot decisions belong to Core.</summary>
@@ -16,6 +17,7 @@ public sealed class BrowserSession
     public static Size MapSize => new(1500, 750);
     private const int BotSlot = 1;
     private readonly BotTankAI _bot;
+    private readonly SoundDirector _soundDirector;
 
     /// <param name="seed">The world's seed.</param>
     /// <param name="heatWorkers">
@@ -35,6 +37,7 @@ public sealed class BrowserSession
         Radar = World.TrackRadar(Player);
         Scene = new BrowserScene(this);
         Guidance.Update(World, Player, HudSeconds, offerThermalView: false);
+        _soundDirector = new SoundDirector(Sounds);
     }
 
     public int Seed { get; }
@@ -43,6 +46,9 @@ public sealed class BrowserSession
     public VisionMap Vision { get; }
     public Radar Radar { get; }
     public BrowserScene Scene { get; }
+
+    /// <summary>What the desktop would play after each step (<see cref="SoundDirector"/>), for the page to play.</summary>
+    public SoundRecorder Sounds { get; } = new();
 
     /// <summary>The tutorial, toasts, hint and warning, as the desktop HUD chooses them; updated after each step.</summary>
     public PlayerGuidance Guidance { get; } = new();
@@ -75,6 +81,7 @@ public sealed class BrowserSession
             return;
         var tanks = World.TankList.Tanks;
         World.Advance(i => i == 0 ? input : _bot.GetInput(tanks[i], Player, World));
+        _soundDirector.AfterStep(World, localSlot: 0);
         Guidance.AfterStep(World, Player);
         // The browser has no thermal view to tell the player about.
         Guidance.Update(World, Player, HudSeconds, offerThermalView: false);
