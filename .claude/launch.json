@@ -8,6 +8,12 @@
       "port": 8703
     },
     {
+      "name": "tunnerer-browser-threads",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["tools/browser/serve.py", "artifacts/browser/wwwroot", "--port", "8704", "--isolate"],
+      "port": 8704
+    },
+    {
       "name": "wasm-spike-single-thread",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["spikes/WasmThreads/serve.py", "spikes/WasmThreads/out/st/wwwroot", "8701"],

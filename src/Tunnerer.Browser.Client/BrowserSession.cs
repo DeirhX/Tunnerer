@@ -16,15 +16,17 @@ public sealed class BrowserSession
     private const int BotSlot = 1;
     private readonly BotTankAI _bot;
 
-    public BrowserSession(int seed)
+    /// <param name="seed">The world's seed.</param>
+    /// <param name="heatWorkers">
+    /// How many threads the heat solver may use. One is the single-thread runtime, where it must not split its work;
+    /// more need the threaded runtime (docs/browser.md). The world comes out the same either way.
+    /// </param>
+    public BrowserSession(int seed, int heatWorkers = 1)
     {
         Seed = seed;
-        // The browser runtime has one thread (docs/browser.md says why), so the heat solver is told not to split its work.
-        var settings = SimulationSettings.FromTweaks() with
-        {
-            ThermalMaxWorkers = 1,
-            ThermalParallelTileThreshold = int.MaxValue,
-        };
+        var settings = SimulationSettings.FromTweaks() with { ThermalMaxWorkers = Math.Max(1, heatWorkers) };
+        if (heatWorkers <= 1)
+            settings = settings with { ThermalParallelTileThreshold = int.MaxValue };
         World = MatchSetup.Build(MapSize, seed, MatchRules.Standard with { CoreTapWins = true }, settings: settings);
         World.SetBotControlled(BotSlot);
         _bot = new BotTankAI(MatchSetup.BotSeed(seed, BotSlot));
@@ -39,6 +41,22 @@ public sealed class BrowserSession
     public VisionMap Vision { get; }
     public Radar Radar { get; }
     public BrowserScene Scene { get; }
+
+    /// <summary>
+    /// One number for everything the simulation holds, the heat of every cell included. Two sessions with the same
+    /// seed and inputs agree on it whichever runtime, and however many heat workers, stepped them.
+    /// </summary>
+    public ulong Fingerprint()
+    {
+        ulong hash = WorldStateHash.ComputeSync(World).Combined;
+        var terrain = World.Terrain;
+        for (int i = 0; i < MapSize.Area; i++)
+        {
+            hash = Fnv1a.Mix(hash, BitConverter.SingleToUInt32Bits(terrain.GetHeatTemperature(i)));
+            hash = Fnv1a.Mix(hash, BitConverter.SingleToUInt32Bits(terrain.GetAirTemperature(i)));
+        }
+        return hash;
+    }
 
     public void Advance(ControllerOutput input)
     {
