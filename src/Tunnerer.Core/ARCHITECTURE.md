@@ -57,9 +57,8 @@ Entities/
   Tanks/BuildQuote.cs        BuildQuote, OrePayer, BuildRefusal: what a machine costs here and which stock pays
   Tanks/TankLifecycle.cs     Damage, death (the hold spills as ore, OreDrop), respawn, spawn shield
   Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
-  TankBase.cs, TankBases.cs  Bases (reactor, radiator, engine, charge, ore store)
-  BaseUpgrades.cs            BaseUpgrade (base track and tank track), levels, costs and what each level does
-  MachineMaterializer.cs     The machine a tank carries before it is planted
+  Bases/TankBase.cs, TankBases.cs   Bases (reactor, radiator, engine, charge, ore store)
+  Bases/BaseUpgrades.cs      BaseUpgrade (base track and tank track), levels, costs and what each level does
   Sprite.cs                  SpriteList: short-lived markers
   DamageCause.cs
   Machines/Machine.cs        MachineType, MachineState, Machine
@@ -67,6 +66,7 @@ Entities/
   Machines/HarvesterPathing.cs  Where a harvester can stand; the flood that finds the ore nearest by path
   Machines/MachineList.cs    Machine collection, filed by place (`CollectNear`); wrecks dead machines (leave the network, charge to heat, scorch)
   Machines/MachinePlacementPreview.cs   Result of World.PreviewPlacement
+  Machines/MachineMaterializer.cs   The machine a tank carries before it is planted
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
@@ -101,7 +101,8 @@ LevelGen/
 Rendering/
   RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
-Resources/Resources.cs       Reactor, ReactorState, OreStore (a tank's hold, a base's store: ore is the only currency)
+Resources/Reactor.cs         Reactor, ReactorState, Heat, Health: a tank's or base's heat and shield
+Resources/OreStore.cs        OreStore: a tank's hold, a base's store (ore is the only currency)
 Resources/OreDrop.cs         Puts ore back into the ground, nearest free cells first, not under tanks or machines (a dead tank's hold)
 Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, DirectionF, Color, Rect, BoundingBox
 ```

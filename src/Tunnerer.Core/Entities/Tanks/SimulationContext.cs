@@ -5,6 +5,7 @@ using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Network;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
 /// Narrow view of the world passed to <see cref="Tank.Advance"/>,

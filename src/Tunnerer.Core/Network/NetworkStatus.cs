@@ -1,7 +1,7 @@
 namespace Tunnerer.Core.Network;
 
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
 /// One base's network as of the last tick (see <see cref="World.GetNetworkStatus"/>): its planted harvesters by

@@ -15,6 +15,7 @@ using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Network;
 using Tunnerer.Core.Regrowth;
+using Tunnerer.Core.Entities.Bases;
 
 public class World
 {

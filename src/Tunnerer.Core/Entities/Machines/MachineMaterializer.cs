@@ -1,8 +1,7 @@
-namespace Tunnerer.Core.Entities;
+namespace Tunnerer.Core.Entities.Machines;
 
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Resources;
-using Tunnerer.Core.Entities.Machines;
 
 public class MachineMaterializer
 {

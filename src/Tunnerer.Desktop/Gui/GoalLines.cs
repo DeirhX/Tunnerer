@@ -3,8 +3,8 @@ namespace Tunnerer.Desktop.Gui;
 using ImGuiNET;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Match;
+using Tunnerer.Core.Entities.Bases;
 using static Tunnerer.Desktop.Gui.HudDraw;
 
 /// <summary>The sector goal lines at the top of the base status panel (DESIGN.md §4.8).</summary>

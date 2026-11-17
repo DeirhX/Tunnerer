@@ -2,10 +2,10 @@ namespace Tunnerer.Desktop.Gui.Guidance;
 
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>What the tutorial asks of the player right now.</summary>
 /// <param name="Progress">Optional progress line (e.g. "Dirt 87 / 150") and fill fraction.</param>

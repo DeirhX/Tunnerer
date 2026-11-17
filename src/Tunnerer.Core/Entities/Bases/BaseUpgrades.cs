@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Entities;
+namespace Tunnerer.Core.Entities.Bases;
 
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;

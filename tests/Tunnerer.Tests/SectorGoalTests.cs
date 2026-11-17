@@ -1,12 +1,12 @@
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Network;
+using Tunnerer.Core.Entities.Bases;
 using static Tunnerer.Tests.TankHeatTestHelpers;
 
 namespace Tunnerer.Tests;

@@ -2,6 +2,7 @@ namespace Tunnerer.Core;
 
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
 /// One number for the state of a world: terrain pixels, tanks, machines, links, projectiles and sprites. Two worlds
@@ -155,8 +156,8 @@ public static class WorldStateHash
         {
             hash = (hash ^ (uint)tankBase.Store.Ore) * 1099511628211UL;
             hash = (hash ^ (uint)tankBase.Store.Capacity) * 1099511628211UL;
-            for (int upgrade = 0; upgrade < Entities.BaseUpgrades.Count; upgrade++)
-                hash = (hash ^ (uint)tankBase.Upgrades.Level((Entities.BaseUpgrade)upgrade)) * 1099511628211UL;
+            for (int upgrade = 0; upgrade < BaseUpgrades.Count; upgrade++)
+                hash = (hash ^ (uint)tankBase.Upgrades.Level((BaseUpgrade)upgrade)) * 1099511628211UL;
         }
         return hash;
     }

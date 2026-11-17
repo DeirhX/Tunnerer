@@ -6,6 +6,7 @@ using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Regrowth;
+using Tunnerer.Core.Entities.Bases;
 
 public readonly record struct ExplosionParams(int ShrapnelCount, float Speed, int Frames);
 

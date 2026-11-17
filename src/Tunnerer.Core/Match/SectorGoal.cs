@@ -1,10 +1,10 @@
 namespace Tunnerer.Core.Match;
 
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
 /// The sector goal (DESIGN.md §4.8): tap the hot core. Each tick it sums the charge each base's heat pumps near the

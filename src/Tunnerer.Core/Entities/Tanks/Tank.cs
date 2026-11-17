@@ -9,6 +9,7 @@ using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Network;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
 /// A player's tank. It owns the tank's state and the order of one tick; the rules live in its collaborators:

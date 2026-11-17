@@ -6,6 +6,7 @@ using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Entities.Bases;
 
 namespace Tunnerer.Tests;
 

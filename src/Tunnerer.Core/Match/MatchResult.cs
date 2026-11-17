@@ -1,7 +1,7 @@
 namespace Tunnerer.Core.Match;
 
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>
 /// The result of one match: asks <see cref="MatchReferee"/> until it has an answer, then keeps that answer, so that

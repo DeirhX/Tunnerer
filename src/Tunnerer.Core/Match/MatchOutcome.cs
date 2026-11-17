@@ -1,7 +1,7 @@
 namespace Tunnerer.Core.Match;
 
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Entities.Bases;
 
 /// <summary>How the match stands for one tank (see <see cref="World.MatchOutcomeFor"/>).</summary>
 public enum MatchOutcome
