@@ -303,19 +303,159 @@ footer i {
     font-size: 12px;
     margin-bottom: 8px;
 }
-#mission {
+#guide {
     position: absolute;
     top: 22px;
     left: 24px;
-    width: 280px;
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    /* Toasts cover play area: aiming and firing go through them. */
+    pointer-events: none;
+}
+#guide[hidden] {
+    display: none;
+}
+#mission {
+    pointer-events: auto;
 }
 #mission .muted {
     color: var(--amber);
 }
+.mission-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.text-button {
+    background: none;
+    border: 0;
+    padding: 0;
+    min-height: 0;
+    color: var(--muted);
+    font: inherit;
+    cursor: pointer;
+}
+.text-button kbd {
+    margin-left: 4px;
+}
+#tutorial-progress {
+    margin: 4px 0 8px;
+    font-size: 11px;
+    color: var(--amber);
+}
+#tutorial-progress span {
+    display: block;
+    margin-top: 4px;
+}
+#tutorial-meter::-webkit-meter-optimum-value {
+    background: var(--amber);
+}
+#tutorial-meter::-moz-meter-bar {
+    background: var(--amber);
+}
+#tutorial-meter.done::-webkit-meter-optimum-value {
+    background: #7bd88f;
+}
+#tutorial-meter.done::-moz-meter-bar {
+    background: #7bd88f;
+}
+#toasts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.toast {
+    background: #0e1a20e6;
+    border: 1px solid #56635b66;
+    border-left: 3px solid currentColor;
+    border-radius: 2px;
+    padding: 9px 12px;
+    box-shadow: 0 6px 24px #0005;
+    animation: toast-in 0.25s ease-out;
+}
+.toast strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+.toast span {
+    display: block;
+    color: #a5b5b4;
+    font-size: 11px;
+    line-height: 1.4;
+}
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateX(-24px);
+    }
+}
+.tone-Dim {
+    color: var(--muted);
+}
+.tone-Info {
+    color: var(--cyan);
+}
+.tone-Good {
+    color: #7bd88f;
+}
+.tone-Warn {
+    color: #ffad72;
+}
+.tone-Bad {
+    color: #ff8260;
+}
+.tone-Accent {
+    color: var(--amber);
+}
+#warning {
+    position: absolute;
+    left: 50%;
+    top: 22px;
+    transform: translateX(-50%);
+    max-width: min(560px, 46vw);
+    text-align: center;
+    background: #0e1a20ee;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    padding: 8px 22px 10px;
+    box-shadow: 0 8px 30px #0006;
+    pointer-events: none;
+}
+#warning[hidden] {
+    display: none;
+}
+#warning strong {
+    display: block;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+#warning[data-kind="Overheating"] strong,
+#warning[data-kind="Frostbite"] strong {
+    font-size: 20px;
+}
+#warning span {
+    display: block;
+    margin-top: 3px;
+    font-size: 12px;
+    color: var(--ink);
+}
+#warning.blink strong {
+    animation: warning-blink 0.67s steps(1) infinite;
+}
+@keyframes warning-blink {
+    50% {
+        opacity: 0.75;
+    }
+}
 #notice {
     position: absolute;
     left: 50%;
-    top: 28px;
+    top: 110px;
     transform: translateX(-50%);
     font-size: 13px;
     color: var(--amber);
@@ -444,9 +584,9 @@ meter::-moz-meter-bar {
     margin: 0;
     color: var(--amber);
 }
-#carrying {
-    color: var(--amber);
-    font-size: 10px;
+#hint {
+    font-size: 11px;
+    line-height: 1.4;
 }
 #power {
     margin-top: 7px;
@@ -649,11 +789,20 @@ dd {
     .landing-notes span {
         font-size: 10px;
     }
-    #mission {
+    #guide {
         top: 12px;
         left: 12px;
-        width: 220px;
+        width: 230px;
+    }
+    #mission {
         padding: 12px;
+    }
+    .toast span {
+        display: none;
+    }
+    #warning {
+        top: 12px;
+        max-width: calc(100vw - 280px);
     }
     #mission h2 {
         font-size: 15px;
@@ -733,7 +882,7 @@ dd {
     .landing {
         transform: translateY(-50%);
     }
-    #mission {
+    #guide {
         width: 190px;
     }
     #upgrades {
@@ -764,7 +913,7 @@ dd {
     #power {
         font-size: 9px;
     }
-    #carrying {
+    #hint {
         font-size: 9px;
     }
     #ore {
@@ -807,7 +956,7 @@ dd {
     .landing {
         top: 48%;
     }
-    #mission {
+    #guide {
         width: 190px;
     }
     #mission p {

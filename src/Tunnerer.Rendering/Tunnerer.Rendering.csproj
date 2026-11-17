@@ -26,5 +26,8 @@
     <Compile Include="../Tunnerer.Desktop/Rendering/TerrainView.cs" Link="TerrainView.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/FogLayer.cs" Link="FogLayer.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/RowParallel.cs" Link="RowParallel.cs" />
+    <Compile Include="../Tunnerer.Desktop/Presentation/MachinePresentation.cs" Link="Presentation/MachinePresentation.cs" />
+    <Compile Include="../Tunnerer.Desktop/Gui/HintSelector.cs" Link="Gui/HintSelector.cs" />
+    <Compile Include="../Tunnerer.Desktop/Gui/Guidance/*.cs" Link="Gui/Guidance/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

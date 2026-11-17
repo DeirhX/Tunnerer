@@ -12,6 +12,7 @@ using Tunnerer.Core.Types;
 using System.Runtime.InteropServices;
 using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Rendering;
 using Tunnerer.Desktop.Rendering.Entities;
 
@@ -102,6 +103,29 @@ public class BrowserSessionTests
         session.Scene.Render(1280, 720, 6, 1, 0, 2);
         Assert.Contains(MemoryMarshal.Cast<byte, EntityVertex>(session.Scene.Vertices).ToArray(),
             v => v.Kind == EntityShape.KindHotShot);
+    }
+
+    [Fact]
+    public void Frame_CarriesTheDesktopGuidance_AndItFollowsTheMatch()
+    {
+        var session = new BrowserSession(1234);
+        var home = session.Player.Base!;
+
+        var start = BrowserFrameBuilder.Capture(session, includeEvents: false).Guidance;
+        Assert.NotNull(start.Tutorial);
+        Assert.Equal((1, "Leave the base"), (start.Tutorial.Number, start.Tutorial.Title));
+        Assert.NotNull(start.Tutorial.Target);
+        Assert.Equal(session.Guidance.Hint.Text, start.Hint.Text);
+        Assert.StartsWith("WASD to drive", start.Hint.Text, StringComparison.Ordinal);
+        Assert.Equal(nameof(HintTone.Info), start.Hint.Tone);
+
+        // Out of the base, the tutorial moves on after the next step, as the desktop's does.
+        session.Player.Position = home.Position + new Offset(0, Tweaks.Base.BaseSize / 2 + 8);
+        session.Advance(default);
+        var outside = BrowserFrameBuilder.Capture(session, includeEvents: false);
+        Assert.Equal("Mine emberite", outside.Guidance.Tutorial?.Title);
+        Assert.Contains("\"guidance\":{\"tutorial\":", JsonSerializer.Serialize(outside, BrowserJsonContext.Default.BrowserFrame),
+            StringComparison.Ordinal);
     }
 }
 

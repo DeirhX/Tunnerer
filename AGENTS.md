@@ -29,7 +29,8 @@ Run from the repository root.
   - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
   - `Rendering/Shaders`: the HLSL it draws.
 - `src/Tunnerer.Rendering`: the rendering code every host shares (terrain fields and what a frame uploads of them,
-  entity emitters and machine sprites, the shader constant block, and the step-event sound table). Its sources are the files of `src/Tunnerer.Desktop` listed in
+  entity emitters and machine sprites, the shader constant block, the step-event sound table, and the HUD's guidance:
+  tutorial, toasts, build-key hint and warnings). Its sources are the files of `src/Tunnerer.Desktop` listed in
   `Tunnerer.Rendering.csproj`, which `Tunnerer.Desktop.csproj` leaves out: sharing a file means adding it to both
   lists. It references only Core (`ArchitectureGuardTests`).
 - `src/Tunnerer.Browser.Client`: the browser's match and what it draws, in plain .NET so the tests cover it.
@@ -84,7 +85,7 @@ Adding a machine:
    action, interval, colour, build cost, build key, and the traits Core reads instead of the type (`BatteryCapacity`,
    `IsLinkNode`, `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`). `MachineBehaviorTableTests` must pass.
 3. Cost, interval, colour and battery size in `Config/Tweaks.cs`.
-4. Desktop: a `MachinePresentation` (name, key, build slot, plant hint; `Presentation/MachinePresentation.cs`), a
+4. Desktop: a `MachinePresentation` (name, key label, build slot, plant hint; `Presentation/MachinePresentation.cs`), a
    `MachineSprite` in `MachineSprites` (what the entity emitters draw on desktop and in the browser: shader shape,
    size, gauge, sense ring, battery, preview reach; `Rendering/Entities/MachineSprite.cs`) and its build sound in
    `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`). `MachinePresentationTests` must pass. A new shape also needs a shader branch. Only three build keys exist

@@ -154,7 +154,11 @@ procedurally at screen resolution by the entity layer. Shader passes and backend
 ## Guidance: tutorial and notifications
 
 `Tunnerer.Desktop/Gui/Guidance` tells the player what to do next without touching the simulation. It only reads Core
-state once per displayed frame.
+state. It is shared with the browser through `Tunnerer.Rendering`, with `Gui/HintSelector.cs` and
+`Presentation/MachinePresentation.cs`, so neither file may use ImGui or SDL. `PlayerGuidance` is what both hosts
+hold: they call `AfterStep` after every step and `Update` with their HUD clock, then show its `Tutorial`,
+`Notifications`, `Hint` and `Warning`. The desktop updates it once per displayed frame on the HUD's time; the browser
+updates it after each step on the match's time (`BrowserSession.HudSeconds`) and sends it with the frame.
 
 - `TutorialDirector` is an ordered list of next logical steps (leave the base, mine ore, unload, build and link a relay,
   stay on the network, power from hot rock, harvester, relay beside it, pylon, frost). Each step knows from the world
@@ -165,6 +169,9 @@ state once per displayed frame.
   store full, charge low, off network, radar scattered by heat, engine running, harvester ore deliveries). The
   deliveries are counted from `StepEventKind.OreHarvested` after every step (`AfterStep`), not from the store, so a
   tank unloading in the same frame is not mistaken for them. The feed de-duplicates by key with a cooldown.
+- `HintSelector` picks the one context hint for the build keys (what E will do now, or why a carried machine will not
+  plant), and `PlayerWarnings` the one warning banner, most urgent first (overheating, frostbite, chilled, low shield,
+  running hot, the respawn shield, and after the first hit a tip about the thermal view where the host has one).
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
   docked (base track on keys 1-4, tank track on 5-6) and the sector-complete banner. The build panel asks

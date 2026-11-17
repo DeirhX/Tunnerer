@@ -9,6 +9,8 @@ using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Desktop.Gui;
+using Tunnerer.Desktop.Gui.Guidance;
 
 /// <summary>Presentation data. Costs, coverage, placement and match outcome are queried from Core.</summary>
 public static class BrowserFrameBuilder
@@ -66,14 +68,37 @@ public static class BrowserFrameBuilder
         GoalStatus? goal = world.CorePocket is Position core && world.CoreTapOf(home) is { } tap
             ? new GoalStatus(core, tap.TapPerTick * Tweaks.Perf.TargetFps, Tweaks.Goal.GoalChargePerSecond,
                 tap.HoldSeconds, Tweaks.Goal.GoalHoldSeconds, tap.HasTapped) : null;
-        string? refusal = player.BuildRefusedTicks > 0 ? player.LastBuildRefusal.ToString() :
-            player.UpgradeRefusedTicks > 0 ? player.LastUpgradeRefusal.ToString() : null;
         var status = new PlayerStatus(player.Position, home.Position, player.Heat, Tank.HeatBudgetCapacity,
             player.ShieldFraction, player.LivesLeft, player.OreHeld, player.OreHoldCapacity, home.Store.Ore,
             home.ChargeFill, home.HeatStoreFill, player.IsDockedAtOwnBase, player.IsOffNetwork,
             player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds,
-            world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString(), refusal);
+            world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString());
         return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
-            events, builds, upgrades, preview, goal);
+            events, builds, upgrades, preview, goal, Guidance(session.Guidance));
     }
+
+    /// <summary>What <paramref name="guidance"/> says now, as the page shows it.</summary>
+    public static GuidanceStatus Guidance(PlayerGuidance guidance)
+    {
+        ArgumentNullException.ThrowIfNull(guidance);
+        TutorialCard? tutorial = guidance.Tutorial is { } t
+            ? new TutorialCard(t.Number, t.Count, t.Title, t.Body, t.Progress, t.ProgressFraction, t.Target)
+            : null;
+        var toasts = guidance.Notifications
+            .Select(n => new ToastLine(n.Key, n.Title, n.Detail, Tone(n.Kind).ToString(), n.PostedAt)).ToArray();
+        var (hint, tone) = guidance.Hint;
+        WarningLine? warning = guidance.Warning is { } w
+            ? new WarningLine(w.Kind.ToString(), w.Title, w.Detail, w.Tone.ToString(), w.Blinks)
+            : null;
+        return new GuidanceStatus(tutorial, toasts, new HintLine(hint, tone.ToString()), warning);
+    }
+
+    /// <summary>A toast's colour, in the tones the hint and the warnings use.</summary>
+    private static HintTone Tone(NotificationKind kind) => kind switch
+    {
+        NotificationKind.Good => HintTone.Good,
+        NotificationKind.Warning => HintTone.Warn,
+        NotificationKind.Danger => HintTone.Bad,
+        _ => HintTone.Info,
+    };
 }

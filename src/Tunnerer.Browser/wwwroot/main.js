@@ -4,11 +4,13 @@ import { GameAudio } from "./audio.js";
 import { setupInstallation } from "./install.js";
 import { PerfReadout } from "./perf.js";
 import { Simulation } from "./simulation.js";
+import { GuidanceView } from "./guidance.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
     renderer = new GameRenderer(canvas),
-    audio = new GameAudio();
+    audio = new GameAudio(),
+    guidance = new GuidanceView();
 let worker = null,
     busy = false,
     playing = false,
@@ -32,6 +34,10 @@ const input = new GameInput(canvas, (action, direction) => {
         else if (playing) openMenu();
     }
     if (action === "help") openMenu();
+    if (action === "tutorial" && playing) {
+        guidance.toggleTutorial();
+        renderer.pointerTarget = guidance.target;
+    }
     if (action === "zoom")
         renderer.zoom = Math.max(
             2,
@@ -114,8 +120,10 @@ function reset() {
     input.clear();
     accumulator = 0;
     visualTime = 0;
-    for (const id of ["hud", "mission", "upgrades", "touch", "death"])
+    for (const id of ["hud", "guide", "upgrades", "touch", "death"])
         $(id).hidden = true;
+    guidance.clear();
+    renderer.pointerTarget = null;
     $("welcome").hidden = false;
     $("footer").hidden = false;
     $("start").disabled = false;
@@ -185,7 +193,7 @@ async function start() {
             playing = true;
             $("welcome").hidden = true;
             $("footer").hidden = true;
-            $("hud").hidden = $("mission").hidden = false;
+            $("hud").hidden = $("guide").hidden = false;
             $("touch").hidden = !matchMedia("(pointer: coarse)").matches;
             $("pause").disabled = false;
             document.body.classList.add("playing");
@@ -216,8 +224,7 @@ function fail(message, advice = " Check your connection and try again.") {
     $("loading").textContent = `Could not start the game: ${reason}.${advice}`;
 }
 
-let noticeUntil = 0,
-    lastRefusal = null;
+let noticeUntil = 0;
 function notify(message) {
     $("notice").textContent = message;
     $("notice").classList.add("visible");
@@ -246,9 +253,6 @@ function updateHud(f) {
     $("ore").textContent = `${p.ore}/${p.holdCapacity} ORE · BASE ${p.store}`;
     $("power").textContent =
         `BASE CHARGE ${Math.round(p.charge * 100)}% / HEAT STORE ${Math.round(p.baseHeat * 100)}%`;
-    $("carrying").textContent = p.carrying
-        ? `CARRYING ${p.carrying.toUpperCase()} · ${placementText(f.preview?.status)}`
-        : "Build a machine, carry it, then press its key again to plant.";
     if (!$("builds").children.length) {
         for (const b of f.builds) {
             const button = document.createElement("button");
@@ -288,16 +292,8 @@ function updateHud(f) {
         button.title = u.effect;
         button.disabled = u.maxed || p.store < u.cost;
     }
-    $("guidance").textContent = p.docked
-        ? "Leave through the north or south door. Relays extend your cooling network; come home to repair and unload."
-        : p.offNetwork
-          ? "Your heat rises off the network. Return home before overheating, or plant a relay with a clear link to your base."
-          : p.carrying
-            ? "Plant outside the base. Linked relays move heat home; harvesters mine ore and pylons refill their batteries."
-            : "Mine teal emberite. Link relays toward the hot core, then keep its power output above the goal to win.";
-    $("goal").textContent = f.goal
-        ? `${f.goal.output.toFixed(0)} / ${f.goal.required.toFixed(0)} POWER · ${f.goal.hold.toFixed(0)} / ${f.goal.requiredHold.toFixed(0)}s HELD`
-        : "";
+    guidance.update(f.guidance, f.goal);
+    renderer.pointerTarget = guidance.target;
     $("death").hidden = !p.dead && p.outcome === "InProgress";
     $("death").textContent =
         p.outcome === "Victory"
@@ -305,32 +301,6 @@ function updateHud(f) {
             : p.outcome === "Defeat"
               ? "DIVE ENDED\nOpen the menu to try a new world."
               : `TANK LOST\nRespawning in ${Math.ceil(p.respawnSeconds)}s`;
-    if (p.refusal && p.refusal !== lastRefusal) {
-        notify(
-            {
-                NotEnoughOre:
-                    "Not enough ore. Mine emberite or return to your network.",
-                WillNotLink:
-                    "No clear link here. Move closer to a powered node or dig a clear tunnel.",
-                NotDocked: "Dock at your base to buy upgrades.",
-                Maxed: "This upgrade is already at its maximum level.",
-            }[p.refusal] || p.refusal,
-        );
-    }
-    lastRefusal = p.refusal;
-}
-
-function placementText(status) {
-    return (
-        {
-            Live: "LINK READY · PRESS BUILD TO PLANT",
-            Ready: "PRESS BUILD TO PLANT",
-            InsideBase: "LEAVE BASE TO PLANT",
-            Blocked: "DIG A CLEAR LINK",
-            TooFar: "MOVE CLOSER TO NETWORK",
-            NoNetwork: "NO NETWORK IN REACH",
-        }[status] || "PRESS BUILD TO PLANT"
-    );
 }
 
 function animate(now) {

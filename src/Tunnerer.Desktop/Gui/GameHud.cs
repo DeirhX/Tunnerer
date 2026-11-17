@@ -18,7 +18,6 @@ public partial class GameHud
 {
     private readonly HudStrip _strip = new();
     private readonly NetworkPanel _network = new();
-    private readonly WarningBanner _warnings = new();
     private float _time;
 
     public (float x, float y, float w, float h) ViewportRect { get; private set; }
@@ -73,13 +72,14 @@ public partial class GameHud
         bool showPostPassOverlay)
     {
         _time += MathF.Max(0f, deltaTime);
+        _guidance.Update(world, player, _time, offerThermalView: !heatDebugOverlayEnabled);
         DrawGameViewport(gameTextureId, texW, texH);
         DrawCrosshair();
         DrawHitFeedback(player);
         _strip.Draw(player, _time);
-        _network.Draw(ViewportRect, player, world, _time);
-        _warnings.Draw(ViewportRect, player, heatDebugOverlayEnabled, _time);
-        DrawGuidance(player, world);
+        _network.Draw(ViewportRect, player, world, _guidance.Hint);
+        WarningBanner.Draw(ViewportRect, _guidance.Warning, _time);
+        DrawGuidance();
         DrawUpgradePanel(player);
         DrawSectorComplete(player, world);
         MatchOverlay.Draw(PlayRect, player, world, CanRestartMatch, WinnerName);

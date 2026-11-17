@@ -179,7 +179,8 @@ window and graphics dependencies out of the shared rendering assembly.
 
 - `Tunnerer.Rendering`: the terrain fields, material coverage, the uploader that decides what a frame repacks of
   them, the fog layer, entity emitters, interpolation, machine sprite descriptors, shader constant layout and
-  lighting settings used by both hosts. The source files retain their
+  lighting settings used by both hosts, and what the HUD tells the player (`PlayerGuidance`: the tutorial, the
+  game-event toasts, the build-key hint and the warning banner). The source files retain their
   existing Desktop paths and namespaces; the assembly references only Core, without SDL or ImGui.
 - `Tunnerer.Browser.Client`: local session, HUD snapshots, and the frame packet: one buffer with the shader
   constants, the entity vertices and the changed rectangles of the four terrain textures (`BrowserScene`).
@@ -200,11 +201,14 @@ window and graphics dependencies out of the shared rendering assembly.
   before. `renderer.js` handles display density and the welcome illustration; `pace.js` picks the resolution the
   world is drawn at; `perf.js` is the `?perf` readout.
 - `main.js` / `input.js`: HUD, seed selection, session lifecycle and input. Build costs, placement, coverage, match
-  outcome and upgrade descriptions come from Core. The match is built by Core's `MatchSetup`, as on the desktop.
+  outcome and upgrade descriptions come from Core. `guidance.js` shows the desktop's tutorial card (F2 hides it),
+  toasts, hint line and warning banner as each frame after a step carries them (`guidance`), and the renderer points
+  at the tutorial's target. The match is built by Core's `MatchSetup`, as on the desktop.
   Which events make a sound, for whom and how loud comes from the desktop's `StepEventSounds` table (each frame
   lists the cues); `audio.js` only gives each a tone.
 
 World rendering uses the desktop's procedural materials, curved cave edges, lighting, heat/scorch/frost effects,
-fog, tank and machine shapes, animated beams and radar. The HTML HUD and the tones of its sounds remain browser-specific.
+fog, tank and machine shapes, animated beams and radar. The HUD says what the desktop's says; its HTML layout and
+the tones of its sounds remain browser-specific.
 Network multiplayer and persistent saves are not included. The existing relay and protocol are unchanged.
 No Core gameplay constants or recorded simulation fingerprints changed.

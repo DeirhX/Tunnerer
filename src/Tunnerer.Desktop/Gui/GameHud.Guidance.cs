@@ -10,16 +10,12 @@ using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// The tutorial card (top left), the game-event toasts under it, and a pointer to whatever the current tutorial step
-/// is about. The logic lives in <see cref="TutorialDirector"/> and <see cref="GameEventWatcher"/>; this only draws.
+/// is about. What they say is chosen by <see cref="PlayerGuidance"/>, shared with the browser; this only draws.
 /// </summary>
 public partial class GameHud
 {
-    private readonly NotificationFeed _feed = new();
-    private readonly GameEventWatcher _events = new();
-    private readonly TutorialDirector _tutorial = new();
-    private World? _watchedWorld;
+    private readonly PlayerGuidance _guidance = new();
     private bool _tutorialHidden;
-    private float _tutorialDoneAt = float.NaN;
 
     /// <summary>The camera of the game view: top-left in screen pixels and pixels per cell. Set before <see cref="Draw"/>.</summary>
     public (int X, int Y, int Scale) Camera { get; set; } = (0, 0, 1);
@@ -27,29 +23,14 @@ public partial class GameHud
     private const float CardWidth = 470f;
 
     /// <summary>Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events.</summary>
-    public void AfterStep(World world, Tank player) => _events.AfterStep(world, player);
+    public void AfterStep(World world, Tank player) => _guidance.AfterStep(world, player);
 
-    private void DrawGuidance(Tank player, World world)
+    private void DrawGuidance()
     {
-        if (!ReferenceEquals(world, _watchedWorld))
-        {
-            _watchedWorld = world;
-            _events.Reset();
-            _feed.Clear();
-        }
         if (ImGui.IsKeyPressed(ImGuiKey.F2, false))
             _tutorialHidden = !_tutorialHidden;
 
-        _events.Update(world, player, _feed, _time);
-        _feed.Update(_time);
-        var prompt = player.IsDead ? null : _tutorial.Update(world, player, _time);
-        if (prompt == null && _tutorial.IsComplete && float.IsNaN(_tutorialDoneAt))
-        {
-            _tutorialDoneAt = _time;
-            _feed.Post(_time, "tutorial-done", "Tutorial complete",
-                "Push your network toward hot rock, keep harvesters cool and charged, and mind your temperature.",
-                NotificationKind.Good, duration: 12f, cooldown: 1e9f);
-        }
+        var prompt = _guidance.Tutorial;
 
         var vp = ViewportRect;
         float y = vp.y + 14f;
@@ -102,7 +83,7 @@ public partial class GameHud
         var dl = ImGui.GetForegroundDrawList();
         const float titleSize = 19f, detailSize = 15.5f, padX = 16f, padY = 11f;
         float wrap = CardWidth - padX * 2f;
-        foreach (var n in _feed.Active.Reverse())
+        foreach (var n in _guidance.Notifications.Reverse())
         {
             float age = _time - n.PostedAt;
             float fade = Math.Clamp(MathF.Min(age * 4f, (n.ExpiresAt - _time) * 1.5f), 0f, 1f);

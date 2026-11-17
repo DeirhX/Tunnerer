@@ -86,15 +86,37 @@
                     </div>
                 </div>
             </section>
-            <aside id="mission" class="plate" hidden>
-                <div class="eyebrow">SECTOR OBJECTIVE</div>
-                <h2>Tap the hot core</h2>
-                <p id="guidance">
-                    Leave your base through its north or south door. Drive into
-                    dirt to dig.
-                </p>
-                <div id="goal" class="muted"></div>
-            </aside>
+            <div id="guide" hidden>
+                <aside id="mission" class="plate" aria-label="Next step">
+                    <div class="eyebrow mission-head">
+                        <span id="mission-label">SECTOR OBJECTIVE</span
+                        ><button id="tutorial-toggle" class="text-button" hidden>
+                            Hide <kbd>F2</kbd>
+                        </button>
+                    </div>
+                    <h2 id="mission-title">Tap the hot core</h2>
+                    <p id="guidance">
+                        Leave your base through the gap in its wall. Drive into
+                        dirt to dig.
+                    </p>
+                    <div id="tutorial-progress" hidden>
+                        <meter
+                            id="tutorial-meter"
+                            min="0"
+                            max="1"
+                            value="0"
+                            aria-label="Step progress"
+                        ></meter
+                        ><span id="tutorial-progress-text"></span>
+                    </div>
+                    <div id="goal" class="muted"></div>
+                </aside>
+                <div id="toasts" role="log" aria-live="polite"></div>
+            </div>
+            <div id="warning" role="alert" hidden>
+                <strong id="warning-title"></strong
+                ><span id="warning-detail"></span>
+            </div>
             <div id="notice" role="status" aria-live="polite"></div>
             <div id="death" hidden></div>
             <section id="hud" hidden aria-label="Tank status">
@@ -128,7 +150,7 @@
                 <div class="plate build-status">
                     <div class="eyebrow">MATERIALS <span id="ore"></span></div>
                     <div id="builds" class="builds"></div>
-                    <div id="carrying" class="muted">
+                    <div id="hint" class="tone-Dim">
                         Build a machine, carry it, then press its key again to
                         plant.
                     </div>
@@ -178,6 +200,8 @@
                 </dd>
                 <dt><kbd>1</kbd> – <kbd>6</kbd></dt>
                 <dd>Buy upgrades while docked at your base.</dd>
+                <dt><kbd>F2</kbd></dt>
+                <dd>Show or hide the tutorial.</dd>
                 <dt><kbd>+</kbd> / <kbd>−</kbd> / wheel</dt>
                 <dd>Zoom. Return to base to cool, repair, and unload ore.</dd>
             </dl>

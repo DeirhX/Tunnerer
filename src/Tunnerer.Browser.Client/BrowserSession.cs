@@ -8,6 +8,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
+using Tunnerer.Desktop.Gui.Guidance;
 
 /// <summary>The browser's local match. All game rules and bot decisions belong to Core.</summary>
 public sealed class BrowserSession
@@ -33,6 +34,7 @@ public sealed class BrowserSession
         Vision = World.TrackVision(Player);
         Radar = World.TrackRadar(Player);
         Scene = new BrowserScene(this);
+        Guidance.Update(World, Player, HudSeconds, offerThermalView: false);
     }
 
     public int Seed { get; }
@@ -41,6 +43,15 @@ public sealed class BrowserSession
     public VisionMap Vision { get; }
     public Radar Radar { get; }
     public BrowserScene Scene { get; }
+
+    /// <summary>The tutorial, toasts, hint and warning, as the desktop HUD chooses them; updated after each step.</summary>
+    public PlayerGuidance Guidance { get; } = new();
+
+    /// <summary>
+    /// The HUD's clock: the match's own time, so that toasts and tutorial steps last as long as on the desktop and
+    /// stand still while the game is paused.
+    /// </summary>
+    public float HudSeconds => World.AdvanceCount / (float)Tweaks.Perf.TargetFps;
 
     /// <summary>
     /// One number for everything the simulation holds, the heat of every cell included. Two sessions with the same
@@ -64,6 +75,9 @@ public sealed class BrowserSession
             return;
         var tanks = World.TankList.Tanks;
         World.Advance(i => i == 0 ? input : _bot.GetInput(tanks[i], Player, World));
+        Guidance.AfterStep(World, Player);
+        // The browser has no thermal view to tell the player about.
+        Guidance.Update(World, Player, HudSeconds, offerThermalView: false);
         Scene.CaptureStep();
     }
 }
