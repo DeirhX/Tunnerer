@@ -41,7 +41,6 @@ public sealed class TerrainRegrowth
         Tweaks.World.RegrowthLongestLookPasses);
     private static readonly PassWait Settling = new(Tweaks.World.DirtRecoverSpeed, Tweaks.World.RegrowthLongestSettlePasses);
 
-    private readonly bool _enabled;
     private readonly int _simulationSeed;
     private readonly RegrowthBlockerIndex _blockers = new();
     private readonly List<RegrowthBlocker> _lifted = new();
@@ -51,11 +50,8 @@ public sealed class TerrainRegrowth
     private int _regionsX;
     private int _tick;
 
-    public TerrainRegrowth(bool enabled, int simulationSeed)
-    {
-        _enabled = enabled;
-        _simulationSeed = simulationSeed;
-    }
+    /// <summary>A world without regrowth (<see cref="Match.MatchRules.TerrainRegrowth"/> off) builds none, and pays nothing for it.</summary>
+    public TerrainRegrowth(int simulationSeed) => _simulationSeed = simulationSeed;
 
     /// <summary>Cells looked at by the last <see cref="Advance"/>: what the step cost.</summary>
     public int CellsVisitedInLastAdvance { get; private set; }
@@ -74,9 +70,6 @@ public sealed class TerrainRegrowth
     /// </summary>
     public void Survey(TerrainGrid terrain)
     {
-        if (!_enabled)
-            return;
-
         int w = terrain.Width, h = terrain.Height;
         _schedule = new RegrowthSchedule(w, h);
         _regionsX = (w + RegionSize - 1) / RegionSize;
@@ -95,9 +88,6 @@ public sealed class TerrainRegrowth
     public void Advance(TerrainGrid terrain, IReadOnlyList<RegrowthBlocker> blockers)
     {
         CellsVisitedInLastAdvance = 0;
-        if (!_enabled)
-            return;
-
         _tick++;
         if (_schedule == null || !terrain.RegrowthWrites.Surveyed)
             Survey(terrain);

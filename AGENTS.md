@@ -127,6 +127,7 @@ that tests can inject their own values.
   recasts every source or sweeps the grid each tick, and change pixels during play through `SetPixel`, which is
   how vision and the renderer learn of it.
 - **A system that can be switched off has a flag in `MatchRules`** (`Match/MatchRules.cs`) and costs nothing while
-  the flag is off. Do not add a `World` constructor argument, a property set after construction, or a null
-  delegate that means "off". The rules are in the hash clients compare before a network match starts.
+  the flag is off: `World.BuildSystems` leaves it out of the step. Do not add a `World` constructor argument, a
+  property set after construction, or a null delegate that means "off". The rules are in the hash clients compare
+  before a network match starts.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.

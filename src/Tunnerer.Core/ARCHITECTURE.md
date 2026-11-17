@@ -8,7 +8,8 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 ## Module map
 
 ```
-World.cs                     World: owns every subsystem, runs Advance; SimulationProfile (per-section timings)
+World.cs                     World: owns every subsystem, runs Advance over its list of systems (WorldSystem)
+SimulationProfile.cs         Per-system timings, one section per system label
 StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
 NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
 WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds heat and
@@ -117,11 +118,15 @@ the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
 picks the seed. The bot takes its own seed, also from `WorldFactory`.
 
-`World.Advance(getInput)` runs one fixed step, in this order:
+`World.Advance(getInput)` runs one fixed step: it goes through the world's systems, a list of `WorldSystem` (a
+profile label and what the system does each step) that `World.BuildSystems` puts together once, when the world is
+built and again when it is initialised. A system the world does not have is not in the list and costs nothing:
+regrowth only when `MatchRules.TerrainRegrowth` is on, the sector goal only when the world has a core. A new system
+is a new entry, in the place its order needs; the profile picks up its label. The list, by label:
 
-1. **Collision**: `CollisionSolver.Update` rebuilds the tank sector index.
-2. **Heat**: `TerrainGrid.CoolDown` (see below). The energy-balance residual is measured here for the profile.
-3. **Regrowth**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
+1. **coll**: `CollisionSolver.Update` rebuilds the tank sector index.
+2. **heat**: `TerrainGrid.CoolDown` (see below), and the solver's own parts for the profile.
+3. **regrow**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
    pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open. Nothing scans the
    map: each cell that can change (open ground with more than two dirt neighbours, scorch, dirt still growing) has
    an appointment in `RegrowthSchedule` at the tick it is next looked at, with the wait drawn so that the odds are
@@ -129,14 +134,14 @@ picks the seed. The bot takes its own seed, also from `WorldFactory`.
    going away. Open ground away from dirt or inside a blocker has none and costs nothing. The map is cut into
    regions of `RegrowthRegionSize` cells that each take their pass on a tick of their own, so a large map's
    regrowth is spread over the ticks between passes.
-4. **Projectiles**: `ProjectileList.Advance`.
-5. **Tanks**: `LinkMap.AgeOreFlow`, then `TankList.Advance` with a `SimulationContext`. Per tank (`Tank.Advance`):
+4. **proj**: `ProjectileList.Advance`.
+5. **tanks**: `LinkMap.AgeOreFlow`, then `TankList.Advance` with the world's `SimulationContext` (built once). Per tank (`Tank.Advance`):
    idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage, the
    network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
    the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
    `TankDigger.Move`, spawn shield, shooting, pickups, `TankBuildController.Advance`, the upgrade keys, then
    `TankThermals.Advance` (exchange with the grid).
-6. **Machines**: `MachineList.Advance` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
+6. **machines**: `MachineList.Advance` with the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
    (`LinkMap.CarryCharge`). A machine that needs the machines near a place (a pylon its batteries, a harvester the
@@ -144,17 +149,19 @@ picks the seed. The bot takes its own seed, also from `WorldFactory`.
    in list order, and never walks the whole list. A relay that found no heat to pump keeps the ground's
    `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
    in its reach.
-7. **Sprites**: lifetime.
-8. **Bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), the bot's stand-in ore income for bases
-   marked with `World.SetBotControlled`, then `SectorGoal.Advance` (the core tap and its hold timer, when the world has a core) and
-   `MatchResult.Latch` (the result, fixed once the referee has one).
-9. **Links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
+7. **sprites**: lifetime.
+8. **bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then the bot's stand-in ore income for
+   bases marked with `World.SetBotControlled`.
+9. **goal**: `SectorGoal.Advance`, the core tap and its hold timer (only in a world with a core).
+10. **match**: `MatchResult.Latch`, the result, fixed once the referee has one.
+11. **links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
    (200 ms), not every tick, and at once when a machine's point is switched off.
-10. **Vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
+12. **dock**: each tank notes whether it has left its base (`Tank.HasLeftBase`) and records docking (`Tank.ObserveDocking`).
+13. **vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
     out by `World.TrackRadar` runs its pulse on (see "Radar" below).
 
-`SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per section
-above), `[Profile+]` (heat solver parts) and `[Profile++]` (active and stepped tiles, stepped / parallel ticks).
+`SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per system,
+under its label), `[Profile+]` (heat solver parts) and `[Profile++]` (active and stepped tiles, stepped / parallel ticks).
 With `Profile.AuditEnergy` (Desktop: `--energy-audit`) it adds `[ProfileE]`: the thermal energy and the ledger
 residual over the report window, which should stay near float noise. That line sums every cell of the map, so it
 is off by default and never runs per tick.

@@ -25,12 +25,16 @@ public class World
     private readonly LinkMap _linkMap;
     private readonly SpriteList _sprites = new();
     private readonly CollisionSolver _collisionSolver;
-    private readonly TerrainRegrowth _terrainRegrowth;
+    private readonly TerrainRegrowth? _terrainRegrowth;
     private readonly List<Position> _hotRockPockets = new();
     private readonly List<Position> _frostRockPockets = new();
     private readonly List<LevelGen.OreDeposit> _oreDeposits = new();
     private readonly MatchResult _matchResult;
     private SectorGoal? _sectorGoal;
+    // What tanks and machines see of the world each step; the same every step, so built once.
+    private readonly SimulationContext _tankContext;
+    private readonly MachineContext _machineContext;
+    private WorldSystem[] _systems;
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
     private readonly StepEventLog _stepEvents = new();
@@ -158,8 +162,26 @@ public class World
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain);
-        _terrainRegrowth = new TerrainRegrowth(Rules.TerrainRegrowth, _simulationSeed);
+        if (Rules.TerrainRegrowth)
+            _terrainRegrowth = new TerrainRegrowth(_simulationSeed);
         _matchResult = new MatchResult(_tankList.Tanks);
+        _tankContext = new SimulationContext
+        {
+            Terrain = _terrain,
+            Heat = _terrain,
+            Projectiles = _projectiles,
+            CheckBaseCollision = _tankBases.CheckBaseCollision,
+            Settings = _simulationSettings,
+            Machines = _machines,
+            PlantMachine = PlantMachine,
+            CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
+            CoverageFor = CoverageFor,
+            IsOccupied = IsCellOccupied,
+            IsTankBlocked = _collisionSolver.BlocksTank,
+            Events = _stepEvents,
+        };
+        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents);
+        _systems = BuildSystems();
     }
 
     /// <summary>The optional systems this world runs with, fixed at construction.</summary>
@@ -217,7 +239,9 @@ public class World
                 _tankList.AddTank(i, tankBase, tankSeed, _simulationSettings);
             }
         }
-        _terrainRegrowth.Survey(_terrain);
+        _terrainRegrowth?.Survey(_terrain);
+        // The world now knows whether it has a core, and so whether the sector goal runs.
+        _systems = BuildSystems();
     }
 
     private static int SeedFromSpawns(Position[] spawns)
@@ -233,67 +257,22 @@ public class World
 
     public void Advance(Func<int, ControllerOutput> getInput)
     {
-        var frameWatch = Stopwatch.StartNew();
+        long stepStart = Stopwatch.GetTimestamp();
 
         _advanceCount++;
         _stepEvents.Clear();
         _terrain.DropSeenChanges();
         _elapsed += _simulationSettings.AdvanceStep;
 
-        ProfileSection(ref Profile.Collision, () => _collisionSolver.Update(_tankList, _machines));
-        ProfileSection(ref Profile.Cooldown, _terrain.CoolDown);
-        Profile.CooldownSim += _terrain.LastCoolDownProfile.Simulate;
-        Profile.CooldownApply += _terrain.LastCoolDownProfile.Apply;
-        Profile.CooldownActiveTiles += _terrain.LastCoolDownProfile.ActiveTiles;
-        Profile.CooldownSteppedTiles += _terrain.LastCoolDownProfile.SteppedTiles;
-        if (_terrain.LastCoolDownProfile.SteppedTiles > 0) Profile.CooldownSteppedFrames++;
-        if (_terrain.LastCoolDownProfile.UsedParallel) Profile.CooldownParallelFrames++;
-        ProfileSection(ref Profile.Regrow, AdvanceRegrowth);
-        ProfileSection(ref Profile.Projectiles, () => _projectiles.Advance(_collisionSolver));
-        var simCtx = new SimulationContext
+        for (int i = 0; i < _systems.Length; i++)
         {
-            Terrain = _terrain,
-            Heat = _terrain,
-            Projectiles = _projectiles,
-            CheckBaseCollision = _tankBases.CheckBaseCollision,
-            Settings = _simulationSettings,
-            Machines = _machines,
-            PlantMachine = PlantMachine,
-            CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
-            CoverageFor = CoverageFor,
-            IsOccupied = IsCellOccupied,
-            IsTankBlocked = _collisionSolver.BlocksTank,
-            Events = _stepEvents,
-        };
-        _linkMap.AgeOreFlow();
-        ProfileSection(ref Profile.Tanks, () => _tankList.Advance(in simCtx, getInput));
-        _linkMap.ClearHeatFlow();
-        ProfileSection(ref Profile.Harvesters, () => _machines.Advance(
-            new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents),
-            _simulationSettings.AdvanceStep));
-        // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
-        _linkMap.ClearChargeFlow();
-        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
-        foreach (var machine in _machines.Machines)
-            if (machine.IsAlive)
-                LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
-        ProfileSection(ref Profile.Sprites, () => _sprites.Advance(_simulationSettings.AdvanceStep));
-        ProfileSection(ref Profile.Bases, () => _tankBases.Advance(_terrain));
-        foreach (var tankBase in _tankBases.Bases)
-            tankBase.AdvanceBotTrickle(_simulationSettings.AdvanceStep.TotalSeconds);
-        _sectorGoal?.Advance(_tankBases.Bases, _machines, _tankList.Tanks, _simulationSettings.AdvanceStep.TotalSeconds);
-        _matchResult.Latch(RaceWinner);
-        ProfileSection(ref Profile.Links, () => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep));
-        foreach (var tank in _tankList.Tanks)
-        {
-            tank.ObserveBaseExit(_tankBases);
-            tank.ObserveDocking(_stepEvents);
+            long systemStart = Stopwatch.GetTimestamp();
+            _systems[i].Advance(getInput);
+            Profile.AddSectionTime(i, Stopwatch.GetElapsedTime(systemStart));
         }
-        if (_trackedVisions.Count > 0)
-            ProfileSection(ref Profile.Vision, UpdateVisions);
         _terrain.MarkChangesSeen();
 
-        Profile.Total += frameWatch.Elapsed;
+        Profile.Total += Stopwatch.GetElapsedTime(stepStart);
         Profile.FrameCount++;
 
         if (Profile.FrameCount >= 100)
@@ -301,6 +280,78 @@ public class World
             AuditEnergy();
             Profile.Report();
         }
+    }
+
+    /// <summary>
+    /// The systems one step runs, in order. A system the world does not have (no regrowth in its rules, no core to
+    /// tap) is left out, and so costs nothing. The profile reports one section per system, under its label.
+    /// </summary>
+    private WorldSystem[] BuildSystems()
+    {
+        double seconds = _simulationSettings.AdvanceStep.TotalSeconds;
+        var systems = new List<WorldSystem>
+        {
+            new("coll", _ => _collisionSolver.Update(_tankList, _machines)),
+            new("heat", _ => AdvanceHeat()),
+        };
+        if (_terrainRegrowth is TerrainRegrowth regrowth)
+            systems.Add(new("regrow", _ => AdvanceRegrowth(regrowth)));
+        systems.Add(new("proj", _ => _projectiles.Advance(_collisionSolver)));
+        systems.Add(new("tanks", getInput =>
+        {
+            _linkMap.AgeOreFlow();
+            _tankList.Advance(in _tankContext, getInput);
+        }));
+        systems.Add(new("machines", _ => AdvanceMachines()));
+        systems.Add(new("sprites", _ => _sprites.Advance(_simulationSettings.AdvanceStep)));
+        systems.Add(new("bases", _ =>
+        {
+            _tankBases.Advance(_terrain);
+            foreach (var tankBase in _tankBases.Bases)
+                tankBase.AdvanceBotTrickle(seconds);
+        }));
+        if (_sectorGoal is SectorGoal goal)
+            systems.Add(new("goal", _ => goal.Advance(_tankBases.Bases, _machines, _tankList.Tanks, seconds)));
+        systems.Add(new("match", _ => _matchResult.Latch(RaceWinner)));
+        systems.Add(new("links", _ => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep)));
+        systems.Add(new("dock", _ =>
+        {
+            foreach (var tank in _tankList.Tanks)
+            {
+                tank.ObserveBaseExit(_tankBases);
+                tank.ObserveDocking(_stepEvents);
+            }
+        }));
+        systems.Add(new("vision", _ => UpdateVisions()));
+
+        Profile.SetSections(systems.Select(system => system.Label));
+        return systems.ToArray();
+    }
+
+    /// <summary>One step of the heat solver, with its parts added to the profile.</summary>
+    private void AdvanceHeat()
+    {
+        _terrain.CoolDown();
+        var heat = _terrain.LastCoolDownProfile;
+        Profile.CooldownSim += heat.Simulate;
+        Profile.CooldownApply += heat.Apply;
+        Profile.CooldownActiveTiles += heat.ActiveTiles;
+        Profile.CooldownSteppedTiles += heat.SteppedTiles;
+        if (heat.SteppedTiles > 0) Profile.CooldownSteppedFrames++;
+        if (heat.UsedParallel) Profile.CooldownParallelFrames++;
+    }
+
+    /// <summary>Machines act, then each pylon's last hand-out is booked on its route.</summary>
+    private void AdvanceMachines()
+    {
+        _linkMap.ClearHeatFlow();
+        _machines.Advance(_machineContext, _simulationSettings.AdvanceStep);
+        // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
+        _linkMap.ClearChargeFlow();
+        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
+        foreach (var machine in _machines.Machines)
+            if (machine.IsAlive)
+                LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
     }
 
     /// <summary>
@@ -330,14 +381,14 @@ public class World
     private readonly List<RegrowthBlocker> _regrowthBlockers = new();
 
     /// <summary>Regrows dirt, except within the range of a planted relay or pylon, which keeps its ground open.</summary>
-    private void AdvanceRegrowth()
+    private void AdvanceRegrowth(TerrainRegrowth regrowth)
     {
         _regrowthBlockers.Clear();
         foreach (var machine in _machines.Machines)
             if (machine.IsAlive && machine.State == MachineState.Planted && machine.Behavior.IsLinkNode)
                 _regrowthBlockers.Add(new RegrowthBlocker(
                     machine.Position, Tweaks.Coverage.NodeRadius + (machine.OwnerBase?.Upgrades.CoverageBonusCells ?? 0)));
-        _terrainRegrowth.Advance(_terrain, _regrowthBlockers);
+        regrowth.Advance(_terrain, _regrowthBlockers);
     }
 
     private readonly List<(Tank Tank, VisionMap Map)> _trackedVisions = new();
@@ -531,80 +582,11 @@ public class World
     /// </summary>
     public Position? CorePocket => _sectorGoal?.Core;
 
-    private static void ProfileSection(ref TimeSpan accumulator, Action action)
-    {
-        var w = Stopwatch.StartNew();
-        action();
-        accumulator += w.Elapsed;
-    }
-
 }
 
-public class SimulationProfile
-{
-    public Action<string>? ReportSink { get; set; }
 
-    /// <summary>
-    /// Adds the <c>[ProfileE]</c> line to each report: the system's thermal energy and how far it strays from the
-    /// ledger over the report window. Off by default, because it sums every cell of the map.
-    /// </summary>
-    public bool AuditEnergy { get; set; }
-
-    public TimeSpan Collision;
-    public TimeSpan Cooldown;
-    public TimeSpan CooldownSim;
-    public TimeSpan CooldownApply;
-    public long CooldownActiveTiles;
-    public long CooldownSteppedTiles;
-    public int CooldownSteppedFrames;
-    public int CooldownParallelFrames;
-    public double ThermalEnergy;
-    public double ThermalLedgerResidual;
-    public TimeSpan Regrow;
-    public TimeSpan Projectiles;
-    public TimeSpan Tanks;
-    public TimeSpan Harvesters;
-    public TimeSpan Sprites;
-    public TimeSpan Bases;
-    public TimeSpan Links;
-    public TimeSpan Vision;
-    public TimeSpan Total;
-    public int FrameCount;
-
-    public void Report()
-    {
-        if (FrameCount == 0) return;
-        if (ReportSink is null)
-        {
-            Reset();
-            return;
-        }
-
-        ReportSink($"[Profile] coll={Avg(Collision):F3} cool={Avg(Cooldown):F3} regrow={Avg(Regrow):F3} " +
-            $"bases={Avg(Bases):F3} proj={Avg(Projectiles):F3} tanks={Avg(Tanks):F3} harv={Avg(Harvesters):F3} " +
-            $"spr={Avg(Sprites):F3} links={Avg(Links):F3} vision={Avg(Vision):F3} " +
-            $"| total={Avg(Total):F3} ms (avg over {FrameCount} frames)");
-        ReportSink($"[Profile+] coolSim={Avg(CooldownSim):F3} coolApply={Avg(CooldownApply):F3} ms");
-        ReportSink($"[Profile++] activeTiles={AvgCount(CooldownActiveTiles):F1} steppedTiles={AvgCount(CooldownSteppedTiles):F1} " +
-            $"steppedFrames={CooldownSteppedFrames}/{FrameCount} parallelFrames={CooldownParallelFrames}/{FrameCount}");
-        if (AuditEnergy)
-            ReportSink($"[ProfileE] thermal={ThermalEnergy:F3} ledgerResidual={ThermalLedgerResidual:F5} (over {FrameCount} frames)");
-        Reset();
-    }
-
-    private double Avg(TimeSpan ts) => ts.TotalMilliseconds / FrameCount;
-    private double AvgCount(long count) => FrameCount == 0 ? 0 : (double)count / FrameCount;
-
-    public void Reset()
-    {
-        Collision = Cooldown = CooldownSim = CooldownApply
-            = Regrow = Projectiles = Tanks = Harvesters = Sprites = Bases = Links = Vision = Total = TimeSpan.Zero;
-        CooldownActiveTiles = 0;
-        CooldownSteppedTiles = 0;
-        CooldownSteppedFrames = 0;
-        CooldownParallelFrames = 0;
-        ThermalEnergy = 0;
-        ThermalLedgerResidual = 0;
-        FrameCount = 0;
-    }
-}
+/// <summary>
+/// One system of a world step (<see cref="World.Advance"/>): the label its time is reported under, and what it does
+/// each step, given the step's input.
+/// </summary>
+internal readonly record struct WorldSystem(string Label, Action<Func<int, ControllerOutput>> Advance);
