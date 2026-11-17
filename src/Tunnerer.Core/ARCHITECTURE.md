@@ -22,7 +22,8 @@ Terrain/
   TerrainGrid.cs             Pixel array, change list, SetPixel (metered) and SetPixelRaw (level gen only)
   TerrainGrid.Heat.cs        Terrain and air temperature fields, CoolDown, energy add / extract API
   TerrainGrid.HeatSparse.cs  Sparse (active-region) solver path
-  TerrainGrid.HotRock.cs     PlaceHotRockPocket
+  TerrainGrid.HotRock.cs     PlaceHotRockPocket, PlaceFrostRockPocket, SetPinnedPixel
+  TerrainGrid.Ore.cs         PlaceOre (level gen)
   TerrainGrid.Materialization.cs, .Decoration.cs, .Render.cs   Level-gen markers to pixels, cleanup, Draw*ToSurface
   TerrainRegrowth.cs         Dirt regrowth cellular automaton
   TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
@@ -71,6 +72,8 @@ LevelGen/
   ToastGenerator.cs          Cavern generator (LevelGenMode Deterministic or Optimized)
   GeneratorUtils.cs          Shared drawing helpers
   HotRockPockets.cs          Scatters hot rock pockets
+  FrostRockPockets.cs        Scatters frost pockets
+  OreDeposits.cs             Seeds emberite: specks, pockets and lumps with a warm core (OreDeposit, OreDepositKind)
 Rendering/
   RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
@@ -82,7 +85,9 @@ Types/Position.cs, RectMath.cs   Position, Offset, Size, PositionF, VectorF, Dir
 
 `new World(size, parallelRegrowth, simulationSeed, ...)` creates the subsystems; `World.Initialize(terrain,
 spawns, ...)` copies in a generated level, materializes it, builds the bases, places hot and frost rock pockets (if
-asked; the hot ones also give the core, `World.CorePocket`) and adds one tank per spawn. Every RNG World owns
+asked; the hot ones also give the core, `World.CorePocket`), seeds emberite ore (if asked, `seedOre`;
+`World.OreDeposits`) and adds one tank per spawn. Ore is placed last and grows each deposit cell by cell from its
+start, so generation never sweeps the grid; deposit counts scale with map area (`Tweaks.Ore`). Every RNG World owns
 (projectiles, link map, regrowth, each tank) is seeded from `simulationSeed`, and decorations and rock pockets from
 the decoration seed (or, without one, from the spawns and
 `simulationSeed`). Core never reads the clock or unseeded randomness; for a random match Desktop's `WorldFactory`
@@ -139,7 +144,7 @@ terrain field only mirrors the air field, so such a cell holds one store.
 Each tick `TerrainGrid.CoolDown` asks `ThermalScheduler.Decide` what to do: sleep (nothing active, or the last step
 was quiet), step the full grid, or step only the regions around active tiles (`ThermalActivityTracker`), in
 parallel when there are many regions. Both paths use `TerrainHeatEngine.ComputeRegionDeltaConservative` and
-`ResolveTerrainTemperature`, which pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock) and
+`ResolveTerrainTemperature`, which pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock, emberite cores) and
 books what the pin removes or adds as `SunkFixedTemperature`.
 
 Entities exchange energy through the `ITerrainHeatSource` API, never by writing temperatures:

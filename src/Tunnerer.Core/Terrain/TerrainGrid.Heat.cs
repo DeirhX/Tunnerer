@@ -331,12 +331,14 @@ public partial class TerrainGrid
         => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.Air;
 
     /// <summary>
-    /// Sinks and relays only take heat that is stored in the cells. Hot rock is a source: it is pinned hot and refills
+    /// Sinks and relays only take heat that is stored in the cells. Hot rock (and an emberite core, and frost rock as a
+    /// cold source) is a source: it is pinned hot and refills
     /// itself (and the air in it) from nothing, so drawing from it would be an unlimited supply that cools the source
     /// instead of the tunnel. Everything else, including the air and pinned cells of a base, can be drawn from.
     /// </summary>
     private bool CannotExtractFrom(int offset, ThermalField field)
-        => Pixel.GetThermalMaterial(_data[offset]) is ThermalMaterial.HotRock or ThermalMaterial.FrostRock;
+        => Pixel.GetThermalMaterial(_data[offset]) is ThermalMaterial.HotRock or ThermalMaterial.FrostRock
+            or ThermalMaterial.EmberiteCore;
 
     /// <summary>
     /// Adds a temperature delta to the terrain field of a cell. In an air cell the terrain field is only a

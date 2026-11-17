@@ -255,6 +255,18 @@ Rare minerals and metals sit in the terrain, and the player has reasons to colle
 - The best deposits are in the hottest ground.
 - Each sector's minerals unlock the technology for the next, so sectors cannot be skipped.
 
+**Emberite (Prototype).** The first mineral is an exotic ore, emberite, meant to become the only thing machines and
+upgrades are made of (dirt stops being a currency in a later step). It is inert as a speck but warms itself when
+enough sits together: the core of a large lump is pinned at about 70 degrees, a permanent heat source like hot rock
+until it is mined out. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core cell 3), in three kinds
+of deposit, scaled with map area:
+
+- specks of 1 to 3 cells scattered through the dirt, near the bases too (about 15% of the ore);
+- pockets of 12 to 30 cells at some distance from the bases (about 35%);
+- a few lumps of 80 to 150 cells with a warm core, far from the bases and biased toward the centre (about 50%).
+
+Ore blocks movement; it is drawn as teal and violet crystal, the core glowing warm.
+
 ### 6.4 Structures
 
 Existing: harvester, relay, pylon. All cost only dirt today, although build costs already carry a minerals

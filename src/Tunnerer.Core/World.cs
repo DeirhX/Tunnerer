@@ -30,6 +30,8 @@ public class World
     private Position? _corePocket;
     private readonly int _frostRockPocketCount;
     private readonly List<Position> _frostRockPockets = new();
+    private readonly bool _seedOre;
+    private readonly List<LevelGen.OreDeposit> _oreDeposits = new();
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;
     private readonly StepEventLog _stepEvents = new();
@@ -94,6 +96,9 @@ public class World
     /// <summary>Centres of the frost pockets placed at initialisation (empty unless the world was created with some).</summary>
     public IReadOnlyList<Position> FrostRockPockets => _frostRockPockets;
 
+    /// <summary>The emberite deposits seeded at initialisation (empty unless the world was created with ore).</summary>
+    public IReadOnlyList<LevelGen.OreDeposit> OreDeposits => _oreDeposits;
+
     /// <summary>
     /// Whether <paramref name="machine"/> centred on <paramref name="center"/> would overlap a live tank or another
     /// planted machine: the machine's square against the tank's shape (<see cref="TankSpriteShape"/>) or the other
@@ -141,9 +146,11 @@ public class World
         bool enableTerrainRegrowth = true,
         int hotRockPocketCount = 0,
         SimulationSettings? simulationSettings = null,
-        int frostRockPocketCount = 0)
+        int frostRockPocketCount = 0,
+        bool seedOre = false)
     {
         _hotRockPocketCount = hotRockPocketCount;
+        _seedOre = seedOre;
         _frostRockPocketCount = frostRockPocketCount;
         _simulationSeed = simulationSeed != 0 ? simulationSeed : 0x51A7E3;
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
@@ -174,7 +181,7 @@ public class World
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
-        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0)
+        if (_hotRockPocketCount > 0 || _frostRockPocketCount > 0 || _seedOre)
         {
             int pocketSeed = seed + 200;
             if (_hotRockPocketCount > 0)
@@ -182,8 +189,12 @@ public class World
             if (_frostRockPocketCount > 0)
                 _frostRockPockets.AddRange(LevelGen.FrostRockPockets.Place(
                     _terrain, spawns, _hotRockPockets, _frostRockPocketCount, pocketSeed + 1));
+            // Ore last, so it fills the ground the pockets left.
+            if (_seedOre)
+                _oreDeposits.AddRange(LevelGen.OreDeposits.Place(_terrain, spawns, pocketSeed + 2));
 
-            // Let the heat (and cold) spread a little before play starts so the pockets do not begin as isolated dots.
+            // Let the heat (and cold) spread a little before play starts so the pockets and ore cores do not begin as
+            // isolated dots.
             for (int i = 0; i < Tweaks.World.HotRockPrewarmTicks; i++)
                 _terrain.CoolDown(Tweaks.World.ThermalArtificialCoolingPerFrame);
         }

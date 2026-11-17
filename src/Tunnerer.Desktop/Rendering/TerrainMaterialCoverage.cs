@@ -4,7 +4,8 @@ using Tunnerer.Core.Terrain;
 
 /// <summary>
 /// Per-cell Gaussian-blurred material coverage for the GPU "material coverage" texture.
-/// Channels: R = stone (Rock, HotRock, and Gold, which is a vein drawn over the rock it was cut from),
+/// Channels: R = stone (Rock, HotRock, FrostRock, and Gold and emberite, which are drawn from their exact cells
+/// over the rock they sit in),
 /// G = concrete, B = dirt (Dirt, DirtGrow). A is written by <see cref="TerrainAuxBuilder"/>: the regrow stamp of
 /// <see cref="TerrainGrowthFade"/>.
 /// Each channel is sum(w * [cell is that material]) / sum(w * [cell is any of the three]) over non-base solid
@@ -51,6 +52,8 @@ public static class TerrainMaterialCoverage
         table[(int)TerrainPixel.FrostRock] = 0;
         table[(int)TerrainPixel.Concrete] = 1;
         table[(int)TerrainPixel.Gold] = 0;
+        table[(int)TerrainPixel.Emberite] = 0;
+        table[(int)TerrainPixel.EmberiteCore] = 0;
         table[(int)TerrainPixel.Dirt] = 2;
         table[(int)TerrainPixel.DirtGrow] = 2;
         return table;

@@ -55,6 +55,11 @@ public static class TerrainTestPatternGenerator
         FillRect(grid, margin, y, w, stripH, TerrainPixel.Concrete);
         y += stripH + gutter;
 
+        // Emberite: a plain ore strip with a band of core cells along its middle.
+        FillRect(grid, margin, y, w, stripH, TerrainPixel.Emberite);
+        FillRect(grid, margin + w / 4, y + stripH / 2 - 3, w / 2, 6, TerrainPixel.EmberiteCore);
+        y += stripH + gutter;
+
         // Base strip: use BaseMin for interior, BaseBarrier for edges, BaseCore center
         int baseW = w;
         FillRect(grid, margin, y, baseW, stripH, TerrainPixel.BaseMin);
@@ -154,6 +159,12 @@ public static class TerrainTestPatternGenerator
         // Vertical split: concrete | dirt
         FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Concrete);
         FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Dirt);
+        x += blockW + gutter;
+
+        // Vertical split: dirt | ore (core in the middle)
+        FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Dirt);
+        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Emberite);
+        FillRect(grid, x + blockW / 2 + 6, y + blockH / 2 - 3, 6, 6, TerrainPixel.EmberiteCore);
         x += blockW + gutter;
 
         // Diagonal splits (second row)
@@ -314,7 +325,11 @@ public static class TerrainTestPatternGenerator
         int x = 6;
 
         // Isolated single pixels (various materials)
-        TerrainPixel[] singles = [TerrainPixel.Dirt, TerrainPixel.Rock, TerrainPixel.Gold, TerrainPixel.Concrete];
+        TerrainPixel[] singles =
+        [
+            TerrainPixel.Dirt, TerrainPixel.Rock, TerrainPixel.Gold, TerrainPixel.Concrete, TerrainPixel.Emberite,
+            TerrainPixel.EmberiteCore,
+        ];
         foreach (var mat in singles)
         {
             SetSafe(grid, x, y + 2, mat);

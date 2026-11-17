@@ -62,7 +62,9 @@ public class TerrainMaterialCoverageTests
                 float wgt = MathF.Exp(-(kx * kx + ky * ky) / (2f * sigma * sigma));
                 switch (terrain.GetPixelRaw(y * terrain.Width + x))
                 {
-                    case TerrainPixel.Rock or TerrainPixel.HotRock or TerrainPixel.Gold: s0 += wgt; break;
+                    case TerrainPixel.Rock or TerrainPixel.HotRock or TerrainPixel.FrostRock or TerrainPixel.Gold
+                        or TerrainPixel.Emberite or TerrainPixel.EmberiteCore:
+                        s0 += wgt; break;
                     case TerrainPixel.Concrete: s1 += wgt; break;
                     case TerrainPixel.Dirt or TerrainPixel.DirtGrow: s2 += wgt; break;
                 }

@@ -60,6 +60,9 @@ public static class Tweaks
             // Frost rock conducts like stone and is pinned far below ambient: a permanent cold source (see the frost
             // pocket constants below).
             (ThermalMaterial.FrostRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: -60f)),
+            // The core of an emberite lump conducts like stone and is pinned warm (Ore.CoreTemperature): enough ore
+            // together heats itself. Plain ore is stone.
+            (ThermalMaterial.EmberiteCore, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: Ore.CoreTemperature)),
         ],
         // Tuned values the series rule cannot produce (it would give dirt-stone 0.0783 and dirt against a sink
         // 0.0857): dirt stays a poor conductor against rock and a slightly better one against bases and gold.
@@ -67,6 +70,7 @@ public static class Tweaks
             new(ThermalMaterial.Dirt, ThermalMaterial.Stone, 0.07f),
             new(ThermalMaterial.Dirt, ThermalMaterial.HotRock, 0.07f),
             new(ThermalMaterial.Dirt, ThermalMaterial.FrostRock, 0.07f),
+            new(ThermalMaterial.Dirt, ThermalMaterial.EmberiteCore, 0.07f),
             new(ThermalMaterial.Dirt, ThermalMaterial.Base, 0.09f),
             new(ThermalMaterial.Dirt, ThermalMaterial.ConstantEnergy, 0.1f),
             // Between two pinned sinks: cell temperatures never depend on these, but the ledger's rounding does when
@@ -112,6 +116,40 @@ public static class Tweaks
         public const float ThermalSaturationCoverageThreshold = 0.90f;
         public const int ThermalSaturationFramesBeforeThrottle = 90;
         public const int ThermalSaturationStepIntervalFrames = 4;
+    }
+
+    /// <summary>
+    /// Emberite ore (DESIGN.md §6.3): deposits seeded at generation (LevelGen.OreDeposits) and mined by the tank.
+    /// Deposit counts scale with map area (one per <c>*EveryCells</c> cells), so the 1500x750 map gets about 2,500
+    /// units: about 15% in specks, 35% in pockets and 50% in lumps. Starting values; tune in play.
+    /// </summary>
+    public static class Ore
+    {
+        public const int PlainCellUnits = 1;
+        public const int CoreCellUnits = 3;
+        public const float CoreTemperature = 70f;
+
+        // Specks: 1-3 cells of ore in dirt, anywhere but right beside a base.
+        public const int SpeckEveryCells = 6000;
+        public const int SpeckMinCells = 1;
+        public const int SpeckMaxCells = 3;
+        public const int SpeckMinDistanceFromBase = 30;
+
+        // Pockets: irregular blobs at some distance from the bases.
+        public const int PocketEveryCells = 27500;
+        public const int PocketMinCells = 12;
+        public const int PocketMaxCells = 30;
+        public const int PocketMinDistanceFromBase = 60;
+
+        // Lumps: large blobs with a warm core, far from the bases and biased toward the map centre
+        // (uniform sample ^ bias, as for hot rock).
+        public const int LumpEveryCells = 125000;
+        public const int LumpMinCells = 80;
+        public const int LumpMaxCells = 150;
+        public const int LumpCoreCells = 12;
+        public const int LumpMinDistanceFromBase = 130;
+        public const int LumpMinDistanceBetween = 90;
+        public const double LumpCentreBias = 1.3;
     }
 
     public static class Base
