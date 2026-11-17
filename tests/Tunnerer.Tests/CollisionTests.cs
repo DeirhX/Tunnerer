@@ -8,6 +8,8 @@ namespace Tunnerer.Tests;
 
 public class CollisionTests
 {
+    private enum CollisionType { None, Dirt, Blocked }
+
     private static CollisionType ClassifyPoint(CollisionSolver solver, Position pos)
     {
         if (pos.X < 0 || pos.Y < 0 || pos.X >= solver.Terrain.Width || pos.Y >= solver.Terrain.Height)

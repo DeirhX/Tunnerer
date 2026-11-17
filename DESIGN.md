@@ -227,6 +227,9 @@ A sector only completes when it runs without the player, so nothing may depend o
   expedition the player equips for.
 - **Fighting spends heat.** Firing heats the tank, so a fight draws on the same budget as a dive.
 - **Death is cheap.** The tank respawns at base. The player loses the cargo and the time, not the progress.
+- **Bodies are solid.** A tank cannot drive through another tank or through another side's planted machines: it
+  shoots them out of the way or goes around. Its own machines never block it, so a relay planted in a tunnel does
+  not close the way home.
 
 ### 5.3 What the tank needs
 

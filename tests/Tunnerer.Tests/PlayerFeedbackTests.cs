@@ -136,7 +136,7 @@ public class PlayerFeedbackTests
         for (int i = 0; i < 10 * Tweaks.Perf.TargetFps; i++)
         {
             enemy.Position = self.Position + new Offset(6, 0);
-            var output = bot.GetInput(self, enemy, world.Terrain);
+            var output = bot.GetInput(self, enemy, world);
             if (output.ShootPrimary && output.AimDirection.X > 0.9f)
                 shots++;
         }

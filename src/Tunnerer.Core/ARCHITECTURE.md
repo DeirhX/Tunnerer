@@ -67,13 +67,14 @@ Sensing/
   RadarContact.cs            What a radar return is: RadarEcho, RadarContact, RadarTarget
   RadarReach.cs              The radar's ranges and heat budget, scaled per tank by its radar upgrade
 Collision/
-  CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks)
+  CollisionSolver.cs         Point query against tanks, machines and terrain (visitor callbacks); what stops a tank's hull
   WorldSectors.cs            Sector buckets for the tank broad phase
   Raycaster.cs               Bresenham lines; HasOpenLine (the one line-of-sight test)
 Input/
   Controller.cs              ControllerOutput
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
+  BotTrail.cs                The way the bot came, retraced to get home
 LevelGen/
   ToastGenerator.cs          Cavern generator (LevelGenMode Deterministic or Optimized)
   GeneratorUtils.cs          Shared drawing helpers
@@ -293,6 +294,27 @@ connectivity (`Optimized`, used by `--fast`).
 moves, `BotGunner` decides fire, and `BotProfileCycle` rotates the `BotBehaviorProfile` play styles. All three
 share one `Random`, so the order of their calls within a tick is part of the behaviour.
 
+The bot drives its tank through the same `ControllerOutput` as a player, and asks Core what a player sees:
+
+- **What is in the way.** `World.ProbeTankStep` gives the answer the tank's own move gets (`None`, `Dirt`, `Hard`,
+  `Solid` or `Entity`), and `CollisionSolver.SurveyTankTerrain` how much of the hull would stand in the open. It
+  never reads single cells, because the hull is 7 cells wide.
+- **Scoring a move.** Open ground beats dirt in proportion to the open share of the hull; a step toward the target
+  earns the profile's `TargetPull` times the cosine to it, the same at any range; hot ground ahead
+  (`World.GroundHeatAt`) costs a point a degree; rock, walls and other bodies are not tried. Roaming near home it
+  does not head back toward its base.
+- **The torch.** Dirt is dug the plain way (half speed, no heat) unless the profile hurries and the heat budget is
+  above three quarters. Rock is torched only by committed moves (leaving the base, heading home, a breakout) and
+  only above half the budget, because torched rock leaves ground that cooks the tank.
+- **Stuck and going nowhere.** Standing still counts as stuck after the patience the obstacle warrants (rock being
+  torched takes a while). Stuck, or four seconds without coming nearer its target, it commits to a short manoeuvre
+  (a sidestep, or a held heading toward the target) instead of choosing a new move every tick.
+- **The way home.** `BotTrail` keeps the way it came as waypoints (loops dropped); heading home it retraces them,
+  so it needs no torch when it is hot.
+
+It still has no route planner (moves are scored one step at a time), sees the whole map and always knows where the
+enemy is.
+
 ## Recipes
 
 Each recipe lists every place that has to change today. Run `dotnet test Tunnerer.slnx` after; the table tests
@@ -362,11 +384,17 @@ Desktop:
 
 ### Adding a collidable entity
 
-`CollisionSolver.TestPoint` is the shared point query, but only bullets use it today. Tanks move against terrain
-alone (`TankDigger`), machine placement checks `World.IsMachineSpotOccupied`, and roaming harvesters ask
+`CollisionSolver.TestPoint` is the shared point query; only bullets use it today. A tank's step is stopped by the
+ground under its hull (`CollisionSolver.TestTankTerrain`) and by `CollisionSolver.BlocksTank`: any other live tank,
+and planted machines of another side. A tank's own machines never block it (its own bullets pass them too), and
+something it already overlaps where it stands does not hold it, so two overlapping bodies can always part.
+`TankDigger.Move` asks both through `SimulationContext`; `World.ProbeTankStep` gives the same answer for a step not
+yet taken. Machine placement checks `World.IsMachineSpotOccupied`, and roaming harvesters ask
 `MachineContext.IsOccupied`. To make bullets (or a new projectile) hit a new entity:
 
 1. A list for it reachable from `World`, and a parameter for it in `CollisionSolver.Update` (called first thing in
    `World.Advance`); add a sector index like the tanks' if there will be many.
 2. An optional callback parameter on `TestPoint` for the new entity, checked in the same way as `onMachine`.
 3. Pass the callback where hits should land, e.g. `AdvanceBullet` in `ProjectileList`.
+4. If it should stop tanks, a loop for it in `CollisionSolver.BlocksTank`, with the same "already overlapping"
+   exception.

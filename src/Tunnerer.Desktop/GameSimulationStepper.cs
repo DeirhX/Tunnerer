@@ -66,7 +66,7 @@ public sealed class GameSimulationStepper
                 return default;
 
             var enemy = tanks.Count > 0 ? tanks[0] : null;
-            return _p2AI.GetInput(_world.TankList.Tanks[i], enemy, _world.Terrain);
+            return _p2AI.GetInput(_world.TankList.Tanks[i], enemy, _world);
         });
 
         _inputRecorder.RecordFrame(p1Output.MoveSpeed, p1Output.ShootPrimary);

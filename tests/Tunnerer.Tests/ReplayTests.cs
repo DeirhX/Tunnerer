@@ -169,8 +169,8 @@ public class ReplayTests
 
         for (int i = 0; i < 50; i++)
         {
-            var input1 = ai1.GetInput(world.TankList.Tanks[1], world.TankList.Tanks[0], world.Terrain);
-            var input2 = ai2.GetInput(world.TankList.Tanks[1], world.TankList.Tanks[0], world.Terrain);
+            var input1 = ai1.GetInput(world.TankList.Tanks[1], world.TankList.Tanks[0], world);
+            var input2 = ai2.GetInput(world.TankList.Tanks[1], world.TankList.Tanks[0], world);
             Assert.Equal(input1.MoveSpeed, input2.MoveSpeed);
             Assert.Equal(input1.ShootPrimary, input2.ShootPrimary);
         }
