@@ -367,9 +367,15 @@ The bot drives its tank through the same `ControllerOutput` as a player, and ask
   only above half the budget, because torched rock leaves ground that cooks the tank.
 - **Stuck and going nowhere.** Standing still counts as stuck after the patience the obstacle warrants (rock being
   torched takes a while). Stuck, or four seconds without coming nearer its target, it commits to a short manoeuvre
-  (a sidestep, or a held heading toward the target) instead of choosing a new move every tick.
+  (a sidestep, or a held heading toward the target) instead of choosing a new move every tick. A breakout (a held
+  heading) ends when the enemy comes into sight, and a heading is only chosen when one is open: walled in on every
+  side, `ChooseBreakoutHeading` says so (no movement) and the bot goes on with its plan. A roaming plan made in the
+  enemy's sight is also dropped when sight is lost, and one made out of sight when it is found, so the turret is
+  never left aimed for the other case.
 - **The way home.** `BotTrail` keeps the way it came as waypoints (loops dropped); heading home it retraces them,
-  so it needs no torch when it is hot.
+  so it needs no torch when it is hot. A return that gets no nearer the base for 20 s (a sealed door, a dead-end
+  trail) gives up and roams again, and for the next 30 s low health or heat does not send it home (a kill, or
+  standing in its own base, still does); a slow tank on a long way home keeps getting nearer and never gives up.
 
 It still has no route planner (moves are scored one step at a time), sees the whole map and always knows where the
 enemy is.
@@ -447,7 +453,8 @@ Desktop:
 
 `CollisionSolver.TestPoint` is the shared point query; only bullets use it today. A tank's step is stopped by the
 ground under its hull (`CollisionSolver.TestTankTerrain`) and by `CollisionSolver.BlocksTank`: any other live tank,
-and planted machines of another side. A tank's own machines never block it (its own bullets pass them too), and
+and planted machines of another side (found with `MachineList.CollectNear`, the machines near the hull, not
+the whole list). A tank's own machines never block it (its own bullets pass them too), and
 something it already overlaps where it stands holds it only for a step that brings it nearer the other body's
 centre, so two overlapping bodies can always part and never pass through one another.
 `TankDigger.Move` asks both through `SimulationContext`; `World.ProbeTankStep` gives the same answer for a step not
@@ -458,5 +465,5 @@ yet taken. Machine placement checks `World.IsMachineSpotOccupied`, and roaming h
    `World.Advance`); add a sector index like the tanks' if there will be many.
 2. An optional callback parameter on `TestPoint` for the new entity, checked in the same way as `onMachine`.
 3. Pass the callback where hits should land, e.g. `AdvanceBullet` in `ProjectileList`.
-4. If it should stop tanks, a loop for it in `CollisionSolver.BlocksTank`, with the same "already overlapping"
-   exception.
+4. If it should stop tanks, a loop for it in `CollisionSolver.BlocksTank` (a near-place query, not a walk over every
+   one), with the same "already overlapping" exception (`Parts`: a step that does not bring the tank nearer is free).

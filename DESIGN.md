@@ -236,7 +236,12 @@ A sector only completes when it runs without the player, so nothing may depend o
 - **Death is cheap.** The tank respawns at base. The player loses the cargo and the time, not the progress.
 - **Bodies are solid.** A tank cannot drive through another tank or through another side's planted machines: it
   shoots them out of the way or goes around. Its own machines never block it, so a relay planted in a tunnel does
-  not close the way home.
+  not close the way home. Bodies that already overlap (a respawn onto an intruder) can part, and cannot pass through
+  one another on the way.
+- **The bot plays by the same rules.** It sees the whole of its hull, so it does not wedge in tunnels a little
+  narrower than itself. It leaves its base through a door, goes home when it is hurt, hot or after a kill, by the
+  way it came, and fires only aimed shots in an enemy's sight, and out of it only to dig itself through. A way home that stays shut (a door
+  sealed by hot rock) is given up after a while, and the bot goes back to roaming.
 
 ### 5.3 What the tank needs
 

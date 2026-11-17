@@ -199,8 +199,16 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
   coverage the terrain shader samples.
 - **Network matches**: the input codec and messages (`MessageCodecTests`), the relay's rooms and tick rule
   (`MatchRoomTests`, `LockstepRoomTests`), client sessions (`NetSessionTests`), recordings, and a relay over real
-  sockets (`RelayOverSocketsTests`, which never run in parallel with the rest).
+  sockets (`RelayOverSocketsTests`; the tests that wait on a timer or a paced match are its nested classes in
+  `TimedTestGroup`, which never run in parallel with the rest, and the quick run skips them).
 - **Guard tests** keep the structure in place; `AGENTS.md` lists them.
+
+How the suite stays quick: a test over about five seconds is marked `[Trait("Category", "Slow")]`, so
+`--filter "Category!=Slow"` skips it. xUnit runs the tests of one class one after another, so a long class is split
+into nested classes to let its parts overlap, and `SlowFirstCollectionOrderer` starts the collections that hold slow
+tests first (a class-level `Slow` counts for all of its tests), so a long collection does not end up running alone
+at the end. Tests that depend on real time (sockets, keep-alives, a room's clock) go in `TimedTestGroup` and run
+last, one at a time.
 
 The window, GPU backend and sound device have no unit tests. They are checked with scripted hidden runs that save
 final-frame screenshots and, for sound, a WAV capture and an event log (see "Automated runs" in `README.md`).
