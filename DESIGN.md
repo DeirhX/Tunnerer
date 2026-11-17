@@ -233,7 +233,7 @@ A sector only completes when it runs without the player, so nothing may depend o
 ### 5.3 What the tank needs
 
 - Cargo capacity, as an upgradeable stat (in: the cargo hold upgrade, §4.8).
-- A placement interface for structures. This is real work: the game renders at 320×200 and builds with single key
+- A placement interface for structures. This is real work: the default match is 320×200 cells, and the game builds with single key
   presses today.
 
 ### 5.4 The screen *(Decided)*

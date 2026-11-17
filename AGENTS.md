@@ -8,7 +8,7 @@ Read this before changing code. `DESIGN.md` says where the game is going; `ARCHI
 Run from the repository root.
 
 - Build: `dotnet build Tunnerer.slnx`
-- Test: `dotnet test Tunnerer.slnx` (about 40 seconds; run it before every commit)
+- Test: `dotnet test Tunnerer.slnx` (run it before every commit)
 - Fast tests: `dotnet test Tunnerer.slnx --filter "Category!=Slow"` skips tests marked
   `[Trait("Category", "Slow")]` (over ~5 s each). Use it while iterating; mark new tests over ~5 s `Slow`.
 - Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)

@@ -34,7 +34,7 @@ SDL_GPU wants fragment textures and samplers in space2, fragment uniforms in spa
 the same linear-clamp sampler.
 
 The post pass shades each terrain material in its own file under `PostPs/Materials` (dirt, stone, concrete, gold,
-the base). Dug-out ground is `TunnelFloorMaterial`: a dim, low-contrast floor tinted by the rock the tunnel was
+ore, the base). Dug-out ground is `TunnelFloorMaterial`: a dim, low-contrast floor tinted by the rock the tunnel was
 cut through and darkened towards the walls, so tunnels read as recessed ground and not as a black void, while
 staying quiet under tanks, projectiles and pickups.
 
