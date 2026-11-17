@@ -628,6 +628,8 @@ public class RelayOverSocketsTests
                     $"the tank in slot {slot} never moved");
             }
             Assert.Null(a.DesyncTick);
+            // The match is short at this pace; the first latency sample comes with the first answered ping.
+            WaitFor(() => back.LatencyMs != null, back);
             Assert.NotNull(back.LatencyMs);
         }
     }

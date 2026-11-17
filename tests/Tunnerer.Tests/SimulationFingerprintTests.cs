@@ -23,7 +23,7 @@ public class SimulationFingerprintTests
     private const ulong ExpectedPlayerDrivesAndShoots = 0x0536351EB23893B1UL;
     private const ulong ExpectedRelayPylonHarvesterNetwork = 0xE7A3D02389E878BDUL;
     private const ulong ExpectedEnemyMachinesShotToPieces = 0xDB55AE54E7FB3960UL;
-    private const ulong ExpectedBotVsBot = 0x238F65CE73478478UL;
+    private const ulong ExpectedBotVsBot = 0x6F7A9451675E7A1CUL;
 
     [Fact]
     public void PlayerDrivesAndShoots_MatchesRecordedFingerprint()

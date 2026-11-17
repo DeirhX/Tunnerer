@@ -82,6 +82,8 @@ public class BotTankAI
     private TwitchMode _mode = TwitchMode.Start;
     private Offset _move;
     private bool _shoot;
+    /// <summary>Whether the enemy was in sight when the current roaming plan was made.</summary>
+    private bool _planHadLineOfSight;
     private bool _torchDirt;
     private int _timeToChange;
     /// <summary>Ticks since this return last got nearer to the base; <see cref="ReturnGiveUpFrames"/> ends it.</summary>
@@ -280,9 +282,14 @@ public class BotTankAI
         // A move that has run into rock or a wall is not held to the end of its plan.
         if (world.ProbeTankStep(tank, _move) is StepObstacle.Hard or StepObstacle.Solid)
             _timeToChange = 0;
+        // Nor is a plan made in the enemy's sight held once it is lost (or one made out of sight once it is found):
+        // the turret was set on the enemy, or along the move, for the other case.
+        if (hasLos != _planHadLineOfSight)
+            _timeToChange = 0;
 
         if (_timeToChange <= 0)
         {
+            _planHadLineOfSight = hasLos;
             bool retreat = hasLos && ShouldRetreat(tank, enemy!, profile);
 
             _move = hasLos
