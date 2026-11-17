@@ -159,6 +159,14 @@ public static class Tweaks
         public const int LumpMinDistanceFromBase = 130;
         public const int LumpMinDistanceBetween = 90;
         public const double LumpCentreBias = 1.3;
+
+        // Small maps: the minimum distances above shrink with the map, by the square root of its area against
+        // DistanceReferenceArea, but never below MinDistanceScale of them, and every map gets at least MinPockets
+        // pockets and MinLumps lumps when they fit. The reference map (1500x750) is unchanged.
+        public const int DistanceReferenceArea = 1500 * 750;
+        public const double MinDistanceScale = 0.4;
+        public const int MinPockets = 3;
+        public const int MinLumps = 1;
     }
 
     public static class Base

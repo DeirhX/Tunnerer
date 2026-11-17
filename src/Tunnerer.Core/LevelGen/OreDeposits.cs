@@ -24,7 +24,8 @@ public readonly record struct OreDeposit(Position Center, OreDepositKind Kind, i
 
 /// <summary>
 /// Seeds emberite over a generated level: lumps first (far from the bases, biased toward the centre), then pockets,
-/// then specks scattered through the dirt. Counts scale with map area (<see cref="Tweaks.Ore"/>). Each deposit grows
+/// then specks scattered through the dirt. Counts scale with map area (<see cref="Tweaks.Ore"/>); on a small map the
+/// distance rules shrink with it and a floor of pockets and lumps is kept (<see cref="DistanceScale"/>). Each deposit grows
 /// from a start cell by random accretion over its own neighbourhood, so generation touches only the cells it
 /// converts and their neighbours, never the whole grid. Deterministic for a given seed.
 /// </summary>
@@ -41,28 +42,40 @@ public static class OreDeposits
 
         var rng = new Random(seed);
         long area = (long)terrain.Width * terrain.Height;
-        PlaceLumps(terrain, bases, rng, CountFor(area, Tweaks.Ore.LumpEveryCells), margin, deposits);
-        PlaceScattered(terrain, bases, rng, CountFor(area, Tweaks.Ore.PocketEveryCells), margin, OreDepositKind.Pocket,
-            Tweaks.Ore.PocketMinCells, Tweaks.Ore.PocketMaxCells, Tweaks.Ore.PocketMinDistanceFromBase, dirtOnly: false,
-            deposits);
+        double scale = DistanceScale(area);
+        PlaceLumps(terrain, bases, rng, Math.Max(Tweaks.Ore.MinLumps, CountFor(area, Tweaks.Ore.LumpEveryCells)), margin,
+            scale, deposits);
+        PlaceScattered(terrain, bases, rng, Math.Max(Tweaks.Ore.MinPockets, CountFor(area, Tweaks.Ore.PocketEveryCells)),
+            margin, OreDepositKind.Pocket, Tweaks.Ore.PocketMinCells, Tweaks.Ore.PocketMaxCells,
+            Scaled(Tweaks.Ore.PocketMinDistanceFromBase, scale), dirtOnly: false, deposits);
         PlaceScattered(terrain, bases, rng, CountFor(area, Tweaks.Ore.SpeckEveryCells), margin, OreDepositKind.Speck,
-            Tweaks.Ore.SpeckMinCells, Tweaks.Ore.SpeckMaxCells, Tweaks.Ore.SpeckMinDistanceFromBase, dirtOnly: true,
-            deposits);
+            Tweaks.Ore.SpeckMinCells, Tweaks.Ore.SpeckMaxCells, Scaled(Tweaks.Ore.SpeckMinDistanceFromBase, scale),
+            dirtOnly: true, deposits);
         return deposits;
     }
 
     private static int CountFor(long area, int everyCells) => (int)((area + everyCells / 2) / everyCells);
 
+    /// <summary>
+    /// What the minimum distances are multiplied by on a map of <paramref name="area"/> cells: the square root of its
+    /// share of <see cref="Tweaks.Ore.DistanceReferenceArea"/>, between <see cref="Tweaks.Ore.MinDistanceScale"/> and 1.
+    /// </summary>
+    public static double DistanceScale(long area) =>
+        Math.Clamp(Math.Sqrt(area / (double)Tweaks.Ore.DistanceReferenceArea), Tweaks.Ore.MinDistanceScale, 1.0);
+
+    private static int Scaled(int distance, double scale) => (int)(distance * scale);
+
     private static void PlaceLumps(TerrainGrid terrain, IReadOnlyList<Position> bases, Random rng, int count, int margin,
-        List<OreDeposit> deposits)
+        double scale, List<OreDeposit> deposits)
     {
         var middle = new Position(terrain.Width / 2, terrain.Height / 2);
         int lumpMargin = margin + 8;
         int halfW = terrain.Width / 2 - lumpMargin, halfH = terrain.Height / 2 - lumpMargin;
         if (halfW <= 0 || halfH <= 0)
             return;
-        int minFromBaseSq = Tweaks.Ore.LumpMinDistanceFromBase * Tweaks.Ore.LumpMinDistanceFromBase;
-        int minBetweenSq = Tweaks.Ore.LumpMinDistanceBetween * Tweaks.Ore.LumpMinDistanceBetween;
+        int minFromBase = Scaled(Tweaks.Ore.LumpMinDistanceFromBase, scale);
+        int minBetween = Scaled(Tweaks.Ore.LumpMinDistanceBetween, scale);
+        int minFromBaseSq = minFromBase * minFromBase, minBetweenSq = minBetween * minBetween;
         var lumps = new List<Position>();
 
         for (int attempt = 0; attempt < count * AttemptsPerDeposit && lumps.Count < count; attempt++)

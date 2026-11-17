@@ -151,6 +151,10 @@ public class OreDepositTests
         var world = SeededWorld(8181);
         var bases = world.TankBases.Bases.Select(b => b.Position).ToArray();
         var byKind = world.OreDeposits.ToLookup(d => d.Kind);
+        // The distance rules shrink with the map: 800x400 is about half the reference map's width.
+        double scale = OreDeposits.DistanceScale(MediumMap.Area);
+        Assert.InRange(scale, 0.5, 0.55);
+        int Scaled(int distance) => (int)(distance * scale);
 
         // 800x400: three lumps, a dozen pockets, about fifty specks.
         Assert.InRange(byKind[OreDepositKind.Lump].Count(), 2, 3);
@@ -167,7 +171,8 @@ public class OreDepositTests
             };
             Assert.InRange(d.Cells, min, max);
             Assert.Equal(d.Kind == OreDepositKind.Lump ? Tweaks.Ore.LumpCoreCells : 0, d.CoreCells);
-            Assert.All(bases, b => Assert.True(Position.DistanceSquared(d.Center, b) >= fromBase * fromBase,
+            int minFromBase = Scaled(fromBase);
+            Assert.All(bases, b => Assert.True(Position.DistanceSquared(d.Center, b) >= minFromBase * minFromBase,
                 $"{d.Kind} at {d.Center} too close to the base at {b}"));
             Assert.True(Pixel.IsOre(world.Terrain.GetPixelRaw(d.Center)), "a deposit grows from its start cell");
         }
@@ -184,10 +189,29 @@ public class OreDepositTests
         for (int i = 0; i < lumps.Length; i++)
             for (int j = i + 1; j < lumps.Length; j++)
                 Assert.True(Position.DistanceSquared(lumps[i].Center, lumps[j].Center) >=
-                    Tweaks.Ore.LumpMinDistanceBetween * Tweaks.Ore.LumpMinDistanceBetween);
+                    Scaled(Tweaks.Ore.LumpMinDistanceBetween) * Scaled(Tweaks.Ore.LumpMinDistanceBetween));
 
         // What the deposits report is what lies in the ground.
         Assert.Equal(world.OreDeposits.Sum(d => d.Units), CountOreUnits(world.Terrain));
+    }
+
+    [Theory]
+    [InlineData(8181)]
+    [InlineData(4242)]
+    [InlineData(77)]
+    public void SmallMap_StillGetsAFewPockets_AndALump(int seed)
+    {
+        // The desktop's default match (DesktopScreenTweaks.RenderSurfaceSize).
+        var size = new Size(320, 200);
+        var world = SeededWorld(seed, size);
+        var byKind = world.OreDeposits.ToLookup(d => d.Kind);
+
+        Assert.Equal(Tweaks.Ore.MinDistanceScale, OreDeposits.DistanceScale(size.Area));
+        Assert.True(byKind[OreDepositKind.Pocket].Count() >= Tweaks.Ore.MinPockets,
+            $"pockets={byKind[OreDepositKind.Pocket].Count()}");
+        Assert.True(byKind[OreDepositKind.Lump].Any(), "a lump fits on a 320x200 map");
+        Assert.True(world.OreDeposits.Sum(d => d.Units) >= 150, $"units={world.OreDeposits.Sum(d => d.Units)}");
+        Assert.True(OreDeposits.DistanceScale(1500L * 750) == 1.0, "the reference map keeps its rules");
     }
 
     [Fact]
