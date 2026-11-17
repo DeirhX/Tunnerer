@@ -6,6 +6,7 @@ using Tunnerer.Core.Types;
 namespace Tunnerer.Tests;
 
 using Tunnerer.Core;
+using Tunnerer.Core.Entities.Tanks;
 /// <summary>
 /// Fog of war: a side sees along open lines of sight from its tank, base and machines, remembers the terrain as it
 /// last saw it, pays only for what changes, and none of this changes the simulation.

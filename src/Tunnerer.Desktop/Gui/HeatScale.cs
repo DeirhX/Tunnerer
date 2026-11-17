@@ -2,7 +2,7 @@ namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// Temperature scale of the heat orb and bar, in tank heat units (0 = ambient): from past the point where frostbite

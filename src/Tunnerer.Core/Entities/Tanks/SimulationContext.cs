@@ -1,9 +1,10 @@
-namespace Tunnerer.Core.Entities;
+namespace Tunnerer.Core.Entities.Tanks;
 
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 /// <summary>
 /// Narrow view of the world passed to <see cref="Tank.Advance"/>,
@@ -34,7 +35,7 @@ public readonly record struct SimulationContext
     /// Optional: the network coverage of a tank's own base at a position (DESIGN.md §4.6). When set, a tank outside
     /// it heats up and a tank inside it is cooled down the links; when null the rule is off.
     /// </summary>
-    public Func<Tank, Links.TankCoverage>? CoverageFor { get; init; }
+    public Func<Tank, TankCoverage>? CoverageFor { get; init; }
 
     /// <summary>
     /// Optional: whether a live tank or a planted machine stands on a cell. When set, a dead tank's ore does not land

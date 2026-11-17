@@ -1,6 +1,7 @@
-namespace Tunnerer.Core.Terrain;
+namespace Tunnerer.Core.LevelGen;
 
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Terrain;
 
 /// <summary>
 /// Builds a synthetic terrain grid with hand-crafted geometric patterns for visual

@@ -4,6 +4,8 @@ using System.Collections.Immutable;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Regrowth;
 
 public readonly record struct ExplosionParams(int ShrapnelCount, float Speed, int Frames);
 

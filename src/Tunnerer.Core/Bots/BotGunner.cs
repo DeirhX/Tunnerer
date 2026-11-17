@@ -1,10 +1,10 @@
-namespace Tunnerer.Core.Input;
+namespace Tunnerer.Core.Bots;
 
 using Tunnerer.Core.Collision;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// When and where the bot fires. Keeps it fair for a human: no aimed fire during the opening, a reaction delay after

@@ -1,4 +1,4 @@
-namespace Tunnerer.Core;
+namespace Tunnerer.Core.Network;
 
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;

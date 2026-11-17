@@ -7,6 +7,7 @@ using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Core.Entities.Tanks;
 using System.Diagnostics;
 
 public partial class Game
@@ -16,7 +17,7 @@ public partial class Game
     /// camera are drawn at that point.
     /// </param>
     private void RenderImGuiFrame(
-        IReadOnlyList<Core.Entities.Tank> tanks, in FrameInputSnapshot frameInput, float stepProgress)
+        IReadOnlyList<Tank> tanks, in FrameInputSnapshot frameInput, float stepProgress)
     {
         var (winW, winH) = _renderer.GetWindowSize();
         float dt = _interpolateFrames

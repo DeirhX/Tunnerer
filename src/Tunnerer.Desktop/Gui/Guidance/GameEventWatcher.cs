@@ -4,6 +4,7 @@ using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// Watches the player's side of the world from frame to frame and posts a toast when something changes that the

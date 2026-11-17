@@ -4,6 +4,7 @@ using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Input;
 using Tunnerer.Protocol;
+using Tunnerer.Core.Bots;
 
 /// <summary>
 /// One client's part in a network match. It sends the local player's input to the relay, collects the bundles the

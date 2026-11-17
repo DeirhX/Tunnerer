@@ -1,4 +1,6 @@
-namespace Tunnerer.Core.Terrain;
+namespace Tunnerer.Core.Regrowth;
+
+using Tunnerer.Core.Terrain;
 
 /// <summary>
 /// The pixel writes <see cref="TerrainRegrowth"/> has yet to hear of. Regrowth does not scan the map: it keeps an

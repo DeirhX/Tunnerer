@@ -4,6 +4,7 @@ using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
+using Tunnerer.Core.Network;
 
 public class TankBase
 {
@@ -70,7 +71,7 @@ public class TankBase
     public double VentCapacityPerTick => Upgrades.RadiatorUnits * (double)Tweaks.Base.ReactorEnergyPerHeatUnit;
 
     /// <summary>Link-network node of this base; relays are powered through it.</summary>
-    public Links.LinkPoint? LinkPoint { get; set; }
+    public LinkPoint? LinkPoint { get; set; }
 
     /// <summary>Energy the reactor can still take before it is full.</summary>
     public double ReactorRoomEnergy =>

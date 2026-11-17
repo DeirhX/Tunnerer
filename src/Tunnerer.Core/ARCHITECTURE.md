@@ -11,7 +11,6 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 World.cs                     World: owns every subsystem, runs Advance over its list of systems (WorldSystem)
 SimulationProfile.cs         Per-system timings, one section per system label
 StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
-NetworkStatus.cs             One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
 WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds heat and
                              charge totals (what machines in a network match compare)
 StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
@@ -32,13 +31,13 @@ Terrain/
   TerrainGrid.HotRock.cs     PlaceHotRockPocket, PlaceFrostRockPocket, SetPinnedPixel
   TerrainGrid.Ore.cs         PlaceOre (level gen); FindOre and the per-tile ore counts behind it
   TerrainGrid.Materialization.cs, .Decoration.cs, .Render.cs   Level-gen markers to pixels, cleanup, Draw*ToSurface
+  SightlineChanges.cs        The cells that started or stopped blocking a line of sight, for the link map
+  ITerrain*.cs               Narrow interfaces over TerrainGrid (pixel read / write, heat source, change tracker)
+Regrowth/                    (only in a world whose MatchRules.TerrainRegrowth is on)
   TerrainRegrowth.cs         Dirt regrowth: the rules, applied to each cell when its appointment comes
   RegrowthSchedule.cs        The appointments: at most one per cell, filed by tick
-  RegrowthWrites.cs          The pixel writes regrowth has yet to hear of
+  RegrowthWrites.cs          The pixel writes regrowth has yet to hear of (TerrainGrid lists them)
   RegrowthBlockers.cs        Where no dirt grows (relay and pylon range), filed by map area
-  SightlineChanges.cs        The cells that started or stopped blocking a line of sight, for the link map
-  TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
-  ITerrain*.cs               Narrow interfaces over TerrainGrid (pixel read / write, heat source, change tracker)
 Thermal/
   TerrainHeatEngine.cs       The exchange stencil, capacity, conductance and loss tables, ResolveCell
   ThermalScheduler.cs        Per tick: step or not (nothing active, or throttled when nearly everything is)
@@ -46,7 +45,11 @@ Thermal/
   ThermalLedger.cs           Energy created or destroyed, by kind
   TankHeatEngine.cs          One tank's heat exchange with terrain and air
 Entities/
-  Tank.cs                    Tank state and the per-tick order (below); delegates to Tanks/*
+  Tanks/Tank.cs              Tank state and the per-tick order (below); delegates to the classes beside it
+  Tanks/TankList.cs          Tank collection
+  Tanks/SimulationContext.cs The slice of World a tank sees during Advance
+  Tanks/TankTurret.cs        Aim, cooldown, bullet spawn
+  Tanks/TankHeatModel.cs     Heat-flow formula shared by tank contact with terrain and air
   Tanks/TankThermals.cs      Tank heat, network coverage floor, base sink, refrigeration, ledger bookings
   Tanks/TankDigger.cs        Movement, terrain contact, dig / torch, mining ore into the hold, pickups; owns the
                              tank's RNG
@@ -54,11 +57,8 @@ Entities/
   Tanks/BuildQuote.cs        BuildQuote, OrePayer, BuildRefusal: what a machine costs here and which stock pays
   Tanks/TankLifecycle.cs     Damage, death (the hold spills as ore, OreDrop), respawn, spawn shield
   Tanks/TankSpriteShape.cs   The tank's one shape (its sprite's cells): terrain contact, pickups, bullet hits, planting
-  TankTurret.cs              Aim, cooldown, bullet spawn
-  TankHeatModel.cs           Heat-flow formula shared by tank contact with terrain and air
-  TankList.cs, TankBase.cs, TankBases.cs   Tank collection; bases (reactor, radiator, engine, charge, ore store)
+  TankBase.cs, TankBases.cs  Bases (reactor, radiator, engine, charge, ore store)
   BaseUpgrades.cs            BaseUpgrade (base track and tank track), levels, costs and what each level does
-  SimulationContext.cs       The slice of World a tank sees during Advance
   MachineMaterializer.cs     The machine a tank carries before it is planted
   Sprite.cs                  SpriteList: short-lived markers
   DamageCause.cs
@@ -70,8 +70,10 @@ Entities/
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
-  Links/LinkPoint.cs, Link.cs, LinkMap.cs   Link network: nodes, edges, refresh, power and flow
-  Links/NetworkCoverage.cs   Coverage nodes and the coverage a tank gets at a position
+Network/                     The link network (not network matches: those are Desktop/Net and Tunnerer.Protocol)
+  LinkPoint.cs, Link.cs, LinkMap.cs   Nodes, edges, refresh, power and flow
+  NetworkCoverage.cs         Coverage nodes and the coverage a tank gets at a position
+  NetworkStatus.cs           One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
 Sensing/
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
   VisionEye.cs               One source's sight, kept between updates, and the ray and wall casting that fills it
@@ -85,6 +87,7 @@ Collision/
 Input/
   Controller.cs              ControllerOutput
   ControllerOutputCodec.cs   ControllerOutput as 28 bits (network, input logs); quantises the aim
+Bots/                        The computer player: produces a ControllerOutput like a person would
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
   BotTrail.cs                The way the bot came, retraced to get home
@@ -94,6 +97,7 @@ LevelGen/
   HotRockPockets.cs          Scatters hot rock pockets
   FrostRockPockets.cs        Scatters frost pockets
   OreDeposits.cs             Seeds emberite: specks, pockets and lumps with a warm core (OreDeposit, OreDepositKind)
+  TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
 Rendering/
   RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, SpriteRenderState
   TankSprites.cs             Tank bitmaps and colour palettes

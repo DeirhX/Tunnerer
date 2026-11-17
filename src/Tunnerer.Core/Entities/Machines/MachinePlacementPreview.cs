@@ -1,6 +1,6 @@
 namespace Tunnerer.Core.Entities.Machines;
 
-using Tunnerer.Core.Entities.Links;
+using Tunnerer.Core.Network;
 
 /// <summary>
 /// What a machine would do if planted at a spot (see <see cref="World.PreviewPlacement"/>): the link it would make

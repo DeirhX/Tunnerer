@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Entities;
+namespace Tunnerer.Core.Entities.Tanks;
 
 using Tunnerer.Core.Config;
 

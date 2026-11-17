@@ -1,6 +1,7 @@
 using Tunnerer.Core.Match;
 using Tunnerer.Core;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Entities.Tanks;
 
 namespace Tunnerer.Tests;
 
@@ -70,7 +71,7 @@ public class MatchOutcomeTests
         return world;
     }
 
-    private static void Eliminate(Core.Entities.Tank tank)
+    private static void Eliminate(Tank tank)
     {
         tank.LivesLeft = 1;
         tank.Die();
@@ -172,7 +173,7 @@ public class MatchOutcomeTests
     }
 
     /// <summary>Gives the tank's base a hold already over the goal, which finishes on the next tick whatever the tap is.</summary>
-    private static void FinishHold(Core.Entities.Tank tank) =>
+    private static void FinishHold(Tank tank) =>
         typeof(Core.Entities.TankBase).GetProperty(nameof(Core.Entities.TankBase.CoreHoldSeconds))!
             .SetValue(tank.Base, Core.Config.Tweaks.Goal.GoalHoldSeconds + 10);
 

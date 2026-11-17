@@ -3,6 +3,7 @@ namespace Tunnerer.Tests;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Core.LevelGen;
 
 public class TerrainMaterialCoverageTests
 {

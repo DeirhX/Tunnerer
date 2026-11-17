@@ -1,7 +1,7 @@
 using Tunnerer.Core.LevelGen;
-using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop;
+using Tunnerer.Core.Entities.Tanks;
 
 namespace Tunnerer.Tests;
 

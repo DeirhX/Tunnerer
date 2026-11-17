@@ -6,6 +6,7 @@ using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Net;
 using Tunnerer.Protocol;
+using Tunnerer.Core.Bots;
 
 /// <summary>
 /// Several clients, each with its own world, play one match through an in-memory relay. Whatever the connections

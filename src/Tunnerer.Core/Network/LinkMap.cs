@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Entities.Links;
+namespace Tunnerer.Core.Network;
 
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;

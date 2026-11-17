@@ -1,11 +1,11 @@
 namespace Tunnerer.Tests;
 
 using Tunnerer.Core;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Entities.Tanks;
 
 internal static class TestHelpers
 {

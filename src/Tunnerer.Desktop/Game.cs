@@ -5,7 +5,6 @@ using System.Globalization;
 using static SDL3.SDL;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Input;
 using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Terrain;
@@ -16,6 +15,8 @@ using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
 using Tunnerer.Desktop.Rendering.SdlGpu;
+using Tunnerer.Core.Bots;
+using Tunnerer.Core.Entities.Tanks;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -41,7 +42,7 @@ public partial class Game : IDisposable
     /// the first tank today; a network match will hand each machine its own slot.
     /// </summary>
     private readonly int _localSlot;
-    private Core.Entities.Tank? LocalTank =>
+    private Tank? LocalTank =>
         _localSlot < _world.TankList.Count ? _world.TankList.Tanks[_localSlot] : null;
     private readonly ScriptedInputConfig _scriptedInput;
     private readonly InputRecorder _inputRecorder = new();
@@ -247,7 +248,7 @@ public partial class Game : IDisposable
         return viewSize;
     }
 
-    private void UpdateMatchCamera(IReadOnlyList<Core.Entities.Tank> tanks)
+    private void UpdateMatchCamera(IReadOnlyList<Tank> tanks)
     {
         var viewSize = EnsureViewSize();
         int scale = _renderViewState.CellPixels;
@@ -271,7 +272,7 @@ public partial class Game : IDisposable
         _renderViewState.PanCamera(dx, dy, _terrainSize, viewSize.X, viewSize.Y, scale);
     }
 
-    private void AdvanceOneSimulationStep(IReadOnlyList<Core.Entities.Tank> tanks, FrameInputSnapshot frameInput)
+    private void AdvanceOneSimulationStep(IReadOnlyList<Tank> tanks, FrameInputSnapshot frameInput)
     {
         var aimDir = ComputeAimDirection(tanks, frameInput);
         bool mouseShoot = IsMouseInViewport(frameInput, out _, out _) && frameInput.IsLeftMouseDown;

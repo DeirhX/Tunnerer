@@ -7,6 +7,8 @@ using Tunnerer.Core.Entities;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Bots;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// How the bot gets about: it sees what its hull would meet (not single cells), leaves its base whichever door is

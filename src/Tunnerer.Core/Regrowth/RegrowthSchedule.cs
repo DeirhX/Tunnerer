@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Terrain;
+namespace Tunnerer.Core.Regrowth;
 
 using Tunnerer.Core.Config;
 

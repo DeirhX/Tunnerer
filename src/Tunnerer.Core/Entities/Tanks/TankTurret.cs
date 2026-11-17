@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Entities;
+namespace Tunnerer.Core.Entities.Tanks;
 
 using System.Diagnostics;
 using Tunnerer.Core.Types;

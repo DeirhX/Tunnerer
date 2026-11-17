@@ -1,4 +1,3 @@
-using Tunnerer.Core;
 using Tunnerer.Core.Types;
 
 namespace Tunnerer.Tests;

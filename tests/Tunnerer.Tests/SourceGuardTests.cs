@@ -117,7 +117,6 @@ public class SourceGuardTests
             "src/Tunnerer.Core/LevelGen/",
             "src/Tunnerer.Core/Terrain/TerrainGrid.",
             "src/Tunnerer.Core/Terrain/ITerrainPixelWriter.cs",
-            "src/Tunnerer.Core/Terrain/TerrainTestPatternGenerator.cs",
         ];
         var found = new HashSet<(string File, string Pattern)>();
         foreach (string path in RepositoryFiles.CSharpFiles(CoreDir))

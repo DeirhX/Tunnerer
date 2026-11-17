@@ -1,9 +1,9 @@
 namespace Tunnerer.Tests;
 
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 /// <summary>Links need direct visibility through open ground, and show the heat relays send home along them.</summary>
 public class LinkVisibilityTests

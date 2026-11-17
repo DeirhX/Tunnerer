@@ -1,10 +1,11 @@
-namespace Tunnerer.Core.Entities.Links;
+namespace Tunnerer.Core.Network;
 
 using Tunnerer.Core.Collision;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Entities;
 
 /// <summary>A node that cools tanks around it: the base, or a powered relay or pylon of that base.</summary>
 /// <param name="Strength">Cooling strength, 1 at the base, falling by <c>Coverage.HopFalloff</c> per link hop.</param>

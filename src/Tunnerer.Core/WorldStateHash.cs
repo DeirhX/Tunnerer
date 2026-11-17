@@ -1,6 +1,7 @@
 namespace Tunnerer.Core;
 
 using Tunnerer.Core.Rendering;
+using Tunnerer.Core.Entities.Tanks;
 
 /// <summary>
 /// One number for the state of a world: terrain pixels, tanks, machines, links, projectiles and sprites. Two worlds

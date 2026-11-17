@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Entities;
+namespace Tunnerer.Core.Entities.Tanks;
 
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
@@ -8,7 +8,7 @@ using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Entities.Machines;
-using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Core.Network;
 
 /// <summary>
 /// A player's tank. It owns the tank's state and the order of one tick; the rules live in its collaborators:
@@ -66,7 +66,7 @@ public class Tank
     /// The network node cooling the tank, as of its last tick. None while it is inside a base (the base cools it there,
     /// not the network) or off network.
     /// </summary>
-    public Links.TankCoverage Coverage => _thermals.Coverage;
+    public TankCoverage Coverage => _thermals.Coverage;
 
     /// <summary>True when the coverage rule is on and the tank is outside its network: its reactor is heating up.</summary>
     public bool IsOffNetwork => _thermals.IsOffNetwork;
@@ -382,7 +382,7 @@ public class Tank
             return;
         _unloadCredit -= Tweaks.Perf.TargetFps;
         int moved = Hold.MoveTo(store, 1);
-        Links.LinkMap.CarryOre(Coverage.Point);
+        LinkMap.CarryOre(Coverage.Point);
         ctx.Events?.Record(new StepEvent(StepEventKind.OreUnloaded, Position, Color, Count: moved));
     }
 

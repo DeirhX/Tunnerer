@@ -1,10 +1,10 @@
 namespace Tunnerer.Desktop.Rendering.Entities;
 
 using Tunnerer.Core;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 /// <summary>
 /// Network links as beams: heat flowing to the base, charge flowing out to pylons and batteries, and ore a tank

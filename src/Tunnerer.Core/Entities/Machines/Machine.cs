@@ -4,7 +4,7 @@ using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Resources;
 using Tunnerer.Core.Terrain;
-using Tunnerer.Core.Entities.Links;
+using Tunnerer.Core.Network;
 
 public enum MachineType { Harvester, Pylon, Relay }
 public enum MachineState { Template, Transporting, Planted }

@@ -1,7 +1,8 @@
-namespace Tunnerer.Core.Terrain;
+namespace Tunnerer.Core.Regrowth;
 
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Terrain;
 
 /// <summary>
 /// Regrows dirt in open and scorched ground, except inside a <see cref="RegrowthBlocker"/>, where open ground stays

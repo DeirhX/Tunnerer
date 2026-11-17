@@ -1,4 +1,4 @@
-namespace Tunnerer.Core.Input;
+namespace Tunnerer.Core.Bots;
 
 using Tunnerer.Core.Config;
 

@@ -1,8 +1,7 @@
-namespace Tunnerer.Core.Input;
+namespace Tunnerer.Core.Bots;
 
 using Tunnerer.Core.Collision;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Types;
 

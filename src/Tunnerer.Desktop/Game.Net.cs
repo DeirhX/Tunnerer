@@ -6,7 +6,6 @@ using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Input;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;

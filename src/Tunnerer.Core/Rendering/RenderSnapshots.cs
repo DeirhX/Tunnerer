@@ -1,10 +1,10 @@
 namespace Tunnerer.Core.Rendering;
 
 using Tunnerer.Core.Entities;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Projectiles;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 public readonly record struct TankRenderState(
     Position Position,

@@ -7,6 +7,7 @@ using Tunnerer.Core.Input;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Sensing;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 namespace Tunnerer.Tests;
 

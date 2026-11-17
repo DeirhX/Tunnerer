@@ -5,6 +5,7 @@ using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Rendering;
+using Tunnerer.Core.Entities.Tanks;
 using System.Runtime.InteropServices;
 using static SDL3.SDL;
 
@@ -189,7 +190,7 @@ public partial class Game
         return new FrameInputSnapshot(mx, my, buttons);
     }
 
-    private DirectionF? ComputeAimDirection(IReadOnlyList<Core.Entities.Tank> tanks, in FrameInputSnapshot frameInput)
+    private DirectionF? ComputeAimDirection(IReadOnlyList<Tank> tanks, in FrameInputSnapshot frameInput)
     {
         if (LocalTank is not { } tank) return null;
 

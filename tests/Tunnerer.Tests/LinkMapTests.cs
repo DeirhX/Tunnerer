@@ -1,9 +1,9 @@
 namespace Tunnerer.Tests;
 
 using Tunnerer.Core.Config;
-using Tunnerer.Core.Entities.Links;
 using Tunnerer.Core.Terrain;
 using Tunnerer.Core.Types;
+using Tunnerer.Core.Network;
 
 /// <summary>
 /// The link map keeps its links between refreshes and looks again only at what changed. These tests hold it to the

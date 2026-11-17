@@ -15,7 +15,7 @@ using Tunnerer.Core.Config;
 /// </remarks>
 public sealed record MatchRules
 {
-    /// <summary>Dirt grows back into open ground (<see cref="Terrain.TerrainRegrowth"/>).</summary>
+    /// <summary>Dirt grows back into open ground (<see cref="Regrowth.TerrainRegrowth"/>).</summary>
     public bool TerrainRegrowth { get; init; } = true;
 
     /// <summary>
