@@ -66,7 +66,8 @@ public class NetSessionTests
     [Trait("Category", "Slow")]
     public void FourClients_OnUnevenLinks_WithAStallAndADropout_EndInTheSameWorld()
     {
-        const int Steps = 500, StallFrom = 150, StallUntil = 180, DropAt = 300, Dropped = 3, Staller = 1;
+        // A 20-tick stall still overflows the relay's queue (LockstepRoom.MaxQueuedInputs is 4) many times over.
+        const int Steps = 160, StallFrom = 40, StallUntil = 60, DropAt = 100, Dropped = 3, Staller = 1;
         var relay = new InMemoryRelay(Slots, seed: 5, maxDelay: 3);
         var worlds = Enumerable.Range(0, Slots).Select(_ => CreateWorld()).ToArray();
         var sessions = worlds.Select((w, slot) => (NetSession?)new NetSession(relay.LinkFor(slot), w)).ToArray();

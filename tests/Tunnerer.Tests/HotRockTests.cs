@@ -274,11 +274,16 @@ public class HotRockGradientTests
     [Fact]
     public void Pockets_FormAGradient_CoreAtTheCentre_AndPocketsClusterNearIt()
     {
+        // Each seed's world is independent and takes most of a second to build (the pockets warm up first), so the
+        // worlds are built side by side and their pockets summed afterwards, in seed order.
+        var worlds = new World[8];
+        Parallel.For(0, worlds.Length, i =>
+            worlds[i] = TestHelpers.CreateSeededWorld(seed: 9000 + i, hotRockPocketCount: Tweaks.World.HotRockPocketCount));
+
         double sumFraction = 0;
         int pockets = 0, coresExpected = 0;
-        for (int seed = 9000; seed < 9008; seed++)
+        foreach (var world in worlds)
         {
-            var world = TestHelpers.CreateSeededWorld(seed: seed, hotRockPocketCount: Tweaks.World.HotRockPocketCount);
             var middle = new Position(world.Terrain.Width / 2, world.Terrain.Height / 2);
 
             // The core sits at the centre unless a base is too close to it (a base never gets a hot neighbour).

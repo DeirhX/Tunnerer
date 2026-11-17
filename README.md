@@ -26,7 +26,7 @@ dotnet run --project src/Tunnerer.Desktop
 dotnet test Tunnerer.slnx
 ```
 
-The tests cover `Tunnerer.Core` only and need neither a GPU nor the shader compiler when run per project:
+The tests cover `Tunnerer.Core`, the Desktop logic that needs no window, the protocol and the relay, and need neither a GPU nor the shader compiler when run per project:
 `dotnet test tests/Tunnerer.Tests`.
 
 Tests that take more than about five seconds carry `[Trait("Category", "Slow")]`. For a quick run while
@@ -40,8 +40,10 @@ full suite.
 | W A S D | Drive and dig |
 | Mouse | Aim the turret |
 | Left click / Space | Fire |
-| E | Build a relay (150 dirt); press again to plant it |
-| R | Build a harvester; press again to plant it |
+| E | Build a relay (4 ore); press again to plant it |
+| R | Build a harvester (30 ore); press again to plant it |
+| T | Build a pylon (10 ore); press again to plant it |
+| 1-6 | Docked at your base: buy an upgrade (1-4 base track, 5-6 tank track) |
 | M | Mute / unmute the sound |
 | - / = | Volume down / up |
 | F9 | Thermal view |

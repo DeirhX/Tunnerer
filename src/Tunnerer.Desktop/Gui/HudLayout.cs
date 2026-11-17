@@ -33,8 +33,8 @@ public sealed class HudLayout
     public const float LeftW = BuildX, RightW = BuildPanelW;
 
     /// <summary>
-    /// The narrowest clear gap between the two parts, in UI units (not scaled with the art): room for the base upgrade
-    /// panel and its margins. Displays too narrow for it shrink the HUD.
+    /// The narrowest clear gap between the two parts, in UI units (not scaled with the art), so the tank in the middle
+    /// of the view and the ground around it stay clear. Displays too narrow for it shrink the HUD.
     /// </summary>
     public const float MinCenterGap = 404f;
 

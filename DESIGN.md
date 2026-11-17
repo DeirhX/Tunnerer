@@ -164,7 +164,9 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
 - **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
   the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node, and while the
   hold unloads, teal crystals run beside it and along the links home. Off network an
-  "OFF NETWORK ~Ns" tag above the TEMP gauge shows how long until the floor reaches the safe maximum.
+  "OFF NETWORK ~Ns" tag above the TEMP gauge shows how long until the floor reaches the safe maximum. Tethers,
+  links and charge beams grow out from their source when they connect and dissolve when they break, so gaining or
+  losing the network is something you see happen, not a line popping on or off.
 
 ### 4.7 Temperature: too hot, too cold *(Prototype)*
 
@@ -238,9 +240,22 @@ A sector only completes when it runs without the player, so nothing may depend o
 
 ### 5.3 What the tank needs
 
-- Cargo capacity, as an upgradeable stat.
-- A placement interface for structures. This is real work: the game renders at 320×200 and builds with single key
+- Cargo capacity, as an upgradeable stat (in: the cargo hold upgrade, §4.8).
+- A placement interface for structures. This is real work: the default match is 320×200 cells, and the game builds with single key
   presses today.
+
+### 5.4 The screen *(Decided)*
+
+The tank is what the player watches, so the screen is built around it.
+
+- **The tank stays in the middle.** The camera keeps the tank centred everywhere, running past the edge of the map
+  when it has to, so the tank never ends up under a panel at the edge of the screen.
+- **The middle stays clear.** The bottom HUD is split into the two bottom corners: TEMP, SHIELD and MATERIALS on
+  the left, BUILD STRUCTURES on the right. The gap between them is play area, and the mouse aims there. On a
+  narrow screen the HUD shrinks before the gap closes. Panels that appear while docked, such as the upgrade list,
+  sit to the side of the tank, clear of the base's entrances above and below it.
+- **Tunnels read as ground.** Dug-out ground is a dim floor tinted by the rock it was cut through and darker
+  towards the walls, not a black void. It stays quiet so tanks, shots and pickups stand out on it.
 
 ## 6. The world
 
@@ -486,30 +501,39 @@ Systems borrowed from games where they worked:
 
 ## 11. Starting point in the code
 
-On the thermal integration work (branch `integrate/thermal-ledger-and-visuals` at the time of writing; not yet on
-`master`), the game already has:
+On `master` (2026-11-17) the game has:
 
 - An energy-exact heat simulation over terrain and air fields, with a ledger of every source and sink.
-- A base with a finite reservoir and a radiator.
+- A base with a finite reservoir and a radiator, and base and tank upgrades bought from its ore store (§4.8).
 - Relays that pump heat from a radius into the base when linked by direct line of sight through open tunnel.
-- Harvesters that roam near where they were planted, mining ore into the base store through the network; a relay
-  keeps them cool.
-- Tank temperature in a band around 0: docking settles it near 0, cold slows it, both extremes damage it.
-- Hot rock pockets as permanent heat sources and frost pockets as cold ones, opt-in per world.
-- Harvester, relay and pylon machines, gold as a pickup, and one bot opponent.
+- The power loop (§4.5): the base engine turns relay heat into charge; pylons hand it to harvester batteries.
+- Emberite ore as the only currency (§6.3, §6.4): specks, pockets and warm-cored lumps; a small tank hold that
+  unloads at the base or through the network; machines paid for in ore.
+- Harvesters that crawl to the plain ore near where they were planted and mine it into the base store through the
+  network, refuelling at pylons; a relay keeps them cool, and a lump's core is left to the tank's torch.
+- Network coverage as the tank's leash (§4.6), and tank temperature in a band around 0 (§4.7): docking settles it
+  near 0, cold slows it, both extremes damage it.
+- Hot rock pockets as permanent heat sources and frost pockets as cold ones (a match has 8 and 5), and a hot core
+  at the centre of the map to tap (§4.8).
+- Fog of war and the tank's radar pulse (§6.6).
+- Network matches for up to 8 players through a relay server, in deterministic lockstep, with bots in the empty
+  slots (`docs/multiplayer-design.md`); locally, one bot opponent.
+- Gold as a pickup.
+- A tutorial of next steps and event notifications, synthesised sound, and rendering at the display's own pixel
+  density with the screen layout of §5.4.
 
-Gaps between that and this design, using the constants in `Tweaks.cs` in the working copy on 2026-11-14:
+Gaps between that and this design, using the constants in `Tweaks.cs` on `master` on 2026-11-17:
 
-1. **Nothing forces the player into heat.** Digging adds 0.008 heat per pixel and a shot 0.25, against a safe
-   limit of 100.
-2. **The base is not a bottleneck.** The radiator vents about 1,000 energy per tick against a 50,000 reservoir; a
-   relay pumps 300.
-3. **Tanks carry little.** A tank's whole safe range is about 2,000 energy.
-4. **Relays teleport heat.** There is no line capacity and no route to choose or cut.
-5. **Heat leaks outside the loop** (see 4.3).
-6. **There is one map, one generator and no world map, save format or sector state.**
+1. **Work makes little heat.** Digging adds 0.008 heat per pixel and a shot 0.25, against a safe limit of 100.
+   What limits a dive today is the off-network clock (§4.6), not the work itself.
+2. **Tanks carry little.** A tank's whole safe range is about 2,000 energy.
+3. **Relays teleport heat.** There is no line capacity and no route to choose or cut.
+4. **Heat leaks outside the loop** (see 4.3).
+5. **There is one map, one generator and no world map, save format or sector state.**
 
-These figures come from reading the constants, not from play.
+The radiator is no longer a gap: it vents 500 energy per tick against a 50,000 reservoir, so two relays (300
+each) out-pump it and it is the shared bottleneck (§12.1, step 3). These figures come from reading the
+constants, not from play.
 
 ## 12. Build order
 
@@ -521,13 +545,16 @@ Three changes, to find out whether the step from ring 1 to ring 2 is fun:
 2. Machines that emit heat when they work.
 3. A radiator tuned to be the real bottleneck.
 
+Step 3 is in. Steps 1 and 2 are partly in: the map has one hot core at its centre rather than a gradient, and
+harvesters' spent charge ends up as heat in the ground (§4.5), but relays and pylons make none of their own.
+
 ### 12.2 After that
 
 Each step should be playable without the next.
 
-1. Minerals with mineral build costs; conductor and insulator materials.
+1. Minerals with mineral build costs (one is in: emberite pays for everything); conductor and insulator materials.
 2. Quenchable hot rock.
-3. Cargo and a placement interface.
+3. Cargo (in: the tank's ore hold) and a placement interface.
 4. Steady-state detection and a sector quota.
 5. One mob type and one nest; turrets.
 6. World map, sector save, freeze and resume.
@@ -557,6 +584,7 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | The tank's range is set by network coverage and its heat; no second meter on the tank | Prototype |
 | The sector goal is tapping the core; the ore store buys base and tank upgrades | Prototype |
 | Emberite ore is the only currency; the network is where the hold unloads and the store pays | Prototype |
+| The camera keeps the tank centred; the bottom HUD sits in the corners, leaving the middle clear | Decided |
 | Heat-seeking mobs; threat scales with heat rejected | Proposed |
 | Quenchable hot rock as the first hazard | Proposed |
 | Alerts are caused by the player's actions; headroom buys time | Proposed |
