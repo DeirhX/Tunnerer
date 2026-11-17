@@ -26,7 +26,7 @@ dotnet run --project src/Tunnerer.Desktop
 dotnet test Tunnerer.slnx
 ```
 
-The tests cover `Tunnerer.Core` only and need neither a GPU nor the shader compiler when run per project:
+The tests cover `Tunnerer.Core`, the Desktop logic that needs no window, the protocol and the relay, and need neither a GPU nor the shader compiler when run per project:
 `dotnet test tests/Tunnerer.Tests`.
 
 Tests that take more than about five seconds carry `[Trait("Category", "Slow")]`. For a quick run while
