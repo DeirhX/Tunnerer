@@ -48,7 +48,7 @@ deterministic either way. `Game.Run` hands a set of callbacks to `GameFrameCoord
 while running:
   1. SdlRenderer.PollEvents            -> Game.HandleEvent (session keys, ImGui, debug hotkeys)
   2. wait until a simulation step or a display frame is due (sleeps instead of spinning)
-  3. update camera / view state         (match: follow the player; terrain test: WASD pans)
+  3. update camera / view state         (match: keep the player centred; terrain test: WASD pans)
   4. capture mouse state
   5. for each due step (at most 4 to catch up):
        match:
@@ -78,10 +78,22 @@ the display allows (vsync, capped by `DesktopScreenTweaks.MaxRenderFps`) and pas
 progress*, the fraction of a step elapsed since the last one. `EntityLayerBuilder` draws tanks, projectiles, machines and links
 at that point between the previous and the latest step (`Rendering/Entities/EntityInterpolator`), and the camera follows the interpolated player, so
 motion is smooth at the display rate while the terrain only changes on steps. The cost is that what is shown
-trails the simulation by up to one step.
+trails the simulation by up to one step. Beams (links, charge, tethers) fade in and out over a fraction of a
+second in display time (`Rendering/Entities/BeamFader`), so they do not pop with the simulation.
+
+The game renders at the display's own pixel density (Retina included): the game view and camera are in device
+pixels, the UI in points. The camera keeps the player in the middle of the screen, running past the map's edges
+when it has to, and the bottom HUD is split into the two bottom corners so the middle of the view stays clear.
+`src/Tunnerer.Desktop/ARCHITECTURE.md`, "Display density and the HUD", has the detail.
 
 Automated runs are step-locked instead: one frame per step, showing exactly that step, so screenshots and timings
 are reproducible. `TUNNERER_INTERPOLATE=1` turns the in-between frames on for them.
+
+A network match (`--net`, `Game.Net.cs`) is deterministic lockstep: every client runs the whole simulation and
+only inputs travel. `Net/NetSession` sends the local player's input to the relay (`Tunnerer.Relay`), steps the world
+only from the tick bundles the relay sends back, never from the local clock, and reports a world hash once a second
+so a client that drifts apart is caught. Bots drive the slots nobody took, seeded the same on every client. The
+pause menu opens over a running game. `docs/multiplayer-design.md` has the protocol and the relay.
 
 Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
 A run counts as *automated* when it is scripted, hidden or a perf capture. Automated runs and the terrain test are
@@ -177,12 +189,17 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 - **Core**: terrain and pixels, collision, level generation, tank movement, heat and the temperature band, relays,
   the power loop, network coverage, hot and frost rock, the sector goal and base upgrades, the thermal ledger and whole-world thermal behaviour, determinism, replays and
-  recorded fingerprints, match outcome, network status, placement preview, fog of war and radar (`VisionMapTests`, `RadarTests`) and the bot.
-- **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, layout), the tutorial and
+  recorded fingerprints, match outcome, network status, placement preview, fog of war and radar (`VisionMapTests`, `RadarTests`), emberite ore (deposits, mining,
+  the economy, the radar's echo) and the bot.
+- **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, the HUD's scale,
+  gap and covered area), the tutorial and
   event notifications (`GuidanceTests`), entity
-  interpolation (`EntityInterpolatorTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
+  interpolation (`EntityInterpolatorTests`), beam fading (`BeamFaderTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
   planning (`TerrainAuxUploaderTests`), fog rendering (`FogRenderingTests`), world construction (`WorldFactoryTests`), and the solid field and material
   coverage the terrain shader samples.
+- **Network matches**: the input codec and messages (`MessageCodecTests`), the relay's rooms and tick rule
+  (`MatchRoomTests`, `LockstepRoomTests`), client sessions (`NetSessionTests`), recordings, and a relay over real
+  sockets (`RelayOverSocketsTests`, which never run in parallel with the rest).
 - **Guard tests** keep the structure in place; `AGENTS.md` lists them.
 
 The window, GPU backend and sound device have no unit tests. They are checked with scripted hidden runs that save
