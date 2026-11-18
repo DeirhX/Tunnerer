@@ -4,16 +4,31 @@
 export const RESOLUTION_STEPS = [1, 0.8, 0.65, 0.5];
 
 const WINDOW_FRAMES = 90;
-// Slower than this is worth giving up pixels for.
-const SLOW_FRAME_MS = 1000 / 45;
+// The pace aimed for: frames slower than 60 a second (with a tenth to spare for jitter) are worth giving up pixels.
+const TARGET_FPS = 60;
+const SLOW_FRAME_MS = (1000 / TARGET_FPS) * 1.1;
+// A display's own pace counts as fast enough, with the same margin: a browser that shows 30 a second (a low-power
+// mode) is not a slow GPU.
+const REFRESH_MARGIN = 1.1;
+// The slowest share of a window's frames is left out of its pace, so hitches (a collection, a tab switch) do not count.
+const HITCH_SHARE = 0.15;
 // A step down must shorten frames at least this much to be kept.
 const HELPED_RATIO = 0.87;
 
-// Watches how fast frames are displayed and picks the resolution step. It judges by the median of a window of
-// frames, so single hitches do not count. Frames come in whole display refreshes, so one step down may change
-// nothing where the next one would: only when two steps in a row do not make frames come faster are they undone
-// and the search ended, because then something other than pixels is slow. It never steps back up: a picture that
-// changes sharpness while playing is worse than one that stays a little soft.
+// The pace of a window: its frames' average length, leaving out the slowest. An average, not the median, because
+// frames come in whole display refreshes: a GPU that keeps 45 a second on a 60 Hz display shows two frames in three
+// at one refresh and the third at two, and the median of that is one refresh.
+function windowPace(intervals) {
+    const sorted = intervals.sort((a, b) => a - b);
+    const kept = sorted.slice(0, Math.ceil(sorted.length * (1 - HITCH_SHARE)));
+    return kept.reduce((sum, ms) => sum + ms, 0) / kept.length;
+}
+
+// Watches how fast frames are displayed and picks the resolution step, aiming for 60 a second (or the display's own
+// pace where that is slower). It judges a window of frames at a time, so single hitches do not count. One step down
+// may change nothing where the next one would: only when two steps in a row do not make frames come faster are they
+// undone and the search ended, because then something other than pixels is slow. It never steps back up: a picture
+// that changes sharpness while playing is worse than one that stays a little soft.
 export class ResolutionGovernor {
     constructor() {
         this.step = 0;
@@ -42,10 +57,9 @@ export class ResolutionGovernor {
         }
         this.intervals.push(elapsed);
         if (this.intervals.length < WINDOW_FRAMES) return;
-        const sorted = this.intervals.sort((a, b) => a - b);
-        const median = sorted[sorted.length >> 1];
+        const pace = windowPace(this.intervals);
         this.intervals = [];
-        this.refreshMs = Math.min(this.refreshMs, median);
+        this.refreshMs = Math.min(this.refreshMs, pace);
         if (!playing || this.settled) return;
         if (this.skipWindows > 0) {
             this.skipWindows--;
@@ -53,7 +67,7 @@ export class ResolutionGovernor {
         }
         const last = RESOLUTION_STEPS.length - 1;
         if (this.beforeStepMs !== null) {
-            if (median < this.beforeStepMs * HELPED_RATIO) {
+            if (pace < this.beforeStepMs * HELPED_RATIO) {
                 this.heldStep = this.step;
                 this.beforeStepMs = null;
             } else if (this.step - this.heldStep >= 2 || this.step === last) {
@@ -65,9 +79,9 @@ export class ResolutionGovernor {
                 return;
             }
         }
-        const slow = median > Math.max(SLOW_FRAME_MS, this.refreshMs * 1.3);
+        const slow = pace > Math.max(SLOW_FRAME_MS, this.refreshMs * REFRESH_MARGIN);
         if (slow && this.step < last) {
-            this.beforeStepMs = median;
+            this.beforeStepMs = pace;
             this.stepDown();
         }
     }

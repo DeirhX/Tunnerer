@@ -1,5 +1,6 @@
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Desktop.Audio;
+using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Presentation;
 using Tunnerer.Desktop.Rendering.Entities;
 
@@ -23,7 +24,7 @@ public class MachinePresentationTests
     public void KeysAndSlots_AreDistinct_AndFitThePanel()
     {
         var all = MachinePresentations.All;
-        Assert.Equal(all.Count, all.Select(p => p.Key).Distinct().Count());
+        Assert.Equal(all.Count, all.Select(p => p.KeyLabel).Distinct().Count());
         Assert.Equal(all.Count, all.Select(p => p.BuildSlot).Distinct().Count());
         Assert.All(all, p => Assert.InRange(p.BuildSlot, 0, BuildSlotCount - 1));
         Assert.Equal(all.OrderBy(p => p.BuildSlot), MachinePresentations.InSlotOrder);
@@ -41,7 +42,7 @@ public class MachinePresentationTests
     public void KeyLabel_NamesTheBoundKey()
     {
         foreach (var p in MachinePresentations.All)
-            Assert.Equal(p.Key.ToString(), p.KeyLabel);
+            Assert.Equal(p.KeyLabel, KeyboardController.BuildKeys[(int)p.Type].ToString());
     }
 
     [Fact]

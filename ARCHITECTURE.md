@@ -61,7 +61,7 @@ while running:
          GameSimulationStepper.AdvanceOneStep
            scripted commands -> keyboard / scripted input for the local slot, a BotTankAI per other slot -> World.Advance
          EntityLayerBuilder.CaptureStep    (tank, projectile, machine and link snapshot for the entity layer)
-         GameAudio.AfterStep               (plays the step's World.StepEvents, sets the loops)
+         GameAudio.AfterStep               (SoundDirector plays the step's World.StepEvents, sets the loops)
          GameHud.AfterStep                 (GameEventWatcher counts the ore harvesters banked this step)
          TerrainAuxUploader.ObserveTerrainChanges (changed cells, to repack on the next frame)
          Game.DrawTerrainChangesToSurface  (incremental update of the world pixel buffer)
@@ -102,6 +102,11 @@ so a client that drifts apart is caught. Bots drive the slots nobody took, seede
 pause menu opens over a running game. `docs/multiplayer-design.md` has the protocol and the relay.
 
 Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
+The pause menu's network entry (`Game.NetMenu.cs`, `Gui/NetMenuView.cs`) only collects choices: `Net/NetMenuModel` is the menu
+without ImGui (screens, fields, validation, the launch Enter produces), `Net/PlayerSettings` is `settings.ini`, and
+`Net/LaunchArguments` parses the command line and builds the one for the next run. The game then closes and `Program.cs`
+starts it again in the match (the secret goes in `TUNNERER_RELAY_SECRET`, never in the arguments); a launch the relay
+refuses comes back as a local match with the menu open (`docs/multiplayer-lobby-ux.md`).
 A run counts as *automated* when it is scripted, hidden or a perf capture. Automated runs and the terrain test are
 not *interactive* (`Game.IsInteractiveSession`): they keep a fixed seed, make no sound, never pause on their own,
 and Escape quits at once.
@@ -154,7 +159,11 @@ procedurally at screen resolution by the entity layer. Shader passes and backend
 ## Guidance: tutorial and notifications
 
 `Tunnerer.Desktop/Gui/Guidance` tells the player what to do next without touching the simulation. It only reads Core
-state once per displayed frame.
+state. It is shared with the browser through `Tunnerer.Rendering`, with `Gui/HintSelector.cs` and
+`Presentation/MachinePresentation.cs`, so neither file may use ImGui or SDL. `PlayerGuidance` is what both hosts
+hold: they call `AfterStep` after every step and `Update` with their HUD clock, then show its `Tutorial`,
+`Notifications`, `Hint` and `Warning`. The desktop updates it once per displayed frame on the HUD's time; the browser
+updates it after each step on the match's time (`BrowserSession.HudSeconds`) and sends it with the frame.
 
 - `TutorialDirector` is an ordered list of next logical steps (leave the base, mine ore, unload, build and link a relay,
   stay on the network, power from hot rock, harvester, relay beside it, pylon, frost). Each step knows from the world
@@ -165,6 +174,9 @@ state once per displayed frame.
   store full, charge low, off network, radar scattered by heat, engine running, harvester ore deliveries). The
   deliveries are counted from `StepEventKind.OreHarvested` after every step (`AfterStep`), not from the store, so a
   tank unloading in the same frame is not mistaken for them. The feed de-duplicates by key with a cooldown.
+- `HintSelector` picks the one context hint for the build keys (what E will do now, or why a carried machine will not
+  plant), and `PlayerWarnings` the one warning banner, most urgent first (overheating, frostbite, chilled, low shield,
+  running hot, the respawn shield, and after the first hit a tip about the thermal view where the host has one).
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
   docked (base track on keys 1-4, tank track on 5-6) and the sector-complete banner. The build panel asks
@@ -179,13 +191,14 @@ cover it.
 
 ## Sound
 
-`Tunnerer.Desktop/Audio` turns the simulation into sound without the simulation knowing. `GameAudio` runs once
+`Tunnerer.Desktop/Audio` turns the simulation into sound without the simulation knowing. `SoundDirector` runs once
 after every simulation step, never per displayed frame, so an effect cannot repeat on the frames shown between
 steps. It does not compare the world between steps: Core lists what happened during the step in `World.StepEvents`
-(a shot, an impact, a death, a planting, a docking...) and `GameAudio` starts the matching effect, placed in stereo
-and attenuated by distance from the player's tank. All effects are
-synthesised at start-up (`SoundBank`), mixed by `SoundMixer` and played through an SDL audio device. Automated runs
-open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
+(a shot, an impact, a death, a planting, a docking...) and `SoundDirector` starts the matching effect, placed in
+stereo and attenuated by distance from the player's tank, into an `ISoundSink`. All effects are synthesised
+(`SoundBank`). On the desktop `GameAudio` gives the director its mixer (`SoundMixer`), played through an SDL audio
+device; automated runs open no device. The browser shares `SoundDirector` and `SoundBank`: its sink records each
+step's sounds into the frame, and the page plays them with the bank's samples (`docs/browser.md`). Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
 
 ## Tests
 
@@ -205,6 +218,9 @@ open no device. Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
   (`MatchRoomTests`, `LockstepRoomTests`), client sessions (`NetSessionTests`), recordings, and a relay over real
   sockets (`RelayOverSocketsTests`; the tests that wait on a timer or a paced match are its nested classes in
   `TimedTestGroup`, which never run in parallel with the rest, and the quick run skips them).
+  The network menu: `LaunchArgumentsTests` (the command line and the arguments of the next run, the secret kept out
+  of them), `NetMenuModelTests`, `PlayerSettingsTests`, `TextInputSuppressesHotkeysTests` and `NetMenuRefusalTests`
+  (what the real relay says to a refused launch).
 - **Guard tests** keep the structure in place; `AGENTS.md` lists them.
 
 How the suite stays quick: a test over about five seconds is marked `[Trait("Category", "Slow")]`, so

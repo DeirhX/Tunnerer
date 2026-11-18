@@ -430,8 +430,9 @@ Core:
 
 Desktop:
 
-7. A `MachinePresentation` in `MachinePresentations` (`Presentation/MachinePresentation.cs`): names, keyboard key,
-   build-panel slot and plant hint. Its `MachineSprite` in `MachineSprites` (`Rendering/Entities/MachineSprite.cs`,
+7. A `MachinePresentation` in `MachinePresentations` (`Presentation/MachinePresentation.cs`, shared with the
+   browser): names, key label (the desktop's keyboard reads the SDL key of that name), build-panel slot and plant
+   hint. Its `MachineSprite` in `MachineSprites` (`Rendering/Entities/MachineSprite.cs`,
    shared with the browser): shader shape kind, body size, whether it turns to its heading or stands upright with a
    gauge, its sense ring, battery gauge and preview reach. `MachineQuads` and `PreviewQuads` draw from it; neither
    switches on the type. Its build sound in `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`, also shared).

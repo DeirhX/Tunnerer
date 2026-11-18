@@ -227,7 +227,8 @@ public class HarvesterHeatTests
 
         s.Base.Store.Ore -= 5; // the player spends some
         Advance(s, HarvestTicks(Tweaks.Ore.HarvesterPlainWork + 1));
-        Assert.Equal(HarvesterState.Working, MachineBehaviors.HarvesterStateOf(harvester));
+        // Working or throttled by its own heat (it hovers at the stall temperature), but no longer waiting on the store.
+        Assert.NotEqual(HarvesterState.StoreFull, MachineBehaviors.HarvesterStateOf(harvester));
         Assert.True(OreAround(s, Tweaks.Machine.HarvestRange) < oreBefore, "it goes back to work");
     }
 

@@ -315,7 +315,7 @@ degrees and the ground just outside to about 45, so a harvester at its edge sens
 limit is 30), and the radar reads the whole lump as heat. Harvesters never mine core cells; only the tank's torch
 does. Once the core is out the lump cools: with no relay its edge is workable within about 15 seconds and the whole
 lump within half a minute, and a linked relay beside it cools it in a few seconds. Then harvesters clear the shell, a
-cell every three actions (about a minute for a hundred cells, more counting trips to a pylon). A relay planted right
+cell about every second (about a minute for a hundred cells, more counting trips to a pylon). A relay planted right
 against an intact lump pumps enough heat that harvesters can already work its outer shell, stalling only within a
 few cells of the core; the core itself still waits for the tank. *(Tuning open: whether an intact core should hold
 its shell against a relay too.)*
@@ -346,14 +346,17 @@ base store starts with 30. The tank's hold is small (40), so getting ore home is
 - **Unloading through the network.** Inside linked coverage the hold unloads into the base store at 4 units a
   second, a unit at a time, while the store has room; docking is faster. Relays and pylons are therefore also
   drop-off points: planting one near a dig site saves the trip home.
-- **Harvesters mine ore.** A harvester works the plain ore within 4 cells of itself (3 actions a cell), crawls
+- **Harvesters mine ore.** A harvester works the plain ore within 4 cells of itself (6 actions a cell, every 150 ms), crawls
   along the shortest path to plain ore in its work area that it can get within reach of, clearing the dirt in its
   way, and pays charge per action as before. Rock, concrete and ore itself block its 5x5 body, so ore sealed in
   rock is out of its reach: it passes that over for ore it can get to, and with none says it is out of ore.
-  It leaves a lump's core to the tank (§6.3): with only core left it idles and the base panel says so ("at a warm
-  core: torch it out with the tank"). Its ore reaches the base only through the network, so it works only while it
-  stands in the own linked coverage; off the network, with no ore it can reach, or with the store full (the panel
-  says "waiting: the base ore store is full"), it idles and spends nothing.
+  It leaves a lump's core to the tank (§6.3), and the ore round the core while it is too hot to work (45 degrees):
+  it goes for other ore instead, and with only that left it idles and the base panel says so ("at a warm core:
+  torch it out with the tank"). It crawls about 6.7 cells a second. Off the network, or on ground too hot to work, it
+  does not work but still crawls on toward ore, so a tunnel that bends out of its relay's sight does not leave it
+  frozen. Its ore reaches the base only through the network, so it works only while it
+  stands in the own linked coverage. With no ore it can reach, or with the store full (the panel says "waiting: the
+  base ore store is full"), it idles and spends nothing.
 - **The bot** does not prospect yet. As a stand-in, a base whose side the computer plays gets 0.5 ore a second.
   The bot builds and buys nothing today, so this only keeps its store from being empty once it does.
 

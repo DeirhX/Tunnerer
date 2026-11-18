@@ -15,8 +15,6 @@ using static Tunnerer.Desktop.Gui.HudDraw;
 /// </summary>
 public sealed class NetworkPanel
 {
-    private int _lastPoweredRelays;
-    private float _relayLinkedUntil = -1f;
     private double _radiatorInflow;
     private double _engineOutput;
 
@@ -26,10 +24,12 @@ public sealed class NetworkPanel
         HintTone.Good => HudTheme.Good,
         HintTone.Warn => HudTheme.Warn,
         HintTone.Bad => HudTheme.Danger,
+        HintTone.Accent => HudTheme.Amber,
         _ => HudTheme.Text,
     };
 
-    public void Draw((float x, float y, float w, float h) vp, Tank player, World world, float time)
+    /// <param name="hint">The context hint (<see cref="Guidance.PlayerGuidance.Hint"/>).</param>
+    public void Draw((float x, float y, float w, float h) vp, Tank player, World world, (string Text, HintTone Tone) hint)
     {
         var tankBase = player.Base;
         if (vp.w <= 0 || vp.h <= 0 || tankBase == null)
@@ -48,31 +48,7 @@ public sealed class NetworkPanel
         float fill = (float)status.HeatStoreFill;
         var fillColor = HudTheme.LevelColor(status.HeatStoreLevel, HudTheme.Good);
 
-        bool insideBase = world.IsInsideAnyBase(player.Position);
-        if (powered > _lastPoweredRelays)
-            _relayLinkedUntil = time + 4f;
-        _lastPoweredRelays = powered;
-
-        bool docked = player.IsDockedAtOwnBase;
-        var carried = player.CarriedMachineType;
-        var relayQuote = player.QuoteBuild(MachineType.Relay);
-        var (hint, tone) = HintSelector.Select(new HintInputs(
-            IsDead: player.IsDead,
-            HasLeftBase: player.HasLeftBase,
-            Docked: docked,
-            InsideBase: insideBase,
-            RelayJustLinked: time < _relayLinkedUntil,
-            PumpingRelays: pumping,
-            PlantRefused: player.PlantRefusedTicks > 0,
-            Carried: carried,
-            CarriedLink: world.CarriedPlantLink(player),
-            HeatStoreFull: status.IsHeatStoreFullWithRelays,
-            Harvesters: harvesters,
-            SpendableOre: relayQuote.Stock,
-            RelayFromBaseStore: relayQuote.Payer == OrePayer.BaseStore,
-            NotEnoughOre: player.BuildRefusedTicks > 0 && player.LastBuildRefusal == BuildRefusal.NotEnoughOre,
-            CoolingDown: player.IsCoolingDown));
-        var hintColor = ToneColor(tone);
+        var hintColor = ToneColor(hint.Tone);
 
         if (HudTheme.BeginWindow("##HeatNetworkOverlay", new Vector2(vp.x + vp.w - 14f, vp.y + 14f), new Vector2(1f, 0f), 400f))
         {
@@ -125,10 +101,10 @@ public sealed class NetworkPanel
                     $"Radiator {(int)Math.Round(_radiatorInflow)} in / {(int)ventCapacity} out per tick");
                 HudTheme.BarRow(Math.Clamp(load / 1.5f, 0f, 1f), loadColor, null, 10f);
             }
-            if (hint.Length > 0)
+            if (hint.Text.Length > 0)
             {
                 ImGui.Separator();
-                HudTheme.WrappedRow(hint, hintColor, 16f);
+                HudTheme.WrappedRow(hint.Text, hintColor, 16f);
             }
             HudTheme.KeyRow("H", "heat view", HudTheme.TextDim, 15f);
         }

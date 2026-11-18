@@ -139,6 +139,41 @@ public class GuidanceTests
     }
 
     [Fact]
+    public void Guidance_ToastsALinkedRelay_AndTheHintSaysSoForAFewSeconds()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        s.Tank.Position = OutsideTheDoor(s);
+        Advance(s, 1);
+        var guidance = new PlayerGuidance();
+        guidance.Update(s.World, s.Tank, 0f, offerThermalView: true);
+        Assert.Empty(guidance.Notifications);
+
+        RelayHeatTests.PlantRelay(s);
+        Advance(s, 12);
+        guidance.Update(s.World, s.Tank, 1f, offerThermalView: true);
+        Assert.Contains(guidance.Notifications, n => n.Key == "relay-linked");
+        Assert.StartsWith("Relay linked", guidance.Hint.Text, StringComparison.Ordinal);
+
+        guidance.Update(s.World, s.Tank, 6f, offerThermalView: true);
+        Assert.DoesNotContain("Relay linked", guidance.Hint.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Warnings_RunningHot_LatchesUntilTheTankHasCooled()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var warnings = new PlayerWarnings();
+        float safe = Tweaks.Tank.HeatSafeMax;
+
+        s.Tank.Heat = safe * (Tweaks.Tank.RunningHotOnFraction + 0.05f);
+        Assert.Equal(WarningKind.RunningHot, warnings.Update(s.Tank, offerThermalView: false, 0f)?.Kind);
+        s.Tank.Heat = safe * (Tweaks.Tank.RunningHotOnFraction + Tweaks.Tank.RunningHotOffFraction) / 2f;
+        Assert.Equal(WarningKind.RunningHot, warnings.Update(s.Tank, offerThermalView: false, 1f)?.Kind);
+        s.Tank.Heat = 0f;
+        Assert.NotEqual(WarningKind.RunningHot, warnings.Update(s.Tank, offerThermalView: false, 2f)?.Kind);
+    }
+
+    [Fact]
     public void Feed_DoesNotRepeatAKeyWithinItsCooldown_AndDropsExpiredToasts()
     {
         var feed = new NotificationFeed();

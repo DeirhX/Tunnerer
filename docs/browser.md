@@ -61,7 +61,7 @@ If the threaded runtime fails to load, the match starts on one thread instead.
 One deployment carries both runtimes, rather than the runtime being fixed when publishing, because a deployment
 with only the threaded one would not start where the page is not isolated, the device has few cores, or the
 browser is not Chromium. A browser still downloads and keeps only the one it uses: the offline manifest lists the
-two apart (0.4 MiB shared; single-thread 9.5 MiB, threaded 10.1 MiB), and the service worker asks `threads.js` the
+two apart (0.5 MiB shared; single-thread 10.2 MiB, threaded 10.8 MiB), and the service worker asks `threads.js` the
 page's own question and caches that one ahead of time. The other is cached if the page ever loads it. The zip
 holds both, so it is about twice the size of a default publish's.
 
@@ -167,8 +167,34 @@ world is drawn at. The same numbers are in `window.tunnererPerf`.
   Max in Chromium, seed 1234 with the player idle, at the game's 24 steps a second: 9.4 ms a step on one thread
   and 4.1 to 4.7 ms in the threaded runtime with eight heat workers. Stepping without a pause between steps takes
   6.2 ms and 1.1 ms: about 3 ms of every paced step is the cores waking up, which threads do not shorten.
-- Where the graphics hardware cannot keep 45 frames a second, the world is drawn at a lower resolution and
-  stretched (`pace.js`: 80%, 65%, 50%); the HUD stays sharp. Steps that do not make frames come faster are undone.
+- Where the graphics hardware cannot keep 60 frames a second (or the display's own pace where that is slower), the
+  world is drawn at a lower resolution and stretched (`pace.js`: 80%, 65%, 50%); the HUD stays sharp. It judges a
+  window of frames by their average with the slowest 15% left out, so hitches do not count but a GPU that misses
+  every third refresh does. Steps that do not make frames come faster are undone, and it never steps back up.
+- `?map=3000x1500` plays on a larger map (up to 4096 each way) and `?machines=400` grows networks of that many
+  machines from every base before play (`BrowserStress`: tunnels dug through dirt, relays where the placement
+  preview shows a live link, a harvester and a pylon beside every third), for measuring a busy late game. Setting
+  that up steps the world for a while, so the match takes longer to start.
+  Measured 2026-11-18 in headless Chromium on an Apple M5 Max, AOT build, seed 1234, display at 60 Hz, device pixel
+  ratio 1:
+
+  | Match | Heat threads | Step | Frame | Steps a second | Start |
+  |---|---|---|---|---|---|
+  | 1500x750, no machines | 8 | 4.2 ms | 0.2 ms | 24 | 2.4 s |
+  | 3000x1500, 400 machines | 8 | 6.6 ms | 1.5 ms | 24 | 9.7 s |
+  | 3000x1500, 400 machines | 1 | 22.3 ms | 1.3 ms | 24 | 16.2 s |
+  | 4000x2000, no machines | 8 | 7.3 ms | 0.3 ms | 24 | 15.5 s |
+  | 4000x2000, no machines | 1 | 28.2 ms | 0.6 ms | 24 | 20.1 s |
+  | 4000x2000, 800 machines | 8 | 10.7 ms | 3.1 ms | 24 | 19.1 s |
+  | 4000x2000, 800 machines | 1 | 36.4 ms | 3.3 ms | 20 | 37.5 s |
+
+  The 800 machines are 558 relays, 125 harvesters and 117 pylons. On one thread the largest falls behind: a step
+  and a frame take nearly all of the 41.7 ms a step has, and the worker does both. Most of a step's cost comes with
+  the map's size: the same map without machines takes 7.3 ms with eight threads and 28.2 ms on one. The machines
+  add the rest (natively, mostly their own actions, then vision and links), and about 3 ms a frame to draw. With
+  eight threads a step's time varies by about a millisecond from one page load to the next. Starting is mostly
+  generating the map (15.5 s of the 19.1 s with eight threads); on one thread each of the setup's steps costs
+  more, and the setup takes about 17 s.
 Set `BROWSER_URL` to test a deployed path; set `BROWSER_CHANNEL=chrome` to use an installed Google Chrome.
 Screenshots are written to `artifacts/browser-tests`. Unit tests check fog privacy, viewport bounds, and the
 browser's use of Core build/upgrade rules without changing the simulation during presentation. Browser entity
@@ -179,7 +205,8 @@ window and graphics dependencies out of the shared rendering assembly.
 
 - `Tunnerer.Rendering`: the terrain fields, material coverage, the uploader that decides what a frame repacks of
   them, the fog layer, entity emitters, interpolation, machine sprite descriptors, shader constant layout and
-  lighting settings used by both hosts. The source files retain their
+  lighting settings used by both hosts, and what the HUD tells the player (`PlayerGuidance`: the tutorial, the
+  game-event toasts, the build-key hint and the warning banner). The source files retain their
   existing Desktop paths and namespaces; the assembly references only Core, without SDL or ImGui.
 - `Tunnerer.Browser.Client`: local session, HUD snapshots, and the frame packet: one buffer with the shader
   constants, the entity vertices and the changed rectangles of the four terrain textures (`BrowserScene`).
@@ -200,11 +227,49 @@ window and graphics dependencies out of the shared rendering assembly.
   before. `renderer.js` handles display density and the welcome illustration; `pace.js` picks the resolution the
   world is drawn at; `perf.js` is the `?perf` readout.
 - `main.js` / `input.js`: HUD, seed selection, session lifecycle and input. Build costs, placement, coverage, match
-  outcome and upgrade descriptions come from Core. The match is built by Core's `MatchSetup`, as on the desktop.
-  Which events make a sound, for whom and how loud comes from the desktop's `StepEventSounds` table (each frame
-  lists the cues); `audio.js` only gives each a tone.
+  outcome and upgrade descriptions come from Core. `guidance.js` shows the desktop's tutorial card (F2 hides it),
+  toasts, hint line and warning banner as each frame after a step carries them (`guidance`), and the renderer points
+  at the tutorial's target. `hud.js` shows the status panels, the upgrade list (base track above tank track, with
+  level pips), the heat orb and bar in the desktop's heat colours (`HeatScale`) and the hit flash with a wedge
+  toward the shooter.
+- The HUD looks like the desktop's (`HudTheme`): chamfered plates with a bronze frame and amber corner brackets,
+  amber titles, segmented bars and the desktop's palette and font (Chakra Petch, which `publish.py` copies from
+  `src/Tunnerer.Desktop/resources/fonts` as it generates the shaders). The plates are drawn by CSS rather than the
+  desktop's HUD art, which would add 1.4 MiB of images to the offline download and does not fit narrow screens.
+- The HUD's cost follows what changes. It updates after every step, 24 times a second, and writes to the page
+  only text, classes and styles whose values changed; toasts are added and removed, not rebuilt; the hit flash
+  changes only opacity and a transform. The overlay canvas (bearings, the tutorial's pointer) is cleared only
+  when something was drawn on it. Measured 2026-11-18 in headless Chromium on an Apple M5 Max, seed 1234, the same
+  15 seconds of digging and idling: 33 changes to the page a second where rebuilding the HUD made 1,150, and
+  1.0 ms of layout a second where it took 5.5 ms. The match is built by Core's `MatchSetup`, as on the desktop.
+  What sounds, for whom, how loud, where and at what pitch is decided by the desktop's `SoundDirector` after each
+  step; the frame after the step lists the one-shots it started and where each loop (engines, digging, torch,
+  recharge) stands (`sounds`). The samples are the desktop's `SoundBank`, synthesised in .NET the first time the
+  player turns sound on and sent with the next frame (`BrowserSoundBank`). `audio.js` plays them with Web Audio: one-shots through a gain and a stereo panner, at most four of an
+  effect at once, and loops that glide to each step's values. Opening the menu suspends sound, and the loops fall
+  silent when the match ends. As on the desktop, what is heard follows distance, not sight.
 
 World rendering uses the desktop's procedural materials, curved cave edges, lighting, heat/scorch/frost effects,
-fog, tank and machine shapes, animated beams and radar. The HTML HUD and the tones of its sounds remain browser-specific.
+fog, tank and machine shapes, animated beams and radar. The HUD says what the desktop's says and the sounds are the
+desktop's; the HUD's HTML layout remains browser-specific, and there is no volume control yet (sound is on or off).
 Network multiplayer and persistent saves are not included. The existing relay and protocol are unchanged.
 No Core gameplay constants or recorded simulation fingerprints changed.
+
+## Next steps
+
+What is intended next for the browser client, roughly in order:
+
+- A volume slider in place of the sound on/off button, as the desktop's audio options have.
+- The desktop's wide layout on large screens, with the panels where the desktop puts them; the narrow layout stays
+  for phones.
+- Play and listen to the desktop build once. Its sound decisions and HUD guidance moved into shared code
+  (`SoundDirector`, `PlayerGuidance`) for the browser; the tests cover them, but the desktop has not been played
+  since.
+- Find why the offline download grew by about 0.7 MiB a runtime with the guidance, sound and HUD work.
+- Larger maps. A 4000x2000 map takes about 15 seconds to generate, and a step's cost grows with the map's size
+  (Performance, above): on one thread the largest measured falls behind with machines. Map generation and the heat
+  solver's cost per map need work first, measured on slower devices than the one above. With threads, each paced
+  step also spends about 3 ms waking the cores.
+- Try the threaded runtime in Firefox. WebKit keeps to one thread, because its threaded runtime sometimes stops
+  answering (Two runtimes, above).
+- Saving and resuming a match across closing the app, and network matches in the browser.

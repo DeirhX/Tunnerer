@@ -3,72 +3,38 @@ namespace Tunnerer.Desktop.Gui;
 using System.Numerics;
 using ImGuiNET;
 using Tunnerer.Desktop.Config;
-using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Desktop.Gui.Guidance;
 
 /// <summary>
-/// One banner at a time at the top of the game view, most urgent first: overheating, frostbite, chilled, low shield,
-/// running hot. When each warning is on is decided by Core (<see cref="Tank.IsRunningHot"/>,
-/// <see cref="Tank.IsShieldLow"/>), which the warning sounds also ask.
+/// One banner at a time at the top of the game view, most urgent first. Which warning is on is chosen by
+/// <see cref="PlayerWarnings"/>, shared with the browser; this only draws it.
 /// </summary>
-public sealed class WarningBanner
+public static class WarningBanner
 {
-    private bool _runningHotLatched;
-    private bool _shieldLowLatched;
-    private float _thermalHintUntil = -1f;
-    private bool _thermalHintShown;
-
-    public void Draw((float x, float y, float w, float h) vp, Tank player, bool heatDebugOverlayEnabled, float time)
+    public static void Draw((float x, float y, float w, float h) vp, PlayerWarning? warning, float time)
     {
-        if (vp.w <= 0 || player.IsDead)
-        {
-            _runningHotLatched = _shieldLowLatched = false;
+        if (vp.w <= 0 || warning is null)
             return;
-        }
-
-        _runningHotLatched = player.IsRunningHot(_runningHotLatched);
-        _shieldLowLatched = player.IsShieldLow(_shieldLowLatched);
-
-        // After the first hit, teach the thermal view once: enemy tunnels glow in it.
-        if (!_thermalHintShown && player.HitFlashTicks > 0 && !heatDebugOverlayEnabled)
-        {
-            _thermalHintShown = true;
-            _thermalHintUntil = time + 8f;
-        }
 
         var dl = ImGui.GetForegroundDrawList();
         float cx = vp.x + vp.w * 0.5f;
         float y = vp.y + 18f;
-        bool blink = (int)(time * 3f) % 2 == 0;
-
-        if (player.IsOverheating)
+        bool blink = warning.Blinks && (int)(time * 3f) % 2 == 0;
+        float titleSize = warning.Kind switch
         {
-            DrawBanner(dl, cx, y, "OVERHEATING - SHIELD BURNING", 30f, "Stop digging and firing, or return to base to cool down", HudTheme.Danger, blink);
-        }
-        else if (player.IsFreezing)
+            WarningKind.Overheating or WarningKind.Frostbite => 30f,
+            WarningKind.ShieldLow or WarningKind.RunningHot => 26f,
+            WarningKind.Chilled => 24f,
+            _ => 20f,
+        };
+        uint accent = warning.Tone switch
         {
-            DrawBanner(dl, cx, y, "FROSTBITE - SHIELD CRACKING", 30f, "Get away from the frost, or return to base to warm up", HudTheme.Teal, blink);
-        }
-        else if (player.SpeedFactor < 0.999f)
-        {
-            int percent = (int)MathF.Round(player.SpeedFactor * 100f);
-            DrawBanner(dl, cx, y, $"CHILLED - {percent}% SPEED", 24f, null, HudTheme.Teal, false);
-        }
-        else if (_shieldLowLatched)
-        {
-            DrawBanner(dl, cx, y, "SHIELD LOW", 26f, "Your base repairs the shield", HudTheme.Danger, blink);
-        }
-        else if (_runningHotLatched)
-        {
-            DrawBanner(dl, cx, y, "RUNNING HOT", 26f, "Digging and firing heat the tank - return to base to cool down", HudTheme.Warn, blink);
-        }
-        else if (player.SpawnProtectionTicks > 0)
-        {
-            DrawBanner(dl, cx, y, "Respawn shield active", 20f, null, HudTheme.Teal, false);
-        }
-        else if (time < _thermalHintUntil)
-        {
-            DrawBanner(dl, cx, y, "Press H for thermal view - enemy tunnels glow hot", 20f, null, HudTheme.Amber, false);
-        }
+            HintTone.Bad => HudTheme.Danger,
+            HintTone.Warn => HudTheme.Warn,
+            HintTone.Accent => HudTheme.Amber,
+            _ => HudTheme.Teal,
+        };
+        DrawBanner(dl, cx, y, warning.Title, titleSize, warning.Detail, accent, blink);
     }
 
     /// <summary>A warning banner at the top of the view: a themed plate with a title and an optional second line.</summary>

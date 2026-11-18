@@ -169,6 +169,9 @@ public partial class Game
         return HudTheme.Rgba(c.R, c.G, c.B);
     }
 
+    /// <summary>In the room's lobby: connected, and the match has not started (and nothing has gone wrong).</summary>
+    private bool InNetLobby => _relay is { Started: false, Failure: null };
+
     /// <summary>
     /// The network overlays of a frame: the lobby before the start, a warning plate when something is wrong, and a
     /// name over every other tank in sight.
@@ -178,7 +181,8 @@ public partial class Game
         if (_relay is not { } relay)
             return;
 
-        if (!relay.Started && relay.Failure == null)
+        SaveLastMatch(relay);
+        if (InNetLobby)
         {
             DrawLobby(relay);
             return;
@@ -251,7 +255,10 @@ public partial class Game
                 ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, 26f));
             }
             ImGui.Dummy(new Vector2(1f, 4f));
+            if (LobbyText.AssignedNameLine(relay.RequestedName, relay.AssignedName) is { } nameLine)
+                HudTheme.WrappedRow(nameLine, HudTheme.Teal);
             HudTheme.WrappedRow(LobbyHint(relay), HudTheme.Amber);
+            HudTheme.WrappedRow(LobbyText.KeysLine, HudTheme.TextDim, 15f);
         }
         HudTheme.EndWindow();
     }

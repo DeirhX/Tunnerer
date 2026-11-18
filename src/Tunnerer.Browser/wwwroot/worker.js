@@ -10,7 +10,9 @@ self.onmessage = async ({ data }) => {
     try {
         runtime ||= await startRuntime(dotnet);
         const frame = await runtime.answer(data);
-        self.postMessage(frame, [frame.packet.buffer]);
+        const transfer = [frame.packet.buffer];
+        if (frame.sounds) transfer.push(frame.sounds.samples.buffer);
+        self.postMessage(frame, transfer);
     } catch (error) {
         self.postMessage(errorMessage(error));
     }

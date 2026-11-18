@@ -4,11 +4,14 @@ import { GameAudio } from "./audio.js";
 import { setupInstallation } from "./install.js";
 import { PerfReadout } from "./perf.js";
 import { Simulation } from "./simulation.js";
+import { GuidanceView } from "./guidance.js";
+import { StatusView } from "./hud.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
     renderer = new GameRenderer(canvas),
-    audio = new GameAudio();
+    audio = new GameAudio(),
+    guidance = new GuidanceView(() => (renderer.pointerTarget = guidance.target));
 let worker = null,
     busy = false,
     playing = false,
@@ -21,8 +24,14 @@ let lastTime = performance.now(),
 // The view last asked of the worker, and whether the frame shown while paused has been asked for.
 let sentView = {},
     pausedFrameSent = false;
-// Add ?perf to the address for a readout of frame and simulation times.
-const perf = new URLSearchParams(location.search).has("perf")
+// Add ?perf to the address for a readout of frame and simulation times, and ?map=3000x1500 and ?machines=400 for a
+// larger map and networks of that many machines grown from every base before play (docs/browser.md), to measure by.
+const query = new URLSearchParams(location.search);
+const [mapWidth, mapHeight] = (query.get("map") || "")
+    .split("x")
+    .map((n) => Number.parseInt(n, 10) || 0);
+const machines = Number.parseInt(query.get("machines"), 10) || 0;
+const perf = query.has("perf")
     ? new PerfReadout(renderer)
     : null;
 $("upgrades").open = !matchMedia("(pointer: coarse)").matches;
@@ -32,12 +41,14 @@ const input = new GameInput(canvas, (action, direction) => {
         else if (playing) openMenu();
     }
     if (action === "help") openMenu();
+    if (action === "tutorial" && playing) guidance.toggleTutorial();
     if (action === "zoom")
         renderer.zoom = Math.max(
             2,
             Math.min(8, renderer.zoom + direction * 0.5),
         );
 });
+const statusView = new StatusView(input);
 
 function randomSeed() {
     const values = new Int32Array(1);
@@ -69,6 +80,7 @@ $("sound").onclick = async () => {
 };
 $("menu").addEventListener("close", () => {
     paused = false;
+    audio.setPaused(false);
     input.clear();
     input.enabled = playing && state?.player.outcome === "InProgress";
     accumulator = 0;
@@ -89,6 +101,7 @@ document.addEventListener("visibilitychange", () => {
 function openMenu() {
     if ($("menu").open) return;
     paused = true;
+    audio.setPaused(true);
     input.enabled = false;
     input.clear();
     $("menu-title").textContent =
@@ -106,6 +119,9 @@ function openMenu() {
 
 function reset() {
     worker?.terminate();
+    audio.quiet();
+    // A sound bank asked of the ended match never comes: the next match asks again.
+    audio.requested = false;
     worker = null;
     state = null;
     renderer.frame = null;
@@ -114,8 +130,10 @@ function reset() {
     input.clear();
     accumulator = 0;
     visualTime = 0;
-    for (const id of ["hud", "mission", "upgrades", "touch", "death"])
+    for (const id of ["hud", "guide", "upgrades", "touch", "death", "hit"])
         $(id).hidden = true;
+    guidance.clear();
+    renderer.pointerTarget = null;
     $("welcome").hidden = false;
     $("footer").hidden = false;
     $("start").disabled = false;
@@ -163,6 +181,7 @@ async function start() {
         }
         if (data.type !== "frame") return;
         busy = false;
+        if (data.sounds) audio.load(data.sounds);
         // The HUD's state comes only with frames that follow a simulation step.
         renderer.accept(data.state, data.packet);
         perf?.frame(
@@ -173,7 +192,7 @@ async function start() {
         input.aimOffset = renderer.cellSize / 2;
         if (data.state) {
             state = data.state;
-            audio.play(state.events);
+            audio.play(state.sounds);
             updateHud(state);
             // For whoever follows the match from outside the page's code: the smoke test does.
             canvas.dataset.heatWorkers = String(worker.heatWorkers);
@@ -185,7 +204,7 @@ async function start() {
             playing = true;
             $("welcome").hidden = true;
             $("footer").hidden = true;
-            $("hud").hidden = $("mission").hidden = false;
+            $("hud").hidden = $("guide").hidden = false;
             $("touch").hidden = !matchMedia("(pointer: coarse)").matches;
             $("pause").disabled = false;
             document.body.classList.add("playing");
@@ -198,14 +217,26 @@ async function start() {
         if (state.player.outcome !== "InProgress") {
             input.enabled = false;
             input.clear();
+            audio.quiet();
         }
     };
     worker.postMessage({
         type: "start",
         seed,
         time: 0,
+        sounds: askForSounds(),
+        mapWidth: mapWidth || 0,
+        mapHeight: mapHeight || 0,
+        machines,
         ...renderer.viewSize(),
     });
+}
+
+// Whether this request should bring the sound bank: once, after sound is first turned on.
+function askForSounds() {
+    if (!audio.wantsBank) return false;
+    audio.requested = true;
+    return true;
 }
 
 // `advice` follows the reason; graphics failures bring their own.
@@ -216,8 +247,7 @@ function fail(message, advice = " Check your connection and try again.") {
     $("loading").textContent = `Could not start the game: ${reason}.${advice}`;
 }
 
-let noticeUntil = 0,
-    lastRefusal = null;
+let noticeUntil = 0;
 function notify(message) {
     $("notice").textContent = message;
     $("notice").classList.add("visible");
@@ -225,112 +255,10 @@ function notify(message) {
 }
 
 function updateHud(f) {
-    const p = f.player;
     canvas.dataset.tick = String(f.tick);
-    $("temperature").textContent = `${Math.round(p.heat)}°`;
-    $("temperature").style.color =
-        p.heat > p.heatLimit ? "#ff8260" : p.heat < -20 ? "#80b7e8" : "";
-    $("heat").max = p.heatLimit;
-    $("heat").value = Math.max(0, p.heat);
-    $("shield").value = p.shield;
-    $("shield-text").textContent = `${Math.round(p.shield * 100)}%`;
-    $("lives").textContent = `${p.lives} ${p.lives === 1 ? "LIFE" : "LIVES"}`;
-    $("network").textContent = p.docked
-        ? "DOCKED"
-        : p.offNetwork
-          ? `OFF GRID / ${Math.ceil(p.safeSeconds)}s`
-          : "ON NETWORK";
-    $("network").style.color = p.offNetwork ? "#ffad72" : "#6edace";
-    $("position").textContent =
-        `X ${p.position.x} / Y ${p.position.y} · WORLD ${f.seed}`;
-    $("ore").textContent = `${p.ore}/${p.holdCapacity} ORE · BASE ${p.store}`;
-    $("power").textContent =
-        `BASE CHARGE ${Math.round(p.charge * 100)}% / HEAT STORE ${Math.round(p.baseHeat * 100)}%`;
-    $("carrying").textContent = p.carrying
-        ? `CARRYING ${p.carrying.toUpperCase()} · ${placementText(f.preview?.status)}`
-        : "Build a machine, carry it, then press its key again to plant.";
-    if (!$("builds").children.length) {
-        for (const b of f.builds) {
-            const button = document.createElement("button");
-            button.dataset.key = String(b.key);
-            button.onclick = () => input.queue("build", b.key);
-            const key = document.createElement("kbd");
-            key.textContent = ["E", "R", "T"][b.key - 1];
-            const name = document.createElement("span");
-            name.textContent = b.name;
-            const cost = document.createElement("small");
-            button.append(key, name, cost);
-            $("builds").append(button);
-        }
-    }
-    for (const b of f.builds) {
-        const button = $("builds").querySelector(`[data-key="${b.key}"]`);
-        button.querySelector("small").textContent = `${b.cost} ORE`;
-        button.title = p.carrying
-            ? `Plant carried ${p.carrying}`
-            : `Build ${b.name}: ${b.cost} ore (${b.payer})`;
-        button.style.opacity = b.affordable || p.carrying ? "1" : ".5";
-    }
-    $("upgrades").hidden = !p.docked || p.dead;
-    if (!$("upgrade-list").children.length) {
-        for (const u of f.upgrades) {
-            const button = document.createElement("button");
-            button.onclick = () => input.queue("upgrade", u.key);
-            $("upgrade-list").append(button);
-        }
-    }
-    for (const u of f.upgrades) {
-        const button = $("upgrade-list").children[u.key - 1];
-        button.textContent = `${u.key} · ${u.name} / L${u.level}`;
-        const price = document.createElement("small");
-        price.textContent = u.maxed ? "MAX LEVEL" : `${u.cost} ore`;
-        button.append(price);
-        button.title = u.effect;
-        button.disabled = u.maxed || p.store < u.cost;
-    }
-    $("guidance").textContent = p.docked
-        ? "Leave through the north or south door. Relays extend your cooling network; come home to repair and unload."
-        : p.offNetwork
-          ? "Your heat rises off the network. Return home before overheating, or plant a relay with a clear link to your base."
-          : p.carrying
-            ? "Plant outside the base. Linked relays move heat home; harvesters mine ore and pylons refill their batteries."
-            : "Mine teal emberite. Link relays toward the hot core, then keep its power output above the goal to win.";
-    $("goal").textContent = f.goal
-        ? `${f.goal.output.toFixed(0)} / ${f.goal.required.toFixed(0)} POWER · ${f.goal.hold.toFixed(0)} / ${f.goal.requiredHold.toFixed(0)}s HELD`
-        : "";
-    $("death").hidden = !p.dead && p.outcome === "InProgress";
-    $("death").textContent =
-        p.outcome === "Victory"
-            ? "SECTOR SECURED\nOpen the menu for a new world."
-            : p.outcome === "Defeat"
-              ? "DIVE ENDED\nOpen the menu to try a new world."
-              : `TANK LOST\nRespawning in ${Math.ceil(p.respawnSeconds)}s`;
-    if (p.refusal && p.refusal !== lastRefusal) {
-        notify(
-            {
-                NotEnoughOre:
-                    "Not enough ore. Mine emberite or return to your network.",
-                WillNotLink:
-                    "No clear link here. Move closer to a powered node or dig a clear tunnel.",
-                NotDocked: "Dock at your base to buy upgrades.",
-                Maxed: "This upgrade is already at its maximum level.",
-            }[p.refusal] || p.refusal,
-        );
-    }
-    lastRefusal = p.refusal;
-}
-
-function placementText(status) {
-    return (
-        {
-            Live: "LINK READY · PRESS BUILD TO PLANT",
-            Ready: "PRESS BUILD TO PLANT",
-            InsideBase: "LEAVE BASE TO PLANT",
-            Blocked: "DIG A CLEAR LINK",
-            TooFar: "MOVE CLOSER TO NETWORK",
-            NoNetwork: "NO NETWORK IN REACH",
-        }[status] || "PRESS BUILD TO PLANT"
-    );
+    statusView.update(f);
+    guidance.update(f.guidance, f.goal);
+    renderer.pointerTarget = guidance.target;
 }
 
 function animate(now) {
@@ -365,6 +293,7 @@ function animate(now) {
             alpha: paused ? 1 : Math.min(1, accumulator / dt),
             delta: paused ? 0 : Math.min(0.1, (now - lastRenderTime) / 1000),
             time: visualTime,
+            sounds: askForSounds(),
             ...view,
         });
         sentView = view;

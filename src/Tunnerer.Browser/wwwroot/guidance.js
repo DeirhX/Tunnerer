@@ -1,0 +1,140 @@
+// The tutorial card, the game-event toasts, the build-key hint and the warning banner. What they say is chosen in
+// C# by the desktop's PlayerGuidance (each frame after a step carries it as `guidance`); this file only shows it.
+// Tones are HintTone names: Dim, Info, Good, Warn, Bad, Accent (style.css: .tone-*).
+
+import { setClass, setHidden, setText } from "./hud.js";
+
+const $ = (id) => document.getElementById(id);
+
+const OBJECTIVE =
+    "Link relays toward the hot core, then keep its power output above the goal to win.";
+
+export class GuidanceView {
+    // F2 or the card's button hides the tutorial; the objective shows in its place.
+    tutorialHidden = false;
+    guidance = null;
+    goal = null;
+    toasts = new Map();
+
+    // `onToggle` runs after F2 or the card's button shows or hides the tutorial, so the pointer follows at once.
+    constructor(onToggle = () => {}) {
+        this.onToggle = onToggle;
+        $("tutorial-toggle").onclick = () => this.toggleTutorial();
+    }
+
+    toggleTutorial() {
+        this.tutorialHidden = !this.tutorialHidden;
+        this.showCard();
+        this.onToggle();
+    }
+
+    // The tutorial's target cell while its card shows, for the renderer's pointer.
+    get target() {
+        return this.tutorialHidden
+            ? null
+            : (this.guidance?.tutorial?.target ?? null);
+    }
+
+    update(guidance, goal) {
+        this.guidance = guidance;
+        this.goal = goal;
+        this.showCard();
+        this.showToasts(guidance.toasts);
+        this.showHint(guidance.hint);
+        this.showWarning(guidance.warning);
+    }
+
+    clear() {
+        this.guidance = this.goal = null;
+        this.toasts.clear();
+        $("toasts").replaceChildren();
+        $("warning").hidden = true;
+    }
+
+    showCard() {
+        const tutorial = this.guidance?.tutorial;
+        const showTutorial = tutorial && !this.tutorialHidden;
+        setHidden($("tutorial-toggle"), !tutorial);
+        const toggle = $("tutorial-toggle").firstChild;
+        const toggleText = showTutorial ? "Hide " : "Tutorial ";
+        if (toggle.textContent !== toggleText) toggle.textContent = toggleText;
+        setText(
+            $("mission-label"),
+            showTutorial
+                ? `NEXT STEP ${tutorial.number} / ${tutorial.count}`
+                : "SECTOR OBJECTIVE",
+        );
+        setText(
+            $("mission-title"),
+            showTutorial ? tutorial.title : "Tap the hot core",
+        );
+        setText($("guidance"), showTutorial ? tutorial.body : OBJECTIVE);
+        const progress = showTutorial && tutorial.progress;
+        setHidden($("tutorial-progress"), !progress);
+        if (progress) {
+            const meter = $("tutorial-meter"),
+                fraction = Math.round(tutorial.fraction * 400) / 400;
+            if (meter.value !== fraction) meter.value = fraction;
+            setClass(meter, tutorial.fraction >= 1 ? "done" : "");
+            setText($("tutorial-progress-text"), tutorial.progress);
+        }
+        const g = this.goal;
+        setText(
+            $("goal"),
+            g
+                ? `${g.output.toFixed(0)} / ${g.required.toFixed(0)} POWER · ${g.hold.toFixed(0)} / ${g.requiredHold.toFixed(0)}s HELD`
+                : "",
+        );
+    }
+
+    // Newest on top, as on the desktop. A toast keeps its element while it shows, so it animates in only once, and
+    // the list is touched only when a toast comes or goes.
+    showToasts(toasts) {
+        const ids = toasts.map((t) => `${t.key}@${t.postedAt}`);
+        if (
+            ids.length === this.toasts.size &&
+            ids.every((id) => this.toasts.has(id))
+        )
+            return;
+        const list = $("toasts"),
+            live = new Map();
+        for (const t of toasts) {
+            const id = `${t.key}@${t.postedAt}`;
+            let element = this.toasts.get(id);
+            if (!element) {
+                element = document.createElement("div");
+                const title = document.createElement("strong");
+                title.textContent = t.title;
+                const detail = document.createElement("span");
+                detail.textContent = t.detail;
+                element.append(title, detail);
+                element.className = `toast plate tone-${t.tone}`;
+            }
+            live.set(id, element);
+        }
+        this.toasts = live;
+        list.replaceChildren(...[...live.values()].reverse());
+    }
+
+    showHint(hint) {
+        const element = $("hint");
+        setText(element, hint.text);
+        setClass(element, `tone-${hint.tone}`);
+        setHidden(element, !hint.text);
+    }
+
+    showWarning(warning) {
+        const element = $("warning");
+        setHidden(element, !warning);
+        if (!warning) return;
+        setClass(
+            element,
+            `plate tone-${warning.tone}${warning.blinks ? " blink" : ""}`,
+        );
+        if (element.dataset.kind !== warning.kind)
+            element.dataset.kind = warning.kind;
+        setText($("warning-title"), warning.title);
+        setText($("warning-detail"), warning.detail ?? "");
+        setHidden($("warning-detail"), !warning.detail);
+    }
+}

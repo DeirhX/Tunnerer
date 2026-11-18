@@ -223,10 +223,12 @@ public static class MachineBehaviors
     /// base's store, <c>HarvesterPlainWork</c> actions a cell; with no ore in reach it crawls one cell along the
     /// shortest path its footprint can take to ore within <c>HarvestRange</c> of where it was planted
     /// (<see cref="HarvesterPathing.FindReachableOre"/>), clearing the dirt in its way (worth nothing). Ore it cannot
-    /// get within reach of (sealed in rock, say) it ignores. It leaves a lump's warm core to the tank's torch (DESIGN.md §6.3), and the core's
-    /// heat keeps it off the ore around until the core is gone and the ground has cooled.
-    /// It works only inside its base's network coverage, which is how its ore gets home,
-    /// and idles, spending nothing, off the network, with no ore left, or while the store is full. Working spends
+    /// get within reach of (sealed in rock, say) it ignores, and so it does ore that is too hot to work
+    /// (<c>HarvesterHotOreTemperature</c>: the shell of a lump while its core is in, which it leaves to the tank's
+    /// torch, DESIGN.md §6.3), going for other ore instead.
+    /// It works only inside its base's network coverage, which is how its ore gets home, and while the ground around it
+    /// is cool; off the network or on hot ground it still crawls toward ore but works none. It idles, spending
+    /// nothing, with no ore left or while the store is full. Working spends
     /// battery charge, which ends up as heat in the ground, and it stalls while that ground is too hot, so it needs a
     /// relay nearby to keep going. When its battery runs low it crawls back toward the nearest powered pylon of its
     /// base and waits in its beam until it is charged again.
@@ -247,11 +249,14 @@ public static class MachineBehaviors
             return;
 
         machine.IsOffNetwork = !ctx.IsOnNetwork(machine);
-        // Off the network its ore could not get home; too hot, it waits for the ground to cool (a linked relay nearby
-        // speeds that up a lot); with a flat battery there is nothing to work with. Each of these is a state of its
+        // With a flat battery there is nothing to work with. Off the network its ore could not get home, and on ground
+        // that is too hot it waits for the ground to cool (a linked relay nearby speeds that up a lot): either way it
+        // does not work, but it still crawls on toward ore it could work, so that a tunnel that bends out of its relay's
+        // sight, or hot ground beside a lump, never leaves it frozen where it stands. Each of these is a state of its
         // own that outranks the ore flags (HarvesterStateOf), so they may go stale behind it.
-        if (machine.IsOffNetwork || machine.IsStalled || IsOutOfCharge(machine))
+        if (IsOutOfCharge(machine))
             return;
+        bool canWork = !machine.IsOffNetwork && !machine.IsStalled;
 
         var reachable = HarvesterPathing.FindReachableOre(machine, ctx, out Offset step, out bool coreLeft);
         machine.HasNoOre = reachable == null;
@@ -267,6 +272,8 @@ public static class MachineBehaviors
 
         if (step == default)
         {
+            if (!canWork)
+                return;
             WorkOre(machine, ctx, ore, store);
             PayForWork(machine, terrain, worked: true, moved: false);
             return;

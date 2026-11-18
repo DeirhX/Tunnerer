@@ -18,7 +18,6 @@ public partial class GameHud
 {
     private readonly HudStrip _strip = new();
     private readonly NetworkPanel _network = new();
-    private readonly WarningBanner _warnings = new();
     private float _time;
 
     public (float x, float y, float w, float h) ViewportRect { get; private set; }
@@ -41,6 +40,12 @@ public partial class GameHud
     /// this player's own tank is already out.
     /// </summary>
     public bool CanRestartMatch { get; set; } = true;
+
+    /// <summary>
+    /// True in a network lobby, before the match starts: the view is dimmed and none of the panels, gauges or guidance
+    /// are drawn, so the lobby plate is all there is to read.
+    /// </summary>
+    public bool WaitingForPlayers { get; set; }
 
     /// <summary>What to call the tank that won, when it is not the player's; null for "another tank".</summary>
     public string? WinnerName { get; set; }
@@ -73,13 +78,16 @@ public partial class GameHud
         bool showPostPassOverlay)
     {
         _time += MathF.Max(0f, deltaTime);
+        _guidance.Update(world, player, _time, offerThermalView: !heatDebugOverlayEnabled);
         DrawGameViewport(gameTextureId, texW, texH);
+        if (WaitingForPlayers)
+            return;
         DrawCrosshair();
         DrawHitFeedback(player);
         _strip.Draw(player, _time);
-        _network.Draw(ViewportRect, player, world, _time);
-        _warnings.Draw(ViewportRect, player, heatDebugOverlayEnabled, _time);
-        DrawGuidance(player, world);
+        _network.Draw(ViewportRect, player, world, _guidance.Hint);
+        WarningBanner.Draw(ViewportRect, _guidance.Warning, _time);
+        DrawGuidance();
         DrawUpgradePanel(player);
         DrawSectorComplete(player, world);
         MatchOverlay.Draw(PlayRect, player, world, CanRestartMatch, WinnerName);
@@ -121,6 +129,8 @@ public partial class GameHud
             ImGui.SetCursorPos(Vector2.Zero);
             ImGui.Image(gameTextureId, new Vector2(ToUi(texW), ToUi(texH)));
             ViewportRect = (cursorPos.X, cursorPos.Y, ToUi(texW), ToUi(texH));
+            if (WaitingForPlayers)
+                ImGui.GetWindowDrawList().AddRectFilled(Vector2.Zero, displaySize, 0xC0000000u);
         }
         ImGui.End();
         ImGui.PopStyleVar(2);

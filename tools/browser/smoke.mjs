@@ -51,7 +51,7 @@ async function observe(context) {
             window.testFrame = detail;
             window.testEvents = [
                 ...(window.testEvents || []),
-                ...detail.events,
+                ...detail.sounds.play,
             ].slice(-1000);
         });
     });
@@ -144,7 +144,7 @@ try {
     await page.waitForFunction(() => !window.testFrame.player.carrying);
     assert.ok(
         await page.evaluate(() =>
-            window.testEvents.some((e) => e.sound === "Plant"),
+            window.testEvents.some((e) => e.effect === "Plant"),
         ),
         "Planting a relay must be heard",
     );
@@ -153,7 +153,7 @@ try {
     await page.keyboard.up("Space");
     assert.ok(
         await page.evaluate(() =>
-            window.testEvents.some((e) => e.sound === "Fire"),
+            window.testEvents.some((e) => e.effect === "Fire"),
         ),
         "Firing must be heard",
     );

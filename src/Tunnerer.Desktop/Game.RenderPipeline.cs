@@ -127,6 +127,7 @@ public partial class Game
 
                 _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, _renderViewState.CellPixels);
                 var gameTextureSize = _renderBackend.GameTextureSize;
+                _hud.WaitingForPlayers = InNetLobby;
                 DrawProfile.Measure(ref _drawProfile.ScreenHudDraw, () =>
                     _hud.Draw(
                         _renderBackend.GameTextureId,
