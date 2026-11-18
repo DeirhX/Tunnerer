@@ -134,8 +134,11 @@ Escape opens the pause menu. Switching away from the page pauses the local match
 
 ## Network play
 
-**PLAY ONLINE** on the welcome screen joins a room on the relay (docs/multiplayer-design.md): a name, a room, the
-number of tanks and the relay's secret if it has one. The page remembers them (`localStorage`). The first player into
+The welcome screen has two tabs, **Solo** and **Online**, and keeps the one last chosen. **Online** joins a room on
+the relay (docs/multiplayer-design.md): a name, a room, the number of tanks and the relay's secret if it has one.
+The page remembers them (`localStorage`). The secret's field can be shown, to see what an old visit or a password
+manager left in it; spaces around it are not part of it, here or on the relay, and a refusal for it puts the cursor
+in the field. The relay logs each refusal with the length of what was sent. The first player into
 a room opens it with a new seed and that many tanks, on the desktop's map for the count (480x300 for more than two,
 `?map=WxH` for another); bots take the slots nobody joins. The lobby shows who is in each slot in their tank's
 colour; the host (the lowest slot) starts with **Start match** or Enter, and a full room starts by itself. P pauses
@@ -162,7 +165,8 @@ as a rejoining player does.
 Not yet in the browser: name tags over other tanks, the desync report file the desktop writes, and choosing a map
 size or seed for a new room from the page.
 
-The header changes to **OFFLINE READY** after the entire app, including the .NET runtime, has been cached.
+The header says **SAVED FOR OFFLINE** after the entire app, including the .NET runtime, has been cached, and
+**OFFLINE · SOLO ONLY** without a connection; otherwise it says nothing.
 Chrome and Edge expose the **Install game** button when installation is available. Other browsers may expose
 installation in their own menus; on iPhone/iPad use Safari's Share → Add to Home Screen. Browser support for
 installation varies; the game can also be played directly in a tab.

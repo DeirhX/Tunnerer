@@ -19,7 +19,7 @@ python3 tools/browser/publish.py --restore-workloads
 python3 tools/browser/serve.py
 ```
 
-Open [localhost:8703](http://localhost:8703). Once the header says **OFFLINE READY**, the complete game is cached.
+Open [localhost:8703](http://localhost:8703). Once the header says **SAVED FOR OFFLINE**, the complete game is cached.
 Use **Install game** in Chrome/Edge, or your browser's install / Add to Home Screen menu. Building requires
 .NET 10 and Python 3 (`python` or `py` on Windows) and works on Windows, macOS and Linux; players need only a
 modern browser. Upload `artifacts/browser/wwwroot` to an HTTPS static
