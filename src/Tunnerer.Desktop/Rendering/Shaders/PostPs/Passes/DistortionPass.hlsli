@@ -77,36 +77,36 @@ void ComputeTankHeatHaze(float2 uv, out float2 hazeOffset, out float outlineHeat
 
 void ApplyOutlineHeatDistortion(float2 uv, float distortionEnabled, float outlineHeatMask, inout float2 hazeOffset)
 {
-    if (distortionEnabled <= 0.0 || outlineHeatMask <= 0.0)
-        return;
+    if (distortionEnabled > 0.0 && outlineHeatMask > 0.0)
+    {
+        float2 tx = TexelOffsetX();
+        float2 ty = TexelOffsetY();
 
-    float2 tx = TexelOffsetX();
-    float2 ty = TexelOffsetY();
+        // ---- Edge detection (luminance + alpha) -------------------------------
+        float3 cL = sceneTex.Sample(s0, uv - tx).rgb;
+        float3 cR = sceneTex.Sample(s0, uv + tx).rgb;
+        float3 cU = sceneTex.Sample(s0, uv - ty).rgb;
+        float3 cD = sceneTex.Sample(s0, uv + ty).rgb;
+        float aL = sceneTex.Sample(s0, uv - tx).a;
+        float aR = sceneTex.Sample(s0, uv + tx).a;
+        float aU = sceneTex.Sample(s0, uv - ty).a;
+        float aD = sceneTex.Sample(s0, uv + ty).a;
 
-    // ---- Edge detection (luminance + alpha) -------------------------------
-    float3 cL = sceneTex.Sample(s0, uv - tx).rgb;
-    float3 cR = sceneTex.Sample(s0, uv + tx).rgb;
-    float3 cU = sceneTex.Sample(s0, uv - ty).rgb;
-    float3 cD = sceneTex.Sample(s0, uv + ty).rgb;
-    float aL = sceneTex.Sample(s0, uv - tx).a;
-    float aR = sceneTex.Sample(s0, uv + tx).a;
-    float aU = sceneTex.Sample(s0, uv - ty).a;
-    float aD = sceneTex.Sample(s0, uv + ty).a;
+        float lL = dot(cL, kLumaWeights);
+        float lR = dot(cR, kLumaWeights);
+        float lU = dot(cU, kLumaWeights);
+        float lD = dot(cD, kLumaWeights);
+        float2 edgeGrad = float2(lR - lL, lD - lU);
 
-    float lL = dot(cL, kLumaWeights);
-    float lR = dot(cR, kLumaWeights);
-    float lU = dot(cU, kLumaWeights);
-    float lD = dot(cD, kLumaWeights);
-    float2 edgeGrad = float2(lR - lL, lD - lU);
+        float edgeLum = saturate(length(edgeGrad) * 3.5);
+        float edgeAlpha = saturate((abs(aR - aL) + abs(aD - aU)) * 2.8);
+        float outlineEdge = max(edgeLum, edgeAlpha);
 
-    float edgeLum = saturate(length(edgeGrad) * 3.5);
-    float edgeAlpha = saturate((abs(aR - aL) + abs(aD - aU)) * 2.8);
-    float outlineEdge = max(edgeLum, edgeAlpha);
-
-    // ---- Tangential wobble on detected edges ------------------------------
-    float2 edgeDir = normalize(float2(edgeGrad.y, -edgeGrad.x) + kSignedEpsilon2);
-    float outlineWave =
-        sin(Time * 28.0 + uv.x * 260.0 - uv.y * 220.0) * 0.60 +
-        sin(Time * 17.0 + uv.x * 120.0 + uv.y * 145.0) * 0.40;
-    hazeOffset += edgeDir * outlineWave * (outlineHeatMask * outlineEdge * 0.012);
+        // ---- Tangential wobble on detected edges ------------------------------
+        float2 edgeDir = normalize(float2(edgeGrad.y, -edgeGrad.x) + kSignedEpsilon2);
+        float outlineWave =
+            sin(Time * 28.0 + uv.x * 260.0 - uv.y * 220.0) * 0.60 +
+            sin(Time * 17.0 + uv.x * 120.0 + uv.y * 145.0) * 0.40;
+        hazeOffset += edgeDir * outlineWave * (outlineHeatMask * outlineEdge * 0.012);
+    }
 }

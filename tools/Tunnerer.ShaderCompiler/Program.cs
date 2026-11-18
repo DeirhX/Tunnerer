@@ -9,7 +9,7 @@ using Tunnerer.ShaderCompiler;
 // For each HLSL file writes <name>.spv (Vulkan), <name>.dxil (Direct3D 12), <name>.msl (Metal) and <name>.json (the
 // resource counts and entry points SDL_CreateGPUShader needs). The HLSL entry point is always "main"; resources are
 // declared in SDL_GPU's register spaces through the macros in PostPs/Common/Registers.hlsli.
-// --web additionally exports GLSL ES 3.00, plus a Y-flipped <name>TargetVs of each vertex shader for drawing into WebGL framebuffer textures.
+// --web additionally exports GLSL ES 3.00, plus a Y-flipped FullscreenTargetVs for WebGL framebuffer textures.
 
 string? outDir = null;
 bool web = false;
@@ -158,10 +158,8 @@ internal static unsafe partial class Compiler
         if (web)
         {
             File.WriteAllText(Path.Combine(outDir, name + ".glsl"), WebShaderCompiler.Transpile(spirv, stage));
-            // WebGL keeps a framebuffer texture bottom row first, so what a pass draws into one is drawn Y-flipped
-            // (FullscreenVs -> FullscreenTargetVs) for the next pass to read it the right way up.
-            if (stage == ShaderCross.ShaderStage.Vertex && name.EndsWith("Vs", StringComparison.Ordinal))
-                File.WriteAllText(Path.Combine(outDir, name[..^2] + "TargetVs.glsl"), WebShaderCompiler.Transpile(spirv, stage, flipVertexY: true));
+            if (name == "FullscreenVs")
+                File.WriteAllText(Path.Combine(outDir, "FullscreenTargetVs.glsl"), WebShaderCompiler.Transpile(spirv, stage, flipVertexY: true));
         }
         File.WriteAllBytes(Path.Combine(outDir, name + ".dxil"), dxil);
         File.WriteAllText(Path.Combine(outDir, name + ".msl"), msl);

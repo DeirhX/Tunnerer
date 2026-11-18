@@ -73,7 +73,8 @@ cbuffer PostParams : FRAGMENT_UNIFORMS(0)
 
     // ---- Whole-screen effects (ScreenFxPs, Rendering/ScreenEffects.cs) -----
     float4 ScreenFx;                // .x = hit, .y = overheat, .z = freeze (0..1), .w = > 0.5 while any shows
-    float4 ScreenFxMotion;          // .xy = shake offset (device pixels), .zw = unit screen direction the hit came from
+                                    //   (2 from the browser: its game image is stored bottom row first)
+    float4 ScreenFxMotion;          // .xy = shake offset (pixels at 1080 high), .zw = unit screen direction the hit came from
 
     // ---- Per-tank glow positions ------------------------------------------
     float TankGlowCount;            // Number of active entries in TankGlow[]

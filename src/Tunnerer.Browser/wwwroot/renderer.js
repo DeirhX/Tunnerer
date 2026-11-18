@@ -18,9 +18,9 @@ export class GameRenderer {
         window.addEventListener("resize", () => this.resize());
     }
 
-    async initialize() {
+    async initialize(progress) {
         this.gpu ||= new WebGlRenderer(this.worldCanvas);
-        await this.gpu.initialize();
+        await this.gpu.initialize(progress);
         this.gpu.resetWorld();
     }
 

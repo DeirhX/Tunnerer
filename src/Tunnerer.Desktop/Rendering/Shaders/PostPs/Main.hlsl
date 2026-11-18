@@ -66,19 +66,20 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
     float terrainFactor = step(kTerrainAlphaThreshold, sceneSample.a);
 
     // Fail-safe against CPU/HLSL cbuffer drift: disable post effects when
-    // layout version does not match the shader expectation.
-    if (abs(PostParamsLayoutVersion - kPostParamsLayoutVersion) > 0.001)
-        return float4(baseColor, 1.0);
-
-    // ---- Post-process chain -----------------------------------------------
-    if (PostVignetteEnabled > 0.5)
-        ApplyVignettePass(uv, color);
-    if (PostTerrainAuxEnabled > 0.5 || PostTerrainHeatEnabled > 0.5 || PostThermalRegionsEnabled > 0.5)
-        ApplyTerrainAuxPass(uv, terrainFactor, PostTerrainAuxEnabled > 0.5, PostTerrainHeatEnabled > 0.5, PostThermalRegionsEnabled > 0.5, color);
-    if (PostTankGlowEnabled > 0.5)
-        ApplyTankHeatGlowPass(uv, color);
-    if (PostFogEnabled > 0.5)
-        ApplyFogPass(uv, color);
+    // layout version does not match the shader expectation. One return at the end, not an early one: see
+    // EntityPs.hlsl for why.
+    if (abs(PostParamsLayoutVersion - kPostParamsLayoutVersion) <= 0.001)
+    {
+        // ---- Post-process chain -------------------------------------------
+        if (PostVignetteEnabled > 0.5)
+            ApplyVignettePass(uv, color);
+        if (PostTerrainAuxEnabled > 0.5 || PostTerrainHeatEnabled > 0.5 || PostThermalRegionsEnabled > 0.5)
+            ApplyTerrainAuxPass(uv, terrainFactor, PostTerrainAuxEnabled > 0.5, PostTerrainHeatEnabled > 0.5, PostThermalRegionsEnabled > 0.5, color);
+        if (PostTankGlowEnabled > 0.5)
+            ApplyTankHeatGlowPass(uv, color);
+        if (PostFogEnabled > 0.5)
+            ApplyFogPass(uv, color);
+    }
 
     return float4(color, 1.0);
 }

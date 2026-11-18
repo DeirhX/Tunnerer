@@ -16,7 +16,8 @@
 //              corners, refracting what is under it, with glints.
 //
 // Inputs:
-//   sceneTex (t0) — the game image
+//   sceneTex (t0) — the game image (stored bottom row first where ScreenFx.w
+//                   is 2: the browser's WebGL framebuffer texture)
 // ============================================================================
 
 #include "PostPs/Common/Registers.hlsli"
@@ -30,14 +31,15 @@ static const float3 kLuma = float3(0.299, 0.587, 0.114);
 
 float3 SampleScene(float2 uv)
 {
-    return sceneTex.Sample(s0, clamp(uv, TexelSize * 0.5, 1.0 - TexelSize * 0.5)).rgb;
+    uv = clamp(uv, TexelSize * 0.5, 1.0 - TexelSize * 0.5);
+    // In the browser the game image is a WebGL framebuffer texture, kept bottom row first; the page says so with 2.
+    if (ScreenFx.w > 1.5)
+        uv.y = 1.0 - uv.y;
+    return sceneTex.Sample(s0, uv).rgb;
 }
 
-float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
+float3 ScreenEffects(float2 uv)
 {
-    if (abs(PostParamsLayoutVersion - kPostParamsLayoutVersion) > 0.001)
-        return float4(SampleScene(uv), 1.0);
-
     float hit = ScreenFx.x;
     float overheat = ScreenFx.y;
     float freeze = ScreenFx.z;
@@ -179,5 +181,15 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
         color += step(0.992, seed) * twinkle * frost * 0.6;
     }
 
+    return color;
+}
+
+float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
+{
+    float3 color;
+    if (abs(PostParamsLayoutVersion - kPostParamsLayoutVersion) > 0.001)
+        color = SampleScene(uv);
+    else
+        color = ScreenEffects(uv);
     return float4(color, 1.0);
 }

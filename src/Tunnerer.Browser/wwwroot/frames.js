@@ -1,12 +1,37 @@
 // The way into .NET (BrowserApi.cs), shared by the two places a runtime lives: worker.js loads the single-thread
 // one, simulation.js the threaded one. Every call into .NET answers with a promise in both.
 
-// Starts a runtime from `dotnet`, the builder its dotnet.js exports.
-export async function startRuntime(dotnet, config = {}) {
-    const runtime = await dotnet
-        .withDiagnosticTracing(false)
-        .withConfig(config)
-        .create();
+// Starts a runtime from `dotnet`, the builder its dotnet.js exports, and reports it to the page's loading line and
+// bar (progress.js) through `report`: first downloading its `bytes` of .wasm, as they arrive, then starting it.
+// `threads` says how it runs, for the console.
+export async function startRuntime(dotnet, { config = {}, report = () => {}, bytes = 0, threads = "" } = {}) {
+    const starting = { stage: "runtime", label: "Starting the game runtime", state: "begin" };
+    let downloading = bytes > 0,
+        loaded = 0,
+        reportedAt = 0;
+    const downloaded = () => {
+        downloading = false;
+        report({ stage: "download", state: "end", detail: `${(loaded / 1048576).toFixed(1)} MiB` });
+        report(starting);
+    };
+    const builder = dotnet.withDiagnosticTracing(false).withConfig(config);
+    if (downloading) {
+        report({ stage: "download", label: "Downloading the game", state: "begin" });
+        builder.withResourceLoader(
+            countingLoader((count) => {
+                loaded += count;
+                if (!downloading) return;
+                if (loaded >= bytes) downloaded();
+                else if (performance.now() - reportedAt >= 100) {
+                    reportedAt = performance.now();
+                    report({ stage: "download", state: "bytes", loaded, total: bytes });
+                }
+            }),
+        );
+    } else report(starting);
+    const runtime = await builder.create();
+    // Fewer bytes than the publish counted: a file .NET did not need.
+    if (downloading) downloaded();
     let delivered = null,
         sounds = null,
         outgoing = [];
@@ -39,6 +64,7 @@ export async function startRuntime(dotnet, config = {}) {
         runtime.getConfig().mainAssemblyName,
     );
     const api = exports.Tunnerer.Browser.BrowserApi;
+    report({ stage: "runtime", state: "end", detail: threads });
     // What the request made for the relay: one buffer, which the worker hands to the page without a copy.
     const takeOutgoing = () => {
         if (!outgoing.length) return null;
@@ -63,8 +89,11 @@ export async function startRuntime(dotnet, config = {}) {
         // closed) is what the page's socket got, and `command` what the player asked of the room. Every answer
         // carries what to send to the relay as `send`. Until the relay has let the player in and the world is
         // built, the answer is { type: "net", failure } instead of a frame.
-        async answer(data) {
-            if (data.type === "start")
+        //
+        // `report` hears of the slow stages of a start, as { stage, label, state: "begin" | "end" } (progress.js).
+        async answer(data, report = () => {}) {
+            if (data.type === "start") {
+                report({ stage: "world", label: "Generating the world", state: "begin" });
                 await api.Start(
                     data.seed,
                     data.heatWorkers,
@@ -72,6 +101,8 @@ export async function startRuntime(dotnet, config = {}) {
                     data.mapHeight || 0,
                     data.machines || 0,
                 );
+                report({ stage: "world", state: "end" });
+            }
             if (data.type === "join")
                 await api.Join(
                     data.room,
@@ -147,4 +178,65 @@ export function errorMessage(error) {
         type: "error",
         message: `${error?.message || String(error)}\n${error?.stack || ""}`,
     };
+}
+
+// A loader for .NET's own downloads (its .wasm files) that hands `count` the bytes of each as they arrive. It fetches
+// as .NET would, and .NET gets the response that fetch made: the browser keeps the compiled code of a .wasm by the
+// response's address, which a response made up here would not have.
+//
+// .NET asks the browser to check each file against the hash it was published with (subresource integrity). The
+// browser then holds back every byte, also from a copy of the response, until all have arrived, so the bar could
+// not move during the 8 MB the runtime is mostly made of. This loader fetches without that and checks the hash
+// itself once the copy is read; .NET gets the response then, as it would have from the browser, and a file that
+// does not match stops the load as before. Where it cannot check (no WebCrypto off https), the browser does.
+function countingLoader(count) {
+    const counted = new Set(["assembly", "dotnetwasm", "globalization", "pdb"]);
+    return (type, name, url, integrity) => {
+        if (!counted.has(type)) return undefined;
+        const algorithm = integrity && DIGESTS[integrity.slice(0, integrity.indexOf("-"))];
+        if (integrity && !(algorithm && globalThis.crypto?.subtle)) return undefined;
+        return fetch(url, { cache: "no-cache" }).then(async (response) => {
+            if (!response.ok || !response.body) return response;
+            const copy = readAll(response.clone().body, count, Boolean(integrity));
+            if (!integrity) {
+                // Counted as .NET reads it; a failed read fails .NET's too, which reports it.
+                copy.catch(() => {});
+                return response;
+            }
+            const digest = await crypto.subtle.digest(algorithm, await copy);
+            if (!integrity.endsWith(`-${base64(digest)}`))
+                throw new Error(`${name} is not the file this version of the game was published with; reload the page`);
+            return response;
+        });
+    };
+}
+
+const DIGESTS = { sha256: "SHA-256", sha384: "SHA-384", sha512: "SHA-512" };
+
+// Reads a body to its end, handing `count` the size of each part, and gives back all its bytes if asked to `keep` them.
+async function readAll(body, count, keep) {
+    const reader = body.getReader(),
+        parts = [];
+    let size = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (keep) parts.push(value);
+        size += value.byteLength;
+        count(value.byteLength);
+    }
+    if (!keep) return null;
+    const bytes = new Uint8Array(size);
+    let at = 0;
+    for (const part of parts) {
+        bytes.set(part, at);
+        at += part.byteLength;
+    }
+    return bytes;
+}
+
+function base64(buffer) {
+    let text = "";
+    for (const byte of new Uint8Array(buffer)) text += String.fromCharCode(byte);
+    return btoa(text);
 }

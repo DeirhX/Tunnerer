@@ -141,8 +141,9 @@ the heat gauge (`Tank.HeatGaugeMax`, `HeatGaugeMin`), they cover the whole view.
   image (terrain, post pass and entities), so shake and haze move tanks and shots with the ground. It runs only
   while an effect shows: otherwise the backend shows `post` as it is, and the browser draws straight to the canvas
   (`webgl.js` reads `ScreenFxActive` from the uniforms, at the index `PostParamsLayoutGuardTests` checks). While it
-  runs, the browser draws the post and entity passes into a texture with the Y-flipped `FullscreenTargetVs` and
-  `EntityTargetVs`, as the terrain pass does, so the effect pass reads the image the right way up.
+  runs, the browser draws the game image into a framebuffer texture, which WebGL keeps bottom row first: the page
+  sets `ScreenFxActive` to 2 and `ScreenFxPs` reads the image flipped. (Drawing it flipped instead would need a
+  second post program, and PostPs is the slowest shader to compile on Windows browsers.)
 - The HUD's red edge and the wedge pointing at the shooter (`GameHud.DrawHitFeedback`) stay; the pass adds to them.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
