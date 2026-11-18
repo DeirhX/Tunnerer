@@ -53,9 +53,12 @@ public sealed class BrowserScene
     public ReadOnlySpan<byte> Uniforms => _packet.AsSpan(_header[0], _header[1]);
     public ReadOnlySpan<byte> Vertices => _packet.AsSpan(_header[2], _header[3]);
 
-    public void CaptureStep()
+    /// <param name="silent">A tick from the past, replayed to catch up: a hit in it does not shake the view.</param>
+    public void CaptureStep(bool silent)
     {
         _entities.CaptureStep(_session.World, _session.LocalSlot);
+        if (!silent)
+            _screenEffects.AfterStep(_session.World.StepEvents, _session.Player);
         Terrain.ObserveStep(_visualTime);
     }
 

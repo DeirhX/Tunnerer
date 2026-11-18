@@ -157,6 +157,6 @@ public sealed class BrowserSession
             _soundDirector.AfterStep(World, LocalSlot);
         Guidance.AfterStep(World, Player);
         Guidance.Update(World, Player, HudSeconds, offerThermalView: !ThermalView);
-        Scene.CaptureStep();
+        Scene.CaptureStep(silent);
     }
 }

@@ -130,15 +130,19 @@ far past the limit the tank is: a thin edge just past the safe maximum or frostb
 the heat gauge (`Tank.HeatGaugeMax`, `HeatGaugeMin`), they cover the whole view.
 
 - **Levels.** `Rendering/ScreenEffects` (shared with the browser) turns the player's tank into `ScreenEffectLevels`
-  each displayed frame. Core says when each starts and stops: a rise of `Tank.HitFlashTicks` is a new hit (its
-  direction is `LastHitVelocity`), `IsAboveSafeHeat` / `IsOverheating` is overheat and `IsBelowFrostbite` /
-  `IsFreezing` is freeze. `ScreenEffects` only eases the levels in and out in display time
-  (`DesktopScreenTweaks.Screen*`), so they are smooth between steps, and works out the shake, which has no
-  randomness so screenshots repeat. A dead tank, or none, shows nothing.
+  each displayed frame. Core says when each starts and stops: a `TankHit` step event for the player is a new hit
+  (`ScreenEffects.AfterStep`, after each step that is not a replayed catch-up tick; its direction is
+  `LastHitVelocity`), `IsAboveSafeHeat` / `IsOverheating` is overheat and `IsBelowFrostbite` / `IsFreezing` is
+  freeze. `ScreenEffects` only eases the levels in and out in display time (`DesktopScreenTweaks.Screen*`), so they
+  are smooth between steps, and works out the shake, which has no randomness so screenshots repeat and is given at
+  a 1080-pixel-high view (the shader scales it). A paused world passes no time, so the effects hold still. When the
+  tank dies what showed fades out; with no tank (the terrain test) nothing shows.
 - **Pass.** The levels travel in `PostParams` (`ScreenFx`, `ScreenFxMotion`). `ScreenFxPs` reads the finished game
   image (terrain, post pass and entities), so shake and haze move tanks and shots with the ground. It runs only
   while an effect shows: otherwise the backend shows `post` as it is, and the browser draws straight to the canvas
-  (`webgl.js` reads `ScreenFxActive` from the uniforms, at the index `PostParamsLayoutGuardTests` checks).
+  (`webgl.js` reads `ScreenFxActive` from the uniforms, at the index `PostParamsLayoutGuardTests` checks). While it
+  runs, the browser draws the post and entity passes into a texture with the Y-flipped `FullscreenTargetVs` and
+  `EntityTargetVs`, as the terrain pass does, so the effect pass reads the image the right way up.
 - The HUD's red edge and the wedge pointing at the shooter (`GameHud.DrawHitFeedback`) stay; the pass adds to them.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)

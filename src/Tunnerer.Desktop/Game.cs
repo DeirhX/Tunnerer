@@ -293,7 +293,7 @@ public partial class Game : IDisposable
     }
 
     /// <summary>What follows every simulated step: the entity snapshot, sound, and the terrain the step changed.</summary>
-    /// <param name="silent">No sound for this step: it is a tick from the past, replayed to catch up.</param>
+    /// <param name="silent">No sound or hit shake for this step: it is a tick from the past, replayed to catch up.</param>
     private void AfterSimulationStep(bool silent = false)
     {
         _simFrameCounter++;
@@ -307,7 +307,11 @@ public partial class Game : IDisposable
             _audio.AfterStep(_world, _localSlot);
         var tanks = _world.TankList.Tanks;
         if (_localSlot < tanks.Count)
+        {
             _hud.AfterStep(_world, tanks[_localSlot]);
+            if (!silent && !_terrainTestMode)
+                _screenEffects.AfterStep(_world.StepEvents, tanks[_localSlot]);
+        }
         _terrainAuxUploader.ObserveTerrainChanges(_terrainView.Pixels, changedCells, VisualTime);
 
         DrawProfile.Measure(ref _drawProfile.TerrainDraw, DrawTerrainChangesToSurface);

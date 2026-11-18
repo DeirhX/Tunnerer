@@ -40,7 +40,7 @@ public partial class Game
         _entityLayer.Build(
             renderView, stepProgress, turnSeconds: WorldStandsStill ? 0f : dt, snapHeadings: !_interpolateFrames,
             visualSeconds: visualTime, vision: _vision, radar: _radar);
-        ScreenEffectLevels screenEffects = _screenEffects.Update(_terrainTestMode ? null : player, dt);
+        ScreenEffectLevels screenEffects = _screenEffects.Update(_terrainTestMode ? null : player, WorldStandsStill ? 0f : dt);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
 

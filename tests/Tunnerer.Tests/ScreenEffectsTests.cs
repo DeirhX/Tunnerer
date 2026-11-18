@@ -1,3 +1,4 @@
+using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities;
 using Tunnerer.Core.Entities.Tanks;
@@ -17,6 +18,13 @@ public class ScreenEffectsTests
 
     private static Tank NewPlayer() =>
         TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false).TankList.Tanks[0];
+
+    /// <summary>Enemy fire hurts <paramref name="tank"/> in a step, travelling along <paramref name="velocity"/>.</summary>
+    private static void HitInAStep(ScreenEffects effects, Tank tank, Tank player, VectorF velocity)
+    {
+        tank.TakeDamage(Tweaks.Weapon.BulletDamage, DamageCause.EnemyFire, velocity);
+        effects.AfterStep([new StepEvent(StepEventKind.TankHit, tank.Position, tank.Color)], player);
+    }
 
     private static ScreenEffectLevels Run(ScreenEffects effects, Tank player, float seconds)
     {
@@ -46,7 +54,7 @@ public class ScreenEffectsTests
         effects.Update(player, Frame);
 
         // The shot travelled toward +x, so it came from -x.
-        player.TakeDamage(Tweaks.Weapon.BulletDamage, DamageCause.EnemyFire, new VectorF(3f, 0f));
+        HitInAStep(effects, player, player, new VectorF(3f, 0f));
         var levels = effects.Update(player, Frame);
 
         Assert.Equal(1f, levels.Hit, 3);
@@ -57,12 +65,35 @@ public class ScreenEffectsTests
         levels = Run(effects, player, DesktopScreenTweaks.ScreenHitSeconds * 0.5f);
         Assert.InRange(levels.Hit, 0.01f, 0.5f);
 
-        // The flash counter is still running, but it only counts down: no second hit.
+        // Steps without a hit start nothing new.
+        effects.AfterStep([], player);
         levels = Run(effects, player, DesktopScreenTweaks.ScreenHitSeconds);
         Assert.Equal(0f, levels.Hit);
         Assert.Equal(0f, levels.ShakeX);
         Assert.Equal(0f, levels.ShakeY);
         Assert.False(levels.IsActive);
+    }
+
+    [Fact]
+    public void AHitOnTheNextStep_StartsAgain_AndAHitOnAnotherTankDoesNothing()
+    {
+        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false);
+        var (player, other) = (world.TankList.Tanks[0], world.TankList.Tanks[1]);
+        var effects = new ScreenEffects();
+
+        HitInAStep(effects, other, player, new VectorF(0f, 3f));
+        Assert.False(effects.Update(player, Frame).IsActive);
+
+        HitInAStep(effects, player, player, new VectorF(3f, 0f));
+        effects.Update(player, Frame);
+        float faded = effects.Update(player, 1f / Tweaks.Perf.TargetFps).Hit;
+        Assert.True(faded < 1f);
+
+        // The next tick hits again, from below: the shake starts over, along the new shot.
+        HitInAStep(effects, player, player, new VectorF(0f, -3f));
+        var levels = effects.Update(player, Frame);
+        Assert.Equal(1f, levels.Hit, 3);
+        Assert.Equal((0f, 1f), (levels.HitFromX, levels.HitFromY));
     }
 
     [Fact]
@@ -118,19 +149,41 @@ public class ScreenEffectsTests
     }
 
     [Fact]
-    public void Death_ClearsEveryEffect()
+    public void Death_FadesEveryEffectOut_AndNoTankClearsThemAtOnce()
     {
         var player = NewPlayer();
         var effects = new ScreenEffects();
         player.Heat = Tweaks.Tank.HeatSafeMax + 20f;
         Run(effects, player, 1f);
-        player.TakeDamage(Tweaks.Weapon.BulletDamage, DamageCause.EnemyFire, new VectorF(0f, 2f));
-        Assert.True(effects.Update(player, Frame).IsActive);
+        HitInAStep(effects, player, player, new VectorF(0f, 2f));
+        float before = effects.Update(player, Frame).Overheat;
 
         player.TakeDamage(player.Reactor.Health + 10, DamageCause.Overheat);
 
-        Assert.Equal(default, effects.Update(player, Frame));
+        float after = effects.Update(player, Frame).Overheat;
+        Assert.InRange(after, before * 0.9f, before);
+        var levels = Run(effects, player, DesktopScreenTweaks.ScreenOverheatFallSeconds * 1.1f);
+        Assert.False(levels.IsActive);
+
+        // With no tank at all (the terrain test) nothing is left to fade.
+        var alive = NewPlayer();
+        alive.Heat = Tweaks.Tank.HeatSafeMax + 20f;
+        Assert.True(Run(effects, alive, 1f).IsActive);
         Assert.Equal(default, effects.Update(null, Frame));
+    }
+
+    [Fact]
+    public void AStandingWorld_HoldsTheEffectsWhereTheyAre()
+    {
+        var player = NewPlayer();
+        var effects = new ScreenEffects();
+        player.Heat = Tweaks.Tank.HeatSafeMax + 20f;
+        HitInAStep(effects, player, player, new VectorF(3f, 0f));
+        effects.Update(player, Frame);
+        var held = effects.Update(player, Frame);
+
+        for (int i = 0; i < 60; i++)
+            Assert.Equal(held, effects.Update(player, 0f));
     }
 
     [Fact]

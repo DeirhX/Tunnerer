@@ -59,9 +59,10 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
     // ---- Hit: punch in and shake ----------------------------------------------
     if (hit > 0.0)
     {
-        // A slight zoom hides the clamped edge the shake would otherwise show.
-        sampleUv = 0.5 + (sampleUv - 0.5) * (1.0 - 0.02 * hit);
-        sampleUv -= shake * TexelSize;
+        // The shake is given at 1080 pixels high. A slight zoom hides the clamped edge it would otherwise show:
+        // 3% leaves 16 such pixels on each side at the hit, more than the shake ever throws (about 15).
+        sampleUv = 0.5 + (sampleUv - 0.5) * (1.0 - 0.03 * hit);
+        sampleUv -= shake * sizeScale * TexelSize;
     }
 
     // ---- Overheat: heat haze ---------------------------------------------------
@@ -83,7 +84,11 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
     float frost = 0.0;
     float frostRim = 0.0;
     float frostGrain = 0.0;
-    if (freeze > 0.0)
+    // How far in the frost reaches (view heights): a thin edge at first, more at the corners, closing in as the cold
+    // deepens until at 1 it has covered the middle (0.5 from every edge). The noise below moves the front by at most
+    // 0.10, and the veins and rim show up to 0.01 beyond it, so pixels further in than that skip it all.
+    float reach = 0.02 + 0.72 * pow(freeze, 1.7) + 0.08 * radial * radial * freeze;
+    if (freeze > 0.0 && edgeDistance < reach + 0.11)
     {
         float2 q = px / (ViewSize.y * 0.07);
         float grain = fbmNoise(q, 4);
@@ -93,9 +98,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
         float veins = ridge * ridge * ridge * ridge;
         frostGrain = grain;
 
-        // How far in the frost reaches (view heights): a thin edge at first, more at the corners, ragged by the
-        // noise, closing in as the cold deepens until at 1 it has covered the middle (0.5 from every edge).
-        float reach = 0.02 + 0.72 * pow(freeze, 1.7) + 0.08 * radial * radial * freeze;
+        // The noise makes the front ragged.
         float front = reach - edgeDistance + ((lobes - 0.5) * 0.14 + (grain - 0.5) * 0.06) * saturate(freeze * 3.0);
         // Thin at the front, thick at the edge of the screen.
         frost = smoothstep(0.0, 0.03, front) * (0.55 + 0.45 * saturate(front / 0.08)) + veins * smoothstep(-0.01, 0.02, front) * 0.35;
@@ -103,9 +106,12 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
         frostRim = saturate(1.0 - abs(front) / 0.010);
 
         // Frost bends the light that passes through it.
-        float gx = fbmNoise(q + float2(0.37, 0.0), 2) - fbmNoise(q - float2(0.37, 0.0), 2);
-        float gy = fbmNoise(q + float2(0.0, 0.37), 2) - fbmNoise(q - float2(0.0, 0.37), 2);
-        sampleUv += float2(gx, gy) * frost * 9.0 * sizeScale * TexelSize;
+        if (frost > 0.0)
+        {
+            float gx = fbmNoise(q + float2(0.37, 0.0), 2) - fbmNoise(q - float2(0.37, 0.0), 2);
+            float gy = fbmNoise(q + float2(0.0, 0.37), 2) - fbmNoise(q - float2(0.0, 0.37), 2);
+            sampleUv += float2(gx, gy) * frost * 9.0 * sizeScale * TexelSize;
+        }
     }
 
     // ---- Sample, with a colour split on a hit ------------------------------------

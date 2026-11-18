@@ -1,5 +1,6 @@
 namespace Tunnerer.Desktop.Rendering;
 
+using Tunnerer.Core;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Desktop.Config;
@@ -12,8 +13,8 @@ using Tunnerer.Desktop.Config;
 /// hotter until at 1 it covers the whole view.</param>
 /// <param name="Freeze">Colder than frostbite: frost creeping in from the edges as the tank gets colder until at 1
 /// it covers the whole view.</param>
-/// <param name="ShakeX">Horizontal shake offset of the whole view, in device pixels.</param>
-/// <param name="ShakeY">Vertical shake offset of the whole view, in device pixels.</param>
+/// <param name="ShakeX">Horizontal shake offset of the whole view, in pixels of a 1080-pixel-high view.</param>
+/// <param name="ShakeY">Vertical shake offset of the whole view, in pixels of a 1080-pixel-high view.</param>
 /// <param name="HitFromX">Unit direction on screen the last hit came from (x).</param>
 /// <param name="HitFromY">Unit direction on screen the last hit came from (y).</param>
 public readonly record struct ScreenEffectLevels(
@@ -31,14 +32,14 @@ public readonly record struct ScreenEffectLevels(
 
 /// <summary>
 /// Turns the player tank's state into <see cref="ScreenEffectLevels"/> for each displayed frame, shared by the
-/// desktop and browser hosts. When an effect starts and stops is Core's answer (<see cref="Tank.HitFlashTicks"/>,
-/// <see cref="Tank.IsAboveSafeHeat"/>, <see cref="Tank.IsBelowFrostbite"/>); this only eases the levels in and out
-/// in display time, so they stay smooth between simulation steps.
+/// desktop and browser hosts. When an effect starts and stops is Core's answer (a <see cref="StepEventKind.TankHit"/>
+/// event, <see cref="Tank.IsAboveSafeHeat"/>, <see cref="Tank.IsBelowFrostbite"/>); this only eases the levels in and
+/// out in display time, so they stay smooth between simulation steps.
 /// </summary>
 public sealed class ScreenEffects
 {
     private float _hitAge = float.PositiveInfinity;
-    private int _lastHitFlashTicks;
+    private bool _hitPending;
     private float _hitFromX, _hitFromY;
     private float _overheat;
     private float _freeze;
@@ -46,35 +47,51 @@ public sealed class ScreenEffects
     /// <summary>The levels after the last <see cref="Update"/>.</summary>
     public ScreenEffectLevels Levels { get; private set; }
 
-    /// <param name="player">The local player's tank, or null when there is none (the terrain test).</param>
-    /// <param name="deltaSeconds">Display time since the previous frame.</param>
-    public ScreenEffectLevels Update(Tank? player, float deltaSeconds)
+    /// <summary>
+    /// Call after each simulation step with that step's <see cref="World.StepEvents"/>: enemy fire that hurt the
+    /// player starts a hit on the next <see cref="Update"/>. Leave out ticks replayed to catch up.
+    /// </summary>
+    public void AfterStep(ReadOnlySpan<StepEvent> stepEvents, Tank? player)
     {
-        float dt = Math.Clamp(deltaSeconds, 0f, 0.1f);
-        if (player == null || player.IsDead)
+        if (player == null)
+            return;
+        foreach (ref readonly StepEvent e in stepEvents)
         {
-            Reset();
-            return Levels;
-        }
-
-        // A fresh hit sets the flash counter back up; it only counts down otherwise.
-        if (player.HitFlashTicks > _lastHitFlashTicks)
-        {
-            _hitAge = 0f;
+            if (e.Kind != StepEventKind.TankHit || e.Color != player.Color)
+                continue;
+            _hitPending = true;
             var v = player.LastHitVelocity;
             float len = v.Length;
             // The shot travelled along v, so it came from -v.
             (_hitFromX, _hitFromY) = len > 1e-3f ? (-v.X / len, -v.Y / len) : (0f, 0f);
         }
+    }
+
+    /// <param name="player">The local player's tank, or null when there is none (the terrain test).</param>
+    /// <param name="deltaSeconds">Display time since the previous frame; 0 while the world stands still.</param>
+    public ScreenEffectLevels Update(Tank? player, float deltaSeconds)
+    {
+        float dt = Math.Clamp(deltaSeconds, 0f, 0.1f);
+        if (player == null)
+        {
+            Reset();
+            return Levels;
+        }
+
+        if (_hitPending)
+        {
+            _hitPending = false;
+            _hitAge = 0f;
+        }
         else
         {
             _hitAge += dt;
         }
-        _lastHitFlashTicks = player.HitFlashTicks;
 
-        _overheat = Approach(_overheat, OverheatTarget(player), dt,
+        // A dead tank feels nothing more: what showed fades out rather than vanishing.
+        _overheat = Approach(_overheat, player.IsDead ? 0f : OverheatTarget(player), dt,
             DesktopScreenTweaks.ScreenOverheatRiseSeconds, DesktopScreenTweaks.ScreenOverheatFallSeconds);
-        _freeze = Approach(_freeze, FreezeTarget(player), dt,
+        _freeze = Approach(_freeze, player.IsDead ? 0f : FreezeTarget(player), dt,
             DesktopScreenTweaks.ScreenFreezeRiseSeconds, DesktopScreenTweaks.ScreenFreezeFallSeconds);
 
         float hit = HitLevel(_hitAge);
@@ -86,7 +103,7 @@ public sealed class ScreenEffects
     private void Reset()
     {
         _hitAge = float.PositiveInfinity;
-        _lastHitFlashTicks = 0;
+        _hitPending = false;
         _overheat = _freeze = 0f;
         Levels = default;
     }
@@ -102,7 +119,8 @@ public sealed class ScreenEffects
 
     /// <summary>
     /// The view jolts away from the shooter and rings back, damped: a cosine along the hit, with a smaller
-    /// sideways wobble so it does not read as a plain slide. No randomness, so screenshots repeat.
+    /// sideways wobble so it does not read as a plain slide. In pixels of a 1080-pixel-high view; the shader scales
+    /// it to the view. No randomness, so screenshots repeat.
     /// </summary>
     private (float X, float Y) Shake(float age, float hit)
     {
