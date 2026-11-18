@@ -7,11 +7,17 @@ using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Sensing;
+using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Types;
+using Tunnerer.Desktop;
 using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Gui.Guidance;
+using Tunnerer.Protocol;
 
-/// <summary>The browser's local match. All game rules and bot decisions belong to Core.</summary>
+/// <summary>
+/// The browser's match: a local one against a bot, or this player's world in a network match
+/// (<see cref="BrowserNetMatch"/>). All game rules and bot decisions belong to Core.
+/// </summary>
 public sealed class BrowserSession
 {
     /// <summary>The map of a normal match.</summary>
@@ -20,7 +26,7 @@ public sealed class BrowserSession
     /// <summary>The largest map the page asks for (<c>?map=WxH</c>); WebGL 2 promises textures of 2048 and more.</summary>
     public static Size LargestMapSize => new(4096, 4096);
     private const int BotSlot = 1;
-    private readonly BotTankAI _bot;
+    private readonly BotTankAI?[] _bots = [];
     private readonly SoundDirector _soundDirector;
 
     /// <param name="seed">The world's seed.</param>
@@ -34,16 +40,30 @@ public sealed class BrowserSession
     /// (<see cref="BrowserStress"/>). Zero in a normal match.
     /// </param>
     public BrowserSession(int seed, int heatWorkers = 1, Size? mapSize = null, int machines = 0)
+        : this(seed, ClampMap(mapSize ?? DefaultMapSize), Tweaks.LevelGen.DefaultPlayers, LevelGenMode.Deterministic,
+            heatWorkers, localSlot: 0, localBot: true, machines)
+    {
+    }
+
+    /// <param name="localBot">A local match: the bot drives <see cref="BotSlot"/>.</param>
+    private BrowserSession(int seed, Size mapSize, int players, LevelGenMode genMode, int heatWorkers, int localSlot,
+        bool localBot = false, int machines = 0)
     {
         Seed = seed;
-        var size = mapSize ?? DefaultMapSize;
-        MapSize = new Size(Math.Clamp(size.X, 320, LargestMapSize.X), Math.Clamp(size.Y, 200, LargestMapSize.Y));
+        MapSize = mapSize;
         var settings = SimulationSettings.FromTweaks() with { ThermalMaxWorkers = Math.Max(1, heatWorkers) };
         if (heatWorkers <= 1)
             settings = settings with { ThermalParallelTileThreshold = int.MaxValue };
-        World = MatchSetup.Build(MapSize, seed, MatchRules.Standard with { CoreTapWins = true }, settings: settings);
-        World.SetBotControlled(BotSlot);
-        _bot = new BotTankAI(MatchSetup.BotSeed(seed, BotSlot));
+        // A network match is a race, as on the desktop: the first base to tap the core wins.
+        World = MatchSetup.Build(MapSize, seed, MatchRules.Standard with { CoreTapWins = true }, players, genMode,
+            settings: settings);
+        LocalSlot = localSlot;
+        if (localBot)
+        {
+            World.SetBotControlled(BotSlot);
+            _bots = new BotTankAI?[World.TankList.Count];
+            _bots[BotSlot] = new BotTankAI(MatchSetup.BotSeed(seed, BotSlot));
+        }
         Vision = World.TrackVision(Player);
         Radar = World.TrackRadar(Player);
         if (machines > 0)
@@ -53,6 +73,24 @@ public sealed class BrowserSession
         _soundDirector = new SoundDirector(Sounds);
     }
 
+    /// <summary>
+    /// This player's world in a network match: the room's settings as the desktop builds them
+    /// (<c>WorldFactory</c>), so that both compute the same world. Nothing is stepped; the bots come when the match
+    /// starts (<see cref="NetSession.CreateBots"/>).
+    /// </summary>
+    /// <param name="localSlot">The slot the relay gave this player.</param>
+    public static BrowserSession ForNetwork(MatchConfig config, int localSlot, int heatWorkers = 1)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        if (localSlot < 0 || localSlot >= config.Slots)
+            throw new ArgumentOutOfRangeException(nameof(localSlot));
+        return new BrowserSession(config.Seed, new Size(config.MapWidth, config.MapHeight), config.Slots,
+            (LevelGenMode)config.GenMode, heatWorkers, localSlot);
+    }
+
+    private static Size ClampMap(Size size) =>
+        new(Math.Clamp(size.X, 320, LargestMapSize.X), Math.Clamp(size.Y, 200, LargestMapSize.Y));
+
     public int Seed { get; }
 
     public Size MapSize { get; }
@@ -60,7 +98,10 @@ public sealed class BrowserSession
     /// <summary>How many machines <see cref="BrowserStress"/> planted before play; zero in a normal match.</summary>
     public int Machines { get; }
     public World World { get; }
-    public Tank Player => World.TankList.Tanks[0];
+    /// <summary>The tank this player drives: 0 in a local match, the relay's choice in a network one.</summary>
+    public int LocalSlot { get; }
+
+    public Tank Player => World.TankList.Tanks[LocalSlot];
     public VisionMap Vision { get; }
     public Radar Radar { get; }
     public BrowserScene Scene { get; }
@@ -99,13 +140,21 @@ public sealed class BrowserSession
         return hash;
     }
 
+    /// <summary>One step of the local match: the player's input, and the bot's.</summary>
     public void Advance(ControllerOutput input)
     {
         if (World.MatchOutcomeFor(Player) != MatchOutcome.InProgress)
             return;
-        var tanks = World.TankList.Tanks;
-        World.Advance(i => i == 0 ? input : _bot.GetInput(tanks[i], Player, World));
-        _soundDirector.AfterStep(World, localSlot: 0);
+        SlotStepper.Advance(World, _bots, _ => input);
+        AfterStep(silent: false);
+    }
+
+    /// <summary>What follows every step, local or from the relay: sound, guidance and what the next frame draws.</summary>
+    /// <param name="silent">No sound for this step: it is a tick from the past, replayed to catch up.</param>
+    public void AfterStep(bool silent)
+    {
+        if (!silent)
+            _soundDirector.AfterStep(World, LocalSlot);
         Guidance.AfterStep(World, Player);
         Guidance.Update(World, Player, HudSeconds, offerThermalView: !ThermalView);
         Scene.CaptureStep();

@@ -27,6 +27,10 @@ export class GameInput {
                     action("pause");
                 }
                 if (e.key === "?") action("help");
+                // A network match: the host starts it from the lobby, and P holds it for everyone.
+                if (e.code === "Enter" || e.code === "NumpadEnter")
+                    action("enter");
+                if (e.code === "KeyP") action("netpause");
                 if (e.code === "F2") {
                     e.preventDefault();
                     action("tutorial");

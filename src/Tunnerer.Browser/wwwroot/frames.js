@@ -8,19 +8,24 @@ export async function startRuntime(dotnet, config = {}) {
         .withConfig(config)
         .create();
     let delivered = null,
-        sounds = null;
+        sounds = null,
+        outgoing = [];
     runtime.setModuleImports("frames.js", {
         // .NET hands over each frame here. `packet` is one buffer with everything the frame draws (layout:
         // BrowserScene.cs), as a view of the runtime's memory that is good for the length of this call. The copy
         // made of it is an ordinary buffer of its own: the worker hands it to the page without another copy, and
         // WebGL takes it, which it would not take of the memory the threaded runtime shares between its threads.
-        deliver: (packet, hud, stepMs, frameMs) => {
+        deliver: (packet, hud, stepMs, frameMs, steps) => {
             delivered = {
                 packet: packet.slice(),
                 hud,
+                steps,
                 timing: { step: stepMs < 0 ? null : stepMs, render: frameMs },
             };
         },
+        // Messages for the relay in a network match, each as its length (int32) and bytes, for the page's socket
+        // (net.js) to send.
+        deliverNet: (packed) => outgoing.push(packed.slice()),
         // The sound bank (BrowserSoundBank): every effect's samples, copied out of the runtime's memory as above.
         deliverSounds: (samples, layout) => {
             sounds = {
@@ -34,10 +39,30 @@ export async function startRuntime(dotnet, config = {}) {
         runtime.getConfig().mainAssemblyName,
     );
     const api = exports.Tunnerer.Browser.BrowserApi;
+    // What the request made for the relay: one buffer, which the worker hands to the page without a copy.
+    const takeOutgoing = () => {
+        if (!outgoing.length) return null;
+        const packed = new Uint8Array(
+            outgoing.reduce((sum, part) => sum + part.length, 0),
+        );
+        let at = 0;
+        for (const part of outgoing) {
+            packed.set(part, at);
+            at += part.length;
+        }
+        outgoing = [];
+        return packed;
+    };
     return {
-        // Answers one request of the page, { type: "start" } or { type: "render" }, with the frame message it
-        // waits for. A render request with `input` steps the simulation once before the frame is built. A request
-        // with `sounds` also gets the sound bank, as the frame's `sounds`.
+        // Answers one request of the page, { type: "start" }, { type: "join" } or { type: "render" }, with the
+        // frame message it waits for. A render request with `input` steps a local match once before the frame is
+        // built; a network match steps as the relay's ticks have arrived. A request with `sounds` also gets the
+        // sound bank, as the frame's `sounds`.
+        //
+        // A network match (net.js): "join" says hello, and a request's `received` (and `lost`, when the socket
+        // closed) is what the page's socket got, and `command` what the player asked of the room. Every answer
+        // carries what to send to the relay as `send`. Until the relay has let the player in and the world is
+        // built, the answer is { type: "net", failure } instead of a frame.
         async answer(data) {
             if (data.type === "start")
                 await api.Start(
@@ -47,6 +72,30 @@ export async function startRuntime(dotnet, config = {}) {
                     data.mapHeight || 0,
                     data.machines || 0,
                 );
+            if (data.type === "join")
+                await api.Join(
+                    data.room,
+                    data.name,
+                    data.secret || "",
+                    data.players,
+                    data.seed,
+                    data.mapWidth || 0,
+                    data.mapHeight || 0,
+                    data.heatWorkers,
+                );
+            if (data.type === "join" || data.received || data.lost) {
+                const waiting = await api.Receive(
+                    data.received || new Uint8Array(0),
+                    data.lost || null,
+                );
+                if (waiting !== null)
+                    return {
+                        type: "net",
+                        failure: waiting || null,
+                        send: takeOutgoing(),
+                    };
+            }
+            if (data.command) await api.Command(data.command);
             const i = data.input;
             await api.Frame(
                 Boolean(i),
@@ -64,8 +113,10 @@ export async function startRuntime(dotnet, config = {}) {
                 data.delta || 0,
                 data.time || 0,
                 Boolean(data.thermalView),
+                Boolean(data.due),
+                data.now || 0,
             );
-            const { packet, hud, timing } = delivered;
+            const { packet, hud, timing, steps } = delivered;
             delivered = null;
             let bank = null;
             if (data.sounds) {
@@ -80,7 +131,9 @@ export async function startRuntime(dotnet, config = {}) {
                 state: hud ? JSON.parse(hud) : null,
                 packet,
                 timing,
+                steps,
                 sounds: bank,
+                send: takeOutgoing(),
             };
         },
         // The world a short match nobody watches ends with (BrowserApi.Fingerprint), for comparing runtimes.

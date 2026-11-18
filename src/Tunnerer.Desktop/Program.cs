@@ -91,7 +91,7 @@ Tunnerer.Desktop.Net.NetMenuRequest? openNetMenu =
 if (launch.Net is { } netOptions && !launch.TerrainTest)
 {
     // The first player into the room decides the match; everyone builds what the relay hands back.
-    var proposed = Tunnerer.Desktop.Net.NetLaunch.ProposeConfig(
+    var proposed = Tunnerer.Desktop.Net.NetMatch.ProposeConfig(
         launch.Seed ?? Random.Shared.Next(1, int.MaxValue),
         terrainSize ?? (launch.Players > 2 ? NetworkTweaks.LargeMatchMapSize : DesktopScreenTweaks.RenderSurfaceSize),
         mode, launch.Players);

@@ -16,7 +16,9 @@ public static class BrowserFrameBuilder
 {
     /// <param name="includeEvents">The frame follows a step: it takes the sounds that step started.</param>
     /// <param name="includeDial">The match's first frame: it carries the heat dial (<see cref="Dial"/>).</param>
-    public static BrowserFrame Capture(BrowserSession session, bool includeEvents, bool includeDial = false)
+    /// <param name="net">The network match the session plays in, if any.</param>
+    public static BrowserFrame Capture(BrowserSession session, bool includeEvents, bool includeDial = false,
+        BrowserNetMatch? net = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         var world = session.World;
@@ -61,7 +63,7 @@ public static class BrowserFrameBuilder
             player.IsOreHoldFull, player.IsOffNetworkUrgent, BuildSlotView.OreLine(player));
         return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
             session.Sounds.Frame(takePlays: includeEvents), builds, upgrades, preview, goal, Guidance(session.Guidance),
-            includeDial ? Dial() : null);
+            includeDial ? Dial() : null, net?.Status());
     }
 
     /// <summary>How many steps after a hit the desktop's shield crystal flashes white (<c>LiquidGauges</c>).</summary>

@@ -290,6 +290,13 @@ Desktop:
 - Name tags and distinct colours for four tanks; a latency and "waiting for server" indicator.
 - Debug hotkeys that would change the simulation are off in a net session. Render-only toggles stay.
 
+Browser (docs/browser.md, Network play):
+
+- It runs the same `NetSession` and `SlotStepper` (shared through `Tunnerer.Rendering`) and keeps what the relay
+  said in the protocol's `RoomClient`, which the desktop's `RelayConnection` also wraps. The page's WebSocket only
+  carries bytes; `BrowserNetMatch` makes and reads the messages. A browser and a desktop of one commit share a build
+  id and compute the same world, so they play in one room.
+
 Core:
 
 - The input codec (§4).
@@ -353,7 +360,9 @@ Each step is testable without the next.
    idles. Protocol version 5. With it: Enter reconnects after a lost connection, the sync digest covers base
    ore and upgrades, names in a room are unique, the round trip is timed to the answer's arrival and not to the
    next simulation step, and the relay caps its connections.
-8. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
+8. **Browser client** (done, 2026-11-18). The browser joins rooms from its welcome screen, with lobby, host start,
+   pause for everyone and rejoin by name, and plays with desktop clients of the same commit. No protocol change.
+9. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
 
 ## 11. Open questions
 

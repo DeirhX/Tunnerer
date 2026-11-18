@@ -4,10 +4,12 @@ using System.Text.Json.Serialization;
 using Tunnerer.Core.Types;
 
 /// <param name="Dial">The heat dial's colours, with a match's first frame only; null after it.</param>
+/// <param name="Net">The network match (<see cref="BrowserNetMatch"/>); null in a local one.</param>
 public sealed record BrowserFrame(
     int Seed, int Tick, int TickRate, PlayerStatus Player,
     SoundFrame Sounds, BuildOption[] Builds,
-    UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal, GuidanceStatus Guidance, HeatDial? Dial);
+    UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal, GuidanceStatus Guidance, HeatDial? Dial,
+    NetStatus? Net = null);
 
 /// <summary>
 /// The dial round the desktop's heat orb (<c>HeatGauge</c>): its bands' colours from cold to hot, as #rrggbb, where
