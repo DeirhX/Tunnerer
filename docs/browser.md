@@ -207,6 +207,42 @@ containing the deployable zips and screenshots. Build, formatting and the script
 are blocking; the graphics smoke run is non-blocking because hosted GPU availability varies, following the desktop
 smoke test's existing policy. Deployment to a public host is separate; this workflow does not change Pages settings.
 
+### Starfish (crust.bokovka.cz)
+
+The public copy is served from the Starfish VM at `https://crust.bokovka.cz`, beside the relay
+(`docs/multiplayer-design.md`, "The relay", describes the VM, SSH access and updating the relay). Caddy's site file,
+`/etc/caddy/conf.d/crust.bokovka.cz.caddy`, sends `/play` and `/health` to the relay and serves everything else
+from `/srv/tunnerer/browser`. It sends the cross-origin isolation headers and the no-cache headers listed above,
+so deploy a `--threads` publish. `/srv/tunnerer/browser.prev` keeps the build that was live before.
+
+Publish from an up-to-date `master`, then upload the zip and swap it in:
+
+```sh
+python3 tools/browser/publish.py --threads
+scp artifacts/browser/tunnerer-browser.zip Starfish-azureuser:/tmp/tunnerer-browser.zip
+ssh Starfish-azureuser 'set -e
+rm -rf /tmp/tb-new && mkdir /tmp/tb-new && cd /tmp/tb-new && python3 -m zipfile -e /tmp/tunnerer-browser.zip .
+test -f index.html && test -d _framework-threads
+sudo chown -R root:root /tmp/tb-new
+sudo find /tmp/tb-new -type d -exec chmod 755 {} + && sudo find /tmp/tb-new -type f -exec chmod 644 {} +
+sudo rm -rf /srv/tunnerer/browser.prev
+sudo mv /srv/tunnerer/browser /srv/tunnerer/browser.prev
+sudo mv /tmp/tb-new /srv/tunnerer/browser
+rm /tmp/tunnerer-browser.zip'
+```
+
+The swap needs no Caddy reload. To check it, compare the version the publisher printed with the live one, and
+look at the headers:
+
+```sh
+curl -sS https://crust.bokovka.cz/assets-manifest.js | grep -o '"version": "[^"]*"'
+curl -sSI https://crust.bokovka.cz/ | grep -i cross-origin
+```
+
+Then open the page and start a game. Players' service workers pick up the new version the next time the page
+loads; a tab that is already open keeps its runtime until it is closed. To roll back, swap the two directories
+back. The relay is deployed on its own and needs updating only when the protocol changes.
+
 ## Verification
 
 ```sh
