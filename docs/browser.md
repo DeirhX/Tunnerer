@@ -181,18 +181,20 @@ world is drawn at. The same numbers are in `window.tunnererPerf`.
   | Match | Heat threads | Step | Frame | Steps a second | Start |
   |---|---|---|---|---|---|
   | 1500x750, no machines | 8 | 4.2 ms | 0.2 ms | 24 | 2.4 s |
-  | 3000x1500, 400 machines | 8 | 5.3 ms | 0.2 ms | 24 | 9.1 s |
-  | 3000x1500, 400 machines | 1 | 19.2 ms | 0.4 ms | 24 | 11.5 s |
+  | 3000x1500, 400 machines | 8 | 6.6 ms | 1.5 ms | 24 | 9.7 s |
+  | 3000x1500, 400 machines | 1 | 22.3 ms | 1.3 ms | 24 | 16.2 s |
   | 4000x2000, no machines | 8 | 7.3 ms | 0.3 ms | 24 | 15.5 s |
   | 4000x2000, no machines | 1 | 28.2 ms | 0.6 ms | 24 | 20.1 s |
-  | 4000x2000, 800 machines | 8 | 6.2 ms | 0.2 ms | 24 | 16.0 s |
-  | 4000x2000, 800 machines | 1 | 29.0 ms | 0.6 ms | 24 | 21.1 s |
+  | 4000x2000, 800 machines | 8 | 10.7 ms | 3.1 ms | 24 | 19.1 s |
+  | 4000x2000, 800 machines | 1 | 36.4 ms | 3.3 ms | 20 | 37.5 s |
 
-  The 800 machines are 558 relays, 125 harvesters and 117 pylons. Every match kept 24 steps a second, but on one
-  thread the largest takes 29 of the 41.7 ms a step has on this fast machine, so a slower one falls behind. The heat
-  solver is nearly all of a step, and its cost comes with the map's size: the machines change it little (with eight
-  threads the world with them even stepped faster, which has not been looked into). Starting is mostly generating
-  the map: 15.5 of the 16.0 s at 4000x2000 with eight threads, and 20.1 of 21.1 s on one.
+  The 800 machines are 558 relays, 125 harvesters and 117 pylons. On one thread the largest falls behind: a step
+  and a frame take nearly all of the 41.7 ms a step has, and the worker does both. Most of a step's cost comes with
+  the map's size: the same map without machines takes 7.3 ms with eight threads and 28.2 ms on one. The machines
+  add the rest (natively, mostly their own actions, then vision and links), and about 3 ms a frame to draw. With
+  eight threads a step's time varies by about a millisecond from one page load to the next. Starting is mostly
+  generating the map (15.5 s of the 19.1 s with eight threads); on one thread each of the setup's steps costs
+  more, and the setup takes about 17 s.
 Set `BROWSER_URL` to test a deployed path; set `BROWSER_CHANNEL=chrome` to use an installed Google Chrome.
 Screenshots are written to `artifacts/browser-tests`. Unit tests check fog privacy, viewport bounds, and the
 browser's use of Core build/upgrade rules without changing the simulation during presentation. Browser entity
@@ -252,3 +254,22 @@ fog, tank and machine shapes, animated beams and radar. The HUD says what the de
 desktop's; the HUD's HTML layout remains browser-specific, and there is no volume control yet (sound is on or off).
 Network multiplayer and persistent saves are not included. The existing relay and protocol are unchanged.
 No Core gameplay constants or recorded simulation fingerprints changed.
+
+## Next steps
+
+What is intended next for the browser client, roughly in order:
+
+- A volume slider in place of the sound on/off button, as the desktop's audio options have.
+- The desktop's wide layout on large screens, with the panels where the desktop puts them; the narrow layout stays
+  for phones.
+- Play and listen to the desktop build once. Its sound decisions and HUD guidance moved into shared code
+  (`SoundDirector`, `PlayerGuidance`) for the browser; the tests cover them, but the desktop has not been played
+  since.
+- Find why the offline download grew by about 0.7 MiB a runtime with the guidance, sound and HUD work.
+- Larger maps. A 4000x2000 map takes about 15 seconds to generate, and a step's cost grows with the map's size
+  (Performance, above): on one thread the largest measured falls behind with machines. Map generation and the heat
+  solver's cost per map need work first, measured on slower devices than the one above. With threads, each paced
+  step also spends about 3 ms waking the cores.
+- Try the threaded runtime in Firefox. WebKit keeps to one thread, because its threaded runtime sometimes stops
+  answering (Two runtimes, above).
+- Saving and resuming a match across closing the app, and network matches in the browser.
