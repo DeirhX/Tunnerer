@@ -28,6 +28,18 @@ public readonly record struct ScreenEffectLevels(
 {
     /// <summary>Any effect shows: the renderer runs the screen effect pass only then.</summary>
     public bool IsActive => Hit > 0f || Overheat > 0f || Freeze > 0f;
+
+    /// <summary>
+    /// Where <c>ScreenFxPs</c> shows the game image's point (<paramref name="x"/>, <paramref name="y"/>), both
+    /// measured from the centre of a view <paramref name="viewHeight"/> high, in the same pixels: a hit's zoom and
+    /// shake move it. The crosshair is drawn there, so it stays on what the mouse aims at.
+    /// </summary>
+    public (float X, float Y) ShownFromCentre(float x, float y, float viewHeight)
+    {
+        float zoom = 1f - DesktopScreenTweaks.ScreenHitZoom * Hit;
+        float scale = viewHeight / 1080f;
+        return ((x + ShakeX * scale) / zoom, (y + ShakeY * scale) / zoom);
+    }
 }
 
 /// <summary>

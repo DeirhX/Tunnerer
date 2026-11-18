@@ -175,6 +175,10 @@ canvas {
 body.playing canvas {
     cursor: crosshair;
 }
+/* A hit shakes the view: renderer.js draws a crosshair that shakes with it instead. */
+body.playing.aim-shaken canvas {
+    cursor: none;
+}
 main {
     position: relative;
     height: calc(100dvh - 78px);

@@ -124,7 +124,7 @@ public partial class Game
             else if (player != null)
             {
                 _hud.CrosshairScreenPos = IsMouseInViewport(frameInput, out float mouseX, out float mouseY)
-                    ? (mouseX, mouseY)
+                    ? ShownOnScreen(screenEffects, mouseX, mouseY, renderView.ViewSize)
                     : null;
 
                 _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, _renderViewState.CellPixels);

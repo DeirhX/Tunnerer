@@ -145,6 +145,11 @@ the heat gauge (`Tank.HeatGaugeMax`, `HeatGaugeMin`), they cover the whole view.
   sets `ScreenFxActive` to 2 and `ScreenFxPs` reads the image flipped. (Drawing it flipped instead would need a
   second post program, and PostPs is the slowest shader to compile on Windows browsers.)
 - The HUD's red edge and the wedge pointing at the shooter (`GameHud.DrawHitFeedback`) stay; the pass adds to them.
+- **Crosshair.** The aim stays where the mouse is, but the crosshair is drawn where the pass shows that point
+  (`ScreenEffectLevels.ShownFromCentre`, which undoes the hit's zoom and shake), so through a hit it stays on what
+  the mouse aims at. The browser does the same in `webgl.js`; there the mouse cursor gives way to a drawn crosshair
+  (`renderer.js`) while a hit shakes the view. The zoom is `DesktopScreenTweaks.ScreenHitZoom`, repeated in
+  `ScreenFxPs` and `webgl.js` (`PostParamsLayoutGuardTests` compares them).
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
 

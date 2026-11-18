@@ -28,6 +28,8 @@ Texture2D sceneTex : FRAGMENT_TEXTURE(0);
 SamplerState s0 : FRAGMENT_SAMPLER(0);
 
 static const float3 kLuma = float3(0.299, 0.587, 0.114);
+// How far a hit zooms in at first (DesktopScreenTweaks.ScreenHitZoom; PostParamsLayoutGuardTests compares them).
+static const float kHitZoom = 0.03;
 
 float3 SampleScene(float2 uv)
 {
@@ -61,9 +63,9 @@ float3 ScreenEffects(float2 uv)
     // ---- Hit: punch in and shake ----------------------------------------------
     if (hit > 0.0)
     {
-        // The shake is given at 1080 pixels high. A slight zoom hides the clamped edge it would otherwise show:
-        // 3% leaves 16 such pixels on each side at the hit, more than the shake ever throws (about 15).
-        sampleUv = 0.5 + (sampleUv - 0.5) * (1.0 - 0.03 * hit);
+        // The shake is given at 1080 pixels high. A slight zoom hides the clamped edge it would otherwise show.
+        // ScreenEffectLevels.ShownFromCentre undoes both, to draw the crosshair on what the mouse aims at.
+        sampleUv = 0.5 + (sampleUv - 0.5) * (1.0 - kHitZoom * hit);
         sampleUv -= shake * sizeScale * TexelSize;
     }
 

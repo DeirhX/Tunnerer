@@ -621,7 +621,7 @@ function animate(now) {
         lastRenderTime = now;
     }
     try {
-        renderer.draw(now);
+        renderer.draw(now, input.pointer);
         perf?.displayed(elapsed);
     } catch (error) {
         fail(error.message, error.name === "GraphicsError" ? "" : undefined);

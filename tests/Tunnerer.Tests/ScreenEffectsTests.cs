@@ -187,6 +187,22 @@ public class ScreenEffectsTests
     }
 
     [Fact]
+    public void TheCrosshair_IsDrawnWhereTheShakenViewShowsTheAim()
+    {
+        Assert.Equal((120f, -40f), default(ScreenEffectLevels).ShownFromCentre(120f, -40f, 1080f));
+
+        // At a hit's height the view is zoomed in and thrown 10 pixels right (20 on a view twice as high).
+        var levels = new ScreenEffectLevels(1f, 0f, 0f, ShakeX: 10f);
+        float zoom = 1f - DesktopScreenTweaks.ScreenHitZoom;
+        var (x, y) = levels.ShownFromCentre(100f, 50f, 2160f);
+        Assert.Equal((100f + 20f) / zoom, x, 3);
+        Assert.Equal(50f / zoom, y, 3);
+
+        // ScreenFxPs samples the image at uv * zoom - shake (from the centre): the crosshair lands on the aim.
+        Assert.Equal(100f, x * zoom - 20f, 3);
+    }
+
+    [Fact]
     public void TheConstantBlock_CarriesTheLevels()
     {
         var levels = new ScreenEffectLevels(0.5f, 0.25f, 0.75f, 3f, -4f, 0f, 1f);

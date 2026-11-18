@@ -34,6 +34,12 @@ public static class DesktopScreenTweaks
     public const float ScreenHitSeconds = 0.5f;
     /// <summary>How far a hit throws the view at first, in pixels of a 1080-pixel-high view (scaled to the view).</summary>
     public const float ScreenShakePixels = 14f;
+    /// <summary>
+    /// How far a hit zooms in at first, as a share of the view; it hides the clamped edge the shake would show, so it
+    /// must leave more than the largest throw (<see cref="ScreenShakePixels"/> and its sideways part, about 15 pixels)
+    /// at each side of a 1080-pixel-high view. Also in ScreenFxPs.hlsl and webgl.js (PostParamsLayoutGuardTests).
+    /// </summary>
+    public const float ScreenHitZoom = 0.03f;
     /// <summary>How fast the view rings back after a hit (about 7 swings a second).</summary>
     public const float ScreenShakeRadiansPerSecond = 44f;
     /// <summary>Seconds the overheat haze takes to come in fully.</summary>

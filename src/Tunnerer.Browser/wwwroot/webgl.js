@@ -1,6 +1,11 @@
 // Index of PostParamsBlock.ScreenFxActive among the frame's uniform floats (PostParamsLayoutGuardTests checks it).
 // The page sets it to 2 (ScreenFxPs: the game image is stored bottom row first, as WebGL keeps a framebuffer texture).
 const SCREEN_FX_ACTIVE = 71;
+// The hit level sits three floats before it and the shake (ScreenShakeX, Y) just after.
+const SCREEN_FX_HIT = SCREEN_FX_ACTIVE - 3,
+    SCREEN_SHAKE_X = SCREEN_FX_ACTIVE + 1;
+// How far a hit zooms in at first (DesktopScreenTweaks.ScreenHitZoom; PostParamsLayoutGuardTests compares them).
+const SCREEN_HIT_ZOOM = 0.03;
 
 // A failure of the graphics hardware or driver, as opposed to one of loading the game.
 export class GraphicsError extends Error {
@@ -277,6 +282,9 @@ export class WebGlRenderer {
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
         this.vertexCount = vertices.byteLength / 48;
         this.screenEffects = uniforms[SCREEN_FX_ACTIVE] > 0.5;
+        this.hit = uniforms[SCREEN_FX_HIT];
+        this.shakeX = uniforms[SCREEN_SHAKE_X];
+        this.shakeY = uniforms[SCREEN_SHAKE_X + 1];
         this.hasFrame = true;
         this.fresh = true;
     }
@@ -362,6 +370,17 @@ export class WebGlRenderer {
         }
         gl.bindVertexArray(null);
         return true;
+    }
+
+    // Where the effect pass shows the game image's point (x, y), both from the centre of a view `height` high, in the
+    // same pixels: a hit's zoom and shake move it (ScreenEffectLevels.ShownFromCentre).
+    shownFromCentre(x, y, height) {
+        const zoom = 1 - SCREEN_HIT_ZOOM * (this.hit || 0),
+            scale = height / 1080;
+        return {
+            x: (x + (this.shakeX || 0) * scale) / zoom,
+            y: (y + (this.shakeY || 0) * scale) / zoom,
+        };
     }
 
     // Sizes a texture to the view and makes it the colour target of the framebuffer.
