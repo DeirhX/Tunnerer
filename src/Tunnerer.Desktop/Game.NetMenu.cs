@@ -24,6 +24,12 @@ public partial class Game
     private NetMenuModel? _netMenu;
     private bool _showNetMenu;
 
+    /// <summary>
+    /// The menu was opened by a key press whose typed character has not come yet: it is the N that opened the menu,
+    /// not text for the focused field.
+    /// </summary>
+    private bool _netMenuSkipTypedKey;
+
     /// <summary>The player pressed Leave in a started match once; the next press leaves.</summary>
     private bool _leaveArmed;
     private bool _lastMatchSaved;
@@ -58,9 +64,16 @@ public partial class Game
         switch ((EventType)ev.Type)
         {
             case EventType.TextInput:
-                menu.TypeText(Marshal.PtrToStringUTF8(ev.Text.Text) ?? string.Empty);
+                if (_netMenuSkipTypedKey)
+                    _netMenuSkipTypedKey = false;
+                else
+                    menu.TypeText(Marshal.PtrToStringUTF8(ev.Text.Text) ?? string.Empty);
                 return true;
+            case EventType.KeyUp:
+                _netMenuSkipTypedKey = false;
+                return false;
             case EventType.KeyDown:
+                _netMenuSkipTypedKey = false;
                 if (IsPasteShortcut(ev.Key.Scancode, ev.Key.Mod))
                 {
                     if (!ev.Key.Repeat)

@@ -84,6 +84,8 @@ Tunnerer.Desktop.PerfCaptureOptions? perfOptions = launch.Perf
     ? new Tunnerer.Desktop.PerfCaptureOptions(launch.PerfWarmupFrames, launch.PerfMeasureFrames, launch.PerfCsvPath)
     : null;
 Tunnerer.Desktop.Net.RelayConnection? relay = null;
+// The relay refused: this process plays a local match, and a restart after it is local too.
+bool joinRefused = false;
 Tunnerer.Desktop.Net.NetMenuRequest? openNetMenu =
     DesktopDisplayOptions.ParseFlag(Environment.GetEnvironmentVariable(NetMenuVariable)) ? new NetMenuRequest(Secret: launch.Secret) : null;
 if (launch.Net is { } netOptions && !launch.TerrainTest)
@@ -108,6 +110,7 @@ if (launch.Net is { } netOptions && !launch.TerrainTest)
         if (Tunnerer.Desktop.Game.IsAutomatedRun(perfOptions))
             return;
         openNetMenu = new NetMenuRequest(netOptions, e.Message);
+        joinRefused = true;
         // The map the refused launch asked for is not the one the menu's local match needs: no huge map to build
         // just to be able to show a menu.
         terrainSize = null;
@@ -137,7 +140,10 @@ using (relay)
 if (restartRequested && Environment.ProcessPath is { } exePath)
 {
     var start = new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = false };
-    foreach (string arg in relaunch is null ? args : launch.Relaunch(relaunch.Net))
+    var restartArgs = relaunch is not null ? launch.Relaunch(relaunch.Net)
+        : joinRefused ? launch.Relaunch(null)
+        : args;
+    foreach (string arg in restartArgs)
         start.ArgumentList.Add(arg);
     start.Environment[RejoinVariable] = rejoin ? "1" : "0";
     start.Environment[NetMenuVariable] = relaunch?.OpenNetMenu == true ? "1" : "0";

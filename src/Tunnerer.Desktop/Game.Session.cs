@@ -133,7 +133,11 @@ public partial class Game
                 return true;
             case SessionKey.NetworkMatch:
                 if (!isRepeat)
+                {
                     OpenNetMenu();
+                    // Text input is always on, so the N also arrives as a typed "n" next.
+                    _netMenuSkipTypedKey = true;
+                }
                 return true;
             case SessionKey.LeaveNetworkMatch:
                 if (!isRepeat)
