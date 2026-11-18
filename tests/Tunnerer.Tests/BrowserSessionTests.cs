@@ -12,30 +12,67 @@ using Tunnerer.Core.Types;
 using System.Runtime.InteropServices;
 using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Config;
+using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Rendering;
 using Tunnerer.Desktop.Rendering.Entities;
 
 public class BrowserSessionTests
 {
     [Fact]
-    public void Sounds_FollowTheDesktopTable_AndOnlyThePlayerHearsTheirOwnFeedback()
+    public void Sounds_AreTheDesktopDirectors_HandedOverOnce_WithEveryLoop()
     {
         var session = new BrowserSession(1234);
-        int player = session.Player.Color, bot = session.World.TankList.Tanks[1].Color;
-        Position seen = session.Player.Position;
-        StepEvent[] events =
-        [
-            new(StepEventKind.Docked, seen, player),
-            new(StepEventKind.Docked, seen, bot),
-            new(StepEventKind.MachineBuilt, seen, bot, MachineType.Pylon),
-            new(StepEventKind.TankMoved, seen, player),
-        ];
+        for (int i = 0; i < 3; i++)
+            session.Advance(new ControllerOutput { MoveSpeed = new Offset(0, 1) });
+        session.Advance(new ControllerOutput { BuildPrimary = true });
 
-        var sounds = BrowserFrameBuilder.Sounds(events, session.World, session.Player, session.Vision);
+        var sounds = BrowserFrameBuilder.Capture(session, includeEvents: true).Sounds;
 
-        Assert.Equal(
-            [(nameof(SoundEffect.Dock), AudioTweaks.DockGain), (nameof(SoundEffect.BuildPylon), AudioTweaks.BuildGain)],
-            sounds.Select(s => (s.Sound, s.Gain)));
+        // The player's own build, heard where it happens: at full gain, centred, as the desktop plays it.
+        Assert.Contains(new SoundPlay(nameof(SoundEffect.BuildRelay), AudioTweaks.BuildGain, 0f, 1f), sounds.Play);
+        Assert.Equal(SoundDirector.MaxTrackedTanks * 3 + 1, sounds.Loops.Length);
+        Assert.Equal(nameof(SoundEffect.EngineLoop), sounds.Loops[0].Effect);
+        Assert.Equal(nameof(SoundEffect.RechargeLoop), sounds.Loops[^1].Effect);
+        Assert.True(sounds.Loops[0].Gain > 0f, "The player's engine runs.");
+        Assert.Equal(0f, sounds.Loops[3 * 3].Gain);   // a fourth tank that is not there
+        // A frame without a step starts nothing again; the loops stay where they are.
+        var again = BrowserFrameBuilder.Capture(session, includeEvents: false).Sounds;
+        Assert.Empty(again.Play);
+        Assert.Equal(sounds.Loops, again.Loops);
+    }
+
+    [Fact]
+    public void Status_CarriesTheDesktopsHeatColour_UpgradeTracks_AndNoHitAtTheStart()
+    {
+        var session = new BrowserSession(1234);
+        var status = BrowserFrameBuilder.Capture(session, includeEvents: false);
+
+        // The desktop's ambient green (HudLogicTests: 0xFF66E566 in ImGui's ABGR).
+        Assert.Equal("#66e566", BrowserFrameBuilder.HexColor(HeatScale.ColorRgb(0f)));
+        Assert.Equal(BrowserFrameBuilder.HexColor(HeatScale.ColorRgb(session.Player.Heat)), status.Player.HeatColor);
+        Assert.Equal(HeatScale.Fraction(session.Player.Heat), status.Player.HeatGauge);
+        Assert.Equal((0f, 0f, 0f), (status.Player.HitFlash, status.Player.HitFromX, status.Player.HitFromY));
+        Assert.Equal(["Base", "Base", "Base", "Base", "Tank", "Tank"], status.Upgrades.Select(u => u.Track));
+        Assert.All(status.Upgrades, u => Assert.Equal(BaseUpgrades.MaxLevel, u.MaxLevel));
+    }
+
+    [Fact]
+    public void SoundBank_PacksEveryDesktopEffect_OneAfterAnother()
+    {
+        var bank = new BrowserSoundBank();
+        var effects = bank.Layout.Effects;
+
+        Assert.Equal(AudioTweaks.SampleRate, bank.Layout.SampleRate);
+        Assert.Equal(Enum.GetNames<SoundEffect>(), effects.Select(e => e.Effect));
+        Assert.Equal(0, effects[0].Offset);
+        for (int i = 1; i < effects.Length; i++)
+            Assert.Equal(effects[i - 1].Offset + effects[i - 1].Length, effects[i].Offset);
+        Assert.Equal(bank.Samples.Length, effects[^1].Offset + effects[^1].Length);
+        Assert.All(effects, e => Assert.Equal(SoundBank.IsLoop(Enum.Parse<SoundEffect>(e.Effect)), e.Loop));
+        Assert.Equal(bank.Samples.Length * 4, bank.ToBytes().Length);
+        var desktop = new SoundBank()[SoundEffect.Fire];
+        var fire = effects.Single(e => e.Effect == nameof(SoundEffect.Fire));
+        Assert.Equal(desktop, bank.Samples.AsSpan(fire.Offset, fire.Length).ToArray());
     }
 
     [Fact]
@@ -55,7 +92,7 @@ public class BrowserSessionTests
         Assert.Equal(1, session.World.Settings.ThermalMaxWorkers);
         Assert.Equal(player.Position.X, frame.Player.Position.X);
         Assert.Contains("\"tickRate\":24", json, StringComparison.Ordinal);
-        Assert.Empty(frame.Events);
+        Assert.Empty(frame.Sounds.Play);
         var desktopEntities = new EntityLayerBuilder();
         desktopEntities.CaptureStep(session.World, 0);
         desktopEntities.Build(session.Scene.View, 1, 0, false, 0, session.Vision, session.Radar);
@@ -64,9 +101,9 @@ public class BrowserSessionTests
 
         // The first packet carries the four world-sized textures; a frame in which nothing changed carries none.
         int[] header = MemoryMarshal.Cast<byte, int>(session.Scene.Packet.AsSpan(0, BrowserScene.HeaderInts * 4)).ToArray();
-        int mapBytes = BrowserSession.MapSize.Area * 4;
+        int mapBytes = session.MapSize.Area * 4;
         for (int t = 0; t < BrowserTerrain.TextureCount; t++)
-            Assert.Equal([0, 0, BrowserSession.MapSize.X, BrowserSession.MapSize.Y], header[(5 + 5 * t)..(9 + 5 * t)]);
+            Assert.Equal([0, 0, session.MapSize.X, session.MapSize.Y], header[(5 + 5 * t)..(9 + 5 * t)]);
         Assert.Equal(header[4 + 5 * 3] + mapBytes, session.Scene.Packet.Count);
         session.Scene.Render(1280, 720, 6, 1, 0, 0);
         header = MemoryMarshal.Cast<byte, int>(session.Scene.Packet.AsSpan(0, BrowserScene.HeaderInts * 4)).ToArray();
@@ -86,7 +123,7 @@ public class BrowserSessionTests
         var built = BrowserFrameBuilder.Capture(session, includeEvents: true);
         Assert.True(player.IsCarryingMachine);
         Assert.Equal(store - frame.Builds[0].Cost, home.Store.Ore);
-        Assert.Contains(built.Events, e => e.Sound == nameof(SoundEffect.BuildRelay) && e.Gain == AudioTweaks.BuildGain);
+        Assert.Contains(built.Sounds.Play, e => e.Effect == nameof(SoundEffect.BuildRelay) && e.Gain == AudioTweaks.BuildGain);
 
         Position start = player.Position;
         for (int i = 0; i < 30; i++)
@@ -102,6 +139,52 @@ public class BrowserSessionTests
         session.Scene.Render(1280, 720, 6, 1, 0, 2);
         Assert.Contains(MemoryMarshal.Cast<byte, EntityVertex>(session.Scene.Vertices).ToArray(),
             v => v.Kind == EntityShape.KindHotShot);
+    }
+
+    [Fact]
+    public void Frame_CarriesTheDesktopGuidance_AndItFollowsTheMatch()
+    {
+        var session = new BrowserSession(1234);
+        var home = session.Player.Base!;
+
+        var start = BrowserFrameBuilder.Capture(session, includeEvents: false).Guidance;
+        Assert.NotNull(start.Tutorial);
+        Assert.Equal((1, "Leave the base"), (start.Tutorial.Number, start.Tutorial.Title));
+        Assert.NotNull(start.Tutorial.Target);
+        Assert.Equal(session.Guidance.Hint.Text, start.Hint.Text);
+        Assert.StartsWith("WASD to drive", start.Hint.Text, StringComparison.Ordinal);
+        Assert.Equal(nameof(HintTone.Info), start.Hint.Tone);
+
+        // Out of the base, the tutorial moves on after the next step, as the desktop's does.
+        session.Player.Position = home.Position + new Offset(0, Tweaks.Base.BaseSize / 2 + 8);
+        session.Advance(default);
+        var outside = BrowserFrameBuilder.Capture(session, includeEvents: false);
+        Assert.Equal("Mine emberite", outside.Guidance.Tutorial?.Title);
+        Assert.Contains("\"guidance\":{\"tutorial\":", JsonSerializer.Serialize(outside, BrowserJsonContext.Default.BrowserFrame),
+            StringComparison.Ordinal);
+    }
+}
+
+public class BrowserStressTests
+{
+    /// <summary>The busy world the browser build is measured in (?machines=N) is networks a player could have built.</summary>
+    [Fact]
+    [Trait("Category", "Slow")]
+    public void Stress_GrowsPoweredNetworksFromEveryBase_WithHarvestersAndPylons()
+    {
+        var session = new BrowserSession(1234, machines: 40);
+        var machines = session.World.Machines.Machines;
+
+        Assert.Equal(40, session.Machines);
+        Assert.Equal(40, machines.Count);
+        foreach (var tank in session.World.TankList.Tanks)
+            Assert.Contains(machines, m => m.StandsFor(tank.Base!) && m.Type == MachineType.Relay && m.LinkPoint?.IsPowered == true);
+        // A harvester and a pylon beside every third relay, at most: the rest of the machines extend the networks.
+        int relays = machines.Count(m => m.Type == MachineType.Relay);
+        int harvesters = machines.Count(m => m.Type == MachineType.Harvester);
+        int pylons = machines.Count(m => m.Type == MachineType.Pylon);
+        Assert.InRange(harvesters, 1, relays / 3);
+        Assert.InRange(pylons, 1, relays / 3);
     }
 }
 

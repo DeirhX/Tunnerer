@@ -6,7 +6,7 @@ using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Presentation;
 using static SDL3.SDL;
 
-/// <summary>Driving and firing keys; each machine's build key comes from <see cref="MachinePresentation.Key"/>.</summary>
+/// <summary>Driving and firing keys; each machine's build key comes from <see cref="MachinePresentation.KeyLabel"/>.</summary>
 public readonly record struct KeyBindings(Scancode Left, Scancode Right, Scancode Up, Scancode Down, Scancode Shoot);
 
 public class KeyboardController
@@ -41,7 +41,7 @@ public class KeyboardController
         bool primary = false, secondary = false, tertiary = false;
         foreach (var machine in MachinePresentations.All)
         {
-            if (!IsHeld(machine.Key))
+            if (!IsHeld(BuildKeys[(int)machine.Type]))
                 continue;
             switch (machine.BuildKey)
             {
@@ -61,6 +61,10 @@ public class KeyboardController
             Upgrade = HeldUpgradeKey(),
         };
     }
+
+    /// <summary>Each machine's build key, by <see cref="MachineType"/>: the scancode its label names.</summary>
+    public static readonly IReadOnlyList<Scancode> BuildKeys =
+        MachinePresentations.All.Select(m => Enum.Parse<Scancode>(m.KeyLabel)).ToArray();
 
     // Number keys 1-6 buy upgrades while docked: 1-4 the base track, 5-6 the tank track (BaseUpgrade order).
     private static readonly Scancode[] UpgradeKeys =

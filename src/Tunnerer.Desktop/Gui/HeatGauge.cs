@@ -76,7 +76,7 @@ public sealed class HeatGauge(HudLayout layout)
             bool on = alive && f0 < lit;
             if (on && f1 > lit)
                 a1 = DialStartAngle + DialSweep * lit;
-            StrokeArc(dl, c, arcR, a0, a1, HudTheme.WithAlphaByte(HeatScale.Color(mid), on ? 0xFFu : 0x48u), arcW);
+            StrokeArc(dl, c, arcR, a0, a1, HudTheme.WithAlphaByte(HudDraw.PackColor(HeatScale.ColorRgb(mid), 1f), on ? 0xFFu : 0x48u), arcW);
         }
         if (burning)
             StrokeArc(dl, c, arcR, DialAngle(safe), DialStartAngle + DialSweep,

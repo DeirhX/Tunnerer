@@ -12,6 +12,7 @@ export class GameRenderer {
         canvas.before(this.worldCanvas);
         this.zoom = 6;
         this.frame = null;
+        this.target = null;
         this.governor = new ResolutionGovernor();
         this.resize();
         window.addEventListener("resize", () => this.resize());
@@ -35,6 +36,19 @@ export class GameRenderer {
         );
         this.canvas.width = Math.round(r.width * this.dpr);
         this.canvas.height = Math.round(r.height * this.dpr);
+        this.overlayCleared = true;
+    }
+
+    // The cell the tutorial points at, or null (guidance.js). A change is drawn at once, not with the next frame from
+    // the worker.
+    get pointerTarget() {
+        return this.target;
+    }
+
+    set pointerTarget(target) {
+        const t = this.target;
+        if (t?.x === target?.x && t?.y === target?.y) return;
+        this.target = target ? { x: target.x, y: target.y } : null;
         this.overlayCleared = true;
     }
 
@@ -71,28 +85,89 @@ export class GameRenderer {
             this.worldCanvas.hidden = true;
             c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
             this.drawLanding(c, now);
+            // The landing illustration shares the overlay canvas: the first game frame clears it.
+            this.overlayCleared = true;
             return;
         }
         this.worldCanvas.hidden = false;
-        // Nothing new from the worker since the last draw: what is on screen is still right.
-        if (!this.gpu.draw() && !this.overlayCleared) return;
-        this.overlayCleared = false;
+        // Nothing new from the worker since the last draw: what is on screen is still right, unless the overlay
+        // changed or animates (the tutorial's pointer pulses).
+        if (!this.gpu.draw() && !this.overlayCleared && !this.target) return;
         c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-        c.clearRect(0, 0, this.width, this.height);
+        // The overlay is empty most of the time: clear it only when something was drawn on it (or the canvas was
+        // resized), rather than filling the whole display every frame.
+        if (this.overlayCleared || this.overlayDrawn)
+            c.clearRect(0, 0, this.width, this.height);
+        this.overlayCleared = false;
+        let drawn = false;
         if (this.frame.goal)
-            this.bearing(c, this.frame.goal.position, "CORE", "#e9a367");
+            drawn =
+                this.bearing(c, this.frame.goal.position, "CORE", "#e9a367") ||
+                drawn;
         if (!this.frame.player.docked)
-            this.bearing(c, this.frame.player.home, "HOME", "#83d9cf");
+            drawn =
+                this.bearing(c, this.frame.player.home, "HOME", "#83d9cf") ||
+                drawn;
+        if (this.target) drawn = this.pointer(c, this.target, now) || drawn;
+        this.overlayDrawn = drawn;
     }
 
-    bearing(c, target, label, color) {
+    // Where a cell is on screen, from the centre of the view, in CSS pixels.
+    fromCentre(target) {
         const scale = this.cellSize;
-        const dx = (target.x + 0.5 - this.gpu.cameraX) * scale - this.width / 2;
-        const dy =
-            (target.y + 0.5 - this.gpu.cameraY) * scale - this.height / 2;
-        const w = this.width / 2 - 28,
-            h = this.height / 2 - 30;
-        if (Math.abs(dx) < w && Math.abs(dy) < h) return;
+        return {
+            dx: (target.x + 0.5 - this.gpu.cameraX) * scale - this.width / 2,
+            dy: (target.y + 0.5 - this.gpu.cameraY) * scale - this.height / 2,
+        };
+    }
+
+    // The tutorial's target, as on the desktop: a pulsing ring with a bobbing arrow when it is on screen, otherwise a
+    // bearing at the edge of the view.
+    pointer(c, target, now) {
+        const { dx, dy } = this.fromCentre(target);
+        const margin = 40;
+        if (
+            Math.abs(dx) > this.width / 2 - margin ||
+            Math.abs(dy) > this.height / 2 - margin
+        ) {
+            return this.bearing(c, target, "NEXT", "#ecb867", margin);
+        }
+        const t = now / 1000,
+            pulse = 0.5 + 0.5 * Math.sin(t * 5);
+        const x = this.width / 2 + dx,
+            y = this.height / 2 + dy,
+            r = 18 + 4 * pulse;
+        c.save();
+        c.strokeStyle = `rgba(236, 184, 103, ${0.5 + 0.5 * pulse})`;
+        c.lineWidth = 2;
+        c.beginPath();
+        c.arc(x, y, r, 0, Math.PI * 2);
+        c.stroke();
+        c.strokeStyle = `rgba(236, 184, 103, ${0.2 + 0.2 * pulse})`;
+        c.lineWidth = 1;
+        c.beginPath();
+        c.arc(x, y, r + 4, 0, Math.PI * 2);
+        c.stroke();
+        const tip = y - r - 4 + 6 * Math.sin(t * 4);
+        c.fillStyle = "#ecb867";
+        c.beginPath();
+        c.moveTo(x, tip);
+        c.lineTo(x - 8, tip - 13);
+        c.lineTo(x + 8, tip - 13);
+        c.closePath();
+        c.fill();
+        c.restore();
+        return true;
+    }
+
+    // Draws an arrow at the edge of the view toward a cell that is off screen, or within `inset` pixels of an edge;
+    // returns whether it drew.
+    bearing(c, target, label, color, inset = 0) {
+        const scale = this.cellSize;
+        const { dx, dy } = this.fromCentre(target);
+        const w = this.width / 2 - Math.max(28, inset),
+            h = this.height / 2 - Math.max(30, inset);
+        if (Math.abs(dx) < w && Math.abs(dy) < h) return false;
         const ratio = Math.min(
             w / Math.max(Math.abs(dx), 1),
             h / Math.max(Math.abs(dy), 1),
@@ -118,6 +193,7 @@ export class GameRenderer {
             x + (dx < 0 ? 10 : -10),
             y - 10,
         );
+        return true;
     }
 
     drawLanding(c, now) {

@@ -156,7 +156,7 @@ public class HudLogicTests
         Assert.Equal(new Vector3(1.00f, 0.15f, 0.10f), HeatScale.ColorRgb(Tweaks.Tank.HeatSafeMax));
         Assert.Equal(new Vector3(1.00f, 0.15f, 0.10f), HeatScale.ColorRgb(2f * Tweaks.Tank.HeatSafeMax));
         // Packed for ImGui as ABGR.
-        Assert.Equal(0xFF66E566u, HeatScale.Color(0f));
+        Assert.Equal(0xFF66E566u, HudDraw.PackColor(HeatScale.ColorRgb(0f), 1f));
     }
 
     [Theory]

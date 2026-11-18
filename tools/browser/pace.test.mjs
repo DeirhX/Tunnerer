@@ -36,6 +36,33 @@ test("a slow GPU steps down until frames are fast enough, then holds", () => {
     assert.equal(governor.scale, 0.65);
 });
 
+test("a GPU that keeps 45 frames a second on a 60 Hz display steps down to reach 60", () => {
+    const governor = new ResolutionGovernor();
+    play(governor, 5, () => 16.7, false);
+    // Two frames in three at one refresh and the third at two; at 0.8 of the pixels each way, every frame in one.
+    let frame = 0;
+    play(governor, 120, (scale) =>
+        scale < 1 || frame++ % 3 !== 2 ? 16.7 : 33.3,
+    );
+    assert.equal(governor.scale, 0.8);
+});
+
+test("a GPU that keeps 45 frames a second where frames are not tied to refreshes steps down too", () => {
+    const governor = new ResolutionGovernor();
+    play(governor, 5, () => 16.7, false);
+    // 22 ms at full resolution, shorter with fewer pixels, never faster than the display.
+    play(governor, 120, (scale) => Math.max(16.7, 22 * scale * scale));
+    assert.equal(governor.scale, 0.8);
+});
+
+test("a display at 60 with a frame missed now and then keeps full resolution", () => {
+    const governor = new ResolutionGovernor();
+    play(governor, 5, () => 16.7, false);
+    let frame = 0;
+    play(governor, 120, () => (frame++ % 20 === 0 ? 33.3 : 16.7));
+    assert.equal(governor.scale, 1);
+});
+
 test("a step that changes nothing is followed by one more before giving up", () => {
     const governor = new ResolutionGovernor();
     play(governor, 5, () => 16.7, false);

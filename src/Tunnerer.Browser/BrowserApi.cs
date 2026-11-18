@@ -20,10 +20,14 @@ public static partial class BrowserApi
 
     /// <param name="seed">The world's seed.</param>
     /// <param name="heatWorkers">Threads for the heat solver; 1 on the single-thread runtime.</param>
+    /// <param name="width">The map's width in cells (<c>?map=WxH</c>); 0 for the normal map.</param>
+    /// <param name="height">The map's height in cells; 0 for the normal map.</param>
+    /// <param name="machines">For measuring (<c>?machines=N</c>): machines planted before play; 0 in a normal match.</param>
     [JSExport]
-    public static Task Start(int seed, int heatWorkers)
+    public static Task Start(int seed, int heatWorkers, int width, int height, int machines)
     {
-        _session = new BrowserSession(seed, heatWorkers);
+        _session = new BrowserSession(seed, heatWorkers,
+            width > 0 && height > 0 ? new Size(width, height) : null, Math.Max(0, machines));
         _hudStale = true;
         return Task.CompletedTask;
     }
@@ -83,6 +87,24 @@ public static partial class BrowserApi
     [JSImport("deliver", "frames.js")]
     private static partial void Deliver([JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> packet, string? hud,
         double stepMs, double frameMs);
+
+    /// <summary>
+    /// Synthesises the desktop's sound bank and hands it to <see cref="DeliverSounds"/> before the promise resolves.
+    /// The page asks for it once, when the player first turns sound on.
+    /// </summary>
+    [JSExport]
+    public static Task SoundBank()
+    {
+        var bank = new BrowserSoundBank();
+        DeliverSounds(bank.ToBytes(), JsonSerializer.Serialize(bank.Layout, BrowserJsonContext.Default.SoundBankLayout));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Hands the sound bank to JavaScript (frames.js), which copies the samples before it returns.</summary>
+    /// <param name="samples">Every effect's samples (32-bit floats) one after another; a view good for the call.</param>
+    /// <param name="layout">Where each effect lies (<see cref="SoundBankLayout"/>), as JSON.</param>
+    [JSImport("deliverSounds", "frames.js")]
+    private static partial void DeliverSounds([JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> samples, string layout);
 
     /// <summary>
     /// Plays <paramref name="ticks"/> steps of a match nobody watches (the player idle, the bot playing) and returns

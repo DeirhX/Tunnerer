@@ -1,11 +1,13 @@
 namespace Tunnerer.Desktop.Gui;
 
+using Tunnerer.Core;
 using Tunnerer.Core.Entities.Machines;
+using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Desktop.Presentation;
 using Tunnerer.Core.Network;
 
-/// <summary>How a hint line is coloured.</summary>
-public enum HintTone { Dim, Info, Good, Warn, Bad }
+/// <summary>How a hint, toast or warning line is coloured. <see cref="Accent"/> is for tips, not for state.</summary>
+public enum HintTone { Dim, Info, Good, Warn, Bad, Accent }
 
 /// <summary>What the network panel's hint line is chosen from: plain values read from Core this frame.</summary>
 /// <param name="HasLeftBase">The tank has driven out of its base at least once (<c>Tank.HasLeftBase</c>).</param>
@@ -45,6 +47,32 @@ public readonly record struct HintInputs(
 /// </summary>
 public static class HintSelector
 {
+    /// <summary>The hint for <paramref name="player"/> now, read from the world.</summary>
+    /// <param name="status">The player's base's network (<c>World.GetNetworkStatus</c>).</param>
+    /// <param name="relayJustLinked">A relay came online in the last few seconds.</param>
+    public static (string Text, HintTone Tone) Select(World world, Tank player, in NetworkStatus status, bool relayJustLinked)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(player);
+        var relayQuote = player.QuoteBuild(MachineType.Relay);
+        return Select(new HintInputs(
+            IsDead: player.IsDead,
+            HasLeftBase: player.HasLeftBase,
+            Docked: player.IsDockedAtOwnBase,
+            InsideBase: world.IsInsideAnyBase(player.Position),
+            RelayJustLinked: relayJustLinked,
+            PumpingRelays: status.PumpingRelays,
+            PlantRefused: player.PlantRefusedTicks > 0,
+            Carried: player.CarriedMachineType,
+            CarriedLink: world.CarriedPlantLink(player),
+            HeatStoreFull: status.IsHeatStoreFullWithRelays,
+            Harvesters: status.Harvesters,
+            SpendableOre: relayQuote.Stock,
+            RelayFromBaseStore: relayQuote.Payer == OrePayer.BaseStore,
+            NotEnoughOre: player.BuildRefusedTicks > 0 && player.LastBuildRefusal == BuildRefusal.NotEnoughOre,
+            CoolingDown: player.IsCoolingDown));
+    }
+
     public static (string Text, HintTone Tone) Select(in HintInputs s)
     {
         var relay = MachinePresentations.Relay;
