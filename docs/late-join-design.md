@@ -299,8 +299,10 @@ play and changes later results:
 | Bots | Each `BotTankAI` with its navigator, gunner, trail and profile cycle. They live in Desktop's session, not in `World`, so the session saves them beside the world. |
 
 Not saved, because nothing in the simulation reads it or it is rebuilt from what is saved: vision and radar
-(output only), step events, collision sectors and machine buckets (rebuilt on load), the world's context closures,
-HUD-only fields (refusal timers, hit flash, last damage cause).
+(output only), step events, the renderer's change list, machine buckets and link tiles (rebuilt on load), the
+world's context closures and system list, the settings and material tables, the heat solver's scratch buffers, and
+wall-clock diagnostics (`SimulationProfile`), which would make two honest uploaders' bytes differ.
+`SnapshotCoverageTests` lists every one with its reason.
 
 **How it is written.** Two ways, with opposite defaults:
 
@@ -309,10 +311,26 @@ HUD-only fields (refusal timers, hit flash, last damage cause).
 - *One general saver walks the objects.* It writes every field of every object reachable from the world, number
   arrays in bulk and references between objects as ids, and skips only fields marked as not saved, each with its
   reason. A new field is saved without anyone doing anything; the risk becomes saving something that must not
-  be, which fails loudly. List and dictionary internals are copied as they are, so their order comes back
-  exactly and no index has to be proven order-free. Its speed is set by the big arrays, not by the walk.
+  be, which fails loudly. Its speed is set by the big arrays, not by the walk.
 
-The general saver is the recommendation: it turns "did we forget anything" from a review question into a default.
+The general saver is what was built (`Core/Snapshots`, step 3): it turns "did we forget anything" from a review
+question into a default. How it treats what is not a plain field:
+
+- **Lists are saved by count and items, through their public API.** An earlier draft of this section said to copy
+  the internals of `List` and `Dictionary` so that their order came back exactly. Those internals belong to the
+  runtime, which is the same problem as `System.Random` below, and a dictionary keyed by strings is laid out
+  differently in every process (string hashes are randomised per process). The saver refuses dictionaries, sets
+  and delegates; state is held in fields, arrays and lists.
+- **Keyed lookups are rebuilt on load** (`ISnapshotLoaded`), and each was checked to be order-free: the machine
+  buckets (`MachineList`; every caller that does not sort what it gets only asks whether anything is there) and
+  the link tiles (`LinkMap`; rechecking a link does not depend on the order links are met in).
+- **Loading fills the built world's objects in place** wherever it holds one of the same type at the same spot (the
+  world, its systems, the tanks, the terrain's arrays), so that the settings and the closures over the world stay
+  wired to it. Objects made during play (machines, links, projectiles) are made new.
+- **Shared constants** (`MachineBehaviors.All`, one per machine type) are written as their index, so a loaded
+  machine points at the same behaviour as a built one.
+- **Structs are written field by field**, never as raw memory, because padding would make the bytes non-canonical.
+  Arrays of numbers and enums are copied as raw bytes.
 
 **`System.Random` has to go.** The bots draw from it, and its state cannot be saved: .NET offers no way to read or
 set where a `Random` is in its sequence. Reading its private fields by reflection would tie the snapshot to the
@@ -327,10 +345,11 @@ that wrote it. It needs no version number and no migration. (The sector save of 
 is not that.) It is canonical: the same world always gives the same bytes, with no timestamps. Little-endian,
 floats and doubles as raw bits, `TimeSpan` as ticks, then compressed (`BrotliStream`, in the base library).
 
-**Size.** About 10 bytes a cell before compression: 1.4 MB on the default 480 x 300 map, 11 MB at 1500 x 750.
-Entities add a few kilobytes. Settled ground repeats, so it should compress several times; that is to be measured.
-Sending only what differs from the freshly built world, which the joiner has anyway, would shrink it further on a
-large map where most ground is untouched (§14).
+**Size.** About 10 bytes a cell before compression; entities add little. Measured (step 3, §13): 1.6 MiB raw and
+300 KiB compressed on the default 480 x 300 map, 11 MiB raw and 1.3 MiB compressed at 1500 x 750, and 12.4 MiB raw
+but still 1.3 MiB compressed with 400 machines planted. Settled ground repeats, so Brotli takes it down five to nine
+times. Sending only what differs from the freshly built world, which the joiner has anyway, would shrink it further
+on a large map where most ground is untouched (§14).
 
 ### 9.2 Uploaders
 
@@ -418,18 +437,27 @@ And unlike a lockstep divergence, the bad value is in every joiner's world, not 
 
 Each check covers a different failure:
 
-1. **Coverage guard test** (catches a field the snapshot forgets). A test walks every instance field of every type
-   reachable from `World`, and of the bot types, by reflection, and fails on any field that is neither saved nor
-   marked with a reason (rebuilt on load from what, scratch, settings). With the general saver of §9.1 the test
-   checks the marks; with hand-written code it checks a table. Either way it is the same ratchet as
-   `SourceGuardTests`, and it is what keeps snapshots safe after today: a new system's state is saved, or someone
-   has said why not.
+1. **Coverage guard test** (catches a field the snapshot forgets). `SnapshotCoverageTests` walks every type
+   reachable from `World` and the bot types (field types, element types, and every Core type that can stand in a
+   field of an abstract or interface type) and fails on any saved field the saver cannot write (a dictionary, a
+   set, a delegate, another `System` class). It also lists every `[NotSaved]` mark with its reason, the same
+   ratchet as `SourceGuardTests`: a new mark fails until it is added, and a removed one until its entry is deleted.
+   That list is what keeps snapshots safe after today: a new system's state is saved, or someone has said why not
+   and a reviewer has read it.
 2. **Round-trip tests** (catch a field saved but restored wrongly, and a rebuild that does not match). For every
-   fingerprint scenario, and for scenarios built to reach the late-showing fields above (an explosion after the
-   load, a harvester on its way back, a tank under spawn protection, a build key held across the load, a core tap
-   mid-hold, bots mid-manoeuvre): run, save, load into a freshly built world, run both on with the same inputs,
-   and compare every tick with the fingerprint test's hash (both temperature fields cell by cell, the ledger) and
-   with a fresh save. Also `save(load(bytes)) == bytes`.
+   fingerprint scenario, saved halfway, and for scenarios built to reach the late-showing fields above (an
+   explosion after the load, a harvester on its way back, a tank under spawn protection, a build key held across
+   the load, a machine carried across it, a shot fired on the save tick, regrowth and scorch busy across it, a link
+   cut after it, a core tap mid-hold, bots mid-manoeuvre): run, save, load into a freshly built world, run both on
+   with the same inputs, and compare the sync digest every tick (it hashes every cell's temperature bits), the
+   fingerprint test's hash (adding the ledger) every 20 ticks and at the end, and a fresh save at the end. Also
+   `save(load(bytes)) == bytes`.
+
+   **What they cannot see.** A field wrongly marked not saved shows up only when its live value differs from a
+   freshly built world's. Leaving out the turret cooldown passed every scenario, because the cooldown was back to
+   0 at every save, as it is in a built world. Leaving out a random generator, the carried machine or the bot's
+   mode failed at once. That is why item 1 lists the marks: a mark is a decision a reviewer reads, not something
+   the round trip proves.
 3. **Two uploaders** (catch a world that had already diverged at `S`). The relay compares the two digests. Two
    correct clients write the same bytes, so a difference is a desync. This sees all of the state, which the sync
    digest does not.
@@ -504,22 +532,57 @@ Each step is testable without the next.
    µs a tick and a whole step 0.133 against 0.127 ms, a gap well inside the spread between matches (1.6 to 6.4
    µs), which comes from the matches playing out differently; the digest is unchanged within noise (about 100 µs
    on 480 x 300, the bots adding under 1 µs).
-3. **Snapshots in Core** (in progress: the saver, the loader and the round-trip tests are in; what is left is in
-   [late-join-step3-plan.md](late-join-step3-plan.md)). The saver and loader, the bots beside the world, the coverage guard test and the
-   round-trip tests (§10.3, items 1 and 2). Measure size, compression, save and load time on the default map and
-   at 1500 x 750, on the slowest machine that will play.
+3. **Snapshots in Core** (done, 2026-11-18). `WorldSnapshot.Save`, `Load`, `Compress` and `Decompress`
+   (`Core/Snapshots`): the general saver of §9.1, with the bots beside the world, 22 `[NotSaved]` marks, the
+   coverage guard test and the round-trip tests (§10.3, items 1 and 2). Mutation checks by hand: marking one field
+   of each owner `NotSaved` in turn (the regrowth clock, the carried machine, pending shots, a held build key,
+   spawn protection, the bots' random stream and mode, the relink clock, a machine's action clock, a base's
+   reactor remainder and charge, a core tap's hold time) fails the list of marks every time and at least one
+   round-trip scenario every time; the core tap scenario had to be changed to be mid-hold at the save to catch the
+   last. No simulation change: the fingerprints are as they were.
+
+   Measured in Release on the development Mac, two bots after 1200 ticks (the busy world: 400 machines grown by
+   `BrowserStress`, 600 ticks). Times are medians of nine runs.
+
+   | | 480 x 300 | 1500 x 750 | 1500 x 750, 400 machines |
+   |---|---|---|---|
+   | Raw | 1.58 MiB | 11.0 MiB | 12.4 MiB |
+   | Brotli `Optimal` / `Fastest` | 301 / 320 KiB | 1314 / 1340 KiB | 1270 / 1298 KiB |
+   | Save | 0.8 ms | 2.9 ms | 19 ms |
+   | Load (building the world first) | 0.6 ms (107 ms) | 0.8 ms (434 ms) | 19 ms (431 ms) |
+   | Compress `Optimal` / `Fastest` | 3.6 / 1.2 ms | 16.7 / 5.0 ms | 17.7 / 5.9 ms |
+   | Decompress | 2.1 ms | 10.5 ms | 11 ms |
+
+   `SmallestSize` gives 6 to 10 % less for 300 times the time (5 s at 1500 x 750), so `Optimal` stays. Saving and
+   loading follow the objects, not the map: the bulk arrays copy in a few milliseconds, and the reflection walk
+   over machines and links is what grows. On a machine four times slower the busy large world takes about 80 ms to
+   save and 50 ms to compress, well inside a hold; building the world the joiner loads into costs more than
+   loading. What follows:
+   - **The §9.3 limits hold** to about 3.2 million cells (32 MiB at about 10.3 bytes a cell, roughly 2500 x 1300).
+     The browser's larger maps (`?map=`, up to 4096 each way) cannot be joined until snapshots are sent as a
+     difference (§14), or the cap follows the map size.
+   - **The difference from a built world (§14) is not needed sooner**: 1.3 MiB at 1500 x 750 is about a second at
+     10 Mbit/s.
 4. **Joining, in process.** `TickBundle.HumanMask`, `LockstepRoom.Seat`, the hold, `NetSession` starting from a
    loaded world and applying mask changes, `MatchRecording` with `mask=` lines and a starting snapshot.
    `NetSessionTests`: four worlds through the in-memory relay, two players and two bots; a fifth client joins at
    tick 2400 from a snapshot, takes slot 2 and plays; all worlds identical, and the recording rebuilds the same
-   world. A second test: two uploads that differ are a desync.
+   world. A second test: two uploads that differ are a desync. Uploaders are compared on the raw bytes, never
+   the compressed ones: Brotli's output can differ between .NET patch versions for the same input. Hash the raw
+   bytes (SHA-256, or a laned FNV like the sync digest) and send the hash with `SnapshotDone`.
 5. **The relay and the codec.** Watchers, the hold, snapshot transfer and its limits, `TakeSeat`, the refusals,
    the snapshot a last player leaves when quitting, rejoin by snapshot. Protocol version 6. `MatchRoomTests`: the join order in §5, two
    joiners in one hold, an uploader leaving, the hold timeout, a pause during a hold, a seated late joiner who
-   rejoins by name. A socket test in `RelayOverSocketsTests` (marked `Slow`). Deploy the relay to Starfish.
+   rejoins by name. A socket test in `RelayOverSocketsTests` (marked `Slow`). Deploy the relay to Starfish. The
+   relay's 32 MiB cap stays in step with `WorldSnapshot.MaxBytes`.
 6. **The game.** The local seat that can change, the full terrain upload after loading, vision and radar from the
    seat, names from the roster, the screens. Check by hand with three clients on one machine through a local
-   relay: start with two in a four-slot room, join with the third ten minutes in.
+   relay: start with two in a four-slot room, join with the third ten minutes in. After loading, the client
+   rebuilds what Core leaves to it: vision and radar cast from scratch (`SideSensing` is not saved), the whole
+   terrain uploaded to the renderer (the change list is not saved), and no step events read from the load tick.
+   For browser players to join, check a trimmed WebAssembly build: the saver finds types by reflection and
+   `Type.GetType` with assembly-qualified names, which trimming can remove; a source generator could replace the
+   walk, and the coverage test stays as it is.
 7. **Docs.** multiplayer-design.md §4 (messages), §5 (late join, and rejoin by snapshot) and §10, and the open
    questions.
 

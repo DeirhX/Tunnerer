@@ -142,6 +142,8 @@ that tests can inject their own values.
     flags in `EntityShape` match `Shaders/Entity/Layout.hlsli` and the dispatch in `EntityPs.hlsl`.
   - `SimulationTableGuardTests`, `MachineBehaviorTableTests`, `MachinePresentationTests`: every enum value has its
     table entries.
+  - `SnapshotCoverageTests`: every field a snapshot reaches can be saved, and every `NotSaved` mark is listed with
+    its reason.
 - **A machine looks at what is near it, not at every machine.** `MachineList.CollectNear` returns the machines
   around a place, in list order. Use it (or `MachineList.Chargers`) for any rule that involves other machines;
   do not loop over `MachineList.Machines` inside a machine's action, a collision test or a per-tank query. A
@@ -163,6 +165,12 @@ that tests can inject their own values.
 - **A system keeps its own state.** What a system tracks per base or per tank lives in the system, and `World`
   answers for it (the sector goal keeps each base's `CoreTap`; Desktop asks `World.CoreTapOf`). Do not add a new
   system's fields to `TankBase` or `Tank`: then removing the system leaves them untouched.
+- **A new field is in the snapshot.** `WorldSnapshot` (a late joiner's copy of the match) saves every field reachable
+  from the world and the bots. Mark a field `[NotSaved("reason")]` only when it is rebuilt on load
+  (`ISnapshotLoaded`), fixed for the match by the settings, output only, or scratch a step fills before it reads it,
+  and add it to the list in `SnapshotCoverageTests`. Hold state in fields, arrays and `List<T>`: the saver refuses a
+  dictionary, a set or a delegate, and a keyed lookup is rebuilt on load, never saved. `SnapshotRoundTripTests` must
+  pass.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.
 - Ask the shared question instead of spelling it out: `Machine.IsStanding` / `StandsFor(base)`; `Pixel.IsOpenGround`,
   `IsSoil`, `IsSolidGround`, `IsAnyBaseCell`; `BaseUpgrades.BaseCoverageRadius` / `NodeCoverageRadius`; per-second

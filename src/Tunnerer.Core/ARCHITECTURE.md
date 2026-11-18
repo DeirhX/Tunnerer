@@ -94,6 +94,14 @@ Bots/                        The computer player: produces a ControllerOutput li
   BotRandom.cs               The one random stream a bot and its parts share: a FastRandom, so its state can be
                              hashed and saved (System.Random's cannot)
   BotTrail.cs                The way the bot came, retraced to get home
+Snapshots/                   A match's state for a player who joins it in progress (docs/late-join-design.md §9)
+  WorldSnapshot.cs           Save, Load, Compress, Decompress: canonical bytes of the world and the bots beside it
+  SnapshotWriter.cs, SnapshotReader.cs   The general saver: every field reachable, breadth first, lists through
+                             their public API; loading fills the built world's own objects in place
+  SnapshotLayout.cs          What writer and reader agree on: saved fields in order, kinds of value, shared constants
+  NotSavedAttribute.cs       [NotSaved("reason")], the only way to leave a field out; ISnapshotLoaded rebuilds an
+                             index (machine buckets, link tiles) once a snapshot is loaded
+  SnapshotCoverage.cs        Every mark, and any reachable field the saver cannot write (SnapshotCoverageTests)
 LevelGen/
   ToastGenerator.cs          Cavern generator (LevelGenMode Deterministic or Optimized)
   GeneratorUtils.cs          Shared drawing and placement helpers (lines, TooClose)
