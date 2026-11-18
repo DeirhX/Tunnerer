@@ -76,11 +76,14 @@ Properties:
   release, and only if there is none the oldest input, which it counts.
 - **The tick rate is a match setting**, not a constant in the relay: changing the simulation rate needs no new
   relay.
-- **Input delay** is uplink + up to one tick + downlink: roughly 1 to 2 ticks (40 to 85 ms) on an office link to
-  a nearby server. Entity interpolation already hides one step.
+- **Input delay** is uplink + the wait for the relay's next tick + the client's own step phase + downlink. The
+  client keeps no bundle back (`BundleBuffer.TargetDepth` is 0), so an input is simulated at the first local step
+  after its bundle arrives. Measured on localhost with `TUNNERER_NET_LATENCY_LOG=1`: mean 44.6 ms, 91% of inputs
+  one tick (a depth of 1 gave a mean of 56.5 ms). Entity interpolation already hides one step.
 - **Pacing on the client.** `GameFrameCoordinator` today steps on the wall clock. In a net session it steps when
-  a bundle is available, keeping a one-tick jitter buffer, and uses the existing "at most 4 steps to catch up"
-  path when bundles arrive in a burst. If the buffer keeps growing the client steps faster until it is level.
+  a bundle is available, and uses the existing "at most 4 steps to catch up" path when bundles arrive in a burst.
+  With no buffer, a bundle that arrives late stalls one step; a link with that much jitter may need
+  `TargetDepth` back at 1. If the buffer keeps growing the client steps faster until it is level.
 
 ### Input encoding
 
