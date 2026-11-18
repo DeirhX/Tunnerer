@@ -1,5 +1,7 @@
 namespace Tunnerer.Desktop;
 
+using System.Diagnostics;
+using System.Globalization;
 using Tunnerer.Core;
 using Tunnerer.Core.Input;
 using Tunnerer.Core.Types;
@@ -15,6 +17,10 @@ public sealed class GameSimulationStepper
 {
     private readonly World _world;
     private readonly int _localSlot;
+
+    /// <summary>Times the local input's trip through the relay. Null unless `TUNNERER_NET_LATENCY_LOG=1`.</summary>
+    private readonly InputLatencyMeter? _latencyMeter =
+        Environment.GetEnvironmentVariable("TUNNERER_NET_LATENCY_LOG") == "1" ? new InputLatencyMeter() : null;
     private readonly KeyboardController _localController;
     private readonly IReadOnlyList<BotTankAI?> _bots;
     private readonly ScriptedInputConfig _scriptedInput;
@@ -72,13 +78,22 @@ public sealed class GameSimulationStepper
         ApplyScriptCommandsForFrame(simFrame);
 
         ControllerOutput local = SampleLocalInput(simFrame, aimDirection, mouseShoot);
+        int tick = _world.AdvanceCount;
         session.TryStep();
         // One input per tick simulated keeps this client sending at exactly the relay's rate.
         if (sendInput)
+        {
             session.SendInput(local);
+            _latencyMeter?.Sent(ControllerOutputCodec.Encode(local), tick, Stopwatch.GetTimestamp());
+        }
 
         // What was simulated for this tank, not what the keyboard says now: that is what a replay must reproduce.
-        ControllerOutput simulated = ControllerOutputCodec.Decode(session.Played[^1].Inputs[_localSlot]);
+        uint simulatedBits = session.Played[^1].Inputs[_localSlot];
+        ControllerOutput simulated = ControllerOutputCodec.Decode(simulatedBits);
+        if (sendInput && _latencyMeter?.Applied(simulatedBits, tick, Stopwatch.GetTimestamp()) is { } sample)
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"[Latency] input sent at tick {sample.SentTick}, applied at tick {sample.AppliedTick}: " +
+                $"{sample.Ticks} ticks, {sample.Elapsed.TotalMilliseconds:F0} ms"));
         _inputRecorder.RecordFrame(simulated.MoveSpeed, simulated.ShootPrimary);
         if (_scriptedInput.ShouldCaptureScreenshot(simFrame))
             _requestScreenshot($"script_frame_{simFrame:D4}");

@@ -238,10 +238,10 @@ public class BundleBufferTests
     [Theory]
     [InlineData(0, 1, 0)] // nothing arrived: the step waits
     [InlineData(1, 1, 1)] // level: one due, one there
-    [InlineData(2, 1, 1)] // one in reserve stays in reserve
-    [InlineData(3, 1, 2)] // behind: one extra step
-    [InlineData(1, 0, 0)] // not due yet and nothing to catch up on
-    [InlineData(3, 0, 2)] // far behind steps early
+    [InlineData(2, 1, 2)] // one arrived late: both are simulated now, none is kept back
+    [InlineData(3, 1, 3)] // behind: caught up in one clock step
+    [InlineData(1, 0, 1)] // nothing due by the clock, but one there: simulated, nothing kept back
+    [InlineData(3, 0, 3)] // far behind steps early
     [InlineData(40, 1, 4)] // a rejoin catches up at the cap
     public void StepsToTake_FollowsTheClockAndCatchesUp(int buffered, int dueByClock, int expected)
     {

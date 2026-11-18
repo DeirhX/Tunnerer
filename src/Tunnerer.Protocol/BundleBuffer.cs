@@ -9,10 +9,12 @@ using System.Diagnostics.CodeAnalysis;
 public sealed class BundleBuffer
 {
     /// <summary>
-    /// Bundles left waiting on purpose, so that one arriving a little late does not leave a step with nothing to
-    /// simulate. More than this means the client is behind and should catch up.
+    /// Bundles kept back on purpose. Zero: a bundle is simulated at the first step after it arrives, so an input's
+    /// trip has no extra tick. A depth of 1 absorbs a bundle that arrives late, at the cost of one tick (about 42 ms)
+    /// on every input; a link with more jitter than that may need it back. More than this means the client is behind
+    /// and should catch up.
     /// </summary>
-    public const int TargetDepth = 1;
+    public const int TargetDepth = 0;
 
     private readonly Queue<TickBundle> _bundles = new();
 
