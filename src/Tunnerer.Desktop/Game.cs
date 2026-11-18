@@ -161,7 +161,7 @@ public partial class Game : IDisposable
             {
                 bots[slot] = new BotTankAI(seed: built.BotSeedFor(slot));
                 // Its base gets the bot's stand-in ore income.
-                _world.SetBotControlled(slot);
+                _world.SetBotControlled(slot, botControlled: true);
             }
         return bots;
     }

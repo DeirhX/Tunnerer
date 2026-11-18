@@ -155,4 +155,7 @@ internal sealed class TankDigger
         events?.Record(new StepEvent(StepEventKind.OreCollected, worldPos, _tank.Color, Count: units));
         return true;
     }
+
+    /// <summary>Mixes the digger's generator and its move credit, for the sync digest.</summary>
+    internal ulong MixLatent(ulong hash) => Fnv1a.Mix(Fnv1a.Mix(hash, _rng.State), _moveCredit);
 }

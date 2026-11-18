@@ -11,8 +11,9 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 World.cs                     World: owns every subsystem, runs Advance over its list of systems (WorldSystem)
 SimulationProfile.cs         Per-system timings, one section per system label
 StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
-WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds heat and
-                             charge totals (what machines in a network match compare)
+WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds what it
+                             does not read: heat per cell, charge per holder, economy, outcome and latent state (what
+                             machines in a network match compare; each owner mixes its own private state)
 StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
 Match/
   MatchRules.cs              Which optional systems a world runs (regrowth, pockets, ore, the core race); World.Rules

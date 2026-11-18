@@ -1,6 +1,7 @@
 namespace Tunnerer.Core.Thermal;
 
 using Tunnerer.Core.Config;
+using Tunnerer.Core.Types;
 
 /// <summary>
 /// Decides, once per tick, whether the terrain heat solver runs. With no active tile there is nothing to step:
@@ -31,4 +32,7 @@ internal sealed class ThermalScheduler
             (_frameCounter % Math.Max(1, settings.ThermalSaturationStepIntervalFrames)) != 0;
         return !throttled;
     }
+
+    /// <summary>Mixes the two counters that decide when the solver is throttled, for the sync digest.</summary>
+    internal ulong MixLatent(ulong hash) => Fnv1a.Mix(Fnv1a.Mix(hash, _frameCounter), _saturatedCoverageFrameCount);
 }

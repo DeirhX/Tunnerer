@@ -178,7 +178,8 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
   (`NetLaunch.RejoinPatience`) before it gives up. The window is closed meanwhile; the console says why. If
   the relay itself was restarted the room is gone, and the player opens a new lobby instead.
 - **Late join** of a new player is the same mechanism plus a free slot, but a tank and base cannot appear
-  mid-match in Core today. Not in the first tranche.
+  mid-match in Core today. Not in the first tranche. [late-join-design.md](late-join-design.md) proposes taking
+  over a bot's tank instead, with the world copied from a snapshot while the match holds for a moment.
 - A world snapshot (which the sector save in DESIGN §12.2 needs anyway) later replaces the fast-forward.
 
 ## 6. Staying in sync
@@ -189,14 +190,18 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
 - **Periodic hash.** Each client sends a digest once a second; the server keeps the first one reported for each
   tick for the whole match (a few thousand numbers an hour) and compares every later report for that tick with
   it, so a client far behind, replaying to catch up, is checked too. A report for a tick the relay has not closed
-  yet is ignored. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus the bits of
-  the total thermal energy and of the total stored charge, which cover the heat field the state hash does not
-  read, and a hash of every base's ore store and upgrade levels, which it does not read either.
-- **Its cost does not yet follow activity.** Both the state hash and the energy total walk the whole grid once
-  a second. That is small on today's maps and will not be on much larger ones; summing per active tile, or
+  yet is ignored. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus
+  what that hash does not read, in five parts: every cell's heat and air temperature, in cell order, and each
+  base reactor's exact heat (where heat is, not only how much); every base's and battery's charge; every base's
+  ore, upgrades and whether a bot plays it; the race to the core and the result (which decide the winner without
+  passing through anything else); and latent state that shows elsewhere only later or on a rare event (random
+  generators, timers, held keys, harvester memory, pending projectiles, which heat tiles are awake, the regrowth
+  clock, scorch). [late-join-design.md](late-join-design.md) §10 says why each is there.
+- **Its cost does not yet follow activity.** Both the state hash and the per-cell heat hash walk the whole grid
+  once a second. That is small on today's maps and will not be on much larger ones; summing per active tile, or
   hashing the terrain in turns, is the fix when maps grow.
 - **On desync** the match stops and every client writes `artifacts/debug/desync_<room>_tick<n>_slot<k>.txt`:
-  the digests it reported around the tick, split into state, heat, charge and economy, where its tanks stand, and the
+  the digests it reported around the tick, split into state, heat, charge, economy, outcome and latent, where its tanks stand, and the
   match as a `MatchRecording` (settings, which slots were players, every tick's inputs). Comparing two
   players' files shows when and in what the worlds went apart; `MatchRecording.Load(...).Replay()` rebuilds the
   match tick by tick in a test. `TUNNERER_NET_FAULT_TICK=n` makes one client diverge on purpose, to exercise
@@ -350,7 +355,8 @@ Each step is testable without the next.
    idles. Protocol version 5. With it: Enter reconnects after a lost connection, the sync digest covers base
    ore and upgrades, names in a room are unique, the round trip is timed to the answer's arrival and not to the
    next simulation step, and the relay caps its connections.
-8. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
+8. Later: co-op sides, late join ([late-join-design.md](late-join-design.md)), world snapshot for fast rejoin
+   and late join, play from outside the office.
 
 ## 11. Open questions
 

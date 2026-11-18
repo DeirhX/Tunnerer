@@ -420,13 +420,14 @@ public class World
         NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines).Covered;
 
     /// <summary>
-    /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer: the bot does not prospect, so
-    /// its base gets <see cref="Tweaks.Ore.BotOrePerSecond"/> of ore instead (a stand-in, DESIGN.md §6.4).
+    /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer, or by a player again: the bot
+    /// does not prospect, so while it plays, its base gets <see cref="Tweaks.Ore.BotOrePerSecond"/> of ore instead (a
+    /// stand-in, DESIGN.md §6.4). Part of the simulation: in a network match every client changes it at the same tick.
     /// </summary>
-    public void SetBotControlled(int spawnIndex)
+    public void SetBotControlled(int spawnIndex, bool botControlled)
     {
         if (_tankBases.GetSpawn(spawnIndex) is TankBase tankBase)
-            tankBase.IsBotControlled = true;
+            tankBase.SetBotControlled(botControlled);
     }
 
     /// <summary>
@@ -474,6 +475,15 @@ public class World
     /// The base whose win the match counts as a race win: the first to tap the core, when the rules make the core a
     /// race (<see cref="MatchRules.CoreTapWins"/>); otherwise null.
     /// </summary>
+    /// <summary>The race to the core, for the sync digest; null in a world without a core.</summary>
+    internal SectorGoal? Goal => _sectorGoal;
+
+    /// <summary>The match result, for the sync digest.</summary>
+    internal MatchResult Result => _matchResult;
+
+    /// <summary>Dirt regrowth, for the sync digest; null when the match rules leave it out.</summary>
+    internal TerrainRegrowth? RegrowthSystem => _terrainRegrowth;
+
     private TankBase? RaceWinner => Rules.CoreTapWins ? _sectorGoal?.FirstToTapCore : null;
 
     /// <summary>

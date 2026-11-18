@@ -58,4 +58,7 @@ public class TankTurret
     {
         _cooldown = 0;
     }
+
+    /// <summary>Mixes what the rest of the sync digest does not see: the ticks until the next shot.</summary>
+    internal ulong MixLatent(ulong hash) => Fnv1a.Mix(hash, _cooldown);
 }

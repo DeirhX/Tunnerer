@@ -28,7 +28,7 @@ public sealed class BrowserSession
         if (heatWorkers <= 1)
             settings = settings with { ThermalParallelTileThreshold = int.MaxValue };
         World = MatchSetup.Build(MapSize, seed, MatchRules.Standard with { CoreTapWins = true }, settings: settings);
-        World.SetBotControlled(BotSlot);
+        World.SetBotControlled(BotSlot, botControlled: true);
         _bot = new BotTankAI(MatchSetup.BotSeed(seed, BotSlot));
         Vision = World.TrackVision(Player);
         Radar = World.TrackRadar(Player);

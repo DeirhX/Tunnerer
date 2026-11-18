@@ -120,7 +120,7 @@ public sealed class NetSession
                 bots[slot] = new BotTankAI(seed: MatchSetup.BotSeed(matchSeed, slot));
                 // Part of the simulation, so every client must mark the same slots: the bot's base gets its
                 // stand-in ore income.
-                world.SetBotControlled(slot);
+                world.SetBotControlled(slot, botControlled: true);
             }
         return bots;
     }

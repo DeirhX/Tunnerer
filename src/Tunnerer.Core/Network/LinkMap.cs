@@ -70,6 +70,17 @@ public class LinkMap
         return point;
     }
 
+    /// <summary>Mixes the map's counters and clocks, which the link list itself does not show, for the sync digest.</summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _nextPointIndex);
+        hash = Fnv1a.Mix(hash, _elapsed);
+        hash = Fnv1a.Mix(hash, _nextRelink);
+        hash = Fnv1a.Mix(hash, _hasDisabledPoint);
+        hash = Fnv1a.Mix(hash, _hasDisabledMachinePoint);
+        return Fnv1a.Mix(hash, _hasSpreadPower);
+    }
+
     public void Advance(TerrainGrid terrain, TimeSpan dt)
     {
         SightlinesCheckedInLastAdvance = 0;

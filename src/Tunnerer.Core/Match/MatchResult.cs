@@ -2,6 +2,7 @@ namespace Tunnerer.Core.Match;
 
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Entities.Bases;
+using Tunnerer.Core.Types;
 
 /// <summary>
 /// The result of one match: asks <see cref="MatchReferee"/> until it has an answer, then keeps that answer, so that
@@ -38,5 +39,14 @@ public sealed class MatchResult
             return;
         _winner = winner;
         _decided = true;
+    }
+
+    /// <summary>Mixes whether the result is fixed, and what it is, for the sync digest.</summary>
+    internal ulong MixOutcome(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _decided);
+        return _winner is { } winner
+            ? Fnv1a.Mix(Fnv1a.Mix(hash, winner.Tank.Color), (int)winner.Reason)
+            : Fnv1a.Mix(hash, -1);
     }
 }
