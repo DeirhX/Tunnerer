@@ -677,5 +677,6 @@ function animate(now) {
     if (now > noticeUntil) $("notice").classList.remove("visible");
     requestAnimationFrame(animate);
 }
-setupInstallation(notify);
+// An update applies itself only while no match is running or starting (install.js).
+setupInstallation(notify, () => !playing && !busy && !net);
 requestAnimationFrame(animate);

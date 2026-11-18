@@ -19,7 +19,8 @@ for (const [name, list] of Object.entries(runtimes)) {
 
 self.addEventListener("install", (event) => {
     // Installation is atomic: a failed fetch leaves the previous working app active.
-    // Do not skipWaiting: open games keep using the runtime they loaded with.
+    // No skipWaiting here: the page asks for it ("skip-waiting" below) when it holds no game, or when the player
+    // presses its Update button, and then reloads. A game open in another tab keeps the runtime it has loaded.
     event.waitUntil(
         (async () => {
             const cache = await caches.open(cacheName);
@@ -60,6 +61,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
     if (event.data?.type === "status")
         event.source?.postMessage({ type: "offline-ready" });
+    if (event.data?.type === "skip-waiting") self.skipWaiting();
 });
 
 self.addEventListener("fetch", (event) => {
