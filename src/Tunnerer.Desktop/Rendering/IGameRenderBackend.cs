@@ -29,7 +29,8 @@ public readonly record struct GamePixelsUpload(
     TerrainAuxUpload TerrainAux,
     NativeContinuousUpload NativeContinuous,
     EntityLayerUpload Entities,
-    FogUpload Fog = default);
+    FogUpload Fog = default,
+    ScreenEffectLevels ScreenEffects = default);
 
 /// <param name="TimeSeconds">The shaders' animation clock; also the clock regrow stamps are written in.</param>
 public readonly record struct PostProcessUploadOptions(

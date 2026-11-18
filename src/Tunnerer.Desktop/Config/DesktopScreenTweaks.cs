@@ -29,6 +29,20 @@ public static class DesktopScreenTweaks
     public const float ScorchTintDarken = 0.35f;
     public const float ScorchTintStrength = 0.50f;
 
+    // Whole-screen effects (Rendering/ScreenEffects.cs, Shaders/ScreenFxPs.hlsl)
+    /// <summary>Seconds a hit's shake, colour split and flash take to fade out.</summary>
+    public const float ScreenHitSeconds = 0.5f;
+    /// <summary>How far a hit throws the view at first, in device pixels.</summary>
+    public const float ScreenShakePixels = 14f;
+    /// <summary>How fast the view rings back after a hit (about 7 swings a second).</summary>
+    public const float ScreenShakeRadiansPerSecond = 44f;
+    /// <summary>Seconds the overheat haze takes to come in fully, and to clear once the tank is back under the safe maximum.</summary>
+    public const float ScreenOverheatRiseSeconds = 0.4f;
+    public const float ScreenOverheatFallSeconds = 0.9f;
+    /// <summary>Seconds the frost takes to creep in fully, and to thaw once the tank is warmer than frostbite.</summary>
+    public const float ScreenFreezeRiseSeconds = 0.8f;
+    public const float ScreenFreezeFallSeconds = 1.6f;
+
     // GPU post-processing / lighting tuning
     public const float PostVignetteStrength = 0.18f;
     public const float PostVignetteInnerRadius = 0.35f;

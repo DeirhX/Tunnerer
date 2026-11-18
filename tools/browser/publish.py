@@ -109,7 +109,7 @@ def main():
         shader_dir = repo / "src/Tunnerer.Browser/wwwroot/shaders"
         shader_source = repo / "src/Tunnerer.Desktop/Rendering/Shaders"
         shaders = [("FullscreenVs", "vertex"), ("TerrainPs", "fragment"), ("PostPs", "fragment"),
-                   ("EntityVs", "vertex"), ("EntityPs", "fragment")]
+                   ("EntityVs", "vertex"), ("EntityPs", "fragment"), ("ScreenFxPs", "fragment")]
         shader_args = [str(shader_source / (name + ".hlsl")) + "=" + stage for name, stage in shaders]
         subprocess.run([dotnet, "run", "--project", str(repo / "tools/Tunnerer.ShaderCompiler"),
                         "-c", args.configuration, "--", "--web", "--out", str(shader_dir)] + shader_args,

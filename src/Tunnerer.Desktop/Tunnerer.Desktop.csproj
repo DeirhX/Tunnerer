@@ -21,7 +21,7 @@
     <Compile Remove="DrawProfile.cs;Config/DesktopScreenTweaks.cs;Config/PostProcessPassFlags.cs;Rendering/Entities/*.cs" />
     <Compile Remove="Config/AudioTweaks.cs;Audio/SoundEffect.cs;Audio/StepEventSounds.cs;Audio/SoundDirector.cs;Audio/SoundBank.cs" />
     <Compile Remove="Presentation/MachinePresentation.cs;Gui/HintSelector.cs;Gui/HeatScale.cs;Gui/BuildSlotView.cs;Gui/Guidance/*.cs" />
-    <Compile Remove="Rendering/EntityLayerBuilder.cs;Rendering/IGameRenderBackend.cs;Rendering/RenderInputEvent.cs;Rendering/PostParamsBlock.cs" />
+    <Compile Remove="Rendering/EntityLayerBuilder.cs;Rendering/IGameRenderBackend.cs;Rendering/RenderInputEvent.cs;Rendering/PostParamsBlock.cs;Rendering/ScreenEffects.cs" />
     <Compile Remove="Rendering/TerrainAuxBuilder.cs;Rendering/TerrainAuxUploader.cs;Rendering/TerrainSolidField.cs;Rendering/TerrainMaterialCoverage.cs;Rendering/TerrainGrowthFade.cs;Rendering/TerrainView.cs;Rendering/FogLayer.cs;Rendering/RowParallel.cs" />
     <Compile Remove="SlotStepper.cs;Config/NetworkTweaks.cs;Net/NetSession.cs;Net/NetMatch.cs;Net/LobbyText.cs" />
   </ItemGroup>
@@ -41,6 +41,7 @@
     <SdlGpuShader Include="Rendering\Shaders\FullscreenVs.hlsl" Stage="vertex" />
     <SdlGpuShader Include="Rendering\Shaders\BlitPs.hlsl" Stage="fragment" />
     <SdlGpuShader Include="Rendering\Shaders\PostPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\ScreenFxPs.hlsl" Stage="fragment" />
     <SdlGpuShader Include="Rendering\Shaders\TerrainPs.hlsl" Stage="fragment" />
     <SdlGpuShader Include="Rendering\Shaders\EntityVs.hlsl" Stage="vertex" />
     <SdlGpuShader Include="Rendering\Shaders\EntityPs.hlsl" Stage="fragment" />

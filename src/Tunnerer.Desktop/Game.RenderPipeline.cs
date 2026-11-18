@@ -40,6 +40,7 @@ public partial class Game
         _entityLayer.Build(
             renderView, stepProgress, turnSeconds: WorldStandsStill ? 0f : dt, snapHeadings: !_interpolateFrames,
             visualSeconds: visualTime, vision: _vision, radar: _radar);
+        ScreenEffectLevels screenEffects = _screenEffects.Update(_terrainTestMode ? null : player, dt);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
 
@@ -83,7 +84,8 @@ public partial class Game
                 Entities: new EntityLayerUpload(
                     Vertices: _entityLayer.Vertices,
                     VertexCount: _entityLayer.VertexCount),
-                Fog: fog);
+                Fog: fog,
+                ScreenEffects: screenEffects);
             DrawProfile.Measure(ref _drawProfile.ScreenBackendUpload, () =>
                 _renderBackend.UploadGamePixels(upload));
             _worldPixelsChanged = false;

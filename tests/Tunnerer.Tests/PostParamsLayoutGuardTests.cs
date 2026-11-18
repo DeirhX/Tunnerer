@@ -64,6 +64,8 @@ public partial class PostParamsLayoutGuardTests
         ["TerrainHeatGlowColorAndThreshold"] =
             ["TerrainHeatGlowR", "TerrainHeatGlowG", "TerrainHeatGlowB", "TerrainHeatThreshold"],
         ["ScorchTint"] = ["_padScorch0", "ScorchTintDarken", "ScorchTintStrength", "_padScorch1"],
+        ["ScreenFx"] = ["ScreenFxHit", "ScreenFxOverheat", "ScreenFxFreeze", "ScreenFxActive"],
+        ["ScreenFxMotion"] = ["ScreenShakeX", "ScreenShakeY", "ScreenHitFromX", "ScreenHitFromY"],
         ["TankGlowCount"] = ["TankGlowCount"],
         ["TankGlow"] = ["TankGlow"],
     };
@@ -98,6 +100,19 @@ public partial class PostParamsLayoutGuardTests
 
         Assert.True(mismatches.Count == 0,
             "PostParamsBlock does not match cbuffer PostParams in PostParams.hlsli:\n" + string.Join('\n', mismatches));
+    }
+
+    /// <summary>The browser reads one flag straight out of the uniform floats to decide whether to run ScreenFxPs.</summary>
+    [Fact]
+    public void WebGlRenderer_ReadsTheScreenEffectFlagAtItsOffset()
+    {
+        string webgl = File.ReadAllText(Path.Combine(EntityLayoutGuardTests.FindRepositoryRoot(),
+            "src", "Tunnerer.Browser", "wwwroot", "webgl.js"));
+        var m = Regex.Match(webgl, @"const SCREEN_FX_ACTIVE = (?<index>\d+);");
+        Assert.True(m.Success, "webgl.js no longer declares SCREEN_FX_ACTIVE");
+        int expected = (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.ScreenFxActive)) / sizeof(float);
+        Assert.True(expected.ToString(System.Globalization.CultureInfo.InvariantCulture) == m.Groups["index"].Value,
+            $"webgl.js has SCREEN_FX_ACTIVE = {m.Groups["index"].Value}; PostParamsBlock.ScreenFxActive is float {expected}.");
     }
 
     [Fact]

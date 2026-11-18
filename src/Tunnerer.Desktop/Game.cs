@@ -29,6 +29,7 @@ public partial class Game : IDisposable
     private readonly ITextureLoader _textures;
     private readonly GameHud _hud;
     private readonly EntityLayerBuilder _entityLayer = new();
+    private readonly ScreenEffects _screenEffects = new();
     private readonly GameAudio _audio;
 
     private readonly Size _terrainSize;

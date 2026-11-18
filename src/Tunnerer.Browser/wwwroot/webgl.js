@@ -1,3 +1,6 @@
+// Index of PostParamsBlock.ScreenFxActive among the frame's uniform floats (PostParamsLayoutGuardTests checks it).
+const SCREEN_FX_ACTIVE = 71;
+
 // A failure of the graphics hardware or driver, as opposed to one of loading the game.
 export class GraphicsError extends Error {
     name = "GraphicsError";
@@ -50,6 +53,7 @@ export class WebGlRenderer {
             "PostPs",
             "EntityVs",
             "EntityPs",
+            "ScreenFxPs",
         ];
         const source = Object.fromEntries(
             await Promise.all(
@@ -65,12 +69,13 @@ export class WebGlRenderer {
                 }),
             ),
         );
-        // All three compile at once where the driver can; each is awaited, so the page is never blocked on one.
-        [this.terrainProgram, this.postProgram, this.entityProgram] =
+        // All compile at once where the driver can; each is awaited, so the page is never blocked on one.
+        [this.terrainProgram, this.postProgram, this.entityProgram, this.screenFxProgram] =
             await Promise.all([
                 this.program("Terrain", source.FullscreenTargetVs, source.TerrainPs),
                 this.program("Post", source.FullscreenVs, source.PostPs),
                 this.program("Entity", source.EntityVs, source.EntityPs),
+                this.program("Screen effects", source.FullscreenVs, source.ScreenFxPs),
             ]);
         this.uniforms = gl.createBuffer();
         gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, this.uniforms);
@@ -88,6 +93,9 @@ export class WebGlRenderer {
         gl.bindVertexArray(null);
         this.framebuffer = gl.createFramebuffer();
         this.sceneTexture = this.texture();
+        // The finished game image, drawn here instead of to the canvas while a whole-screen effect shows.
+        this.screenFramebuffer = gl.createFramebuffer();
+        this.screenTexture = this.texture();
         gl.disable(gl.DEPTH_TEST);
         gl.disable(gl.CULL_FACE);
         this.ready = true;
@@ -244,6 +252,7 @@ export class WebGlRenderer {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
         this.vertexCount = vertices.byteLength / 48;
+        this.screenEffects = uniforms[SCREEN_FX_ACTIVE] > 0.5;
         this.hasFrame = true;
         this.fresh = true;
     }
@@ -290,31 +299,8 @@ export class WebGlRenderer {
             this.targetHeight = this.height;
             this.canvas.width = this.width;
             this.canvas.height = this.height;
-            gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
-            gl.texImage2D(
-                gl.TEXTURE_2D,
-                0,
-                gl.RGBA8,
-                this.width,
-                this.height,
-                0,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                null,
-            );
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-            gl.framebufferTexture2D(
-                gl.FRAMEBUFFER,
-                gl.COLOR_ATTACHMENT0,
-                gl.TEXTURE_2D,
-                this.sceneTexture,
-                0,
-            );
-            if (
-                gl.checkFramebufferStatus(gl.FRAMEBUFFER) !==
-                gl.FRAMEBUFFER_COMPLETE
-            )
-                throw new GraphicsError("Could not create the terrain render target.");
+            this.renderTarget(this.framebuffer, this.sceneTexture, "terrain");
+            this.renderTarget(this.screenFramebuffer, this.screenTexture, "screen effects");
         }
         gl.viewport(0, 0, this.width, this.height);
         gl.disable(gl.BLEND);
@@ -322,7 +308,11 @@ export class WebGlRenderer {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
         this.bindTextures(this.terrainProgram, this.mapTextures, "sourceTex");
         gl.drawArrays(gl.TRIANGLES, 0, 3);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        // Whole-screen effects cost a pass only while one shows.
+        gl.bindFramebuffer(
+            gl.FRAMEBUFFER,
+            this.screenEffects ? this.screenFramebuffer : null,
+        );
         this.bindTextures(
             this.postProgram,
             this.postTextures,
@@ -335,7 +325,47 @@ export class WebGlRenderer {
         gl.bindVertexArray(this.entityVao);
         gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
         gl.disable(gl.BLEND);
+        if (this.screenEffects) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.bindVertexArray(this.emptyVao);
+            this.bindTextures(
+                this.screenFxProgram,
+                [this.screenTexture],
+                "sceneTex",
+            );
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
         gl.bindVertexArray(null);
         return true;
+    }
+
+    // Sizes a texture to the view and makes it the colour target of the framebuffer.
+    renderTarget(framebuffer, texture, name) {
+        const gl = this.gl;
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA8,
+            this.width,
+            this.height,
+            0,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            null,
+        );
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            texture,
+            0,
+        );
+        if (
+            gl.checkFramebufferStatus(gl.FRAMEBUFFER) !==
+            gl.FRAMEBUFFER_COMPLETE
+        )
+            throw new GraphicsError(`Could not create the ${name} render target.`);
     }
 }

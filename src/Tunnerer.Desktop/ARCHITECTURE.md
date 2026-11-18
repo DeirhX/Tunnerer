@@ -50,7 +50,8 @@ One command buffer per frame:
 
 1. `UploadGamePixels`: stages the aux and material coverage dirty rects, the native source texture and the entity
    vertices in transfer buffers, copies them in one copy pass, then records the terrain pass (`TerrainPs` into
-   `scene`), the post pass (`PostPs` into `post`) and the entity layer (premultiplied alpha onto `post`).
+   `scene`), the post pass (`PostPs` into `post`), the entity layer (premultiplied alpha onto `post`) and, only
+   while one shows, the whole-screen effects (`ScreenFxPs` from `post` into `screen`).
 2. `Render`: uploads ImGui's vertices, then composes the frame into the offscreen `final` texture (clear, blit of
    the game texture sized to the scene, ImGui), downloads it if a screenshot is pending, blits it to the swapchain
    and submits. Composing offscreen keeps screenshots working in hidden windows, where the swapchain may hand out
@@ -118,6 +119,27 @@ Core decides what is seen; the renderer only shows it.
   glint, tumbling toward the base). `LinkQuads` draws the ore beam from `LinkRenderState.OreFlow`, which Core keeps up
   for a moment after each unit passes (`Link.OreFlowTicks`), and `CoverageQuads` draws one from the tank to its
   covering node beside the tether while `Tank.IsUnloadingOre`.
+
+## Whole-screen effects
+
+Three effects cover the whole game view, under the HUD: a **hit** by enemy fire (the view jolts away from the shooter
+and rings back, colours split, a short bright punch and a red shade on the side the shot came from), **overheat**
+(heat haze ripples the view, with a warm grade and a flickering burning rim) and **freeze** (a cold, drained grade
+and frost growing in from the edges and corners, refracting the ground under it). Overheat and freeze grow with how
+far past the limit the tank is: a thin edge just past the safe maximum or frostbite, closing in until, at the end of
+the heat gauge (`Tank.HeatGaugeMax`, `HeatGaugeMin`), they cover the whole view.
+
+- **Levels.** `Rendering/ScreenEffects` (shared with the browser) turns the player's tank into `ScreenEffectLevels`
+  each displayed frame. Core says when each starts and stops: a rise of `Tank.HitFlashTicks` is a new hit (its
+  direction is `LastHitVelocity`), `IsAboveSafeHeat` / `IsOverheating` is overheat and `IsBelowFrostbite` /
+  `IsFreezing` is freeze. `ScreenEffects` only eases the levels in and out in display time
+  (`DesktopScreenTweaks.Screen*`), so they are smooth between steps, and works out the shake, which has no
+  randomness so screenshots repeat. A dead tank, or none, shows nothing.
+- **Pass.** The levels travel in `PostParams` (`ScreenFx`, `ScreenFxMotion`). `ScreenFxPs` reads the finished game
+  image (terrain, post pass and entities), so shake and haze move tanks and shots with the ground. It runs only
+  while an effect shows: otherwise the backend shows `post` as it is, and the browser draws straight to the canvas
+  (`webgl.js` reads `ScreenFxActive` from the uniforms, at the index `PostParamsLayoutGuardTests` checks).
+- The HUD's red edge and the wedge pointing at the shooter (`GameHud.DrawHitFeedback`) stay; the pass adds to them.
 
 ## Per-Frame Flow (`Game.RenderPipeline.cs`)
 

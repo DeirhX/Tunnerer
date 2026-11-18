@@ -15,7 +15,7 @@ using Tunnerer.Desktop.Config;
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct PostParamsBlock
 {
-    public const float LayoutVersion = 5.0f;
+    public const float LayoutVersion = 6.0f;
     public const int MaxTankGlows = 8;
 
     public float TexelSizeX, TexelSizeY, PixelScale, Time;
@@ -35,6 +35,8 @@ public unsafe struct PostParamsBlock
     public float TankHeatGlowR, TankHeatGlowG, TankHeatGlowB, TankHeatGlowA;
     public float TerrainHeatGlowR, TerrainHeatGlowG, TerrainHeatGlowB, TerrainHeatThreshold;
     public float _padScorch0, ScorchTintDarken, ScorchTintStrength, _padScorch1;
+    public float ScreenFxHit, ScreenFxOverheat, ScreenFxFreeze, ScreenFxActive;
+    public float ScreenShakeX, ScreenShakeY, ScreenHitFromX, ScreenHitFromY;
     public float TankGlowCount, _padTankGlow0, _padTankGlow1, _padTankGlow2;
     public fixed float TankGlow[MaxTankGlows * 4];
 
@@ -111,6 +113,16 @@ public unsafe struct PostParamsBlock
         cb.LightSpecularIntensity = DesktopScreenTweaks.LightSpecularIntensity;
         cb.ScorchTintDarken = DesktopScreenTweaks.ScorchTintDarken;
         cb.ScorchTintStrength = DesktopScreenTweaks.ScorchTintStrength;
+
+        ScreenEffectLevels fx = upload.ScreenEffects;
+        cb.ScreenFxHit = fx.Hit;
+        cb.ScreenFxOverheat = fx.Overheat;
+        cb.ScreenFxFreeze = fx.Freeze;
+        cb.ScreenFxActive = BoolToFloat(fx.IsActive);
+        cb.ScreenShakeX = fx.ShakeX;
+        cb.ScreenShakeY = fx.ShakeY;
+        cb.ScreenHitFromX = fx.HitFromX;
+        cb.ScreenHitFromY = fx.HitFromY;
 
         int glowCount = Math.Clamp(upload.TankGlow.Count, 0, MaxTankGlows);
         cb.TankGlowCount = glowCount;
