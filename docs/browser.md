@@ -196,9 +196,12 @@ its threaded WebAssembly runtime experimental.
 
 `publish.py` hashes the complete deployed app and emits `assets-manifest.js`. The service worker caches every
 required asset (of two runtimes, the one this browser uses) before becoming active, isolates caches by deployment
-path, and never takes over from a running game. A new version installs in the background; a page that holds
-no game (on the start page, not typing in a field) then moves to it and reloads itself, and a page with a match
-running shows an Update button in the header instead, which reloads when pressed (`install.js`). The page also
+path, and does not reload a running game. A new version installs in the background. A page that holds no game
+(on the start page with nothing to read, not typing in a field) then moves to it and reloads itself, if no other
+Tunnerer tab is open. Otherwise the page shows an Update button in the header, which reloads when pressed
+(`install.js`). Pressing it moves every tab to the new version; another tab with a match running keeps playing
+and shows the button too. The start page's footer names the version the page runs and, when it differs, the latest
+one on the server ("VERSION 5cc86e02 · LATEST e7ef5bb1"), or says it is up to date. The page also
 looks for a new version when it comes back into view, at most every ten minutes. Failed update downloads
 leave the previous working version active. The manifest must be regenerated after changing a published file; rerun
 the publisher rather than editing files in `wwwroot`.
@@ -242,7 +245,7 @@ curl -sS https://crust.bokovka.cz/assets-manifest.js | grep -o '"version": "[^"]
 curl -sSI https://crust.bokovka.cz/ | grep -i cross-origin
 ```
 
-Then open the page and start a game. A page on the start page moves to the new version by itself once it has
+Then open the page: its footer should say the version the publisher printed and "UP TO DATE". Start a game. A page on the start page moves to the new version by itself once it has
 downloaded it; one with a match running shows the Update button. To roll back, swap the two directories
 back. The relay is deployed on its own and needs updating only when the protocol changes.
 

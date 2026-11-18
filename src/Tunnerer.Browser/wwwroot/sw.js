@@ -19,8 +19,8 @@ for (const [name, list] of Object.entries(runtimes)) {
 
 self.addEventListener("install", (event) => {
     // Installation is atomic: a failed fetch leaves the previous working app active.
-    // No skipWaiting here: the page asks for it ("skip-waiting" below) when it holds no game, or when the player
-    // presses its Update button, and then reloads. A game open in another tab keeps the runtime it has loaded.
+    // No skipWaiting here: the page asks for it ("skip-waiting" below) when it holds no game and no other tab is
+    // open, or when the player presses its Update button, and then reloads.
     event.waitUntil(
         (async () => {
             const cache = await caches.open(cacheName);
@@ -53,15 +53,27 @@ self.addEventListener("activate", (event) => {
                     await caches.delete(key);
             await self.clients.claim();
             for (const client of await self.clients.matchAll())
-                client.postMessage({ type: "offline-ready" });
+                client.postMessage({ type: "offline-ready", version: self.tunnererAssets.version });
         })(),
     );
 });
 
 self.addEventListener("message", (event) => {
     if (event.data?.type === "status")
-        event.source?.postMessage({ type: "offline-ready" });
-    if (event.data?.type === "skip-waiting") self.skipWaiting();
+        event.source?.postMessage({ type: "offline-ready", version: self.tunnererAssets.version });
+    // The Update button forces it. Otherwise the page asks only while it holds no game, and another open tab might
+    // hold one, so the worker waits for the player while any other Tunnerer tab is open.
+    if (event.data?.type === "skip-waiting")
+        event.waitUntil(
+            (async () => {
+                const tabs = await self.clients.matchAll({
+                    type: "window",
+                    includeUncontrolled: true,
+                });
+                if (event.data.force || tabs.length <= 1) await self.skipWaiting();
+                else event.source?.postMessage({ type: "update-held" });
+            })(),
+        );
 });
 
 self.addEventListener("fetch", (event) => {

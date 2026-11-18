@@ -1,28 +1,75 @@
 // A new publish installs beside the running one and waits (sw.js). The page moves to it when that loses nothing: at
-// once while this tab holds no game (`idle`) and no field is being typed in, otherwise when the player presses the
-// Update button in the header. A game in progress is never reloaded from under the player.
-function updater(idle) {
+// once while this tab holds no game and nothing to read (`idle`), no field is being typed in and no other Tunnerer
+// tab is open (the worker checks that), otherwise when the player presses the Update button in the header. A game in
+// progress is never reloaded from under the player.
+// The footer says which publish this page runs and which is the latest on the server, so that whoever deployed can
+// see an update arrive. The running one is what the worker that served the page holds (the first answer only: a
+// worker that takes over later did not serve this page). The latest is read past the worker, which never keeps
+// assets-manifest.js (publish.py).
+function versionLine() {
+    const line = document.getElementById("version");
+    const short = (version) => version?.slice(0, 8);
+    let running = null,
+        latest = null;
+    const show = () => {
+        line.hidden = !running;
+        line.textContent = !latest || latest === running
+            ? `VERSION ${short(running)}${latest ? " · UP TO DATE" : ""}`
+            : `VERSION ${short(running)} · LATEST ${short(latest)}`;
+    };
+    return {
+        running(version) {
+            running ??= version;
+            show();
+        },
+        async refresh() {
+            try {
+                const text = await (await fetch("./assets-manifest.js", { cache: "no-store" })).text();
+                latest = /"version": "(\w+)"/.exec(text)?.[1] ?? null;
+            } catch {
+                latest = null;
+            }
+            show();
+        },
+    };
+}
+
+function updater(idle, versions) {
     const button = document.getElementById("update");
-    // A first visit has no controller: the worker claiming the page then is not an update.
-    const updating = !!navigator.serviceWorker.controller;
-    let waiting = null,
+    // Whether a worker controlled the page before the latest change: the first one claiming a page on its first
+    // visit is not an update.
+    let controlled = !!navigator.serviceWorker.controller,
+        waiting = null,
         asked = false,
         lastCheck = performance.now();
-    const apply = () => {
+    const ask = (force) => {
+        // Another tab may have moved to the new version already; then only this page is left to reload.
+        if (!waiting) location.reload();
+        else waiting.postMessage({ type: "skip-waiting", force });
+    };
+    button.onclick = () => {
         asked = true;
         button.disabled = true;
-        // Another tab may have moved to the new version already; then only this page is left to reload.
-        if (waiting) waiting.postMessage({ type: "skip-waiting" });
-        else location.reload();
+        ask(true);
     };
     const offer = () => {
         const typing = document.activeElement?.matches("input, textarea, select");
-        if (idle() && !typing) apply();
-        else button.hidden = false;
+        if (idle() && !typing) {
+            asked = true;
+            ask(false);
+        } else button.hidden = false;
     };
-    button.onclick = apply;
+    navigator.serviceWorker.addEventListener("message", ({ data }) => {
+        // The worker held back because another tab is open: that tab may hold a game.
+        if (data?.type === "update-held") {
+            asked = false;
+            button.hidden = false;
+        }
+    });
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (!updating) return;
+        const update = controlled;
+        controlled = true;
+        if (!update && !asked) return;
         waiting = null;
         if (asked || idle()) location.reload();
         else button.hidden = false;
@@ -30,8 +77,12 @@ function updater(idle) {
     return {
         watch(registration) {
             const found = (worker) => {
+                versions.refresh();
                 if (!navigator.serviceWorker.controller) return;
+                // A newer publish can replace one this page already asked for, which then never takes over.
                 waiting = worker;
+                asked = false;
+                button.disabled = false;
                 offer();
             };
             // Downloaded on an earlier visit, while another copy of the page kept the old version in use.
@@ -48,6 +99,7 @@ function updater(idle) {
                 if (document.hidden || performance.now() - lastCheck < 600_000) return;
                 lastCheck = performance.now();
                 registration.update().catch(() => {});
+                versions.refresh();
             });
         },
     };
@@ -104,12 +156,15 @@ export async function setupInstallation(notify, idle) {
         return;
     }
     try {
-        const updates = updater(idle);
+        const versions = versionLine();
+        versions.refresh();
+        const updates = updater(idle, versions);
         const registration = await navigator.serviceWorker.register("./sw.js", {
             updateViaCache: "none",
         });
         navigator.serviceWorker.addEventListener("message", ({ data }) => {
             if (data?.type === "offline-ready") {
+                if (data.version) versions.running(data.version);
                 offlineReady = true;
                 update();
             }
