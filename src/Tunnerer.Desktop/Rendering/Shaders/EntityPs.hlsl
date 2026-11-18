@@ -29,37 +29,44 @@ float4 main(PSIn input) : SV_Target
     float aa = max(length(fwidth(p)) * 0.7071, 1e-4);
     float kind = input.color.a;
 
+    // One result returned at the end rather than a return per kind. DXC turns a function with several returns into
+    // a loop that runs once, left by a break at each return; ANGLE's Direct3D 11 backend (Windows browsers) hands
+    // that to FXC, which took over half a minute on this shader in that form and about a second in this one. The
+    // GPU still runs only the chosen kind's branch.
+    float4 result;
     if (kind < kKindTankHull + 0.5)
-        return TankHull(p, input.color.rgb, input.params, aa);
-    if (kind < kKindTankTurret + 0.5)
-        return TankTurret(p, input.color.rgb, input.params, aa);
-    if (kind < kKindHotShot + 0.5)
-        return HotShot(p, input.color.rgb, input.params, aa);
-    if (kind < kKindOreBeam + 0.5)
-        return OreBeam(p, input.params, aa);
-    if (kind < kKindRelay + 0.5)
-        return Relay(p, input.params, aa);
-    if (kind < kKindHarvester + 0.5)
-        return Harvester(p, input.params, aa);
-    if (kind < kKindSenseRing + 0.5)
-        return SenseRing(p, input.params, aa);
-    if (kind < kKindLink + 0.5)
-        return LinkBeam(p, input.params, aa);
-    if (kind < kKindChargeBeam + 0.5)
-        return ChargeBeam(p, input.params, aa);
-    if (kind < kKindPylon + 0.5)
-        return Pylon(p, input.params, aa);
-    if (kind < kKindBattery + 0.5)
-        return Battery(p, input.params, aa);
-    if (kind < kKindPreviewBeam + 0.5)
-        return PreviewBeam(p, input.params, aa);
-    if (kind < kKindReachArea + 0.5)
-        return ReachArea(p, input.color.rgb, input.params, aa);
-    if (kind < kKindCoverage + 0.5)
-        return NetworkCoverage(p, input.color.rgb, input.params, aa);
-    if (kind < kKindTether + 0.5)
-        return Tether(p, input.params, aa);
-    if (kind < kKindRadarBlip + 0.5)
-        return RadarBlip(p, input.color.rgb, input.params, aa);
-    return RadarPulse(p, input.params, aa); // kKindRadarPulse
+        result = TankHull(p, input.color.rgb, input.params, aa);
+    else if (kind < kKindTankTurret + 0.5)
+        result = TankTurret(p, input.color.rgb, input.params, aa);
+    else if (kind < kKindHotShot + 0.5)
+        result = HotShot(p, input.color.rgb, input.params, aa);
+    else if (kind < kKindOreBeam + 0.5)
+        result = OreBeam(p, input.params, aa);
+    else if (kind < kKindRelay + 0.5)
+        result = Relay(p, input.params, aa);
+    else if (kind < kKindHarvester + 0.5)
+        result = Harvester(p, input.params, aa);
+    else if (kind < kKindSenseRing + 0.5)
+        result = SenseRing(p, input.params, aa);
+    else if (kind < kKindLink + 0.5)
+        result = LinkBeam(p, input.params, aa);
+    else if (kind < kKindChargeBeam + 0.5)
+        result = ChargeBeam(p, input.params, aa);
+    else if (kind < kKindPylon + 0.5)
+        result = Pylon(p, input.params, aa);
+    else if (kind < kKindBattery + 0.5)
+        result = Battery(p, input.params, aa);
+    else if (kind < kKindPreviewBeam + 0.5)
+        result = PreviewBeam(p, input.params, aa);
+    else if (kind < kKindReachArea + 0.5)
+        result = ReachArea(p, input.color.rgb, input.params, aa);
+    else if (kind < kKindCoverage + 0.5)
+        result = NetworkCoverage(p, input.color.rgb, input.params, aa);
+    else if (kind < kKindTether + 0.5)
+        result = Tether(p, input.params, aa);
+    else if (kind < kKindRadarBlip + 0.5)
+        result = RadarBlip(p, input.color.rgb, input.params, aa);
+    else // kKindRadarPulse
+        result = RadarPulse(p, input.params, aa);
+    return result;
 }

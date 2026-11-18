@@ -85,8 +85,31 @@ Before translating, the web export turns every implicit-LOD sample in its copy o
 sample of level 0 (`ExplicitLodRewrite`), so the GLSL calls `textureLod(..., 0.0)` and never `texture()`: ANGLE's
 Direct3D 11 backend must otherwise unroll PostPs's loops around implicit-derivative samples, and that compile did
 not finish on Windows. It samples the same only because every web texture has level 0 alone and filters without
-mipmaps (`webgl.js`). The page compiles and links the shaders with `KHR_parallel_shader_compile` where the browser
-has it, waiting a frame at a time, and logs each program's time to the console.
+mipmaps (`webgl.js`).
+
+Windows browsers (Edge, Chrome, Comet, Firefox) draw WebGL through ANGLE's Direct3D 11 backend, which translates
+the GLSL to HLSL and compiles it with FXC; macOS browsers go through ANGLE's Metal backend and Apple's compiler,
+which had no trouble. Two things made FXC hang there, measured on GitHub's Windows runner (Edge 156):
+
+- **Returns before the end of a function.** DXC turns such a function into a loop that runs once, left by a break
+  at each return, and FXC is very slow on that form around a large body: EntityPs took 35 to 40 s, and PostPs ran
+  past four minutes and then crashed FXC, which is the empty "Shader linking failed" the page showed. Each entity
+  shape alone compiled in under 0.1 s. With one return at the end of `main` and of the passes and materials (an
+  `if (needed) { ... }` where there was an `if (!needed) return;`), EntityPs links in 1.3 s and PostPs in 8.8 s.
+  The GPU skips the same work either way: the frames are identical, at the same speed (Metal, measured).
+  `RenderingSourceGuardTests` keeps new shader functions to one return.
+- **NaN-aware min, max and clamp.** DXC emits GLSL.std.450 NMin, NMax and NClamp, which SPIRV-Cross spells as
+  `isnan(a) ? b : (isnan(b) ? a : max(a, b))`; ANGLE then makes every `?:` an `if`, and the `isnan` turns on
+  FXC's strict IEEE mode. The web export makes them plain FMin, FMax and FClamp (`NanFreeMinMaxRewrite`), which
+  differ only for NaN operands. It also halved the time a frame takes to draw on Metal (15.1 to 7.1 ms at
+  3200x1844, M-series Mac): the pictures differ by at most one level in 255 in 0.1% of pixels.
+
+The page compiles and links the shaders with `KHR_parallel_shader_compile` where the browser has it, waiting a
+frame at a time. Loading reports its stages (`progress.js`): the shader download, each program's compile and link,
+the runtime's start and the world's generation. The loading line shows the stage under way, and says so when one
+runs past ten seconds; the console logs each stage's time as `[load] ...`; each begin and end is a `tunnerer-load`
+event on `window`, and the list so far is `window.tunnererLoad`, to copy into a bug report. A failed start names the
+stage it stopped in ("while compiling the lighting and materials shaders, 12 s in").
 
 ## Controls and installation
 
@@ -286,6 +309,7 @@ window and graphics dependencies out of the shared rendering assembly.
   The UI keeps at most one request in flight and caps catch-up. After each tick the page announces the HUD state
   as a `tunnerer-step` event on `window`, which is how the smoke test follows a match in either runtime.
 - `webgl.js`: uploads the shared buffers and draws the translated terrain, post-processing and entity shaders.
+- `progress.js`: the stages of a load, for the loading line, the console and the `tunnerer-load` event.
   Its first pass flips the render-target Y axis for WebGL's framebuffer texture convention; the final pass and
   entity quads use the desktop clip-space convention. Textures use the same linear sampling and premultiplied
   alpha blending as desktop. It must take every packet, in order: each carries only what changed since the one

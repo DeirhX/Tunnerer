@@ -63,8 +63,11 @@ export async function startRuntime(dotnet, config = {}) {
         // closed) is what the page's socket got, and `command` what the player asked of the room. Every answer
         // carries what to send to the relay as `send`. Until the relay has let the player in and the world is
         // built, the answer is { type: "net", failure } instead of a frame.
-        async answer(data) {
-            if (data.type === "start")
+        //
+        // `report` hears of the slow stages of a start, as { stage, label, state: "begin" | "end" } (progress.js).
+        async answer(data, report = () => {}) {
+            if (data.type === "start") {
+                report({ stage: "world", label: "Generating the world", state: "begin" });
                 await api.Start(
                     data.seed,
                     data.heatWorkers,
@@ -72,6 +75,8 @@ export async function startRuntime(dotnet, config = {}) {
                     data.mapHeight || 0,
                     data.machines || 0,
                 );
+                report({ stage: "world", state: "end" });
+            }
             if (data.type === "join")
                 await api.Join(
                     data.room,

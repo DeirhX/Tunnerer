@@ -54,7 +54,14 @@ export class Simulation {
 
     async ask(data) {
         let runtime;
+        // Stages of a start for the page's loading line (progress.js), answered like the worker's.
+        const report = (step) => {
+            if (!this.closed) this.onmessage?.({ data: { type: "progress", ...step } });
+        };
+        const starting = !threaded;
         try {
+            if (starting)
+                report({ stage: "runtime", label: "Starting the game runtime", state: "begin" });
             threaded ||= import("./_framework-threads/dotnet.js").then(
                 ({ dotnet }) =>
                     startRuntime(dotnet, {
@@ -63,6 +70,8 @@ export class Simulation {
                     }),
             );
             runtime = await threaded;
+            if (starting)
+                report({ stage: "runtime", state: "end", detail: `${this.heatWorkers} heat threads` });
         } catch (error) {
             // A browser that promised shared memory and then could not start the runtime still gets a game.
             console.warn(
@@ -78,10 +87,10 @@ export class Simulation {
         }
         let message;
         try {
-            message = await runtime.answer({
-                ...data,
-                heatWorkers: this.heatWorkers,
-            });
+            message = await runtime.answer(
+                { ...data, heatWorkers: this.heatWorkers },
+                report,
+            );
         } catch (error) {
             message = errorMessage(error);
         }

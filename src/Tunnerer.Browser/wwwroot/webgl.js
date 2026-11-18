@@ -3,6 +3,13 @@ export class GraphicsError extends Error {
     name = "GraphicsError";
 }
 
+// What each program draws, for the loading line.
+const PROGRAM_LABELS = {
+    Terrain: "terrain",
+    Post: "lighting and materials",
+    Entity: "tank and machine",
+};
+
 // Draws the desktop shaders, translated at publish time from their original HLSL.
 export class WebGlRenderer {
     constructor(canvas) {
@@ -40,7 +47,8 @@ export class WebGlRenderer {
         });
     }
 
-    async initialize() {
+    // `progress` (progress.js) hears of each stage: the download, then each program's compile and link.
+    async initialize(progress) {
         if (this.ready) return;
         const gl = this.gl;
         const names = [
@@ -51,6 +59,7 @@ export class WebGlRenderer {
             "EntityVs",
             "EntityPs",
         ];
+        progress?.begin("shaders:download", "Downloading the shaders");
         const source = Object.fromEntries(
             await Promise.all(
                 names.map(async (name) => {
@@ -65,12 +74,13 @@ export class WebGlRenderer {
                 }),
             ),
         );
+        progress?.end("shaders:download");
         // All three compile at once where the driver can; each is awaited, so the page is never blocked on one.
         [this.terrainProgram, this.postProgram, this.entityProgram] =
             await Promise.all([
-                this.program("Terrain", source.FullscreenTargetVs, source.TerrainPs),
-                this.program("Post", source.FullscreenVs, source.PostPs),
-                this.program("Entity", source.EntityVs, source.EntityPs),
+                this.program("Terrain", source.FullscreenTargetVs, source.TerrainPs, progress),
+                this.program("Post", source.FullscreenVs, source.PostPs, progress),
+                this.program("Entity", source.EntityVs, source.EntityPs, progress),
             ]);
         this.uniforms = gl.createBuffer();
         gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, this.uniforms);
@@ -93,12 +103,26 @@ export class WebGlRenderer {
         this.ready = true;
     }
 
-    // Compiles and links one program. With KHR_parallel_shader_compile the driver does it off the main thread and
-    // this waits a frame at a time for it; without, the first status query below waits for the driver.
-    async program(name, vertex, fragment) {
+    // Compiles and links one program as a stage of the load (progress.js), which hears whether it failed.
+    async program(name, vertex, fragment, progress) {
+        const stage = `shaders:${name}`;
+        progress?.begin(stage, `Compiling the ${PROGRAM_LABELS[name] || name} shaders`);
+        try {
+            const program = await this.link(name, vertex, fragment);
+            const parallel = this.gl.getExtension("KHR_parallel_shader_compile");
+            progress?.end(stage, parallel ? "compiled in parallel" : "compiled on the page's thread");
+            return program;
+        } catch (error) {
+            progress?.failed(stage);
+            throw error;
+        }
+    }
+
+    // With KHR_parallel_shader_compile the driver compiles and links off the main thread and this waits a frame at a
+    // time for it; without, the first status query below waits for the driver.
+    async link(name, vertex, fragment) {
         const gl = this.gl,
             parallel = gl.getExtension("KHR_parallel_shader_compile"),
-            started = performance.now(),
             program = gl.createProgram();
         const shaders = [
             [gl.VERTEX_SHADER, vertex],
@@ -136,10 +160,6 @@ export class WebGlRenderer {
                 `Shader linking failed (${name}): ${gl.getProgramInfoLog(program) || "the driver gave no reason"}`,
             );
         }
-        console.info(
-            `[graphics] ${name} shaders ready in ${Math.round(performance.now() - started)} ms` +
-                (parallel ? " (compiled in parallel)" : ""),
-        );
         const block = gl.getUniformBlockIndex(program, "PostParamsBlock");
         if (block !== gl.INVALID_INDEX)
             gl.uniformBlockBinding(program, block, 0);
