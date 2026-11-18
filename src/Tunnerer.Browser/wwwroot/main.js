@@ -301,10 +301,14 @@ function notify(message) {
 
 function updateHud(f) {
     canvas.dataset.tick = String(f.tick);
+    const began = performance.now();
     statusView.update(f);
+    const stripBegan = performance.now();
     if (wideScreen.matches) strip.update(f, visualTime);
+    const stripMs = performance.now() - stripBegan;
     guidance.update(f.guidance, f.goal);
     renderer.pointerTarget = guidance.target;
+    perf?.hud(performance.now() - began, stripMs);
 }
 
 function animate(now) {

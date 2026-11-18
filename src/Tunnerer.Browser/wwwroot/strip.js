@@ -3,8 +3,10 @@
 // the desktop's own art (copied in by tools/browser/publish.py) on two canvases, at the desktop's art coordinates,
 // so every number below is the desktop's. Shown on wide screens with a mouse; phones keep the plates (hud.js).
 //
-// It is drawn after each step, 24 times a second, and not while the game is paused. The desktop eases its gauges
-// once a display frame; here they ease once a step, by as much as the desktop's do over the frames of a step.
+// It is drawn after each step, 24 times a second, and not while the game is paused. What never changes (the art,
+// the panel titles, the orb's glass, the dial's dim track and its ticks) is drawn once for each size into layers
+// kept off screen, so a step costs one image per canvas and the moving parts; nothing is blurred. The desktop eases
+// its gauges once a display frame; here they ease once a step, by as much as the desktop's do over a step.
 
 // HudLayout.cs: the art's own size, and where each panel starts along it.
 const STRIP_H = 223,
@@ -118,6 +120,9 @@ export class StripView {
         this.loading = null;
         this.frame = null;
         this.dial = null;
+        // The layers that do not change (buildLayers), and the size they were drawn for.
+        this.layers = null;
+        this.layersKey = "";
         this.scale = 0;
         this.density = 0;
         this.reset();
@@ -220,30 +225,19 @@ export class StripView {
 
     draw(f, time) {
         if (!this.art.build || !this.scale || !this.dial) return;
+        const layers = this.buildLayers();
         const p = f.player;
         const k = this.scale * this.density;
         const left = this.left.getContext("2d");
         left.setTransform(1, 0, 0, 1, 0, 0);
         left.clearRect(0, 0, this.left.width, this.left.height);
+        left.drawImage(layers.left, 0, 0);
         left.setTransform(k, 0, 0, k, 0, HEADROOM * k);
         const right = this.right.getContext("2d");
         right.setTransform(1, 0, 0, 1, 0, 0);
         right.clearRect(0, 0, this.right.width, this.right.height);
+        right.drawImage(layers.right, 0, 0);
         right.setTransform(k, 0, 0, k, -BUILD_X * k, 0);
-
-        for (const [ctx, image, x, w] of [
-            [left, this.art.heat, HEAT_X, HEAT_W],
-            [left, this.art.shield, SHIELD_X, SHIELD_W],
-            [left, this.art.materials, MATERIALS_X, MATERIALS_W],
-            [right, this.art.build, BUILD_X, BUILD_W],
-        ])
-            ctx.drawImage(image, x, 0, w, STRIP_H);
-
-        stripText(left, "TEMP", TEMP.x, TEMP.title, 19, abgr(0xff78c8ff), abgr(0x181880ff));
-        stripText(left, "SHIELD", SHIELD.x, SHIELD.title, 20, abgr(0xfff8e890), abgr(0x20ffa030));
-        stripText(left, "MATERIALS", MATERIALS.x, MATERIALS.title, 21, abgr(0xff68e0ff), abgr(0x282090ff));
-        stripText(right, "BUILD STRUCTURES", BUILD_X + 162, 23.5, 17, abgr(0xffb0e4f8), abgr(0x181880ff));
-        stripText(right, "COMMAND", BUILD_X + 171, 191.5, 21, abgr(0xff98e8ff), abgr(0x202080ff));
 
         this.drawOrb(left, p, time);
         this.drawLiquids(left, p, time);
@@ -283,6 +277,78 @@ export class StripView {
         }
     }
 
+    // What never changes, drawn once for this size: the two canvases' backgrounds (art, titles, the orb's glass and
+    // the dial's dim track, the empty second row of build slots), the dial lit all the way round and the dial's
+    // ticks and glass highlight, the last two in sprites the size of the orb.
+    buildLayers() {
+        const key = `${this.scale}x${this.density}`;
+        if (this.layers && this.layersKey === key) return this.layers;
+        const k = this.scale * this.density;
+        const { x, y, r } = ORB;
+        const dial = this.dial;
+
+        const [leftLayer, left] = offscreen(this.left.width, this.left.height, k, 0, HEADROOM * k);
+        for (const [image, px, w] of [
+            [this.art.heat, HEAT_X, HEAT_W],
+            [this.art.shield, SHIELD_X, SHIELD_W],
+            [this.art.materials, MATERIALS_X, MATERIALS_W],
+        ])
+            left.drawImage(image, px, 0, w, STRIP_H);
+        stripText(left, "TEMP", TEMP.x, TEMP.title, 19, abgr(0xff78c8ff), abgr(0x181880ff));
+        stripText(left, "SHIELD", SHIELD.x, SHIELD.title, 20, abgr(0xfff8e890), abgr(0x20ffa030));
+        stripText(left, "MATERIALS", MATERIALS.x, MATERIALS.title, 21, abgr(0xff68e0ff), abgr(0x282090ff));
+        // Dark glass behind the liquid (hides the energy bolt baked into the art), and the dial's dim track.
+        left.fillStyle = abgr(0xff0a0c0e);
+        circle(left, x, y, r - 1);
+        left.fill();
+        strokeDial(left, dial, "48");
+
+        const [rightLayer, right] = offscreen(this.right.width, this.right.height, k, -BUILD_X * k, 0);
+        right.drawImage(this.art.build, BUILD_X, 0, BUILD_W, STRIP_H);
+        stripText(right, "BUILD STRUCTURES", BUILD_X + 162, 23.5, 17, abgr(0xffb0e4f8), abgr(0x181880ff));
+        stripText(right, "COMMAND", BUILD_X + 171, 191.5, 21, abgr(0xff98e8ff), abgr(0x202080ff));
+        // The second row of slots has no machines yet: dark.
+        right.fillStyle = abgr(0xa8000000);
+        for (const sx of SLOT_X) {
+            roundRect(right, BUILD_X + sx, SLOT_Y[1], BUILD_X + sx + SLOT_W, SLOT_Y[1] + SLOT_H, 6);
+            right.fill();
+        }
+
+        // Sprites the size of the orb, drawn in art coordinates.
+        const side = Math.ceil((2 * r + 8) * k);
+        const sprite = () => offscreen(side, side, k, (r + 4 - x) * k, (r + 4 - y) * k);
+        const [litLayer, lit] = sprite();
+        strokeDial(lit, dial, "ff");
+        const [overLayer, over] = sprite();
+        // Ticks at ambient and at the safe maximum, where overheating starts.
+        const arcR = r - 6,
+            arcW = 5;
+        for (const [t, color] of [[dial.ambient, "rgba(255,255,255,0.75)"], [dial.safe, abgr(0xff4060ff)]]) {
+            const a = DIAL_START + DIAL_SWEEP * t;
+            const dx = Math.cos(a),
+                dy = Math.sin(a);
+            line(over, x, y, dx, dy, arcR - arcW / 2 - 3, arcR + arcW / 2 + 1, "#000", 4);
+            line(over, x, y, dx, dy, arcR - arcW / 2 - 2, arcR + arcW / 2, color, 2);
+        }
+        // A highlight on the glass.
+        over.strokeStyle = abgr(0x30ffffff);
+        over.lineWidth = 3;
+        over.beginPath();
+        over.arc(x, y, r - 12, Math.PI * 1.15, Math.PI * 1.55);
+        over.stroke();
+
+        this.layersKey = key;
+        this.layers = {
+            left: leftLayer,
+            right: rightLayer,
+            lit: litLayer,
+            over: overLayer,
+            // Where the sprites go, in art pixels.
+            sprite: [x - r - 4, y - r - 4, side / k, side / k],
+        };
+        return this.layers;
+    }
+
     // The colour of the dial's band at a point of the heat scale (HeatScale.ColorRgb at the band's middle).
     bandColor(fraction) {
         const bands = this.dial.bands;
@@ -300,10 +366,8 @@ export class StripView {
         const lit = alive ? Math.min(1, Math.max(0, (this.shown.heat - dial.min) / (dial.max - dial.min))) : 0;
         const pulse = 0.5 + 0.5 * Math.sin(time * 10);
 
-        // Dark glass behind everything (hides the energy bolt baked into the art), then the liquid.
-        ctx.fillStyle = abgr(0xff0a0c0e);
-        circle(ctx, x, y, r - 1);
-        ctx.fill();
+        const layers = this.layers;
+        // The liquid, over the glass in the background layer.
         const inner = r - 9;
         const liquid = alive ? this.bandColor(lit) : "#1f2124";
         const body = ctx.createRadialGradient(x - inner * 0.3, y - inner * 0.35, inner * 0.1, x, y, inner);
@@ -351,21 +415,18 @@ export class StripView {
         }
         ctx.restore();
 
-        // The dial round the rim: a dim track in the zone colours, lit up to the shown temperature.
+        // The dial round the rim: its dim track is in the background; it is lit up to the shown temperature.
         const arcR = r - 6,
             arcW = 5;
-        ctx.lineWidth = arcW;
-        const bands = dial.bands.length;
-        for (let i = 0; i < bands; i++) {
-            const f0 = i / bands,
-                f1 = (i + 1) / bands;
-            let a1 = DIAL_START + DIAL_SWEEP * f1 + 0.01;
-            const on = alive && f0 < lit;
-            if (on && f1 > lit) a1 = DIAL_START + DIAL_SWEEP * lit;
-            ctx.strokeStyle = dial.bands[i] + (on ? "ff" : "48");
+        if (alive && lit > 0) {
+            ctx.save();
             ctx.beginPath();
-            ctx.arc(x, y, arcR, DIAL_START + DIAL_SWEEP * f0, a1);
-            ctx.stroke();
+            ctx.moveTo(x, y);
+            ctx.arc(x, y, r + 4, DIAL_START, DIAL_START + DIAL_SWEEP * lit);
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(layers.lit, ...layers.sprite);
+            ctx.restore();
         }
         if (alive && p.burning) {
             ctx.strokeStyle = `rgba(255,77,51,${(0.35 + 0.5 * pulse).toFixed(3)})`;
@@ -375,14 +436,7 @@ export class StripView {
             ctx.stroke();
         }
 
-        // Ticks at ambient and at the safe maximum, where overheating starts.
-        for (const [t, color] of [[dial.ambient, "rgba(255,255,255,0.75)"], [dial.safe, abgr(0xff4060ff)]]) {
-            const a = DIAL_START + DIAL_SWEEP * t;
-            const dx = Math.cos(a),
-                dy = Math.sin(a);
-            line(ctx, x, y, dx, dy, arcR - arcW / 2 - 3, arcR + arcW / 2 + 1, "#000", 4);
-            line(ctx, x, y, dx, dy, arcR - arcW / 2 - 2, arcR + arcW / 2, color, 2);
-        }
+        ctx.drawImage(layers.over, ...layers.sprite);
 
         // The needle at the tip of the lit arc.
         if (alive) {
@@ -392,13 +446,6 @@ export class StripView {
             line(ctx, x, y, dx, dy, arcR - arcW / 2 - 5, arcR + arcW / 2 + 1, "#000", 4.5);
             line(ctx, x, y, dx, dy, arcR - arcW / 2 - 5, arcR + arcW / 2 + 1, "#fff", 2);
         }
-
-        // A highlight on the glass.
-        ctx.strokeStyle = abgr(0x30ffffff);
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(x, y, inner - 3, Math.PI * 1.15, Math.PI * 1.55);
-        ctx.stroke();
     }
 
     // HeatGauge.DrawTrend: up (red) while digging or firing heats the tank, down (blue) while it cools.
@@ -466,11 +513,6 @@ export class StripView {
 
     // BuildPanel.Draw: a slot per machine, filling toward its cost from the stock that would pay (BuildSlotView).
     drawBuild(ctx, builds, p, time) {
-        ctx.fillStyle = abgr(0xa8000000);
-        for (const x of SLOT_X) {
-            roundRect(ctx, BUILD_X + x, SLOT_Y[1], BUILD_X + x + SLOT_W, SLOT_Y[1] + SLOT_H, 6);
-            ctx.fill();
-        }
         for (const b of builds) {
             const x0 = BUILD_X + SLOT_X[b.slot],
                 y0 = SLOT_Y[0],
@@ -498,6 +540,30 @@ export class StripView {
     }
 }
 
+// A canvas kept off screen, of this many device pixels, drawn in art pixels: k device pixels to one, moved by
+// (dx, dy) device pixels.
+function offscreen(width, height, k, dx, dy) {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, width);
+    canvas.height = Math.max(1, height);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(k, 0, 0, k, dx, dy);
+    return [canvas, ctx];
+}
+
+// HeatGauge's dial round the orb: its bands in their colours, at one alpha ("48" dim, "ff" lit, as hex).
+function strokeDial(ctx, dial, alpha) {
+    const { x, y, r } = ORB;
+    const bands = dial.bands.length;
+    ctx.lineWidth = 5;
+    for (let i = 0; i < bands; i++) {
+        ctx.strokeStyle = dial.bands[i] + alpha;
+        ctx.beginPath();
+        ctx.arc(x, y, r - 6, DIAL_START + (DIAL_SWEEP * i) / bands, DIAL_START + (DIAL_SWEEP * (i + 1)) / bands + 0.01);
+        ctx.stroke();
+    }
+}
+
 function size(canvas, width, height, density) {
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
@@ -506,22 +572,22 @@ function size(canvas, width, height, density) {
 }
 
 // HudStrip.DrawStripText: centred on an art point, sized in art pixels, with a soft glow, a dark outline and a
-// second pass a fraction of a pixel over, to match the art's chunky lettering.
+// second pass a fraction of a pixel over, to match the art's chunky lettering. The glow is a wide stroke in its
+// colour, where the desktop draws the text a dozen times around: a blur filter would cost far more.
 function stripText(ctx, text, cx, cy, size, color, glow) {
     ctx.font = font(size);
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     const ink = ctx.measureText("0");
     const y = cy + (ink.actualBoundingBoxAscent - ink.actualBoundingBoxDescent) / 2;
-    if (glow) {
-        ctx.save();
-        ctx.shadowColor = glow.replace(/[\d.]+\)$/, "0.9)");
-        ctx.shadowBlur = 6 * ctx.getTransform().a;
-        ctx.fillStyle = glow;
-        ctx.fillText(text, cx, y);
-        ctx.restore();
-    }
     ctx.lineJoin = "round";
+    if (glow) {
+        ctx.strokeStyle = glow;
+        ctx.lineWidth = 7;
+        ctx.strokeText(text, cx, y);
+        ctx.lineWidth = 4.5;
+        ctx.strokeText(text, cx, y);
+    }
     ctx.strokeStyle = abgr(0xe0000000);
     ctx.lineWidth = 2.4;
     ctx.strokeText(text, cx, y);

@@ -1,7 +1,8 @@
 // A small readout for checking performance on a device without developer tools: open the game with ?perf.
 // It shows, averaged over the last second: the display's frames per second and how many of them drew a new
 // picture, the time a simulation step and building a frame take inside .NET and how many threads step the heat,
-// the texture bytes uploaded per second, and the size the world is drawn at.
+// the texture bytes uploaded per second, the size the world is drawn at, and what updating the HUD after a step
+// costs the page (the art strip apart).
 export class PerfReadout {
     constructor(renderer) {
         this.renderer = renderer;
@@ -18,6 +19,7 @@ export class PerfReadout {
         this.since = now;
         this.frames = this.steps = this.renders = this.uploaded = 0;
         this.stepMs = this.renderMs = this.worstMs = 0;
+        this.huds = this.hudMs = this.stripMs = 0;
     }
 
     // A frame arrived from the simulation.
@@ -30,6 +32,13 @@ export class PerfReadout {
         this.renders++;
         this.renderMs += timing?.render || 0;
         this.uploaded += uploadedBytes || 0;
+    }
+
+    // The page updated the HUD after a step: `hudMs` in all, `stripMs` of it the art strip.
+    hud(hudMs, stripMs) {
+        this.huds++;
+        this.hudMs += hudMs;
+        this.stripMs += stripMs;
     }
 
     // The page drew; `elapsed` is the time since it last did.
@@ -53,6 +62,8 @@ export class PerfReadout {
             width: gpu?.width || 0,
             height: gpu?.height || 0,
             resolution: this.renderer.governor.scale,
+            hudMs: this.huds ? this.hudMs / this.huds : 0,
+            stripMs: this.huds ? this.stripMs / this.huds : 0,
         };
         const p = window.tunnererPerf;
         this.element.textContent =
@@ -60,7 +71,8 @@ export class PerfReadout {
             `step ${p.stepMs.toFixed(1)} ms x ${p.stepsPerSecond.toFixed(0)}/s  frame ${p.renderMs.toFixed(2)} ms  ` +
             `heat on ${p.heatWorkers} thread${p.heatWorkers === 1 ? "" : "s"}\n` +
             `upload ${(p.uploadedBytesPerSecond / 1024).toFixed(0)} KB/s  ` +
-            `${p.width}x${p.height} (${Math.round(p.resolution * 100)}%)`;
+            `${p.width}x${p.height} (${Math.round(p.resolution * 100)}%)\n` +
+            `hud ${p.hudMs.toFixed(2)} ms (strip ${p.stripMs.toFixed(2)} ms) a step`;
         this.reset(now);
     }
 }

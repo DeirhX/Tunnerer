@@ -21,7 +21,8 @@ the same.
 
 The tools run the same on Windows, macOS and Linux; where Python is installed as `python` or `py` (Windows), use
 that name. Open `http://localhost:8703`. Release publishes use AOT compilation. For quicker local iteration use
-`python3 tools/browser/publish.py --no-aot`; the interpreted simulation runs more slowly. The publisher replaces
+`python3 tools/browser/publish.py --no-aot`; the interpreted simulation runs about five times more slowly, so do not
+judge the framerate on it (Performance, below). The publisher replaces
 its generated `wwwroot` directory to prevent older runtime assets from leaking into the offline cache.
 
 ### Two runtimes
@@ -164,8 +165,24 @@ runs use the display's own pixel density, capped at 2x and 3840×2160.
 
 Open the game with `?perf` (for example `http://localhost:8703/?perf`) for a readout in the bottom-left corner:
 the display's frames per second and how many of them drew a new picture, the time a simulation step and building
-a frame take inside .NET, how many threads step the heat, texture bytes uploaded per second, and the size the
-world is drawn at. The same numbers are in `window.tunnererPerf`.
+a frame take inside .NET, how many threads step the heat, texture bytes uploaded per second, the size the
+world is drawn at, and what updating the HUD after a step costs the page (the art strip apart). The same numbers are
+in `window.tunnererPerf`.
+
+Judge the framerate on an AOT publish (the default): a `--no-aot` build steps the simulation about five times more
+slowly, falls behind, and then draws a new picture only with each step. Measured 2026-11-18 in Chromium on an Apple
+M5 Max, seed 1234, the window 1600×1000 at device pixel ratio 2, display at 120 Hz:
+
+| Build | Heat threads | Step | New pictures a second | HUD a step (strip) |
+|---|---|---|---|---|
+| AOT, threaded runtime | 8 | 1.9 ms | 118 of 118 | 0.16 ms (0.12 ms) |
+| AOT, single-thread runtime | 1 | 9.4 ms | 97 of 120 | 0.15 ms (0.11 ms) |
+| `--no-aot` | 1 | 46 ms | 20 of 120 | 0.17 ms (0.16 ms) |
+
+On one thread a step takes longer than a 120 Hz frame (8.3 ms), so the frame during each step shows the picture
+before it: about one in five at 24 steps a second. A 60 Hz display (16.7 ms a frame) loses none. The art strip
+draws what never changes once for each size into layers kept off screen and blurs nothing (`strip.js`); drawing it
+all every step, with the titles' glow as a blur, cost 0.16 ms of the page's time where it now costs 0.12 ms.
 
 - A frame costs what changed. The worker runs the desktop's `TerrainAuxUploader` and `FogLayer`: the first frame
   uploads the four world-sized textures once, and after that a frame uploads only the cells that changed in sight,
