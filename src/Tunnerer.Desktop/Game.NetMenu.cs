@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using static SDL3.SDL;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
+using Tunnerer.Desktop.Input;
 using Tunnerer.Desktop.Net;
 
 /// <summary>
@@ -24,11 +25,8 @@ public partial class Game
     private NetMenuModel? _netMenu;
     private bool _showNetMenu;
 
-    /// <summary>
-    /// The menu was opened by a key press whose typed character has not come yet: it is the N that opened the menu,
-    /// not text for the focused field.
-    /// </summary>
-    private bool _netMenuSkipTypedKey;
+    /// <summary>The N that opened the menu is not text for the field that has the keyboard, however long it is held.</summary>
+    private readonly HeldKeyTextGuard _openKeyGuard = new();
 
     /// <summary>The player pressed Leave in a started match once; the next press leaves.</summary>
     private bool _leaveArmed;
@@ -64,16 +62,15 @@ public partial class Game
         switch ((EventType)ev.Type)
         {
             case EventType.TextInput:
-                if (_netMenuSkipTypedKey)
-                    _netMenuSkipTypedKey = false;
-                else
+                if (_openKeyGuard.AcceptsText)
                     menu.TypeText(Marshal.PtrToStringUTF8(ev.Text.Text) ?? string.Empty);
                 return true;
             case EventType.KeyUp:
-                _netMenuSkipTypedKey = false;
+                _openKeyGuard.KeyUp(ev.Key.Scancode);
                 return false;
             case EventType.KeyDown:
-                _netMenuSkipTypedKey = false;
+                if (_openKeyGuard.SwallowsKeyDown(ev.Key.Scancode))
+                    return true;
                 if (IsPasteShortcut(ev.Key.Scancode, ev.Key.Mod))
                 {
                     if (!ev.Key.Repeat)
@@ -118,6 +115,7 @@ public partial class Game
         {
             case NetMenuAction.Close:
                 _showNetMenu = false;
+                _openKeyGuard.Clear();
                 break;
             case NetMenuAction.Launch when result.Launch is { } launch && _netMenu is { } menu:
                 if (_playerSettings is { } settings)

@@ -135,8 +135,8 @@ public partial class Game
                 if (!isRepeat)
                 {
                     OpenNetMenu();
-                    // Text input is always on, so the N also arrives as a typed "n" next.
-                    _netMenuSkipTypedKey = true;
+                    // Text input is always on, so the N also arrives as a typed "n", and again while it is held.
+                    _openKeyGuard.Arm(scancode);
                 }
                 return true;
             case SessionKey.LeaveNetworkMatch:
@@ -203,6 +203,7 @@ public partial class Game
         {
             _leaveArmed = false;
             _showNetMenu = false;
+            _openKeyGuard.Clear();
         }
 
         if (_paused && _showNetMenu && _netMenu is { } menu)
