@@ -2,8 +2,6 @@ namespace Tunnerer.Desktop.Gui;
 
 using System.Numerics;
 using ImGuiNET;
-using Tunnerer.Core.Entities;
-using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Desktop.Presentation;
 using static Tunnerer.Desktop.Gui.HudDraw;
@@ -40,46 +38,41 @@ public sealed class BuildPanel(HudLayout layout)
         }
 
         foreach (var machine in MachinePresentations.InSlotOrder)
-            DrawSlot(dl, panelX, machine, player.QuoteBuild(machine.Type), carried, time);
+            DrawSlot(dl, panelX, BuildSlotView.Of(machine, player.QuoteBuild(machine.Type), carried), time);
     }
 
-    private void DrawSlot(ImDrawListPtr dl, float panelX, MachinePresentation machine, BuildQuote quote, MachineType? carried, float time)
+    private void DrawSlot(ImDrawListPtr dl, float panelX, BuildSlotView slot, float time)
     {
-        MachineType type = machine.Type;
-        int col = machine.BuildSlot;
-        string name = machine.SlotLabel, key = machine.KeyLabel;
-        int cost = quote.Cost;
-        float progress = Math.Clamp(quote.Stock / (float)Math.Max(1, cost), 0f, 1f);
-        bool ready = quote.CanAfford;
-        bool carryingThis = carried == type;
-        bool blocked = carried != null && !carryingThis; // the other machine is in hand
-
+        int col = slot.Machine.BuildSlot;
         var sMin = At(panelX + SlotX[col], SlotY[0]);
         var sMax = At(panelX + SlotX[col] + SlotW, SlotY[0] + SlotH);
-        if (blocked)
+        if (slot.State == BuildSlotState.Blocked)
             dl.AddRectFilled(sMin, sMax, 0xA8000000u, S(6f));
-        else if (!ready && !carryingThis)
+        else if (slot.State == BuildSlotState.Filling)
         {
-            float fillTop = sMax.Y - S(SlotH) * progress;
+            float fillTop = sMax.Y - S(SlotH) * slot.Progress;
             dl.AddRectFilled(sMin, new Vector2(sMax.X, fillTop), 0x80000000u, S(6f));
         }
 
-        uint border = carryingThis
-            ? ((int)(time * 3f) % 2 == 0 ? 0xFF40FFFFu : 0xFF20A0A0u)
-            : ready && !blocked ? 0xFF40FF60u : 0xFF707070u;
+        uint border = slot.State switch
+        {
+            BuildSlotState.Carrying => (int)(time * 3f) % 2 == 0 ? 0xFF40FFFFu : 0xFF20A0A0u,
+            BuildSlotState.Ready => 0xFF40FF60u,
+            _ => 0xFF707070u,
+        };
         dl.AddRect(sMin, sMax, border, S(6f), ImDrawFlags.None, S(2.5f));
 
-        string label = carryingThis ? $"PLANT [{key}]" : ready ? $"{name} [{key}]" : $"ORE {quote.Stock}/{cost}";
-        DrawOutlinedText(dl, S(15f), new Vector2(sMin.X + S(4f), sMax.Y - S(18f)), label, blocked ? 0xFF909090u : 0xFFFFFFFFu, S(1f));
-        // The key is always visible, even before the slot is affordable.
-        if (!ready && !carryingThis)
-            DrawOutlinedText(dl, S(13f), new Vector2(sMin.X + S(4f), sMin.Y + S(3f)), $"[{key}] {name}", 0xFFB0B0B0u, S(1f));
-        else if (!carryingThis)
+        DrawOutlinedText(dl, S(15f), new Vector2(sMin.X + S(4f), sMax.Y - S(18f)), slot.Label,
+            slot.State == BuildSlotState.Blocked ? 0xFF909090u : 0xFFFFFFFFu, S(1f));
+        if (slot.Caption is { } caption)
         {
-            // Affordable: what it costs and which stock pays, so the player knows where the ore comes from.
-            string payer = quote.Payer == OrePayer.BaseStore ? "BASE" : "HOLD";
-            DrawOutlinedText(dl, S(13f), new Vector2(sMin.X + S(4f), sMin.Y + S(3f)), $"{cost} ORE {payer}",
-                quote.Payer == OrePayer.BaseStore ? 0xFFF0D080u : 0xFFD8E860u, S(1f));
+            uint color = slot.CaptionKind switch
+            {
+                BuildSlotCaption.FromBase => 0xFFF0D080u,
+                BuildSlotCaption.FromHold => 0xFFD8E860u,
+                _ => 0xFFB0B0B0u,
+            };
+            DrawOutlinedText(dl, S(13f), new Vector2(sMin.X + S(4f), sMin.Y + S(3f)), caption, color, S(1f));
         }
     }
 }

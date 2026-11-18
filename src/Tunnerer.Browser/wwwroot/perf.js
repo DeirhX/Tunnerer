@@ -8,7 +8,7 @@ export class PerfReadout {
         this.element = document.createElement("pre");
         this.element.id = "perf";
         this.element.style.cssText =
-            "position:fixed;left:8px;bottom:8px;margin:0;padding:6px 8px;z-index:100;pointer-events:none;" +
+            "position:fixed;left:8px;bottom:var(--perf-bottom,8px);margin:0;padding:6px 8px;z-index:100;pointer-events:none;" +
             "font:11px/1.4 monospace;color:#cfe;background:#000a;border-radius:4px";
         document.body.append(this.element);
         this.reset(performance.now());

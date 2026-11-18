@@ -63,6 +63,7 @@ export async function startRuntime(dotnet, config = {}) {
                 data.alpha || 0,
                 data.delta || 0,
                 data.time || 0,
+                Boolean(data.thermalView),
             );
             const { packet, hud, timing } = delivered;
             delivered = null;

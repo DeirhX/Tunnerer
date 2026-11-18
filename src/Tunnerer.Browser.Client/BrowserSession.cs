@@ -49,7 +49,7 @@ public sealed class BrowserSession
         if (machines > 0)
             Machines = BrowserStress.GrowNetworks(World, machines);
         Scene = new BrowserScene(this);
-        Guidance.Update(World, Player, HudSeconds, offerThermalView: false);
+        Guidance.Update(World, Player, HudSeconds, offerThermalView: true);
         _soundDirector = new SoundDirector(Sounds);
     }
 
@@ -70,6 +70,12 @@ public sealed class BrowserSession
 
     /// <summary>The tutorial, toasts, hint and warning, as the desktop HUD chooses them; updated after each step.</summary>
     public PlayerGuidance Guidance { get; } = new();
+
+    /// <summary>
+    /// The thermal view (H), as on the desktop: the frame tints the ground by its heat, so that enemy tunnels glow.
+    /// It changes only what is drawn, never the world.
+    /// </summary>
+    public bool ThermalView { get; set; }
 
     /// <summary>
     /// The HUD's clock: the match's own time, so that toasts and tutorial steps last as long as on the desktop and
@@ -101,8 +107,7 @@ public sealed class BrowserSession
         World.Advance(i => i == 0 ? input : _bot.GetInput(tanks[i], Player, World));
         _soundDirector.AfterStep(World, localSlot: 0);
         Guidance.AfterStep(World, Player);
-        // The browser has no thermal view to tell the player about.
-        Guidance.Update(World, Player, HudSeconds, offerThermalView: false);
+        Guidance.Update(World, Player, HudSeconds, offerThermalView: !ThermalView);
         Scene.CaptureStep();
     }
 }

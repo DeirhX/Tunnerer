@@ -6,6 +6,7 @@ import { PerfReadout } from "./perf.js";
 import { Simulation } from "./simulation.js";
 import { GuidanceView } from "./guidance.js";
 import { StatusView } from "./hud.js";
+import { StripView } from "./strip.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
@@ -16,7 +17,9 @@ let worker = null,
     busy = false,
     playing = false,
     paused = false,
-    state = null;
+    state = null,
+    // The thermal view (H): the ground tinted by its heat, as on the desktop. It changes only what is drawn.
+    thermalView = false;
 let lastTime = performance.now(),
     accumulator = 0,
     visualTime = 0,
@@ -42,6 +45,7 @@ const input = new GameInput(canvas, (action, direction) => {
     }
     if (action === "help") openMenu();
     if (action === "tutorial" && playing) guidance.toggleTutorial();
+    if (action === "thermal" && playing) setThermalView(!thermalView);
     if (action === "zoom")
         renderer.zoom = Math.max(
             2,
@@ -49,6 +53,42 @@ const input = new GameInput(canvas, (action, direction) => {
         );
 });
 const statusView = new StatusView(input);
+// The desktop's art strip in the bottom corners, where the screen is wide and there is a mouse (strip.js); the
+// COMMAND button opens the upgrades. Elsewhere the plates show the same.
+const strip = new StripView(input, () => ($("upgrades").open = true));
+const wideScreen = matchMedia(
+    "(pointer: fine) and (min-width: 1000px) and (min-height: 620px)",
+);
+function layoutHud() {
+    document.body.classList.toggle("art-hud", wideScreen.matches);
+    if (!wideScreen.matches) return;
+    strip.load();
+    const main = document.querySelector("main");
+    const height = strip.layout(main.clientWidth, main.clientHeight);
+    document.body.style.setProperty("--strip-h", `${Math.ceil(height)}px`);
+}
+// The upgrades stand between the tutorial card and the strip, so they need the card's height.
+new ResizeObserver(() =>
+    document.body.style.setProperty(
+        "--mission-h",
+        `${$("mission").offsetHeight}px`,
+    ),
+).observe($("mission"));
+wideScreen.addEventListener("change", layoutHud);
+window.addEventListener("resize", layoutHud);
+layoutHud();
+
+function setThermalView(on) {
+    thermalView = on;
+    $("thermal").setAttribute("aria-pressed", String(on));
+    document.body.classList.toggle("thermal-view", on);
+    // A paused world is drawn once; draw it again in the view just chosen.
+    pausedFrameSent = false;
+}
+$("thermal").onclick = () => {
+    if (playing) setThermalView(!thermalView);
+    canvas.focus({ preventScroll: true });
+};
 
 function randomSeed() {
     const values = new Int32Array(1);
@@ -133,6 +173,8 @@ function reset() {
     for (const id of ["hud", "guide", "upgrades", "touch", "death", "hit"])
         $(id).hidden = true;
     guidance.clear();
+    strip.reset();
+    setThermalView(false);
     renderer.pointerTarget = null;
     $("welcome").hidden = false;
     $("footer").hidden = false;
@@ -260,6 +302,7 @@ function notify(message) {
 function updateHud(f) {
     canvas.dataset.tick = String(f.tick);
     statusView.update(f);
+    if (wideScreen.matches) strip.update(f, visualTime);
     guidance.update(f.guidance, f.goal);
     renderer.pointerTarget = guidance.target;
 }
@@ -296,6 +339,7 @@ function animate(now) {
             alpha: paused ? 1 : Math.min(1, accumulator / dt),
             delta: paused ? 0 : Math.min(0.1, (now - lastRenderTime) / 1000),
             time: visualTime,
+            thermalView,
             sounds: askForSounds(),
             ...view,
         });

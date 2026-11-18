@@ -13,6 +13,8 @@ import zipfile
 # The two .NET runtimes a deployment can carry, by the directory each is in. Only one is used in any one browser
 # (wwwroot/threads.js decides), so the offline manifest lists them apart and the service worker keeps one.
 RUNTIMES = {"single": "_framework", "threads": "_framework-threads"}
+# The desktop's HUD art (src/Tunnerer.Desktop/resources/hud) that the browser's strip draws.
+HUD_ART = ["heat_icon.png", "shield_icon.png", "panel_frame.png", "build_panel.png"]
 ISOLATION_HEADERS = ["Cross-Origin-Opener-Policy: same-origin", "Cross-Origin-Embedder-Policy: require-corp"]
 
 
@@ -121,6 +123,11 @@ def main():
         font_dir.mkdir(exist_ok=True)
         for name in ("ChakraPetch-Medium.ttf", "OFL-chakrapetch.txt"):
             shutil.copy2(repo / "src/Tunnerer.Desktop/resources/fonts" / name, font_dir / name)
+        # So is the desktop's HUD art, which the wide layout's strip draws (wwwroot/strip.js).
+        hud_dir = repo / "src/Tunnerer.Browser/wwwroot/hud"
+        hud_dir.mkdir(exist_ok=True)
+        for name in HUD_ART:
+            shutil.copy2(repo / "src/Tunnerer.Desktop/resources/hud" / name, hud_dir / name)
         project = str(repo / "src/Tunnerer.Browser/Tunnerer.Browser.csproj")
         if args.restore_workloads:
             # Which workload that is depends on the SDK in use (wasm-tools on .NET 10, wasm-tools-net10 on later

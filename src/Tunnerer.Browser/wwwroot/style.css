@@ -1169,3 +1169,75 @@ dd {
         display: none;
     }
 }
+/*
+ * Wide screens with a mouse: the desktop's layout (HudLayout). The art strip (strip.js) holds TEMP, SHIELD,
+ * MATERIALS and BUILD STRUCTURES in the bottom corners; the plates keep what the strip does not show and stand at
+ * the top right, where the desktop's BASE panel is, and the upgrades sit at the left above the strip.
+ */
+canvas.strip {
+    display: none;
+    inset: auto;
+    bottom: 0;
+    pointer-events: auto;
+    cursor: default;
+}
+#strip-left {
+    left: 0;
+}
+#strip-right {
+    right: 0;
+}
+body.playing.art-hud canvas.strip {
+    display: block;
+}
+.art-hud .tank-status .heat-value,
+.art-hud .tank-status meter,
+.art-hud .tank-status .meter-label,
+.art-hud .builds,
+.art-hud #ore {
+    display: none;
+}
+.art-hud #hud {
+    top: 22px;
+    right: 24px;
+    left: auto;
+    bottom: auto;
+    width: 300px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+.art-hud .tank-status,
+.art-hud .build-status {
+    width: auto;
+}
+.art-hud #upgrades {
+    --above-strip: calc(var(--strip-h, 223px) * 1.2 + 16px);
+    left: 24px;
+    right: auto;
+    top: auto;
+    /* Above the strip and the OFF NETWORK tag over it, and below the tutorial card (--mission-h, from main.js). */
+    bottom: var(--above-strip);
+    max-height: calc(100% - var(--above-strip) - var(--mission-h, 0px) - 34px);
+    overflow: auto;
+    pointer-events: auto;
+}
+/* The ?perf readout, above the strip. */
+body.playing.art-hud {
+    --perf-bottom: calc(var(--strip-h, 223px) * 1.2 + 8px);
+}
+/* The thermal view's button (H), lit while the view is on. */
+.key-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 11px;
+    pointer-events: auto;
+}
+.key-row kbd {
+    margin: 0;
+}
+.key-row[aria-pressed="true"] {
+    color: var(--hud-amber);
+}

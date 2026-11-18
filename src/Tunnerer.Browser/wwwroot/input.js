@@ -32,6 +32,7 @@ export class GameInput {
                     action("tutorial");
                 }
                 if (this.enabled) {
+                    if (e.code === "KeyH") action("thermal");
                     const build = { KeyE: 1, KeyR: 2, KeyT: 3 }[e.code];
                     if (build) this.queue("build", build);
                     if (/^Digit[1-6]$/.test(e.code))
