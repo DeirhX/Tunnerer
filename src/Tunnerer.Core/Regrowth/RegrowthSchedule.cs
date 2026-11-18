@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Regrowth;
 
+using Tunnerer.Core.Snapshots;
 using Tunnerer.Core.Config;
 
 /// <summary>
@@ -35,6 +36,7 @@ internal sealed class RegrowthSchedule
     // Per tile, each cell's slot + 1 (0 = no appointment). A tile with no appointments holds no array.
     private readonly ushort[]?[] _slotOfTile;
     private readonly ushort[] _countOfTile;
+    [NotSaved("a pool of all-zero arrays: a tile takes a new array when the pool is empty")]
     private readonly Stack<ushort[]> _spareTiles = new();
 
     public RegrowthSchedule(int width, int height)

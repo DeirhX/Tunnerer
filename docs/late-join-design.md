@@ -504,7 +504,8 @@ Each step is testable without the next.
    µs a tick and a whole step 0.133 against 0.127 ms, a gap well inside the spread between matches (1.6 to 6.4
    µs), which comes from the matches playing out differently; the digest is unchanged within noise (about 100 µs
    on 480 x 300, the bots adding under 1 µs).
-3. **Snapshots in Core.** The saver and loader, the bots beside the world, the coverage guard test and the
+3. **Snapshots in Core** (in progress: the saver, the loader and the round-trip tests are in; what is left is in
+   [late-join-step3-plan.md](late-join-step3-plan.md)). The saver and loader, the bots beside the world, the coverage guard test and the
    round-trip tests (§10.3, items 1 and 2). Measure size, compression, save and load time on the default map and
    at 1500 x 750, on the slowest machine that will play.
 4. **Joining, in process.** `TickBundle.HumanMask`, `LockstepRoom.Seat`, the hold, `NetSession` starting from a

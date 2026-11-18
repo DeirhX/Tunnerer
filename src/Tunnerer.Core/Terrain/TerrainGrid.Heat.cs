@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Terrain;
 
+using Tunnerer.Core.Snapshots;
 using System.Diagnostics;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Thermal;
@@ -21,6 +22,7 @@ public partial class TerrainGrid
     private readonly SimulationSettings _simulationSettings;
     private readonly ThermalScheduler _thermalScheduler = new();
 
+    [field: NotSaved("diagnostics: wall-clock timings of the last heat step")]
     public CoolDownProfile LastCoolDownProfile { get; private set; }
 
     /// <summary>

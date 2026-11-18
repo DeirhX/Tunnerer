@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Thermal;
 
+using Tunnerer.Core.Snapshots;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Terrain;
 
@@ -18,6 +19,7 @@ public enum RegionEdges
 /// Applies one material-heat-exchange simulation step over a terrain heat field.
 /// This is kept separate from TerrainGrid to make thermal behavior easier to test in isolation.
 /// </summary>
+[NotSaved("fixed for the match: the material tables, built from the settings")]
 public sealed class TerrainHeatEngine
 {
     private readonly SimulationSettings _settings;

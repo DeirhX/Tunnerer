@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Network;
 
+using Tunnerer.Core.Snapshots;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Collision;
@@ -17,7 +18,7 @@ using Tunnerer.Core.Rendering;
 /// changed something. The result is the one a rebuild from nothing would give.
 /// </para>
 /// </summary>
-public class LinkMap
+public class LinkMap : ISnapshotLoaded
 {
     // Side of the squares links are filed in by the cells their line crosses, as a power of two.
     private const int TileShift = 5;
@@ -42,6 +43,7 @@ public class LinkMap
     private bool _hasSpreadPower;
 
     // Looked up by key only, never enumerated, so its order cannot reach the simulation.
+    [NotSaved("rebuilt on load from the link list (OnSnapshotLoaded); looked up by key only")]
     private readonly Dictionary<long, List<Link>> _linksByTile = new();
     private readonly List<Link> _toRecheck = new();
     private readonly List<Link> _candidates = new();
@@ -272,6 +274,13 @@ public class LinkMap
                 _linksByTile[key] = filed = new List<Link>();
             filed.Add(link);
         });
+    }
+
+    void ISnapshotLoaded.OnSnapshotLoaded()
+    {
+        _linksByTile.Clear();
+        foreach (Link link in _links)
+            File(link);
     }
 
     private void Unfile(Link link)

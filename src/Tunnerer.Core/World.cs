@@ -1,5 +1,6 @@
 namespace Tunnerer.Core;
 
+using Tunnerer.Core.Snapshots;
 using Tunnerer.Core.Types;
 using Tunnerer.Core.Config;
 using Tunnerer.Core.Terrain;
@@ -33,8 +34,11 @@ public class World
     private readonly MatchResult _matchResult;
     private SectorGoal? _sectorGoal;
     // What tanks and machines see of the world each step; the same every step, so built once.
+    [NotSaved("fixed for the match: closures over this world")]
     private readonly SimulationContext _tankContext;
+    [NotSaved("fixed for the match: closures over this world")]
     private readonly MachineContext _machineContext;
+    [NotSaved("fixed for the match: the step's systems, chosen by the rules")]
     private WorldSystem[] _systems;
     private readonly int _simulationSeed;
     private readonly SimulationSettings _simulationSettings;

@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Terrain;
 
+using Tunnerer.Core.Snapshots;
 using System.Diagnostics;
 using Tunnerer.Core.Thermal;
 using Tunnerer.Core.Types;
@@ -11,7 +12,9 @@ public partial class TerrainGrid : ITerrainAccess, ITerrainChangeTracker
     private readonly byte[] _scorchIntensity;
     private readonly float[] _airTemperature;
     private readonly int[] _neighborOffsets;
+    [NotSaved("output only: cells the renderer has yet to upload; a loaded world is uploaded whole")]
     private readonly List<Position> _changeList = new();
+    [NotSaved("output only: how much of the change list the renderer has read")]
     private int _changesSeen;
 
     /// <summary>The pixel writes regrowth has yet to hear of; every pixel write keeps it up to date.</summary>

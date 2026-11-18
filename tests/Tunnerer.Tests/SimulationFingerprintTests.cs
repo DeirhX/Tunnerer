@@ -129,7 +129,7 @@ public class SimulationFingerprintTests
         Assert.True(expected == actual, $"{ChangedMessage} Expected 0x{expected:X16}UL, got 0x{actual:X16}UL.");
     }
 
-    private static ulong Fingerprint(World world)
+    internal static ulong Fingerprint(World world)
     {
         var h = new Fnv64();
         h.Add(WorldStateHash.Compute(world));

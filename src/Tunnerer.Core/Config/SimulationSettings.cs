@@ -1,5 +1,6 @@
 namespace Tunnerer.Core.Config;
 
+using Tunnerer.Core.Snapshots;
 using Tunnerer.Core.Thermal;
 
 /// <summary>
@@ -7,6 +8,7 @@ using Tunnerer.Core.Thermal;
 /// Tests can construct custom instances to override any parameter.
 /// Production code uses <see cref="FromTweaks"/>.
 /// </summary>
+[NotSaved("fixed for the match: built from the match settings")]
 public readonly record struct SimulationSettings
 {
     // --- Simulation timing ---

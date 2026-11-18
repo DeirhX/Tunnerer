@@ -1,10 +1,13 @@
 namespace Tunnerer.Core;
 
+using Tunnerer.Core.Snapshots;
+
 /// <summary>
 /// How long each system of <see cref="World.Advance"/> took, averaged and reported every 100 steps when
 /// <see cref="ReportSink"/> is set. The sections are the world's systems, by label and in step order, so a new system
 /// shows up here without a change to this class. It only adds up times: <see cref="World"/> does the timing.
 /// </summary>
+[NotSaved("diagnostics: wall-clock timings, which differ between machines")]
 public sealed class SimulationProfile
 {
     private string[] _labels = [];
