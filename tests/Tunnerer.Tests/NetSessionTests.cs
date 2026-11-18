@@ -283,7 +283,7 @@ public class NetSessionTests
     }
 
     [Fact]
-    public void TwoUploadsThatDiffer_AreADesync_AndTheJoinerIsOfferedNeither()
+    public void VerifierDisagreesWithUploader_ReportsDesync_AndWithholdsOffer()
     {
         var (relay, worlds, sessions) = TwoPlayersAndTwoBots(ticks: 48);
         int tick = relay.Room.NextTick;
@@ -304,7 +304,7 @@ public class NetSessionTests
         }
 
         Assert.Equal(tick, relay.Hold?.Tick);
-        Assert.True(relay.Hold!.IsComplete);
+        Assert.Null(relay.Hold!.Offer);
         Assert.Equal(tick, relay.Room.DesyncTick);
         Assert.Equal(0, relay.OffersSent);
         Assert.Equal(LateJoin.Stage.CopyingTheMatch, join.Current);
@@ -338,6 +338,21 @@ public class NetSessionTests
                 FromRelay.Dequeue();
             return message != null;
         }
+    }
+
+    [Fact]
+    public void VerifierSendsOnlyTheHashesOfItsOwnSnapshot()
+    {
+        var link = new ScriptedLink();
+        var world = CreateWorld();
+        var session = new NetSession(link, world);
+        link.FromRelay.Enqueue(new SnapshotRequest(0, SendChunks: false));
+
+        session.Receive();
+
+        var snapshot = WorldSnapshot.Save(world, session.Bots);
+        Assert.Equal(new SnapshotDone(0, 0, WorldSnapshot.Digest(snapshot),
+            WorldStateHash.ComputeSync(world, session.Bots).Combined), Assert.Single(link.Sent));
     }
 
     /// <summary>What an uploader sends for a match two players and two bots have played for 30 ticks.</summary>

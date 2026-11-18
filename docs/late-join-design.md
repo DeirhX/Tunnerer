@@ -69,7 +69,7 @@ A seat is a slot as the room sees it. It is in one of three states:
 ### 4.1 Flow
 
 ```
-joiner                       relay                                   seated clients (A, B uploaders)
+joiner                       relay                                   seated clients (A uploads, B verifies)
   | Hello{room, name} ---->   |  running, not over, late join on,
   |                           |  a bot seat free, no name match
   | <---- Welcome{slot=-1}    |
@@ -79,9 +79,9 @@ joiner                       relay                                   seated clie
   |  the match runs on)       |
   | ReadyToLoad ---------->   |  S = the ticks closed so far. Holds: no tick S yet
   |                           |  PauseState{held, joining: name} -------------------> all
-  |                           |  SnapshotRequest{S} -------------------------------> A, B
-  |                           |                     each steps to S ticks, saves, uploads
-  |                           |  <--------------------------- SnapshotChunk x N, SnapshotDone{S, digest}
+  |                           |  SnapshotRequest{S, sendChunks} ------------------> A (true), B (false)
+  |                           |                     both save at S
+  |                           |  <--------------------------- chunks from A, SnapshotDone from A and B
   |                           |  the two digests agree
   | <---- SnapshotOffer{S, digest, syncHash(S)}, SnapshotChunk x N
   |  loads, checks (§10.3),   |
@@ -130,10 +130,10 @@ New or changed, protocol version 6:
 | S to C | `InProgress` (replaces `Rejoined`) | The match is on: build the world from the settings and say when it is built |
 | C to S | `ReadyToLoad` | My world is built; hold the match and get me a snapshot |
 | S to C | `PauseState { paused, bySlot, joining }` | As before; `joining` names the player the match holds for, empty for a pause a player asked for |
-| S to C | `SnapshotRequest { tick }` | To an uploader: save the world after this tick and upload it |
-| both | `SnapshotChunk { tick, index, bytes }` | Up to 32 KiB each |
-| C to S | `SnapshotDone { tick, length, digest, syncHash }` | Upload complete; `length` is the compressed bytes sent, `digest` a 64-bit hash of the uncompressed bytes (the first eight bytes of SHA-256; never of the compressed ones, which Brotli may write differently in another .NET patch version), `syncHash` the uploader's sync digest at `tick` |
-| S to C | `SnapshotOffer { tick, length, digest, syncHash }` | To a joiner: a snapshot follows, with the uploaders' sync digest for its tick |
+| S to C | `SnapshotRequest { tick, sendChunks }` | Both clients save and hash at this tick. Only the designated uploader sends chunks |
+| both | `SnapshotChunk { tick, index, bytes }` | 32 KiB each, with a possibly shorter final chunk |
+| C to S | `SnapshotDone { tick, length, digest, syncHash }` | Snapshot report. `length` is the compressed bytes sent (zero for the verifier), `digest` a 64-bit hash of the uncompressed bytes (the first eight bytes of SHA-256; never of the compressed ones, which Brotli may write differently in another .NET patch version), `syncHash` the sender's sync digest at `tick` |
+| S to C | `SnapshotOffer { tick, length, digest, syncHash }` | To a joiner: a snapshot follows, with the agreed sync digest for its tick |
 | C to S | `TakeSeat { slot }` | From a joiner with the world loaded: let me drive this bot seat |
 | C to S | `JoinFailed { reason }` | The snapshot failed its checks, or no seat is worth taking; let the match go on |
 | S to C | `Seated { slot, atTick }` | Granted: your inputs count from tick `atTick` |
@@ -161,8 +161,8 @@ compare before a match covers it.
   The name must still be unique: it is checked against the players present and against the start names of vacant
   seats, so a newcomer cannot be numbered into a dropped player's name.
 - **The hold.** On `ReadyToLoad` the relay closes ticks up to the one due, calls the last one `S`, and holds: no
-  more ticks until the join ends. It asks two uploaders for `S` (§9.2). Joiners that send `ReadyToLoad` while a
-  hold is on are served from the same snapshot. The hold ends when every joiner in it has been seated or has
+  more ticks until the join ends. It requests an upload and, when available, independent verification at `S` (§9.2).
+  Joiners that send `ReadyToLoad` during the hold share its snapshot. The hold ends when every joiner in it has been seated or has
   failed, or after `JoinHoldSeconds` (15): then the relay goes on without them and refuses them with "the match
   could not be copied to you". A player's own pause and a hold are separate; the match runs when neither is on.
   Hold time is not match time, like a pause.
@@ -245,7 +245,7 @@ of `B` takes `B / (r - 1)` to clear. That is fine on a fast machine and hopeless
 `NetworkTweaks.CatchUpBudgetMs`, and draws for the rest.)
 
 So even a snapshot is not enough on its own: the time to save, move and load it is a gap the joiner would have to
-close. Holding the match for that time removes the gap, and the uploaders' save is absorbed by the same hold.
+close. Holding the match while clients save, transfer and load the snapshot removes that gap.
 
 How long a hold lasts, estimated and to be measured:
 
@@ -276,7 +276,7 @@ nobody is joining. All the work of a join happens in the hold, when nobody is si
 | During a join | Who pays |
 |---|---|
 | The hold | Everyone waits; nobody simulates. |
-| Saving and uploading the snapshot | Two players, inside the hold. |
+| Saving and uploading the snapshot | Up to two players save at the held tick. One compresses and uploads. |
 | Building the map, loading, checking | The joiner. |
 
 ## 9. Snapshots
@@ -358,27 +358,26 @@ but still 1.3 MiB compressed with 400 machines planted. Settled ground repeats, 
 times. Sending only what differs from the freshly built world, which the joiner has anyway, would shrink it further
 on a large map where most ground is untouched (§14).
 
-### 9.2 Uploaders
+### 9.2 Uploader and verifier
 
-- **Who.** Two seated clients, so the relay can compare them (§10.3); with one seated player, one. The relay picks
-  the two whose last hash report is for the latest tick: the ones nearest the live tick, with no backlog to clear
-  before they reach `S`.
+- **Who.** Choose the seated client with the latest reported tick to upload. If another is available, choose the
+  next closest to verify independently (§10.3). A lone player can supply the snapshot.
 - **When.** `S` is wherever the clock stands when the joiner is ready, not a hash tick, so the relay has no sync
-  hash for it. The uploaders send one with `SnapshotDone`, and it goes into the relay's comparison like any other.
-- **Cost.** Each steps to `S` (it is at most a tick or two behind), copies its state on the main thread, and
-  compresses and uploads off it. The hold covers all of it, so even a machine that only just keeps up loses
-  nothing. Nobody joining costs nothing: there are no periodic snapshots (§8.1).
+  hash for it. Both clients report it with the raw snapshot digest in `SnapshotDone`. The relay waits for all requested
+  reports and chunks before offering the snapshot.
+- **Cost.** Both clients step to `S`, save once and hash the raw bytes. Only the uploader compresses and sends
+  the snapshot. At the measured 1500 x 750 size (§13), a second full upload would cost about 1.3 MiB.
+  The hold still includes one upload and one download. Its duration needs a socket measurement (§8).
 
 ### 9.3 Limits
 
 - Chunks are the only messages over 4 KiB, and are accepted only from a client asked for that tick. They count
   against a byte budget, not the 2000-a-second message limit, which an 11 MB upload in 4 KiB messages would break.
-- A snapshot is at most 32 MiB. The relay keeps at most two per room and 256 MiB in all (Starfish has about 6.5 GB
-  free), and drops a snapshot when its hold ends.
+- A snapshot is at most 32 MiB. The relay keeps at most one compressed payload per hold and 256 MiB in all.
+  It drops a snapshot when its hold ends.
 - **An uploader that leaves** mid-upload: the relay asks another seated client for the same tick (nothing has
   moved). If there is none, the join fails and the match goes on.
-- **Two uploads that differ** mean the two players' worlds differ at `S`: a desync, which the relay announces at
-  `S` like any other. The joiner is given neither.
+- **If either hash differs**, the relay announces a desync at `S` and withholds the offer.
 
 ### 9.4 The joiner
 
@@ -465,11 +464,11 @@ Each check covers a different failure:
    0 at every save, as it is in a built world. Leaving out a random generator, the carried machine or the bot's
    mode failed at once. That is why item 1 lists the marks: a mark is a decision a reviewer reads, not something
    the round trip proves.
-3. **Two uploaders** (catch a world that had already diverged at `S`). The relay compares the two digests. Two
+3. **Independent verification** (catch a world that had already diverged at `S`). The relay compares the two digests. Two
    correct clients write the same bytes, so a difference is a desync. This sees all of the state, which the sync
    digest does not.
 4. **The joiner checks what it loaded** (catches corruption, and a reader that does not match the writer): saving
-   the loaded world gives back the bytes it received, and its sync digest equals the uploaders' for `S`. Any
+   the loaded world gives back the bytes it received, and its sync digest equals the reported value for `S`. Any
    failure fails the join; the match goes on without the joiner.
 5. **A stronger sync digest** (worth doing now, snapshots or not). New parts beside `Economy`, so `Compute` and the
    recorded fingerprints stay as they are: the outcome (every core tap's hold time and tapped flag, the first to
@@ -574,20 +573,20 @@ Each step is testable without the next.
    `Seat` and `SeatBot` (the relay seats a bot where it used to disconnect an empty slot) and
    `SubmitSnapshotDigest` (two that differ are a desync, like two hashes). `Seats` in Desktop applies mask changes
    before each step. `NetSession` owns it (`StartSeats` replaces setting `Bots` at the start), starts from a loaded
-   world (`FromSnapshot`), and answers `SnapshotRequest` once its world is at the tick: save, compress, 32 KiB
-   chunks, `SnapshotDone` with `WorldSnapshot.Digest` of the raw bytes (the first eight bytes of SHA-256) and the
+   world (`FromSnapshot`), and answers `SnapshotRequest` once its world is at the tick. The uploader sends chunks of up to
+   32 KiB. Both clients report `SnapshotDone` with `WorldSnapshot.Digest` of the raw bytes (the first eight bytes of SHA-256) and the
    sync digest. `LateJoin` is the joiner of §9.4 with the checks of §10.3 item 4 and the seat rule of §6.1. The
    join messages of §4.3 are records in `Tunnerer.Protocol`, with `SnapshotAssembly` (chunks in order, within a
-   size) and `SnapshotHold` (the uploaders asked, their uploads, the offer) for step 5's relay to reuse;
+   size) and `SnapshotHold` (one upload, an optional verifier, the offer) for step 5's relay to reuse;
    `ILockstepLink` gained `SendJoin` and `TryReceiveJoin`. `MatchRecording` writes `mask=` lines and a starting
    snapshot (§6.2). The tests' `InMemoryRelay` plays the relay's part: watchers, the hold at the ticks closed when
-   `ReadyToLoad` arrives, two uploaders, the offer once both agree, `TakeSeat`.
+   `ReadyToLoad` arrives, one upload, the offer once both reports agree, `TakeSeat`.
 
    Tests: `NetSessionJoinTests` (Slow, a class of its own, about 8 s alone) runs two players and two bots in four
    slots (the "four worlds" of the plan read as four tanks: two clients, with the bots on both), a fifth client
    joins at tick 2400, takes slot 2 and plays 240 ticks; every world saves to the same bytes and the joiner's
    recording rebuilds them. In `NetSessionTests`: the same join at tick 48 with both recordings rebuilt (a player's
-   from tick 0, with its `mask=` line); two uploads that differ only in the thermal ledger, which the sync digest
+   from tick 0, with its `mask=` line); two snapshots that differ only in the thermal ledger, which the sync digest
    does not read, are a desync and the joiner is offered nothing; each of the joiner's checks refuses a broken
    offer; the seat rule and `SeatRefused`. No simulation change: the fingerprints are as they were.
 
@@ -600,14 +599,24 @@ Each step is testable without the next.
    - **Ticks are counted as hashes count them** (§4.1): `S` is the ticks closed when the hold starts, the snapshot
      is the world after them, and `Seated` and the new mask are at bundle `S`.
    - **`SeatRefused` names no slot**: the joiner asks for one seat at a time and knows which.
-   - **The uploader compresses on the game thread**, inside the hold (17 ms at 1500 x 750, §13 step 3); moving it
-     off, as §9.2 says, is step 6's with the rest of the game.
-   - **Which uploaders**: the in-memory relay takes the first two connected player seats; the rule of §9.2 (the
-     two nearest the live tick) needs the relay to know which slot reported which hash, which is step 5's.
+   - **The uploader compresses on the game thread**, inside the hold (17 ms at 1500 x 750, §13 step 3); step 6
+     moves compression off the game thread.
+   - **Which players**: the in-memory relay asks the first connected player to upload and the second to verify. Step 5
+     tracks which slot reported each hash so the relay can choose the players nearest the live tick (§9.2).
    - **A recording holds its snapshot inline**, in base 64 (about 400 KiB of text at 480 x 300), so a desync
      report stays one file that `MatchRecording.Load` reads.
-5. **The relay and the codec.** Watchers, the hold, snapshot transfer and its limits, `TakeSeat`, the refusals,
-   the snapshot a last player leaves when quitting, rejoin by snapshot. Protocol version 6. `MatchRoomTests`: the join order in §5, two
+5. **The relay and the codec.** Start with a newcomer taking a bot seat over a local socket. Keep the existing
+   rejoin path working while this is built. Before accepting snapshots from peers, bound the allocations made by
+   the reader and restrict type resolution to the local snapshot schema. The decompression limit bounds the byte
+   stream, while the reader currently uses counts and type names from inside it to construct the object graph.
+   Hash agreement checks that peers saved the same state. A lone uploader supplies its own hashes.
+
+   Measure the time from `ReadyToLoad` to the first resumed tick with a throttled connection. Exercise the timeout
+   and an uploader disconnect before expanding to multiple joiners and rejoin by snapshot. If the uploader leaves,
+   discard its partial chunks and request a fresh upload at the same tick, within the original hold deadline.
+
+   Protocol 6 covers watchers, the hold, snapshot transfer and its limits, `TakeSeat`, refusals,
+   the snapshot a last player leaves when quitting, and rejoin by snapshot. `MatchRoomTests`: the join order in §5, two
    joiners in one hold, an uploader leaving, the hold timeout, a pause during a hold, a seated late joiner who
    rejoins by name. A socket test in `RelayOverSocketsTests` (marked `Slow`). Deploy the relay to Starfish. The
    relay's 32 MiB cap stays in step with `WorldSnapshot.MaxBytes`. From step 4 it has `LockstepRoom.Seat`,

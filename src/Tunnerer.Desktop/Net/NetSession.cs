@@ -31,7 +31,7 @@ public sealed class NetSession
     private readonly BundleBuffer _buffer;
     private readonly List<TickBundle> _played = [];
     private readonly Queue<(int Tick, SyncDigest Digest)> _digests = new();
-    private int? _snapshotRequested;
+    private SnapshotRequest? _snapshotRequested;
     private bool _matchOverSent;
 
     /// <param name="world">A world built from the match settings and not yet stepped.</param>
@@ -116,27 +116,28 @@ public sealed class NetSession
             _buffer.Add(bundle);
         while (_link.TryReceiveJoin(out Message? message))
             if (message is SnapshotRequest request)
-                _snapshotRequested = request.Tick;
-        if (_snapshotRequested is int tick && _world.AdvanceCount >= tick)
+                _snapshotRequested = request;
+        if (_snapshotRequested is { } pending && _world.AdvanceCount >= pending.Tick)
         {
             _snapshotRequested = null;
             // The match is held at the tick asked for, so the world cannot have passed it unless the relay is wrong.
-            if (_world.AdvanceCount == tick)
-                Upload(tick);
+            if (_world.AdvanceCount == pending.Tick)
+                AnswerSnapshotRequest(pending);
         }
     }
 
-    /// <summary>
-    /// Saves the world and the bots as they are and uploads them, with a digest of the uncompressed bytes (two
-    /// players with the same world send the same one) and the sync digest for the joiner to check against.
-    /// </summary>
-    private void Upload(int tick)
+    private void AnswerSnapshotRequest(SnapshotRequest request)
     {
         byte[] snapshot = WorldSnapshot.Save(_world, _seats.Bots);
-        byte[] compressed = WorldSnapshot.Compress(snapshot);
-        foreach (SnapshotChunk chunk in SnapshotChunk.Split(tick, compressed))
-            _link.SendJoin(chunk);
-        _link.SendJoin(new SnapshotDone(tick, compressed.Length, WorldSnapshot.Digest(snapshot),
+        int length = 0;
+        if (request.SendChunks)
+        {
+            byte[] compressed = WorldSnapshot.Compress(snapshot);
+            length = compressed.Length;
+            foreach (SnapshotChunk chunk in SnapshotChunk.Split(request.Tick, compressed))
+                _link.SendJoin(chunk);
+        }
+        _link.SendJoin(new SnapshotDone(request.Tick, length, WorldSnapshot.Digest(snapshot),
             WorldStateHash.ComputeSync(_world, _seats.Bots).Combined));
     }
 

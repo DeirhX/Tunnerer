@@ -148,10 +148,10 @@ public sealed record Refusal(string Reason) : Message;
 public sealed record ReadyToLoad : Message;
 
 /// <summary>
-/// Relay to an uploader: save the world after <paramref name="Tick"/> ticks and upload it. The match is held
-/// there, so no later tick comes until the join is over.
+/// Relay to a seated client: save the world after <paramref name="Tick"/> ticks. Send chunks only when
+/// <paramref name="SendChunks"/> is set. Both the uploader and verifier report the hashes in SnapshotDone.
 /// </summary>
-public sealed record SnapshotRequest(int Tick) : Message;
+public sealed record SnapshotRequest(int Tick, bool SendChunks) : Message;
 
 /// <summary>
 /// A piece of a compressed snapshot, uploader to relay and relay to joiner, in order from <paramref name="Index"/> 0.
@@ -181,9 +181,9 @@ public sealed record SnapshotChunk(int Tick, int Index, ImmutableArray<byte> Byt
 }
 
 /// <summary>
-/// Uploader to relay: the upload of the snapshot after <paramref name="Tick"/> ticks is complete.
+/// Seated client to relay: the snapshot after <paramref name="Tick"/> ticks has been saved and hashed.
 /// </summary>
-/// <param name="Length">The compressed bytes sent, all chunks together.</param>
+/// <param name="Length">The compressed bytes sent by the uploader, or zero from the verifier.</param>
 /// <param name="Digest">
 /// A hash of the uncompressed snapshot, which is canonical: two clients with the same world send the same digest.
 /// (The compressed bytes are not: the compressor's output can change between runtime versions.)

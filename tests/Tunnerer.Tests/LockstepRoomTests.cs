@@ -248,28 +248,43 @@ public class SnapshotHoldTests
 {
     private static SnapshotChunk Chunk(int tick, int index, int length) => new(tick, index, [.. new byte[length]]);
 
-    [Fact]
-    public void Upload_IsOfferedOnceEveryUploaderHasFinished_FromTheFirstToFinish()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void OfferWaitsForTheUploadAndIndependentVerification(bool verifyFirst)
     {
-        var hold = new SnapshotHold(tick: 100, uploaders: [0, 1], maxBytes: 1000);
-        Assert.True(hold.AddChunk(1, Chunk(100, 0, 300)));
-        Assert.True(hold.AddChunk(1, Chunk(100, 1, 200)));
+        var hold = new SnapshotHold(tick: 100, uploader: 0, verifier: 1, maxBytes: 1000);
+        var upload = new SnapshotDone(100, 500, Digest: 7, SyncHash: 8);
+        var verification = upload with { Length = 0 };
+        Assert.False(hold.AddChunk(1, Chunk(100, 0, 500)));
+        Assert.False(hold.Finish(1, upload));
+        Assert.False(hold.Finish(0, verification));
         Assert.True(hold.AddChunk(0, Chunk(100, 0, 500)));
+        Assert.True(verifyFirst ? hold.Finish(1, verification) : hold.Finish(0, upload));
         Assert.Null(hold.Offer);
+        Assert.True(verifyFirst ? hold.Finish(0, upload) : hold.Finish(1, verification));
 
-        Assert.True(hold.Finish(1, new SnapshotDone(100, 500, Digest: 7, SyncHash: 8)));
-        Assert.False(hold.IsComplete);
-        Assert.True(hold.Finish(0, new SnapshotDone(100, 500, Digest: 7, SyncHash: 8)));
-
-        Assert.True(hold.IsComplete);
         Assert.Equal(new SnapshotOffer(100, 500, 7, 8), hold.Offer);
-        Assert.Equal([0, 1], hold.Chunks.Select(c => c.Index));
+        Assert.Single(hold.Chunks);
+        Assert.False(hold.Finish(1, verification));
+    }
+
+    [Theory]
+    [InlineData(6, 8)]
+    [InlineData(7, 9)]
+    public void EitherHashDisagreeingWithholdsOffer(int digest, int syncHash)
+    {
+        var hold = new SnapshotHold(100, uploader: 0, verifier: 1, maxBytes: 1000);
+        Assert.True(hold.AddChunk(0, Chunk(100, 0, 500)));
+        Assert.True(hold.Finish(0, new SnapshotDone(100, 500, 7, 8)));
+        Assert.True(hold.Finish(1, new SnapshotDone(100, 0, (ulong)digest, (ulong)syncHash)));
+        Assert.Null(hold.Offer);
     }
 
     [Fact]
     public void ChunksAndEnds_ThatDoNotFit_AreRefused()
     {
-        var hold = new SnapshotHold(tick: 100, uploaders: [0], maxBytes: 1000);
+        var hold = new SnapshotHold(tick: 100, uploader: 0, verifier: null, maxBytes: 1000);
         Assert.False(hold.AddChunk(1, Chunk(100, 0, 10))); // Not asked.
         Assert.False(hold.AddChunk(0, Chunk(99, 0, 10))); // Another tick.
         Assert.False(hold.AddChunk(0, Chunk(100, 1, 10))); // Out of order.
@@ -279,7 +294,20 @@ public class SnapshotHoldTests
         Assert.False(hold.Finish(0, new SnapshotDone(101, 10, 0, 0)));
         Assert.True(hold.Finish(0, new SnapshotDone(100, 10, 0, 0)));
         Assert.False(hold.AddChunk(0, Chunk(100, 1, 10))); // After the end.
-        Assert.Throws<ArgumentException>(() => new SnapshotHold(1, [0, 1, 2], 10));
+        Assert.Equal(new SnapshotOffer(100, 10, 0, 0), hold.Offer);
+        Assert.Throws<ArgumentException>(() => new SnapshotHold(1, 0, 0, 10));
+    }
+
+    [Fact]
+    public void AssemblyAcceptsOnlyFullChunksAndOneNonemptyTail()
+    {
+        var assembly = new SnapshotAssembly(100, 2 * SnapshotChunk.MaxBytes);
+        Assert.False(assembly.Add(Chunk(100, 0, 0)));
+        Assert.False(assembly.Add(Chunk(100, 0, SnapshotChunk.MaxBytes + 1)));
+        Assert.True(assembly.Add(Chunk(100, 0, SnapshotChunk.MaxBytes)));
+        Assert.True(assembly.Add(Chunk(100, 1, 1)));
+        Assert.False(assembly.Add(Chunk(100, 2, 1)));
+        Assert.Equal(SnapshotChunk.MaxBytes + 1, assembly.Length);
     }
 
     [Fact]

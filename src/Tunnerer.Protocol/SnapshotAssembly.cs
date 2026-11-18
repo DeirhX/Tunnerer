@@ -33,7 +33,10 @@ public sealed class SnapshotAssembly
     public bool Add(SnapshotChunk chunk)
     {
         ArgumentNullException.ThrowIfNull(chunk);
-        if (chunk.Tick != Tick || chunk.Index != _chunks.Count || chunk.Bytes.Length > MaxBytes - Length)
+        // Split fills each chunk except the last. Enforcing that shape also bounds the number of retained chunks.
+        if (chunk.Tick != Tick || chunk.Index != _chunks.Count || chunk.Bytes.IsDefaultOrEmpty ||
+            chunk.Bytes.Length > SnapshotChunk.MaxBytes || chunk.Bytes.Length > MaxBytes - Length ||
+            Length % SnapshotChunk.MaxBytes != 0)
             return false;
         _chunks.Add(chunk);
         Length += chunk.Bytes.Length;

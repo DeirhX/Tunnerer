@@ -13,8 +13,8 @@ using Tunnerer.Protocol;
 /// <remarks>
 /// It also plays the relay's part in a join (docs/late-join-design.md §4.1, §5): a client added with
 /// <see cref="AddJoiner"/> watches until it is seated; its <see cref="ReadyToLoad"/> holds the match at the next tick,
-/// two seated players upload a snapshot there (<see cref="SnapshotHold"/>), the joiner is offered it once both are
-/// in and agree, and its <see cref="TakeSeat"/> hands it a bot's slot from that tick. The hold ends when every
+/// one player uploads and a second, if present, verifies the hashes (<see cref="SnapshotHold"/>). The joiner
+/// receives the agreed snapshot, and its <see cref="TakeSeat"/> hands it a bot's slot from that tick. The hold ends when every
 /// joiner in it is seated or has failed. The time limit, uploaders that leave and the refusals are the real relay's.
 /// </remarks>
 internal sealed class InMemoryRelay
@@ -115,11 +115,11 @@ internal sealed class InMemoryRelay
                 // desync at the hold's tick, and the joiners are given neither.
                 Room.SubmitHash(done.Tick, done.SyncHash);
                 Room.SubmitSnapshotDigest(done.Tick, done.Digest);
-                if (Hold.IsComplete && Room.DesyncTick == null)
+                if (Hold.Offer != null && Room.DesyncTick == null)
                     foreach (var joiner in _joiners)
                         Offer(joiner);
                 break;
-            case TakeSeat take when from.Slot < 0 && Hold != null && _joiners.Contains(from):
+            case TakeSeat take when from.Slot < 0 && Hold?.Offer != null && Room.DesyncTick == null && _joiners.Contains(from):
                 if (take.Slot >= 0 && take.Slot < _seated.Length && Room.Seat(take.Slot))
                 {
                     _joiners.Remove(from);
@@ -145,14 +145,14 @@ internal sealed class InMemoryRelay
         _joiners.Add(joiner);
         if (Hold == null)
         {
-            var uploaders = Enumerable.Range(0, _seated.Length)
+            var players = Enumerable.Range(0, _seated.Length)
                 .Where(slot => _seated[slot] != null && Room.IsConnected(slot) && !Room.IsBotSeat(slot))
-                .Take(SnapshotHold.MaxUploaders).ToArray();
-            Hold = new SnapshotHold(Room.NextTick, uploaders, WorldSnapshot.MaxBytes);
-            foreach (int slot in uploaders)
-                _seated[slot]!.QueueDown(new SnapshotRequest(Hold.Tick));
+                .Take(2).ToArray();
+            Hold = new SnapshotHold(Room.NextTick, players[0], players.Length == 2 ? players[1] : null, WorldSnapshot.MaxBytes);
+            foreach (int slot in players)
+                _seated[slot]!.QueueDown(new SnapshotRequest(Hold.Tick, SendChunks: slot == players[0]));
         }
-        else if (Hold.IsComplete && Room.DesyncTick == null)
+        else if (Hold.Offer != null && Room.DesyncTick == null)
             Offer(joiner);
     }
 
