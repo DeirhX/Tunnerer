@@ -92,6 +92,9 @@ public class Tank
     /// <summary>Hotter than the safe maximum: overheating burns the shield.</summary>
     public bool IsAboveSafeHeat => Heat > Tweaks.Tank.HeatSafeMax;
 
+    /// <summary>Colder than the frostbite temperature: the cold cracks the shield.</summary>
+    public bool IsBelowFrostbite => Heat < Tweaks.Tank.FrostbiteTemperature;
+
     /// <summary>Still warmer than the base cools it to: a docked tank is still being cooled down toward 0.</summary>
     public bool IsCoolingDown => Heat > Tweaks.Tank.FullyCooledMargin;
 

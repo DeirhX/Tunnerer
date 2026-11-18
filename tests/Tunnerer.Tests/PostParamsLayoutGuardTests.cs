@@ -64,6 +64,8 @@ public partial class PostParamsLayoutGuardTests
         ["TerrainHeatGlowColorAndThreshold"] =
             ["TerrainHeatGlowR", "TerrainHeatGlowG", "TerrainHeatGlowB", "TerrainHeatThreshold"],
         ["ScorchTint"] = ["_padScorch0", "ScorchTintDarken", "ScorchTintStrength", "_padScorch1"],
+        ["ScreenFx"] = ["ScreenFxHit", "ScreenFxOverheat", "ScreenFxFreeze", "ScreenFxActive"],
+        ["ScreenFxMotion"] = ["ScreenShakeX", "ScreenShakeY", "ScreenHitFromX", "ScreenHitFromY"],
         ["TankGlowCount"] = ["TankGlowCount"],
         ["TankGlow"] = ["TankGlow"],
     };
@@ -98,6 +100,45 @@ public partial class PostParamsLayoutGuardTests
 
         Assert.True(mismatches.Count == 0,
             "PostParamsBlock does not match cbuffer PostParams in PostParams.hlsli:\n" + string.Join('\n', mismatches));
+    }
+
+    /// <summary>The browser reads one flag straight out of the uniform floats to decide whether to run ScreenFxPs.</summary>
+    [Fact]
+    public void WebGlRenderer_ReadsTheScreenEffectFlagAtItsOffset()
+    {
+        string webgl = File.ReadAllText(Path.Combine(EntityLayoutGuardTests.FindRepositoryRoot(),
+            "src", "Tunnerer.Browser", "wwwroot", "webgl.js"));
+        var m = Regex.Match(webgl, @"const SCREEN_FX_ACTIVE = (?<index>\d+);");
+        Assert.True(m.Success, "webgl.js no longer declares SCREEN_FX_ACTIVE");
+        int expected = (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.ScreenFxActive)) / sizeof(float);
+        Assert.True(expected.ToString(System.Globalization.CultureInfo.InvariantCulture) == m.Groups["index"].Value,
+            $"webgl.js has SCREEN_FX_ACTIVE = {m.Groups["index"].Value}; PostParamsBlock.ScreenFxActive is float {expected}.");
+    }
+
+    /// <summary>
+    /// The crosshair follows a hit's zoom and shake (ScreenEffectLevels.ShownFromCentre, and webgl.js in the browser),
+    /// so the zoom ScreenFxPs applies and the floats the page reads must be the ones C# means.
+    /// </summary>
+    [Fact]
+    public void TheHitZoom_AndTheShakeTheBrowserReads_MatchTheShader()
+    {
+        string root = EntityLayoutGuardTests.FindRepositoryRoot();
+        string shader = File.ReadAllText(Path.Combine(root, "src", "Tunnerer.Desktop", "Rendering", "Shaders", "ScreenFxPs.hlsl"));
+        string webgl = File.ReadAllText(Path.Combine(root, "src", "Tunnerer.Browser", "wwwroot", "webgl.js"));
+        var inShader = Regex.Match(shader, @"static const float kHitZoom = (?<v>[\d.]+);");
+        var inPage = Regex.Match(webgl, @"const SCREEN_HIT_ZOOM = (?<v>[\d.]+);");
+        Assert.True(inShader.Success && inPage.Success, "ScreenFxPs.hlsl or webgl.js no longer declares the hit zoom");
+        float expected = Tunnerer.Desktop.Config.DesktopScreenTweaks.ScreenHitZoom;
+        Assert.Equal(expected, float.Parse(inShader.Groups["v"].Value, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(expected, float.Parse(inPage.Groups["v"].Value, System.Globalization.CultureInfo.InvariantCulture));
+
+        // webgl.js finds the hit level and the shake from SCREEN_FX_ACTIVE.
+        Assert.Contains("SCREEN_FX_HIT = SCREEN_FX_ACTIVE - 3", webgl, StringComparison.Ordinal);
+        Assert.Contains("SCREEN_SHAKE_X = SCREEN_FX_ACTIVE + 1", webgl, StringComparison.Ordinal);
+        int active = (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.ScreenFxActive));
+        Assert.Equal(active - 3 * sizeof(float), (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.ScreenFxHit)));
+        Assert.Equal(active + sizeof(float), (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.ScreenShakeX)));
+        Assert.Equal(active + 2 * sizeof(float), (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.ScreenShakeY)));
     }
 
     [Fact]

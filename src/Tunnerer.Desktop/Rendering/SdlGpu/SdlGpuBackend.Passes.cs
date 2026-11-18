@@ -7,16 +7,18 @@ using Tunnerer.Core.Types;
 
 /// <summary>
 /// The game frame: uploads, then the native terrain pass (TerrainPs into <see cref="_scene"/>), the post pass
-/// (PostPs into <see cref="_post"/>) and the entity layer (EntityVs/EntityPs, premultiplied alpha, onto
-/// <see cref="_post"/>).
+/// (PostPs into <see cref="_post"/>), the entity layer (EntityVs/EntityPs, premultiplied alpha, onto
+/// <see cref="_post"/>) and, only while one shows, the whole-screen effects (ScreenFxPs into <see cref="_screen"/>).
 /// </summary>
 public sealed unsafe partial class SdlGpuBackend
 {
     private nint _terrainPipeline;
     private nint _postPipeline;
     private nint _entityPipeline;
+    private nint _screenFxPipeline;
     private readonly GpuTexture _scene = new("scene", ColorFormat, RenderTargetUsage);
     private readonly GpuTexture _post = new("post", ColorFormat, RenderTargetUsage);
+    private readonly GpuTexture _screen = new("screen effects", ColorFormat, RenderTargetUsage);
     private readonly GpuTexture _nativeSource = new("native source", ColorFormat, SDL.GPUTextureUsageFlags.Sampler);
     private readonly GpuTransferBuffer _pixelUpload = new(SDL.GPUTransferBufferUsage.Upload);
     private readonly WorldDataTexture _terrainAux = new("terrain aux");
@@ -66,6 +68,7 @@ public sealed unsafe partial class SdlGpuBackend
         _emptyTexture = CreateTextureFromRgba((byte*)&transparent, 1, 1, "empty");
         _terrainPipeline = CreateFullscreenPipeline("TerrainPs");
         _postPipeline = CreateFullscreenPipeline("PostPs");
+        _screenFxPipeline = CreateFullscreenPipeline("ScreenFxPs");
 
         SDL.GPUVertexBufferDescription[] buffers =
         [
@@ -90,11 +93,13 @@ public sealed unsafe partial class SdlGpuBackend
         if (_terrainPipeline != nint.Zero) SDL.ReleaseGPUGraphicsPipeline(_device, _terrainPipeline);
         if (_postPipeline != nint.Zero) SDL.ReleaseGPUGraphicsPipeline(_device, _postPipeline);
         if (_entityPipeline != nint.Zero) SDL.ReleaseGPUGraphicsPipeline(_device, _entityPipeline);
-        _terrainPipeline = _postPipeline = _entityPipeline = nint.Zero;
+        if (_screenFxPipeline != nint.Zero) SDL.ReleaseGPUGraphicsPipeline(_device, _screenFxPipeline);
+        _terrainPipeline = _postPipeline = _entityPipeline = _screenFxPipeline = nint.Zero;
         ReleaseTexture(_emptyTexture);
         _emptyTexture = nint.Zero;
         _scene.Release(_device);
         _post.Release(_device);
+        _screen.Release(_device);
         _nativeSource.Release(_device);
         _pixelUpload.Release(_device);
         _terrainAux.Release(_device);
@@ -151,6 +156,17 @@ public sealed unsafe partial class SdlGpuBackend
         DrawEntities(postPass, upload.Entities.VertexCount);
         SDL.EndGPURenderPass(postPass);
         _displayTexture = _post.Handle;
+
+        // Whole-screen effects cost a pass only while one shows.
+        if (upload.ScreenEffects.IsActive)
+        {
+            _screen.Ensure(_device, w, h);
+            nint screenPass = BeginPass(cmd, _screen.Handle, SDL.GPULoadOp.DontCare);
+            SDL.PushGPUFragmentUniformData(cmd, 0, (nint)(&postParams), (uint)sizeof(PostParamsBlock));
+            DrawFullscreen(screenPass, _screenFxPipeline, _screen.Width, _screen.Height, [_post.Handle]);
+            SDL.EndGPURenderPass(screenPass);
+            _displayTexture = _screen.Handle;
+        }
     }
 
     /// <summary>

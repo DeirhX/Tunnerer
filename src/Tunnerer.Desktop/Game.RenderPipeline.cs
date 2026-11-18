@@ -40,6 +40,7 @@ public partial class Game
         _entityLayer.Build(
             renderView, stepProgress, turnSeconds: WorldStandsStill ? 0f : dt, snapHeadings: !_interpolateFrames,
             visualSeconds: visualTime, vision: _vision, radar: _radar);
+        ScreenEffectLevels screenEffects = _screenEffects.Update(_terrainTestMode ? null : player, WorldStandsStill ? 0f : dt);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
 
@@ -83,7 +84,8 @@ public partial class Game
                 Entities: new EntityLayerUpload(
                     Vertices: _entityLayer.Vertices,
                     VertexCount: _entityLayer.VertexCount),
-                Fog: fog);
+                Fog: fog,
+                ScreenEffects: screenEffects);
             DrawProfile.Measure(ref _drawProfile.ScreenBackendUpload, () =>
                 _renderBackend.UploadGamePixels(upload));
             _worldPixelsChanged = false;
@@ -122,7 +124,8 @@ public partial class Game
             else if (player != null)
             {
                 _hud.CrosshairScreenPos = IsMouseInViewport(frameInput, out float mouseX, out float mouseY)
-                    ? (mouseX, mouseY)
+                    // In device pixels: during a hit's shake the crosshair moves with what the mouse aims at.
+                    ? screenEffects.ShownInView(mouseX, mouseY, renderView.ViewSize.X, renderView.ViewSize.Y)
                     : null;
 
                 _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, _renderViewState.CellPixels);
