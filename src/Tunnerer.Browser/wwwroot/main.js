@@ -304,7 +304,7 @@ function updateHud(f) {
     const began = performance.now();
     statusView.update(f);
     const stripBegan = performance.now();
-    if (wideScreen.matches) strip.update(f, visualTime);
+    strip.update(f, visualTime, wideScreen.matches);
     const stripMs = performance.now() - stripBegan;
     guidance.update(f.guidance, f.goal);
     renderer.pointerTarget = guidance.target;

@@ -1190,7 +1190,9 @@ canvas.strip {
 body.playing.art-hud canvas.strip {
     display: block;
 }
-.art-hud .tank-status .heat-value,
+/* The strip shows the heat and the shield; the lives beside the plate's temperature stay. */
+.art-hud .tank-status .heat-value .orb,
+.art-hud .tank-status .heat-value strong,
 .art-hud .tank-status meter,
 .art-hud .tank-status .meter-label,
 .art-hud .builds,

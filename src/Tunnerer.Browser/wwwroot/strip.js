@@ -198,7 +198,10 @@ export class StripView {
         return STRIP_H * scale;
     }
 
-    update(f, time) {
+    // Takes in the HUD state after a step, and draws it when `visible`. It keeps up while the strip is hidden: the
+    // heat dial comes with a match's first frame only, and a window that grows into the wide layout later
+    // (layout) draws at once from the last frame.
+    update(f, time, visible = true) {
         if (f.dial) this.dial = f.dial;
         const p = f.player;
         // A dead tank's orb sinks to the cold end, as on the desktop.
@@ -220,7 +223,7 @@ export class StripView {
         this.lastHeat = p.heat;
         this.frame = f;
         this.time = time;
-        this.draw(f, time);
+        if (visible) this.draw(f, time);
     }
 
     draw(f, time) {
