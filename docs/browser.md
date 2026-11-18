@@ -79,6 +79,12 @@ The portable browser presentation and shared rendering projects are in the main 
 its analyzers and tests. Publishing also runs the existing shader compiler with `--web`, translating the desktop
 HLSL through SPIR-V into GLSL ES 3.00 using the SPIRV-Cross library already bundled with SDL_shadercross.
 Generated GLSL lives under `wwwroot/shaders` and is regenerated from the HLSL, not edited by hand.
+Before translating, the web export turns every implicit-LOD sample in its copy of the SPIR-V into an explicit
+sample of level 0 (`ExplicitLodRewrite`), so the GLSL calls `textureLod(..., 0.0)` and never `texture()`: ANGLE's
+Direct3D 11 backend must otherwise unroll PostPs's loops around implicit-derivative samples, and that compile did
+not finish on Windows. It samples the same only because every web texture has level 0 alone and filters without
+mipmaps (`webgl.js`). The page compiles and links the shaders with `KHR_parallel_shader_compile` where the browser
+has it, waiting a frame at a time, and logs each program's time to the console.
 
 ## Controls and installation
 
