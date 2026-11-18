@@ -44,7 +44,7 @@ public static class BrowserStress
             (t.Base!.Position + new Offset(0, doorReach), t.Base.Position),
             (t.Base.Position - new Offset(0, doorReach), t.Base.Position),
         ])).ToArray();
-        int placed = 0;
+        int placed = 0, relays = 0;
         for (int round = 0; placed < machines && round < 4 * machines + 50; round++)
         {
             for (int i = 0; i < owners.Length && placed < machines; i++)
@@ -52,7 +52,7 @@ public static class BrowserStress
                 for (int n = Math.Min(NodesPerRound, frontiers[i].Count); n > 0 && placed < machines; n--)
                 {
                     var node = frontiers[i].Dequeue();
-                    int planted = GrowFrom(world, owners[i], node.From, frontiers[i], machines - placed);
+                    int planted = GrowFrom(world, owners[i], node.From, frontiers[i], machines - placed, ref relays);
                     placed += planted;
                     // A relay that found room may find more next round.
                     if (planted > 0)
@@ -67,8 +67,12 @@ public static class BrowserStress
         return placed;
     }
 
-    /// <summary>Digs to and plants a relay (and every third time a harvester and a pylon) around <paramref name="from"/>.</summary>
-    private static int GrowFrom(World world, Tank owner, Position from, Queue<(Position, Position)> frontier, int room)
+    /// <summary>
+    /// Digs to and plants a relay around <paramref name="from"/>, and beside every third relay (<paramref name="relays"/>
+    /// counts them across all bases) a harvester and a pylon.
+    /// </summary>
+    private static int GrowFrom(World world, Tank owner, Position from, Queue<(Position, Position)> frontier, int room,
+        ref int relays)
     {
         int start = (from.X * 7 + from.Y * 13) & (Directions - 1);
         foreach (float share in Reaches)
@@ -85,7 +89,7 @@ public static class BrowserStress
                 Plant(world, owner, MachineType.Relay, at);
                 frontier.Enqueue((at, at));
                 int planted = 1;
-                if (world.Machines.Machines.Count % 3 == 0)
+                if (++relays % 3 == 0)
                 {
                     foreach (var (type, offset) in new[]
                              {

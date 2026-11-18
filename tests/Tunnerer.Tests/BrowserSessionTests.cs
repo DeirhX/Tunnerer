@@ -179,8 +179,12 @@ public class BrowserStressTests
         Assert.Equal(40, machines.Count);
         foreach (var tank in session.World.TankList.Tanks)
             Assert.Contains(machines, m => m.StandsFor(tank.Base!) && m.Type == MachineType.Relay && m.LinkPoint?.IsPowered == true);
-        Assert.Contains(machines, m => m.Type == MachineType.Harvester);
-        Assert.Contains(machines, m => m.Type == MachineType.Pylon);
+        // A harvester and a pylon beside every third relay, at most: the rest of the machines extend the networks.
+        int relays = machines.Count(m => m.Type == MachineType.Relay);
+        int harvesters = machines.Count(m => m.Type == MachineType.Harvester);
+        int pylons = machines.Count(m => m.Type == MachineType.Pylon);
+        Assert.InRange(harvesters, 1, relays / 3);
+        Assert.InRange(pylons, 1, relays / 3);
     }
 }
 
