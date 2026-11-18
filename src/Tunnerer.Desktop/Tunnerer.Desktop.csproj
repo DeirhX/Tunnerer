@@ -23,6 +23,7 @@
     <Compile Remove="Presentation/MachinePresentation.cs;Gui/HintSelector.cs;Gui/HeatScale.cs;Gui/BuildSlotView.cs;Gui/Guidance/*.cs" />
     <Compile Remove="Rendering/EntityLayerBuilder.cs;Rendering/IGameRenderBackend.cs;Rendering/RenderInputEvent.cs;Rendering/PostParamsBlock.cs" />
     <Compile Remove="Rendering/TerrainAuxBuilder.cs;Rendering/TerrainAuxUploader.cs;Rendering/TerrainSolidField.cs;Rendering/TerrainMaterialCoverage.cs;Rendering/TerrainGrowthFade.cs;Rendering/TerrainView.cs;Rendering/FogLayer.cs;Rendering/RowParallel.cs" />
+    <Compile Remove="SlotStepper.cs;Config/NetworkTweaks.cs;Net/NetSession.cs;Net/NetMatch.cs;Net/LobbyText.cs" />
   </ItemGroup>
 
   <ItemGroup>

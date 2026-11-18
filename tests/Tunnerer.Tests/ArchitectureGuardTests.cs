@@ -5,10 +5,10 @@ namespace Tunnerer.Tests;
 public class ArchitectureGuardTests
 {
     [Fact]
-    public void SharedRenderingAssembly_ReferencesOnlyCore()
+    public void SharedRenderingAssembly_ReferencesOnlyCoreAndTheProtocol()
     {
         var references = typeof(Tunnerer.Desktop.Rendering.EntityLayerBuilder).Assembly.GetReferencedAssemblies();
-        Assert.Equal(["Tunnerer.Core"], references.Where(r => r.Name!.StartsWith("Tunnerer.", StringComparison.Ordinal)).Select(r => r.Name));
+        Assert.Equal(["Tunnerer.Core", "Tunnerer.Protocol"], references.Where(r => r.Name!.StartsWith("Tunnerer.", StringComparison.Ordinal)).Select(r => r.Name));
         Assert.DoesNotContain(references, r => r.Name is "SDL3-CS" or "ImGui.NET");
     }
 

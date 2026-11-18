@@ -128,7 +128,7 @@ public partial class Game
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using var writer = new StreamWriter(path);
             DesyncReport.Write(writer, new MatchRecording(relay.Config, relay.HumanMask, session.Played),
-                desyncTick, relay.Slot, NetLaunch.BuildId, session.RecentDigests, _world);
+                desyncTick, relay.Slot, NetMatch.BuildId, session.RecentDigests, _world);
             Console.WriteLine($"[Net] Out of sync at tick {desyncTick}. Report written to {path}");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

@@ -40,7 +40,7 @@ public sealed class BrowserScene
     {
         _session = session;
         Terrain = new BrowserTerrain(session.World.Terrain, session.Vision);
-        _entities.CaptureStep(session.World, 0);
+        _entities.CaptureStep(session.World, session.LocalSlot);
     }
 
     public BrowserTerrain Terrain { get; }
@@ -54,7 +54,7 @@ public sealed class BrowserScene
 
     public void CaptureStep()
     {
-        _entities.CaptureStep(_session.World, 0);
+        _entities.CaptureStep(_session.World, _session.LocalSlot);
         Terrain.ObserveStep(_visualTime);
     }
 
@@ -66,7 +66,7 @@ public sealed class BrowserScene
         scale = Math.Max(Math.Clamp(scale, 1, 32), Math.Max((width + 619) / 620, (height + 379) / 380));
         alpha = Math.Clamp(alpha, 0f, 1f);
         var positions = _entities.InterpolateTankPositions(alpha);
-        PositionF center = positions.Length > 0 ? positions[0] : (PositionF)_session.Player.Position;
+        PositionF center = positions.Length > _session.LocalSlot ? positions[_session.LocalSlot] : (PositionF)_session.Player.Position;
         var camera = new Position((int)MathF.Round(center.X * scale) - width / 2,
             (int)MathF.Round(center.Y * scale) - height / 2);
         View = new RenderView(new Size(width, height), _session.World.Terrain.Size, camera, scale);

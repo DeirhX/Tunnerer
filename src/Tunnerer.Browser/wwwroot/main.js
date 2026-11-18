@@ -7,6 +7,7 @@ import { Simulation } from "./simulation.js";
 import { GuidanceView } from "./guidance.js";
 import { StatusView } from "./hud.js";
 import { StripView } from "./strip.js";
+import { RelaySocket, defaultRelay } from "./net.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
@@ -19,7 +20,10 @@ let worker = null,
     paused = false,
     state = null,
     // The thermal view (H): the ground tinted by its heat, as on the desktop. It changes only what is drawn.
-    thermalView = false;
+    thermalView = false,
+    // A network match (net.js): the socket (once the hello is made), a command for the room waiting to go with the
+    // next request, when the last request was sent and when the last one that stepped was.
+    net = null;
 let lastTime = performance.now(),
     accumulator = 0,
     visualTime = 0,
@@ -46,6 +50,10 @@ const input = new GameInput(canvas, (action, direction) => {
     if (action === "help") openMenu();
     if (action === "tutorial" && playing) guidance.toggleTutorial();
     if (action === "thermal" && playing) setThermalView(!thermalView);
+    if (action === "enter" && net && state?.net && !state.net.started)
+        netCommand("start");
+    if (action === "netpause" && net && playing && state?.net?.started)
+        netCommand("pause");
     if (action === "zoom")
         renderer.zoom = Math.max(
             2,
@@ -90,6 +98,24 @@ $("thermal").onclick = () => {
     canvas.focus({ preventScroll: true });
 };
 
+// A network match does not stop for one player: the menu opens over a running game.
+const holding = () => paused && !net;
+
+// Whether the player's controls drive the tank now.
+function canControl() {
+    return (
+        playing &&
+        !paused &&
+        state?.player.outcome === "InProgress" &&
+        (!net || state?.net?.started === true)
+    );
+}
+
+function netCommand(command) {
+    if (!net) return;
+    net.command = command;
+}
+
 function randomSeed() {
     const values = new Int32Array(1);
     crypto.getRandomValues(values);
@@ -102,6 +128,10 @@ $("pause").onclick = openMenu;
 $("help").onclick = openMenu;
 $("resume").onclick = () => $("menu").close();
 $("restart").onclick = () => {
+    if (net) {
+        leave();
+        return;
+    }
     playing = false;
     $("menu").close();
     reset();
@@ -122,7 +152,7 @@ $("menu").addEventListener("close", () => {
     paused = false;
     audio.setPaused(false);
     input.clear();
-    input.enabled = playing && state?.player.outcome === "InProgress";
+    input.enabled = canControl();
     accumulator = 0;
     lastTime = performance.now();
     if (playing) canvas.focus({ preventScroll: true });
@@ -141,15 +171,24 @@ document.addEventListener("visibilitychange", () => {
 function openMenu() {
     if ($("menu").open) return;
     paused = true;
-    audio.setPaused(true);
+    if (!net) audio.setPaused(true);
     input.enabled = false;
     input.clear();
+    const winner = state?.net?.winner;
     $("menu-title").textContent =
         state?.player.outcome === "Victory"
-            ? "Core tapped. Well done."
+            ? net
+                ? "Core tapped. You won the race."
+                : "Core tapped. Well done."
             : state?.player.outcome === "Defeat"
-              ? "Your next dive awaits."
+              ? winner
+                  ? `${winner} won the race.`
+                  : "Your next dive awaits."
               : "Take a breather.";
+    $("menu-pause-note").textContent = net
+        ? "The match goes on while this menu is open. P pauses it for everyone."
+        : "The game pauses when this menu opens or you leave the page.";
+    $("restart").textContent = net ? "Leave match" : "New world";
     $("restart").hidden = !playing;
     $("session-seed").textContent = state
         ? `WORLD SEED ${state.seed} · TICK ${state.tick}`
@@ -159,6 +198,10 @@ function openMenu() {
 
 function reset() {
     worker?.terminate();
+    net?.socket?.close();
+    net = null;
+    for (const id of ["lobby", "net-status", "net-latency"]) $(id).hidden = true;
+    $("join").disabled = false;
     audio.quiet();
     // A sound bank asked of the ended match never comes: the next match asks again.
     audio.requested = false;
@@ -201,6 +244,152 @@ async function start() {
             "This game needs a browser with WebAssembly and Web Workers. Try a current Chrome, Edge, Firefox, or Safari.";
         return;
     }
+    await launch({
+        type: "start",
+        seed,
+        mapWidth: mapWidth || 0,
+        mapHeight: mapHeight || 0,
+        machines,
+    });
+}
+
+// Joins a room on the relay (net.js): the runtime makes the hello, then the socket opens and sends it, so that a
+// slow first download of the game does not keep the relay waiting for it.
+async function join(event) {
+    event.preventDefault();
+    const name = $("net-name").value.trim(),
+        room = $("net-room").value.trim(),
+        secret = $("net-secret").value;
+    if (!name || !room) {
+        $("loading").textContent = "Enter your name and a room to join.";
+        return;
+    }
+    if (!globalThis.WebAssembly || !globalThis.Worker || !globalThis.WebSocket) {
+        $("loading").textContent =
+            "Online play needs a browser with WebAssembly, Web Workers and WebSockets. Try a current Chrome, Edge, Firefox, or Safari.";
+        return;
+    }
+    saveNetSettings({ name, room, secret, players: $("net-players").value });
+    net = { socket: null, command: null, requestedAt: 0, stepAt: 0 };
+    $("join").disabled = true;
+    const values = new Int32Array(1);
+    crypto.getRandomValues(values);
+    await launch({
+        type: "join",
+        room,
+        name,
+        secret,
+        players: Number($("net-players").value),
+        seed: values[0],
+        mapWidth: mapWidth || 0,
+        mapHeight: mapHeight || 0,
+    });
+}
+
+// The answer to a "join" request before the world exists: the hello to send, or why the room cannot be joined.
+async function onNetAnswer(data) {
+    if (data.failure) {
+        fail(data.failure, "", "Could not join the room");
+        return;
+    }
+    if (!net.socket) {
+        $("start").textContent = "Joining the room…";
+        $("loading").textContent = `Connecting to the relay at ${defaultRelay()}.`;
+        const socket = new RelaySocket(defaultRelay());
+        try {
+            await socket.opened;
+        } catch (error) {
+            fail(error.message);
+            return;
+        }
+        if (!net) return;
+        net.socket = socket;
+        $("loading").textContent = "Waiting for the relay to let you in.";
+    }
+    net.socket.send(data.send);
+    busy = false;
+}
+
+// Leaves the room and goes back to the welcome screen.
+function leave() {
+    playing = false;
+    $("menu").close();
+    reset();
+    $("loading").textContent = "You left the room. Join again under the same name to come back to the match.";
+}
+
+const NET_SETTINGS = "tunnerer.net";
+function loadNetSettings() {
+    try {
+        return JSON.parse(localStorage.getItem(NET_SETTINGS)) || {};
+    } catch {
+        return {};
+    }
+}
+function saveNetSettings(settings) {
+    try {
+        localStorage.setItem(NET_SETTINGS, JSON.stringify(settings));
+    } catch {
+        // Private browsing: the form is filled in again next time.
+    }
+}
+{
+    const saved = loadNetSettings();
+    $("net-name").value = saved.name || "";
+    $("net-room").value = saved.room || "lobby";
+    $("net-secret").value = saved.secret || "";
+    if (saved.players) $("net-players").value = saved.players;
+}
+$("online-form").onsubmit = join;
+$("lobby-start").onclick = () => {
+    netCommand("start");
+    canvas.focus({ preventScroll: true });
+};
+$("lobby-leave").onclick = leave;
+
+// Who is in the room before the start, then what holds the match or how quick the relay answers.
+function updateNet(n) {
+    if (!n) return;
+    const lobby = !n.started && !n.notice;
+    $("lobby").hidden = !lobby;
+    if (lobby) {
+        $("lobby-room").textContent = n.room;
+        $("lobby-roster").replaceChildren(
+            ...n.roster.map((slot) => {
+                const item = document.createElement("li");
+                const swatch = document.createElement("i");
+                swatch.style.background = slot.color;
+                item.append(
+                    swatch,
+                    slot.open
+                        ? "open – a bot plays if nobody joins"
+                        : slot.you
+                          ? `${slot.name} (you)`
+                          : slot.name,
+                );
+                item.classList.toggle("open", slot.open);
+                return item;
+            }),
+        );
+        $("lobby-name").textContent = n.nameLine || "";
+        $("lobby-hint").textContent = n.lobbyHint || "";
+        $("lobby-start").hidden = !n.isHost;
+    }
+    $("net-status").hidden = !n.notice;
+    $("net-status").textContent = n.notice || "";
+    $("net-status").classList.toggle("bad", n.bad);
+    const latency = n.started && !n.notice && n.latencyMs != null;
+    $("net-latency").hidden = !latency;
+    if (latency) {
+        $("net-latency").textContent = `NET ${n.latencyMs} ms`;
+        $("net-latency").className =
+            n.latencyMs < 80 ? "good" : n.latencyMs < 160 ? "warn" : "bad";
+    }
+    if (!paused) input.enabled = canControl();
+}
+
+// Starts the runtime with `request` ("start" or "join") once the graphics are ready.
+async function launch(request) {
     $("start").disabled = true;
     $("start").textContent = "Preparing graphics…";
     $("loading").textContent =
@@ -224,8 +413,16 @@ async function start() {
             fail(data.message);
             return;
         }
+        if (data.type === "net" && net) {
+            onNetAnswer(data);
+            return;
+        }
         if (data.type !== "frame") return;
         busy = false;
+        if (net) {
+            net.socket?.send(data.send);
+            if (data.steps > 0) net.stepAt = net.requestedAt;
+        }
         if (data.sounds) audio.load(data.sounds);
         // The HUD's state comes only with frames that follow a simulation step.
         renderer.accept(data.state, data.packet);
@@ -253,7 +450,7 @@ async function start() {
             $("touch").hidden = !matchMedia("(pointer: coarse)").matches;
             $("pause").disabled = false;
             document.body.classList.add("playing");
-            input.enabled = !paused;
+            input.enabled = canControl();
             lastTime = performance.now();
             accumulator = 0;
             canvas.focus({ preventScroll: true });
@@ -266,13 +463,10 @@ async function start() {
         }
     };
     worker.postMessage({
-        type: "start",
-        seed,
+        ...request,
         time: 0,
+        now: performance.now(),
         sounds: askForSounds(),
-        mapWidth: mapWidth || 0,
-        mapHeight: mapHeight || 0,
-        machines,
         ...renderer.viewSize(),
     });
 }
@@ -285,11 +479,15 @@ function askForSounds() {
 }
 
 // `advice` follows the reason; graphics failures bring their own.
-function fail(message, advice = " Check your connection and try again.") {
+function fail(
+    message,
+    advice = " Check your connection and try again.",
+    what = "Could not start the game",
+) {
     console.error(message);
     reset();
     const reason = String(message).split("\n")[0].replace(/\.$/, "");
-    $("loading").textContent = `Could not start the game: ${reason}.${advice}`;
+    $("loading").textContent = `${what}: ${reason}.${advice}`;
 }
 
 let noticeUntil = 0;
@@ -307,6 +505,7 @@ function updateHud(f) {
     strip.update(f, visualTime, wideScreen.matches);
     const stripMs = performance.now() - stripBegan;
     guidance.update(f.guidance, f.goal);
+    updateNet(f.net);
     renderer.pointerTarget = guidance.target;
     perf?.hud(performance.now() - began, stripMs);
 }
@@ -314,41 +513,70 @@ function updateHud(f) {
 function animate(now) {
     const dt = 1000 / (state?.tickRate || 24);
     const elapsed = Math.max(0, now - lastTime);
-    if (playing && !paused && !document.hidden)
-        visualTime += Math.min(elapsed, dt * 4) / 1000;
-    accumulator =
-        playing && !paused && !document.hidden
-            ? Math.min(accumulator + elapsed, dt * 4)
-            : 0;
+    const running = playing && !holding() && !document.hidden;
+    if (running) visualTime += Math.min(elapsed, dt * 4) / 1000;
+    accumulator = running ? Math.min(accumulator + elapsed, dt * 4) : 0;
     lastTime = now;
-    renderer.governor.pace(elapsed, playing && !paused && !document.hidden);
+    renderer.governor.pace(elapsed, running);
     const view = renderer.viewSize();
+    // Joining a room: until the relay lets the player in there is no world to draw, only messages to hand over.
+    if (net?.socket?.pending && !playing && !busy && worker) {
+        busy = true;
+        worker.postMessage({
+            type: "render",
+            ...net.socket.take(),
+            now,
+            thermalView,
+            ...view,
+        });
+    }
     // A paused world stands still: one frame shows it, and another is only needed when the window changes size.
     const wanted =
-        !paused ||
+        !holding() ||
         !pausedFrameSent ||
         view.width !== sentView.width ||
         view.height !== sentView.height ||
         view.scale !== sentView.scale;
     if (playing && !busy && !document.hidden && wanted) {
-        const step =
-            !paused &&
-            state.player.outcome === "InProgress" &&
-            accumulator >= dt;
-        if (step) accumulator -= dt;
+        let request;
+        if (net) {
+            // A network match steps as the relay's ticks arrive: the controls go with every request, and a step
+            // is drawn from the time the request that took it was sent.
+            const due = accumulator >= dt;
+            if (due) accumulator -= dt;
+            request = {
+                ...net.socket.take(),
+                command: net.command,
+                input: input.read(),
+                due,
+                now,
+                alpha: Math.min(1, (now - net.stepAt) / dt),
+            };
+            net.command = null;
+            net.requestedAt = now;
+        } else {
+            const step =
+                !paused &&
+                state.player.outcome === "InProgress" &&
+                accumulator >= dt;
+            if (step) accumulator -= dt;
+            request = {
+                input: step ? input.read() : null,
+                alpha: paused ? 1 : Math.min(1, accumulator / dt),
+            };
+        }
         busy = true;
         worker.postMessage({
             type: "render",
-            input: step ? input.read() : null,
-            alpha: paused ? 1 : Math.min(1, accumulator / dt),
-            delta: paused ? 0 : Math.min(0.1, (now - lastRenderTime) / 1000),
+            ...request,
+            delta: holding() ? 0 : Math.min(0.1, (now - lastRenderTime) / 1000),
             time: visualTime,
             thermalView,
             sounds: askForSounds(),
             ...view,
         });
         sentView = view;
-        pausedFrameSent = paused;
+        pausedFrameSent = holding();
         lastRenderTime = now;
     }
     try {

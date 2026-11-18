@@ -6,5 +6,6 @@
   <ItemGroup>
     <ProjectReference Include="../Tunnerer.Core/Tunnerer.Core.csproj" />
     <ProjectReference Include="../Tunnerer.Rendering/Tunnerer.Rendering.csproj" />
+    <ProjectReference Include="../Tunnerer.Protocol/Tunnerer.Protocol.csproj" />
   </ItemGroup>
 </Project>

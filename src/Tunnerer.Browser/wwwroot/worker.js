@@ -6,12 +6,13 @@ import { errorMessage, startRuntime } from "./frames.js";
 
 let runtime;
 self.onmessage = async ({ data }) => {
-    if (data.type !== "start" && data.type !== "render") return;
+    if (!["start", "join", "render"].includes(data.type)) return;
     try {
         runtime ||= await startRuntime(dotnet);
         const frame = await runtime.answer(data);
-        const transfer = [frame.packet.buffer];
+        const transfer = frame.packet ? [frame.packet.buffer] : [];
         if (frame.sounds) transfer.push(frame.sounds.samples.buffer);
+        if (frame.send) transfer.push(frame.send.buffer);
         self.postMessage(frame, transfer);
     } catch (error) {
         self.postMessage(errorMessage(error));

@@ -98,6 +98,10 @@ kbd {
 button kbd {
     opacity: 0.65;
 }
+.primary kbd {
+    color: #241603;
+    border-color: #24160380;
+}
 header {
     height: 78px;
     display: flex;
@@ -263,6 +267,67 @@ h1 {
 .muted {
     color: var(--muted);
     font-size: 11px;
+}
+/* Joining a network match from the welcome screen (net.js). */
+.online {
+    pointer-events: auto;
+    margin-top: 18px;
+    max-width: 560px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #0b1419a8;
+}
+.online summary {
+    cursor: pointer;
+    padding: 9px 14px;
+    font:
+        10px ui-monospace,
+        monospace;
+    letter-spacing: 1.4px;
+    color: var(--amber);
+}
+.online summary span {
+    margin-left: 14px;
+    color: var(--muted);
+    letter-spacing: 0.6px;
+}
+.online > p {
+    margin: 0 14px 12px;
+}
+.online-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    padding: 4px 14px 12px;
+}
+.online-form label {
+    display: grid;
+    gap: 4px;
+    font:
+        10px ui-monospace,
+        monospace;
+    letter-spacing: 1px;
+    color: var(--muted);
+}
+.online-form input,
+.online-form select {
+    padding: 7px 9px;
+    color: #cbd7d1;
+    background: #101d23;
+    border: 1px solid #334047;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: 0;
+}
+.online-form button {
+    grid-column: 1 / -1;
+    justify-self: start;
+}
+@media (max-width: 560px) {
+    .online-form {
+        grid-template-columns: 1fr;
+    }
 }
 .landing-notes {
     display: flex;
@@ -563,6 +628,84 @@ footer i {
 }
 #notice.visible {
     display: block;
+}
+/* A network match: the room before the start, what holds the match, and the round trip once it plays. */
+#lobby {
+    position: absolute;
+    left: 50%;
+    top: 20%;
+    transform: translateX(-50%);
+    width: min(520px, calc(100vw - 30px));
+    padding: 16px 24px 18px;
+    font-family: var(--hud-font);
+    z-index: 2;
+}
+#lobby ol {
+    list-style: none;
+    margin: 10px 0;
+    padding: 0;
+}
+#lobby li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 3px 0;
+    font-size: 16px;
+    color: var(--hud-text);
+}
+#lobby li.open {
+    color: var(--hud-dim);
+}
+#lobby li i {
+    width: 16px;
+    height: 16px;
+    flex: none;
+}
+#lobby p {
+    margin: 6px 0;
+}
+#lobby-hint {
+    color: var(--hud-amber);
+}
+#lobby .menu-actions {
+    margin-top: 14px;
+}
+#net-status {
+    position: absolute;
+    left: 50%;
+    top: 22px;
+    transform: translateX(-50%);
+    max-width: min(560px, 60vw);
+    padding: 10px 24px 12px;
+    text-align: center;
+    font-family: var(--hud-font);
+    color: var(--hud-text);
+    --accent: var(--hud-amber);
+    z-index: 2;
+}
+#net-status.bad {
+    --accent: var(--hud-danger);
+    color: var(--hud-danger);
+}
+#net-latency {
+    position: absolute;
+    left: 50%;
+    top: 8px;
+    transform: translateX(-50%);
+    font:
+        12px var(--hud-font);
+    letter-spacing: 1px;
+    text-shadow: 0 1px 4px #000;
+    pointer-events: none;
+}
+#net-latency.good {
+    color: var(--hud-good);
+}
+#net-latency.warn {
+    color: var(--hud-warn);
+}
+#net-latency.bad {
+    color: var(--hud-danger);
 }
 #death {
     position: absolute;

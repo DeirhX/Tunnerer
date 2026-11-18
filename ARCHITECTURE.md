@@ -16,9 +16,11 @@ Tunnerer.slnx
 src/
   Tunnerer.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
     ARCHITECTURE.md        Detailed design
-  Tunnerer.Browser.Client/ Portable browser session and presentation snapshots; references Core and Rendering.
+  Tunnerer.Browser.Client/ Portable browser session (local or network), presentation snapshots; references Core,
+                           Rendering and Protocol.
   Tunnerer.Browser/        WebAssembly exports, WebGL backend, browser input and offline PWA shell.
-  Tunnerer.Rendering/      Shared rendering assembly; compiles the pure rendering sources from Desktop.
+  Tunnerer.Rendering/      Shared assembly; compiles the pure rendering sources from Desktop, and the network
+                           session (NetSession, SlotStepper) the browser plays network matches with.
   Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
   Tunnerer.Protocol/       What a network match's clients and relay share: tick bundles and the relay's tick rule.

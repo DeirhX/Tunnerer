@@ -1,7 +1,8 @@
 # Browser play and deployment
 
 The browser edition is a playable local match against the existing bot, with the standard terrain, heat,
-regrowth, ore, machines, power network, fog, radar, upgrades, respawns and the core-tap win condition.
+regrowth, ore, machines, power network, fog, radar, upgrades, respawns and the core-tap win condition, and network
+matches on the relay with other browsers and desktop players (Network play, below).
 It uses the real `Tunnerer.Core` assembly compiled to WebAssembly. No simulation rules are translated to JavaScript.
 
 ## Build and run
@@ -97,6 +98,36 @@ or +/− changes zoom.
 The on-screen controls support touch devices; tap the game to aim and fire, or hold FIRE while driving.
 Escape opens the pause menu. Switching away from the page pauses the local match.
 
+## Network play
+
+**PLAY ONLINE** on the welcome screen joins a room on the relay (docs/multiplayer-design.md): a name, a room, the
+number of tanks and the relay's secret if it has one. The page remembers them (`localStorage`). The first player into
+a room opens it with a new seed and that many tanks, on the desktop's map for the count (480x300 for more than two,
+`?map=WxH` for another); bots take the slots nobody joins. The lobby shows who is in each slot in their tank's
+colour; the host (the lowest slot) starts with **Start match** or Enter, and a full room starts by itself. P pauses
+the match for everyone and resumes it. Escape opens the menu over a running match, which does not stop for one
+player, and **Leave match** leaves the room. A player who left or lost the connection joins again under the same
+name and the page replays the match to the present, without sound, as the desktop does.
+
+The relay is the site's own `wss://<host>/play` on crust.bokovka.cz, which proxies it, and
+`wss://crust.bokovka.cz/play` everywhere else; `?relay=ws://localhost:8130/play` picks another. WebSockets are not
+subject to the cross-origin isolation headers, so a `--threads` deployment plays online too.
+
+A browser plays in the same rooms as the desktop. The relay keeps a room to one build, and the browser's build id
+is the desktop's: the Core assembly's version, which carries the commit. A browser and a desktop built from the
+same commit compute the same world (the native and WebAssembly fingerprints agree), so the published page joins
+desktop players running the same commit. The browser runs the desktop's own `NetSession` and slot stepper (shared
+through `Tunnerer.Rendering`) and the protocol's `RoomClient`, the relay state the desktop's `RelayConnection` wraps.
+The page owns the WebSocket (`net.js`) and carries only bytes: each request to .NET takes what arrived, with
+arrival times on the page's clock, and its answer brings the messages to send (`BrowserNetMatch`, `frames.js`).
+A frame simulates the ticks that have arrived, as on the desktop; a build or upgrade press waits in .NET for a tick
+to carry it, followed by a tick that releases it. A step is drawn from when the request that took it was sent,
+because ticks arrive by the relay's clock. A hidden tab stops drawing and stepping; when it comes back it catches up
+as a rejoining player does.
+
+Not yet in the browser: name tags over other tanks, the desync report file the desktop writes, and choosing a map
+size or seed for a new room from the page.
+
 The header changes to **OFFLINE READY** after the entire app, including the .NET runtime, has been cached.
 Chrome and Edge expose the **Install game** button when installation is available. Other browsers may expose
 installation in their own menus; on iPhone/iPad use Safari's Share → Add to Home Screen. Browser support for
@@ -149,6 +180,13 @@ python3 tools/browser/serve.py
 # In another terminal:
 node tools/browser/smoke.mjs
 ```
+
+`tools/browser/net-smoke.mjs` plays two pages in one room of a local relay
+(`dotnet run --project src/Tunnerer.Relay -- --urls http://127.0.0.1:8130`): the lobby, the host's start, a bot in
+the open slot, driving and building through the relay, pause for everyone, and a player who leaves and rejoins.
+The relay compares the players' world hashes once a second, so a match that plays on computed one world in both.
+`BrowserNetMatchTests` in `dotnet test` plays a browser client against a desktop client on the real relay and
+compares their worlds.
 
 For a `--threads` publish, serve it with `--isolate` and run `SMOKE_THREADS=1 node tools/browser/smoke.mjs`: the
 match must then run in the threaded runtime, and both runtimes must compute the same world. `BROWSER=webkit` (after
@@ -231,10 +269,12 @@ window and graphics dependencies out of the shared rendering assembly.
 - `Tunnerer.Rendering`: the terrain fields, material coverage, the uploader that decides what a frame repacks of
   them, the fog layer, entity emitters, interpolation, machine sprite descriptors, shader constant layout and
   lighting settings used by both hosts, and what the HUD tells the player (`PlayerGuidance`: the tutorial, the
-  game-event toasts, the build-key hint and the warning banner). The source files retain their
-  existing Desktop paths and namespaces; the assembly references only Core, without SDL or ImGui.
-- `Tunnerer.Browser.Client`: local session, HUD snapshots, and the frame packet: one buffer with the shader
-  constants, the entity vertices and the changed rectangles of the four terrain textures (`BrowserScene`).
+  game-event toasts, the build-key hint and the warning banner), and a client's part in a network match
+  (`NetSession`, `SlotStepper`, `NetMatch`). The source files retain their existing Desktop paths and namespaces;
+  the assembly references only Core and the protocol, without SDL or ImGui.
+- `Tunnerer.Browser.Client`: the session (local, or this player's world in a network match), the network match
+  (`BrowserNetMatch`), HUD snapshots, and the frame packet: one buffer with the shader constants, the entity
+  vertices and the changed rectangles of the four terrain textures (`BrowserScene`).
 - `Tunnerer.Browser`: WebAssembly exports and the static PWA shell.
 - `simulation.js`: what the page talks to. It is `worker.js` with the single-thread runtime, or the threaded
   runtime behind the same messages: .NET can only start that one from the page itself, where it then runs on
@@ -291,7 +331,7 @@ World rendering uses the desktop's procedural materials, curved cave edges, ligh
 fog, tank and machine shapes, animated beams, radar and the heat view. The HUD says what the desktop's says and
 the sounds are the desktop's; wide screens show the desktop's art strip and layout, and there is no volume control
 yet (sound is on or off).
-Network multiplayer and persistent saves are not included. The existing relay and protocol are unchanged.
+Persistent saves are not included. Network play needed no change to the relay or the protocol's bytes.
 No Core gameplay constants or recorded simulation fingerprints changed.
 
 ## Next steps
@@ -312,4 +352,5 @@ What is intended next for the browser client, roughly in order:
   step also spends about 3 ms waking the cores.
 - Try the threaded runtime in Firefox. WebKit keeps to one thread, because its threaded runtime sometimes stops
   answering (Two runtimes, above).
-- Saving and resuming a match across closing the app, and network matches in the browser.
+- Saving and resuming a match across closing the app.
+- Name tags over other tanks in a network match, and a desync report the player can download.
