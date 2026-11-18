@@ -172,8 +172,11 @@ try {
     await page.locator("#resume").click();
     await ticks(page);
     await page.waitForFunction(
-        () =>
-            document.getElementById("offline").textContent === "OFFLINE READY",
+        () => {
+            // The badge shows this only once the service worker has kept the whole game.
+            const status = document.getElementById("offline");
+            return !status.hidden && status.textContent === "SAVED FOR OFFLINE";
+        },
         null,
         { timeout: 120000 },
     );

@@ -22,6 +22,7 @@
     <Compile Include="../Tunnerer.Desktop/Rendering/IGameRenderBackend.cs" Link="IGameRenderBackend.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/RenderInputEvent.cs" Link="RenderInputEvent.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/PostParamsBlock.cs" Link="PostParamsBlock.cs" />
+    <Compile Include="../Tunnerer.Desktop/Rendering/ScreenEffects.cs" Link="ScreenEffects.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/TerrainAuxBuilder.cs" Link="TerrainAuxBuilder.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/TerrainAuxUploader.cs" Link="TerrainAuxUploader.cs" />
     <Compile Include="../Tunnerer.Desktop/Rendering/TerrainSolidField.cs" Link="TerrainSolidField.cs" />

@@ -18,9 +18,9 @@ export class GameRenderer {
         window.addEventListener("resize", () => this.resize());
     }
 
-    async initialize() {
+    async initialize(progress) {
         this.gpu ||= new WebGlRenderer(this.worldCanvas);
-        await this.gpu.initialize();
+        await this.gpu.initialize(progress);
         this.gpu.resetWorld();
     }
 
@@ -79,7 +79,8 @@ export class GameRenderer {
         this.gpu.accept(packet);
     }
 
-    draw(now) {
+    // `aim` is the pointer from the centre of the view in CSS pixels (input.js), or null.
+    draw(now, aim) {
         const c = this.ctx;
         if (!this.frame) {
             this.worldCanvas.hidden = true;
@@ -92,7 +93,14 @@ export class GameRenderer {
         this.worldCanvas.hidden = false;
         // Nothing new from the worker since the last draw: what is on screen is still right, unless the overlay
         // changed or animates (the tutorial's pointer pulses).
-        if (!this.gpu.draw() && !this.overlayCleared && !this.target) return;
+        // While a hit shakes the view the mouse cursor gives way to a crosshair that shakes with it (see below).
+        const shaken = Boolean(aim?.mouse && this.gpu.hit > 0);
+        if (shaken !== this.shaken) {
+            this.shaken = shaken;
+            document.body.classList.toggle("aim-shaken", shaken);
+        }
+        if (!this.gpu.draw() && !this.overlayCleared && !this.target && !shaken)
+            return;
         c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         // The overlay is empty most of the time: clear it only when something was drawn on it (or the canvas was
         // resized), rather than filling the whole display every frame.
@@ -109,7 +117,34 @@ export class GameRenderer {
                 this.bearing(c, this.frame.player.home, "HOME", "#83d9cf") ||
                 drawn;
         if (this.target) drawn = this.pointer(c, this.target, now) || drawn;
+        if (shaken) drawn = this.crosshair(c, aim) || drawn;
         this.overlayDrawn = drawn;
+    }
+
+    // The crosshair where the effect pass shows the point the mouse aims at, so it stays on it through a hit's zoom
+    // and shake, drawn as on the desktop. Kept inside the view (ScreenEffectLevels.ShownInView): near an edge the
+    // zoom and shake would push it out, and with the cursor hidden the player would have nothing to aim with.
+    crosshair(c, aim) {
+        const p = this.gpu.shownFromCentre(aim.x, aim.y, this.height);
+        const x = Math.min(Math.max(this.width / 2 + p.x, 0), this.width - 1),
+            y = Math.min(Math.max(this.height / 2 + p.y, 0), this.height - 1),
+            arm = 10,
+            gap = 3;
+        c.save();
+        c.strokeStyle = "#fff";
+        c.lineWidth = 2;
+        c.beginPath();
+        c.moveTo(x - arm, y);
+        c.lineTo(x - gap, y);
+        c.moveTo(x + gap, y);
+        c.lineTo(x + arm, y);
+        c.moveTo(x, y - arm);
+        c.lineTo(x, y - gap);
+        c.moveTo(x, y + gap);
+        c.lineTo(x, y + arm);
+        c.stroke();
+        c.restore();
+        return true;
     }
 
     // Where a cell is on screen, from the centre of the view, in CSS pixels.

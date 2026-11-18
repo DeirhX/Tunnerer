@@ -1,7 +1,24 @@
+// Index of PostParamsBlock.ScreenFxActive among the frame's uniform floats (PostParamsLayoutGuardTests checks it).
+// The page sets it to 2 (ScreenFxPs: the game image is stored bottom row first, as WebGL keeps a framebuffer texture).
+const SCREEN_FX_ACTIVE = 71;
+// The hit level sits three floats before it and the shake (ScreenShakeX, Y) just after.
+const SCREEN_FX_HIT = SCREEN_FX_ACTIVE - 3,
+    SCREEN_SHAKE_X = SCREEN_FX_ACTIVE + 1;
+// How far a hit zooms in at first (DesktopScreenTweaks.ScreenHitZoom; PostParamsLayoutGuardTests compares them).
+const SCREEN_HIT_ZOOM = 0.03;
+
 // A failure of the graphics hardware or driver, as opposed to one of loading the game.
 export class GraphicsError extends Error {
     name = "GraphicsError";
 }
+
+// What each program draws, for the loading line.
+const PROGRAM_LABELS = {
+    Terrain: "terrain",
+    Post: "lighting and materials",
+    Entity: "tank and machine",
+    ScreenFx: "screen effect",
+};
 
 // Draws the desktop shaders, translated at publish time from their original HLSL.
 export class WebGlRenderer {
@@ -40,7 +57,8 @@ export class WebGlRenderer {
         });
     }
 
-    async initialize() {
+    // `progress` (progress.js) hears of each stage: the download, then each program's compile and link.
+    async initialize(progress) {
         if (this.ready) return;
         const gl = this.gl;
         const names = [
@@ -50,7 +68,9 @@ export class WebGlRenderer {
             "PostPs",
             "EntityVs",
             "EntityPs",
+            "ScreenFxPs",
         ];
+        progress?.begin("shaders:download", "Downloading the shaders");
         const source = Object.fromEntries(
             await Promise.all(
                 names.map(async (name) => {
@@ -65,12 +85,14 @@ export class WebGlRenderer {
                 }),
             ),
         );
-        // All three compile at once where the driver can; each is awaited, so the page is never blocked on one.
-        [this.terrainProgram, this.postProgram, this.entityProgram] =
+        progress?.end("shaders:download");
+        // All compile at once where the driver can; each is awaited, so the page is never blocked on one.
+        [this.terrainProgram, this.postProgram, this.entityProgram, this.screenFxProgram] =
             await Promise.all([
-                this.program("Terrain", source.FullscreenTargetVs, source.TerrainPs),
-                this.program("Post", source.FullscreenVs, source.PostPs),
-                this.program("Entity", source.EntityVs, source.EntityPs),
+                this.program("Terrain", source.FullscreenTargetVs, source.TerrainPs, progress),
+                this.program("Post", source.FullscreenVs, source.PostPs, progress),
+                this.program("Entity", source.EntityVs, source.EntityPs, progress),
+                this.program("ScreenFx", source.FullscreenVs, source.ScreenFxPs, progress),
             ]);
         this.uniforms = gl.createBuffer();
         gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, this.uniforms);
@@ -88,17 +110,34 @@ export class WebGlRenderer {
         gl.bindVertexArray(null);
         this.framebuffer = gl.createFramebuffer();
         this.sceneTexture = this.texture();
+        // The finished game image, drawn here instead of to the canvas while a whole-screen effect shows.
+        this.screenFramebuffer = gl.createFramebuffer();
+        this.screenTexture = this.texture();
         gl.disable(gl.DEPTH_TEST);
         gl.disable(gl.CULL_FACE);
         this.ready = true;
     }
 
-    // Compiles and links one program. With KHR_parallel_shader_compile the driver does it off the main thread and
-    // this waits a frame at a time for it; without, the first status query below waits for the driver.
-    async program(name, vertex, fragment) {
+    // Compiles and links one program as a stage of the load (progress.js), which hears whether it failed.
+    async program(name, vertex, fragment, progress) {
+        const stage = `shaders:${name}`;
+        progress?.begin(stage, `Compiling the ${PROGRAM_LABELS[name] || name} shaders`);
+        try {
+            const program = await this.link(name, vertex, fragment);
+            const parallel = this.gl.getExtension("KHR_parallel_shader_compile");
+            progress?.end(stage, parallel ? "compiled in parallel" : "compiled on the page's thread");
+            return program;
+        } catch (error) {
+            progress?.failed(stage);
+            throw error;
+        }
+    }
+
+    // With KHR_parallel_shader_compile the driver compiles and links off the main thread and this waits a frame at a
+    // time for it; without, the first status query below waits for the driver.
+    async link(name, vertex, fragment) {
         const gl = this.gl,
             parallel = gl.getExtension("KHR_parallel_shader_compile"),
-            started = performance.now(),
             program = gl.createProgram();
         const shaders = [
             [gl.VERTEX_SHADER, vertex],
@@ -136,10 +175,6 @@ export class WebGlRenderer {
                 `Shader linking failed (${name}): ${gl.getProgramInfoLog(program) || "the driver gave no reason"}`,
             );
         }
-        console.info(
-            `[graphics] ${name} shaders ready in ${Math.round(performance.now() - started)} ms` +
-                (parallel ? " (compiled in parallel)" : ""),
-        );
         const block = gl.getUniformBlockIndex(program, "PostParamsBlock");
         if (block !== gl.INVALID_INDEX)
             gl.uniformBlockBinding(program, block, 0);
@@ -240,10 +275,16 @@ export class WebGlRenderer {
         this.cameraX = uniforms[6] / this.scale;
         this.cameraY = uniforms[7] / this.scale;
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uniforms);
+        // The effect pass reads the game image from a framebuffer texture, which WebGL keeps bottom row first.
+        if (uniforms[SCREEN_FX_ACTIVE] > 0.5) uniforms[SCREEN_FX_ACTIVE] = 2;
         gl.bufferData(gl.UNIFORM_BUFFER, uniformBytes, gl.DYNAMIC_DRAW);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
         this.vertexCount = vertices.byteLength / 48;
+        this.screenEffects = uniforms[SCREEN_FX_ACTIVE] > 0.5;
+        this.hit = uniforms[SCREEN_FX_HIT];
+        this.shakeX = uniforms[SCREEN_SHAKE_X];
+        this.shakeY = uniforms[SCREEN_SHAKE_X + 1];
         this.hasFrame = true;
         this.fresh = true;
     }
@@ -290,31 +331,8 @@ export class WebGlRenderer {
             this.targetHeight = this.height;
             this.canvas.width = this.width;
             this.canvas.height = this.height;
-            gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
-            gl.texImage2D(
-                gl.TEXTURE_2D,
-                0,
-                gl.RGBA8,
-                this.width,
-                this.height,
-                0,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                null,
-            );
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-            gl.framebufferTexture2D(
-                gl.FRAMEBUFFER,
-                gl.COLOR_ATTACHMENT0,
-                gl.TEXTURE_2D,
-                this.sceneTexture,
-                0,
-            );
-            if (
-                gl.checkFramebufferStatus(gl.FRAMEBUFFER) !==
-                gl.FRAMEBUFFER_COMPLETE
-            )
-                throw new GraphicsError("Could not create the terrain render target.");
+            this.renderTarget(this.framebuffer, this.sceneTexture, "terrain");
+            this.renderTarget(this.screenFramebuffer, this.screenTexture, "screen effects");
         }
         gl.viewport(0, 0, this.width, this.height);
         gl.disable(gl.BLEND);
@@ -322,7 +340,12 @@ export class WebGlRenderer {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
         this.bindTextures(this.terrainProgram, this.mapTextures, "sourceTex");
         gl.drawArrays(gl.TRIANGLES, 0, 3);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        // Whole-screen effects cost a pass only while one shows.
+        const toTexture = this.screenEffects;
+        gl.bindFramebuffer(
+            gl.FRAMEBUFFER,
+            toTexture ? this.screenFramebuffer : null,
+        );
         this.bindTextures(
             this.postProgram,
             this.postTextures,
@@ -335,7 +358,58 @@ export class WebGlRenderer {
         gl.bindVertexArray(this.entityVao);
         gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
         gl.disable(gl.BLEND);
+        if (toTexture) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.bindVertexArray(this.emptyVao);
+            this.bindTextures(
+                this.screenFxProgram,
+                [this.screenTexture],
+                "sceneTex",
+            );
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
         gl.bindVertexArray(null);
         return true;
+    }
+
+    // Where the effect pass shows the game image's point (x, y), both from the centre of a view `height` high, in the
+    // same pixels: a hit's zoom and shake move it (ScreenEffectLevels.ShownFromCentre).
+    shownFromCentre(x, y, height) {
+        const zoom = 1 - SCREEN_HIT_ZOOM * (this.hit || 0),
+            scale = height / 1080;
+        return {
+            x: (x + (this.shakeX || 0) * scale) / zoom,
+            y: (y + (this.shakeY || 0) * scale) / zoom,
+        };
+    }
+
+    // Sizes a texture to the view and makes it the colour target of the framebuffer.
+    renderTarget(framebuffer, texture, name) {
+        const gl = this.gl;
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA8,
+            this.width,
+            this.height,
+            0,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            null,
+        );
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            texture,
+            0,
+        );
+        if (
+            gl.checkFramebufferStatus(gl.FRAMEBUFFER) !==
+            gl.FRAMEBUFFER_COMPLETE
+        )
+            throw new GraphicsError(`Could not create the ${name} render target.`);
     }
 }

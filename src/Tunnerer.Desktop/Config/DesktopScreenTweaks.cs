@@ -29,6 +29,28 @@ public static class DesktopScreenTweaks
     public const float ScorchTintDarken = 0.35f;
     public const float ScorchTintStrength = 0.50f;
 
+    // Whole-screen effects (Rendering/ScreenEffects.cs, Shaders/ScreenFxPs.hlsl)
+    /// <summary>Seconds a hit's shake, colour split and flash take to fade out.</summary>
+    public const float ScreenHitSeconds = 0.5f;
+    /// <summary>How far a hit throws the view at first, in pixels of a 1080-pixel-high view (scaled to the view).</summary>
+    public const float ScreenShakePixels = 14f;
+    /// <summary>
+    /// How far a hit zooms in at first, as a share of the view; it hides the clamped edge the shake would show, so it
+    /// must leave more than the largest throw (<see cref="ScreenShakePixels"/> and its sideways part, about 15 pixels)
+    /// at each side of a 1080-pixel-high view. Also in ScreenFxPs.hlsl and webgl.js (PostParamsLayoutGuardTests).
+    /// </summary>
+    public const float ScreenHitZoom = 0.03f;
+    /// <summary>How fast the view rings back after a hit (about 7 swings a second).</summary>
+    public const float ScreenShakeRadiansPerSecond = 44f;
+    /// <summary>Seconds the overheat haze takes to come in fully.</summary>
+    public const float ScreenOverheatRiseSeconds = 0.4f;
+    /// <summary>Seconds the overheat haze takes to clear once the tank is back under the safe maximum, or dead.</summary>
+    public const float ScreenOverheatFallSeconds = 0.9f;
+    /// <summary>Seconds the frost takes to creep in fully.</summary>
+    public const float ScreenFreezeRiseSeconds = 0.8f;
+    /// <summary>Seconds the frost takes to thaw once the tank is warmer than frostbite, or dead.</summary>
+    public const float ScreenFreezeFallSeconds = 1.6f;
+
     // GPU post-processing / lighting tuning
     public const float PostVignetteStrength = 0.18f;
     public const float PostVignetteInnerRadius = 0.35f;

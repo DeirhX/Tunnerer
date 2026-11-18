@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import zipfile
@@ -18,6 +19,35 @@ HUD_ART = ["heat_icon.png", "shield_icon.png", "panel_frame.png", "build_panel.p
 ISOLATION_HEADERS = ["Cross-Origin-Opener-Policy: same-origin", "Cross-Origin-Embedder-Policy: require-corp"]
 
 
+def rewrite(root, name, old, new):
+    """Replaces the one `old` in a published file; `old` may be a compiled regular expression."""
+    text = (root / name).read_text(encoding="utf-8")
+    if isinstance(old, re.Pattern):
+        text, count = old.subn(new, text)
+    else:
+        count = text.count(old)
+        text = text.replace(old, new)
+    if count != 1:
+        raise RuntimeError(f"Expected one {getattr(old, 'pattern', old)!r} in {name}")
+    (root / name).write_bytes(text.encode())
+    # The publish left compressed copies of the file as it was, which some hosts serve in its place.
+    for suffix in (".br", ".gz"):
+        (root / (name + suffix)).unlink(missing_ok=True)
+
+
+def write_runtime_bytes(root):
+    """Tells threads.js how many bytes each runtime downloads, for the loading bar: the files .NET fetches itself
+    (its .wasm files), not the .js modules the browser imports."""
+    sizes = {}
+    for name, directory in RUNTIMES.items():
+        folder = root / directory
+        if folder.is_dir():
+            sizes[name] = sum(p.stat().st_size for p in folder.iterdir()
+                              if p.is_file() and p.suffix not in {".js", ".br", ".gz", ".pdb", ".map", ".json"})
+    rewrite(root, "threads.js", re.compile(r"const runtimeBytes = \{[^}]*\};"),
+            "const runtimeBytes = " + json.dumps(sizes) + ";")
+
+
 def megabytes(paths):
     return sum(p.stat().st_size for p in paths) / 1024 / 1024
 
@@ -26,6 +56,7 @@ def package(output):
     root = output / "wwwroot"
     if not (root / "_framework" / "dotnet.js").is_file():
         raise RuntimeError(f"Missing .NET browser runtime in {root}")
+    write_runtime_bytes(root)
     assets = sorted(p for p in root.rglob("*") if p.is_file()
                     and p.suffix not in {".br", ".gz", ".pdb", ".map"}
                     and p.name not in {"assets-manifest.js", "sw.js", "_headers"})
@@ -71,18 +102,9 @@ def add_threaded_runtime(publish, output, repo, env):
     shutil.move(threaded / "wwwroot" / "_framework", root / RUNTIMES["threads"])
     shutil.rmtree(threaded)
 
-    def rewrite(name, old, new):
-        text = (root / name).read_text(encoding="utf-8")
-        if text.count(old) != 1:
-            raise RuntimeError(f"Expected one {old!r} in {name}")
-        (root / name).write_bytes(text.replace(old, new).encode())
-        # The publish left compressed copies of the file as it was, which some hosts serve in its place.
-        for suffix in (".br", ".gz"):
-            (root / (name + suffix)).unlink(missing_ok=True)
-
-    rewrite("threads.js", "const published = false;", "const published = true;")
+    rewrite(root, "threads.js", "const published = false;", "const published = true;")
     # The threaded runtime is used only on a cross-origin isolated page.
-    rewrite("_headers", "/*\n", "/*\n" + "".join(f"  {header}\n" for header in ISOLATION_HEADERS))
+    rewrite(root, "_headers", "/*\n", "/*\n" + "".join(f"  {header}\n" for header in ISOLATION_HEADERS))
 
 
 def main():
@@ -109,7 +131,7 @@ def main():
         shader_dir = repo / "src/Tunnerer.Browser/wwwroot/shaders"
         shader_source = repo / "src/Tunnerer.Desktop/Rendering/Shaders"
         shaders = [("FullscreenVs", "vertex"), ("TerrainPs", "fragment"), ("PostPs", "fragment"),
-                   ("EntityVs", "vertex"), ("EntityPs", "fragment")]
+                   ("EntityVs", "vertex"), ("EntityPs", "fragment"), ("ScreenFxPs", "fragment")]
         shader_args = [str(shader_source / (name + ".hlsl")) + "=" + stage for name, stage in shaders]
         subprocess.run([dotnet, "run", "--project", str(repo / "tools/Tunnerer.ShaderCompiler"),
                         "-c", args.configuration, "--", "--web", "--out", str(shader_dir)] + shader_args,

@@ -29,6 +29,7 @@ public sealed class BrowserScene
 
     private readonly BrowserSession _session;
     private readonly EntityLayerBuilder _entities = new();
+    private readonly ScreenEffects _screenEffects = new();
     private readonly TerrainAuxBuilder _glowBuilder = new();
     private readonly float[] _glows = new float[PostParamsBlock.MaxTankGlows * 4];
     private readonly int[] _header = new int[HeaderInts];
@@ -52,9 +53,12 @@ public sealed class BrowserScene
     public ReadOnlySpan<byte> Uniforms => _packet.AsSpan(_header[0], _header[1]);
     public ReadOnlySpan<byte> Vertices => _packet.AsSpan(_header[2], _header[3]);
 
-    public void CaptureStep()
+    /// <param name="silent">A tick from the past, replayed to catch up: a hit in it does not shake the view.</param>
+    public void CaptureStep(bool silent)
     {
         _entities.CaptureStep(_session.World, _session.LocalSlot);
+        if (!silent)
+            _screenEffects.AfterStep(_session.World.StepEvents, _session.Player);
         Terrain.ObserveStep(_visualTime);
     }
 
@@ -78,7 +82,8 @@ public sealed class BrowserScene
             new TankGlowUpload(_glows, glowCount),
             new TerrainAuxUpload(Terrain.Texture(BrowserTerrain.Aux).Data, null, Terrain.Texture(BrowserTerrain.Coverage).Data, null),
             new NativeContinuousUpload(null, false, DesktopScreenTweaks.NativeContinuousSampleHigh), default,
-            new FogUpload(Terrain.Texture(BrowserTerrain.Fog).Data, null));
+            new FogUpload(Terrain.Texture(BrowserTerrain.Fog).Data, null),
+            _screenEffects.Update(_session.Player, delta));
         PostParamsBlock block = PostParamsBlock.Build(upload, time);
         Pack(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref block, 1)),
             MemoryMarshal.AsBytes(_entities.Vertices.AsSpan(0, _entities.VertexCount)));

@@ -150,6 +150,8 @@ worldPixels[w*h]                      terrain aux data (heat, solid field, mater
                          |
               entity layer: link, machine, placement preview, tank and projectile quads (EntityLayerBuilder -> EntityPs)
                          |
+              whole-screen effects, only while one shows: hit, overheat, freeze (ScreenEffects -> ScreenFxPs)
+                         |
               ImGui: viewport image, HUD, overlays  ->  window
 ```
 

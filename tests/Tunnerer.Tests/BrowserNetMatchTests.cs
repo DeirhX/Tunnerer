@@ -207,13 +207,17 @@ public class BrowserNetMatchTests
             browser.RequestStart();
 
             var browserWorld = browser.Session.World;
-            // A browser frame may step several ticks (more when catching up), so the browser can pass Ticks; the
-            // desktop then steps to where the browser stopped, and the worlds are compared at the same tick.
-            while (browserWorld.AdvanceCount < Ticks || desktopWorld.AdvanceCount < browserWorld.AdvanceCount)
+            // Both sides play to the same tick before the worlds are compared. A browser that falls behind replays
+            // every tick that has arrived in one Advance (catch-up), so it can pass Ticks; the desktop then steps on
+            // to where the browser is.
+            // Each side plays on to Ticks, or to the other side's tick if that is further.
+            int Target(World other) => Math.Max(Ticks, other.AdvanceCount);
+            while (browserWorld.AdvanceCount < Ticks || desktopWorld.AdvanceCount < Ticks ||
+                   browserWorld.AdvanceCount != desktopWorld.AdvanceCount)
             {
                 await PumpBrowser();
                 int tick = browserWorld.AdvanceCount;
-                if (tick < Ticks)
+                if (tick < Target(desktopWorld))
                     browser.Advance(new ControllerOutput
                     {
                         MoveSpeed = new Offset(1, tick / 12 % 2),
@@ -226,7 +230,7 @@ public class BrowserNetMatchTests
                 desktopSession.Receive();
                 if (desktop.Started && desktopWorld.AdvanceCount == 0 && desktopSession.HumanMask != desktop.HumanMask)
                     desktopSession.StartSeats(desktop.Config.Seed, desktop.HumanMask);
-                while (desktopWorld.AdvanceCount < Math.Max(Ticks, browserWorld.AdvanceCount) && desktopSession.TryStep())
+                while (desktopWorld.AdvanceCount < Target(browserWorld) && desktopSession.TryStep())
                     desktopSession.SendInput(new ControllerOutput
                     {
                         MoveSpeed = new Offset(-1, desktopWorld.AdvanceCount / 9 % 2),
@@ -239,7 +243,7 @@ public class BrowserNetMatchTests
             }
 
             Assert.Equal(desktop.Config, browser.Room.Config);
-            Assert.Equal(browserWorld.AdvanceCount, desktopWorld.AdvanceCount);
+            Assert.Equal(desktopWorld.AdvanceCount, browserWorld.AdvanceCount);
             Assert.Equal(WorldStateHash.ComputeSync(desktopWorld), WorldStateHash.ComputeSync(browserWorld));
             // Both players moved: the tanks are not where an idle match leaves them.
             var idle = BrowserSession.ForNetwork(proposal, 0).World;

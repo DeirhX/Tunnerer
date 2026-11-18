@@ -64,7 +64,9 @@ Run from the repository root.
 - **Shaders compile for every GPU API.** Every build compiles each shader to DXIL, SPIR-V and MSL, on every OS. Declare
   resources with the macros in `Rendering/Shaders/PostPs/Common/Registers.hlsli`, never `register()`, and give
   every `Texture2D` a `SamplerState` at the same index (`RenderingSourceGuardTests` and the shader build step
-  check both).
+  check both). A shader function returns only at its end: write `if (needed) { ... }`, not `if (!needed) return;`.
+  Windows browsers compile the early-return form through FXC, which hung on it (`RenderingSourceGuardTests`,
+  `docs/browser.md`).
 - **Graphics API calls stay in the backend.** SDL_GPU code belongs in `Rendering/SdlGpu`
   (`RenderingSourceGuardTests`). Code shared with the game goes in `Rendering/`.
 

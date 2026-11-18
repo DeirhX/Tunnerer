@@ -85,8 +85,42 @@ Before translating, the web export turns every implicit-LOD sample in its copy o
 sample of level 0 (`ExplicitLodRewrite`), so the GLSL calls `textureLod(..., 0.0)` and never `texture()`: ANGLE's
 Direct3D 11 backend must otherwise unroll PostPs's loops around implicit-derivative samples, and that compile did
 not finish on Windows. It samples the same only because every web texture has level 0 alone and filters without
-mipmaps (`webgl.js`). The page compiles and links the shaders with `KHR_parallel_shader_compile` where the browser
-has it, waiting a frame at a time, and logs each program's time to the console.
+mipmaps (`webgl.js`).
+
+Windows browsers (Edge, Chrome, Comet, Firefox) draw WebGL through ANGLE's Direct3D 11 backend, which translates
+the GLSL to HLSL and compiles it with FXC; macOS browsers go through ANGLE's Metal backend and Apple's compiler,
+which had no trouble. Two things made FXC hang there, measured on GitHub's Windows runner (Edge 156):
+
+- **Returns before the end of a function.** DXC turns such a function into a loop that runs once, left by a break
+  at each return, and FXC is very slow on that form around a large body: EntityPs took 35 to 40 s, and PostPs ran
+  past four minutes and then crashed FXC, which is the empty "Shader linking failed" the page showed. Each entity
+  shape alone compiled in under 0.1 s. With one return at the end of `main` and of the passes and materials (an
+  `if (needed) { ... }` where there was an `if (!needed) return;`), EntityPs links in 1.3 s and PostPs in 8.8 s.
+  The GPU skips the same work either way: the frames are identical, at the same speed (Metal, measured).
+  `RenderingSourceGuardTests` keeps new shader functions to one return.
+- **NaN-aware min, max and clamp.** DXC emits GLSL.std.450 NMin, NMax and NClamp, which SPIRV-Cross spells as
+  `isnan(a) ? b : (isnan(b) ? a : max(a, b))`; ANGLE then makes every `?:` an `if`, and the `isnan` turns on
+  FXC's strict IEEE mode. The web export makes them plain FMin, FMax and FClamp (`NanFreeMinMaxRewrite`), which
+  differ only for NaN operands. It also halved the time a frame takes to draw on Metal (15.1 to 7.1 ms at
+  3200x1844, M-series Mac): the pictures differ by at most one level in 255 in 0.1% of pixels.
+
+The page compiles and links the shaders with `KHR_parallel_shader_compile` where the browser has it, waiting a
+frame at a time. Loading reports its stages (`progress.js`): the shader download, each program's compile and link,
+the runtime's download and start, and the world's generation. The loading line shows the stage under way, and says
+so when one runs past ten seconds; the console logs each stage's time as `[load] ...`; each begin and end is a
+`tunnerer-load` event on `window`, and the list so far is `window.tunnererLoad`, to copy into a bug report. A failed
+start names the stage it stopped in ("while compiling the lighting and materials shaders, 12 s in").
+
+A bar fills through the load. Each phase (shaders, download, runtime start, world) is as wide as it took on this
+device last time (`localStorage`, `tunnerer.load-times`), or a guess on a first visit. The download fills by the bytes
+that have arrived: `publish.py` writes each runtime's size into `threads.js`, and a resource loader in `frames.js`
+counts what .NET fetches. A compile gives no progress, only done or not, so the other phases fill by their time
+against last time's and slow down short of the end. .NET has the browser check every runtime file against its
+published hash (subresource integrity), and the browser then holds back all the bytes of a file, even from a copy of
+the response, until the last has arrived: the bar sat still through the 8 MB `dotnet.native.wasm`. The loader
+therefore fetches without that check, counts a copy as it arrives and checks the SHA-256 itself before .NET gets the
+response, at the moment the browser would have given it, so a file that does not match still stops the load. .NET
+gets the response fetch made, not one built from the copy, so that the browser can keep the runtime's compiled code.
 
 ## Controls and installation
 
@@ -100,8 +134,11 @@ Escape opens the pause menu. Switching away from the page pauses the local match
 
 ## Network play
 
-**PLAY ONLINE** on the welcome screen joins a room on the relay (docs/multiplayer-design.md): a name, a room, the
-number of tanks and the relay's secret if it has one. The page remembers them (`localStorage`). The first player into
+The welcome screen has two tabs, **Solo** and **Online**, and keeps the one last chosen. **Online** joins a room on
+the relay (docs/multiplayer-design.md): a name, a room, the number of tanks and the relay's secret if it has one.
+The page remembers them (`localStorage`). The secret's field can be shown, to see what an old visit or a password
+manager left in it; spaces around it are not part of it, here or on the relay, and a refusal for it puts the cursor
+in the field. The relay logs each refusal with the length of what was sent. The first player into
 a room opens it with a new seed and that many tanks, on the desktop's map for the count (480x300 for more than two,
 `?map=WxH` for another); bots take the slots nobody joins. The lobby shows who is in each slot in their tank's
 colour; the host (the lowest slot) starts with **Start match** or Enter, and a full room starts by itself. P pauses
@@ -128,7 +165,8 @@ as a rejoining player does.
 Not yet in the browser: name tags over other tanks, the desync report file the desktop writes, and choosing a map
 size or seed for a new room from the page.
 
-The header changes to **OFFLINE READY** after the entire app, including the .NET runtime, has been cached.
+The header says **SAVED FOR OFFLINE** after the entire app, including the .NET runtime, has been cached, and
+**OFFLINE · SOLO ONLY** without a connection; otherwise it says nothing.
 Chrome and Edge expose the **Install game** button when installation is available. Other browsers may expose
 installation in their own menus; on iPhone/iPad use Safari's Share → Add to Home Screen. Browser support for
 installation varies; the game can also be played directly in a tab.
@@ -286,6 +324,8 @@ window and graphics dependencies out of the shared rendering assembly.
   The UI keeps at most one request in flight and caps catch-up. After each tick the page announces the HUD state
   as a `tunnerer-step` event on `window`, which is how the smoke test follows a match in either runtime.
 - `webgl.js`: uploads the shared buffers and draws the translated terrain, post-processing and entity shaders.
+- `progress.js`: the stages of a load, for the loading line, the loading bar, the console and the `tunnerer-load`
+  event.
   Its first pass flips the render-target Y axis for WebGL's framebuffer texture convention; the final pass and
   entity quads use the desktop clip-space convention. Textures use the same linear sampling and premultiplied
   alpha blending as desktop. It must take every packet, in order: each carries only what changed since the one

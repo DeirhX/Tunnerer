@@ -8,12 +8,22 @@ import { GuidanceView } from "./guidance.js";
 import { StatusView } from "./hud.js";
 import { StripView } from "./strip.js";
 import { RelaySocket, defaultRelay } from "./net.js";
+import { LoadProgress } from "./progress.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
     renderer = new GameRenderer(canvas),
     audio = new GameAudio(),
-    guidance = new GuidanceView(() => (renderer.pointerTarget = guidance.target));
+    guidance = new GuidanceView(() => (renderer.pointerTarget = guidance.target)),
+    progress = new LoadProgress(
+        (text) => ($("loading").textContent = text),
+        (share) => {
+            $("load-bar").hidden = share === null;
+            if (share === null) return;
+            $("load-bar").firstElementChild.style.transform = `scaleX(${share})`;
+            $("load-bar").setAttribute("aria-valuenow", String(Math.round(share * 100)));
+        },
+    );
 let worker = null,
     busy = false,
     playing = false,
@@ -262,7 +272,8 @@ async function join(event) {
     event.preventDefault();
     const name = $("net-name").value.trim(),
         room = $("net-room").value.trim(),
-        secret = $("net-secret").value;
+        // A pasted secret often brings a space or a line end with it.
+        secret = $("net-secret").value.trim();
     if (!name || !room) {
         $("loading").textContent = "Enter your name and a room to join.";
         return;
@@ -296,6 +307,12 @@ const JOIN_TIMEOUT_MS = 15000;
 async function onNetAnswer(data) {
     if (data.failure) {
         fail(data.failure, "", "Could not join the room");
+        // The relay's refusal for a secret (RelayHub) says "needs a secret": straight to the field.
+        if (data.failure.includes("needs a secret")) {
+            selectMode("online");
+            $("net-secret").focus();
+            $("net-secret").select();
+        }
         return;
     }
     if (!net.socket) {
@@ -364,6 +381,47 @@ function saveNetSettings(settings) {
     if (saved.players) $("net-players").value = saved.players;
 }
 $("online-form").onsubmit = join;
+
+// Solo or online: two tabs over the start button and the room form. The choice is kept for the next visit.
+const MODE = "tunnerer.mode";
+function selectMode(mode, focus = false) {
+    for (const [name, tab, panel] of [
+        ["solo", $("mode-solo"), $("solo")],
+        ["online", $("mode-online"), $("online")],
+    ]) {
+        const chosen = name === mode;
+        tab.setAttribute("aria-selected", String(chosen));
+        tab.tabIndex = chosen ? 0 : -1;
+        panel.hidden = !chosen;
+        if (chosen && focus) tab.focus();
+    }
+    try {
+        localStorage.setItem(MODE, mode);
+    } catch {
+        // Private browsing: solo again next time.
+    }
+}
+$("mode-solo").onclick = () => selectMode("solo");
+$("mode-online").onclick = () => selectMode("online");
+$("mode-solo").parentElement.onkeydown = (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const online = $("mode-online").getAttribute("aria-selected") === "true";
+    selectMode(event.key === "Home" ? "solo" : event.key === "End" ? "online" : online ? "solo" : "online", true);
+};
+try {
+    if (localStorage.getItem(MODE) === "online") selectMode("online");
+} catch {
+    // Solo it is.
+}
+// The secret is hidden as it is typed; Show says what the field holds, which may be what a password manager put in.
+$("net-secret-show").onclick = () => {
+    const shown = $("net-secret").type === "password";
+    $("net-secret").type = shown ? "text" : "password";
+    $("net-secret-show").textContent = shown ? "Hide" : "Show";
+    $("net-secret-show").setAttribute("aria-pressed", String(shown));
+    $("net-secret-show").setAttribute("aria-label", shown ? "Hide the secret" : "Show the secret");
+};
 $("lobby-start").onclick = () => {
     netCommand("start");
     canvas.focus({ preventScroll: true });
@@ -415,18 +473,15 @@ function updateNet(n) {
 async function launch(request) {
     $("start").disabled = true;
     $("start").textContent = "Preparing graphics…";
-    $("loading").textContent =
-        "Compiling the shaders for your graphics card. The first launch may take a moment.";
     busy = true;
+    progress.reset();
     try {
-        await renderer.initialize();
+        await renderer.initialize(progress);
     } catch (error) {
         fail(error.message, error.name === "GraphicsError" ? "" : undefined);
         return;
     }
     $("start").textContent = "Preparing your world…";
-    $("loading").textContent =
-        "Loading the game and generating terrain. The first launch may take a moment.";
     // A worker with the single-thread runtime, or the threaded runtime behind the same messages (simulation.js).
     worker = new Simulation();
     worker.onerror = (e) =>
@@ -434,6 +489,12 @@ async function launch(request) {
     worker.onmessage = ({ data }) => {
         if (data.type === "error") {
             fail(data.message);
+            return;
+        }
+        if (data.type === "progress") {
+            if (data.state === "begin") progress.begin(data.stage, data.label);
+            else if (data.state === "bytes") progress.bytes(data.stage, data.loaded, data.total);
+            else progress.end(data.stage, data.detail);
             return;
         }
         if (data.type === "net" && net) {
@@ -467,6 +528,7 @@ async function launch(request) {
         }
         if (!playing) {
             playing = true;
+            progress.finish();
             $("welcome").hidden = true;
             $("footer").hidden = true;
             $("hud").hidden = $("guide").hidden = false;
@@ -508,9 +570,11 @@ function fail(
     what = "Could not start the game",
 ) {
     console.error(message);
+    // Where the load was, for the message and the console: "while compiling the terrain shaders, 12 s in".
+    const during = progress.fail();
     reset();
     const reason = String(message).split("\n")[0].replace(/\.$/, "");
-    $("loading").textContent = `${what}: ${reason}.${advice}`;
+    $("loading").textContent = `${what}${during}: ${reason}.${advice}`;
 }
 
 let noticeUntil = 0;
@@ -605,7 +669,7 @@ function animate(now) {
         lastRenderTime = now;
     }
     try {
-        renderer.draw(now);
+        renderer.draw(now, input.pointer);
         perf?.displayed(elapsed);
     } catch (error) {
         fail(error.message, error.name === "GraphicsError" ? "" : undefined);

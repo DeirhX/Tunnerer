@@ -56,6 +56,7 @@ export class GameInput {
             this.pointer = {
                 x: e.clientX - r.left - r.width / 2,
                 y: e.clientY - r.top - r.height / 2,
+                mouse: e.pointerType === "mouse",
             };
         });
         canvas.addEventListener("pointerdown", (e) => {
@@ -67,6 +68,7 @@ export class GameInput {
             this.pointer = {
                 x: e.clientX - r.left - r.width / 2,
                 y: e.clientY - r.top - r.height / 2,
+                mouse: e.pointerType === "mouse",
             };
         });
         const release = () => {
