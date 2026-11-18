@@ -2,6 +2,7 @@ namespace Tunnerer.Core.Snapshots;
 
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Tunnerer.Core.Entities.Machines;
 
@@ -47,7 +48,15 @@ internal static class SnapshotLayout
     /// The saved instance fields of <paramref name="type"/>: the base type's first, then the type's own in declaration
     /// order (metadata order, which is fixed for a build). Fields marked <see cref="NotSavedAttribute"/> are left out.
     /// </summary>
-    public static FieldInfo[] FieldsOf(Type type) => FieldCache.GetOrAdd(type, static t =>
+    public static FieldInfo[] FieldsOf(Type type) => FieldCache.GetOrAdd(type, CollectFields);
+
+    // The walk meets types at run time, which no annotation can name, so a trimmed build (the browser) cannot prove
+    // their fields are kept. No trimmed build saves or loads a snapshot yet: protocol 5 cannot ask one for it. Before
+    // browser players join matches, keep Core's fields in that build or replace this walk with a source generator
+    // (docs/late-join-design.md §13, step 6).
+    [UnconditionalSuppressMessage("Trimming", "IL2075:UnrecognizedReflectionPattern",
+        Justification = "No trimmed build saves or loads a snapshot yet; see docs/late-join-design.md §13, step 6.")]
+    private static FieldInfo[] CollectFields(Type t)
     {
         var chain = new List<Type>();
         for (Type? at = t; at != null && at != typeof(object) && at != typeof(ValueType); at = at.BaseType)
@@ -60,7 +69,7 @@ internal static class SnapshotLayout
                 .Where(f => f.GetCustomAttribute<NotSavedAttribute>() == null)
                 .OrderBy(f => f.MetadataToken));
         return [.. fields];
-    });
+    }
 
     /// <summary>A type whose values are left out wherever they are (<see cref="NotSavedAttribute"/> on the type).</summary>
     public static bool IsKeptType(Type type) => type.GetCustomAttribute<NotSavedAttribute>(inherit: false) != null;
