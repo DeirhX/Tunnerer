@@ -80,12 +80,19 @@ public partial class Game : IDisposable
         bool enableAiTanks = true,
         bool terrainTestMode = false,
         bool fogOfWar = true,
-        Net.RelayConnection? relay = null)
+        Net.RelayConnection? relay = null,
+        Net.NetMenuRequest? openNetMenu = null,
+        string launchSecret = "",
+        Uri? launchRelay = null)
     {
+        _launchSecret = launchSecret;
+        _launchRelay = launchRelay;
         _relay = relay;
         _localSlot = relay?.Slot ?? 0;
         _terrainTestMode = terrainTestMode;
         _automatedRun = IsAutomatedRun(perfCapture);
+        // Only a person playing remembers anything between runs.
+        _playerSettings = IsInteractiveSession ? Net.PlayerSettings.Load() : null;
         // Automated runs display exactly one frame per simulation step so their screenshots and timings are
         // reproducible; TUNNERER_INTERPOLATE=1 turns the in-between frames back on for them.
         _interpolateFrames = !_automatedRun ||
@@ -149,6 +156,9 @@ public partial class Game : IDisposable
             requestScreenshot: label => _renderBackend.RequestScreenshot(label));
         if (relay != null)
             StartNetSession(relay);
+        // A refused launch, or a player who left a network match, comes back to the menu over a paused local match.
+        if (openNetMenu != null && IsInteractiveSession)
+            OpenNetMenu(openNetMenu);
         Console.WriteLine("[Render] TerrainVisual=NativeContinuous");
     }
 

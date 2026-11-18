@@ -1,5 +1,6 @@
 namespace Tunnerer.Desktop.Net;
 
+using System.Globalization;
 using System.Reflection;
 using Tunnerer.Core;
 using Tunnerer.Core.Config;
@@ -8,10 +9,36 @@ using Tunnerer.Core.LevelGen;
 using Tunnerer.Core.Types;
 using Tunnerer.Protocol;
 
-/// <summary>What the command line asked for about a network match (<c>--relay</c>, <c>--room</c>, ...).</summary>
+/// <summary>
+/// What the player asked for about a network match, from the command line or from the network menu.
+/// </summary>
 /// <param name="Players">How many tanks the match has, if this client is the one that opens the room.</param>
-/// <param name="Secret">The relay's shared secret, or empty for an open relay.</param>
-public sealed record NetLaunchOptions(Uri Relay, string Room, string Name, int Players, string Secret = "");
+/// <param name="Secret">The relay's shared secret, or empty for an open relay. Never put on a command line.</param>
+/// <param name="MapSize">The map this client proposes when it opens the room; null for the default of the player count.</param>
+/// <param name="Seed">The seed this client proposes when it opens the room; null for a new one each match.</param>
+public sealed record NetLaunchOptions(
+    Uri Relay, string Room, string Name, int Players, string Secret = "", Size? MapSize = null, int? Seed = null)
+{
+    /// <summary>The environment variable that carries the relay's secret to the game, and on to a restarted one.</summary>
+    public const string SecretVariable = "TUNNERER_RELAY_SECRET";
+
+    /// <summary>
+    /// The command-line arguments that start the game in this match (<see cref="LaunchArguments.Parse"/> reads
+    /// them back). The secret is not among them: a command line is visible to every user of the machine
+    /// (<c>ps</c>), so <see cref="SecretVariable"/> in the environment carries it.
+    /// </summary>
+    public IEnumerable<string> ToArguments()
+    {
+        yield return "--relay=" + Relay.AbsoluteUri;
+        yield return "--room=" + Room;
+        yield return "--name=" + Name;
+        yield return string.Create(CultureInfo.InvariantCulture, $"--players={Players}");
+        if (MapSize is { } size)
+            yield return string.Create(CultureInfo.InvariantCulture, $"--size={size.X}x{size.Y}");
+        if (Seed is { } seed)
+            yield return string.Create(CultureInfo.InvariantCulture, $"--seed={seed}");
+    }
+}
 
 /// <summary>Joins a room on the relay from the command line's options, before the game window opens.</summary>
 public static class NetLaunch
@@ -69,7 +96,7 @@ public static class NetLaunch
         {
             int genMode = connection.Config.GenMode;
             connection.Dispose();
-            throw new RelayException(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            throw new RelayException(string.Create(CultureInfo.InvariantCulture,
                 $"The room's level generator ({genMode}) is not one this game knows. Update the game."));
         }
         return connection;

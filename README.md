@@ -108,6 +108,13 @@ name:
 dotnet run --project src/Tunnerer.Desktop -- --net=friday --name=Ann
 ```
 
+Without arguments, press Esc in the game and then N (or click "Network match") for the network menu: your name, the
+room, and Join or Create (F2: number of tanks, map size, seed). The game then starts again in that match. The menu
+remembers your choices in `settings.ini` under the user's application data folder (`TUNNERER_SETTINGS_FILE` names another file);
+if the relay refuses you (room full or started, wrong secret, other build, not reachable) you come back to the menu
+with the reason on screen. A relay's secret is asked for only when it is needed, and kept in that file in plain text. In a
+network match the same pause-menu button reads "Leave network match" (L, also in the lobby).
+
 The shared relay asks for a secret: set `TUNNERER_RELAY_SECRET` (or pass `--secret=`) to the value whoever runs
 the relay gives you. The lobby shows who is in. The match starts when the room is full, or when the host (the first player in)
 presses Enter; bots play the tanks nobody took. It is a race: the first base to tap the core wins, and a tank out
