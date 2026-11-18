@@ -130,7 +130,7 @@ export class GameRenderer {
             Math.abs(dx) > this.width / 2 - margin ||
             Math.abs(dy) > this.height / 2 - margin
         ) {
-            return this.bearing(c, target, "NEXT", "#ecb867");
+            return this.bearing(c, target, "NEXT", "#ecb867", margin);
         }
         const t = now / 1000,
             pulse = 0.5 + 0.5 * Math.sin(t * 5);
@@ -160,12 +160,13 @@ export class GameRenderer {
         return true;
     }
 
-    // Draws an arrow at the edge of the view toward a cell that is off screen; returns whether it drew.
-    bearing(c, target, label, color) {
+    // Draws an arrow at the edge of the view toward a cell that is off screen, or within `inset` pixels of an edge;
+    // returns whether it drew.
+    bearing(c, target, label, color, inset = 0) {
         const scale = this.cellSize;
         const { dx, dy } = this.fromCentre(target);
-        const w = this.width / 2 - 28,
-            h = this.height / 2 - 30;
+        const w = this.width / 2 - Math.max(28, inset),
+            h = this.height / 2 - Math.max(30, inset);
         if (Math.abs(dx) < w && Math.abs(dy) < h) return false;
         const ratio = Math.min(
             w / Math.max(Math.abs(dx), 1),

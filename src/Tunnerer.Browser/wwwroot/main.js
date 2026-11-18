@@ -11,7 +11,7 @@ const $ = (id) => document.getElementById(id);
 const canvas = $("game"),
     renderer = new GameRenderer(canvas),
     audio = new GameAudio(),
-    guidance = new GuidanceView();
+    guidance = new GuidanceView(() => (renderer.pointerTarget = guidance.target));
 let worker = null,
     busy = false,
     playing = false,
@@ -41,10 +41,7 @@ const input = new GameInput(canvas, (action, direction) => {
         else if (playing) openMenu();
     }
     if (action === "help") openMenu();
-    if (action === "tutorial" && playing) {
-        guidance.toggleTutorial();
-        renderer.pointerTarget = guidance.target;
-    }
+    if (action === "tutorial" && playing) guidance.toggleTutorial();
     if (action === "zoom")
         renderer.zoom = Math.max(
             2,
@@ -133,7 +130,7 @@ function reset() {
     input.clear();
     accumulator = 0;
     visualTime = 0;
-    for (const id of ["hud", "guide", "upgrades", "touch", "death"])
+    for (const id of ["hud", "guide", "upgrades", "touch", "death", "hit"])
         $(id).hidden = true;
     guidance.clear();
     renderer.pointerTarget = null;

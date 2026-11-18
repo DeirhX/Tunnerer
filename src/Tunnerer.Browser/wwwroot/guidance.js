@@ -16,13 +16,16 @@ export class GuidanceView {
     goal = null;
     toasts = new Map();
 
-    constructor() {
+    // `onToggle` runs after F2 or the card's button shows or hides the tutorial, so the pointer follows at once.
+    constructor(onToggle = () => {}) {
+        this.onToggle = onToggle;
         $("tutorial-toggle").onclick = () => this.toggleTutorial();
     }
 
     toggleTutorial() {
         this.tutorialHidden = !this.tutorialHidden;
         this.showCard();
+        this.onToggle();
     }
 
     // The tutorial's target cell while its card shows, for the renderer's pointer.
