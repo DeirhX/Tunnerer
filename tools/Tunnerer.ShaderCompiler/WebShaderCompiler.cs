@@ -8,10 +8,8 @@ internal static unsafe partial class WebShaderCompiler
     private const string Library = "spirv-cross-c-shared";
     private const uint Location = 30;
 
-    public static string Transpile(byte[] desktopSpirv, ShaderCross.ShaderStage stage, bool flipVertexY = false)
+    public static string Transpile(byte[] spirv, ShaderCross.ShaderStage stage, bool flipVertexY = false)
     {
-        // texture() becomes textureLod(..., 0.0): see ExplicitLodRewrite for why, and why it samples the same.
-        byte[] spirv = ExplicitLodRewrite.Apply(desktopSpirv);
         Check(ContextCreate(out nint context), 0);
         try
         {
