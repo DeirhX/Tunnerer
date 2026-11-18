@@ -8,6 +8,8 @@
 (() => {
     // Whether this deployment carries the threaded runtime at all. `publish.py --threads` sets it.
     const published = false;
+    // How many bytes of .wasm each runtime downloads, for the loading bar; publish.py fills it in.
+    const runtimeBytes = { single: 0, threads: 0 };
     const cores = navigator.hardwareConcurrency || 1;
     // Only Chromium (Chrome, Edge and their relatives) so far. In WebKit the threaded runtime sometimes stops
     // answering the page in the middle of a match (docs/browser.md has what was measured), and Firefox has not
@@ -22,5 +24,6 @@
         // One core is left to the page, which draws while the simulation steps. More than eight workers were not
         // measured (spikes/WasmThreads) and each is a thread to start.
         heatWorkers: Math.max(2, Math.min(8, cores - 1)),
+        runtimeBytes,
     };
 })();

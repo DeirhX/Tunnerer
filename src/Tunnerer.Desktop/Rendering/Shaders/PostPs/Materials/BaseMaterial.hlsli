@@ -137,22 +137,22 @@ float3 ShadeBaseDoor(float2 f, float2 worldCell, int cL, int cR, int cU, int cD)
 // Draws the base cell under this pixel. `code` is the nearest cell's material code.
 void ApplyBaseMaterial(inout float3 color, float2 worldCell, int2 cell, int2 maxCell, int code, float baseMask)
 {
-    if (baseMask <= 0.0)
-        return;
+    if (baseMask > 0.0)
+    {
+        float2 f = frac(worldCell);
+        int cL = LoadMaterialCode(cell, int2(-1, 0), maxCell);
+        int cR = LoadMaterialCode(cell, int2(1, 0), maxCell);
+        int cU = LoadMaterialCode(cell, int2(0, -1), maxCell);
+        int cD = LoadMaterialCode(cell, int2(0, 1), maxCell);
 
-    float2 f = frac(worldCell);
-    int cL = LoadMaterialCode(cell, int2(-1, 0), maxCell);
-    int cR = LoadMaterialCode(cell, int2(1, 0), maxCell);
-    int cU = LoadMaterialCode(cell, int2(0, -1), maxCell);
-    int cD = LoadMaterialCode(cell, int2(0, 1), maxCell);
+        float3 baseColor;
+        if (IsBaseWallCode(code))
+            baseColor = ShadeBaseWall(f, worldCell, code, cL, cR, cU, cD);
+        else if (IsBaseDoorCode(code))
+            baseColor = ShadeBaseDoor(f, worldCell, cL, cR, cU, cD);
+        else
+            baseColor = ShadeBaseFloor(f, worldCell, cell, maxCell, cL, cR, cU, cD);
 
-    float3 baseColor;
-    if (IsBaseWallCode(code))
-        baseColor = ShadeBaseWall(f, worldCell, code, cL, cR, cU, cD);
-    else if (IsBaseDoorCode(code))
-        baseColor = ShadeBaseDoor(f, worldCell, cL, cR, cU, cD);
-    else
-        baseColor = ShadeBaseFloor(f, worldCell, cell, maxCell, cL, cR, cU, cD);
-
-    color = lerp(color, baseColor, baseMask);
+        color = lerp(color, baseColor, baseMask);
+    }
 }

@@ -48,18 +48,32 @@ export class Simulation {
 
     // The page keeps one request in flight, so answers come back in the order asked.
     postMessage(data) {
-        if (this.worker) this.worker.postMessage({ ...data, heatWorkers: 1 });
+        if (this.worker)
+            this.worker.postMessage({
+                ...data,
+                heatWorkers: 1,
+                runtimeBytes: plan.runtimeBytes?.single,
+            });
         else this.ask(data);
     }
 
     async ask(data) {
         let runtime;
+        // Stages of a start for the page's loading line (progress.js), answered like the worker's.
+        const report = (step) => {
+            if (!this.closed) this.onmessage?.({ data: { type: "progress", ...step } });
+        };
         try {
             threaded ||= import("./_framework-threads/dotnet.js").then(
                 ({ dotnet }) =>
                     startRuntime(dotnet, {
-                        pthreadPoolInitialSize:
-                            this.heatWorkers + RUNTIME_THREADS,
+                        config: {
+                            pthreadPoolInitialSize:
+                                this.heatWorkers + RUNTIME_THREADS,
+                        },
+                        report,
+                        bytes: plan.runtimeBytes?.threads,
+                        threads: `${this.heatWorkers} heat threads`,
                     }),
             );
             runtime = await threaded;
@@ -73,15 +87,15 @@ export class Simulation {
             threadsFailed = true;
             if (this.closed) return;
             this.startWorker();
-            this.worker.postMessage({ ...data, heatWorkers: 1 });
+            this.postMessage(data);
             return;
         }
         let message;
         try {
-            message = await runtime.answer({
-                ...data,
-                heatWorkers: this.heatWorkers,
-            });
+            message = await runtime.answer(
+                { ...data, heatWorkers: this.heatWorkers },
+                report,
+            );
         } catch (error) {
             message = errorMessage(error);
         }

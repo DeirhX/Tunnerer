@@ -8,8 +8,11 @@ internal static unsafe partial class WebShaderCompiler
     private const string Library = "spirv-cross-c-shared";
     private const uint Location = 30;
 
-    public static string Transpile(byte[] spirv, ShaderCross.ShaderStage stage, bool flipVertexY = false)
+    public static string Transpile(byte[] desktopSpirv, ShaderCross.ShaderStage stage, bool flipVertexY = false)
     {
+        // texture() becomes textureLod(..., 0.0), and min/max/clamp lose their isnan tests: both keep ANGLE's
+        // Direct3D compile (FXC) from stalling. ExplicitLodRewrite and NanFreeMinMaxRewrite say why each is safe.
+        byte[] spirv = NanFreeMinMaxRewrite.Apply(ExplicitLodRewrite.Apply(desktopSpirv));
         Check(ContextCreate(out nint context), 0);
         try
         {
