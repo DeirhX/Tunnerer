@@ -198,7 +198,8 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
   generators, timers, held keys, harvester memory, pending projectiles, which heat tiles are awake, the regrowth
   clock, scorch). [late-join-design.md](late-join-design.md) §10 says why each is there.
 - **Its cost does not yet follow activity.** Both the state hash and the per-cell heat hash walk the whole grid
-  once a second. That is small on today's maps and will not be on much larger ones; summing per active tile, or
+  once a second. The per-cell hash runs in four independent lanes and costs less than the energy total it replaced
+  (0.39 ms against 1.32 ms on 1500 x 750, Release, development Mac). That is small on today's maps and will not be on much larger ones; summing per active tile, or
   hashing the terrain in turns, is the fix when maps grow.
 - **On desync** the match stops and every client writes `artifacts/debug/desync_<room>_tick<n>_slot<k>.txt`:
   the digests it reported around the tick, split into state, heat, charge, economy, outcome and latent, where its tanks stand, and the

@@ -22,6 +22,9 @@ first tranche.
   checks that make a snapshot safe.
 - **Rejoin moves to the same path.** Today a returning player replays the match from tick 0, which a slow machine
   cannot do either.
+- **Normal play costs no more.** A join may pause everyone for a moment, but nothing here adds to the simulation's
+  cost while nobody is joining: no work per tick, no periodic saves, and a sync digest that is cheaper than before
+  (§8.1).
 
 ## 2. What exists to build on
 
@@ -251,6 +254,24 @@ How long a hold lasts, estimated and to be measured:
 
 `JoinHoldSeconds` (15) is the limit after which the relay gives up on a join rather than hold everyone longer.
 
+### 8.1 What normal play pays
+
+Some machines can only just keep up with the match, so this design adds nothing to the simulation's cost while
+nobody is joining. All the work of a join happens in the hold, when nobody is simulating, or on the joiner.
+
+| While nobody joins | Cost to every player |
+|---|---|
+| Each tick | One more byte in each `Tick` (the human mask) and one byte compared before stepping. Nothing else. |
+| Each second | The sync digest. Its new parts replaced the energy total with a per-cell hash in four independent lanes, which is cheaper than the sum was. Measured 2026-11-18 on the development Mac, beyond the state hash: 0.19 ms before and 0.06 ms after on 480 x 300, 1.32 ms and 0.39 ms on 1500 x 750 (Release); 4.88 ms and 2.47 ms on 1500 x 750 in Debug. |
+| Snapshots | None. The saver reads the state only when asked; it keeps no dirty flags, shadow copies or logs during play. |
+| Bots (build step 2) | `FastRandom` in place of `System.Random`, which is no dearer. Bot state joins the digest at a cost per bot, measured like the rest. |
+
+| During a join | Who pays |
+|---|---|
+| The hold | Everyone waits; nobody simulates. |
+| Saving and uploading the snapshot | Two players, inside the hold. |
+| Building the map, loading, checking | The joiner. |
+
 ## 9. Snapshots
 
 The relay never reads the game: to it, a snapshot is bytes one client uploads and another downloads. This section
@@ -320,7 +341,7 @@ large map where most ground is untouched (§14).
   hash for it. The uploaders send one with `SnapshotDone`, and it goes into the relay's comparison like any other.
 - **Cost.** Each steps to `S` (it is at most a tick or two behind), copies its state on the main thread, and
   compresses and uploads off it. The hold covers all of it, so even a machine that only just keeps up loses
-  nothing. Nobody joining costs nothing: there are no periodic snapshots, with one exception (§11).
+  nothing. Nobody joining costs nothing: there are no periodic snapshots (§8.1).
 
 ### 9.3 Limits
 
@@ -441,7 +462,7 @@ itself is today.
 | A late joiner drops out | Same as anyone who started: their seat is vacant, their tank idles, and they come back by name. |
 | A late joiner's name equals a vacant seat's start name | That is a rejoin into the vacant seat (rule 1 in §5). A name is not authentication, as today. |
 | The match ends while a joiner builds its world | The relay refuses the join when it asks; the joiner is told the match is over. |
-| **A player returns to a room nobody is in** | There is nobody to copy the match from. While a room is down to one player, the relay asks that player for a snapshot once a minute, at no hold (one player's own save is a few milliseconds of their own frame). The returning player loads the latest one and replays the log from there: at most a minute of ticks, with the match clock standing because the room is empty, so it takes `t / r` and not `t / (r - 1)`, and finishes even at `r` close to 1. Then the clock starts. Only if there is no such snapshot (the room emptied before one was taken) does it replay from tick 0, with the clock standing. |
+| **A player returns to a room nobody is in** | There is nobody to copy the match from. A last player who leaves by quitting saves and uploads a snapshot on the way out, a cost at exit and none during play; the match clock stands from then, so a returning player loads it and replays nothing. A last player whose connection was lost leaves nothing: the returning player replays from tick 0 with the clock standing, which takes `t / r`, not `t / (r - 1)`, and so always finishes, though on a slow machine only after a long wait that only they bear. |
 | A relay restart | The room is gone, as for everyone in it. |
 
 ## 12. Rejected alternatives
@@ -461,7 +482,7 @@ itself is today.
 - **The relay runs the simulation and serves snapshots itself.** It would need Core, and a redeploy for every
   gameplay change, which the relay was built to avoid; and a CPU per room on Starfish.
 - **Periodic snapshots** from every client. Costs every player a save and an upload all match long, for joins that
-  may never come. On request costs one save per join. (The empty-room case in §11 is the one exception.)
+  may never come. On request costs one save per join, inside the hold.
 - **Saving `System.Random` by reflection.** Ties the snapshot to the runtime's private fields (§9.1).
 - **Trusting the sync hash to check a loaded snapshot.** See §10.2.
 
@@ -471,10 +492,12 @@ Each step is testable without the next.
 
 1. **Core groundwork** (done, 2026-11-18). Reversible `SetBotControlled`; the stronger sync digest (§10.3,
    item 5), with `IsBotControlled` in it. The energy total in the digest became a per-cell hash of both
-   temperature fields, in the same single walk over the grid. Bots are not in it yet: they live in Desktop's
-   session, and join the digest with step 2. No fingerprint changes; the protocol is unchanged, since clients of one build compare
-   the same digest. Worth having for desync detection whether or not the rest follows.
-2. **Bots on `FastRandom`.** The bot-against-bot fingerprint changes; the commit says so.
+   temperature fields, in the same single walk over the grid, hashed in four lanes so that it costs less than the
+   sum did (§8.1). Bots are not in it yet: they live in Desktop's session, and join the digest with step 2. No
+   fingerprint changes; the protocol is unchanged, since clients of one build compare the same digest. Worth
+   having for desync detection whether or not the rest follows.
+2. **Bots on `FastRandom`.** The bot-against-bot fingerprint changes; the commit says so. Bot state joins the sync
+   digest; measure the digest again, against step 1.
 3. **Snapshots in Core.** The saver and loader, the bots beside the world, the coverage guard test and the
    round-trip tests (§10.3, items 1 and 2). Measure size, compression, save and load time on the default map and
    at 1500 x 750, on the slowest machine that will play.
@@ -484,7 +507,7 @@ Each step is testable without the next.
    tick 2400 from a snapshot, takes slot 2 and plays; all worlds identical, and the recording rebuilds the same
    world. A second test: two uploads that differ are a desync.
 5. **The relay and the codec.** Watchers, the hold, snapshot transfer and its limits, `TakeSeat`, the refusals,
-   the empty-room snapshot, rejoin by snapshot. Protocol version 6. `MatchRoomTests`: the join order in §5, two
+   the snapshot a last player leaves when quitting, rejoin by snapshot. Protocol version 6. `MatchRoomTests`: the join order in §5, two
    joiners in one hold, an uploader leaving, the hold timeout, a pause during a hold, a seated late joiner who
    rejoins by name. A socket test in `RelayOverSocketsTests` (marked `Slow`). Deploy the relay to Starfish.
 6. **The game.** The local seat that can change, the full terrain upload after loading, vision and radar from the
