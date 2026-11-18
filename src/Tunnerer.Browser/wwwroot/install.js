@@ -2,20 +2,25 @@ export async function setupInstallation(notify) {
     const button = document.getElementById("install");
     const status = document.getElementById("offline");
     let prompt = null,
-        offlineReady = false;
+        offlineReady = false,
+        offlineFailed = false;
     const installed = () =>
         matchMedia("(display-mode: standalone)").matches ||
         navigator.standalone;
     // Says something only when there is something to say: a plain "ONLINE" beside the buttons read like a way to
-    // play, next to the Online tab that is one.
+    // play, next to the Online tab that is one. The text is set only with the state it names, which the smoke test
+    // waits for before it goes offline.
     const update = () => {
-        status.hidden = navigator.onLine && !offlineReady;
-        status.textContent = !navigator.onLine
-            ? "OFFLINE · SOLO ONLY"
-            : "SAVED FOR OFFLINE";
-        status.title = offlineReady
-            ? "The complete game is kept on this device, so solo play works without a connection."
-            : "Without a connection only solo play works.";
+        const [text, title] = !navigator.onLine
+            ? ["OFFLINE · SOLO ONLY", "Without a connection only solo play works."]
+            : offlineReady
+              ? ["SAVED FOR OFFLINE", "The complete game is kept on this device, so solo play works without a connection."]
+              : offlineFailed
+                ? ["ONLINE ONLY", "Offline preparation failed. Check your connection and available device storage, then reload."]
+                : ["", ""];
+        status.hidden = !text;
+        status.textContent = text;
+        status.title = title;
     };
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
@@ -69,8 +74,7 @@ export async function setupInstallation(notify) {
         });
     } catch (error) {
         console.warn("Offline installation unavailable:", error);
-        status.textContent = "ONLINE ONLY";
-        status.title =
-            "Offline preparation failed. Check your connection and available device storage, then reload.";
+        offlineFailed = true;
+        update();
     }
 }
