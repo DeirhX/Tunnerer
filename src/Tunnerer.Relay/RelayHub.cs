@@ -13,7 +13,8 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
 {
     /// <summary>
     /// The configuration key (and so the environment variable) holding the shared secret. When it is set, a client
-    /// must send the same secret to get in; when it is not, the relay is open.
+    /// must send the same secret to get in; when it is not, the relay is open. Spaces and line ends around either
+    /// are not part of it: they come with a pasted secret, or with a line of an environment file.
     /// </summary>
     public const string SecretKey = "TUNNERER_RELAY_SECRET";
 
@@ -39,7 +40,7 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
     /// <exception cref="InvalidOperationException">The secret is longer than a client can send.</exception>
     public static string CheckedSecret(IConfiguration configuration)
     {
-        string secret = configuration[SecretKey] ?? string.Empty;
+        string secret = (configuration[SecretKey] ?? string.Empty).Trim();
         if (secret.Length > MessageCodec.MaxSecretLength)
             throw new InvalidOperationException(
                 $"{SecretKey} is {secret.Length} characters long; the protocol carries at most {MessageCodec.MaxSecretLength}. " +
@@ -125,10 +126,16 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
 
     private (MatchRoom? Room, int Slot) Enter(SocketPeer peer, Hello hello)
     {
+        string sent = hello.Secret.Trim();
         if (_secret.Length > 0 && !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-                _secret, System.Text.Encoding.UTF8.GetBytes(hello.Secret)))
+                _secret, System.Text.Encoding.UTF8.GetBytes(sent)))
         {
-            peer.Send(new Refusal("This relay needs a secret, and the one you sent is not it."));
+            // Both say "needs a secret", which is how the clients know to ask for one.
+            RelayLog.Refused(logger, hello.Name, hello.Room,
+                sent.Length == 0 ? "no secret" : $"a wrong secret of {sent.Length} characters");
+            peer.Send(new Refusal(sent.Length == 0
+                ? "This relay needs a secret. Enter it to join."
+                : "This relay needs a secret, and the one you sent is not it."));
             return (null, -1);
         }
         if (string.IsNullOrWhiteSpace(hello.Room))
@@ -306,6 +313,9 @@ internal static partial class RelayLog
 {
     [LoggerMessage(Level = LogLevel.Information, Message = "{Name} joined room {Room} in slot {Slot}")]
     public static partial void Joined(ILogger logger, string name, string room, int slot);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Refused {Name} for room {Room}: {Reason}")]
+    public static partial void Refused(ILogger logger, string name, string room, string reason);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "A connection ended: {Reason}")]
     public static partial void ConnectionEnded(ILogger logger, string reason);

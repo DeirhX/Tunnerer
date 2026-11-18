@@ -272,7 +272,8 @@ async function join(event) {
     event.preventDefault();
     const name = $("net-name").value.trim(),
         room = $("net-room").value.trim(),
-        secret = $("net-secret").value;
+        // A pasted secret often brings a space or a line end with it.
+        secret = $("net-secret").value.trim();
     if (!name || !room) {
         $("loading").textContent = "Enter your name and a room to join.";
         return;
@@ -306,6 +307,12 @@ const JOIN_TIMEOUT_MS = 15000;
 async function onNetAnswer(data) {
     if (data.failure) {
         fail(data.failure, "", "Could not join the room");
+        // The relay's refusal for a secret (RelayHub) says "needs a secret": straight to the field.
+        if (data.failure.includes("needs a secret")) {
+            selectMode("online");
+            $("net-secret").focus();
+            $("net-secret").select();
+        }
         return;
     }
     if (!net.socket) {
@@ -374,6 +381,47 @@ function saveNetSettings(settings) {
     if (saved.players) $("net-players").value = saved.players;
 }
 $("online-form").onsubmit = join;
+
+// Solo or online: two tabs over the start button and the room form. The choice is kept for the next visit.
+const MODE = "tunnerer.mode";
+function selectMode(mode, focus = false) {
+    for (const [name, tab, panel] of [
+        ["solo", $("mode-solo"), $("solo")],
+        ["online", $("mode-online"), $("online")],
+    ]) {
+        const chosen = name === mode;
+        tab.setAttribute("aria-selected", String(chosen));
+        tab.tabIndex = chosen ? 0 : -1;
+        panel.hidden = !chosen;
+        if (chosen && focus) tab.focus();
+    }
+    try {
+        localStorage.setItem(MODE, mode);
+    } catch {
+        // Private browsing: solo again next time.
+    }
+}
+$("mode-solo").onclick = () => selectMode("solo");
+$("mode-online").onclick = () => selectMode("online");
+$("mode-solo").parentElement.onkeydown = (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const online = $("mode-online").getAttribute("aria-selected") === "true";
+    selectMode(event.key === "Home" ? "solo" : event.key === "End" ? "online" : online ? "solo" : "online", true);
+};
+try {
+    if (localStorage.getItem(MODE) === "online") selectMode("online");
+} catch {
+    // Solo it is.
+}
+// The secret is hidden as it is typed; Show says what the field holds, which may be what a password manager put in.
+$("net-secret-show").onclick = () => {
+    const shown = $("net-secret").type === "password";
+    $("net-secret").type = shown ? "text" : "password";
+    $("net-secret-show").textContent = shown ? "Hide" : "Show";
+    $("net-secret-show").setAttribute("aria-pressed", String(shown));
+    $("net-secret-show").setAttribute("aria-label", shown ? "Hide the secret" : "Show the secret");
+};
 $("lobby-start").onclick = () => {
     netCommand("start");
     canvas.focus({ preventScroll: true });

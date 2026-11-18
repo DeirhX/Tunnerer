@@ -86,9 +86,7 @@ button.primary:hover {
     background: #ffd38d;
 }
 kbd {
-    font:
-        10px ui-monospace,
-        monospace;
+    font: 12px var(--hud-font);
     border: 1px solid #5d6b6d;
     border-radius: 3px;
     padding: 3px 5px;
@@ -121,7 +119,7 @@ nav {
 }
 nav button {
     background: transparent;
-    font-size: 12px;
+    font-size: 14px;
     padding: 8px 12px;
 }
 .brand {
@@ -147,19 +145,15 @@ nav button {
     letter-spacing: 0;
 }
 .edition {
-    font:
-        9px ui-monospace,
-        monospace;
-    letter-spacing: 1.5px;
+    font: 11px var(--hud-font);
+    letter-spacing: 1px;
     color: var(--muted);
     border-left: 1px solid var(--line);
     padding-left: 15px;
     margin-left: 4px;
 }
 #offline {
-    font:
-        10px ui-monospace,
-        monospace;
+    font: 12px var(--hud-font);
     letter-spacing: 1px;
     color: var(--cyan);
     margin-right: 10px;
@@ -189,20 +183,26 @@ main input,
 main label {
     pointer-events: auto;
 }
+/* The welcome screen: centred in the space under the header while it fits, and scrolled from its top when it does
+   not (a phone, a short window, the room form open). Auto margins centre it and drop to nothing when it is taller
+   than the window, so its top never slides under the header. The match's plates stay positioned over the canvas. */
+body:not(.playing) main {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    pointer-events: auto;
+}
 .landing {
-    position: absolute;
-    top: 50%;
-    left: 8%;
-    transform: translateY(-54%);
+    position: relative;
+    margin: auto 0 auto 8%;
+    /* Below it, room for the footer's line, which stays at the bottom of the window. */
+    padding: 24px 0 64px;
     width: 700px;
     max-width: 84vw;
 }
 .eyebrow {
-    font:
-        10px ui-monospace,
-        monospace;
-    font-weight: 600;
-    letter-spacing: 1.8px;
+    font: 12px var(--hud-font);
+    letter-spacing: 1px;
     color: var(--amber);
     display: flex;
     align-items: center;
@@ -229,26 +229,62 @@ h1 {
     color: #a7b4b2;
     line-height: 1.8;
 }
+/* Solo or online (main.js selectMode): two tabs over their panels. */
+.modes {
+    display: flex;
+    max-width: 560px;
+    margin-top: 29px;
+    border-bottom: 1px solid var(--line);
+}
+.modes button {
+    pointer-events: auto;
+    flex: 1;
+    display: grid;
+    gap: 3px;
+    padding: 10px 14px 9px;
+    text-align: left;
+    color: var(--muted);
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    margin-bottom: -1px;
+    cursor: pointer;
+}
+.modes b {
+    font: 17px var(--hud-font);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.modes span {
+    font-size: 13px;
+}
+.modes button:hover {
+    color: var(--ink);
+    background: none;
+    border-color: transparent;
+}
+.modes button[aria-selected="true"] {
+    color: var(--ink);
+    border-bottom-color: var(--amber);
+}
+.modes button[aria-selected="true"] b {
+    color: var(--amber);
+}
+.mode-panel {
+    max-width: 560px;
+    padding-top: 20px;
+}
 .start-row {
     display: flex;
     gap: 25px;
     align-items: center;
-    margin-top: 29px;
 }
 .primary span {
     margin-left: 35px;
 }
-.local-label {
-    font:
-        9px/1.8 ui-monospace,
-        monospace;
-    letter-spacing: 1.4px;
-    color: var(--muted);
-}
 .seed-label {
-    font:
-        10px ui-monospace,
-        monospace;
+    font: 12px var(--hud-font);
     letter-spacing: 1px;
     display: flex;
     align-items: center;
@@ -270,7 +306,7 @@ h1 {
 }
 .muted {
     color: var(--muted);
-    font-size: 11px;
+    font-size: 13px;
 }
 /* How far a match has loaded (progress.js), above the loading line. */
 .load-bar {
@@ -292,41 +328,19 @@ h1 {
 /* Joining a network match from the welcome screen (net.js). */
 .online {
     pointer-events: auto;
-    margin-top: 18px;
-    max-width: 560px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: #0b1419a8;
-}
-.online summary {
-    cursor: pointer;
-    padding: 9px 14px;
-    font:
-        10px ui-monospace,
-        monospace;
-    letter-spacing: 1.4px;
-    color: var(--amber);
-}
-.online summary span {
-    margin-left: 14px;
-    color: var(--muted);
-    letter-spacing: 0.6px;
 }
 .online > p {
-    margin: 0 14px 12px;
+    margin: 12px 0 0;
 }
 .online-form {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px 14px;
-    padding: 4px 14px 12px;
+    gap: 12px 14px;
 }
 .online-form label {
     display: grid;
     gap: 4px;
-    font:
-        10px ui-monospace,
-        monospace;
+    font: 12px var(--hud-font);
     letter-spacing: 1px;
     color: var(--muted);
 }
@@ -341,9 +355,27 @@ h1 {
     font-size: 13px;
     letter-spacing: 0;
 }
-.online-form button {
+.online-form > button {
     grid-column: 1 / -1;
     justify-self: start;
+}
+/* The secret's field and its Show button, as one box. */
+.secret-field {
+    display: flex;
+}
+.secret-field input {
+    flex: 1;
+    min-width: 0;
+    border-radius: 4px 0 0 4px;
+}
+.online-form .secret-field button {
+    padding: 0 10px;
+    font-size: 12px;
+    color: var(--muted);
+    background: #101d23;
+    border: 1px solid #334047;
+    border-left: 0;
+    border-radius: 0 4px 4px 0;
 }
 @media (max-width: 560px) {
     .online-form {
@@ -358,16 +390,14 @@ h1 {
     padding-top: 20px;
 }
 .landing-notes b {
-    font:
-        10px ui-monospace,
-        monospace;
-    letter-spacing: 1.3px;
+    font: 12px var(--hud-font);
+    letter-spacing: 1px;
     color: #d2d8cb;
     display: block;
     margin-bottom: 8px;
 }
 .landing-notes span {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--muted);
 }
 footer {
@@ -378,10 +408,8 @@ footer {
     padding: 22px 34px;
     left: 0;
     right: 0;
-    font:
-        9px ui-monospace,
-        monospace;
-    letter-spacing: 1.3px;
+    font: 11px var(--hud-font);
+    letter-spacing: 1px;
     color: #859491;
     pointer-events: none;
 }
@@ -462,7 +490,7 @@ footer i {
 }
 .plate p {
     color: var(--hud-text);
-    font-size: 12.5px;
+    font-size: 13.5px;
     margin-bottom: 8px;
 }
 .plate .eyebrow {
@@ -507,7 +535,7 @@ footer i {
 }
 #tutorial-progress {
     margin: 4px 0 8px;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--amber);
 }
 #tutorial-progress span {
@@ -545,7 +573,7 @@ footer i {
 .toast span {
     display: block;
     color: var(--hud-text);
-    font-size: 11px;
+    font-size: 12.5px;
     line-height: 1.4;
 }
 @keyframes toast-in {
@@ -599,7 +627,7 @@ footer i {
 #warning span {
     display: block;
     margin-top: 3px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     color: var(--hud-text);
 }
 /*
@@ -784,9 +812,7 @@ footer i {
     color: var(--heat-color, var(--hud-amber));
 }
 .heat-value span {
-    font:
-        9px ui-monospace,
-        monospace;
+    font: 11px var(--hud-font);
     color: var(--muted);
 }
 meter {
@@ -829,17 +855,13 @@ meter::-moz-meter-bar {
 .meter-label {
     display: flex;
     justify-content: space-between;
-    font:
-        9px ui-monospace,
-        monospace;
+    font: 11px var(--hud-font);
     letter-spacing: 1px;
     margin: 14px 0 6px;
 }
 #position {
     margin-top: 13px;
-    font:
-        9px ui-monospace,
-        monospace;
+    font: 11px var(--hud-font);
 }
 .build-status {
     width: 390px;
@@ -863,13 +885,11 @@ meter::-moz-meter-bar {
     align-items: start;
     padding: 9px 10px;
     gap: 5px;
-    font-size: 12px;
+    font-size: 13px;
 }
 .builds button small {
     color: var(--muted);
-    font:
-        9px ui-monospace,
-        monospace;
+    font: 11px var(--hud-font);
 }
 .builds button.unaffordable {
     opacity: 0.5;
@@ -879,7 +899,7 @@ meter::-moz-meter-bar {
     color: var(--amber);
 }
 #hint {
-    font-size: 11px;
+    font-size: 12.5px;
     line-height: 1.4;
 }
 #power {
@@ -944,7 +964,7 @@ meter::-moz-meter-bar {
 #upgrade-list .effect {
     grid-area: effect;
     color: var(--hud-text);
-    font-size: 10.5px;
+    font-size: 12px;
 }
 #upgrade-list .pips {
     grid-area: pips;
@@ -964,7 +984,7 @@ meter::-moz-meter-bar {
 #upgrade-list small {
     grid-area: cost;
     color: var(--hud-amber);
-    font-size: 11px;
+    font-size: 12px;
 }
 #upgrade-list button:disabled small {
     color: var(--hud-dim);
@@ -990,7 +1010,7 @@ dialog h2 {
     margin: 12px 0;
 }
 dialog p {
-    font-size: 12px;
+    font-size: 13.5px;
     color: #a8b9b7;
 }
 dialog .close {
@@ -1008,12 +1028,12 @@ dl {
     margin: 25px 0;
 }
 dt {
-    font-size: 11px;
+    font-size: 12.5px;
     color: var(--amber);
 }
 dd {
     margin: 0;
-    font-size: 12px;
+    font-size: 13px;
     color: #c6d1c9;
 }
 .menu-actions {
@@ -1084,7 +1104,6 @@ dd {
     }
     .edition,
     footer,
-    .local-label,
     nav kbd {
         display: none;
     }
@@ -1096,7 +1115,7 @@ dd {
         padding: 7px;
     }
     #offline {
-        font-size: 8px;
+        font-size: 10px;
         margin: 0;
     }
     .brand {
@@ -1117,7 +1136,7 @@ dd {
         height: calc(100dvh - 62px);
     }
     .landing {
-        left: 7%;
+        margin-left: 7%;
         width: 80%;
     }
     h1 {
@@ -1191,14 +1210,14 @@ dd {
         font-size: 10px;
     }
     .eyebrow {
-        font-size: 8px;
+        font-size: 10px;
     }
     #notice {
         top: 40%;
         max-width: 80vw;
     }
     #position {
-        font-size: 8px;
+        font-size: 10px;
     }
 }
 @media (max-width: 560px) {
@@ -1214,7 +1233,7 @@ dd {
         margin-top: 24px;
     }
     .landing-notes b {
-        font-size: 8px;
+        font-size: 10px;
     }
     .landing-notes span {
         font-size: 9px;
@@ -1227,9 +1246,6 @@ dd {
     }
     h1 {
         margin: 18px 0;
-    }
-    .landing {
-        transform: translateY(-50%);
     }
     #guide {
         width: 190px;
@@ -1258,7 +1274,7 @@ dd {
         font-size: 9px;
     }
     .builds button small {
-        font-size: 8px;
+        font-size: 10px;
     }
     #power {
         font-size: 9px;
@@ -1295,6 +1311,22 @@ dd {
         bottom: 195px;
     }
 }
+/* A Full HD screen less the browser's bars: room for the online form under the title. */
+@media (max-height: 1000px) and (min-width: 851px) {
+    h1 {
+        margin: 18px 0;
+        font-size: clamp(42px, 5vw, 72px);
+    }
+    .intro {
+        line-height: 1.6;
+    }
+    .modes {
+        margin-top: 22px;
+    }
+    .mode-panel {
+        padding-top: 16px;
+    }
+}
 @media (max-height: 550px) {
     .landing-notes,
     .intro {
@@ -1302,9 +1334,6 @@ dd {
     }
     h1 {
         font-size: 42px;
-    }
-    .landing {
-        top: 48%;
     }
     #guide {
         width: 190px;
@@ -1398,7 +1427,7 @@ body.playing.art-hud {
     align-items: center;
     gap: 6px;
     margin-top: 8px;
-    font-size: 11px;
+    font-size: 12.5px;
     pointer-events: auto;
 }
 .key-row kbd {

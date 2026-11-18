@@ -53,6 +53,23 @@ public class NetMenuRefusalTests
     }
 
     [Fact]
+    public async Task Secret_IsTheSameWithSpacesAround_AndAMissingOneIsToldApartFromAWrongOne()
+    {
+        // As an environment file or a paste can leave them, on the relay's side and the player's.
+        var (app, play) = await StartRelayAsync(secret: " right ");
+        await using var _ = app;
+
+        var missing = Assert.Throws<RelayException>(() => NetLaunch.Join(Options(play, "Ann"), Proposal()));
+        var wrong = Assert.Throws<RelayException>(() => NetLaunch.Join(Options(play, "Ann") with { Secret = "wrong" }, Proposal()));
+        Assert.NotEqual(missing.Message, wrong.Message);
+        Assert.Contains(NetMenuModel.SecretRefusalText, missing.Message, StringComparison.Ordinal);
+        Assert.Contains(NetMenuModel.SecretRefusalText, wrong.Message, StringComparison.Ordinal);
+
+        using var inside = NetLaunch.Join(Options(play, "Ann") with { Secret = "right\n" }, Proposal());
+        Assert.Equal(0, inside.Slot);
+    }
+
+    [Fact]
     public async Task FullRoom_IsRefusedWithTheReason_AndTheMenuShowsItWithoutAskingForASecret()
     {
         var (app, play) = await StartRelayAsync();

@@ -6,15 +6,16 @@ export async function setupInstallation(notify) {
     const installed = () =>
         matchMedia("(display-mode: standalone)").matches ||
         navigator.standalone;
+    // Says something only when there is something to say: a plain "ONLINE" beside the buttons read like a way to
+    // play, next to the Online tab that is one.
     const update = () => {
+        status.hidden = navigator.onLine && !offlineReady;
         status.textContent = !navigator.onLine
-            ? "OFFLINE"
-            : offlineReady
-              ? "OFFLINE READY"
-              : "ONLINE";
+            ? "OFFLINE · SOLO ONLY"
+            : "SAVED FOR OFFLINE";
         status.title = offlineReady
-            ? "The complete game is cached on this device."
-            : "The game is being prepared for offline use.";
+            ? "The complete game is kept on this device, so solo play works without a connection."
+            : "Without a connection only solo play works.";
     };
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
