@@ -175,20 +175,24 @@ world is drawn at. The same numbers are in `window.tunnererPerf`.
   machines from every base before play (`BrowserStress`: tunnels dug through dirt, relays where the placement
   preview shows a live link, a harvester and a pylon beside every third), for measuring a busy late game. Setting
   that up steps the world for a while, so the match takes longer to start.
-  Measured 2026-11-18 in headless Chromium on an Apple M5 Max, AOT build, seed 1234, display at 60 Hz:
+  Measured 2026-11-18 in headless Chromium on an Apple M5 Max, AOT build, seed 1234, display at 60 Hz, device pixel
+  ratio 1:
 
   | Match | Heat threads | Step | Frame | Steps a second | Start |
   |---|---|---|---|---|---|
   | 1500x750, no machines | 8 | 4.2 ms | 0.2 ms | 24 | 2.4 s |
-  | 3000x1500, 400 machines | 8 | 6.9 ms | 1.3 ms | 24 | 9.4 s |
-  | 3000x1500, 400 machines | 1 | 21.9 ms | 1.1 ms | 24 | 14.7 s |
-  | 4000x2000, 800 machines | 8 | 9.8 ms | 2.5 ms | 24 | 18.6 s |
-  | 4000x2000, 800 machines | 1 | 34.6 ms | 3.0 ms | 20 | 36.0 s |
+  | 3000x1500, 400 machines | 8 | 5.3 ms | 0.2 ms | 24 | 9.1 s |
+  | 3000x1500, 400 machines | 1 | 19.2 ms | 0.4 ms | 24 | 11.5 s |
+  | 4000x2000, no machines | 8 | 7.3 ms | 0.3 ms | 24 | 15.5 s |
+  | 4000x2000, no machines | 1 | 28.2 ms | 0.6 ms | 24 | 20.1 s |
+  | 4000x2000, 800 machines | 8 | 6.2 ms | 0.2 ms | 24 | 16.0 s |
+  | 4000x2000, 800 machines | 1 | 29.0 ms | 0.6 ms | 24 | 21.1 s |
 
-  On one thread the largest falls behind: a step and a frame take most of the 41.7 ms a step has, and the worker
-  does both. The heat solver is nearly all of a step (natively, 13.0 of 13.5 ms on one thread in the largest, with
-  four times the active heat tiles of a normal match); machines, links, guidance and sound together take under
-  half a millisecond.
+  The 800 machines are 558 relays, 125 harvesters and 117 pylons. Every match kept 24 steps a second, but on one
+  thread the largest takes 29 of the 41.7 ms a step has on this fast machine, so a slower one falls behind. The heat
+  solver is nearly all of a step, and its cost comes with the map's size: the machines change it little (with eight
+  threads the world with them even stepped faster, which has not been looked into). Starting is mostly generating
+  the map: 15.5 of the 16.0 s at 4000x2000 with eight threads, and 20.1 of 21.1 s on one.
 Set `BROWSER_URL` to test a deployed path; set `BROWSER_CHANNEL=chrome` to use an installed Google Chrome.
 Screenshots are written to `artifacts/browser-tests`. Unit tests check fog privacy, viewport bounds, and the
 browser's use of Core build/upgrade rules without changing the simulation during presentation. Browser entity
