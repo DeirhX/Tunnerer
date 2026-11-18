@@ -29,7 +29,16 @@ public abstract record Message;
 /// <param name="Config">Used only if the room does not exist yet.</param>
 /// <param name="Secret">The relay's shared secret, if it asks for one; empty otherwise.</param>
 public sealed record Hello(
-    int Protocol, string BuildId, string Name, string Room, MatchConfig Config, string Secret = "") : Message;
+    int Protocol, string BuildId, string Name, string Room, MatchConfig Config, string Secret = "",
+    SnapshotCapabilities Snapshots = SnapshotCapabilities.None) : Message;
+
+[Flags]
+public enum SnapshotCapabilities
+{
+    None = 0,
+    Upload = 1,
+    Join = 2,
+}
 
 /// <summary>Relay to client: you are in, in <paramref name="Slot"/>, and this is the match to build.</summary>
 public sealed record Welcome(int Slot, MatchConfig Config) : Message;
@@ -209,3 +218,6 @@ public sealed record Seated(int Slot, int AtTick) : Message;
 
 /// <summary>Relay to a joiner: not granted (another joiner took the seat first); ask for another.</summary>
 public sealed record SeatRefused(string Reason) : Message;
+
+/// <summary>The match clock is held for this joiner. An empty name releases only the join hold.</summary>
+public sealed record JoinHoldState(string Name) : Message;

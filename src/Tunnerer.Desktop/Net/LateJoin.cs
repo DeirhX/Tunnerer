@@ -74,6 +74,10 @@ public sealed class LateJoin
         {
             switch (message)
             {
+                case Refusal refusal:
+                    Failure = refusal.Reason;
+                    Current = Stage.Failed;
+                    break;
                 case SnapshotOffer offer when Current == Stage.CopyingTheMatch && _offer == null:
                     if (offer.Length is <= 0 or > MessageCodec.MaxSnapshotBytes)
                     {

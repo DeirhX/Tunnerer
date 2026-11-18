@@ -129,10 +129,20 @@ public sealed class NetSession
     private void AnswerSnapshotRequest(SnapshotRequest request)
     {
         byte[] snapshot = WorldSnapshot.Save(_world, _seats.Bots);
+        if (snapshot.Length > WorldSnapshot.MaxBytes)
+        {
+            _link.SendJoin(new JoinFailed("The match is too large to copy."));
+            return;
+        }
         int length = 0;
         if (request.SendChunks)
         {
             byte[] compressed = WorldSnapshot.Compress(snapshot);
+            if (compressed.Length > MessageCodec.MaxSnapshotBytes)
+            {
+                _link.SendJoin(new JoinFailed("The compressed match exceeds the relay limit."));
+                return;
+            }
             length = compressed.Length;
             foreach (SnapshotChunk chunk in SnapshotChunk.Split(request.Tick, compressed))
                 _link.SendJoin(chunk);

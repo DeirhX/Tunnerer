@@ -12,6 +12,9 @@ public class MessageCodecTests
     {
         new Hello(MessageCodec.ProtocolVersion, "1.0.0+abc", "Žofie", "lobby", Config, Secret: "s3cret"),
         new Welcome(3, Config),
+        new Welcome(-1, Config),
+        new JoinHoldState("Cat"),
+        new JoinHoldState(""),
         new Roster(["Ann", "", "Bob", ""]),
         new Ready(ulong.MaxValue - 1),
         new Start(HumanMask: 0b1011),

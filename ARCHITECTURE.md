@@ -98,14 +98,14 @@ Automated runs are step-locked instead: one frame per step, showing exactly that
 are reproducible. `TUNNERER_INTERPOLATE=1` turns the in-between frames on for them.
 
 A network match (`--net`, `Game.Net.cs`) is deterministic lockstep: every client runs the whole simulation and
-only inputs travel. `Net/NetSession` sends the local player's input to the relay (`Tunnerer.Relay`), steps the world
+normal play exchanges inputs and sync hashes. `Net/NetSession` sends the local player's input to the relay (`Tunnerer.Relay`), steps the world
 only from the tick bundles the relay sends back, never from the local clock, and reports a world hash once a second
 so a client that drifts apart is caught. Bots drive the slots nobody took, seeded the same on every client. Who
 drives each tank is `Net/Seats`, and only the human mask every bundle carries changes it, so a seat changes hands at
-the same tick everywhere. A player who joins a match in progress takes over a bot: `Net/LateJoin` loads the snapshot
-players already in it upload while the match holds, checks it and takes a seat (`docs/late-join-design.md`; in
-process only so far). The pause menu opens over a running game. `docs/multiplayer-design.md` has the protocol and
-the relay.
+the same tick everywhere. During a late join, one player uploads a snapshot and a second verifies it when available.
+`Net/LateJoin` loads the snapshot, checks it and takes a bot seat through the WebSocket relay. The player-facing
+join screens are still pending (`docs/late-join-design.md`). The pause menu opens over a running game.
+`docs/multiplayer-design.md` describes the protocol and the relay.
 
 Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
 The pause menu's network entry (`Game.NetMenu.cs`, `Gui/NetMenuView.cs`) only collects choices: `Net/NetMenuModel` is the menu

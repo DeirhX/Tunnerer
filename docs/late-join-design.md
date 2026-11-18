@@ -1,8 +1,7 @@
 # Joining a match in progress: design
 
-Status: proposed, 2026-11-17; reworked 2026-11-18 around snapshots, with no catch-up. Steps 1 to 4 of §13 are built
-(2026-11-18): the join works in process, through the tests' in-memory relay; protocol 6 carries the snapshot messages and seat masks. Running rooms on the
-relay server still admit returning players by name. Admission of a new player and the game screens are pending.
+Status: the relay admits one snapshot-capable newcomer at a time. A socket test covers the full handover (§13).
+Desktop players can supply the snapshot. Connecting the player-facing join screens is still pending.
 It extends [multiplayer-design.md](multiplayer-design.md) §5, which leaves "late join of a new player" out of the
 first tranche.
 
@@ -39,11 +38,10 @@ first tranche.
 | The only Core state that depends on who drives a tank is `TankBase.IsBotControlled` (the bot's stand-in ore income) | Handing a seat over in Core is one flag, flipped at one tick. |
 | The relay keeps the whole input log | Recordings, and the one case where a replay is still acceptable (§11). |
 
-What blocks it today: there is no way to save and load a world (DESIGN §11, gap 6); the bots draw from
-`System.Random`, whose state cannot be saved (§9.1); `MatchRoom.Join` on a running room accepts only a name from
-the start roster; `Start.HumanMask` is fixed for the whole match, in the relay, `RelayConnection`, `NetSession` and
-`MatchRecording`; `Game._localSlot` is read-only and set before the match starts; `World.SetBotControlled` cannot
-be undone.
+The original design needed a way to save the world and the bots' random state, admit a newcomer to a running
+room, and change who drives a tank on a particular tick. Those pieces now work together through the relay.
+The desktop game still sets its local seat before play begins. A joining player needs to select that seat
+after loading and rebuild the view for it (§13, step 6).
 
 ## 3. Seats
 
@@ -73,12 +71,12 @@ joiner                       relay                                   seated clie
   | Hello{room, name} ---->   |  running, not over, late join on,
   |                           |  a bot seat free, no name match
   | <---- Welcome{slot=-1}    |
-  | <---- InProgress          |
+  |                           |
   |  builds the world from    |
   |  the settings (seconds;   |
   |  the match runs on)       |
   | ReadyToLoad ---------->   |  S = the ticks closed so far. Holds: no tick S yet
-  |                           |  PauseState{held, joining: name} -------------------> all
+  |                           |  JoinHoldState{name} -------------------> all
   |                           |  SnapshotRequest{S, sendChunks} ------------------> A (true), B (false)
   |                           |                     both save at S
   |                           |  <--------------------------- chunks from A, SnapshotDone from A and B
@@ -89,7 +87,7 @@ joiner                       relay                                   seated clie
   | TakeSeat{2} ---------->   |  seat 2 is a bot seat: mask bit 2 set from tick S
   | <---- Seated{2, S}        |
   | <---- Roster -------------+-------------------------------------------------> all
-  |                           |  PauseState{running} ------------------------------> all
+  |                           |  JoinHoldState{""} ------------------------------> all
   | <---- Tick{S, mask} ------+-------------------------------------------------> all
   | Input, Input, ... ---->   |
 ```
@@ -127,9 +125,9 @@ New or changed, protocol version 6:
 | Direction | Message | Purpose |
 |---|---|---|
 | S to C | `Welcome { slot, config }` | `slot` is -1 for a watcher: in the room, driving nothing |
-| S to C | `InProgress` (replaces `Rejoined`) | The match is on: build the world from the settings and say when it is built |
+| C to S | `Hello.snapshots` | Optional capability bits for upload and join. A watcher welcome tells a joiner to build the world |
 | C to S | `ReadyToLoad` | My world is built; hold the match and get me a snapshot |
-| S to C | `PauseState { paused, bySlot, joining }` | As before; `joining` names the player the match holds for, empty for a pause a player asked for |
+| S to C | `JoinHoldState { name }` | Names the player copying the match. An empty name releases the hold. `PauseState` still carries manual pauses |
 | S to C | `SnapshotRequest { tick, sendChunks }` | Both clients save and hash at this tick. Only the designated uploader sends chunks |
 | both | `SnapshotChunk { tick, index, bytes }` | 32 KiB each, with a possibly shorter final chunk |
 | C to S | `SnapshotDone { tick, length, digest, syncHash }` | Snapshot report. `length` is the compressed bytes sent (zero for the verifier), `digest` a 64-bit hash of the uncompressed bytes (the first eight bytes of SHA-256; never of the compressed ones, which Brotli may write differently in another .NET patch version), `syncHash` the sender's sync digest at `tick` |
@@ -148,7 +146,8 @@ compare before a match covers it.
 
 ## 5. The relay
 
-`MatchRoom`:
+The design below includes concurrent watchers and snapshot-based rejoin. The current relay handles one watcher
+at a time and replays the log for returning players. §13 records the implemented behaviour.
 
 - **Watchers.** A list of peers without a slot: joiners building their world or loading it, at most as many as
   there are bot seats. They get `Roster` and `PauseState`, and `Tick` only once seated. A watcher does not keep the
@@ -157,7 +156,7 @@ compare before a match covers it.
   1. The name matches a vacant seat's start name: a rejoin, by the same snapshot path, into that seat.
   2. The match is over, closed to newcomers, has no bot seat left, or already has as many watchers as bot seats:
      refuse, with the reason that applies.
-  3. Otherwise: a watcher. `Welcome { slot: -1 }`, `InProgress`.
+  3. Otherwise: a watcher. `Welcome { slot: -1 }`.
   The name must still be unique: it is checked against the players present and against the start names of vacant
   seats, so a newcomer cannot be numbered into a dropped player's name.
 - **The hold.** On `ReadyToLoad` the relay closes ticks up to the one due, calls the last one `S`, and holds: no
@@ -607,20 +606,27 @@ Each step is testable without the next.
    The snapshot reader resolves type names against the locally reachable types, checks references against the
    receiving field, and charges collection counts against the raw input size before allocating. It also caps
    graph overhead at 262,144 objects and 1,048,576 non-bulk collection elements. These limits apply to loads
-   from recordings as well. Before enabling peer uploads on the relay, validate the loaded world's game
+   from recordings as well. Before enabling snapshot loading in the game screens, validate the loaded world's game
    invariants before rebuilding indexes and stepping it. A lone uploader supplies its own hashes.
 
-   Measure the time from `ReadyToLoad` to the first resumed tick with a throttled connection. Exercise the timeout
-   and an uploader disconnect before expanding to multiple joiners and rejoin by snapshot. If the uploader leaves,
-   discard its partial chunks and request a fresh upload at the same tick, within the original hold deadline.
+   The live relay admits one newcomer per room and returns `Welcome(-1)`. The optional final byte of `Hello`
+   advertises snapshot upload and join independently. Older clients omit it. Desktop advertises upload. The browser
+   can play in the room while other clients provide the snapshot. A returning player's name still takes priority
+   and their log carries every historical seat change, including the tick at which they first joined.
 
-   Protocol 6 covers watchers, the hold, snapshot transfer and its limits, `TakeSeat`, refusals,
-   the snapshot a last player leaves when quitting, and rejoin by snapshot. `MatchRoomTests`: the join order in §5, two
-   joiners in one hold, an uploader leaving, the hold timeout, a pause during a hold, a seated late joiner who
-   rejoins by name. A socket test in `RelayOverSocketsTests` (marked `Slow`). Deploy the relay to Starfish. The
-   relay's 32 MiB cap stays in step with `WorldSnapshot.MaxBytes`. From step 4 it has `LockstepRoom.Seat`,
-   `SnapshotHold` and `SnapshotAssembly` to build on, and `InMemoryRelay` as a sketch of the flow. Watcher admission, the
-   room clock and transfer budgets belong to the real relay.
+   The clock runs during preparation and stops at `ReadyToLoad`. The room requests the upload and independent
+   verification from capable players nearest the live tick. Losing an uploader discards its partial copy and
+   requests another at the same tick. A replacement verifier can check an existing upload. The original 15-second
+   deadline covers all attempts. A watcher leaving, timing out, failing checks, or taking a seat releases the hold.
+   A manual pause survives all four outcomes. `JoinHoldState` reports the join independently of `PauseState`.
+   Each payload is limited to 32 MiB. Room uploads and pending socket deliveries share a 256 MiB payload budget.
+
+   `RelaySnapshotJoinTests` runs through the actual WebSocket relay. Two clients play, a third takes a bot seat,
+   sends input, and all three save identical world bytes. On a 480 × 300 early-match map, one local run transferred
+   127,390 compressed bytes at a test-imposed 512 KiB/s upload rate. The first resumed tick ran 0.34 s after
+   `ReadyToLoad`. Map construction preceded that measurement. Multiple simultaneous newcomers per room, last-player
+   snapshots and rejoin by snapshot remain later extensions.
+
 6. **The game.** The local seat that can change, the full terrain upload after loading, vision and radar from the
    seat, names from the roster, the screens. Check by hand with three clients on one machine through a local
    relay: start with two in a four-slot room, join with the third ten minutes in. After loading, the client

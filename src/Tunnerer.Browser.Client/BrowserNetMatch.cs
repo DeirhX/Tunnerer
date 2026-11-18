@@ -32,7 +32,7 @@ public sealed class BrowserNetMatch
     private readonly Queue<ControllerOutput> _actions = new();
     private bool _lastSentAction;
     private string? _failure;
-    private string[] _slotNames = [];
+    private bool _begun;
 
     /// <param name="proposed">The match this client opens if the room does not exist yet.</param>
     /// <param name="heatWorkers">Threads for the heat solver (<see cref="BrowserSession"/>).</param>
@@ -90,6 +90,9 @@ public sealed class BrowserNetMatch
         }
         switch (message)
         {
+            case Welcome { Slot: -1 }:
+                Lose("This browser cannot load a running match yet.");
+                break;
             case Welcome welcome when NetMatch.CannotBuild(welcome.Config) is { } reason:
                 _failure ??= reason;
                 break;
@@ -155,8 +158,13 @@ public sealed class BrowserNetMatch
         room.KeepTime(now);
         if (room.Failure != null || room.DesyncTick != null)
             return 0;
-        if (room.Started && _slotNames.Length == 0)
-            Begin(room, net, session);
+        if (room.Started && !_begun)
+        {
+            net.StartSeats(room.Config.Seed, room.HumanMask);
+            _begun = true;
+            Changed = true;
+        }
+        int previousMask = net.HumanMask;
         Hold(input);
 
         net.Receive();
@@ -177,23 +185,8 @@ public sealed class BrowserNetMatch
                 net.SendInput(NextInput(input));
             session.AfterStep(silent: catchingUp);
         }
+        Changed |= previousMask != net.HumanMask;
         return taken;
-    }
-
-    /// <summary>
-    /// The relay has started the match: the slots nobody took get bots, made from the match seed so every client's
-    /// bots are the same, and the names are fixed.
-    /// </summary>
-    private void Begin(RoomClient room, NetSession net, BrowserSession session)
-    {
-        int tanks = session.World.TankList.Count;
-        _slotNames = new string[tanks];
-        for (int slot = 0; slot < tanks; slot++)
-            _slotNames[slot] = (room.HumanMask & 1 << slot) == 0 ? "Bot"
-                : slot < room.Roster.Length && room.Roster[slot].Length > 0 ? room.Roster[slot]
-                : "Player " + (slot + 1).ToString(CultureInfo.InvariantCulture);
-        net.StartSeats(room.Config.Seed, room.HumanMask);
-        Changed = true;
     }
 
     /// <summary>Keeps a build or upgrade press until a step carries it: a frame may simulate no tick at all.</summary>
@@ -243,14 +236,14 @@ public sealed class BrowserNetMatch
         var roster = new NetSlot[room.Config.Slots];
         for (int slot = 0; slot < roster.Length; slot++)
         {
-            string name = slot < _slotNames.Length ? _slotNames[slot]
+            string name = _begun ? room.DriverName(slot, Net!.HumanMask)
                 : slot < room.Roster.Length ? room.Roster[slot] : string.Empty;
             Color c = TankSprites.GetPixelColor(1, slot);
             roster[slot] = new NetSlot(name, string.Create(CultureInfo.InvariantCulture, $"#{c.R:x2}{c.G:x2}{c.B:x2}"),
                 slot == room.Slot, name.Length == 0);
         }
         var winner = Session?.World.MatchWinner?.Tank;
-        string? winnerName = winner != null && winner.Color < _slotNames.Length ? _slotNames[winner.Color] : null;
+        string? winnerName = winner != null && _begun ? room.DriverName(winner.Color, Net!.HumanMask) : null;
         return new NetStatus(room.Room, room.Slot, room.Config.Slots, roster, room.Started, room.IsHost, room.IsPaused,
             room.LatencyMs, Notice(room, buffered, out bool bad), bad,
             LobbyText.AssignedNameLine(room.RequestedName, room.AssignedName), room.Started ? null : LobbyHint(room),
@@ -274,6 +267,8 @@ public sealed class BrowserNetMatch
                 $"The players' games went out of sync at tick {tick}. The match cannot continue.");
         if (!room.Started)
             return null;
+        if (room.JoiningName.Length > 0)
+            return $"Copying the match to {room.JoiningName}.";
         if (room.IsPaused)
             return $"Paused by {room.PausedByName}. P resumes the match for everyone.";
         if (buffered <= NetworkTweaks.BehindWarningTicks)

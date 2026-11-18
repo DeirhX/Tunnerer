@@ -61,10 +61,12 @@ public static class MessageCodec
         return true;
     }
 
+    public static bool IsSnapshotChunk(ReadOnlySpan<byte> bytes) => !bytes.IsEmpty && (Kind)bytes[0] == Kind.SnapshotChunk;
+
     private enum Kind : byte
     {
         Hello = 1, Welcome, Roster, Ready, Start, Input, Tick, Hash, Desync, Refusal, StartRequest, Rejoined, Log, SetPaused, PauseState, Ping, Pong, MatchOver,
-        ReadyToLoad, SnapshotRequest, SnapshotChunk, SnapshotDone, SnapshotOffer, TakeSeat, Seated, SeatRefused, JoinFailed,
+        ReadyToLoad, SnapshotRequest, SnapshotChunk, SnapshotDone, SnapshotOffer, TakeSeat, Seated, SeatRefused, JoinFailed, JoinHoldState,
     }
 
     public static byte[] Encode(Message message)
@@ -81,6 +83,8 @@ public static class MessageCodec
                 WriteText(w, m.Room);
                 WriteConfig(w, m.Config);
                 WriteText(w, m.Secret, MaxSecretLength);
+                if (m.Snapshots != SnapshotCapabilities.None)
+                    w.Write((byte)m.Snapshots);
                 break;
             case Welcome m:
                 w.Write((byte)Kind.Welcome);
@@ -201,6 +205,10 @@ public static class MessageCodec
                 w.Write((byte)Kind.SeatRefused);
                 WriteText(w, m.Reason, MaxReasonLength);
                 break;
+            case JoinHoldState m:
+                w.Write((byte)Kind.JoinHoldState);
+                WriteText(w, m.Name);
+                break;
             case JoinFailed m:
                 w.Write((byte)Kind.JoinFailed);
                 WriteText(w, m.Reason, MaxReasonLength);
@@ -224,8 +232,8 @@ public static class MessageCodec
             using var r = new BinaryReader(stream, Encoding.UTF8);
             Message message = (Kind)r.ReadByte() switch
             {
-                Kind.Hello => new Hello(r.ReadInt32(), ReadText(r), ReadText(r), ReadText(r), ReadConfig(r), ReadText(r, MaxSecretLength * 3)),
-                Kind.Welcome => new Welcome(ReadCount(r, MaxSlots - 1), ReadConfig(r)),
+                Kind.Hello => ReadHello(r),
+                Kind.Welcome => ReadWelcome(r),
                 Kind.Roster => new Roster(ReadList(r, static x => ReadText(x))),
                 Kind.Ready => new Ready(r.ReadUInt64()),
                 Kind.Start => new Start(r.ReadByte()),
@@ -242,6 +250,7 @@ public static class MessageCodec
                 Kind.Ping => new Ping(r.ReadUInt32()),
                 Kind.Pong => new Pong(r.ReadUInt32()),
                 Kind.MatchOver => new MatchOver(r.ReadInt32()),
+                Kind.JoinHoldState => new JoinHoldState(ReadText(r)),
                 Kind.ReadyToLoad => new ReadyToLoad(),
                 Kind.SnapshotRequest => new SnapshotRequest(ReadNonnegative(r), ReadCount(r, 1) != 0),
                 Kind.SnapshotChunk => ReadChunk(r),
@@ -303,6 +312,22 @@ public static class MessageCodec
         if (config.TicksPerSecond is < MinTicksPerSecond or > MaxTicksPerSecond)
             throw new InvalidDataException($"A match at {config.TicksPerSecond} ticks a second is not allowed.");
         return config;
+    }
+
+    private static Hello ReadHello(BinaryReader r)
+    {
+        var hello = new Hello(r.ReadInt32(), ReadText(r), ReadText(r), ReadText(r), ReadConfig(r), ReadText(r, MaxSecretLength * 3));
+        return r.BaseStream.Position == r.BaseStream.Length ? hello :
+            hello with { Snapshots = (SnapshotCapabilities)ReadCount(r, (int)(SnapshotCapabilities.Upload | SnapshotCapabilities.Join)) };
+    }
+
+    private static Welcome ReadWelcome(BinaryReader r)
+    {
+        int slot = r.ReadSByte();
+        var config = ReadConfig(r);
+        if (slot < -1 || slot >= config.Slots)
+            throw new InvalidDataException("Invalid welcome slot.");
+        return new Welcome(slot, config);
     }
 
     private static int ReadNonnegative(BinaryReader r)

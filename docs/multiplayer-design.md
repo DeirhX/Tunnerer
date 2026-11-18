@@ -107,8 +107,8 @@ Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
 
 | Direction | Message | Purpose |
 |---|---|---|
-| C to S | `Hello { protocol, buildId, name, room, config, secret }` | Join a room, or open it with `config` if it does not exist. The kind byte and `protocol` come first in every protocol version, so the relay can refuse an old client before reading the rest |
-| S to C | `Welcome { slot, config }` | Slot assignment and the room's match settings |
+| C to S | `Hello { protocol, buildId, name, room, config, secret, snapshots? }` | Join a room, or open it with `config` if it does not exist. The kind byte and `protocol` come first in every protocol version, so the relay can refuse an old client before reading the rest |
+| S to C | `Welcome { slot, config }` | Slot assignment and the room's match settings. A snapshot-capable newcomer gets slot -1 until seated |
 | S to C | `Roster { names[] }` | Who is in each slot; sent on every change |
 | C to S | `Ready { worldHash }` | World built from the config; hash of tick 0 |
 | C to S | `StartRequest` | From the host (lowest slot): start with the players who are here |
@@ -119,6 +119,7 @@ Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
 | S to C | `Desync { n }` | Hashes differed at tick `n` |
 | S to C | `Refusal { reason }` | Cannot join, or the match cannot start; the reason is for the player. The connection closes after it |
 | S to C | `Rejoined { humanMask }`, `Log { firstTick, slots, inputs[], humanMasks[] }` | To a returning player: the match is on, and every tick so far in runs of 64 |
+| S to C | `JoinHoldState { name }` | The match is held for this newcomer. An empty name releases the join hold |
 | C to S | `SetPaused { paused }` | Hold the match for everyone, or let it run |
 | S to C | `PauseState { paused, bySlot }` | The match is held or running, and who asked |
 | both | `Ping { id }`, `Pong { id }` | Times the round trip, once a second |

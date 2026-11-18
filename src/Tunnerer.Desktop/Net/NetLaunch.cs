@@ -71,7 +71,7 @@ public static class NetLaunch
     /// <exception cref="RelayException">The relay could not be reached, or it refused the request.</exception>
     public static RelayConnection Join(NetLaunchOptions options, MatchConfig proposed)
     {
-        var hello = new Hello(MessageCodec.ProtocolVersion, NetMatch.BuildId, options.Name, options.Room, proposed, options.Secret);
+        var hello = new Hello(MessageCodec.ProtocolVersion, NetMatch.BuildId, options.Name, options.Room, proposed, options.Secret, SnapshotCapabilities.Upload);
         var connection = RelayConnection.Connect(options.Relay, hello, ConnectTimeout);
         if (NetMatch.CannotBuild(connection.Config) is { } reason)
         {

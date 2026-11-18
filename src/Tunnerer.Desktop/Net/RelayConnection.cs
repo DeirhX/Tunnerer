@@ -82,6 +82,8 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
 
     /// <inheritdoc cref="RoomClient.IsPaused"/>
     public bool IsPaused => _room.IsPaused;
+    public bool IsHeld => IsPaused || _room.JoiningName.Length > 0;
+    public string DriverName(int slot, int humanMask) => _room.DriverName(slot, humanMask);
 
     /// <inheritdoc cref="RoomClient.PausedBySlot"/>
     public int PausedBySlot => _room.PausedBySlot;
@@ -114,6 +116,8 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
             Message? answer = ReadAsync(socket, new byte[MessageCodec.MaxMessageBytes], limit.Token).GetAwaiter().GetResult();
             return answer switch
             {
+                Welcome { Slot: -1 } when !hello.Snapshots.HasFlag(SnapshotCapabilities.Join) =>
+                    throw new RelayException("The relay assigned a watcher to a client that requested a player seat."),
                 Welcome welcome => new RelayConnection(socket, welcome, hello, relay),
                 Refusal refusal => throw new RelayException(refusal.Reason),
                 _ => throw new RelayException("The relay closed the connection without an answer."),
@@ -157,6 +161,8 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
                 return $"The players' games went out of sync at tick {tick}. The match cannot continue.";
             if (!Started)
                 return $"Waiting for players: {PlayersHere} of {Config.Slots} here.";
+            if (_room.JoiningName.Length > 0)
+                return $"Copying the match to {_room.JoiningName}.";
             if (IsPaused)
                 return $"Paused by {_room.PausedByName}. P resumes the match for everyone.";
             return null;
