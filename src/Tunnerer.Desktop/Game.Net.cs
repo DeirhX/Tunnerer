@@ -127,7 +127,7 @@ public partial class Game
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using var writer = new StreamWriter(path);
-            DesyncReport.Write(writer, new MatchRecording(relay.Config, relay.HumanMask, session.Played),
+            DesyncReport.Write(writer, session.Recording(relay.Config),
                 desyncTick, relay.Slot, NetLaunch.BuildId, session.RecentDigests, _world);
             Console.WriteLine($"[Net] Out of sync at tick {desyncTick}. Report written to {path}");
         }
@@ -158,7 +158,7 @@ public partial class Game
                 : slot < relay.Roster.Length && relay.Roster[slot].Length > 0 ? relay.Roster[slot]
                 : "Player " + (slot + 1).ToString(CultureInfo.InvariantCulture);
         }
-        session.Bots = NetSession.CreateBots(_world, Seed, relay.HumanMask);
+        session.StartSeats(Seed, relay.HumanMask);
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"[Net] Match {(relay.Rejoined ? "rejoined" : "started")}: {string.Join(", ", _slotNames)}."));
     }

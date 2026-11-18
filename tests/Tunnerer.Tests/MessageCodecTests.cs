@@ -22,7 +22,7 @@ public class MessageCodecTests
         new Ping(77),
         new Pong(77),
         new Input(0x0FFF_FFFF),
-        new Tick(new TickBundle(123_456, [1u, 2u, 3u, 4u])),
+        new Tick(new TickBundle(123_456, [1u, 2u, 3u, 4u], HumanMask: 0)),
         new Hash(240, 0xDEADBEEFCAFEF00D),
         new Desync(48),
         new MatchOver(7200),
@@ -60,7 +60,7 @@ public class MessageCodecTests
         log[5] = 3;
         Assert.Throws<InvalidDataException>(() => MessageCodec.Decode(log));
         // A tick claiming more slots than a match can have.
-        byte[] tick = MessageCodec.Encode(new Tick(new TickBundle(1, [1u])));
+        byte[] tick = MessageCodec.Encode(new Tick(new TickBundle(1, [1u], HumanMask: 0)));
         tick[5] = MessageCodec.MaxSlots + 1;
         Assert.Throws<InvalidDataException>(() => MessageCodec.Decode(tick));
     }
@@ -173,15 +173,16 @@ public class MessageCodecTests
     {
         const int slots = 3;
         var log = Enumerable.Range(0, MessageCodec.MaxLogTicks * 2 + 5)
-            .Select(t => new TickBundle(t, [(uint)t, (uint)t + 1000, (uint)t + 2000]))
+            .Select(t => new TickBundle(t, [(uint)t, (uint)t + 1000, (uint)t + 2000], HumanMask: 0b011))
             .ToList();
 
         var chunks = Log.Chunk(log, slots).ToList();
 
         Assert.Equal(3, chunks.Count);
         Assert.All(chunks, chunk => Assert.Equal(chunk, MessageCodec.Decode(MessageCodec.Encode(chunk))));
-        var back = chunks.SelectMany(chunk => chunk.Bundles()).ToList();
+        var back = chunks.SelectMany(chunk => chunk.Bundles(humanMask: 0b011)).ToList();
         Assert.Equal(log.Select(b => b.Tick), back.Select(b => b.Tick));
         Assert.Equal(log.SelectMany(b => b.Inputs), back.SelectMany(b => b.Inputs));
+        Assert.All(back, b => Assert.Equal(0b011, b.HumanMask));
     }
 }

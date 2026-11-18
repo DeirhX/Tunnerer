@@ -335,7 +335,7 @@ public sealed class MatchRoom
             if (_peers[slot] is not null)
                 humanMask |= 1 << slot;
             else
-                _lockstep.Disconnect(slot);
+                _lockstep.SeatBot(slot);
         }
         IsRunning = true;
         _humanMask = humanMask;

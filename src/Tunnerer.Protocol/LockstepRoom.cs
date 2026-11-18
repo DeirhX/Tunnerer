@@ -17,6 +17,11 @@ using System.Collections.Immutable;
 /// tank must not drive and fire on by itself for as long as that takes.
 /// </para>
 /// <para>
+/// Every bundle carries the human mask: the slots players drive, as against bots, which every client runs itself.
+/// A slot nobody took at the start is a bot seat (<see cref="SeatBot"/>); a player who joins later takes one over
+/// (<see cref="Seat"/>), and the bundles say from which tick (docs/late-join-design.md §4.2).
+/// </para>
+/// <para>
 /// A queue more than one deep is a backlog: every input in it is played late, and since a client sends one input
 /// per tick it would never shrink. So while a slot has a backlog, an input whose keys are the same as the next
 /// one's is skipped. That loses no key press or release, only an aim on the way to the next aim.
@@ -42,6 +47,7 @@ public sealed class LockstepRoom
     private readonly int _silentTicks;
     private readonly List<TickBundle> _log = [];
     private readonly Dictionary<int, ulong> _hashes = [];
+    private readonly Dictionary<int, ulong> _snapshotDigests = [];
 
     /// <param name="keyMask">
     /// The bits of an input that are keys. With the default, every bit, only an input identical to the next is
@@ -65,6 +71,7 @@ public sealed class LockstepRoom
         _connected = new bool[slots];
         _dropped = new int[slots];
         Array.Fill(_connected, true);
+        HumanMask = slots >= 32 ? -1 : (1 << slots) - 1;
     }
 
     public int Slots => _queues.Length;
@@ -79,6 +86,40 @@ public sealed class LockstepRoom
     public int? DesyncTick { get; private set; }
 
     public bool IsConnected(int slot) => _connected[slot];
+
+    /// <summary>
+    /// The human mask the next bundle will carry: bit n is set while a player drives slot n (or will again: a
+    /// player who dropped out keeps the seat). Every slot to begin with.
+    /// </summary>
+    public int HumanMask { get; private set; }
+
+    /// <summary>True when a bot drives the slot: the only seat a player who joins later can take.</summary>
+    public bool IsBotSeat(int slot) => (HumanMask & 1 << slot) == 0;
+
+    /// <summary>
+    /// A bot drives the slot from the next tick: its bit in the human mask is cleared and its inputs no longer count.
+    /// The relay does this for every slot nobody took when the match starts.
+    /// </summary>
+    public void SeatBot(int slot)
+    {
+        HumanMask &= ~(1 << slot);
+        Disconnect(slot);
+    }
+
+    /// <summary>
+    /// A player takes over the bot in the slot from the next tick: its bit in the human mask is set and its inputs
+    /// count from then on (the neutral input until the first arrives). False, with nothing changed, when no bot
+    /// drives the slot: another player has it.
+    /// </summary>
+    public bool Seat(int slot)
+    {
+        if (!IsBotSeat(slot))
+            return false;
+        HumanMask |= 1 << slot;
+        _silentFor[slot] = 0;
+        Reconnect(slot);
+        return true;
+    }
 
     /// <summary>How many of the slot's inputs were lost because its queue was full and none could be skipped safely.</summary>
     public int DroppedInputs(int slot) => _dropped[slot];
@@ -150,7 +191,7 @@ public sealed class LockstepRoom
             }
             inputs.Add(_last[slot]);
         }
-        var bundle = new TickBundle(_log.Count, inputs.MoveToImmutable());
+        var bundle = new TickBundle(_log.Count, inputs.MoveToImmutable(), HumanMask);
         _log.Add(bundle);
         return bundle;
     }
@@ -162,16 +203,26 @@ public sealed class LockstepRoom
     /// catching up, is still checked. A tick that has not been closed yet cannot have been simulated by anyone and
     /// is ignored.
     /// </summary>
-    public void SubmitHash(int tick, ulong hash)
+    public void SubmitHash(int tick, ulong hash) => Compare(_hashes, tick, hash);
+
+    /// <summary>
+    /// Records an uploader's digest of the snapshot it saved after <paramref name="tick"/> ticks
+    /// (docs/late-join-design.md §9.2) and compares it with another uploader's. Two honest clients write the same
+    /// bytes, so a difference is a desync at that tick, like two hashes that differ; and unlike the sync hash, the
+    /// digest sees all of the state.
+    /// </summary>
+    public void SubmitSnapshotDigest(int tick, ulong digest) => Compare(_snapshotDigests, tick, digest);
+
+    private void Compare(Dictionary<int, ulong> reports, int tick, ulong value)
     {
         if (tick < 0 || tick > NextTick)
             return;
-        if (_hashes.TryGetValue(tick, out ulong known))
+        if (reports.TryGetValue(tick, out ulong known))
         {
-            if (known != hash && (DesyncTick is not int first || tick < first))
+            if (known != value && (DesyncTick is not int first || tick < first))
                 DesyncTick = tick;
             return;
         }
-        _hashes[tick] = hash;
+        reports[tick] = value;
     }
 }

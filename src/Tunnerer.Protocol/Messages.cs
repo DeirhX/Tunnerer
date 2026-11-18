@@ -71,11 +71,14 @@ public sealed record Log(int FirstTick, int Slots, ImmutableArray<uint> Inputs) 
 
     public override int GetHashCode() => FirstTick;
 
-    /// <summary>The ticks this message carries, one bundle each.</summary>
-    public IEnumerable<TickBundle> Bundles()
+    /// <summary>
+    /// The ticks this message carries, one bundle each, with <paramref name="humanMask"/> on every one. Protocol 5
+    /// does not carry the mask; the receiver gives the one the match started with.
+    /// </summary>
+    public IEnumerable<TickBundle> Bundles(int humanMask)
     {
         for (int i = 0; i * Slots < Inputs.Length; i++)
-            yield return new TickBundle(FirstTick + i, Inputs.Slice(i * Slots, Slots));
+            yield return new TickBundle(FirstTick + i, Inputs.Slice(i * Slots, Slots), humanMask);
     }
 
     /// <summary>
@@ -110,7 +113,10 @@ public sealed record Pong(uint Id) : Message;
 /// <summary>Client to relay: the local player's encoded input for one step.</summary>
 public sealed record Input(uint Encoded) : Message;
 
-/// <summary>Relay to clients: one tick to simulate.</summary>
+/// <summary>
+/// Relay to clients: one tick to simulate. Protocol 5 does not carry the bundle's human mask: a decoded bundle has 0
+/// there, and the client puts in the mask the match started with (<c>RelayConnection</c>).
+/// </summary>
 public sealed record Tick(TickBundle Bundle) : Message
 {
     public bool Equals(Tick? other) =>
@@ -134,3 +140,71 @@ public sealed record MatchOver(int AtTick) : Message;
 
 /// <summary>Relay to client: the request was refused, or the match cannot go on. The connection closes after it.</summary>
 public sealed record Refusal(string Reason) : Message;
+
+// Joining a match in progress (docs/late-join-design.md §4.3). Nothing gives these bytes yet: the in-process relay of
+// the tests carries them as they are, and protocol 6 adds them to MessageCodec.
+
+/// <summary>Joiner to relay: my world is built from the settings; hold the match and get me a snapshot.</summary>
+public sealed record ReadyToLoad : Message;
+
+/// <summary>
+/// Relay to an uploader: save the world after <paramref name="Tick"/> ticks and upload it. The match is held
+/// there, so no later tick comes until the join is over.
+/// </summary>
+public sealed record SnapshotRequest(int Tick) : Message;
+
+/// <summary>
+/// A piece of a compressed snapshot, uploader to relay and relay to joiner, in order from <paramref name="Index"/> 0.
+/// The relay passes the pieces on without reading them.
+/// </summary>
+public sealed record SnapshotChunk(int Tick, int Index, ImmutableArray<byte> Bytes) : Message
+{
+    /// <summary>The most bytes one chunk carries.</summary>
+    public const int MaxBytes = 32 * 1024;
+
+    public bool Equals(SnapshotChunk? other) =>
+        other is not null && Tick == other.Tick && Index == other.Index && Bytes.SequenceEqual(other.Bytes);
+
+    public override int GetHashCode() => HashCode.Combine(Tick, Index);
+
+    /// <summary>A compressed snapshot as chunks of at most <see cref="MaxBytes"/>, in order.</summary>
+    public static IEnumerable<SnapshotChunk> Split(int tick, byte[] compressed)
+    {
+        ArgumentNullException.ThrowIfNull(compressed);
+        for (int index = 0; index * MaxBytes < compressed.Length; index++)
+        {
+            int start = index * MaxBytes;
+            yield return new SnapshotChunk(
+                tick, index, ImmutableArray.Create(compressed, start, Math.Min(MaxBytes, compressed.Length - start)));
+        }
+    }
+}
+
+/// <summary>
+/// Uploader to relay: the upload of the snapshot after <paramref name="Tick"/> ticks is complete.
+/// </summary>
+/// <param name="Length">The compressed bytes sent, all chunks together.</param>
+/// <param name="Digest">
+/// A hash of the uncompressed snapshot, which is canonical: two clients with the same world send the same digest.
+/// (The compressed bytes are not: the compressor's output can change between runtime versions.)
+/// </param>
+/// <param name="SyncHash">The uploader's sync digest of the world at the same tick, as it would report in a hash.</param>
+public sealed record SnapshotDone(int Tick, int Length, ulong Digest, ulong SyncHash) : Message;
+
+/// <summary>
+/// Relay to a joiner: a snapshot of the world after <paramref name="Tick"/> ticks follows as chunks, with the digest
+/// and the sync digest the uploaders agreed on, for the joiner to check what it loads against.
+/// </summary>
+public sealed record SnapshotOffer(int Tick, int Length, ulong Digest, ulong SyncHash) : Message;
+
+/// <summary>Joiner to relay, with the world loaded: let me drive the bot in this slot.</summary>
+public sealed record TakeSeat(int Slot) : Message;
+
+/// <summary>Joiner to relay: the snapshot failed its checks, or no seat is worth taking; let the match go on.</summary>
+public sealed record JoinFailed(string Reason) : Message;
+
+/// <summary>Relay to a joiner: granted; you drive <paramref name="Slot"/>, and your inputs count from tick <paramref name="AtTick"/>.</summary>
+public sealed record Seated(int Slot, int AtTick) : Message;
+
+/// <summary>Relay to a joiner: not granted (another joiner took the seat first); ask for another.</summary>
+public sealed record SeatRefused(string Reason) : Message;

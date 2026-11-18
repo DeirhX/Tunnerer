@@ -20,6 +20,7 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     private readonly Channel<byte[]> _outbox = Channel.CreateUnbounded<byte[]>(
         new UnboundedChannelOptions { SingleReader = true });
     private readonly Queue<TickBundle> _bundles = new();
+    private readonly Queue<Message> _joinMessages = new();
     private volatile string? _lost;
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
     private TimeSpan _pingSentAt;
@@ -149,7 +150,9 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
         {
             switch (received.Message)
             {
-                case Tick tick: _bundles.Enqueue(tick.Bundle); break;
+                // Protocol 5 does not carry the human mask, and its relay never changes it: every tick has the
+                // mask the match started with.
+                case Tick tick: _bundles.Enqueue(tick.Bundle with { HumanMask = HumanMask }); break;
                 case Roster roster: Roster = roster.Names; break;
                 case Start start:
                     Started = true;
@@ -161,7 +164,7 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
                     HumanMask = rejoined.HumanMask;
                     break;
                 case Log log:
-                    foreach (var bundle in log.Bundles())
+                    foreach (var bundle in log.Bundles(HumanMask))
                         _bundles.Enqueue(bundle);
                     break;
                 case PauseState pause:
@@ -172,6 +175,9 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
                     _pingPending = false;
                     // Timed to when the answer arrived, not to when the game loop got round to reading it.
                     LatencyMs = (int)Math.Round((received.Arrived - _pingSentAt).TotalMilliseconds);
+                    break;
+                case SnapshotRequest or SnapshotOffer or SnapshotChunk or Seated or SeatRefused:
+                    _joinMessages.Enqueue(received.Message);
                     break;
                 case Desync desync: DesyncTick ??= desync.AtTick; break;
                 case Refusal refusal: Failure ??= refusal.Reason; break;
@@ -236,6 +242,14 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     public void SendMatchOver(int tick) => Send(new MatchOver(tick));
 
     public bool TryReceive([NotNullWhen(true)] out TickBundle? bundle) => _bundles.TryDequeue(out bundle);
+
+    /// <summary>
+    /// Sends a message of joining a match in progress. Protocol 5 has no bytes for them, and its relay never asks
+    /// for a snapshot, so nothing calls this yet over a socket.
+    /// </summary>
+    public void SendJoin(Message message) => Send(message);
+
+    public bool TryReceiveJoin([NotNullWhen(true)] out Message? message) => _joinMessages.TryDequeue(out message);
 
     private bool _disposed;
 

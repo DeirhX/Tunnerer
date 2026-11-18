@@ -1,6 +1,8 @@
 namespace Tunnerer.Core.Snapshots;
 
+using System.Buffers.Binary;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using Tunnerer.Core.Bots;
 
 /// <summary>
@@ -72,6 +74,19 @@ public static class WorldSnapshot
         using (var brotli = new BrotliStream(buffer, level, leaveOpen: true))
             brotli.Write(snapshot);
         return buffer.ToArray();
+    }
+
+    /// <summary>
+    /// A 64-bit hash of an uncompressed snapshot, for comparing two players' snapshots of one tick and for a joiner
+    /// to check what it received (docs/late-join-design.md §10.3). The uncompressed bytes are canonical; the
+    /// compressed ones are not, since the compressor's output may change between runtime versions. The first eight
+    /// bytes of SHA-256, which every platform computes alike and in hardware where it can.
+    /// </summary>
+    public static ulong Digest(ReadOnlySpan<byte> snapshot)
+    {
+        Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(snapshot, hash);
+        return BinaryPrimitives.ReadUInt64LittleEndian(hash);
     }
 
     /// <summary>The largest snapshot a client accepts (docs/late-join-design.md §9.3).</summary>

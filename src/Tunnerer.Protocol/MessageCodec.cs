@@ -179,7 +179,7 @@ public static class MessageCodec
                 Kind.Start => new Start(r.ReadByte()),
                 Kind.StartRequest => new StartRequest(),
                 Kind.Input => new Input(r.ReadUInt32()),
-                Kind.Tick => new Tick(new TickBundle(r.ReadInt32(), ReadList(r, static x => x.ReadUInt32()))),
+                Kind.Tick => new Tick(new TickBundle(r.ReadInt32(), ReadList(r, static x => x.ReadUInt32()), HumanMask: 0)),
                 Kind.Hash => new Hash(r.ReadInt32(), r.ReadUInt64()),
                 Kind.Desync => new Desync(r.ReadInt32()),
                 Kind.Refusal => new Refusal(ReadText(r, MaxReasonLength * 3)),

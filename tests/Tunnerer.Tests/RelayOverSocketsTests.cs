@@ -579,8 +579,8 @@ public class RelayOverSocketsTests
             void Play(NetSession session, RelayConnection connection, World world, int limit = int.MaxValue)
             {
                 session.Receive();
-                if (connection.Started && world.AdvanceCount == 0 && session.Bots.Count == 0)
-                    session.Bots = NetSession.CreateBots(world, connection.Config.Seed, connection.HumanMask);
+                if (connection.Started && world.AdvanceCount == 0 && session.HumanMask != connection.HumanMask)
+                    session.StartSeats(connection.Config.Seed, connection.HumanMask);
                 while (world.AdvanceCount < limit && session.TryStep())
                     session.SendInput(new ControllerOutput
                     {
