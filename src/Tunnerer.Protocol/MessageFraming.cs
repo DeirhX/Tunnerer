@@ -12,17 +12,22 @@ public static class MessageFraming
     public static async Task<ArraySegment<byte>?> ReadFrameAsync(WebSocket socket, byte[] buffer, CancellationToken cancel)
     {
         int length = 0;
+        byte[]? overflow = null;
         while (true)
         {
-            ValueWebSocketReceiveResult part =
-                await socket.ReceiveAsync(buffer.AsMemory(length), cancel).ConfigureAwait(false);
+            // A maximum-sized message may still have an empty final fragment. Read one byte in that case
+            // to distinguish the terminator from data beyond the limit.
+            Memory<byte> target = length == buffer.Length ? (overflow ??= new byte[1]) : buffer.AsMemory(length);
+            ValueWebSocketReceiveResult part = await socket.ReceiveAsync(target, cancel).ConfigureAwait(false);
             if (part.MessageType == WebSocketMessageType.Close)
                 return null;
+            if (part.MessageType != WebSocketMessageType.Binary)
+                throw new InvalidDataException("Expected a binary WebSocket message.");
+            if (part.Count > buffer.Length - length)
+                throw new InvalidDataException("A message is longer than the protocol allows.");
             length += part.Count;
             if (part.EndOfMessage)
                 return new ArraySegment<byte>(buffer, 0, length);
-            if (length == buffer.Length)
-                throw new InvalidDataException("A message is longer than the protocol allows.");
         }
     }
 }

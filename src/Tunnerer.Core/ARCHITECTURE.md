@@ -102,7 +102,7 @@ Snapshots/                   A match's state for a player who joins it in progre
   SnapshotLayout.cs          What writer and reader agree on: saved fields in order, kinds of value, shared constants
   NotSavedAttribute.cs       [NotSaved("reason")], the only way to leave a field out; ISnapshotLoaded rebuilds an
                              index (machine buckets, link tiles) once a snapshot is loaded
-  SnapshotCoverage.cs        Every mark, and any reachable field the saver cannot write (SnapshotCoverageTests)
+  SnapshotCoverage.cs        Reachable types allowed by the reader, unsupported fields, and every exclusion
 LevelGen/
   ToastGenerator.cs          Cavern generator (LevelGenMode Deterministic or Optimized)
   GeneratorUtils.cs          Shared drawing and placement helpers (lines, TooClose)

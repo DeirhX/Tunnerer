@@ -1,6 +1,7 @@
 namespace Tunnerer.Core.Snapshots;
 
 using System.Reflection;
+using Tunnerer.Core.Bots;
 using static SnapshotLayout;
 
 /// <summary>
@@ -31,7 +32,7 @@ public static class SnapshotCoverage
 
     /// <summary>
     /// Walks every type a snapshot of <paramref name="roots"/> can reach (field types, element types, and every Core
-    /// type that can stand in a field of an abstract or interface type) and returns each saved field whose type the
+    /// type that can stand in a field of a base or interface type) and returns each saved field whose type the
     /// writer cannot write, as "Type.field: field type". A type marked <see cref="NotSavedAttribute"/>, and a shared
     /// constant's type (<see cref="MachineBehavior"/>), is not walked into.
     /// <para>
@@ -43,11 +44,24 @@ public static class SnapshotCoverage
     public static IReadOnlyList<string> UnsavableFields(IEnumerable<Type> roots)
     {
         ArgumentNullException.ThrowIfNull(roots);
+        var problems = new List<string>();
+        Walk(roots, problems);
+        return [.. problems.Distinct().OrderBy(p => p, StringComparer.Ordinal)];
+    }
+
+    /// <summary>The only concrete types a reader may construct, named exactly as the writer names them.</summary>
+    internal static Dictionary<string, Type> ReadableTypes() =>
+        Walk([typeof(World), typeof(BotTankAI[])], [])
+            .Where(t => !t.IsAbstract && !IsKeptType(t) && !Constants.Any(c => c.GetType() == t) &&
+                KindOf(t) is Kind.Class or Kind.List or Kind.String or Kind.Array)
+            .ToDictionary(t => t.AssemblyQualifiedName!, StringComparer.Ordinal);
+
+    private static HashSet<Type> Walk(IEnumerable<Type> roots, List<string> problems)
+    {
         Type[] coreTypes = typeof(SnapshotCoverage).Assembly.GetTypes();
         var constantTypes = Constants.Select(c => c.GetType()).ToHashSet();
-        var seen = new HashSet<Type>();
-        var pending = new Queue<Type>(roots);
-        var problems = new List<string>();
+        var seen = roots.ToHashSet();
+        var pending = new Queue<Type>(seen);
 
         void Reach(Type type)
         {
@@ -77,7 +91,7 @@ public static class SnapshotCoverage
                 default:
                     continue; // a leaf, or reported at the field that holds it
             }
-            if (type.IsAbstract || type.IsInterface)
+            if (IsOurs(type) && !type.IsSealed)
                 foreach (Type concrete in coreTypes.Where(t => !t.IsAbstract && !t.IsInterface && type.IsAssignableFrom(t)))
                     Reach(concrete);
             if (type.IsInterface)
@@ -93,7 +107,7 @@ public static class SnapshotCoverage
                     Reach(held);
             }
         }
-        return [.. problems.Distinct().OrderBy(p => p, StringComparer.Ordinal)];
+        return seen;
     }
 
     private static string NameOf(Type type)

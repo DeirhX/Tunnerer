@@ -403,13 +403,23 @@ public class NetSessionTests
         Assert.NotNull(join.Session.Bots[2]);
     }
 
-    public static TheoryData<string> BrokenUploads => ["digest", "syncHash", "tick", "order"];
+    public static TheoryData<string> BrokenUploads => ["digest", "syncHash", "tick", "order", "truncated"];
 
     [Theory]
     [MemberData(nameof(BrokenUploads))]
     public void Joiner_RefusesASnapshotThatFailsAnyCheck(string broken)
     {
         var (offer, chunks) = UploadOfAMatch();
+        if (broken == "truncated")
+        {
+            var assembly = new SnapshotAssembly(offer.Tick, offer.Length);
+            Assert.All(chunks, c => Assert.True(assembly.Add(c)));
+            byte[] raw = WorldSnapshot.Decompress(assembly.ToArray());
+            byte[] partial = raw[..(raw.Length / 2)];
+            byte[] compressed = WorldSnapshot.Compress(partial);
+            offer = offer with { Digest = WorldSnapshot.Digest(partial), Length = compressed.Length };
+            chunks = [.. SnapshotChunk.Split(offer.Tick, compressed)];
+        }
         offer = broken switch
         {
             "digest" => offer with { Digest = offer.Digest + 1 },

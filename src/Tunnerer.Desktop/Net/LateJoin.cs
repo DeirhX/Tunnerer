@@ -75,7 +75,7 @@ public sealed class LateJoin
             switch (message)
             {
                 case SnapshotOffer offer when Current == Stage.CopyingTheMatch && _offer == null:
-                    if (offer.Length is <= 0 or > WorldSnapshot.MaxBytes)
+                    if (offer.Length is <= 0 or > MessageCodec.MaxSnapshotBytes)
                     {
                         Fail("The match copy offered is not a size a match can be.");
                         break;

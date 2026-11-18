@@ -78,10 +78,26 @@ public class SnapshotRoundTripTests
         byte[] raw = WorldSnapshot.Save(world, [null, null]);
 
         Assert.Throws<InvalidDataException>(() => WorldSnapshot.Load(TestHelpers.CreateSeededWorld(size: new Size(160, 100)), raw));
-        Assert.ThrowsAny<Exception>(() => WorldSnapshot.Load(BotWorld(), raw[..(raw.Length / 2)]));
+        Assert.Throws<InvalidDataException>(() => WorldSnapshot.Load(BotWorld(), raw[..(raw.Length / 2)]));
         byte[] foreign = (byte[])raw.Clone();
         foreign[0] ^= 0xFF;
         Assert.Throws<InvalidDataException>(() => WorldSnapshot.Load(BotWorld(), foreign));
+    }
+
+    [Theory]
+    [InlineData(typeof(DateOnly), "Unknown")]
+    [InlineData(typeof(BotTankAI), "where a")]
+    public void SnapshotRequiresAKnownTypeAssignableToItsRoot(Type wrong, string expectedError)
+    {
+        var world = BotWorld();
+        byte[] snapshot = WorldSnapshot.Save(world, [null, null]);
+        using var header = new MemoryStream();
+        using var writer = new BinaryWriter(header);
+        // Keep the map header, new-reference tag and first type index from the canonical snapshot.
+        writer.Write(snapshot.AsSpan(0, 3 * sizeof(int) + 2));
+        writer.Write(wrong.AssemblyQualifiedName!);
+        var failure = Assert.Throws<InvalidDataException>(() => WorldSnapshot.Load(BotWorld(), header.ToArray()));
+        Assert.Contains(expectedError, failure.Message, StringComparison.Ordinal);
     }
 
     private static SimulationFingerprintTests.Scenario FingerprintScenario(string name) => name switch

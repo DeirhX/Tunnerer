@@ -48,6 +48,25 @@ public static class WorldSnapshot
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Length > MaxBytes)
+            throw new InvalidDataException($"The snapshot exceeds {MaxBytes} bytes.");
+        try
+        {
+            return LoadWorld(world, snapshot);
+        }
+        catch (EndOfStreamException e)
+        {
+            throw new InvalidDataException("The snapshot is truncated.", e);
+        }
+        catch (FormatException e)
+        {
+            throw new InvalidDataException("The snapshot contains an invalid encoded number.", e);
+        }
+    }
+
+    private static BotTankAI?[] LoadWorld(World world, byte[] snapshot)
+    {
+        int slots = world.TankList.Count;
         using var input = new BinaryReader(new MemoryStream(snapshot, writable: false));
         if (input.ReadUInt32() != SnapshotLayout.Magic)
             throw new InvalidDataException("Not a snapshot.");
@@ -59,7 +78,8 @@ public static class WorldSnapshot
         var reader = new SnapshotReader(input);
         if (!ReferenceEquals(reader.ReadRoot(typeof(World), world), world))
             throw new InvalidDataException("The snapshot's world did not load into the world given.");
-        var bots = (BotTankAI?[])reader.ReadRoot(typeof(BotTankAI?[]), null)!;
+        if (reader.ReadRoot(typeof(BotTankAI?[]), null) is not BotTankAI?[] bots || bots.Length != slots)
+            throw new InvalidDataException("The snapshot needs one bot entry per player slot.");
         if (input.ReadUInt32() != SnapshotLayout.Magic || input.BaseStream.Position != input.BaseStream.Length)
             throw new InvalidDataException("The snapshot does not end where it should.");
         reader.FinishLoading();

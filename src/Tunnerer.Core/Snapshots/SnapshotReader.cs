@@ -2,6 +2,7 @@ namespace Tunnerer.Core.Snapshots;
 
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using static SnapshotLayout;
 
 /// <summary>
@@ -12,20 +13,33 @@ using static SnapshotLayout;
 /// </summary>
 internal sealed class SnapshotReader
 {
+    private static readonly Dictionary<string, Type> AllowedTypes = SnapshotCoverage.ReadableTypes();
+    private static readonly int MaxTypeNameBytes = AllowedTypes.Keys.Max(Encoding.UTF8.GetByteCount);
+
+    // Raw terrain arrays dominate a normal snapshot and are checked in bytes. Bound the graph overhead
+    // separately: null references use a single wire byte, and even an empty object needs a table entry.
+    private const int MaxObjects = 256 * 1024;
+    private const int MaxNonBulkElements = 1024 * 1024;
+
     private readonly BinaryReader _in;
+    private long _collectionBytesLeft;
+    private int _nonBulkElementsLeft = MaxNonBulkElements;
+
     private readonly List<object> _objects = [];
     private readonly HashSet<object> _claimed = new(ReferenceEqualityComparer.Instance);
     private readonly List<Type> _types = [];
     private readonly Queue<object> _pending = new();
 
-    public SnapshotReader(BinaryReader input) => _in = input;
+    public SnapshotReader(BinaryReader input)
+    {
+        _in = input;
+        _collectionBytesLeft = input.BaseStream.Length;
+    }
 
     /// <summary>Reads a root into <paramref name="existing"/> where it can, then everything it reaches.</summary>
     public object? ReadRoot(Type declared, object? existing)
     {
-        object? root = ReadReference(existing);
-        if (root != null && !declared.IsInstanceOfType(root))
-            throw new InvalidDataException($"The snapshot holds a {root.GetType()} where a {declared} belongs.");
+        object? root = ReadReference(declared, existing);
         while (_pending.Count > 0)
             ReadContents(_pending.Dequeue());
         return root;
@@ -42,7 +56,7 @@ internal sealed class SnapshotReader
     private object? ReadValue(Type declared, object? existing)
     {
         if (!IsInline(declared))
-            return ReadReference(existing);
+            return ReadReference(declared, existing);
         switch (KindOf(declared))
         {
             case Kind.Primitive:
@@ -64,7 +78,7 @@ internal sealed class SnapshotReader
         }
     }
 
-    private object? ReadReference(object? existing)
+    private object? ReadReference(Type declared, object? existing)
     {
         byte tag = _in.ReadByte();
         switch (tag)
@@ -72,10 +86,12 @@ internal sealed class SnapshotReader
             case RefNull:
                 return null;
             case RefSeen:
-                return _objects[_in.Read7BitEncodedInt()];
+                return ReadIndexedReference(declared, _objects);
             case RefConstant:
-                return Constants[_in.Read7BitEncodedInt()];
+                return ReadIndexedReference(declared, Constants);
             case RefKept:
+                if (!IsKeptType(existing?.GetType() ?? declared))
+                    throw new InvalidDataException("Only a field retained by the local world can have a kept reference.");
                 return existing;
             case RefNew:
                 break;
@@ -83,15 +99,19 @@ internal sealed class SnapshotReader
                 throw new InvalidDataException($"Unknown reference tag {tag}.");
         }
 
+        if (_objects.Count >= MaxObjects)
+            throw new InvalidDataException("The snapshot contains too many objects.");
         Type type = ReadType();
+        if (!declared.IsAssignableFrom(type))
+            throw new InvalidDataException($"The snapshot holds a {type} where a {declared} belongs.");
         object value;
         switch (KindOf(type))
         {
             case Kind.String:
-                value = _in.ReadString();
+                value = ReadString(WorldSnapshot.MaxBytes);
                 break;
             case Kind.Array:
-                int length = _in.Read7BitEncodedInt();
+                int length = ReadCollectionCount(type.GetElementType()!);
                 value = existing is Array same && same.GetType() == type && same.Length == length && !_claimed.Contains(same)
                     ? same
                     : Array.CreateInstance(type.GetElementType()!, length);
@@ -112,6 +132,28 @@ internal sealed class SnapshotReader
         return value;
     }
 
+    private object ReadIndexedReference(Type declared, IReadOnlyList<object> table)
+    {
+        int index = _in.Read7BitEncodedInt();
+        if ((uint)index >= (uint)table.Count || !declared.IsInstanceOfType(table[index]))
+            throw new InvalidDataException($"Invalid snapshot reference for {declared}.");
+        return table[index];
+    }
+
+    private int ReadCollectionCount(Type element)
+    {
+        int count = _in.Read7BitEncodedInt();
+        bool bulk = IsBulk(element);
+        long bytes = (long)count * (bulk ? BulkSize(element) : 1);
+        if (count < 0 || bytes > _in.BaseStream.Length - _in.BaseStream.Position || bytes > _collectionBytesLeft ||
+            (!bulk && count > _nonBulkElementsLeft))
+            throw new InvalidDataException("The snapshot collection exceeds the available data or element limit.");
+        _collectionBytesLeft -= bytes;
+        if (!bulk)
+            _nonBulkElementsLeft -= count;
+        return count;
+    }
+
     private object? Reuse(object? existing, Type type) =>
         existing != null && existing.GetType() == type && !_claimed.Contains(existing) ? existing : null;
 
@@ -126,11 +168,11 @@ internal sealed class SnapshotReader
             case Kind.List:
                 var list = AsList(value);
                 Type element = ListElement(type);
+                int count = ReadCollectionCount(element);
                 // What the built list held, so that its objects are filled in place where they line up.
                 var before = new object?[list.Count];
                 list.CopyTo(before, 0);
                 list.Clear();
-                int count = _in.Read7BitEncodedInt();
                 for (int i = 0; i < count; i++)
                     list.Add(ReadValue(element, i < before.Length ? before[i] : null));
                 break;
@@ -164,14 +206,23 @@ internal sealed class SnapshotReader
     private Type ReadType()
     {
         int index = _in.Read7BitEncodedInt();
-        if (index < _types.Count)
+        if ((uint)index < (uint)_types.Count)
             return _types[index];
         if (index != _types.Count)
             throw new InvalidDataException("Snapshot type table out of order.");
-        string name = _in.ReadString();
-        Type type = Type.GetType(name, throwOnError: true)!;
+        string name = ReadString(MaxTypeNameBytes);
+        if (!AllowedTypes.TryGetValue(name, out Type? type) || _types.Contains(type))
+            throw new InvalidDataException("Unknown or repeated snapshot type.");
         _types.Add(type);
         return type;
+    }
+
+    private string ReadString(int maxBytes)
+    {
+        int length = _in.Read7BitEncodedInt();
+        if (length < 0 || length > maxBytes || length > _in.BaseStream.Length - _in.BaseStream.Position)
+            throw new InvalidDataException("Invalid snapshot string length.");
+        return Encoding.UTF8.GetString(_in.ReadBytes(length));
     }
 
     private object ReadPrimitive(Type type)

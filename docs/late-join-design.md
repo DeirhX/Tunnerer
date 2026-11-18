@@ -1,8 +1,8 @@
 # Joining a match in progress: design
 
 Status: proposed, 2026-11-17; reworked 2026-11-18 around snapshots, with no catch-up. Steps 1 to 4 of §13 are built
-(2026-11-18): the join works in process, through the tests' in-memory relay; the relay server, the wire format and
-the game's screens are not done.
+(2026-11-18): the join works in process, through the tests' in-memory relay; protocol 6 carries the snapshot messages and seat masks. Running rooms on the
+relay server still admit returning players by name. Admission of a new player and the game screens are pending.
 It extends [multiplayer-design.md](multiplayer-design.md) §5, which leaves "late join of a new player" out of the
 first tranche.
 
@@ -591,11 +591,6 @@ Each step is testable without the next.
    offer; the seat rule and `SeatRefused`. No simulation change: the fingerprints are as they were.
 
    Notes for what follows:
-   - **The wire is unchanged.** Protocol 5 carries no mask and none of the join messages: the codec decodes a tick
-     with mask 0 and `RelayConnection` puts the start mask on every tick and log, which is right while no relay
-     changes seats. `RelayConnection.SendJoin` would throw (no encoding), and nothing calls it until step 5 adds
-     the bytes. `PauseState.joining`, `Welcome { slot: -1 }`, `InProgress`, `Log` masks and `MatchConfig.LateJoin`
-     are step 5's.
    - **Ticks are counted as hashes count them** (§4.1): `S` is the ticks closed when the hold starts, the snapshot
      is the world after them, and `Seated` and the new mask are at bundle `S`.
    - **`SeatRefused` names no slot**: the joiner asks for one seat at a time and knows which.
@@ -605,11 +600,15 @@ Each step is testable without the next.
      tracks which slot reported each hash so the relay can choose the players nearest the live tick (§9.2).
    - **A recording holds its snapshot inline**, in base 64 (about 400 KiB of text at 480 x 300), so a desync
      report stays one file that `MatchRecording.Load` reads.
-5. **The relay and the codec.** Start with a newcomer taking a bot seat over a local socket. Keep the existing
-   rejoin path working while this is built. Before accepting snapshots from peers, bound the allocations made by
-   the reader and restrict type resolution to the local snapshot schema. The decompression limit bounds the byte
-   stream, while the reader currently uses counts and type names from inside it to construct the object graph.
-   Hash agreement checks that peers saved the same state. A lone uploader supplies its own hashes.
+5. **The relay and the codec** (in progress). Protocol 6 carries the human mask in each live and logged tick.
+   The join tests now encode and decode the request, snapshot chunks, reports and seat handover. Only a chunk
+   may exceed the ordinary 4 KiB frame limit. Rejoining by name continues to use the recorded ticks.
+
+   The snapshot reader resolves type names against the locally reachable types, checks references against the
+   receiving field, and charges collection counts against the raw input size before allocating. It also caps
+   graph overhead at 262,144 objects and 1,048,576 non-bulk collection elements. These limits apply to loads
+   from recordings as well. Before enabling peer uploads on the relay, validate the loaded world's game
+   invariants before rebuilding indexes and stepping it. A lone uploader supplies its own hashes.
 
    Measure the time from `ReadyToLoad` to the first resumed tick with a throttled connection. Exercise the timeout
    and an uploader disconnect before expanding to multiple joiners and rejoin by snapshot. If the uploader leaves,
@@ -620,16 +619,15 @@ Each step is testable without the next.
    joiners in one hold, an uploader leaving, the hold timeout, a pause during a hold, a seated late joiner who
    rejoins by name. A socket test in `RelayOverSocketsTests` (marked `Slow`). Deploy the relay to Starfish. The
    relay's 32 MiB cap stays in step with `WorldSnapshot.MaxBytes`. From step 4 it has `LockstepRoom.Seat`,
-   `SnapshotHold` and `SnapshotAssembly` to build on, and `InMemoryRelay` as a sketch of the flow; the codec needs
-   the mask in `Tick` and `Log` (then `RelayConnection` stops putting the start mask in) and bytes for the join
-   messages, chunks over the 4 KiB message limit included.
+   `SnapshotHold` and `SnapshotAssembly` to build on, and `InMemoryRelay` as a sketch of the flow. Watcher admission, the
+   room clock and transfer budgets belong to the real relay.
 6. **The game.** The local seat that can change, the full terrain upload after loading, vision and radar from the
    seat, names from the roster, the screens. Check by hand with three clients on one machine through a local
    relay: start with two in a four-slot room, join with the third ten minutes in. After loading, the client
    rebuilds what Core leaves to it: vision and radar cast from scratch (`SideSensing` is not saved), the whole
    terrain uploaded to the renderer (the change list is not saved), and no step events read from the load tick.
-   For browser players to join, check a trimmed WebAssembly build: the saver finds types by reflection and
-   `Type.GetType` with assembly-qualified names, which trimming can remove; a source generator could replace the
+   For browser players to join, check a trimmed WebAssembly build: the local snapshot schema depends on
+   reflected types and fields that trimming can remove; a source generator could replace the
    walk, and the coverage test stays as it is.
 7. **Docs.** multiplayer-design.md §4 (messages), §5 (late join, and rejoin by snapshot) and §10, and the open
    questions.

@@ -207,7 +207,7 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     {
         try
         {
-            byte[] buffer = new byte[MessageCodec.MaxMessageBytes];
+            byte[] buffer = new byte[MessageCodec.MaxFrameBytes];
             while (await ReadAsync(_socket, buffer, _closing.Token).ConfigureAwait(false) is { } message)
                 _inbox.Enqueue((message, _clock.Elapsed));
             _lost = "the relay closed the connection.";

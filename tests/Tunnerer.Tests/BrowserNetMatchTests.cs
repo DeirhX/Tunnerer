@@ -74,11 +74,13 @@ public class BrowserNetMatchTests
         Assert.Equal(0, match.Advance(default, dueByClock: 1, Now));
         Assert.Equal(0, match.Session.World.AdvanceCount);
 
-        Feed(match, new Start(0b11), Tick(0), Tick(1));
+        Feed(match, new Start(0b11), Tick(0, [0u, 0u, 0u], 3), Tick(1, [0u, 0u, 0u], 7));
         match.TakeOutgoing();
         var press = new ControllerOutput { BuildPrimary = true };
         Assert.Equal(2, match.Advance(press, dueByClock: 1, Now));
         Assert.Equal(2, match.Session.World.AdvanceCount);
+        Assert.Equal(0b111, match.Net!.HumanMask);
+        Assert.Null(match.Net.Bots[2]);
         // A press goes out with one tick, and the next tick releases it, so Core sees one press.
         var inputs = match.TakeOutgoing().Select(b => MessageCodec.Decode(b)).OfType<Input>()
             .Select(i => ControllerOutputCodec.Decode(i.Encoded)).ToArray();
@@ -94,7 +96,7 @@ public class BrowserNetMatchTests
         match.TakeOutgoing();
 
         Assert.Equal(0, match.Advance(new ControllerOutput { Upgrade = 2 }, 1, Now));
-        Feed(match, Tick(0), Tick(1), Tick(2));
+        Feed(match, Tick(0, [0u, 0u], 1), Tick(1, [0u, 0u], 1), Tick(2, [0u, 0u], 1));
         Assert.Equal(3, match.Advance(default, 1, Now));
 
         var upgrades = match.TakeOutgoing().Select(b => MessageCodec.Decode(b)).OfType<Input>()
@@ -119,20 +121,19 @@ public class BrowserNetMatchTests
     {
         var config = NetMatch.ProposeConfig(42, new Size(320, 200), LevelGenMode.Deterministic, 2);
         var match = new BrowserNetMatch("room", "Ann", "", config);
-        Feed(match, new Welcome(0, config), new Roster(["Ann", "Bob"]), new Start(0b11), Tick(0));
+        Feed(match, new Welcome(0, config), new Roster(["Ann", "Bob"]), new Start(0b11), Tick(0, [0u, 0u], 3));
         match.Advance(default, 1, Now);
         match.Lose("lost the connection to the relay.");
 
         var status = match.Status();
         Assert.True(status.Bad);
         Assert.StartsWith("Disconnected: lost the connection to the relay. Join again", status.Notice, StringComparison.Ordinal);
-        Feed(match, Tick(1));
+        Feed(match, Tick(1, [0u, 0u], 3));
         Assert.Equal(0, match.Advance(default, 1, Now));
     }
 
-    private static TickBundle Bundle(int tick) => new(tick, [0u, 0u], HumanMask: 0);
-
-    private static Tick Tick(int tick) => new(Bundle(tick));
+    private static Tick Tick(int tick, System.Collections.Immutable.ImmutableArray<uint> inputs, int mask) =>
+        new(new TickBundle(tick, inputs, mask));
 
     private static void Feed(BrowserNetMatch match, params Message[] messages)
     {

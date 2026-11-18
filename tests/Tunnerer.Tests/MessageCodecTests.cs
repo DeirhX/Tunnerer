@@ -1,5 +1,6 @@
 namespace Tunnerer.Tests;
 
+using System.Collections.Immutable;
 using Tunnerer.Protocol;
 
 public class MessageCodecTests
@@ -16,16 +17,26 @@ public class MessageCodecTests
         new Start(HumanMask: 0b1011),
         new StartRequest(),
         new Rejoined(HumanMask: 0b0111),
-        new Log(FirstTick: 128, Slots: 2, [1u, 2u, 3u, 4u, 5u, 6u]),
+        new Log(FirstTick: 128, Slots: 2, [1u, 2u, 3u, 4u, 5u, 6u], [1, 1, 3]),
         new SetPaused(true),
         new PauseState(Paused: true, BySlot: 3),
         new Ping(77),
         new Pong(77),
         new Input(0x0FFF_FFFF),
-        new Tick(new TickBundle(123_456, [1u, 2u, 3u, 4u], HumanMask: 0)),
+        new Tick(new TickBundle(123_456, [1u, 2u, 3u, 4u], HumanMask: 0b1011)),
         new Hash(240, 0xDEADBEEFCAFEF00D),
         new Desync(48),
         new MatchOver(7200),
+        new ReadyToLoad(),
+        new SnapshotRequest(48, SendChunks: true),
+        new SnapshotRequest(48, SendChunks: false),
+        new SnapshotChunk(48, 1, [3, 2, 1]),
+        new SnapshotDone(48, 0, 123, ulong.MaxValue),
+        new SnapshotOffer(48, 3000, ulong.MaxValue, 123),
+        new TakeSeat(1),
+        new Seated(1, 48),
+        new JoinFailed("Copy failed."),
+        new SeatRefused("Taken."),
         new Refusal("This room is full."),
     };
 
@@ -56,13 +67,26 @@ public class MessageCodecTests
         // A StartRequest with a byte too many.
         Assert.Throws<InvalidDataException>(() => MessageCodec.Decode([.. MessageCodec.Encode(new StartRequest()), 0]));
         // A log whose inputs do not divide into its slots.
-        byte[] log = MessageCodec.Encode(new Log(0, 2, [1u, 2u]));
+        byte[] log = MessageCodec.Encode(new Log(0, 2, [1u, 2u], [1]));
         log[5] = 3;
         Assert.Throws<InvalidDataException>(() => MessageCodec.Decode(log));
         // A tick claiming more slots than a match can have.
         byte[] tick = MessageCodec.Encode(new Tick(new TickBundle(1, [1u], HumanMask: 0)));
         tick[5] = MessageCodec.MaxSlots + 1;
         Assert.Throws<InvalidDataException>(() => MessageCodec.Decode(tick));
+    }
+
+    [Fact]
+    public void SnapshotReportsAndChunksRespectTheirWireLimits()
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            MessageCodec.Decode(MessageCodec.Encode(new SnapshotOffer(48, 0, 1, 2))));
+        Assert.Throws<InvalidDataException>(() =>
+            MessageCodec.Decode(MessageCodec.Encode(new SnapshotDone(48, MessageCodec.MaxSnapshotBytes + 1, 1, 2))));
+        Assert.Throws<InvalidDataException>(() =>
+            MessageCodec.Decode(MessageCodec.Encode(new SnapshotChunk(48, -1, [0]))));
+        Assert.Throws<InvalidDataException>(() =>
+            MessageCodec.Decode(MessageCodec.Encode(new TakeSeat(MessageCodec.MaxSlots))));
     }
 
     [Fact]
@@ -82,7 +106,7 @@ public class MessageCodecTests
     {
         var inputs = Enumerable.Repeat(uint.MaxValue, MessageCodec.MaxLogTicks * MessageCodec.MaxSlots).ToArray();
 
-        byte[] bytes = MessageCodec.Encode(new Log(int.MaxValue, MessageCodec.MaxSlots, [.. inputs]));
+        byte[] bytes = MessageCodec.Encode(new Log(int.MaxValue, MessageCodec.MaxSlots, [.. inputs], new byte[MessageCodec.MaxLogTicks].ToImmutableArray()));
 
         Assert.True(bytes.Length <= MessageCodec.MaxMessageBytes);
         Assert.IsType<Log>(MessageCodec.Decode(bytes));
@@ -173,16 +197,16 @@ public class MessageCodecTests
     {
         const int slots = 3;
         var log = Enumerable.Range(0, MessageCodec.MaxLogTicks * 2 + 5)
-            .Select(t => new TickBundle(t, [(uint)t, (uint)t + 1000, (uint)t + 2000], HumanMask: 0b011))
+            .Select(t => new TickBundle(t, [(uint)t, (uint)t + 1000, (uint)t + 2000], HumanMask: t < MessageCodec.MaxLogTicks + 1 ? 0b011 : 0b111))
             .ToList();
 
         var chunks = Log.Chunk(log, slots).ToList();
 
         Assert.Equal(3, chunks.Count);
         Assert.All(chunks, chunk => Assert.Equal(chunk, MessageCodec.Decode(MessageCodec.Encode(chunk))));
-        var back = chunks.SelectMany(chunk => chunk.Bundles(humanMask: 0b011)).ToList();
+        var back = chunks.SelectMany(chunk => chunk.Bundles()).ToList();
         Assert.Equal(log.Select(b => b.Tick), back.Select(b => b.Tick));
         Assert.Equal(log.SelectMany(b => b.Inputs), back.SelectMany(b => b.Inputs));
-        Assert.All(back, b => Assert.Equal(0b011, b.HumanMask));
+        Assert.Equal(log.Select(b => b.HumanMask), back.Select(b => b.HumanMask));
     }
 }

@@ -114,11 +114,11 @@ Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
 | C to S | `StartRequest` | From the host (lowest slot): start with the players who are here |
 | S to C | `Start { humanMask }` | Everyone here is ready and agrees; the other slots are bots |
 | C to S | `Input { encoded }` | One per tick simulated |
-| S to C | `Tick { n, inputs[] }` | One per server tick |
+| S to C | `Tick { n, inputs[], humanMask }` | Inputs and seat ownership for this tick |
 | C to S | `Hash { n, hash }` | Once a second |
 | S to C | `Desync { n }` | Hashes differed at tick `n` |
 | S to C | `Refusal { reason }` | Cannot join, or the match cannot start; the reason is for the player. The connection closes after it |
-| S to C | `Rejoined { humanMask }`, `Log { firstTick, slots, inputs[] }` | To a returning player: the match is on, and every tick so far in runs of 64 |
+| S to C | `Rejoined { humanMask }`, `Log { firstTick, slots, inputs[], humanMasks[] }` | To a returning player: the match is on, and every tick so far in runs of 64 |
 | C to S | `SetPaused { paused }` | Hold the match for everyone, or let it run |
 | S to C | `PauseState { paused, bySlot }` | The match is held or running, and who asked |
 | both | `Ping { id }`, `Pong { id }` | Times the round trip, once a second |

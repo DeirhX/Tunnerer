@@ -1,7 +1,6 @@
 namespace Tunnerer.Tests;
 
 using System.Diagnostics.CodeAnalysis;
-using Tunnerer.Core.Snapshots;
 using Tunnerer.Protocol;
 
 /// <summary>
@@ -148,7 +147,7 @@ internal sealed class InMemoryRelay
             var players = Enumerable.Range(0, _seated.Length)
                 .Where(slot => _seated[slot] != null && Room.IsConnected(slot) && !Room.IsBotSeat(slot))
                 .Take(2).ToArray();
-            Hold = new SnapshotHold(Room.NextTick, players[0], players.Length == 2 ? players[1] : null, WorldSnapshot.MaxBytes);
+            Hold = new SnapshotHold(Room.NextTick, players[0], players.Length == 2 ? players[1] : null, MessageCodec.MaxSnapshotBytes);
             foreach (int slot in players)
                 _seated[slot]!.QueueDown(new SnapshotRequest(Hold.Tick, SendChunks: slot == players[0]));
         }
@@ -207,6 +206,7 @@ internal sealed class InMemoryRelay
 
         public void QueueDown(Message message)
         {
+            message = MessageCodec.Decode(MessageCodec.Encode(message));
             int at = NextArrival(ref _lastDownAt);
             if (message is Tick tick)
                 _down.Enqueue((at, tick.Bundle));
@@ -217,7 +217,7 @@ internal sealed class InMemoryRelay
         public void DeliverUp()
         {
             while (!_closed && _up.Count > 0 && _up.Peek().At <= relay._now)
-                relay.Handle(this, _up.Dequeue().Message);
+                relay.Handle(this, MessageCodec.Decode(MessageCodec.Encode(_up.Dequeue().Message)));
         }
 
         public void Close()

@@ -51,7 +51,7 @@ internal static class SnapshotLayout
     public static FieldInfo[] FieldsOf(Type type) => FieldCache.GetOrAdd(type, CollectFields);
 
     // The walk meets types at run time, which no annotation can name, so a trimmed build (the browser) cannot prove
-    // their fields are kept. No trimmed build saves or loads a snapshot yet: protocol 5 cannot ask one for it. Before
+    // their fields are kept. No trimmed build saves or loads a snapshot yet: the relay does not yet request snapshots. Before
     // browser players join matches, keep Core's fields in that build or replace this walk with a source generator
     // (docs/late-join-design.md §13, step 6).
     [UnconditionalSuppressMessage("Trimming", "IL2075:UnrecognizedReflectionPattern",

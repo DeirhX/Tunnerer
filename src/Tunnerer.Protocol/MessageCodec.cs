@@ -10,10 +10,16 @@ using System.Text;
 public static class MessageCodec
 {
     /// <summary>Changes whenever the bytes of any message change. Client and relay must match.</summary>
-    public const int ProtocolVersion = 5;
+    public const int ProtocolVersion = 6;
 
-    /// <summary>No message is longer than this; a longer frame is an error.</summary>
+    /// <summary>Maximum size of an ordinary message. Only a snapshot chunk may exceed it.</summary>
     public const int MaxMessageBytes = 4096;
+
+    /// <summary>Chunk kind, tick, index, 16-bit length and compressed bytes.</summary>
+    public const int MaxFrameBytes = 1 + 2 * sizeof(int) + sizeof(ushort) + SnapshotChunk.MaxBytes;
+
+    /// <summary>The largest compressed snapshot admitted to a hold.</summary>
+    public const int MaxSnapshotBytes = 32 * 1024 * 1024;
 
     /// <summary>Most ticks one <see cref="Log"/> message carries.</summary>
     public const int MaxLogTicks = 64;
@@ -58,6 +64,7 @@ public static class MessageCodec
     private enum Kind : byte
     {
         Hello = 1, Welcome, Roster, Ready, Start, Input, Tick, Hash, Desync, Refusal, StartRequest, Rejoined, Log, SetPaused, PauseState, Ping, Pong, MatchOver,
+        ReadyToLoad, SnapshotRequest, SnapshotChunk, SnapshotDone, SnapshotOffer, TakeSeat, Seated, SeatRefused, JoinFailed,
     }
 
     public static byte[] Encode(Message message)
@@ -107,6 +114,7 @@ public static class MessageCodec
                 w.Write((byte)m.Bundle.Inputs.Length);
                 foreach (uint input in m.Bundle.Inputs)
                     w.Write(input);
+                w.Write(checked((byte)m.Bundle.HumanMask));
                 break;
             case Hash m:
                 w.Write((byte)Kind.Hash);
@@ -128,6 +136,7 @@ public static class MessageCodec
                 w.Write((ushort)m.Inputs.Length);
                 foreach (uint input in m.Inputs)
                     w.Write(input);
+                w.Write(m.HumanMasks.AsSpan());
                 break;
             case SetPaused m:
                 w.Write((byte)Kind.SetPaused);
@@ -154,6 +163,48 @@ public static class MessageCodec
                 w.Write((byte)Kind.Refusal);
                 WriteText(w, m.Reason, MaxReasonLength);
                 break;
+            case ReadyToLoad:
+                w.Write((byte)Kind.ReadyToLoad);
+                break;
+            case SnapshotRequest m:
+                w.Write((byte)Kind.SnapshotRequest);
+                w.Write(m.Tick);
+                w.Write(m.SendChunks);
+                break;
+            case SnapshotChunk m:
+                if (m.Bytes.IsDefaultOrEmpty || m.Bytes.Length > SnapshotChunk.MaxBytes)
+                    throw new ArgumentException("Invalid snapshot chunk length.", nameof(message));
+                w.Write((byte)Kind.SnapshotChunk);
+                w.Write(m.Tick);
+                w.Write(m.Index);
+                w.Write((ushort)m.Bytes.Length);
+                w.Write(m.Bytes.AsSpan());
+                break;
+            case SnapshotDone m:
+                w.Write((byte)Kind.SnapshotDone);
+                WriteSnapshotReport(w, m.Tick, m.Length, m.Digest, m.SyncHash);
+                break;
+            case SnapshotOffer m:
+                w.Write((byte)Kind.SnapshotOffer);
+                WriteSnapshotReport(w, m.Tick, m.Length, m.Digest, m.SyncHash);
+                break;
+            case TakeSeat m:
+                w.Write((byte)Kind.TakeSeat);
+                w.Write(checked((byte)m.Slot));
+                break;
+            case Seated m:
+                w.Write((byte)Kind.Seated);
+                w.Write(checked((byte)m.Slot));
+                w.Write(m.AtTick);
+                break;
+            case SeatRefused m:
+                w.Write((byte)Kind.SeatRefused);
+                WriteText(w, m.Reason, MaxReasonLength);
+                break;
+            case JoinFailed m:
+                w.Write((byte)Kind.JoinFailed);
+                WriteText(w, m.Reason, MaxReasonLength);
+                break;
             default:
                 throw new ArgumentException($"No encoding for {message.GetType().Name}.", nameof(message));
         }
@@ -164,7 +215,8 @@ public static class MessageCodec
     /// <exception cref="InvalidDataException">The bytes are not one well-formed message.</exception>
     public static Message Decode(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length is 0 or > MaxMessageBytes)
+        if (bytes.IsEmpty || bytes.Length > MaxFrameBytes ||
+            (bytes.Length > MaxMessageBytes && (Kind)bytes[0] != Kind.SnapshotChunk))
             throw new InvalidDataException($"A message of {bytes.Length} bytes is not allowed.");
         try
         {
@@ -179,7 +231,7 @@ public static class MessageCodec
                 Kind.Start => new Start(r.ReadByte()),
                 Kind.StartRequest => new StartRequest(),
                 Kind.Input => new Input(r.ReadUInt32()),
-                Kind.Tick => new Tick(new TickBundle(r.ReadInt32(), ReadList(r, static x => x.ReadUInt32()), HumanMask: 0)),
+                Kind.Tick => ReadTick(r),
                 Kind.Hash => new Hash(r.ReadInt32(), r.ReadUInt64()),
                 Kind.Desync => new Desync(r.ReadInt32()),
                 Kind.Refusal => new Refusal(ReadText(r, MaxReasonLength * 3)),
@@ -190,6 +242,15 @@ public static class MessageCodec
                 Kind.Ping => new Ping(r.ReadUInt32()),
                 Kind.Pong => new Pong(r.ReadUInt32()),
                 Kind.MatchOver => new MatchOver(r.ReadInt32()),
+                Kind.ReadyToLoad => new ReadyToLoad(),
+                Kind.SnapshotRequest => new SnapshotRequest(ReadNonnegative(r), ReadCount(r, 1) != 0),
+                Kind.SnapshotChunk => ReadChunk(r),
+                Kind.SnapshotDone => new SnapshotDone(ReadNonnegative(r), ReadSnapshotLength(r, 0), r.ReadUInt64(), r.ReadUInt64()),
+                Kind.SnapshotOffer => new SnapshotOffer(ReadNonnegative(r), ReadSnapshotLength(r, 1), r.ReadUInt64(), r.ReadUInt64()),
+                Kind.TakeSeat => new TakeSeat(ReadCount(r, MaxSlots - 1)),
+                Kind.Seated => new Seated(ReadCount(r, MaxSlots - 1), ReadNonnegative(r)),
+                Kind.SeatRefused => new SeatRefused(ReadText(r, MaxReasonLength * 3)),
+                Kind.JoinFailed => new JoinFailed(ReadText(r, MaxReasonLength * 3)),
                 var unknown => throw new InvalidDataException($"Unknown message type {(byte)unknown}."),
             };
             if (stream.Position != stream.Length)
@@ -244,6 +305,44 @@ public static class MessageCodec
         return config;
     }
 
+    private static int ReadNonnegative(BinaryReader r)
+    {
+        int value = r.ReadInt32();
+        return value >= 0 ? value : throw new InvalidDataException("Expected a nonnegative snapshot field.");
+    }
+
+    private static int ReadSnapshotLength(BinaryReader r, int minimum)
+    {
+        int length = r.ReadInt32();
+        if (length < minimum || length > MaxSnapshotBytes)
+            throw new InvalidDataException("Invalid compressed snapshot length.");
+        return length;
+    }
+
+    private static void WriteSnapshotReport(BinaryWriter w, int tick, int length, ulong digest, ulong syncHash)
+    {
+        w.Write(tick);
+        w.Write(length);
+        w.Write(digest);
+        w.Write(syncHash);
+    }
+
+    private static SnapshotChunk ReadChunk(BinaryReader r)
+    {
+        int tick = ReadNonnegative(r), index = ReadNonnegative(r);
+        int length = r.ReadUInt16();
+        if (length is 0 or > SnapshotChunk.MaxBytes || length != r.BaseStream.Length - r.BaseStream.Position)
+            throw new InvalidDataException("Invalid snapshot chunk length.");
+        return new SnapshotChunk(tick, index, [.. r.ReadBytes(length)]);
+    }
+
+    private static Tick ReadTick(BinaryReader r)
+    {
+        int tick = r.ReadInt32();
+        var inputs = ReadList(r, static x => x.ReadUInt32());
+        return new Tick(new TickBundle(tick, inputs, ReadCount(r, (1 << inputs.Length) - 1)));
+    }
+
     private static Log ReadLog(BinaryReader r)
     {
         int firstTick = r.ReadInt32();
@@ -254,7 +353,10 @@ public static class MessageCodec
         var inputs = ImmutableArray.CreateBuilder<uint>(count);
         for (int i = 0; i < count; i++)
             inputs.Add(r.ReadUInt32());
-        return new Log(firstTick, slots, inputs.MoveToImmutable());
+        var masks = ImmutableArray.CreateBuilder<byte>(count / slots);
+        for (int i = 0; i < count / slots; i++)
+            masks.Add((byte)ReadCount(r, (1 << slots) - 1));
+        return new Log(firstTick, slots, inputs.MoveToImmutable(), masks.MoveToImmutable());
     }
 
     private static int ReadCount(BinaryReader r, int max)

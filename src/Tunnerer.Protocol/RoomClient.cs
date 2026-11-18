@@ -103,9 +103,7 @@ public sealed class RoomClient : ILockstepLink
     {
         switch (message)
         {
-            // Protocol 5 does not carry the human mask, and its relay never changes it: every tick has the mask the
-            // match started with.
-            case Tick tick: _bundles.Enqueue(tick.Bundle with { HumanMask = HumanMask }); break;
+            case Tick tick: _bundles.Enqueue(tick.Bundle); break;
             case Roster roster: Roster = roster.Names; break;
             case Start start:
                 Started = true;
@@ -117,7 +115,7 @@ public sealed class RoomClient : ILockstepLink
                 HumanMask = rejoined.HumanMask;
                 break;
             case Log log:
-                foreach (var bundle in log.Bundles(HumanMask))
+                foreach (var bundle in log.Bundles())
                     _bundles.Enqueue(bundle);
                 break;
             case PauseState pause:
@@ -172,8 +170,7 @@ public sealed class RoomClient : ILockstepLink
     public bool TryReceive([NotNullWhen(true)] out TickBundle? bundle) => _bundles.TryDequeue(out bundle);
 
     /// <summary>
-    /// Sends a message of joining a match in progress (docs/late-join-design.md §4.3). Protocol 5 has no bytes for
-    /// them, and its relay never asks for a snapshot, so nothing calls this yet over a socket.
+    /// Sends a message of joining a match in progress (docs/late-join-design.md §4.3).
     /// </summary>
     public void SendJoin(Message message) => _send(message);
 

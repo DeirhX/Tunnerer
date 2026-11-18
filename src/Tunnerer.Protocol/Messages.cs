@@ -64,21 +64,19 @@ public sealed record Rejoined(int HumanMask) : Message;
 
 /// <summary>Relay to a returning client: a run of past ticks, <paramref name="Slots"/> inputs for each.</summary>
 /// <param name="Inputs">Tick <paramref name="FirstTick"/>'s inputs in slot order, then the next tick's, and so on.</param>
-public sealed record Log(int FirstTick, int Slots, ImmutableArray<uint> Inputs) : Message
+public sealed record Log(int FirstTick, int Slots, ImmutableArray<uint> Inputs, ImmutableArray<byte> HumanMasks) : Message
 {
     public bool Equals(Log? other) =>
-        other is not null && FirstTick == other.FirstTick && Slots == other.Slots && Inputs.SequenceEqual(other.Inputs);
+        other is not null && FirstTick == other.FirstTick && Slots == other.Slots && Inputs.SequenceEqual(other.Inputs)
+        && HumanMasks.SequenceEqual(other.HumanMasks);
 
     public override int GetHashCode() => FirstTick;
 
-    /// <summary>
-    /// The ticks this message carries, one bundle each, with <paramref name="humanMask"/> on every one. Protocol 5
-    /// does not carry the mask; the receiver gives the one the match started with.
-    /// </summary>
-    public IEnumerable<TickBundle> Bundles(int humanMask)
+    /// <summary>Restores the inputs and seat ownership as of each recorded tick.</summary>
+    public IEnumerable<TickBundle> Bundles()
     {
-        for (int i = 0; i * Slots < Inputs.Length; i++)
-            yield return new TickBundle(FirstTick + i, Inputs.Slice(i * Slots, Slots), humanMask);
+        for (int i = 0; i < HumanMasks.Length; i++)
+            yield return new TickBundle(FirstTick + i, Inputs.Slice(i * Slots, Slots), HumanMasks[i]);
     }
 
     /// <summary>
@@ -91,9 +89,13 @@ public sealed record Log(int FirstTick, int Slots, ImmutableArray<uint> Inputs) 
         {
             int count = Math.Min(MessageCodec.MaxLogTicks, log.Count - first);
             var inputs = ImmutableArray.CreateBuilder<uint>(count * slots);
+            var masks = ImmutableArray.CreateBuilder<byte>(count);
             for (int i = 0; i < count; i++)
+            {
                 inputs.AddRange(log[first + i].Inputs);
-            yield return new Log(first, slots, inputs.MoveToImmutable());
+                masks.Add(checked((byte)log[first + i].HumanMask));
+            }
+            yield return new Log(first, slots, inputs.MoveToImmutable(), masks.MoveToImmutable());
         }
     }
 }
@@ -114,13 +116,13 @@ public sealed record Pong(uint Id) : Message;
 public sealed record Input(uint Encoded) : Message;
 
 /// <summary>
-/// Relay to clients: one tick to simulate. Protocol 5 does not carry the bundle's human mask: a decoded bundle has 0
-/// there, and the client puts in the mask the match started with (<c>RelayConnection</c>).
+/// Relay to clients: one tick's inputs and seat ownership.
 /// </summary>
 public sealed record Tick(TickBundle Bundle) : Message
 {
     public bool Equals(Tick? other) =>
-        other is not null && Bundle.Tick == other.Bundle.Tick && Bundle.Inputs.SequenceEqual(other.Bundle.Inputs);
+        other is not null && Bundle.Tick == other.Bundle.Tick && Bundle.HumanMask == other.Bundle.HumanMask &&
+        Bundle.Inputs.SequenceEqual(other.Bundle.Inputs);
 
     public override int GetHashCode() => Bundle.Tick;
 }
@@ -141,8 +143,7 @@ public sealed record MatchOver(int AtTick) : Message;
 /// <summary>Relay to client: the request was refused, or the match cannot go on. The connection closes after it.</summary>
 public sealed record Refusal(string Reason) : Message;
 
-// Joining a match in progress (docs/late-join-design.md §4.3). Nothing gives these bytes yet: the in-process relay of
-// the tests carries them as they are, and protocol 6 adds them to MessageCodec.
+// Joining a match in progress (docs/late-join-design.md §4.3).
 
 /// <summary>Joiner to relay: my world is built from the settings; hold the match and get me a snapshot.</summary>
 public sealed record ReadyToLoad : Message;
