@@ -1,0 +1,54 @@
+name: publish-starfish
+
+# Publishes the browser game to Starfish (crust.bokovka.cz) from the branch picked under "Use workflow from".
+# Only started by hand, and only the repository owner's start goes ahead. The SSH key lives in the "starfish"
+# environment, and on the VM it may run only tools/browser/starfish-deploy.sh (docs/browser.md).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: publish-starfish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    # triggering_actor rather than actor: a re-run is started by whoever presses it.
+    if: github.triggering_actor == github.repository_owner
+    runs-on: ubuntu-latest
+    environment:
+      name: starfish
+      url: https://crust.bokovka.cz/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Publish the game with the threaded runtime
+        run: python tools/browser/publish.py --threads --restore-workloads
+      - name: Upload it to Starfish
+        env:
+          SSH_KEY: ${{ secrets.STARFISH_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STARFISH_KNOWN_HOSTS }}
+          TARGET: ${{ vars.STARFISH_SSH_TARGET }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/starfish
+          chmod 600 ~/.ssh/starfish
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The key's forced command on the VM runs the deploy script, which reads the archive from standard input.
+          ssh -T -i ~/.ssh/starfish -o IdentitiesOnly=yes -o BatchMode=yes "$TARGET" < artifacts/browser/tunnerer-browser.zip
+          rm ~/.ssh/starfish
+      - name: Check the site serves it
+        run: |
+          built=$(grep -o '"version": "[0-9a-f]*"' artifacts/browser/wwwroot/assets-manifest.js | cut -d'"' -f4)
+          served=$(curl -fsS https://crust.bokovka.cz/assets-manifest.js | grep -o '"version": "[0-9a-f]*"' | cut -d'"' -f4)
+          echo "built $built, served $served"
+          test "$built" = "$served"
+          curl -fsSI https://crust.bokovka.cz/ | grep -qi '^cross-origin-embedder-policy: require-corp'
+          echo "### Published ${built:0:8} to https://crust.bokovka.cz/" >> "$GITHUB_STEP_SUMMARY"

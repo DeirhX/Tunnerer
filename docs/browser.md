@@ -221,21 +221,40 @@ The public copy is served from the Starfish VM at `https://crust.bokovka.cz`, be
 from `/srv/tunnerer/browser`. It sends the cross-origin isolation headers and the no-cache headers listed above,
 so deploy a `--threads` publish. `/srv/tunnerer/browser.prev` keeps the build that was live before.
 
-Publish from an up-to-date `master`, then upload the zip and swap it in:
+The easy way is the **publish-starfish** workflow (`.github/workflows/publish-starfish.yml`): on GitHub, Actions →
+publish-starfish → Run workflow, with the branch to publish (normally `master`). It runs only when started by hand,
+and its job is skipped unless the repository owner started it. It publishes with `--threads`, uploads the zip,
+checks that the site serves the version it built and with the isolation headers, and writes that version in the
+run's summary.
+
+By hand, publish from an up-to-date `master` and pipe the zip to the deploy script on the VM:
 
 ```sh
 python3 tools/browser/publish.py --threads
-scp artifacts/browser/tunnerer-browser.zip Starfish-azureuser:/tmp/tunnerer-browser.zip
-ssh Starfish-azureuser 'set -e
-rm -rf /tmp/tb-new && mkdir /tmp/tb-new && cd /tmp/tb-new && python3 -m zipfile -e /tmp/tunnerer-browser.zip .
-test -f index.html && test -d _framework-threads
-sudo chown -R root:root /tmp/tb-new
-sudo find /tmp/tb-new -type d -exec chmod 755 {} + && sudo find /tmp/tb-new -type f -exec chmod 644 {} +
-sudo rm -rf /srv/tunnerer/browser.prev
-sudo mv /srv/tunnerer/browser /srv/tunnerer/browser.prev
-sudo mv /tmp/tb-new /srv/tunnerer/browser
-rm /tmp/tunnerer-browser.zip'
+ssh Starfish-azureuser sudo /usr/local/bin/tunnerer-deploy-browser < artifacts/browser/tunnerer-browser.zip
 ```
+
+The deploy script is `tools/browser/starfish-deploy.sh`, installed on the VM as
+`/usr/local/bin/tunnerer-deploy-browser`. It unpacks the zip, stops if it is not a complete `--threads` publish,
+moves the live build to `browser.prev`, puts the new one in place and prints its version. After changing it,
+install it again:
+
+```sh
+scp tools/browser/starfish-deploy.sh Starfish-azureuser:/tmp/tunnerer-deploy-browser
+ssh Starfish-azureuser 'sudo install -m 755 /tmp/tunnerer-deploy-browser /usr/local/bin/ && rm /tmp/tunnerer-deploy-browser'
+```
+
+The workflow signs in with its own key, kept in the `starfish` environment of the repository's settings
+(Settings → Environments): the secrets `STARFISH_SSH_KEY` (the private key) and `STARFISH_KNOWN_HOSTS` (the VM's
+line from `ssh-keyscan 52.158.32.240`), and the variable `STARFISH_SSH_TARGET` (`azureuser@52.158.32.240`). On the
+VM, that key's line in `~azureuser/.ssh/authorized_keys` lets it run the deploy script and nothing else, so a
+leaked key can replace the game but cannot open a shell:
+
+```
+command="sudo /usr/local/bin/tunnerer-deploy-browser",restrict ssh-ed25519 AAAA… tunnerer-publish-starfish
+```
+
+To withdraw the workflow's access, delete that line.
 
 The swap needs no Caddy reload. To check it, compare the version the publisher printed with the live one, and
 look at the headers:
