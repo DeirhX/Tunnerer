@@ -171,6 +171,10 @@ that tests can inject their own values.
   and add it to the list in `SnapshotCoverageTests`. Hold state in fields, arrays and `List<T>`: the saver refuses a
   dictionary, a set or a delegate, and a keyed lookup is rebuilt on load, never saved. `SnapshotRoundTripTests` must
   pass.
+- **A seat changes hands only through the bundle.** In a network match, who drives a tank (a player or a bot, and
+  the base's `IsBotControlled`) changes only when a bundle's human mask does, applied by `Net/Seats` before the step,
+  so every client and every replay changes it at the same tick. Do not make or drop bots, or call
+  `World.SetBotControlled`, from anything else once the match has started.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.
 - Ask the shared question instead of spelling it out: `Machine.IsStanding` / `StandsFor(base)`; `Pixel.IsOpenGround`,
   `IsSoil`, `IsSolidGround`, `IsAnyBaseCell`; `BaseUpgrades.BaseCoverageRadius` / `NodeCoverageRadius`; per-second

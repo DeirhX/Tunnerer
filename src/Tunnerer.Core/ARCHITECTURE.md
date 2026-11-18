@@ -96,6 +96,7 @@ Bots/                        The computer player: produces a ControllerOutput li
   BotTrail.cs                The way the bot came, retraced to get home
 Snapshots/                   A match's state for a player who joins it in progress (docs/late-join-design.md §9)
   WorldSnapshot.cs           Save, Load, Compress, Decompress: canonical bytes of the world and the bots beside it
+                             Digest: a hash of the raw bytes, which two players with one world agree on
   SnapshotWriter.cs, SnapshotReader.cs   The general saver: every field reachable, breadth first, lists through
                              their public API; loading fills the built world's own objects in place
   SnapshotLayout.cs          What writer and reader agree on: saved fields in order, kinds of value, shared constants
