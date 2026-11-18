@@ -179,11 +179,20 @@ main input,
 main label {
     pointer-events: auto;
 }
+/* The welcome screen: centred in the space under the header while it fits, and scrolled from its top when it does
+   not (a phone, a short window, the room form open). Auto margins centre it and drop to nothing when it is taller
+   than the window, so its top never slides under the header. The match's plates stay positioned over the canvas. */
+body:not(.playing) main {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    pointer-events: auto;
+}
 .landing {
-    position: absolute;
-    top: 50%;
-    left: 8%;
-    transform: translateY(-54%);
+    position: relative;
+    margin: auto 0 auto 8%;
+    /* Below it, room for the footer's line, which stays at the bottom of the window. */
+    padding: 24px 0 64px;
     width: 700px;
     max-width: 84vw;
 }
@@ -1123,7 +1132,7 @@ dd {
         height: calc(100dvh - 62px);
     }
     .landing {
-        left: 7%;
+        margin-left: 7%;
         width: 80%;
     }
     h1 {
@@ -1234,17 +1243,6 @@ dd {
     h1 {
         margin: 18px 0;
     }
-    /* Taller than a phone's screen, with the room form open: it scrolls instead of being centred. */
-    body:not(.playing) main {
-        overflow-y: auto;
-        pointer-events: auto;
-    }
-    .landing {
-        position: relative;
-        top: auto;
-        transform: none;
-        padding: 24px 0 32px;
-    }
     #guide {
         width: 190px;
     }
@@ -1332,9 +1330,6 @@ dd {
     }
     h1 {
         font-size: 42px;
-    }
-    .landing {
-        top: 48%;
     }
     #guide {
         width: 190px;
