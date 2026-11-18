@@ -81,9 +81,13 @@ try {
     );
     assert.equal(await ann.locator("#lobby").isVisible(), false);
 
+    // A build press goes out with one tick. Pressed in the base at the start, where the bot cannot reach the tank.
+    await ann.locator("#game").focus();
+    await ann.keyboard.press("KeyE");
+    await until(ann, () => window.testFrame.player.carrying === "Relay");
+
     // Both drive: the tanks are driven by the relay's bundles, so this goes round the relay and back.
     const start = await ann.evaluate(() => window.testFrame.player.position);
-    await ann.locator("#game").focus();
     await ann.keyboard.down("KeyW");
     await bob.locator("#game").focus();
     await bob.keyboard.down("KeyD");
@@ -92,10 +96,6 @@ try {
     await bob.keyboard.up("KeyD");
     const moved = await ann.evaluate(() => window.testFrame.player.position);
     assert.ok(moved.y < start.y, "Ann's tank drove north");
-
-    // A build press goes out with one tick.
-    await ann.keyboard.press("KeyE");
-    await until(ann, () => window.testFrame.player.carrying === "Relay");
 
     // P holds the match for everyone, and P again lets it run.
     await bob.keyboard.press("KeyP");

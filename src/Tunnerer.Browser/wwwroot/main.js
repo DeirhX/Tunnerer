@@ -166,6 +166,9 @@ document.addEventListener("visibilitychange", () => {
         input.clear();
         if (playing) openMenu();
     }
+    // A network match runs on behind the menu with its sound, but a hidden page takes no steps: its loops would
+    // drone on at their last values.
+    if (net) audio.setPaused(document.hidden);
 });
 
 function openMenu() {
@@ -286,6 +289,9 @@ async function join(event) {
     });
 }
 
+// How long joining may wait for the socket to open, and then for the relay to let the player in.
+const JOIN_TIMEOUT_MS = 15000;
+
 // The answer to a "join" request before the world exists: the hello to send, or why the room cannot be joined.
 async function onNetAnswer(data) {
     if (data.failure) {
@@ -296,14 +302,31 @@ async function onNetAnswer(data) {
         $("start").textContent = "Joining the room…";
         $("loading").textContent = `Connecting to the relay at ${defaultRelay()}.`;
         const socket = new RelaySocket(defaultRelay());
+        let timer;
         try {
-            await socket.opened;
+            await Promise.race([
+                socket.opened,
+                new Promise((_, reject) => {
+                    timer = setTimeout(
+                        () => reject(new Error(`The relay at ${defaultRelay()} did not answer`)),
+                        JOIN_TIMEOUT_MS,
+                    );
+                }),
+            ]);
         } catch (error) {
-            fail(error.message);
+            socket.close();
+            if (net) fail(error.message);
+            return;
+        } finally {
+            clearTimeout(timer);
+        }
+        // The join was abandoned while the socket opened.
+        if (!net) {
+            socket.close();
             return;
         }
-        if (!net) return;
         net.socket = socket;
+        net.deadline = performance.now() + JOIN_TIMEOUT_MS;
         $("loading").textContent = "Waiting for the relay to let you in.";
     }
     net.socket.send(data.send);
@@ -520,7 +543,9 @@ function animate(now) {
     renderer.governor.pace(elapsed, running);
     const view = renderer.viewSize();
     // Joining a room: until the relay lets the player in there is no world to draw, only messages to hand over.
-    if (net?.socket?.pending && !playing && !busy && worker) {
+    if (net?.deadline && !playing && !busy && now > net.deadline) {
+        fail("the relay did not let you in", " Check the room and try again.", "Could not join the room");
+    } else if (net?.socket?.pending && !playing && !busy && worker) {
         busy = true;
         worker.postMessage({
             type: "render",
