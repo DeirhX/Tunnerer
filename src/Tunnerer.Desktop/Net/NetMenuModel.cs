@@ -62,10 +62,12 @@ public readonly record struct NetMenuResult(NetMenuAction Action, NetLaunchOptio
 }
 
 /// <summary>
-/// What the menu was opened for: after a refused launch, the launch and the relay's reason; after leaving a match,
-/// the secret that match used.
+/// What the menu was opened for: after a refused launch, the launch and the relay's reason; otherwise the secret
+/// this process was started with (<c>--secret</c> or the environment), which is the secret of
+/// <paramref name="SecretRelay"/>, or of the default relay when that is null.
 /// </summary>
-public sealed record NetMenuRequest(NetLaunchOptions? Previous = null, string? Refusal = null, string Secret = "");
+public sealed record NetMenuRequest(
+    NetLaunchOptions? Previous = null, string? Refusal = null, string Secret = "", Uri? SecretRelay = null);
 
 /// <summary>A line the menu shows above its fields: why a launch failed, or what is wrong with a field.</summary>
 public sealed record NetMenuNotice(string Title, string Text, bool IsError);
@@ -98,7 +100,7 @@ public sealed class NetMenuModel
         RoomField.Set(previous?.Room ?? settings.Room ?? settings.LastMatch?.Room ?? LaunchArguments.DefaultRoom);
         SecretField = new TextField(MessageCodec.MaxSecretLength, masked: true);
         SecretField.Set(previous?.Secret is { Length: > 0 } tried ? tried
-            : request?.Secret is { Length: > 0 } carried ? carried
+            : request is { Secret.Length: > 0 } && (request.SecretRelay ?? new Uri(NetworkTweaks.DefaultRelay)) == Relay ? request.Secret
             : SavedSecretFor(Relay, settings) ?? string.Empty);
         CreateNameField = new TextField(MessageCodec.MaxTextLength);
         SeedField = new TextField(10, accepts: c => c is >= '0' and <= '9');

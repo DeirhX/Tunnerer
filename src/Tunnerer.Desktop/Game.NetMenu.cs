@@ -2,6 +2,7 @@ namespace Tunnerer.Desktop;
 
 using System.Runtime.InteropServices;
 using static SDL3.SDL;
+using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Net;
 
@@ -15,6 +16,10 @@ public partial class Game
     private static string DefaultPlayerName => Environment.UserName;
 
     private readonly PlayerSettings? _playerSettings;
+
+    /// <summary>The relay secret this process was started with (<c>--secret</c> or the environment), and the relay it was for.</summary>
+    private readonly string _launchSecret;
+    private readonly Uri? _launchRelay;
     private readonly NetMenuView _netMenuView = new();
     private NetMenuModel? _netMenu;
     private bool _showNetMenu;
@@ -32,7 +37,11 @@ public partial class Game
     /// <summary>Opens the network menu over a paused game (the pause menu's Network match button, or a refused launch).</summary>
     private void OpenNetMenu(NetMenuRequest? request = null)
     {
-        _netMenu = new NetMenuModel(_playerSettings ?? new PlayerSettings(), DefaultPlayerName, request);
+        // Closing the menu and opening it again gives back what it was (a secret field the relay asked for, what was
+        // typed); only a request, a refusal or a new process, starts it afresh.
+        if (request != null || _netMenu == null)
+            _netMenu = new NetMenuModel(_playerSettings ?? new PlayerSettings(), DefaultPlayerName,
+                request ?? new NetMenuRequest(Secret: _launchSecret, SecretRelay: _launchRelay));
         _showNetMenu = true;
         _showControls = false;
         _paused = true;
@@ -128,7 +137,9 @@ public partial class Game
             _leaveArmed = true;
             return;
         }
-        RequestRelaunch(new RelaunchRequest(OpenNetMenu: true));
+        // The secret goes on only from a match on the relay it was for.
+        string secret = _relay is { } left && left.Address == new Uri(NetworkTweaks.DefaultRelay) ? _launchSecret : string.Empty;
+        RequestRelaunch(new RelaunchRequest(OpenNetMenu: true, Secret: secret));
     }
 
     /// <summary>

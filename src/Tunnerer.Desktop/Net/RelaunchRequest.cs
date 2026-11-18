@@ -6,4 +6,8 @@ namespace Tunnerer.Desktop.Net;
 /// </summary>
 /// <param name="Net">The network match to start in; null starts a local one.</param>
 /// <param name="OpenNetMenu">Open the network menu at the start (leaving a match, or after a refusal).</param>
-public sealed record RelaunchRequest(NetLaunchOptions? Net = null, bool OpenNetMenu = false);
+/// <param name="Secret">
+/// The secret the game was started with, passed on when it starts without a match (leaving one), so that the menu it
+/// opens still has it. Empty when there is none, or when the match left was on a relay it does not belong to.
+/// </param>
+public sealed record RelaunchRequest(NetLaunchOptions? Net = null, bool OpenNetMenu = false, string Secret = "");

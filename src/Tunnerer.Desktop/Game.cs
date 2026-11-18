@@ -81,8 +81,12 @@ public partial class Game : IDisposable
         bool terrainTestMode = false,
         bool fogOfWar = true,
         Net.RelayConnection? relay = null,
-        Net.NetMenuRequest? openNetMenu = null)
+        Net.NetMenuRequest? openNetMenu = null,
+        string launchSecret = "",
+        Uri? launchRelay = null)
     {
+        _launchSecret = launchSecret;
+        _launchRelay = launchRelay;
         _relay = relay;
         _localSlot = relay?.Slot ?? 0;
         _terrainTestMode = terrainTestMode;

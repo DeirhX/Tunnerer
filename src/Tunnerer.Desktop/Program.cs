@@ -123,7 +123,8 @@ if (launch.Net is { } netOptions && !launch.TerrainTest)
 using (relay)
 {
     var game = new Tunnerer.Desktop.Game(terrainSize, mode, perfOptions, launch.EnableAiTanks,
-        terrainTestMode: launch.TerrainTest, fogOfWar: launch.FogOfWar, relay: relay, openNetMenu: openNetMenu);
+        terrainTestMode: launch.TerrainTest, fogOfWar: launch.FogOfWar, relay: relay, openNetMenu: openNetMenu,
+        launchSecret: launch.Secret, launchRelay: launch.Relay);
     game.Run();
     restartRequested = game.RestartRequested;
     rejoin = game.RejoinRequested;
@@ -147,6 +148,11 @@ if (restartRequested && Environment.ProcessPath is { } exePath)
             start.Environment[NetLaunchOptions.SecretVariable] = chosen.Secret;
         else
             start.Environment.Remove(NetLaunchOptions.SecretVariable);
+    }
+    else if (relaunch is { Secret.Length: > 0 })
+    {
+        // Leaving a match: the menu that opens next still has the secret this game was started with.
+        start.Environment[NetLaunchOptions.SecretVariable] = relaunch.Secret;
     }
     System.Diagnostics.Process.Start(start);
 }

@@ -430,6 +430,19 @@ public class NetMenuModelTests
         Assert.Equal(string.Empty, Launched(menu.Submit()).Secret);
     }
 
+    [Fact]
+    public void TheSecretTheGameStartedWith_IsCarriedToTheMenuAndOnToTheJoin()
+    {
+        // Started with --secret= or the environment, and nothing saved: pressing N must not lose it.
+        var menu = Menu(request: new NetMenuRequest(Secret: "from-the-command-line"));
+        Assert.Equal("from-the-command-line", menu.SecretField.Text);
+        Assert.Equal("from-the-command-line", Launched(menu.Submit()).Secret);
+
+        // A secret that was for another relay is not offered to this one.
+        var other = Menu(request: new NetMenuRequest(Secret: "friends-secret", SecretRelay: new Uri("ws://friend.example/play")));
+        Assert.Equal(string.Empty, other.SecretField.Text);
+    }
+
     // ---- Remembering --------------------------------------------------------------------------------------------------------
 
     [Fact]
