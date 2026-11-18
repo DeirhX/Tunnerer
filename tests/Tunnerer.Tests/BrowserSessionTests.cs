@@ -101,9 +101,9 @@ public class BrowserSessionTests
 
         // The first packet carries the four world-sized textures; a frame in which nothing changed carries none.
         int[] header = MemoryMarshal.Cast<byte, int>(session.Scene.Packet.AsSpan(0, BrowserScene.HeaderInts * 4)).ToArray();
-        int mapBytes = BrowserSession.MapSize.Area * 4;
+        int mapBytes = session.MapSize.Area * 4;
         for (int t = 0; t < BrowserTerrain.TextureCount; t++)
-            Assert.Equal([0, 0, BrowserSession.MapSize.X, BrowserSession.MapSize.Y], header[(5 + 5 * t)..(9 + 5 * t)]);
+            Assert.Equal([0, 0, session.MapSize.X, session.MapSize.Y], header[(5 + 5 * t)..(9 + 5 * t)]);
         Assert.Equal(header[4 + 5 * 3] + mapBytes, session.Scene.Packet.Count);
         session.Scene.Render(1280, 720, 6, 1, 0, 0);
         header = MemoryMarshal.Cast<byte, int>(session.Scene.Packet.AsSpan(0, BrowserScene.HeaderInts * 4)).ToArray();
@@ -162,6 +162,25 @@ public class BrowserSessionTests
         Assert.Equal("Mine emberite", outside.Guidance.Tutorial?.Title);
         Assert.Contains("\"guidance\":{\"tutorial\":", JsonSerializer.Serialize(outside, BrowserJsonContext.Default.BrowserFrame),
             StringComparison.Ordinal);
+    }
+}
+
+public class BrowserStressTests
+{
+    /// <summary>The busy world the browser build is measured in (?machines=N) is networks a player could have built.</summary>
+    [Fact]
+    [Trait("Category", "Slow")]
+    public void Stress_GrowsPoweredNetworksFromEveryBase_WithHarvestersAndPylons()
+    {
+        var session = new BrowserSession(1234, machines: 40);
+        var machines = session.World.Machines.Machines;
+
+        Assert.Equal(40, session.Machines);
+        Assert.Equal(40, machines.Count);
+        foreach (var tank in session.World.TankList.Tanks)
+            Assert.Contains(machines, m => m.StandsFor(tank.Base!) && m.Type == MachineType.Relay && m.LinkPoint?.IsPowered == true);
+        Assert.Contains(machines, m => m.Type == MachineType.Harvester);
+        Assert.Contains(machines, m => m.Type == MachineType.Pylon);
     }
 }
 

@@ -40,7 +40,13 @@ export async function startRuntime(dotnet, config = {}) {
         // with `sounds` also gets the sound bank, as the frame's `sounds`.
         async answer(data) {
             if (data.type === "start")
-                await api.Start(data.seed, data.heatWorkers);
+                await api.Start(
+                    data.seed,
+                    data.heatWorkers,
+                    data.mapWidth || 0,
+                    data.mapHeight || 0,
+                    data.machines || 0,
+                );
             const i = data.input;
             await api.Frame(
                 Boolean(i),

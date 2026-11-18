@@ -24,8 +24,14 @@ let lastTime = performance.now(),
 // The view last asked of the worker, and whether the frame shown while paused has been asked for.
 let sentView = {},
     pausedFrameSent = false;
-// Add ?perf to the address for a readout of frame and simulation times.
-const perf = new URLSearchParams(location.search).has("perf")
+// Add ?perf to the address for a readout of frame and simulation times, and ?map=3000x1500 and ?machines=400 for a
+// larger map and networks of that many machines grown from every base before play (docs/browser.md), to measure by.
+const query = new URLSearchParams(location.search);
+const [mapWidth, mapHeight] = (query.get("map") || "")
+    .split("x")
+    .map((n) => Number.parseInt(n, 10) || 0);
+const machines = Number.parseInt(query.get("machines"), 10) || 0;
+const perf = query.has("perf")
     ? new PerfReadout(renderer)
     : null;
 $("upgrades").open = !matchMedia("(pointer: coarse)").matches;
@@ -222,6 +228,9 @@ async function start() {
         seed,
         time: 0,
         sounds: askForSounds(),
+        mapWidth: mapWidth || 0,
+        mapHeight: mapHeight || 0,
+        machines,
         ...renderer.viewSize(),
     });
 }
