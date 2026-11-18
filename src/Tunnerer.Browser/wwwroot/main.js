@@ -15,7 +15,15 @@ const canvas = $("game"),
     renderer = new GameRenderer(canvas),
     audio = new GameAudio(),
     guidance = new GuidanceView(() => (renderer.pointerTarget = guidance.target)),
-    progress = new LoadProgress((text) => ($("loading").textContent = text));
+    progress = new LoadProgress(
+        (text) => ($("loading").textContent = text),
+        (share) => {
+            $("load-bar").hidden = share === null;
+            if (share === null) return;
+            $("load-bar").firstElementChild.style.transform = `scaleX(${share})`;
+            $("load-bar").setAttribute("aria-valuenow", String(Math.round(share * 100)));
+        },
+    );
 let worker = null,
     busy = false,
     playing = false,
@@ -437,6 +445,7 @@ async function launch(request) {
         }
         if (data.type === "progress") {
             if (data.state === "begin") progress.begin(data.stage, data.label);
+            else if (data.state === "bytes") progress.bytes(data.stage, data.loaded, data.total);
             else progress.end(data.stage, data.detail);
             return;
         }

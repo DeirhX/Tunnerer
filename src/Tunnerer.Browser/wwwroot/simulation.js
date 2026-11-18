@@ -48,7 +48,12 @@ export class Simulation {
 
     // The page keeps one request in flight, so answers come back in the order asked.
     postMessage(data) {
-        if (this.worker) this.worker.postMessage({ ...data, heatWorkers: 1 });
+        if (this.worker)
+            this.worker.postMessage({
+                ...data,
+                heatWorkers: 1,
+                runtimeBytes: plan.runtimeBytes?.single,
+            });
         else this.ask(data);
     }
 
@@ -58,20 +63,20 @@ export class Simulation {
         const report = (step) => {
             if (!this.closed) this.onmessage?.({ data: { type: "progress", ...step } });
         };
-        const starting = !threaded;
         try {
-            if (starting)
-                report({ stage: "runtime", label: "Starting the game runtime", state: "begin" });
             threaded ||= import("./_framework-threads/dotnet.js").then(
                 ({ dotnet }) =>
                     startRuntime(dotnet, {
-                        pthreadPoolInitialSize:
-                            this.heatWorkers + RUNTIME_THREADS,
+                        config: {
+                            pthreadPoolInitialSize:
+                                this.heatWorkers + RUNTIME_THREADS,
+                        },
+                        report,
+                        bytes: plan.runtimeBytes?.threads,
+                        threads: `${this.heatWorkers} heat threads`,
                     }),
             );
             runtime = await threaded;
-            if (starting)
-                report({ stage: "runtime", state: "end", detail: `${this.heatWorkers} heat threads` });
         } catch (error) {
             // A browser that promised shared memory and then could not start the runtime still gets a game.
             console.warn(
@@ -82,7 +87,7 @@ export class Simulation {
             threadsFailed = true;
             if (this.closed) return;
             this.startWorker();
-            this.worker.postMessage({ ...data, heatWorkers: 1 });
+            this.postMessage(data);
             return;
         }
         let message;

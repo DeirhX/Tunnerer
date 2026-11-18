@@ -10,11 +10,7 @@ const report = (step) => self.postMessage({ type: "progress", ...step });
 self.onmessage = async ({ data }) => {
     if (!["start", "join", "render"].includes(data.type)) return;
     try {
-        if (!runtime) {
-            report({ stage: "runtime", label: "Starting the game runtime", state: "begin" });
-            runtime = await startRuntime(dotnet);
-            report({ stage: "runtime", state: "end", detail: "one thread" });
-        }
+        runtime ||= await startRuntime(dotnet, { report, bytes: data.runtimeBytes, threads: "one thread" });
         const frame = await runtime.answer(data, report);
         const transfer = frame.packet ? [frame.packet.buffer] : [];
         if (frame.sounds) transfer.push(frame.sounds.samples.buffer);

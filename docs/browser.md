@@ -106,10 +106,21 @@ which had no trouble. Two things made FXC hang there, measured on GitHub's Windo
 
 The page compiles and links the shaders with `KHR_parallel_shader_compile` where the browser has it, waiting a
 frame at a time. Loading reports its stages (`progress.js`): the shader download, each program's compile and link,
-the runtime's start and the world's generation. The loading line shows the stage under way, and says so when one
-runs past ten seconds; the console logs each stage's time as `[load] ...`; each begin and end is a `tunnerer-load`
-event on `window`, and the list so far is `window.tunnererLoad`, to copy into a bug report. A failed start names the
-stage it stopped in ("while compiling the lighting and materials shaders, 12 s in").
+the runtime's download and start, and the world's generation. The loading line shows the stage under way, and says
+so when one runs past ten seconds; the console logs each stage's time as `[load] ...`; each begin and end is a
+`tunnerer-load` event on `window`, and the list so far is `window.tunnererLoad`, to copy into a bug report. A failed
+start names the stage it stopped in ("while compiling the lighting and materials shaders, 12 s in").
+
+A bar fills through the load. Each phase (shaders, download, runtime start, world) is as wide as it took on this
+device last time (`localStorage`, `tunnerer.load-times`), or a guess on a first visit. The download fills by the bytes
+that have arrived: `publish.py` writes each runtime's size into `threads.js`, and a resource loader in `frames.js`
+counts what .NET fetches. A compile gives no progress, only done or not, so the other phases fill by their time
+against last time's and slow down short of the end. .NET has the browser check every runtime file against its
+published hash (subresource integrity), and the browser then holds back all the bytes of a file, even from a copy of
+the response, until the last has arrived: the bar sat still through the 8 MB `dotnet.native.wasm`. The loader
+therefore fetches without that check, counts a copy as it arrives and checks the SHA-256 itself before .NET gets the
+response, at the moment the browser would have given it, so a file that does not match still stops the load. .NET
+gets the response fetch made, not one built from the copy, so that the browser can keep the runtime's compiled code.
 
 ## Controls and installation
 
@@ -309,7 +320,8 @@ window and graphics dependencies out of the shared rendering assembly.
   The UI keeps at most one request in flight and caps catch-up. After each tick the page announces the HUD state
   as a `tunnerer-step` event on `window`, which is how the smoke test follows a match in either runtime.
 - `webgl.js`: uploads the shared buffers and draws the translated terrain, post-processing and entity shaders.
-- `progress.js`: the stages of a load, for the loading line, the console and the `tunnerer-load` event.
+- `progress.js`: the stages of a load, for the loading line, the loading bar, the console and the `tunnerer-load`
+  event.
   Its first pass flips the render-target Y axis for WebGL's framebuffer texture convention; the final pass and
   entity quads use the desktop clip-space convention. Textures use the same linear sampling and premultiplied
   alpha blending as desktop. It must take every packet, in order: each carries only what changed since the one
