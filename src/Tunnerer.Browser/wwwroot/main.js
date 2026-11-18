@@ -677,5 +677,8 @@ function animate(now) {
     if (now > noticeUntil) $("notice").classList.remove("visible");
     requestAnimationFrame(animate);
 }
-setupInstallation(notify);
+// An update applies itself only while no match is running or starting and the start page has nothing to say, such
+// as why a match ended (install.js).
+const restingNote = $("loading").textContent;
+setupInstallation(notify, () => !playing && !busy && !net && $("loading").textContent === restingNote);
 requestAnimationFrame(animate);

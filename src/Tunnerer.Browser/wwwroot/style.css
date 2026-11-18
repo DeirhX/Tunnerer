@@ -152,6 +152,10 @@ nav button {
     padding-left: 15px;
     margin-left: 4px;
 }
+nav #update {
+    border-color: var(--cyan);
+    color: var(--cyan);
+}
 #offline {
     font: 12px var(--hud-font);
     letter-spacing: 1px;

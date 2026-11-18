@@ -31,6 +31,7 @@
             >
             <nav aria-label="Game actions">
                 <span id="offline" role="status" hidden></span>
+                <button id="update" hidden title="A new version of the game is ready. This reloads the page.">Update ↻</button>
                 <button id="install" hidden>Install game ↗</button>
                 <button id="sound" aria-pressed="false">Sound off</button>
                 <button id="help">Controls <kbd>?</kbd></button>
@@ -302,6 +303,7 @@
         </main>
         <footer id="footer">
             <span>HEAT IS YOUR LIMIT. THE NETWORK IS YOUR LIFELINE.</span
+            ><span id="version" hidden></span
             ><span>LOCAL SIMULATION <i></i> NO DOWNLOAD TO PLAY</span>
         </footer>
         <dialog id="menu">
