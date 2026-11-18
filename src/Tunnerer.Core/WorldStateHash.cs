@@ -1,5 +1,6 @@
 namespace Tunnerer.Core;
 
+using Tunnerer.Core.Bots;
 using Tunnerer.Core.Rendering;
 using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Entities.Bases;
@@ -121,13 +122,29 @@ public static class WorldStateHash
     /// apart so that, when two machines differ, the first thing known is where. Takes one walk over the grid (heat,
     /// air and scorch together, as the energy total it replaced did); everything else costs what the entities cost.
     /// </summary>
-    public static SyncDigest ComputeSync(World world)
+    public static SyncDigest ComputeSync(World world) => ComputeSync(world, []);
+
+    /// <summary>
+    /// <see cref="ComputeSync(World)"/> with the bots that drive some of the world's tanks. They are not part of the
+    /// world (the session that steps it makes them), but every client runs them, so their state is compared too.
+    /// </summary>
+    /// <param name="bots">Indexed by slot; null where no bot drives the tank.</param>
+    public static SyncDigest ComputeSync(World world, IReadOnlyList<BotTankAI?> bots)
     {
         ulong heat = world.Terrain.MixCellFields(Fnv1a.Offset, out ulong scorch);
         foreach (var tankBase in world.TankBases.Bases)
             heat = tankBase.MixReactorHeat(heat);
         return new(Compute(world), heat, ComputeCharge(world), ComputeEconomy(world), ComputeOutcome(world),
-            ComputeLatent(world, scorch));
+            ComputeLatent(world, scorch), ComputeBots(bots));
+    }
+
+    /// <summary>Every bot's state, slot by slot, with the empty slots marked so that the slots line up.</summary>
+    private static ulong ComputeBots(IReadOnlyList<BotTankAI?> bots)
+    {
+        ulong hash = Fnv1a.Offset;
+        foreach (BotTankAI? bot in bots)
+            hash = bot?.MixState(Fnv1a.Mix(hash, 1)) ?? Fnv1a.Mix(hash, 0);
+        return hash;
     }
 
     /// <summary>
@@ -199,7 +216,9 @@ public static class WorldStateHash
 /// <param name="Economy">Every base's ore store, upgrade levels and whether a bot plays it.</param>
 /// <param name="Outcome">The race to the core and the match result.</param>
 /// <param name="Latent">State that shows elsewhere only later: generators, timers, held keys, harvester memory, heat activity, regrowth, scorch.</param>
-public readonly record struct SyncDigest(ulong State, ulong Heat, ulong Charge, ulong Economy, ulong Outcome, ulong Latent)
+/// <param name="Bots">Every bot's state, its random stream included.</param>
+public readonly record struct SyncDigest(
+    ulong State, ulong Heat, ulong Charge, ulong Economy, ulong Outcome, ulong Latent, ulong Bots)
 {
     /// <summary>The parts as one number, which is what travels.</summary>
     public ulong Combined
@@ -207,7 +226,7 @@ public readonly record struct SyncDigest(ulong State, ulong Heat, ulong Charge, 
         get
         {
             ulong hash = State;
-            foreach (ulong part in (ReadOnlySpan<ulong>)[Heat, Charge, Economy, Outcome, Latent])
+            foreach (ulong part in (ReadOnlySpan<ulong>)[Heat, Charge, Economy, Outcome, Latent, Bots])
                 hash = hash * Fnv1a.Prime ^ part;
             return hash;
         }

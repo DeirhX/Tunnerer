@@ -91,6 +91,8 @@ Input/
 Bots/                        The computer player: produces a ControllerOutput like a person would
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
+  BotRandom.cs               The one random stream a bot and its parts share: a FastRandom, so its state can be
+                             hashed and saved (System.Random's cannot)
   BotTrail.cs                The way the bot came, retraced to get home
 LevelGen/
   ToastGenerator.cs          Cavern generator (LevelGenMode Deterministic or Optimized)

@@ -72,7 +72,7 @@ internal sealed class BotNavigator
     /// <summary>With a goal, headway is getting this many cells nearer to it than the bot has been before.</summary>
     private const int ProgressStep = 4;
 
-    private readonly Random _rng;
+    private readonly BotRandom _rng;
     private Position _lastPosition;
     private bool _hasLastPosition;
     private Position _loiterAnchor;
@@ -82,7 +82,7 @@ internal sealed class BotNavigator
     private int _evasiveDir = 1;
     private int _evasiveFramesRemaining;
 
-    public BotNavigator(Random rng) => _rng = rng;
+    public BotNavigator(BotRandom rng) => _rng = rng;
 
     /// <summary>Consecutive ticks the tank has not moved.</summary>
     public int StuckFrames { get; private set; }
@@ -353,5 +353,15 @@ internal sealed class BotNavigator
             composite = away.X != 0 || away.Y != 0 ? away : strafe;
 
         return ChooseBestMove(tank, self + composite * EvasiveTargetDistance, world, previous, profile);
+    }
+
+    /// <summary>Mixes what the navigator remembers of where it has been and is going, for the sync digest.</summary>
+    internal ulong MixState(ulong hash)
+    {
+        hash = Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, _hasLastPosition), _lastPosition.X), _lastPosition.Y);
+        hash = Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, _hasLoiterAnchor), _loiterAnchor.X), _loiterAnchor.Y);
+        hash = Fnv1a.Mix(Fnv1a.Mix(hash, _hasNearestToGoal), _nearestToGoal);
+        hash = Fnv1a.Mix(Fnv1a.Mix(hash, _evasiveDir), _evasiveFramesRemaining);
+        return Fnv1a.Mix(Fnv1a.Mix(hash, StuckFrames), NoProgressFrames);
     }
 }

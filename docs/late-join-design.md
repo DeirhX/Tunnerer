@@ -264,7 +264,7 @@ nobody is joining. All the work of a join happens in the hold, when nobody is si
 | Each tick | One more byte in each `Tick` (the human mask) and one byte compared before stepping. Nothing else. |
 | Each second | The sync digest. Its new parts replaced the energy total with a per-cell hash in four independent lanes, which is cheaper than the sum was. Measured 2026-11-18 on the development Mac, beyond the state hash: 0.19 ms before and 0.06 ms after on 480 x 300, 1.32 ms and 0.39 ms on 1500 x 750 (Release); 4.88 ms and 2.47 ms on 1500 x 750 in Debug. |
 | Snapshots | None. The saver reads the state only when asked; it keeps no dirty flags, shadow copies or logs during play. |
-| Bots (build step 2) | `FastRandom` in place of `System.Random`, which is no dearer. Bot state joins the digest at a cost per bot, measured like the rest. |
+| Bots | `FastRandom` in place of `System.Random`: half the cost per draw. Bot state is in the digest, under 1 µs for two bots. |
 
 | During a join | Who pays |
 |---|---|
@@ -496,8 +496,14 @@ Each step is testable without the next.
    sum did (§8.1). Bots are not in it yet: they live in Desktop's session, and join the digest with step 2. No
    fingerprint changes; the protocol is unchanged, since clients of one build compare the same digest. Worth
    having for desync detection whether or not the rest follows.
-2. **Bots on `FastRandom`.** The bot-against-bot fingerprint changes; the commit says so. Bot state joins the sync
-   digest; measure the digest again, against step 1.
+2. **Bots on `FastRandom`** (done, 2026-11-18). `BotRandom` wraps one `FastRandom` (seed scrambled with
+   `FastRandom.Hash32`) for the bot, its navigator and its gunner. The bot-against-bot fingerprint changed. Every
+   bot's state, its stream included, is a seventh digest part (`SyncDigest.Bots`, from
+   `WorldStateHash.ComputeSync(world, bots)`). Measured against step 1 on the development Mac (Release): a draw
+   costs 1.5 ns against 3.0 ns; over 16 bot-against-bot matches of 2400 ticks the bots took 2.43 against 2.32
+   µs a tick and a whole step 0.133 against 0.127 ms, a gap well inside the spread between matches (1.6 to 6.4
+   µs), which comes from the matches playing out differently; the digest is unchanged within noise (about 100 µs
+   on 480 x 300, the bots adding under 1 µs).
 3. **Snapshots in Core.** The saver and loader, the bots beside the world, the coverage guard test and the
    round-trip tests (§10.3, items 1 and 2). Measure size, compression, save and load time on the default map and
    at 1500 x 750, on the slowest machine that will play.

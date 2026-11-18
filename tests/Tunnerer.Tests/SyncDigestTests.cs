@@ -1,4 +1,5 @@
 using Tunnerer.Core;
+using Tunnerer.Core.Bots;
 using Tunnerer.Core.Entities.Machines;
 using Tunnerer.Core.Match;
 using Tunnerer.Core.Types;
@@ -83,6 +84,23 @@ public class SyncDigestTests
         SyncDigest digestA = WorldStateHash.ComputeSync(a), digestB = WorldStateHash.ComputeSync(b);
         Assert.Equal(digestA.State, digestB.State);
         Assert.NotEqual(digestA.Latent, digestB.Latent);
+    }
+
+    [Fact]
+    public void Bots_SeesWhatABotRemembers()
+    {
+        var world = TestHelpers.CreateSeededWorld();
+        var tanks = world.TankList.Tanks;
+        BotTankAI?[] fresh = [new BotTankAI(seed: 11), new BotTankAI(seed: 22)];
+        BotTankAI?[] asked = [new BotTankAI(seed: 11), new BotTankAI(seed: 22)];
+        Assert.Equal(WorldStateHash.ComputeSync(world, fresh), WorldStateHash.ComputeSync(world, asked));
+
+        // Asking a bot for its input changes only the bot: its plan, its clocks and its random stream.
+        asked[0]!.GetInput(tanks[0], tanks[1], world);
+
+        SyncDigest before = WorldStateHash.ComputeSync(world, fresh), after = WorldStateHash.ComputeSync(world, asked);
+        Assert.Equal(before.State, after.State);
+        Assert.NotEqual(before.Bots, after.Bots);
     }
 
     [Fact]

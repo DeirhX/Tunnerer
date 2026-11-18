@@ -92,7 +92,7 @@ public sealed class NetSession
         _played.Add(bundle);
         if (_world.AdvanceCount % HashIntervalTicks == 0)
         {
-            SyncDigest digest = WorldStateHash.ComputeSync(_world);
+            SyncDigest digest = WorldStateHash.ComputeSync(_world, _bots);
             _digests.Enqueue((_world.AdvanceCount, digest));
             if (_digests.Count > DigestsKept)
                 _digests.Dequeue();

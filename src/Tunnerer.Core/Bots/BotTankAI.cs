@@ -74,7 +74,7 @@ public class BotTankAI
     /// <summary>Roaming ends and the bot heads home below this health (heat limits are in <see cref="Tweaks.Bot"/>).</summary>
     private const int ReturnBelowHealth = 500;
 
-    private readonly Random _rng;
+    private readonly BotRandom _rng;
     private readonly BotProfileCycle _profiles = new();
     private readonly BotNavigator _navigator;
     private readonly BotGunner _gunner;
@@ -102,7 +102,7 @@ public class BotTankAI
 
     public BotTankAI(int seed)
     {
-        _rng = new Random(seed);
+        _rng = new BotRandom(seed);
         _navigator = new BotNavigator(_rng);
         _gunner = new BotGunner(_rng);
     }
@@ -522,5 +522,34 @@ public class BotTankAI
         if (met == StepObstacle.Solid || (met == StepObstacle.Hard && !MayTorchRock(tank)))
             _maneuverFrames = 0;
         return MoveOutput(tank, _maneuverMove, world);
+    }
+
+    /// <summary>
+    /// Mixes everything the bot remembers between ticks, its random stream included, for the sync digest. Every
+    /// client runs every bot, so a bot that went apart on one machine would show only once its tank moved
+    /// differently; this sees it at once.
+    /// </summary>
+    internal ulong MixState(ulong hash)
+    {
+        hash = _rng.MixState(hash);
+        hash = _profiles.MixState(hash);
+        hash = _navigator.MixState(hash);
+        hash = _gunner.MixState(hash);
+        hash = _trail.MixState(hash);
+        hash = Fnv1a.Mix(hash, (int)_mode);
+        hash = Fnv1a.Mix(Fnv1a.Mix(hash, _move.X), _move.Y);
+        hash = Fnv1a.Mix(hash, _shoot);
+        hash = Fnv1a.Mix(hash, _planHadLineOfSight);
+        hash = Fnv1a.Mix(hash, _torchDirt);
+        hash = Fnv1a.Mix(hash, _timeToChange);
+        hash = Fnv1a.Mix(hash, _returnStallFrames);
+        hash = Fnv1a.Mix(hash, _returnNearestCells);
+        hash = Fnv1a.Mix(hash, _returnCooldownFrames);
+        hash = Fnv1a.Mix(Fnv1a.Mix(hash, _aimDirection.X), _aimDirection.Y);
+        hash = Fnv1a.Mix(Fnv1a.Mix(hash, _maneuverMove.X), _maneuverMove.Y);
+        hash = Fnv1a.Mix(hash, _maneuverFrames);
+        hash = Fnv1a.Mix(hash, _maneuverIsBreakout);
+        hash = Fnv1a.Mix(hash, _rechargeLowestHeat);
+        return Fnv1a.Mix(hash, _rechargeStallFrames);
     }
 }
