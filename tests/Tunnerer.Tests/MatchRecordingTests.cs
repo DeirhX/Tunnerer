@@ -10,7 +10,7 @@ using Tunnerer.Protocol;
 public class MatchRecordingTests
 {
     private const int HumanMask = 0b01;
-    private static readonly MatchConfig Config = NetLaunch.ProposeConfig(
+    private static readonly MatchConfig Config = NetMatch.ProposeConfig(
         seed: 5, new Size(320, 200), LevelGenMode.Optimized, players: 2);
 
     /// <summary>A short match of one player and one bot, played through a relay as the game would.</summary>

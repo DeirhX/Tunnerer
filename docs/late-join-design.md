@@ -32,7 +32,7 @@ first tranche.
 
 | Today | What late join gets from it |
 |---|---|
-| Open slots are played by bots, seeded by `MatchSetup.BotSeed(matchSeed, slot)` (`NetSession.CreateBots`) | A tank and a base in every seat nobody took. |
+| Open slots are played by bots, seeded by `MatchSetup.BotSeed(matchSeed, slot)` (`Seats.ForStart`) | A tank and a base in every seat nobody took. |
 | Pause for everyone (`SetPaused`, `PauseState`): the relay stops closing ticks and its clock does not count the pause | The hold. A join is a short pause the relay starts and ends itself. |
 | The relay keeps the first sync hash reported for every hash tick, for the whole match | The joiner can check the world it loaded against what the players reported for that tick. |
 | `LockstepRoom.Disconnect`/`Reconnect`; bot slots are disconnected at the start and play the neutral input | Seating a joiner reconnects the slot's input queue. |

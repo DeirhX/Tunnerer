@@ -29,11 +29,13 @@ Run from the repository root.
   - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
   - `Rendering/Shaders`: the HLSL it draws.
 - `src/Tunnerer.Rendering`: the rendering code every host shares (terrain fields and what a frame uploads of them,
-  entity emitters and machine sprites, the shader constant block, sound (the step-event table, `SoundDirector` and `SoundBank`), the heat colours (`HeatScale`) and the HUD's
-  guidance: tutorial, toasts, build-key hint and warnings). Its sources are the files of `src/Tunnerer.Desktop` listed in
+  entity emitters and machine sprites, the shader constant block, sound (the step-event table, `SoundDirector` and `SoundBank`), the heat colours (`HeatScale`), what a build slot says (`BuildSlotView`) and the HUD's
+  guidance: tutorial, toasts, build-key hint and warnings), and a client's part in a network match (`NetSession`,
+  `SlotStepper`, `NetMatch`). Its sources are the files of `src/Tunnerer.Desktop` listed in
   `Tunnerer.Rendering.csproj`, which `Tunnerer.Desktop.csproj` leaves out: sharing a file means adding it to both
-  lists. It references only Core (`ArchitectureGuardTests`).
-- `src/Tunnerer.Browser.Client`: the browser's match and what it draws, in plain .NET so the tests cover it.
+  lists. It references only Core and the protocol (`ArchitectureGuardTests`).
+- `src/Tunnerer.Browser.Client`: the browser's match (local, or network through `BrowserNetMatch`) and what it
+  draws, in plain .NET so the tests cover it.
 - `src/Tunnerer.Browser`: the WebAssembly exports and the web page (`wwwroot`: WebGL, input, HUD, offline shell).
   Not in `Tunnerer.slnx`, because building it needs a .NET WebAssembly workload; `docs/browser.md` has the commands.
 - `tools/browser`: publish, serve and test the browser client.

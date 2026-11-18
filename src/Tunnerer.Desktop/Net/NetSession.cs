@@ -57,7 +57,7 @@ public sealed class NetSession
     /// A session for a player who joined the match in progress: its world was loaded from a snapshot, and it steps on
     /// from the tick the snapshot was saved at.
     /// </summary>
-    /// <param name="snapshot">The compressed snapshot the world was loaded from, kept for <see cref="Recording"/>.</param>
+    /// <param name="snapshot">The compressed snapshot the world was loaded from, kept for the recording (<see cref="StartSnapshot"/>).</param>
     public static NetSession FromSnapshot(ILockstepLink link, World world, Seats seats, byte[] snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -88,12 +88,11 @@ public sealed class NetSession
     /// <summary>Every bundle simulated so far, in order, from <see cref="StartTick"/>.</summary>
     public IReadOnlyList<TickBundle> Played => _played;
 
-    /// <summary>
-    /// What this session has played, as a recording: from the start of the match, or from the snapshot a joiner
-    /// loaded. With the settings that is the whole match from there, so replaying it rebuilds this world.
-    /// </summary>
-    public MatchRecording Recording(MatchConfig config) =>
-        new(config, _startMask, _played, _startSnapshot);
+    /// <summary>The human mask the session started with: at the start of the match, or in the snapshot loaded.</summary>
+    public int StartMask => _startMask;
+
+    /// <summary>The compressed snapshot a joiner's world was loaded from; null for a session from the start.</summary>
+    public byte[]? StartSnapshot => _startSnapshot;
 
     /// <summary>The last few digests reported to the relay, oldest first, for a desync report.</summary>
     public IReadOnlyCollection<(int Tick, SyncDigest Digest)> RecentDigests => _digests;

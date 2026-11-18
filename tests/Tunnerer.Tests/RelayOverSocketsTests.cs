@@ -46,7 +46,7 @@ public class RelayOverSocketsTests
     private static NetLaunchOptions Options(Uri play, string name) => new(play, "test-room", name, Players: 2);
 
     private static MatchConfig Config(int seed) =>
-        NetLaunch.ProposeConfig(seed, MapSize, Core.LevelGen.LevelGenMode.Deterministic, players: 2);
+        NetMatch.ProposeConfig(seed, MapSize, Core.LevelGen.LevelGenMode.Deterministic, players: 2);
 
     private static void WaitFor(Func<bool> condition, params RelayConnection[] pump) =>
         WaitFor(condition, pump, TimeSpan.FromSeconds(10));
@@ -75,7 +75,7 @@ public class RelayOverSocketsTests
             () => RelayConnection.Connect(play, otherBuild, TimeSpan.FromSeconds(5)));
         Assert.Contains("some-other-build", refused.Message, StringComparison.Ordinal);
 
-        var otherProtocol = otherBuild with { BuildId = NetLaunch.BuildId, Protocol = MessageCodec.ProtocolVersion + 1 };
+        var otherProtocol = otherBuild with { BuildId = NetMatch.BuildId, Protocol = MessageCodec.ProtocolVersion + 1 };
         var outdated = Assert.Throws<RelayException>(
             () => RelayConnection.Connect(play, otherProtocol, TimeSpan.FromSeconds(5)));
         Assert.Contains("protocol", outdated.Message, StringComparison.Ordinal);
@@ -154,7 +154,7 @@ public class RelayOverSocketsTests
     }
 
     private static Hello HelloFor(string name) =>
-        new(MessageCodec.ProtocolVersion, NetLaunch.BuildId, name, "test-room", Config(seed: 42));
+        new(MessageCodec.ProtocolVersion, NetMatch.BuildId, name, "test-room", Config(seed: 42));
 
     /// <summary>
     /// A relay that completes the handshake and says welcome, then never says anything again and does not answer
@@ -368,7 +368,7 @@ public class RelayOverSocketsTests
             await using var _ = app;
             using var socket = await OpenRawAsync(play);
             await SendRawAsync(socket, MessageCodec.Encode(
-                new Hello(MessageCodec.ProtocolVersion, NetLaunch.BuildId, "Eve", "flood", Config(1))));
+                new Hello(MessageCodec.ProtocolVersion, NetMatch.BuildId, "Eve", "flood", Config(1))));
             Assert.IsType<Welcome>(await ReadRawAsync(socket));
 
             // The relay may end the connection while the flood is still being sent or its answers read; either way
@@ -564,7 +564,7 @@ public class RelayOverSocketsTests
             var (app, play) = await StartRelayAsync();
             await using var _ = app;
             // Two players and two bots: the bots must run alike on the client that stayed and the one that came back.
-            var config = Fast(NetLaunch.ProposeConfig(42, FourPlayerMap, Core.LevelGen.LevelGenMode.Deterministic, players: 4));
+            var config = Fast(NetMatch.ProposeConfig(42, FourPlayerMap, Core.LevelGen.LevelGenMode.Deterministic, players: 4));
             using var a = NetLaunch.Join(Options(play, "Ann"), config);
             var b = NetLaunch.Join(Options(play, "Bob"), config);
             var worldA = CreateFourTankWorld(42);

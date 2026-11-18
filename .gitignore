@@ -3,6 +3,7 @@ build/
 artifacts/
 src/Tunnerer.Browser/wwwroot/shaders/
 src/Tunnerer.Browser/wwwroot/fonts/
+src/Tunnerer.Browser/wwwroot/hud/
 
 # Visual Studio
 .vs/

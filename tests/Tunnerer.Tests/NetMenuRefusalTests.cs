@@ -26,7 +26,7 @@ public class NetMenuRefusalTests
         new(play, room, name, Players: 2);
 
     private static MatchConfig Proposal() =>
-        NetLaunch.ProposeConfig(42, new Size(320, 200), Core.LevelGen.LevelGenMode.Deterministic, players: 2);
+        NetMatch.ProposeConfig(42, new Size(320, 200), Core.LevelGen.LevelGenMode.Deterministic, players: 2);
 
     private static NetMenuModel MenuAfter(NetLaunchOptions options, RelayException refusal) =>
         new(new PlayerSettings(), "Ann", new NetMenuRequest(options, refusal.Message));

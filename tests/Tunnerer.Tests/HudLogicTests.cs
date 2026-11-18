@@ -5,6 +5,8 @@ using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Rendering;
 using Tunnerer.Core.Network;
+using Tunnerer.Core.Entities.Tanks;
+using Tunnerer.Desktop.Presentation;
 
 namespace Tunnerer.Tests;
 
@@ -136,6 +138,31 @@ public class HudLogicTests
     {
         int relay = Cost(MachineType.Relay);
         Assert.Equal($"Mine {relay - 3} more ore (teal crystal) to build a relay", HintSelector.Select(Field(ore: 3)).Text);
+    }
+
+    [Fact]
+    public void HeatScale_FreezesTheOrbBelowAmbient_AndBoilsItTowardTheSafeMaximum()
+    {
+        Assert.Equal(0f, HeatScale.Frozen(0f));
+        Assert.Equal(1f, HeatScale.Frozen(Tweaks.Tank.FrostbiteTemperature));
+        Assert.Equal(0f, HeatScale.Boil(0.4f * Tweaks.Tank.HeatSafeMax));
+        Assert.Equal(1f, HeatScale.Boil(Tweaks.Tank.HeatSafeMax), 5);
+        Assert.Equal(HeatScale.Min, HeatScale.At(0f));
+        Assert.Equal(HeatScale.Max, HeatScale.At(1f), 3);
+    }
+
+    [Theory]
+    [InlineData(10, 4, true, null, BuildSlotState.Ready, "RELAY [E]", "4 ORE BASE")]
+    [InlineData(1, 4, false, null, BuildSlotState.Filling, "ORE 1/4", "[E] RELAY")]
+    [InlineData(10, 4, true, MachineType.Relay, BuildSlotState.Carrying, "PLANT [E]", null)]
+    [InlineData(10, 4, true, MachineType.Harvester, BuildSlotState.Blocked, "RELAY [E]", "4 ORE BASE")]
+    public void BuildSlotView_SaysWhatTheDesktopsSlotSays(int stock, int cost, bool afford, MachineType? carried,
+        BuildSlotState state, string label, string? caption)
+    {
+        var quote = new BuildQuote(MachineType.Relay, cost, afford ? OrePayer.BaseStore : OrePayer.None, stock, InNetwork: true);
+        var slot = BuildSlotView.Of(MachinePresentations.Relay, quote, carried);
+        Assert.Equal((state, label, caption), (slot.State, slot.Label, slot.Caption));
+        Assert.Equal(Math.Min(1f, stock / (float)cost), slot.Progress);
     }
 
     [Fact]

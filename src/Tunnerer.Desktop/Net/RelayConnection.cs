@@ -19,13 +19,9 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     private readonly ConcurrentQueue<(Message Message, TimeSpan Arrived)> _inbox = new();
     private readonly Channel<byte[]> _outbox = Channel.CreateUnbounded<byte[]>(
         new UnboundedChannelOptions { SingleReader = true });
-    private readonly Queue<TickBundle> _bundles = new();
-    private readonly Queue<Message> _joinMessages = new();
+    private readonly RoomClient _room;
     private volatile string? _lost;
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
-    private TimeSpan _pingSentAt;
-    private uint _pingId;
-    private bool _pingPending;
 
     /// <summary>
     /// How the client notices a relay that has gone silent without closing the connection: after
@@ -44,11 +40,7 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     {
         _socket = socket;
         Address = address;
-        Room = hello.Room;
-        RequestedName = hello.Name;
-        Slot = welcome.Slot;
-        Config = welcome.Config;
-        Roster = [];
+        _room = new RoomClient(hello, welcome, Send);
         _ = Task.Run(ReadLoopAsync);
         _ = Task.Run(WriteLoopAsync);
     }
@@ -56,56 +48,52 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     /// <summary>The relay's address.</summary>
     public Uri Address { get; }
 
-    /// <summary>The room this client is in.</summary>
-    public string Room { get; }
+    /// <summary>What the relay has said to this client: <see cref="RoomClient"/>.</summary>
+    public string Room => _room.Room;
 
-    /// <summary>The name this client asked for in its hello.</summary>
-    public string RequestedName { get; }
+    /// <inheritdoc cref="RoomClient.RequestedName"/>
+    public string RequestedName => _room.RequestedName;
 
-    /// <summary>
-    /// The name the relay gave this client, which it must use to come back to the match. It differs from
-    /// <see cref="RequestedName"/> when someone in the room already had the name ("Ann (2)"). Null until the relay's
-    /// first roster has arrived.
-    /// </summary>
-    public string? AssignedName => Slot < Roster.Length && Roster[Slot].Length > 0 ? Roster[Slot] : null;
+    /// <inheritdoc cref="RoomClient.AssignedName"/>
+    public string? AssignedName => _room.AssignedName;
 
-    /// <summary>The slot the relay gave this client: which tank it drives.</summary>
-    public int Slot { get; }
+    /// <inheritdoc cref="RoomClient.Slot"/>
+    public int Slot => _room.Slot;
 
-    /// <summary>The match every client in the room builds.</summary>
-    public MatchConfig Config { get; }
+    /// <inheritdoc cref="RoomClient.Config"/>
+    public MatchConfig Config => _room.Config;
 
-    /// <summary>The players' names by slot; an empty name is an empty slot.</summary>
-    public ImmutableArray<string> Roster { get; private set; }
+    /// <inheritdoc cref="RoomClient.Roster"/>
+    public ImmutableArray<string> Roster => _room.Roster;
 
-    /// <summary>True once the relay has started the match: ticks are coming.</summary>
-    public bool Started { get; private set; }
+    /// <inheritdoc cref="RoomClient.Started"/>
+    public bool Started => _room.Started;
 
-    /// <summary>Once started: bit n is set when a player drives slot n; the other slots are for bots.</summary>
-    public int HumanMask { get; private set; }
+    /// <inheritdoc cref="RoomClient.HumanMask"/>
+    public int HumanMask => _room.HumanMask;
 
-    /// <summary>The slot of the host, who may start the match before the room is full: the lowest slot taken.</summary>
-    public int HostSlot => RoomRules.HostSlot(Roster.Length, slot => Roster[slot].Length > 0);
+    /// <inheritdoc cref="RoomClient.HostSlot"/>
+    public int HostSlot => _room.HostSlot;
 
-    public bool IsHost => HostSlot == Slot;
+    public bool IsHost => _room.IsHost;
 
-    /// <summary>True when this client came back to a match that was already running, and is replaying it.</summary>
-    public bool Rejoined { get; private set; }
+    /// <inheritdoc cref="RoomClient.Rejoined"/>
+    public bool Rejoined => _room.Rejoined;
 
-    /// <summary>True while the match is held for everyone; no ticks come until someone resumes it.</summary>
-    public bool IsPaused { get; private set; }
+    /// <inheritdoc cref="RoomClient.IsPaused"/>
+    public bool IsPaused => _room.IsPaused;
 
-    /// <summary>The slot of whoever paused or resumed last.</summary>
-    public int PausedBySlot { get; private set; }
+    /// <inheritdoc cref="RoomClient.PausedBySlot"/>
+    public int PausedBySlot => _room.PausedBySlot;
 
-    /// <summary>The last measured round trip to the relay and back, in milliseconds; null before the first.</summary>
-    public int? LatencyMs { get; private set; }
+    /// <inheritdoc cref="RoomClient.LatencyMs"/>
+    public int? LatencyMs => _room.LatencyMs;
 
-    /// <summary>The tick at which the relay found two clients' worlds different, if it has.</summary>
-    public int? DesyncTick { get; private set; }
+    /// <inheritdoc cref="RoomClient.DesyncTick"/>
+    public int? DesyncTick => _room.DesyncTick;
 
-    /// <summary>Why the connection is over (refused, or lost), or null while it is alive.</summary>
-    public string? Failure { get; private set; }
+    /// <inheritdoc cref="RoomClient.Failure"/>
+    public string? Failure => _room.Failure;
 
     /// <summary>
     /// Connects, says hello and waits for the relay's answer. Blocks, so call it before the game loop starts.
@@ -147,53 +135,10 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     public void Pump()
     {
         while (_inbox.TryDequeue(out var received))
-        {
-            switch (received.Message)
-            {
-                // Protocol 5 does not carry the human mask, and its relay never changes it: every tick has the
-                // mask the match started with.
-                case Tick tick: _bundles.Enqueue(tick.Bundle with { HumanMask = HumanMask }); break;
-                case Roster roster: Roster = roster.Names; break;
-                case Start start:
-                    Started = true;
-                    HumanMask = start.HumanMask;
-                    break;
-                case Rejoined rejoined:
-                    Started = true;
-                    Rejoined = true;
-                    HumanMask = rejoined.HumanMask;
-                    break;
-                case Log log:
-                    foreach (var bundle in log.Bundles(HumanMask))
-                        _bundles.Enqueue(bundle);
-                    break;
-                case PauseState pause:
-                    IsPaused = pause.Paused;
-                    PausedBySlot = pause.BySlot;
-                    break;
-                case Pong pong when _pingPending && pong.Id == _pingId:
-                    _pingPending = false;
-                    // Timed to when the answer arrived, not to when the game loop got round to reading it.
-                    LatencyMs = (int)Math.Round((received.Arrived - _pingSentAt).TotalMilliseconds);
-                    break;
-                case SnapshotRequest or SnapshotOffer or SnapshotChunk or Seated or SeatRefused:
-                    _joinMessages.Enqueue(received.Message);
-                    break;
-                case Desync desync: DesyncTick ??= desync.AtTick; break;
-                case Refusal refusal: Failure ??= refusal.Reason; break;
-            }
-        }
+            _room.Accept(received.Message, received.Arrived);
         if (_inbox.IsEmpty && _lost is { } lost)
-            Failure ??= lost;
-
-        // One ping a second; a lost one is given up on after five.
-        TimeSpan sincePing = _clock.Elapsed - _pingSentAt;
-        if (Failure == null && (_pingPending ? sincePing > PingTimeout : sincePing > PingInterval || _pingId == 0))
-        {
-            _pingSentAt = _clock.Elapsed;
-            _pingPending = true;
-            Send(new Ping(++_pingId));
-        }
+            _room.Lose(lost);
+        _room.KeepTime(_clock.Elapsed);
     }
 
     /// <summary>
@@ -213,43 +158,34 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
             if (!Started)
                 return $"Waiting for players: {PlayersHere} of {Config.Slots} here.";
             if (IsPaused)
-            {
-                string by = PausedBySlot < Roster.Length && Roster[PausedBySlot].Length > 0 ? Roster[PausedBySlot] : "a player";
-                return $"Paused by {by}. P resumes the match for everyone.";
-            }
+                return $"Paused by {_room.PausedByName}. P resumes the match for everyone.";
             return null;
         }
     }
 
-    /// <summary>How many players are in the room now.</summary>
-    public int PlayersHere => Roster.Count(name => name.Length > 0);
+    /// <inheritdoc cref="RoomClient.PlayersHere"/>
+    public int PlayersHere => _room.PlayersHere;
 
-    private static readonly TimeSpan PingInterval = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(5);
+    public void SendReady(ulong worldHash) => _room.SendReady(worldHash);
 
-    public void SendReady(ulong worldHash) => Send(new Ready(worldHash));
+    /// <inheritdoc cref="RoomClient.SetPaused"/>
+    public void SetPaused(bool paused) => _room.SetPaused(paused);
 
-    /// <summary>Asks the relay to hold the match for everyone, or to let it run again.</summary>
-    public void SetPaused(bool paused) => Send(new SetPaused(paused));
+    /// <inheritdoc cref="RoomClient.RequestStart"/>
+    public void RequestStart() => _room.RequestStart();
 
-    /// <summary>Asks the relay to start with the players who are here. Only the host's request counts.</summary>
-    public void RequestStart() => Send(new StartRequest());
+    public void SendInput(uint input) => _room.SendInput(input);
 
-    public void SendInput(uint input) => Send(new Input(input));
+    public void SendHash(int tick, ulong hash) => _room.SendHash(tick, hash);
 
-    public void SendHash(int tick, ulong hash) => Send(new Hash(tick, hash));
+    public void SendMatchOver(int tick) => _room.SendMatchOver(tick);
 
-    public void SendMatchOver(int tick) => Send(new MatchOver(tick));
+    public bool TryReceive([NotNullWhen(true)] out TickBundle? bundle) => _room.TryReceive(out bundle);
 
-    public bool TryReceive([NotNullWhen(true)] out TickBundle? bundle) => _bundles.TryDequeue(out bundle);
+    /// <inheritdoc cref="RoomClient.SendJoin"/>
+    public void SendJoin(Message message) => _room.SendJoin(message);
 
-    /// <summary>
-    /// Sends a message of joining a match in progress. Protocol 5 has no bytes for them, and its relay never asks
-    /// for a snapshot, so nothing calls this yet over a socket.
-    /// </summary>
-    public void SendJoin(Message message) => Send(message);
-
-    public bool TryReceiveJoin([NotNullWhen(true)] out Message? message) => _joinMessages.TryDequeue(out message);
+    public bool TryReceiveJoin([NotNullWhen(true)] out Message? message) => _room.TryReceiveJoin(out message);
 
     private bool _disposed;
 

@@ -27,11 +27,16 @@ export class GameInput {
                     action("pause");
                 }
                 if (e.key === "?") action("help");
+                // A network match: the host starts it from the lobby, and P holds it for everyone.
+                if (e.code === "Enter" || e.code === "NumpadEnter")
+                    action("enter");
+                if (e.code === "KeyP") action("netpause");
                 if (e.code === "F2") {
                     e.preventDefault();
                     action("tutorial");
                 }
                 if (this.enabled) {
+                    if (e.code === "KeyH") action("thermal");
                     const build = { KeyE: 1, KeyR: 2, KeyT: 3 }[e.code];
                     if (build) this.queue("build", build);
                     if (/^Digit[1-6]$/.test(e.code))

@@ -7,6 +7,8 @@
   <!-- Shared source, existing namespaces and file locations. This assembly has no native dependencies. -->
   <ItemGroup>
     <ProjectReference Include="../Tunnerer.Core/Tunnerer.Core.csproj" />
+    <!-- What a client and the relay share: a network match's session and room state are shared with the browser. -->
+    <ProjectReference Include="../Tunnerer.Protocol/Tunnerer.Protocol.csproj" />
     <Compile Include="../Tunnerer.Desktop/DrawProfile.cs" Link="DrawProfile.cs" />
     <Compile Include="../Tunnerer.Desktop/Config/DesktopScreenTweaks.cs" Link="Config/DesktopScreenTweaks.cs" />
     <Compile Include="../Tunnerer.Desktop/Config/PostProcessPassFlags.cs" Link="Config/PostProcessPassFlags.cs" />
@@ -31,6 +33,13 @@
     <Compile Include="../Tunnerer.Desktop/Presentation/MachinePresentation.cs" Link="Presentation/MachinePresentation.cs" />
     <Compile Include="../Tunnerer.Desktop/Gui/HintSelector.cs" Link="Gui/HintSelector.cs" />
     <Compile Include="../Tunnerer.Desktop/Gui/HeatScale.cs" Link="Gui/HeatScale.cs" />
+    <Compile Include="../Tunnerer.Desktop/Gui/BuildSlotView.cs" Link="Gui/BuildSlotView.cs" />
     <Compile Include="../Tunnerer.Desktop/Gui/Guidance/*.cs" Link="Gui/Guidance/%(Filename)%(Extension)" />
+    <Compile Include="../Tunnerer.Desktop/SlotStepper.cs" Link="SlotStepper.cs" />
+    <Compile Include="../Tunnerer.Desktop/Config/NetworkTweaks.cs" Link="Config/NetworkTweaks.cs" />
+    <Compile Include="../Tunnerer.Desktop/Net/NetSession.cs" Link="Net/NetSession.cs" />
+    <Compile Include="../Tunnerer.Desktop/Net/Seats.cs" Link="Net/Seats.cs" />
+    <Compile Include="../Tunnerer.Desktop/Net/NetMatch.cs" Link="Net/NetMatch.cs" />
+    <Compile Include="../Tunnerer.Desktop/Net/LobbyText.cs" Link="Net/LobbyText.cs" />
   </ItemGroup>
 </Project>

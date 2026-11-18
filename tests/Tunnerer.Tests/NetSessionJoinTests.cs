@@ -17,7 +17,7 @@ public class NetSessionJoinTests
 {
     private const int Slots = 4, Players = 0b0011, MatchSeed = 42;
 
-    internal static MatchConfig Config { get; } = NetLaunch.ProposeConfig(
+    internal static MatchConfig Config { get; } = NetMatch.ProposeConfig(
         MatchSeed, new Size(480, 300), LevelGenMode.Optimized, players: Slots);
 
     /// <summary>A client of the match: its world and session, and the slot it plays (scripted input).</summary>

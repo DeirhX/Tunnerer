@@ -76,11 +76,14 @@ Properties:
   release, and only if there is none the oldest input, which it counts.
 - **The tick rate is a match setting**, not a constant in the relay: changing the simulation rate needs no new
   relay.
-- **Input delay** is uplink + up to one tick + downlink: roughly 1 to 2 ticks (40 to 85 ms) on an office link to
-  a nearby server. Entity interpolation already hides one step.
+- **Input delay** is uplink + the wait for the relay's next tick + the client's own step phase + downlink. The
+  client keeps no bundle back (`BundleBuffer.TargetDepth` is 0), so an input is simulated at the first local step
+  after its bundle arrives. Measured on localhost with `TUNNERER_NET_LATENCY_LOG=1`: mean 44.6 ms, 91% of inputs
+  one tick (a depth of 1 gave a mean of 56.5 ms). Entity interpolation already hides one step.
 - **Pacing on the client.** `GameFrameCoordinator` today steps on the wall clock. In a net session it steps when
-  a bundle is available, keeping a one-tick jitter buffer, and uses the existing "at most 4 steps to catch up"
-  path when bundles arrive in a burst. If the buffer keeps growing the client steps faster until it is level.
+  a bundle is available, and uses the existing "at most 4 steps to catch up" path when bundles arrive in a burst.
+  With no buffer, a bundle that arrives late stalls one step; a link with that much jitter may need
+  `TargetDepth` back at 1. If the buffer keeps growing the client steps faster until it is level.
 
 ### Input encoding
 
@@ -293,6 +296,13 @@ Desktop:
 - Name tags and distinct colours for four tanks; a latency and "waiting for server" indicator.
 - Debug hotkeys that would change the simulation are off in a net session. Render-only toggles stay.
 
+Browser (docs/browser.md, Network play):
+
+- It runs the same `NetSession` and `SlotStepper` (shared through `Tunnerer.Rendering`) and keeps what the relay
+  said in the protocol's `RoomClient`, which the desktop's `RelayConnection` also wraps. The page's WebSocket only
+  carries bytes; `BrowserNetMatch` makes and reads the messages. A browser and a desktop of one commit share a build
+  id and compute the same world, so they play in one room.
+
 Core:
 
 - The input codec (§4).
@@ -356,7 +366,9 @@ Each step is testable without the next.
    idles. Protocol version 5. With it: Enter reconnects after a lost connection, the sync digest covers base
    ore and upgrades, names in a room are unique, the round trip is timed to the answer's arrival and not to the
    next simulation step, and the relay caps its connections.
-8. Later: co-op sides, late join ([late-join-design.md](late-join-design.md)), world snapshot for fast rejoin
+8. **Browser client** (done, 2026-11-18). The browser joins rooms from its welcome screen, with lobby, host start,
+   pause for everyone and rejoin by name, and plays with desktop clients of the same commit. No protocol change.
+9. Later: co-op sides, late join ([late-join-design.md](late-join-design.md)), world snapshot for fast rejoin
    and late join, play from outside the office.
 
 ## 11. Open questions

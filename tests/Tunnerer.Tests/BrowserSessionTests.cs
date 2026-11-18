@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using Tunnerer.Desktop.Audio;
 using Tunnerer.Desktop.Config;
 using Tunnerer.Desktop.Gui;
+using Tunnerer.Desktop.Presentation;
 using Tunnerer.Desktop.Rendering;
 using Tunnerer.Desktop.Rendering.Entities;
 
@@ -139,6 +140,56 @@ public class BrowserSessionTests
         session.Scene.Render(1280, 720, 6, 1, 0, 2);
         Assert.Contains(MemoryMarshal.Cast<byte, EntityVertex>(session.Scene.Vertices).ToArray(),
             v => v.Kind == EntityShape.KindHotShot);
+    }
+
+    [Fact]
+    public void Frame_CarriesWhatTheDesktopsArtStripShows_AndTheDialOnlyWhenAsked()
+    {
+        var session = new BrowserSession(1234);
+        var player = session.Player;
+
+        var first = BrowserFrameBuilder.Capture(session, includeEvents: false, includeDial: true);
+        Assert.Null(BrowserFrameBuilder.Capture(session, includeEvents: false).Dial);
+        var dial = first.Dial!;
+        Assert.Equal(HeatScale.DialBands, dial.Bands.Length);
+        // Each band in its middle's colour, as HeatGauge draws them.
+        Assert.Equal(BrowserFrameBuilder.HexColor(HeatScale.ColorRgb(HeatScale.At(0.5f / HeatScale.DialBands))), dial.Bands[0]);
+        Assert.Equal((HeatScale.Min, HeatScale.Max), (dial.Min, dial.Max));
+        Assert.InRange(dial.Ambient, 0f, dial.Safe);
+
+        var p = first.Player;
+        Assert.Equal(player.Reactor.Health, p.Health);
+        Assert.Equal((HeatScale.Frozen(player.Heat), HeatScale.Boil(player.Heat)), (p.Frozen, p.Boil));
+        Assert.Equal(BuildSlotView.OreLine(player), p.OreLine);
+        Assert.StartsWith("BASE ORE ", p.OreLine, StringComparison.Ordinal);
+        // Each machine in its desktop slot, as the desktop's BuildPanel draws it.
+        Assert.Equal([0, 1, 2], first.Builds.Select(b => b.Slot).Order());
+        foreach (var b in first.Builds)
+        {
+            var machine = MachinePresentations.All.Single(m => m.Type.ToString() == b.Name);
+            var view = BuildSlotView.Of(machine, player.QuoteBuild(machine.Type), player.CarriedMachineType);
+            Assert.Equal((view.Machine.BuildSlot, view.State.ToString(), view.Label, view.Caption), (b.Slot, b.State, b.Label, b.Caption));
+        }
+
+        session.Advance(new ControllerOutput { BuildPrimary = true });
+        var carrying = BrowserFrameBuilder.Capture(session, includeEvents: false).Builds;
+        Assert.Equal(nameof(BuildSlotState.Carrying), carrying.Single(b => b.Key == 1).State);
+        Assert.All(carrying.Where(b => b.Key != 1), b => Assert.Equal(nameof(BuildSlotState.Blocked), b.State));
+    }
+
+    [Fact]
+    public void ThermalView_TintsTheFrame_AndLeavesTheWorldAlone()
+    {
+        var session = new BrowserSession(1234);
+        static float Overlay(BrowserSession s) => MemoryMarshal.Read<PostParamsBlock>(s.Scene.Uniforms).HeatDebugOverlay;
+
+        session.Scene.Render(1280, 720, 6, 1, 0, 0);
+        Assert.Equal(0f, Overlay(session));
+        ulong before = WorldStateHash.Compute(session.World);
+        session.ThermalView = true;
+        session.Scene.Render(1280, 720, 6, 1, 0, 0);
+        Assert.Equal(1f, Overlay(session));
+        Assert.Equal(before, WorldStateHash.Compute(session.World));
     }
 
     [Fact]

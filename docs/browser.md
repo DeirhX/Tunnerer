@@ -1,7 +1,8 @@
 # Browser play and deployment
 
 The browser edition is a playable local match against the existing bot, with the standard terrain, heat,
-regrowth, ore, machines, power network, fog, radar, upgrades, respawns and the core-tap win condition.
+regrowth, ore, machines, power network, fog, radar, upgrades, respawns and the core-tap win condition, and network
+matches on the relay with other browsers and desktop players (Network play, below).
 It uses the real `Tunnerer.Core` assembly compiled to WebAssembly. No simulation rules are translated to JavaScript.
 
 ## Build and run
@@ -21,7 +22,8 @@ the same.
 
 The tools run the same on Windows, macOS and Linux; where Python is installed as `python` or `py` (Windows), use
 that name. Open `http://localhost:8703`. Release publishes use AOT compilation. For quicker local iteration use
-`python3 tools/browser/publish.py --no-aot`; the interpreted simulation runs more slowly. The publisher replaces
+`python3 tools/browser/publish.py --no-aot`; the interpreted simulation runs about five times more slowly, so do not
+judge the framerate on it (Performance, below). The publisher replaces
 its generated `wwwroot` directory to prevent older runtime assets from leaking into the offline cache.
 
 ### Two runtimes
@@ -61,7 +63,7 @@ If the threaded runtime fails to load, the match starts on one thread instead.
 One deployment carries both runtimes, rather than the runtime being fixed when publishing, because a deployment
 with only the threaded one would not start where the page is not isolated, the device has few cores, or the
 browser is not Chromium. A browser still downloads and keeps only the one it uses: the offline manifest lists the
-two apart (0.5 MiB shared; single-thread 10.2 MiB, threaded 10.8 MiB), and the service worker asks `threads.js` the
+two apart (1.9 MiB shared, 1.4 MiB of it the HUD art; single-thread 10.2 MiB, threaded 10.8 MiB), and the service worker asks `threads.js` the
 page's own question and caches that one ahead of time. The other is cached if the page ever loads it. The zip
 holds both, so it is about twice the size of a default publish's.
 
@@ -79,14 +81,52 @@ The portable browser presentation and shared rendering projects are in the main 
 its analyzers and tests. Publishing also runs the existing shader compiler with `--web`, translating the desktop
 HLSL through SPIR-V into GLSL ES 3.00 using the SPIRV-Cross library already bundled with SDL_shadercross.
 Generated GLSL lives under `wwwroot/shaders` and is regenerated from the HLSL, not edited by hand.
+Before translating, the web export turns every implicit-LOD sample in its copy of the SPIR-V into an explicit
+sample of level 0 (`ExplicitLodRewrite`), so the GLSL calls `textureLod(..., 0.0)` and never `texture()`: ANGLE's
+Direct3D 11 backend must otherwise unroll PostPs's loops around implicit-derivative samples, and that compile did
+not finish on Windows. It samples the same only because every web texture has level 0 alone and filters without
+mipmaps (`webgl.js`). The page compiles and links the shaders with `KHR_parallel_shader_compile` where the browser
+has it, waiting a frame at a time, and logs each program's time to the console.
 
 ## Controls and installation
 
 Drive with WASD or arrows; dirt is dug by moving into it. Aim with the mouse, and fire with a click or Space.
 Firing while moving torches rock. E builds a relay, R a harvester, T a pylon; press a build key again outside a
-base to plant the carried machine. Keys 1–6 buy upgrades while docked. Mouse wheel or +/− changes zoom.
+base to plant the carried machine. Keys 1–6 buy upgrades while docked. H turns the heat view on and off, as on
+the desktop: the ground tinted by its heat, so that enemy tunnels glow (it changes only what is drawn). Mouse wheel
+or +/− changes zoom.
 The on-screen controls support touch devices; tap the game to aim and fire, or hold FIRE while driving.
 Escape opens the pause menu. Switching away from the page pauses the local match.
+
+## Network play
+
+**PLAY ONLINE** on the welcome screen joins a room on the relay (docs/multiplayer-design.md): a name, a room, the
+number of tanks and the relay's secret if it has one. The page remembers them (`localStorage`). The first player into
+a room opens it with a new seed and that many tanks, on the desktop's map for the count (480x300 for more than two,
+`?map=WxH` for another); bots take the slots nobody joins. The lobby shows who is in each slot in their tank's
+colour; the host (the lowest slot) starts with **Start match** or Enter, and a full room starts by itself. P pauses
+the match for everyone and resumes it. Escape opens the menu over a running match, which does not stop for one
+player, and **Leave match** leaves the room. A player who left or lost the connection joins again under the same
+name and the page replays the match to the present, without sound, as the desktop does.
+
+The relay is the site's own `wss://<host>/play` on crust.bokovka.cz, which proxies it, and
+`wss://crust.bokovka.cz/play` everywhere else; `?relay=ws://localhost:8130/play` picks another. WebSockets are not
+subject to the cross-origin isolation headers, so a `--threads` deployment plays online too.
+
+A browser plays in the same rooms as the desktop. The relay keeps a room to one build, and the browser's build id
+is the desktop's: the Core assembly's version, which carries the commit. A browser and a desktop built from the
+same commit compute the same world (the native and WebAssembly fingerprints agree), so the published page joins
+desktop players running the same commit. The browser runs the desktop's own `NetSession` and slot stepper (shared
+through `Tunnerer.Rendering`) and the protocol's `RoomClient`, the relay state the desktop's `RelayConnection` wraps.
+The page owns the WebSocket (`net.js`) and carries only bytes: each request to .NET takes what arrived, with
+arrival times on the page's clock, and its answer brings the messages to send (`BrowserNetMatch`, `frames.js`).
+A frame simulates the ticks that have arrived, as on the desktop; a build or upgrade press waits in .NET for a tick
+to carry it, followed by a tick that releases it. A step is drawn from when the request that took it was sent,
+because ticks arrive by the relay's clock. A hidden tab stops drawing and stepping; when it comes back it catches up
+as a rejoining player does.
+
+Not yet in the browser: name tags over other tanks, the desync report file the desktop writes, and choosing a map
+size or seed for a new room from the page.
 
 The header changes to **OFFLINE READY** after the entire app, including the .NET runtime, has been cached.
 Chrome and Edge expose the **Install game** button when installation is available. Other browsers may expose
@@ -141,6 +181,13 @@ python3 tools/browser/serve.py
 node tools/browser/smoke.mjs
 ```
 
+`tools/browser/net-smoke.mjs` plays two pages in one room of a local relay
+(`dotnet run --project src/Tunnerer.Relay -- --urls http://127.0.0.1:8130`): the lobby, the host's start, a bot in
+the open slot, driving and building through the relay, pause for everyone, and a player who leaves and rejoins.
+The relay compares the players' world hashes once a second, so a match that plays on computed one world in both.
+`BrowserNetMatchTests` in `dotnet test` plays a browser client against a desktop client on the real relay and
+compares their worlds.
+
 For a `--threads` publish, serve it with `--isolate` and run `SMOKE_THREADS=1 node tools/browser/smoke.mjs`: the
 match must then run in the threaded runtime, and both runtimes must compute the same world. `BROWSER=webkit` (after
 `playwright install webkit`) runs the test in WebKit, where the match stays on one thread either way.
@@ -156,8 +203,24 @@ runs use the display's own pixel density, capped at 2x and 3840×2160.
 
 Open the game with `?perf` (for example `http://localhost:8703/?perf`) for a readout in the bottom-left corner:
 the display's frames per second and how many of them drew a new picture, the time a simulation step and building
-a frame take inside .NET, how many threads step the heat, texture bytes uploaded per second, and the size the
-world is drawn at. The same numbers are in `window.tunnererPerf`.
+a frame take inside .NET, how many threads step the heat, texture bytes uploaded per second, the size the
+world is drawn at, and what updating the HUD after a step costs the page (the art strip apart). The same numbers are
+in `window.tunnererPerf`.
+
+Judge the framerate on an AOT publish (the default): a `--no-aot` build steps the simulation about five times more
+slowly, falls behind, and then draws a new picture only with each step. Measured 2026-11-18 in Chromium on an Apple
+M5 Max, seed 1234, the window 1600×1000 at device pixel ratio 2, display at 120 Hz:
+
+| Build | Heat threads | Step | New pictures a second | HUD a step (strip) |
+|---|---|---|---|---|
+| AOT, threaded runtime | 8 | 1.9 ms | 118 of 118 | 0.16 ms (0.12 ms) |
+| AOT, single-thread runtime | 1 | 9.4 ms | 97 of 120 | 0.15 ms (0.11 ms) |
+| `--no-aot` | 1 | 46 ms | 20 of 120 | 0.17 ms (0.16 ms) |
+
+On one thread a step takes longer than a 120 Hz frame (8.3 ms), so the frame during each step shows the picture
+before it: about one in five at 24 steps a second. A 60 Hz display (16.7 ms a frame) loses none. The art strip
+draws what never changes once for each size into layers kept off screen and blurs nothing (`strip.js`); drawing it
+all every step, with the titles' glow as a blur, cost 0.16 ms of the page's time where it now costs 0.12 ms.
 
 - A frame costs what changed. The worker runs the desktop's `TerrainAuxUploader` and `FogLayer`: the first frame
   uploads the four world-sized textures once, and after that a frame uploads only the cells that changed in sight,
@@ -206,10 +269,12 @@ window and graphics dependencies out of the shared rendering assembly.
 - `Tunnerer.Rendering`: the terrain fields, material coverage, the uploader that decides what a frame repacks of
   them, the fog layer, entity emitters, interpolation, machine sprite descriptors, shader constant layout and
   lighting settings used by both hosts, and what the HUD tells the player (`PlayerGuidance`: the tutorial, the
-  game-event toasts, the build-key hint and the warning banner). The source files retain their
-  existing Desktop paths and namespaces; the assembly references only Core, without SDL or ImGui.
-- `Tunnerer.Browser.Client`: local session, HUD snapshots, and the frame packet: one buffer with the shader
-  constants, the entity vertices and the changed rectangles of the four terrain textures (`BrowserScene`).
+  game-event toasts, the build-key hint and the warning banner), and a client's part in a network match
+  (`NetSession`, `SlotStepper`, `NetMatch`). The source files retain their existing Desktop paths and namespaces;
+  the assembly references only Core and the protocol, without SDL or ImGui.
+- `Tunnerer.Browser.Client`: the session (local, or this player's world in a network match), the network match
+  (`BrowserNetMatch`), HUD snapshots, and the frame packet: one buffer with the shader constants, the entity
+  vertices and the changed rectangles of the four terrain textures (`BrowserScene`).
 - `Tunnerer.Browser`: WebAssembly exports and the static PWA shell.
 - `simulation.js`: what the page talks to. It is `worker.js` with the single-thread runtime, or the threaded
   runtime behind the same messages: .NET can only start that one from the page itself, where it then runs on
@@ -226,16 +291,29 @@ window and graphics dependencies out of the shared rendering assembly.
   alpha blending as desktop. It must take every packet, in order: each carries only what changed since the one
   before. `renderer.js` handles display density and the welcome illustration; `pace.js` picks the resolution the
   world is drawn at; `perf.js` is the `?perf` readout.
-- `main.js` / `input.js`: HUD, seed selection, session lifecycle and input. Build costs, placement, coverage, match
+- `main.js` / `input.js`: HUD, seed selection, session lifecycle, input and the heat view (H, which the frame
+  request carries to `BrowserSession.ThermalView`). Build costs, placement, coverage, match
   outcome and upgrade descriptions come from Core. `guidance.js` shows the desktop's tutorial card (F2 hides it),
   toasts, hint line and warning banner as each frame after a step carries them (`guidance`), and the renderer points
   at the tutorial's target. `hud.js` shows the status panels, the upgrade list (base track above tank track, with
   level pips), the heat orb and bar in the desktop's heat colours (`HeatScale`) and the hit flash with a wedge
-  toward the shooter.
+  toward the shooter. `strip.js` draws the desktop's art strip (below).
 - The HUD looks like the desktop's (`HudTheme`): chamfered plates with a bronze frame and amber corner brackets,
   amber titles, segmented bars and the desktop's palette and font (Chakra Petch, which `publish.py` copies from
-  `src/Tunnerer.Desktop/resources/fonts` as it generates the shaders). The plates are drawn by CSS rather than the
-  desktop's HUD art, which would add 1.4 MiB of images to the offline download and does not fit narrow screens.
+  `src/Tunnerer.Desktop/resources/fonts` as it generates the shaders).
+- On a screen at least 1000×620 with a mouse, the page takes the desktop's layout (`HudLayout`): `strip.js` draws
+  the desktop's art strip in the bottom corners on two canvases, TEMP, SHIELD and MATERIALS on the left and BUILD
+  STRUCTURES and COMMAND on the right, at the desktop's art coordinates and scale. It ports `HudStrip`,
+  `HeatGauge`, `LiquidGauges` and `BuildPanel`: the heat orb with its dial, needle and trend arrow, the shield
+  crystal and ore chest filling like liquid, the OFF NETWORK tag, the build slots and the COMMAND button (a click
+  on a slot builds, on COMMAND opens the upgrades). What the slots say comes from the shared `BuildSlotView`, which
+  the desktop's `BuildPanel` draws too, and the orb's frozen and boiling states from `HeatScale`. The desktop
+  draws the orb's liquid with a shader (`HeatOrbPs`); the canvas draws ice, bubbles and a burning glow instead.
+  The plates keep what the strip does not show, at the top right where the desktop's BASE panel stands, and the
+  upgrades sit at the left above the strip. `publish.py` copies the four PNGs from
+  `src/Tunnerer.Desktop/resources/hud` (1.4 MiB) into `wwwroot/hud`. Phones and narrow windows keep the plates,
+  which fit them; the art does not. The strip is drawn after each step, not each display frame, and not while
+  paused; the heat dial's colours come with a match's first frame only.
 - The HUD's cost follows what changes. It updates after every step, 24 times a second, and writes to the page
   only text, classes and styles whose values changed; toasts are added and removed, not rebuilt; the hit flash
   changes only opacity and a transform. The overlay canvas (bearings, the tutorial's pointer) is cleared only
@@ -250,9 +328,10 @@ window and graphics dependencies out of the shared rendering assembly.
   silent when the match ends. As on the desktop, what is heard follows distance, not sight.
 
 World rendering uses the desktop's procedural materials, curved cave edges, lighting, heat/scorch/frost effects,
-fog, tank and machine shapes, animated beams and radar. The HUD says what the desktop's says and the sounds are the
-desktop's; the HUD's HTML layout remains browser-specific, and there is no volume control yet (sound is on or off).
-Network multiplayer and persistent saves are not included. The existing relay and protocol are unchanged.
+fog, tank and machine shapes, animated beams, radar and the heat view. The HUD says what the desktop's says and
+the sounds are the desktop's; wide screens show the desktop's art strip and layout, and there is no volume control
+yet (sound is on or off).
+Persistent saves are not included. Network play needed no change to the relay or the protocol's bytes.
 No Core gameplay constants or recorded simulation fingerprints changed.
 
 ## Next steps
@@ -260,8 +339,9 @@ No Core gameplay constants or recorded simulation fingerprints changed.
 What is intended next for the browser client, roughly in order:
 
 - A volume slider in place of the sound on/off button, as the desktop's audio options have.
-- The desktop's wide layout on large screens, with the panels where the desktop puts them; the narrow layout stays
-  for phones.
+- The rest of the desktop's wide layout: its BASE panel (goal, lives, network, hint) in place of the two plates at
+  the top right, and the heat orb's liquid drawn by its shader (`HeatOrbPs`, through WebGL) instead of canvas
+  strokes.
 - Play and listen to the desktop build once. Its sound decisions and HUD guidance moved into shared code
   (`SoundDirector`, `PlayerGuidance`) for the browser; the tests cover them, but the desktop has not been played
   since.
@@ -272,4 +352,5 @@ What is intended next for the browser client, roughly in order:
   step also spends about 3 ms waking the cores.
 - Try the threaded runtime in Firefox. WebKit keeps to one thread, because its threaded runtime sometimes stops
   answering (Two runtimes, above).
-- Saving and resuming a match across closing the app, and network matches in the browser.
+- Saving and resuming a match across closing the app.
+- Name tags over other tanks in a network match, and a desync report the player can download.
