@@ -9,11 +9,14 @@ using Tunnerer.Core.Entities.Tanks;
 using Tunnerer.Core.Types;
 using Tunnerer.Desktop.Gui;
 using Tunnerer.Desktop.Gui.Guidance;
+using Tunnerer.Desktop.Presentation;
 
 /// <summary>Presentation data. Costs, coverage, placement and match outcome are queried from Core.</summary>
 public static class BrowserFrameBuilder
 {
-    public static BrowserFrame Capture(BrowserSession session, bool includeEvents)
+    /// <param name="includeEvents">The frame follows a step: it takes the sounds that step started.</param>
+    /// <param name="includeDial">The match's first frame: it carries the heat dial (<see cref="Dial"/>).</param>
+    public static BrowserFrame Capture(BrowserSession session, bool includeEvents, bool includeDial = false)
     {
         ArgumentNullException.ThrowIfNull(session);
         var world = session.World;
@@ -22,7 +25,10 @@ public static class BrowserFrameBuilder
         var builds = MachineBehaviors.All.Select(b =>
         {
             BuildQuote quote = player.QuoteBuild(b.Type);
-            return new BuildOption((int)b.Key + 1, b.Type.ToString(), quote.Cost, quote.CanAfford, quote.Payer.ToString());
+            var slot = BuildSlotView.Of(MachinePresentations.Get(b.Type), quote, player.CarriedMachineType);
+            return new BuildOption((int)b.Key + 1, b.Type.ToString(), quote.Cost, quote.CanAfford, quote.Payer.ToString(),
+                slot.Machine.BuildSlot, slot.State.ToString(), slot.Progress, slot.Label, slot.Caption,
+                slot.CaptionKind.ToString());
         }).OrderBy(b => b.Key).ToArray();
         var upgrades = Enum.GetValues<BaseUpgrade>().Select(u =>
         {
@@ -48,9 +54,27 @@ public static class BrowserFrameBuilder
             player.ShieldFraction, player.LivesLeft, player.OreHeld, player.OreHoldCapacity, home.Store.Ore,
             home.ChargeFill, home.HeatStoreFill, player.IsDockedAtOwnBase, player.IsOffNetwork,
             player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds,
-            world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString());
+            world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString(),
+            Math.Max(0, player.Reactor.Health), HeatScale.Frozen(player.Heat), HeatScale.Boil(player.Heat),
+            player.IsOverheating || player.IsAboveSafeHeat, player.IsShieldLow(latched: false),
+            player.HitFlashTicks > Tank.HitFlashDuration - HitFreshTicks, player.HoldFill, player.IsUnloadingOre,
+            player.IsOreHoldFull, player.IsOffNetworkUrgent, BuildSlotView.OreLine(player));
         return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
-            session.Sounds.Frame(takePlays: includeEvents), builds, upgrades, preview, goal, Guidance(session.Guidance));
+            session.Sounds.Frame(takePlays: includeEvents), builds, upgrades, preview, goal, Guidance(session.Guidance),
+            includeDial ? Dial() : null);
+    }
+
+    /// <summary>How many steps after a hit the desktop's shield crystal flashes white (<c>LiquidGauges</c>).</summary>
+    private const int HitFreshTicks = 6;
+
+    /// <summary>The heat dial as the desktop's <c>HeatGauge</c> colours it.</summary>
+    public static HeatDial Dial()
+    {
+        var bands = new string[HeatScale.DialBands];
+        for (int i = 0; i < bands.Length; i++)
+            bands[i] = HexColor(HeatScale.ColorRgb(HeatScale.At((i + 0.5f) / bands.Length)));
+        return new HeatDial(bands, HeatScale.Fraction(0f), HeatScale.Fraction(Tweaks.Tank.HeatSafeMax),
+            HeatScale.Min, HeatScale.Max);
     }
 
     /// <summary>Which way the last hit came from: against the shot's velocity, as the desktop's hit wedge points.</summary>

@@ -19,6 +19,22 @@ public static class HeatScale
     public static float Fraction(float heat) =>
         Math.Clamp((heat - Min) / (Max - Min), 0f, 1f);
 
+    /// <summary>How many bands of colour the heat dial round the orb is drawn in, each in its middle's colour.</summary>
+    public const int DialBands = 48;
+
+    /// <summary>The temperature at <paramref name="fraction"/> of the scale (0 deep frost, 1 well past overheating).</summary>
+    public static float At(float fraction) => Min + (Max - Min) * fraction;
+
+    /// <summary>How frozen the heat orb's liquid is at a temperature: 0 from ambient up, 1 where frostbite starts.</summary>
+    public static float Frozen(float heat) => Math.Clamp(heat / Tweaks.Tank.FrostbiteTemperature, 0f, 1f);
+
+    /// <summary>How hard the heat orb's liquid boils at a temperature: 0 up to 40% of the safe maximum, 1 at it.</summary>
+    public static float Boil(float heat)
+    {
+        float safe = Tweaks.Tank.HeatSafeMax;
+        return Math.Clamp((heat - 0.4f * safe) / (0.6f * safe), 0f, 1f);
+    }
+
     /// <summary>
     /// Colour for a temperature (RGB, 0 to 1): icy blue below freezing, green around ambient, then amber, orange and
     /// red as the tank approaches and passes the safe maximum.

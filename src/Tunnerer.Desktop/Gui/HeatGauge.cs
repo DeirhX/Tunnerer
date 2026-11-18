@@ -57,8 +57,8 @@ public sealed class HeatGauge(HudLayout layout)
         float inner = r - 9f * k;
         HeatOrb = new HeatOrbState(
             LiquidColor: alive ? HeatScale.ColorRgb(shown) : new Vector3(0.12f, 0.13f, 0.14f),
-            Frozen: alive ? Math.Clamp(shown / Tweaks.Tank.FrostbiteTemperature, 0f, 1f) : 0f,
-            Boil: alive ? Math.Clamp((shown - 0.4f * safe) / (0.6f * safe), 0f, 1f) : 0f,
+            Frozen: alive ? HeatScale.Frozen(shown) : 0f,
+            Boil: alive ? HeatScale.Boil(shown) : 0f,
             Burning: burning ? 0.6f + 0.4f * pulse : 0f,
             Time: time);
         dl.AddImage(HeatOrbEffect.TextureId, c - new Vector2(inner), c + new Vector2(inner));
@@ -66,11 +66,11 @@ public sealed class HeatGauge(HudLayout layout)
         // Dial round the rim: dim track in the zone colours, lit up to the shown temperature.
         float arcR = r - 6f * k;
         float arcW = 5f * k;
-        const int bands = 48;
+        const int bands = HeatScale.DialBands;
         for (int i = 0; i < bands; i++)
         {
             float f0 = i / (float)bands, f1 = (i + 1) / (float)bands;
-            float mid = HeatScale.Min + (HeatScale.Max - HeatScale.Min) * (f0 + f1) * 0.5f;
+            float mid = HeatScale.At((f0 + f1) * 0.5f);
             float a0 = DialStartAngle + DialSweep * f0;
             float a1 = DialStartAngle + DialSweep * f1 + 0.01f;
             bool on = alive && f0 < lit;

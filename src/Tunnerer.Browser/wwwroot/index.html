@@ -157,6 +157,13 @@
                         plant.
                     </div>
                     <div id="power" class="muted"></div>
+                    <button
+                        id="thermal"
+                        class="text-button key-row"
+                        aria-pressed="false"
+                    >
+                        <kbd>H</kbd> heat view
+                    </button>
                 </div>
             </section>
             <details
@@ -169,6 +176,9 @@
                 <summary class="eyebrow">DOCKED / UPGRADES</summary>
                 <div id="upgrade-list"></div>
             </details>
+            <!-- The desktop's art strip (strip.js), on wide screens with a mouse. -->
+            <canvas id="strip-left" class="strip" aria-hidden="true"></canvas>
+            <canvas id="strip-right" class="strip" aria-hidden="true"></canvas>
             <div id="touch" hidden aria-label="Touch controls">
                 <div class="dpad">
                     <button data-move="0,-1" aria-label="Drive north">↑</button
@@ -202,6 +212,8 @@
                 </dd>
                 <dt><kbd>1</kbd> – <kbd>6</kbd></dt>
                 <dd>Buy upgrades while docked at your base.</dd>
+                <dt><kbd>H</kbd></dt>
+                <dd>Heat view: the ground by its heat. Enemy tunnels glow hot.</dd>
                 <dt><kbd>F2</kbd></dt>
                 <dd>Show or hide the tutorial.</dd>
                 <dt><kbd>+</kbd> / <kbd>−</kbd> / wheel</dt>

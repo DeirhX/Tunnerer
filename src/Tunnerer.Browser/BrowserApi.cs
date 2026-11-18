@@ -17,6 +17,7 @@ public static partial class BrowserApi
 {
     private static BrowserSession? _session;
     private static bool _hudStale;
+    private static bool _dialSent;
 
     /// <param name="seed">The world's seed.</param>
     /// <param name="heatWorkers">Threads for the heat solver; 1 on the single-thread runtime.</param>
@@ -29,18 +30,21 @@ public static partial class BrowserApi
         _session = new BrowserSession(seed, heatWorkers,
             width > 0 && height > 0 ? new Size(width, height) : null, Math.Max(0, machines));
         _hudStale = true;
+        _dialSent = false;
         return Task.CompletedTask;
     }
 
     /// <summary>
     /// One display request: steps the simulation once if <paramref name="step"/>, builds a frame and hands it to
-    /// <see cref="Deliver"/> before the promise resolves.
+    /// <see cref="Deliver"/> before the promise resolves. <paramref name="thermalView"/> is the player's thermal
+    /// view (H, <see cref="BrowserSession.ThermalView"/>), which only changes what is drawn.
     /// </summary>
     [JSExport]
     public static Task Frame(bool step, int x, int y, bool fire, double aimX, double aimY, int build,
-        int upgrade, int width, int height, int scale, double alpha, double delta, double time)
+        int upgrade, int width, int height, int scale, double alpha, double delta, double time, bool thermalView)
     {
         BrowserSession session = _session ?? throw new InvalidOperationException("Start a match first.");
+        session.ThermalView = thermalView;
         long began = Stopwatch.GetTimestamp();
         if (step)
         {
@@ -64,8 +68,9 @@ public static partial class BrowserApi
         string? hud = null;
         if (_hudStale)
         {
-            hud = JsonSerializer.Serialize(BrowserFrameBuilder.Capture(session, includeEvents: step),
+            hud = JsonSerializer.Serialize(BrowserFrameBuilder.Capture(session, includeEvents: step, includeDial: !_dialSent),
                 BrowserJsonContext.Default.BrowserFrame);
+            _dialSent = true;
             _hudStale = false;
         }
 

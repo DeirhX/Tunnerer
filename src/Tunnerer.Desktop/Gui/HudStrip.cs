@@ -101,11 +101,7 @@ public sealed class HudStrip
         DrawReadout(dl, MaterialsPlate, string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{player.OreHeld} / {player.OreHoldCapacity}"));
         // The chest line: the hold emptying into the base (docked, or through the network), else the base store.
-        string oreLine = player.IsUnloadingOre
-            ? "UNLOADING"
-            : player.Base is { } home
-                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"BASE ORE {home.Store.Ore}")
-                : "ORE";
+        string oreLine = BuildSlotView.OreLine(player);
         DrawStripText(dl, oreLine, OreLineX, OreLineY, OreLineSize,
             player.IsUnloadingOre ? OreLineUnloadColor : player.IsOreHoldFull ? OreLineFullColor : OreLineColor,
             glow: 0x28806020u);
