@@ -232,15 +232,4 @@ public partial class Game
         // The HUD's two parts are drawn over the bottom corners of the view; the mouse over them does not aim.
         return !_renderViewState.IsUnderHud(relX, relY);
     }
-
-    /// <summary>
-    /// Where the screen effects show the view's point (<paramref name="x"/>, <paramref name="y"/>), in device pixels:
-    /// during a hit's shake the crosshair moves with what the mouse aims at.
-    /// </summary>
-    private static (float X, float Y) ShownOnScreen(in ScreenEffectLevels effects, float x, float y, Size view)
-    {
-        float cx = view.X * 0.5f, cy = view.Y * 0.5f;
-        var (dx, dy) = effects.ShownFromCentre(x - cx, y - cy, view.Y);
-        return (cx + dx, cy + dy);
-    }
 }

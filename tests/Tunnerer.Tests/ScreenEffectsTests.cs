@@ -200,6 +200,11 @@ public class ScreenEffectsTests
 
         // ScreenFxPs samples the image at uv * zoom - shake (from the centre): the crosshair lands on the aim.
         Assert.Equal(100f, x * zoom - 20f, 3);
+
+        // Measured from the corner of a 1920 x 1080 view: the same point, and near an edge it stays in the view.
+        var inView = levels.ShownInView(960f + 100f, 540f + 50f, 1920f, 1080f);
+        Assert.Equal((960f + (100f + 10f) / zoom, 540f + 50f / zoom), inView);
+        Assert.Equal((1919f, 0f), levels.ShownInView(1915f, 2f, 1920f, 1080f));
     }
 
     [Fact]

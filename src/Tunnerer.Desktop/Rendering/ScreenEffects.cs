@@ -40,6 +40,18 @@ public readonly record struct ScreenEffectLevels(
         float scale = viewHeight / 1080f;
         return ((x + ShakeX * scale) / zoom, (y + ShakeY * scale) / zoom);
     }
+
+    /// <summary>
+    /// Where the crosshair is drawn for the view's point (<paramref name="x"/>, <paramref name="y"/>), measured from
+    /// its top left corner in pixels: <see cref="ShownFromCentre"/>, kept inside the view. Near an edge the zoom and
+    /// shake would push it out, and the player would lose it for the rest of the hit.
+    /// </summary>
+    public (float X, float Y) ShownInView(float x, float y, float viewWidth, float viewHeight)
+    {
+        float cx = viewWidth * 0.5f, cy = viewHeight * 0.5f;
+        var (dx, dy) = ShownFromCentre(x - cx, y - cy, viewHeight);
+        return (Math.Clamp(cx + dx, 0f, Math.Max(0f, viewWidth - 1f)), Math.Clamp(cy + dy, 0f, Math.Max(0f, viewHeight - 1f)));
+    }
 }
 
 /// <summary>

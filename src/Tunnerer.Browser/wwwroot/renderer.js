@@ -122,11 +122,12 @@ export class GameRenderer {
     }
 
     // The crosshair where the effect pass shows the point the mouse aims at, so it stays on it through a hit's zoom
-    // and shake, drawn as on the desktop.
+    // and shake, drawn as on the desktop. Kept inside the view (ScreenEffectLevels.ShownInView): near an edge the
+    // zoom and shake would push it out, and with the cursor hidden the player would have nothing to aim with.
     crosshair(c, aim) {
         const p = this.gpu.shownFromCentre(aim.x, aim.y, this.height);
-        const x = this.width / 2 + p.x,
-            y = this.height / 2 + p.y,
+        const x = Math.min(Math.max(this.width / 2 + p.x, 0), this.width - 1),
+            y = Math.min(Math.max(this.height / 2 + p.y, 0), this.height - 1),
             arm = 10,
             gap = 3;
         c.save();

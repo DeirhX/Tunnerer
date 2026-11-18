@@ -124,7 +124,8 @@ public partial class Game
             else if (player != null)
             {
                 _hud.CrosshairScreenPos = IsMouseInViewport(frameInput, out float mouseX, out float mouseY)
-                    ? ShownOnScreen(screenEffects, mouseX, mouseY, renderView.ViewSize)
+                    // In device pixels: during a hit's shake the crosshair moves with what the mouse aims at.
+                    ? screenEffects.ShownInView(mouseX, mouseY, renderView.ViewSize.X, renderView.ViewSize.Y)
                     : null;
 
                 _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, _renderViewState.CellPixels);
