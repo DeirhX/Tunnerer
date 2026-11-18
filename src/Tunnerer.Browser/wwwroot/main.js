@@ -160,9 +160,9 @@ async function start() {
         return;
     }
     $("start").disabled = true;
-    $("start").textContent = "Preparing your world…";
+    $("start").textContent = "Preparing graphics…";
     $("loading").textContent =
-        "Loading the game and generating terrain. The first launch may take a moment.";
+        "Compiling the shaders for your graphics card. The first launch may take a moment.";
     busy = true;
     try {
         await renderer.initialize();
@@ -170,6 +170,9 @@ async function start() {
         fail(error.message, error.name === "GraphicsError" ? "" : undefined);
         return;
     }
+    $("start").textContent = "Preparing your world…";
+    $("loading").textContent =
+        "Loading the game and generating terrain. The first launch may take a moment.";
     // A worker with the single-thread runtime, or the threaded runtime behind the same messages (simulation.js).
     worker = new Simulation();
     worker.onerror = (e) =>

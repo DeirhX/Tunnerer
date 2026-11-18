@@ -65,12 +65,13 @@ export class WebGlRenderer {
                 }),
             ),
         );
-        this.terrainProgram = this.program(
-            source.FullscreenTargetVs,
-            source.TerrainPs,
-        );
-        this.postProgram = this.program(source.FullscreenVs, source.PostPs);
-        this.entityProgram = this.program(source.EntityVs, source.EntityPs);
+        // All three compile at once where the driver can; each is awaited, so the page is never blocked on one.
+        [this.terrainProgram, this.postProgram, this.entityProgram] =
+            await Promise.all([
+                this.program("Terrain", source.FullscreenTargetVs, source.TerrainPs),
+                this.program("Post", source.FullscreenVs, source.PostPs),
+                this.program("Entity", source.EntityVs, source.EntityPs),
+            ]);
         this.uniforms = gl.createBuffer();
         gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, this.uniforms);
         this.entityBuffer = gl.createBuffer();
@@ -92,8 +93,12 @@ export class WebGlRenderer {
         this.ready = true;
     }
 
-    program(vertex, fragment) {
+    // Compiles and links one program. With KHR_parallel_shader_compile the driver does it off the main thread and
+    // this waits a frame at a time for it; without, the first status query below waits for the driver.
+    async program(name, vertex, fragment) {
         const gl = this.gl,
+            parallel = gl.getExtension("KHR_parallel_shader_compile"),
+            started = performance.now(),
             program = gl.createProgram();
         const shaders = [
             [gl.VERTEX_SHADER, vertex],
@@ -102,29 +107,56 @@ export class WebGlRenderer {
             const shader = gl.createShader(type);
             gl.shaderSource(shader, source);
             gl.compileShader(shader);
-            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                const error = gl.getShaderInfoLog(shader);
-                gl.deleteShader(shader);
-                throw new GraphicsError(`Shader compilation failed: ${error}`);
-            }
             gl.attachShader(program, shader);
             return shader;
         });
+        // Linking before asking for the compile status lets the driver keep working on both in the background.
         gl.linkProgram(program);
+        if (parallel)
+            while (
+                !gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR)
+            ) {
+                this.checkContext();
+                await new Promise((resolve) => setTimeout(resolve, 16));
+            }
+        this.checkContext();
         for (const shader of shaders) {
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                const error = gl.getShaderInfoLog(shader);
+                throw new GraphicsError(
+                    `Shader compilation failed (${name}): ${error || "the driver gave no reason"}`,
+                );
+            }
             gl.detachShader(program, shader);
             gl.deleteShader(shader);
         }
-        if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            this.checkContext();
             throw new GraphicsError(
-                `Shader linking failed: ${gl.getProgramInfoLog(program)}`,
+                `Shader linking failed (${name}): ${gl.getProgramInfoLog(program) || "the driver gave no reason"}`,
             );
+        }
+        console.info(
+            `[graphics] ${name} shaders ready in ${Math.round(performance.now() - started)} ms` +
+                (parallel ? " (compiled in parallel)" : ""),
+        );
         const block = gl.getUniformBlockIndex(program, "PostParamsBlock");
         if (block !== gl.INVALID_INDEX)
             gl.uniformBlockBinding(program, block, 0);
         return program;
     }
 
+    // A lost context answers every query with a default, so a status poll would wait forever: stop instead.
+    checkContext() {
+        if (this.error) throw this.error;
+        if (this.gl.isContextLost())
+            throw new GraphicsError(
+                "The graphics driver stopped while preparing the shaders. Reload the page to try again",
+            );
+    }
+
+    // Every texture has level 0 only and filters without mipmaps: the web shaders sample level 0 explicitly
+    // (textureLod, tools/Tunnerer.ShaderCompiler/ExplicitLodRewrite.cs), which is the same only while that holds.
     texture() {
         const gl = this.gl,
             texture = gl.createTexture();
