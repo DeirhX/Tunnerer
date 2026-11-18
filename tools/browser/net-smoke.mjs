@@ -2,7 +2,7 @@
 //
 // Start a relay first (dotnet run --project src/Tunnerer.Relay -- --urls http://127.0.0.1:8130) and serve the
 // published game. RELAY names the relay (default ws://127.0.0.1:8130/play), BROWSER_URL the page, RELAY_SECRET the
-// relay's secret if it has one. The relay compares the players' world hashes once a second and stops the match if
+// relay's secret if it has one (then a wrong one is tried first). The relay compares the players' world hashes once a second and stops the match if
 // they differ, so a match that plays on to the end of the test computed one world in both pages.
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
@@ -26,7 +26,7 @@ const browser = await chromium.launch({
 });
 const errors = [];
 
-async function player(name) {
+async function player(name, { tryWrongSecret = false } = {}) {
     const context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
         deviceScaleFactor: 1,
@@ -38,15 +38,34 @@ async function player(name) {
     });
     const page = await context.newPage();
     page.on("pageerror", (error) => errors.push(`${name}: ${error}`));
+    // The refusal of the wrong secret tried on purpose is logged too.
+    let refusing = false;
     page.on("console", (message) => {
-        if (message.type() === "error") errors.push(`${name}: ${message.text()}`);
+        if (message.type() !== "error") return;
+        if (refusing && message.text().includes("needs a secret")) return;
+        errors.push(`${name}: ${message.text()}`);
     });
     await page.goto(`${origin}/?relay=${encodeURIComponent(relay)}`);
-    await page.locator("#online summary").click();
+    await page.locator("#mode-online").click();
     await page.locator("#net-name").fill(name);
     await page.locator("#net-room").fill(room);
     await page.locator("#net-players").selectOption("3");
-    await page.locator("#net-secret").fill(process.env.RELAY_SECRET || "");
+    const secret = process.env.RELAY_SECRET || "";
+    if (tryWrongSecret && secret) {
+        // A wrong secret is refused, and the page puts the cursor in the secret's field.
+        await page.locator("#net-secret").fill(`${secret}-wrong`);
+        refusing = true;
+        await page.locator("#join").click();
+        await page.waitForFunction(
+            () => document.getElementById("loading").textContent.includes("needs a secret"),
+            null,
+            { timeout },
+        );
+        assert.equal(await page.evaluate(() => document.activeElement?.id), "net-secret");
+        refusing = false;
+    }
+    // Spaces around a pasted secret are not part of it.
+    await page.locator("#net-secret").fill(secret ? ` ${secret} ` : "");
     await page.locator("#join").click();
     await page.locator("#lobby").waitFor({ state: "visible", timeout });
     return page;
@@ -59,7 +78,7 @@ const until = (page, fn, arg) =>
 
 let ann, bob;
 try {
-    ann = await player("Ann");
+    ann = await player("Ann", { tryWrongSecret: true });
     bob = await player("Bob");
     await until(ann, () =>
         window.testFrame?.net?.roster.some((slot) => slot.name === "Bob"),

@@ -30,7 +30,7 @@
                 ></a
             >
             <nav aria-label="Game actions">
-                <span id="offline" role="status">ONLINE</span>
+                <span id="offline" role="status" hidden></span>
                 <button id="install" hidden>Install game ↗</button>
                 <button id="sound" aria-pressed="false">Sound off</button>
                 <button id="help">Controls <kbd>?</kbd></button>
@@ -45,35 +45,61 @@
                     A world of rock, ore, and restless heat.<br />Carve your
                     path. Build your lifeline. Tap the core.
                 </p>
-                <div class="start-row">
-                    <button id="start" class="primary">
-                        Enter the underground <span>→</span></button
-                    ><span class="local-label"
-                        >SOLO VS BOT<br />RUNS ON YOUR DEVICE</span
+                <div class="modes" role="tablist" aria-label="How to play">
+                    <button
+                        id="mode-solo"
+                        role="tab"
+                        aria-selected="true"
+                        aria-controls="solo"
+                    >
+                        <b>Solo</b><span>Against a bot, on this device</span>
+                    </button>
+                    <button
+                        id="mode-online"
+                        role="tab"
+                        aria-selected="false"
+                        aria-controls="online"
+                        tabindex="-1"
+                    >
+                        <b>Online</b
+                        ><span>With others in a room, up to 8 tanks</span>
+                    </button>
+                </div>
+                <div
+                    id="solo"
+                    class="mode-panel"
+                    role="tabpanel"
+                    aria-labelledby="mode-solo"
+                >
+                    <div class="start-row">
+                        <button id="start" class="primary">
+                            Enter the underground <span>→</span>
+                        </button>
+                    </div>
+                    <label class="seed-label"
+                        >WORLD SEED
+                        <input
+                            id="seed"
+                            type="number"
+                            min="-2147483648"
+                            max="2147483647"
+                            step="1"
+                            aria-label="World seed"
+                        /><button
+                            id="randomize"
+                            aria-label="Choose a random world seed"
+                        >
+                            ↻
+                        </button></label
                     >
                 </div>
-                <label class="seed-label"
-                    >WORLD SEED
-                    <input
-                        id="seed"
-                        type="number"
-                        min="-2147483648"
-                        max="2147483647"
-                        step="1"
-                        aria-label="World seed"
-                    /><button
-                        id="randomize"
-                        aria-label="Choose a random world seed"
-                    >
-                        ↻
-                    </button></label
+                <div
+                    id="online"
+                    class="mode-panel online"
+                    role="tabpanel"
+                    aria-labelledby="mode-online"
+                    hidden
                 >
-                <details id="online" class="online">
-                    <summary>
-                        PLAY ONLINE<span
-                            >Up to 8 tanks · with browser and desktop players</span
-                        >
-                    </summary>
                     <form id="online-form" class="online-form">
                         <label
                             >NAME
@@ -101,13 +127,23 @@
                         >
                         <label
                             >RELAY SECRET
-                            <input
-                                id="net-secret"
-                                type="password"
-                                maxlength="256"
-                                autocomplete="off"
-                                placeholder="if the relay asks"
-                        /></label>
+                            <span class="secret-field"
+                                ><input
+                                    id="net-secret"
+                                    type="password"
+                                    maxlength="256"
+                                    autocomplete="new-password"
+                                    spellcheck="false"
+                                    placeholder="if the relay asks" /><button
+                                    id="net-secret-show"
+                                    type="button"
+                                    aria-pressed="false"
+                                    aria-label="Show the secret"
+                                >
+                                    Show
+                                </button></span
+                            ></label
+                        >
                         <button id="join" class="primary" type="submit">
                             Join room <span>→</span>
                         </button>
@@ -117,7 +153,7 @@
                         and tank count; bots take the slots nobody joins. Come
                         back under the same name to rejoin a match.
                     </p>
-                </details>
+                </div>
                 <div
                     id="load-bar"
                     class="load-bar"

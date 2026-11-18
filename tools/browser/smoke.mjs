@@ -173,7 +173,7 @@ try {
     await ticks(page);
     await page.waitForFunction(
         () =>
-            document.getElementById("offline").textContent === "OFFLINE READY",
+            document.getElementById("offline").textContent === "SAVED FOR OFFLINE",
         null,
         { timeout: 120000 },
     );
