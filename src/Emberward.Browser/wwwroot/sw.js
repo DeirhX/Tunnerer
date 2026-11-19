@@ -2,6 +2,8 @@
 importScripts("./assets-manifest.js", "./threads.js");
 const root = new URL("./", self.location.href);
 const cachePrefix = `emberward-${encodeURIComponent(root.pathname)}-`;
+// Before the game was renamed, its caches began "tunnerer-". Nothing else clears them, so activation does.
+const legacyCachePrefix = `tunnerer-${encodeURIComponent(root.pathname)}-`;
 const cacheName = cachePrefix + self.emberwardAssets.version;
 const absolute = (list) => list.map((url) => new URL(url, root).href);
 const urls = new Set(absolute(self.emberwardAssets.urls));
@@ -49,7 +51,10 @@ self.addEventListener("activate", (event) => {
     event.waitUntil(
         (async () => {
             for (const key of await caches.keys())
-                if (key.startsWith(cachePrefix) && key !== cacheName)
+                if (
+                    (key.startsWith(cachePrefix) && key !== cacheName) ||
+                    key.startsWith(legacyCachePrefix)
+                )
                     await caches.delete(key);
             await self.clients.claim();
             for (const client of await self.clients.matchAll())

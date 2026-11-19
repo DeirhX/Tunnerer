@@ -108,6 +108,8 @@ public partial class Game : IDisposable
         var sdlGpuBackend = new SdlGpuBackend(_renderer.NativeWindow);
         _renderBackend = sdlGpuBackend;
         _textures = new SdlGpuTextureLoader(sdlGpuBackend);
+        if (!DesktopDisplayOptions.Hidden)
+            DrawStartupSplash();
         _hud = new GameHud();
         LoadHudSprites();
         // Only a person playing a match hears sound.

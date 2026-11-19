@@ -133,16 +133,11 @@ nav button {
     gap: 12px;
     white-space: nowrap;
 }
+/* The emblem (icon.svg); its plate is the header's colour. */
 .brand-mark {
-    display: inline-grid;
-    place-items: center;
-    background: var(--amber);
-    color: #101b21;
-    width: 29px;
-    height: 32px;
-    clip-path: polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%);
-    font-size: 22px;
-    letter-spacing: 0;
+    width: 36px;
+    height: 36px;
+    margin: 0 -4px 0 -6px;
 }
 .edition {
     font: 11px var(--hud-font);
@@ -198,11 +193,126 @@ body:not(.playing) main {
 }
 .landing {
     position: relative;
+    /* Its own stacking context, so that the art sits behind the text and above the canvas. */
+    isolation: isolate;
     margin: auto 0 auto 8%;
     /* Below it, room for the footer's line, which stays at the bottom of the window. */
     padding: 24px 0 64px;
     width: 700px;
     max-width: 84vw;
+}
+/*
+ * Behind the welcome screen: the dig as a section through the ground, in the HUD's line style. It fills the window
+ * under the header (covering the canvas until a match starts), holds to the right and fades out under the text.
+ */
+.landing-art {
+    position: fixed;
+    inset: 78px 0 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+    background: var(--bg);
+}
+.landing-art svg {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    /* As tall as the space under the header, unless that makes it wider than its share of the window. */
+    width: min(50vw, (100dvh - 78px) * 0.878);
+    aspect-ratio: 720 / 820;
+    -webkit-mask: linear-gradient(90deg, #0000, #000 45%);
+    mask: linear-gradient(90deg, #0000, #000 45%);
+}
+.art-tunnel {
+    fill: none;
+    stroke: #04080b;
+    stroke-width: 30;
+    stroke-linecap: square;
+    paint-order: stroke;
+    filter: drop-shadow(0 0 1.5px #a5713a);
+}
+.art-relay {
+    fill: none;
+    stroke: var(--hud-teal);
+    stroke-width: 2;
+    opacity: 0.55;
+}
+.art-heat {
+    fill: none;
+    stroke: #ffe3a6;
+    stroke-width: 5;
+    stroke-dasharray: 16 164;
+    animation: art-flow 2.4s linear infinite;
+}
+.art-ring {
+    fill: none;
+    stroke: #ff7a2e;
+    stroke-width: 2;
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: 0;
+    animation: art-ring 4.8s linear infinite;
+}
+.art-ring:nth-child(2) {
+    animation-delay: -1.6s;
+}
+.art-ring:nth-child(3) {
+    animation-delay: -3.2s;
+}
+.art-ember {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: art-ember 2.4s ease-in-out infinite;
+}
+.art-labels {
+    font: 11px var(--hud-font);
+    letter-spacing: 1.5px;
+    fill: #62757a;
+}
+.art-labels .cold {
+    fill: #4f9db8;
+}
+.art-labels .hot {
+    fill: var(--hud-amber);
+}
+@keyframes art-flow {
+    to {
+        stroke-dashoffset: -180;
+    }
+}
+@keyframes art-ring {
+    0% {
+        transform: scale(0.75);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(2.6);
+        opacity: 0;
+    }
+}
+@keyframes art-ember {
+    50% {
+        transform: scale(1.12);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .art-heat,
+    .art-ember {
+        animation: none;
+    }
+    .art-ring {
+        animation: none;
+        opacity: 0.35;
+        transform: scale(1.5);
+    }
+    .art-ring:nth-child(2) {
+        transform: scale(2.1);
+        opacity: 0.18;
+    }
+    .art-ring:nth-child(3) {
+        display: none;
+    }
 }
 .eyebrow {
     font: 12px var(--hud-font);
@@ -221,10 +331,10 @@ footer i {
     border-radius: 50%;
 }
 h1 {
-    font-size: clamp(42px, 5.5vw, 82px);
-    letter-spacing: -4px;
+    font-size: clamp(38px, 4.8vw, 70px);
+    letter-spacing: -3px;
     line-height: 1.04;
-    margin: 26px 0;
+    margin: 22px 0 16px;
     color: #e5e9dd;
     font-weight: 650;
 }
@@ -1110,9 +1220,25 @@ dd {
         gap: 8px;
     }
     .brand-mark {
-        width: 24px;
-        height: 26px;
-        font-size: 18px;
+        width: 30px;
+        height: 30px;
+    }
+    .landing-art {
+        top: 62px;
+    }
+    /* The art goes behind the text: dimmed, and the core kept in view. */
+    .landing-art svg {
+        top: auto;
+        bottom: 0;
+        transform: none;
+        width: max(100%, (100dvh - 62px) * 0.6);
+        opacity: 0.4;
+        -webkit-mask: linear-gradient(#0000 0, #000 70%);
+        mask: linear-gradient(#0000 0, #000 70%);
+    }
+    .art-labels,
+    .art-dig {
+        display: none;
     }
     canvas {
         top: 62px;
@@ -1124,9 +1250,6 @@ dd {
     .landing {
         margin-left: 7%;
         width: 80%;
-    }
-    h1 {
-        letter-spacing: -2px;
     }
     .intro {
         font-size: 14px;
@@ -1207,7 +1330,6 @@ dd {
     }
 }
 @media (max-width: 560px) {
-    .brand-mark,
     nav #sound {
         display: none;
     }
@@ -1231,7 +1353,7 @@ dd {
         margin-top: 20px;
     }
     h1 {
-        margin: 18px 0;
+        margin: 14px 0;
     }
     #guide {
         width: 190px;
@@ -1300,17 +1422,27 @@ dd {
 /* A Full HD screen less the browser's bars: room for the online form under the title. */
 @media (max-height: 1000px) and (min-width: 851px) {
     h1 {
-        margin: 18px 0;
-        font-size: clamp(42px, 5vw, 72px);
+        margin: 14px 0 10px;
+    }
+    .landing {
+        padding-top: 14px;
     }
     .intro {
         line-height: 1.6;
+        margin: 10px 0;
     }
     .modes {
-        margin-top: 22px;
+        margin-top: 16px;
     }
     .mode-panel {
         padding-top: 16px;
+    }
+    .seed-label {
+        margin-top: 14px;
+    }
+    .landing-notes {
+        margin-top: 20px;
+        padding-top: 14px;
     }
 }
 @media (max-height: 550px) {
@@ -1319,7 +1451,7 @@ dd {
         display: none;
     }
     h1 {
-        font-size: 42px;
+        font-size: 30px;
     }
     #guide {
         width: 190px;

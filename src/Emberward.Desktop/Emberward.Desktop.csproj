@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <Content Include="resources\hud\**\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="resources\emberward-logo.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="resources\fonts\*.ttf;resources\fonts\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
