@@ -9,4 +9,10 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
+  <!-- Debug builds are optimized too: the simulation runs about 40% faster in tests this way, and debug symbols
+       stay. For unoptimized code while stepping, build with -p:Optimize=false (the command-line value wins). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
 </Project>
