@@ -115,8 +115,8 @@ if the relay refuses you (room full or started, wrong secret, other build, not r
 with the reason on screen. A relay's secret is asked for only when it is needed, and kept in that file in plain text. In a
 network match the same pause-menu button reads "Leave network match" (L, also in the lobby).
 
-The shared relay asks for a secret: set `EMBERWARD_RELAY_SECRET` (or pass `--secret=`) to the value whoever runs
-the relay gives you. The lobby shows who is in. The match starts when the room is full, or when the host (the first player in)
+The public relay is open, so no secret is needed. A relay that asks for one: set `EMBERWARD_RELAY_SECRET` (or pass
+`--secret=`) to the value whoever runs the relay gives you. The lobby shows who is in. The match starts when the room is full, or when the host (the first player in)
 presses Enter; bots play the tanks nobody took. It is a race: the first base to tap the core wins, and a tank out
 of lives is out. The first player's `--seed`, `--size`, `--fast` and `--players` decide the match for everyone.
 All players must run the same build, and every machine must be fast enough to simulate the map in real time.
