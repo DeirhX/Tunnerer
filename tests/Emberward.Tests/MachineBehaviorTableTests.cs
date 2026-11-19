@@ -57,4 +57,25 @@ public class MachineBehaviorTableTests
         }
         Assert.Equal((double)Tweaks.Machine.HarvesterBatteryCapacity, MachineBehaviors.Harvester.BatteryCapacity);
     }
+
+    [Fact]
+    public void EveryMachine_HasACapacitor_WithAnIdleDraw()
+    {
+        foreach (var behavior in MachineBehaviors.All)
+        {
+            var capacitor = behavior.Capacitor;
+            Assert.True(capacitor.Capacity > 0.0, $"{behavior.Type} needs a capacity");
+            Assert.True(capacitor.TransferPerTick > 0.0, $"{behavior.Type} needs a transfer rate");
+            Assert.True(capacitor.IdleDrawPerTick > 0.0, $"{behavior.Type} needs an idle draw");
+            Assert.True(Enum.IsDefined(capacitor.Tier), $"{behavior.Type} needs a tier");
+            // Cut off, a full capacitor lasts at least a minute on its idle draw alone.
+            Assert.True(capacitor.Capacity / capacitor.IdleDrawPerTick >= 60 * Tweaks.Perf.TargetFps, $"{behavior.Type} drains too fast");
+        }
+        // The harvester's battery is its capacitor, and only it runs on charge.
+        Assert.Single(MachineBehaviors.All, b => b.RunsOnCharge);
+        Assert.Equal(MachineBehaviors.Harvester.BatteryCapacity, MachineBehaviors.Harvester.Capacitor.Capacity);
+        // Topped up, a working harvester keeps up: its transfer rate beats what work spends a tick.
+        double workPerTick = Tweaks.Machine.HarvesterHeatPerHarvest / (Tweaks.Machine.HarvesterIntervalMs / 1000.0 * Tweaks.Perf.TargetFps);
+        Assert.True(MachineBehaviors.Harvester.Capacitor.TransferPerTick > workPerTick);
+    }
 }

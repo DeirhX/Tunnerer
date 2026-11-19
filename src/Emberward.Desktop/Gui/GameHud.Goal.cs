@@ -26,8 +26,8 @@ public partial class GameHud
     private const float UpgradePanelMargin = 14f, UpgradePanelShare = 0.3f, UpgradePanelMinW = 300f, UpgradePanelMaxW = 400f;
 
     /// <summary>
-    /// The upgrade list while the tank is docked at its own base, the base track (keys 1-4) above the tank track
-    /// (5-6), on the left of the view just above the HUD. The base's entrances are at its top and bottom, so the panel
+    /// The upgrade list while the tank is docked at its own base, the base track (keys 1-5) above the tank track
+    /// (6-7), on the left of the view just above the HUD. The base's entrances are at its top and bottom, so the panel
     /// keeps clear of the ground above and below the base as well as of the tank in the middle of the view.
     /// </summary>
     private void DrawUpgradePanel(Tank player)

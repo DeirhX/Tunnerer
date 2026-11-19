@@ -207,6 +207,16 @@ display's own resolution instead of being stretched by the OS.
   carries no text: `HudStrip` draws titles and numbers with the UI font, placed from each panel's plates as
   measured on the art (`HudStrip.Plate`), and centres text on the height of the '0' glyph, not on the font's line
   box.
+- **Charge labels** (`GameHud.Power`, only while the match runs `MatchRules.EnergyNetwork`: `--energy-network` for a
+  local match). Each standing machine in sight within `DesktopScreenTweaks.PowerLabelGoneCells` of the player's tank
+  gets a label above it: charge over capacity, flow in and out a second and a fill bar, in `HudPalette.Good`, `Warn`
+  or `Danger` by whether its island feeds it. `PowerLabels` (shared with the browser, which draws the same labels
+  on its overlay canvas from the frame's `power`) picks the machines with `MachineList.CollectNear` and the fog
+  rule of the sprites (`Sight`), formats the numbers of `World.MachinePowerOf` and fades each label with its
+  distance from the tank; the HUD fades them all with zoom (`PowerLabelZoomGone` / `Full`) and draws them into the
+  game view's window, so every panel covers them. G toggles them (`GameCommand.TogglePowerLabels`). The BASE panel
+  adds a row from `World.BasePowerOf`: production against draw a second and the net. The palette the labels use is
+  `HudPalette`, the ImGui-free half of `HudTheme`, so the browser colours them alike.
 - **Around the HUD.** The base upgrade panel (`GameHud.Goal`) sits on the left of the view, just above the left
   part, clear of the tank and of the base's entrances above and below it. Aiming and clicks stop only over the parts (`HudLayout.Covers`, `RenderViewState.IsUnderHud`); the
   gap is play area. Overlays that cover the view (the death veil, the hit vignette, the key reminder) use

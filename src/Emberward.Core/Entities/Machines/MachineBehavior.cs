@@ -17,9 +17,30 @@ using Emberward.Core.Network;
 /// delivers ore from there.
 /// </param>
 /// <param name="Events">Where a machine records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</param>
+/// <param name="Energy">
+/// The energy network (DESIGN.md §4.9) when the match rules run it (<see cref="Match.MatchRules.EnergyNetwork"/>):
+/// machines then spend charge through it, and pylons and harvester refuel trips stand down. Null runs the battery
+/// rules of §4.5.
+/// </param>
 public readonly record struct MachineContext(
     ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, MachineList Machines,
-    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null);
+    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null, EnergyNetwork? Energy = null);
+
+/// <summary>
+/// Who an island of the energy network feeds first when it runs short (DESIGN.md §4.9): base defence, then turrets,
+/// then economy. Fixed by machine type.
+/// </summary>
+public enum PowerTier { BaseDefence, Turrets, Economy }
+
+/// <summary>
+/// A machine's capacitor (DESIGN.md §4.9): how much charge it holds, how fast it takes charge from its island, its
+/// priority when the island runs short, and what it spends per tick just standing.
+/// </summary>
+/// <param name="Capacity">The most charge it holds.</param>
+/// <param name="TransferPerTick">The most charge it takes from its island in one tick.</param>
+/// <param name="Tier">Its priority in a shortage.</param>
+/// <param name="IdleDrawPerTick">Charge it spends every tick, fed or cut off; it becomes heat where the machine stands.</param>
+public readonly record struct MachineCapacitor(double Capacity, double TransferPerTick, PowerTier Tier, double IdleDrawPerTick);
 
 /// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> BuildPrimary, BuildSecondary, BuildTertiary).</summary>
 public enum BuildKey { Primary, Secondary, Tertiary }
@@ -39,8 +60,20 @@ public record MachineBehavior(
     int OreCost,
     BuildKey Key)
 {
-    /// <summary>Battery size it is built with (empty); zero for machines without a battery.</summary>
-    public double BatteryCapacity { get; init; }
+    /// <summary>Its capacitor in the energy network (DESIGN.md §4.9). Every machine has one.</summary>
+    public MachineCapacitor Capacitor { get; init; }
+
+    /// <summary>
+    /// Its action spends charge, and it stops when its capacitor is empty (a harvester). Without the energy network,
+    /// only such a machine keeps its capacitor, as the battery that pylons fill (DESIGN.md §4.5).
+    /// </summary>
+    public bool RunsOnCharge { get; init; }
+
+    /// <summary>
+    /// The battery it is built with (empty) when the energy network is off: its capacitor if it runs on charge, else
+    /// none.
+    /// </summary>
+    public double BatteryCapacity => RunsOnCharge ? Capacitor.Capacity : 0.0;
 
     public bool HasBattery => BatteryCapacity > 0.0;
 
@@ -103,7 +136,9 @@ public static class MachineBehaviors
         Tweaks.Ore.HarvesterCost,
         BuildKey.Secondary)
     {
-        BatteryCapacity = Tweaks.Machine.HarvesterBatteryCapacity,
+        Capacitor = new(Tweaks.Machine.HarvesterBatteryCapacity, Tweaks.Machine.HarvesterTransferPerTick,
+            PowerTier.Economy, Tweaks.Machine.HarvesterIdleDraw),
+        RunsOnCharge = true,
         IsMiner = true,
     };
 
@@ -115,6 +150,8 @@ public static class MachineBehaviors
         Tweaks.Ore.PylonCost,
         BuildKey.Tertiary)
     {
+        Capacitor = new(Tweaks.Machine.PylonCapacitor, Tweaks.Machine.PylonTransferPerTick,
+            PowerTier.Economy, Tweaks.Machine.PylonIdleDraw),
         IsLinkNode = true,
         RequiresLinkToPlant = true,
         IsCharger = true,
@@ -128,6 +165,8 @@ public static class MachineBehaviors
         Tweaks.Ore.RelayCost,
         BuildKey.Primary)
     {
+        Capacitor = new(Tweaks.Machine.RelayCapacitor, Tweaks.Machine.RelayTransferPerTick,
+            PowerTier.Economy, Tweaks.Machine.RelayIdleDraw),
         IsLinkNode = true,
         RequiresLinkToPlant = true,
         IsHeatPump = true,
@@ -245,10 +284,14 @@ public static class MachineBehaviors
         if (store == null)
             return;
 
-        if (ReturnToPylon(machine, ctx))
+        // On the energy network the capacitor is brought up to date first, and there are no refuel trips: the island
+        // feeds it wherever its base's network covers it.
+        ctx.Energy?.Settle(machine, terrain);
+        if (ctx.Energy == null && ReturnToPylon(machine, ctx))
             return;
 
         machine.IsOffNetwork = !ctx.IsOnNetwork(machine);
+        ctx.Energy?.SetCovered(machine, !machine.IsOffNetwork);
         // With a flat battery there is nothing to work with. Off the network its ore could not get home, and on ground
         // that is too hot it waits for the ground to cool (a linked relay nearby speeds that up a lot): either way it
         // does not work, but it still crawls on toward ore it could work, so that a tunnel that bends out of its relay's
@@ -275,13 +318,13 @@ public static class MachineBehaviors
             if (!canWork)
                 return;
             WorkOre(machine, ctx, ore, store);
-            PayForWork(machine, terrain, worked: true, moved: false);
+            PayForWork(machine, ctx, worked: true, moved: false);
             return;
         }
         machine.Position += step;
         machine.Heading = step;
         CarvePath(machine, terrain);
-        PayForWork(machine, terrain, worked: false, moved: true);
+        PayForWork(machine, ctx, worked: false, moved: true);
     }
 
     /// <summary>
@@ -344,7 +387,7 @@ public static class MachineBehaviors
         // Its way home is mostly its own tunnel, but it may cut through dirt (or regrowth) outside its work area: carve
         // it open, so the pylon can see it once it arrives.
         bool carved = moved && CarvePath(machine, ctx.Terrain);
-        PayForWork(machine, ctx.Terrain, worked: false, moved || carved);
+        PayForWork(machine, ctx, worked: false, moved || carved);
         return true;
     }
 
@@ -373,15 +416,20 @@ public static class MachineBehaviors
     /// <summary>
     /// Books the charge one action took: working ore spends <c>HarvesterHeatPerHarvest</c>, a crawl step
     /// <c>HarvesterCrawlCharge</c>. The charge becomes heat in the ground beside the harvester (booked in the ledger as
-    /// charge turned back into heat).
+    /// charge turned back into heat). On the energy network it is spent through the network, which refills it.
     /// </summary>
-    private static void PayForWork(Machine machine, ITerrainAccess terrain, bool worked, bool moved)
+    private static void PayForWork(Machine machine, MachineContext ctx, bool worked, bool moved)
     {
         double cost = worked ? Tweaks.Machine.HarvesterHeatPerHarvest : moved ? Tweaks.Machine.HarvesterCrawlCharge : 0.0;
+        if (ctx.Energy != null)
+        {
+            ctx.Energy.Spend(machine, cost, ctx.Terrain);
+            return;
+        }
         cost = Math.Min(cost, machine.Charge);
         if (cost <= 0.0)
             return;
-        machine.DischargeAsHeat(terrain, cost);
+        machine.DischargeAsHeat(ctx.Terrain, cost);
     }
 
     private static bool Crawl(Machine machine, MachineContext ctx, Position target)
@@ -436,8 +484,9 @@ public static class MachineBehaviors
                 m.ChargingFrom = null;
         pylon.ChargedAtLastAction.Clear();
 
+        // On the energy network every machine draws from its island itself; a pylon hands out nothing.
         var home = pylon.OwnerBase;
-        if (home == null || pylon.LinkPoint is not { IsPowered: true })
+        if (home == null || pylon.LinkPoint is not { IsPowered: true } || ctx.Energy != null)
             return;
 
         double budget = Tweaks.Machine.PylonChargePerAction;

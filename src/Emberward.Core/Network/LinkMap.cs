@@ -55,6 +55,12 @@ public class LinkMap : ISnapshotLoaded
     public int PointCount => _points.Count;
     public int LinkCount => _links.Count;
 
+    /// <summary>
+    /// Counts the power searches: it changes whenever which points have power, or the route home of any, may have
+    /// changed. The energy network looks at its islands again only then.
+    /// </summary>
+    public int PowerVersion { get; private set; }
+
     /// <summary>Links whose line of sight the last <see cref="Advance"/> looked at: what the step cost.</summary>
     public int SightlinesCheckedInLastAdvance { get; private set; }
 
@@ -309,6 +315,7 @@ public class LinkMap : ISnapshotLoaded
     private void SpreadPower()
     {
         _hasSpreadPower = true;
+        PowerVersion++;
         _frontier.Clear();
         foreach (var p in _points)
         {

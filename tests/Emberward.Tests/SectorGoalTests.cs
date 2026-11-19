@@ -47,11 +47,11 @@ public class SectorGoalTests
     }
 
     [Fact]
-    public void Upgrades_ComeInTwoTracks_FourForTheBase_TwoForTheTank()
+    public void Upgrades_ComeInTwoTracks_FiveForTheBase_TwoForTheTank()
     {
         var tracks = Enum.GetValues<BaseUpgrade>().Select(BaseUpgrades.TrackOf).ToArray();
         Assert.Equal(BaseUpgrades.Count, tracks.Length);
-        Assert.Equal(4, tracks.Count(t => t == UpgradeTrack.Base));
+        Assert.Equal(5, tracks.Count(t => t == UpgradeTrack.Base));
         Assert.Equal([BaseUpgrade.CargoHold, BaseUpgrade.Radar],
             Enum.GetValues<BaseUpgrade>().Where(u => BaseUpgrades.TrackOf(u) == UpgradeTrack.Tank));
         foreach (BaseUpgrade u in Enum.GetValues<BaseUpgrade>())
@@ -89,6 +89,19 @@ public class SectorGoalTests
                 b.TryBuyUpgrade(BaseUpgrade.Radar);
             }
         }
+    }
+
+    [Fact]
+    public void ASensorsLevel_RaisesRelayAndBaseSight_ButNotCoverage()
+    {
+        var b = RelayHeatTests.CreateScenario().Base;
+        int coverage = b.Upgrades.NodeCoverageRadius, nodeSight = b.Upgrades.NodeSightRadius, baseSight = b.Upgrades.BaseSightRadius;
+        Assert.Equal(coverage + Tweaks.Vision.NodeSightBonus, nodeSight);
+        Fund(b, b.Store.Capacity);
+        Assert.True(b.TryBuyUpgrade(BaseUpgrade.Sensors));
+        Assert.Equal(nodeSight + Tweaks.Upgrades.SensorCellsPerLevel, b.Upgrades.NodeSightRadius);
+        Assert.Equal(baseSight + Tweaks.Upgrades.SensorCellsPerLevel, b.Upgrades.BaseSightRadius);
+        Assert.Equal(coverage, b.Upgrades.NodeCoverageRadius);
     }
 
     [Fact]

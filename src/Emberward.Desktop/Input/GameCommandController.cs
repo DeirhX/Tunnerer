@@ -7,10 +7,14 @@ public sealed class GameCommandController
 {
     private bool _showHeatDebugOverlay;
     private bool _showPostPassOverlay;
+    private bool _showPowerLabels = true;
     private PostProcessPassFlags _enabledPostPasses = PostProcessPassFlags.All & ~PostProcessPassFlags.ThermalRegions;
 
     public bool ShowHeatDebugOverlay => _showHeatDebugOverlay;
     public bool ShowPostPassOverlay => _showPostPassOverlay;
+
+    /// <summary>The charge and flow labels over machines (G); on until toggled off. Only drawn while the energy network runs.</summary>
+    public bool ShowPowerLabels => _showPowerLabels;
     public PostProcessPassFlags EnabledPostPasses => _enabledPostPasses;
 
     public static bool TryTranslateHotkey(Scancode scancode, bool shiftHeld, out GameCommand command)
@@ -18,13 +22,20 @@ public sealed class GameCommandController
 
     /// <summary>
     /// Maps a key to a command. The shader-pass toggles (1-7, Shift+1/2) only work while the debug overlay (F11) is
-    /// open, so a stray key press in normal play cannot switch off parts of the renderer; H toggles the thermal view.
+    /// open, so a stray key press in normal play cannot switch off parts of the renderer; H toggles the thermal view
+    /// and G the charge labels.
     /// </summary>
     public static bool TryTranslateHotkey(Scancode scancode, bool shiftHeld, bool debugKeysEnabled, out GameCommand command)
     {
         if (scancode == Scancode.H)
         {
             command = GameCommand.ToggleHeatOverlay;
+            return true;
+        }
+
+        if (scancode == Scancode.G)
+        {
+            command = GameCommand.TogglePowerLabels;
             return true;
         }
 
@@ -126,6 +137,9 @@ public sealed class GameCommandController
                 return;
             case GameCommand.ToggleInputRecording:
                 toggleInputRecording(source);
+                return;
+            case GameCommand.TogglePowerLabels:
+                ToggleWithLog(ref _showPowerLabels, "Hud", "Charge labels", source);
                 return;
             default:
                 return;

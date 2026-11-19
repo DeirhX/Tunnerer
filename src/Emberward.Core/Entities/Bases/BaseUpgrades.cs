@@ -17,6 +17,8 @@ public enum BaseUpgrade
     Engine,
     /// <summary>Slows the off-network heat floor: longer dives beyond the network.</summary>
     Insulation,
+    /// <summary>Relays, pylons and the base see further than they cool. Presentation only: it changes no simulation result.</summary>
+    Sensors,
     /// <summary>A bigger ore hold on the tank.</summary>
     CargoHold,
     /// <summary>Longer radar ranges and more heat budget per ray. Presentation only: it changes no simulation result.</summary>
@@ -32,7 +34,7 @@ public enum UpgradeRefusal { None, NotDocked, Maxed, NotEnoughOre }
 /// <summary>A base's upgrade levels (0 to <see cref="MaxLevel"/> each) and what each level is worth.</summary>
 public sealed class BaseUpgrades
 {
-    public const int Count = 6;
+    public const int Count = 7;
     public static int MaxLevel => Tweaks.Upgrades.MaxLevel;
 
     private readonly int[] _levels = new int[Count];
@@ -59,6 +61,17 @@ public sealed class BaseUpgrades
     /// <summary>How far each of the base's link nodes (relays, pylons) covers (and sees), with the reach upgrade.</summary>
     public int NodeCoverageRadius => Tweaks.Coverage.NodeRadius + CoverageBonusCells;
 
+    private int SensorBonusCells => Level(BaseUpgrade.Sensors) * Tweaks.Upgrades.SensorCellsPerLevel;
+
+    /// <summary>How far the base sees along open ground: its coverage circle plus the sensors.</summary>
+    public int BaseSightRadius => BaseCoverageRadius + SensorBonusCells;
+
+    /// <summary>
+    /// How far each relay or pylon sees, through the ground too: its coverage circle, <see cref="Tweaks.Vision.NodeSightBonus"/>
+    /// more, and the sensors. Presentation only.
+    /// </summary>
+    public int NodeSightRadius => NodeCoverageRadius + Tweaks.Vision.NodeSightBonus + SensorBonusCells;
+
     public double EngineMaxEfficiency =>
         Tweaks.Base.EngineMaxEfficiency + Level(BaseUpgrade.Engine) * Tweaks.Upgrades.EngineEfficiencyPerLevel;
 
@@ -84,6 +97,7 @@ public sealed class BaseUpgrades
         BaseUpgrade.Reach => ("Network reach", $"+{Tweaks.Upgrades.ReachCellsPerLevel} cells on every coverage circle"),
         BaseUpgrade.Engine => ("Engine", $"+{Tweaks.Upgrades.EngineEfficiencyPerLevel * 100:0}% max efficiency, better on warm ground"),
         BaseUpgrade.Insulation => ("Insulation", $"off-network clock {Tweaks.Upgrades.InsulationPerLevel * 100:0}% slower"),
+        BaseUpgrade.Sensors => ("Sensors", $"+{Tweaks.Upgrades.SensorCellsPerLevel} cells of sight around relays and base"),
         BaseUpgrade.CargoHold => ("Cargo hold", $"+{Tweaks.Upgrades.CargoHoldPerLevel} ore in the tank's hold"),
         BaseUpgrade.Radar => ("Radar", $"+{Tweaks.Upgrades.RadarRangePerLevel * 100:0}% range, +{Tweaks.Upgrades.RadarHeatBudgetPerLevel * 100:0}% heat budget"),
         _ => (upgrade.ToString(), ""),

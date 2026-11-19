@@ -5,11 +5,31 @@ using Emberward.Core.Types;
 
 /// <param name="Dial">The heat dial's colours, with a match's first frame only; null after it.</param>
 /// <param name="Net">The network match (<see cref="BrowserNetMatch"/>); null in a local one.</param>
+/// <param name="Power">The charge labels (<see cref="PowerOverlay"/>); null while the match runs no energy network.</param>
 public sealed record BrowserFrame(
     int Seed, int Tick, int TickRate, PlayerStatus Player,
     SoundFrame Sounds, BuildOption[] Builds,
     UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal, GuidanceStatus Guidance, HeatDial? Dial,
-    NetStatus? Net = null);
+    NetStatus? Net = null, PowerOverlay? Power = null);
+
+/// <summary>
+/// The charge and flow overlay (DESIGN.md §4.9), as the desktop's <c>GameHud.Power</c> draws it: the words, colours and
+/// distance fade come from the shared <c>PowerLabels</c>; the page places each label over its machine's cell, fades it
+/// by zoom between <paramref name="ZoomGone"/> and <paramref name="ZoomFull"/> CSS pixels a cell, and hides them all on G.
+/// </summary>
+/// <param name="Machines">The machines in sight near the player's tank, in machine order.</param>
+/// <param name="Base">The player's base store.</param>
+/// <param name="Text">The colour of a label's charge line, as #rrggbb (<c>HudPalette.Text</c>).</param>
+/// <param name="Track">The colour of a fill bar's empty part, as #rrggbb (<c>HudPalette.Track</c>).</param>
+/// <param name="LiftCells">Cells above a machine's cell where its label's bottom sits.</param>
+public sealed record PowerOverlay(MachineCharge[] Machines, BaseCharge Base, string Text, string Track,
+    float ZoomGone, float ZoomFull, float LiftCells);
+
+/// <summary>One machine's label (<c>PowerLabel</c>): its cell, the two lines, the fill, its colour as #rrggbb and how strongly it shows.</summary>
+public sealed record MachineCharge(Position Position, string Charge, string Flow, float Fill, string Color, float Opacity);
+
+/// <summary>The base store's row (<c>BasePowerLabel</c>).</summary>
+public sealed record BaseCharge(string Store, string Flow, string Net, float Fill, string Color);
 
 /// <summary>
 /// The dial round the desktop's heat orb (<c>HeatGauge</c>): its bands' colours from cold to hot, as #rrggbb, where
@@ -42,7 +62,7 @@ public sealed record PlayerStatus(
 /// <paramref name="Caption"/> and <paramref name="CaptionKind"/> are the rest of its <c>BuildSlotView</c>.</param>
 public sealed record BuildOption(int Key, string Name, int Cost, bool Affordable, string Payer,
     int Slot, string State, float Progress, string Label, string? Caption, string CaptionKind);
-/// <param name="Track">Whose upgrade it is: <c>Base</c> (keys 1-4) or <c>Tank</c> (5-6).</param>
+/// <param name="Track">Whose upgrade it is: <c>Base</c> (keys 1-5) or <c>Tank</c> (6-7).</param>
 public sealed record UpgradeOption(
     int Key, string Name, string Effect, string Track, int Level, int MaxLevel, int Cost, bool Maxed);
 public sealed record PlantPreview(string Status, Position Target, float Heat);

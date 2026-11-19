@@ -74,6 +74,8 @@ Network/                     The link network (not network matches: those are De
   LinkPoint.cs, Link.cs, LinkMap.cs   Nodes, edges, refresh, power and flow
   NetworkCoverage.cs         Coverage nodes and the coverage a tank gets at a position
   NetworkStatus.cs           One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
+  EnergyNetwork.cs           (only when MatchRules.EnergyNetwork is on) Every machine's capacitor and each base's island
+                             (DESIGN.md §4.9); MachinePower / BasePower, what World.MachinePowerOf / BasePowerOf answer
 Sensing/
   SideSensing.cs             The vision system: which sides are tracked, what each sees through, and each tank's radar
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
@@ -169,14 +171,28 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    in list order, and never walks the whole list. A relay that found no heat to pump keeps the ground's
    `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
    in its reach.
-7. **bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then the bot's stand-in ore income for
+7. **power** (only when `MatchRules.EnergyNetwork` is on): `EnergyNetwork.Advance` (DESIGN.md §4.9). Every planted
+   machine has a capacitor (`MachineBehavior.Capacitor`, its level in `Machine.Charge`). A link node whose power comes
+   home to its own base, and a harvester its base's network covers, belong to that base's island; each tick the
+   island pays from the base's charge store, tier by tier (`PowerTier`), its members' idle draw and then tops up the
+   capacitors that are not full (each by at most its transfer rate). A tier the store cannot pay is starved and drains
+   like a cut-off machine; it is fed again once the store holds `Energy.RefeedIdleTicks` of its draw. Cost follows
+   what changes: a full member's idle draw comes out of a per-tier sum, a cut-off machine's level falls on a straight
+   line, and a capacitor is brought up to date (settled: its idle draw's heat put in the ground) only when it is used,
+   changes island or tier, or once in `Energy.SettlePeriodTicks`. Islands are looked at again only when
+   `LinkMap.PowerVersion` changes or a harvester's coverage does. Idle charge paid and not yet heat is
+   `EnergyNetwork.PendingCharge`, counted as stored charge. With the flag on, pylons hand out nothing and harvesters
+   make no refuel trips. `World.MachinePowerOf` and `World.BasePowerOf` give an overlay its numbers (charge, capacity,
+   flows a second over the last whole second); output only. The desktop and browser charge labels
+   (`Gui/PowerLabels.cs` in Desktop, shared through `Emberward.Rendering`) read nothing else.
+8. **bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then the bot's stand-in ore income for
    bases marked with `World.SetBotControlled`.
-8. **goal**: `SectorGoal.Advance`, the core tap and its hold timer (only in a world with a core).
-9. **match**: `MatchResult.Latch`, the result, fixed once the referee has one.
-10. **links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
+9. **goal**: `SectorGoal.Advance`, the core tap and its hold timer (only in a world with a core).
+10. **match**: `MatchResult.Latch`, the result, fixed once the referee has one.
+11. **links**: `LinkMap.Advance` brings the network up to date every `Tweaks.World.RefreshLinkMapInterval`
    (200 ms), not every tick, and at once when a machine's point is switched off.
-11. **dock**: each tank notes whether it has left its base (`Tank.HasLeftBase`) and records docking (`Tank.ObserveDocking`).
-12. **vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
+12. **dock**: each tank notes whether it has left its base (`Tank.HasLeftBase`) and records docking (`Tank.ObserveDocking`).
+13. **vision**: each `VisionMap` handed out by `World.TrackVision` is brought up to date and each `Radar` handed
     out by `World.TrackRadar` runs its pulse on (see "Radar" below).
 
 `SimulationProfile` reports averages every 100 ticks when `ReportSink` is set: `[Profile]` (one time per system,
@@ -250,7 +266,7 @@ material; `SetPixelRaw` is unmetered and only for level generation.
 
 `ThermalLedger` keeps `Injected`, the `Sunk*` totals and `ConvertedToCharge` (heat the base engine turned into
 charge, or charge spent back as heat). `World.SumSystemThermalEnergy` (grid, tanks, base reactors) plus
-`World.SumSystemCharge` (base stores, batteries) changes by exactly `Injected - TotalSunk` each tick.
+`World.SumSystemCharge` (base stores, batteries and capacitors, and the energy network's pending charge) changes by exactly `Injected - TotalSunk` each tick.
 
 The mechanics built on this (base reservoir and radiator, relays pumping heat home, the base engine and charge,
 pylons and batteries, network coverage, the tank's temperature band, hot and frost rock pockets, the sector goal and
@@ -432,10 +448,11 @@ Core:
 1. A value in `MachineType` (`Entities/Machines/Machine.cs`).
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), added to the
    `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, ore cost
-   and `BuildKey`, plus the traits Core reads instead of the type: `BatteryCapacity`, `IsLinkNode`,
+   and `BuildKey`, its `Capacitor` (capacity, transfer rate, `PowerTier`, idle draw; DESIGN.md §4.9), plus the traits
+   Core reads instead of the type: `RunsOnCharge` (which also gives it its §4.5 battery), `IsLinkNode`,
    `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`. The action is a static method in `MachineBehaviors` taking
    `(Machine, MachineContext)`.
-3. Constants (interval, battery) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
+3. Constants (interval, capacitor) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
 4. Each `BuildKey` builds exactly one machine, so a fourth machine needs a new key: a value in `BuildKey`, a field
    in `ControllerOutput`, and its edge detection in `TankBuildController.Advance`.
 5. `NetworkStatus.Collect` counts harvesters and relays by type; extend it if the HUD should report the new one.

@@ -106,7 +106,8 @@ public static class WorldStateHash
             hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(tip.Y));
         }
 
-        return hash;
+        // The energy network's islands and capacitors; a world without one hashes as it always did.
+        return world.Energy?.MixState(hash) ?? hash;
     }
 
     /// <summary>
@@ -158,7 +159,7 @@ public static class WorldStateHash
             hash = Fnv1a.Mix(hash, tankBase.Charge);
         foreach (var machine in world.Machines.Machines)
             hash = Fnv1a.Mix(hash, machine.Charge);
-        return hash;
+        return world.Energy is { } energy ? Fnv1a.Mix(hash, energy.PendingCharge()) : hash;
     }
 
     /// <summary>

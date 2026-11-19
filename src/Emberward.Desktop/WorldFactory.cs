@@ -16,9 +16,13 @@ using Emberward.Desktop.Config;
 /// <param name="Seed">Map and simulation seed (see <c>Game.Seed</c>).</param>
 /// <param name="Players">How many bases, and so tanks, the match has.</param>
 /// <param name="CoreTapWins">The first base to tap the core wins the match (a network match is a race).</param>
+/// <param name="EnergyNetwork">
+/// The match runs the energy network (<see cref="MatchRules.EnergyNetwork"/>; a local match with
+/// <c>--energy-network</c>). Never set for a network match, whose rules every client must build alike.
+/// </param>
 public readonly record struct WorldLaunchOptions(
     bool TerrainTest, Size? TerrainSizeOverride, LevelGenMode GenMode, int Seed,
-    int Players = Tweaks.LevelGen.DefaultPlayers, bool CoreTapWins = false);
+    int Players = Tweaks.LevelGen.DefaultPlayers, bool CoreTapWins = false, bool EnergyNetwork = false);
 
 /// <param name="Parallel">Draw and materialise on several threads (only with <c>--fast</c>).</param>
 /// <param name="Seed">The seed the world was built from (<see cref="WorldLaunchOptions.Seed"/>).</param>
@@ -48,7 +52,7 @@ public static class WorldFactory
         World world = options.TerrainTest
             ? BuildTerrainTest(options.TerrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize)
             : BuildMatch(options.TerrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize,
-                options.GenMode, seed, parallel, options.Players, MatchRules.Standard with { CoreTapWins = options.CoreTapWins });
+                options.GenMode, seed, parallel, options.Players, MatchRules.Standard with { CoreTapWins = options.CoreTapWins, EnergyNetwork = options.EnergyNetwork });
         return new BuiltWorld(world, parallel, seed);
     }
 

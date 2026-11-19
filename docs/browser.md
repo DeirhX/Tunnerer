@@ -141,9 +141,12 @@ executable bit set (for example `chmod +x emberward-macos-arm64`); the builds ar
 
 Drive with WASD or arrows; dirt is dug by moving into it. Aim with the mouse, and fire with a click or Space.
 Firing while moving torches rock. E builds a relay, R a harvester, T a pylon; press a build key again outside a
-base to plant the carried machine. Keys 1–6 buy upgrades while docked. H turns the heat view on and off, as on
+base to plant the carried machine. Keys 1–7 buy upgrades while docked. H turns the heat view on and off, as on
 the desktop: the ground tinted by its heat, so that enemy tunnels glow (it changes only what is drawn). Mouse wheel
-or +/− changes zoom.
+or +/− changes zoom. `?energy` in the address starts a local match with the energy network (DESIGN.md §4.9, off by
+default): every machine in sight near the tank carries the desktop's charge label (charge over capacity, flow in and
+out a second, fed or starved colour), the materials plate adds the base store's production, draw and net, and G hides
+or shows the labels. A network match keeps the rules its room agreed on.
 The on-screen controls support touch devices; tap the game to aim and fire, or hold FIRE while driving.
 Escape opens the pause menu. Switching away from the page pauses the local match.
 
@@ -414,7 +417,9 @@ window and graphics dependencies out of the shared rendering assembly.
   toasts, hint line and warning banner as each frame after a step carries them (`guidance`), and the renderer points
   at the tutorial's target. `hud.js` shows the status panels, the upgrade list (base track above tank track, with
   level pips), the heat orb and bar in the desktop's heat colours (`HeatScale`) and the hit flash with a wedge
-  toward the shooter. `strip.js` draws the desktop's art strip (below).
+  toward the shooter. `strip.js` draws the desktop's art strip (below). With the energy network on, each frame after
+  a step carries the charge labels (`power`: built by the desktop's `PowerLabels`, colours from `HudPalette`) and
+  `renderer.js` draws them over their machines on the overlay canvas, faded with zoom; G hides them.
 - The HUD looks like the desktop's (`HudTheme`): chamfered plates with a bronze frame and amber corner brackets,
   amber titles, segmented bars and the desktop's palette and font (Chakra Petch, which `publish.py` copies from
   `src/Emberward.Desktop/resources/fonts` as it generates the shaders).

@@ -35,6 +35,8 @@
     <Compile Include="../Emberward.Desktop/Gui/HintSelector.cs" Link="Gui/HintSelector.cs" />
     <Compile Include="../Emberward.Desktop/Gui/HeatScale.cs" Link="Gui/HeatScale.cs" />
     <Compile Include="../Emberward.Desktop/Gui/BuildSlotView.cs" Link="Gui/BuildSlotView.cs" />
+    <Compile Include="../Emberward.Desktop/Gui/HudPalette.cs" Link="Gui/HudPalette.cs" />
+    <Compile Include="../Emberward.Desktop/Gui/PowerLabels.cs" Link="Gui/PowerLabels.cs" />
     <Compile Include="../Emberward.Desktop/Gui/Guidance/*.cs" Link="Gui/Guidance/%(Filename)%(Extension)" />
     <Compile Include="../Emberward.Desktop/SlotStepper.cs" Link="SlotStepper.cs" />
     <Compile Include="../Emberward.Desktop/Config/NetworkTweaks.cs" Link="Config/NetworkTweaks.cs" />

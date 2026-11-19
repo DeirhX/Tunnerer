@@ -99,13 +99,13 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
         if (tank.Base is TankBase owner)
         {
             const int near = Tweaks.Vision.MachineNearRadius;
-            _visionSources.Add(new VisionSource(owner.Position, owner.Upgrades.BaseCoverageRadius, near));
+            _visionSources.Add(new VisionSource(owner.Position, owner.Upgrades.BaseSightRadius, near));
             foreach (var machine in machines.Machines)
             {
                 if (!machine.StandsFor(owner))
                     continue;
-                // A relay or pylon sees its whole coverage circle, through the ground, linked or not.
-                int reach = machine.Behavior.IsLinkNode ? owner.Upgrades.NodeCoverageRadius : near;
+                // A relay or pylon sees past its coverage circle, through the ground, linked or not.
+                int reach = machine.Behavior.IsLinkNode ? owner.Upgrades.NodeSightRadius : near;
                 _visionSources.Add(new VisionSource(machine.Position, reach, reach));
             }
         }

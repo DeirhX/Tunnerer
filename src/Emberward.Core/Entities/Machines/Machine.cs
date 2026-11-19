@@ -84,11 +84,18 @@ public class Machine
     /// <summary>The last step a harvester crawled (zero before it first moves); also the way it faces.</summary>
     public Offset Heading { get; set; }
 
-    /// <summary>Charge in the machine's battery; harvesters spend it as they work (DESIGN.md §4.5).</summary>
+    /// <summary>
+    /// Charge in the machine's battery (its capacitor); harvesters spend it as they work (DESIGN.md §4.5). On the energy
+    /// network it is the level as of the capacitor's last settling (<see cref="EnergyNetwork"/>); ask
+    /// <see cref="World.MachinePowerOf"/> for the level now.
+    /// </summary>
     public double Charge { get; set; }
 
-    /// <summary>Battery size; zero for machines without one (relays, pylons).</summary>
-    public double ChargeCapacity { get; }
+    /// <summary>
+    /// Capacitor size. Without the energy network only a machine that runs on charge has one (its battery; zero for
+    /// relays and pylons); on the network every planted machine has its full capacitor (<see cref="World.PlantMachine"/>).
+    /// </summary>
+    public double ChargeCapacity { get; internal set; }
 
     public float ChargeFraction => ChargeCapacity > 0.0 ? (float)(Charge / ChargeCapacity) : 0f;
 

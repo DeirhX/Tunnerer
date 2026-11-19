@@ -73,6 +73,13 @@ export class StatusView {
             $("power"),
             `BASE CHARGE ${Math.round(p.charge * 100)}% / HEAT STORE ${Math.round(p.baseHeat * 100)}%`,
         );
+        // With the energy network: the base store, what its engine makes against what its island draws, and the net.
+        const store = f.power?.base;
+        setHidden($("network-power"), !store);
+        if (store) {
+            setText($("network-power"), `NETWORK ${store.store} ${store.flow} ${store.net}`);
+            setProperty($("network-power"), "color", store.color);
+        }
         this.updateBuilds(f.builds, p);
         setHidden($("upgrades"), !p.docked || p.dead);
         this.updateUpgrades(f.upgrades, p);

@@ -57,7 +57,7 @@ public class BrowserSessionStatusTests
         Assert.Equal(BrowserFrameBuilder.HexColor(HeatScale.ColorRgb(session.Player.Heat)), status.Player.HeatColor);
         Assert.Equal(HeatScale.Fraction(session.Player.Heat), status.Player.HeatGauge);
         Assert.Equal((0f, 0f, 0f), (status.Player.HitFlash, status.Player.HitFromX, status.Player.HitFromY));
-        Assert.Equal(["Base", "Base", "Base", "Base", "Tank", "Tank"], status.Upgrades.Select(u => u.Track));
+        Assert.Equal(["Base", "Base", "Base", "Base", "Base", "Tank", "Tank"], status.Upgrades.Select(u => u.Track));
         Assert.All(status.Upgrades, u => Assert.Equal(BaseUpgrades.MaxLevel, u.MaxLevel));
     }
 

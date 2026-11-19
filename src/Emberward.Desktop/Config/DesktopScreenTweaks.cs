@@ -51,6 +51,16 @@ public static class DesktopScreenTweaks
     /// <summary>Seconds the frost takes to thaw once the tank is warmer than frostbite, or dead.</summary>
     public const float ScreenFreezeFallSeconds = 1.6f;
 
+    // Charge and flow labels over machines (Gui/PowerLabels.cs), while the energy network runs
+    /// <summary>Cells from the player's tank within which a machine's charge label shows fully.</summary>
+    public const float PowerLabelFullCells = 48f;
+    /// <summary>Cells from the player's tank at which a machine's charge label has faded out; none show beyond.</summary>
+    public const float PowerLabelGoneCells = 112f;
+    /// <summary>UI points (CSS pixels in the browser) a cell at which, zoomed out, the charge labels have faded out.</summary>
+    public const float PowerLabelZoomGone = 2.5f;
+    /// <summary>UI points a cell from which the charge labels show fully.</summary>
+    public const float PowerLabelZoomFull = 4f;
+
     // GPU post-processing / lighting tuning
     public const float PostVignetteStrength = 0.18f;
     public const float PostVignetteInnerRadius = 0.35f;

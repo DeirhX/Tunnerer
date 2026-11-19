@@ -264,7 +264,7 @@ export class StripView {
         this.drawOffNetwork(left, p, time);
 
         this.drawBuild(right, f.builds, p, time);
-        // The COMMAND button stands for the base upgrades: lit while docked (keys 1-6 buy), dimmed elsewhere.
+        // The COMMAND button stands for the base upgrades: lit while docked (keys 1-7 buy), dimmed elsewhere.
         if (!p.docked) {
             right.fillStyle = abgr(0x90000000);
             roundRect(right, COMMAND.x0, COMMAND.y0, COMMAND.x1, COMMAND.y1, 10);

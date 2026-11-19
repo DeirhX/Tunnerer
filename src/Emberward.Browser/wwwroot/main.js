@@ -48,6 +48,8 @@ const [mapWidth, mapHeight] = (query.get("map") || "")
     .split("x")
     .map((n) => Number.parseInt(n, 10) || 0);
 const machines = Number.parseInt(query.get("machines"), 10) || 0;
+// ?energy runs a local match with the energy network (DESIGN.md §4.9), whose charge labels G hides and shows.
+const energyNetwork = query.has("energy");
 const perf = query.has("perf")
     ? new PerfReadout(renderer)
     : null;
@@ -60,6 +62,7 @@ const input = new GameInput(canvas, (action, direction) => {
     if (action === "help") openMenu();
     if (action === "tutorial" && playing) guidance.toggleTutorial();
     if (action === "thermal" && playing) setThermalView(!thermalView);
+    if (action === "power" && playing) renderer.showPower = !renderer.showPower;
     if (action === "enter" && net && state?.net && !state.net.started)
         netCommand("start");
     if (action === "netpause" && net && playing && state?.net?.started)
@@ -277,6 +280,7 @@ async function start() {
         mapWidth: mapWidth || 0,
         mapHeight: mapHeight || 0,
         machines,
+        energyNetwork,
     });
 }
 
