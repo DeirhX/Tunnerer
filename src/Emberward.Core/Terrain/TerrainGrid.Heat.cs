@@ -128,13 +128,6 @@ public partial class TerrainGrid
         return count > 0 ? sum / (count * 255f) : 0f;
     }
 
-    /// <summary>The mean air temperature over the square of <paramref name="radius"/> around <paramref name="center"/>.</summary>
-    public float SampleAverageAirTemperature(Position center, int radius)
-    {
-        float sum = SumOverArea(_airTemperature, center, radius, out int count);
-        return count > 0 ? sum / count : 0f;
-    }
-
     private float SumOverArea(float[] field, Position center, int radius, out int count)
     {
         float sum = 0f;
@@ -251,14 +244,13 @@ public partial class TerrainGrid
         => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.Air;
 
     /// <summary>
-    /// Sinks and relays only take heat that is stored in the cells. Hot rock (and an emberite core, and frost rock as a
+    /// Sinks and relays only take heat that is stored in the cells. Hot rock (and frost rock as a
     /// cold source) is a source: it is pinned hot and refills
     /// itself (and the air in it) from nothing, so drawing from it would be an unlimited supply that cools the source
     /// instead of the tunnel. Everything else, including the air and pinned cells of a base, can be drawn from.
     /// </summary>
     private bool CannotExtractFrom(int offset, ThermalField field)
-        => Pixel.GetThermalMaterial(_data[offset]) is ThermalMaterial.HotRock or ThermalMaterial.FrostRock
-            or ThermalMaterial.EmberiteCore;
+        => Pixel.GetThermalMaterial(_data[offset]) is ThermalMaterial.HotRock or ThermalMaterial.FrostRock;
 
     /// <summary>
     /// Adds a temperature delta to the terrain field of a cell. In an air cell the terrain field is only a
@@ -391,9 +383,9 @@ public partial class TerrainGrid
     }
 
     /// <summary>
-    /// The temperature (above ambient) of the heat <see cref="ExtractEnergyInRadiusArea"/> would take from this area:
+    /// The source temperature of the heat <see cref="ExtractEnergyInRadiusArea"/> would take from this area:
     /// the cells' excess temperatures weighted by the energy each one gives up. A small hot spot in cold ground
-    /// still reads hot, because nearly all the extracted energy comes from it. Zero when there is nothing to take.
+    /// still reads hot, because nearly all the extracted energy comes from it. Ambient when there is nothing to take.
     /// </summary>
     public double ExtractableHeatTemperature(Position center, int radius, ThermalField field)
     {
@@ -414,7 +406,7 @@ public partial class TerrainGrid
                 energy += e;
                 weighted += e * excess;
             }
-        return energy > 0.0 ? weighted / energy : 0.0;
+        return energy > 0.0 ? ambient + weighted / energy : ambient;
     }
 
     /// <summary>

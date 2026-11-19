@@ -9,7 +9,7 @@ using Emberward.Core.Network;
 using Emberward.Core.Entities.Bases;
 
 /// <summary>
-/// The tank's heat: work heat, the per-tick exchange with the grid, base sinks and refrigeration, network coverage
+/// The tank's heat: cargo and work heat, the per-tick exchange with the grid, docking-area cooling, network coverage
 /// and its heat floor, and booking every joule created or destroyed in the <see cref="ThermalLedger"/>.
 /// The heat value itself lives on <see cref="Tank.Heat"/>; this class owns the rules that change it.
 /// </summary>
@@ -63,10 +63,9 @@ internal sealed class TankThermals
     }
 
     /// <summary>
-    /// A base the tank is in destroys heat around it (a sink, not a transfer), more near its centre and more at the
-    /// tank's own base. Only heat that is actually present can be removed; what was removed goes to the ledger.
+    /// Any base the tank visits draws nearby heat into its reservoir, more near its centre and at the tank's own base.
     /// </summary>
-    public void SinkAtBase(ITerrainHeatSource heat, TankBase baseColl, bool atOwnBase)
+    public void CoolDockingArea(ITerrainHeatSource heat, TankBase baseColl, bool atOwnBase)
     {
         var position = _tank.Position;
         int baseCooldown = atOwnBase ? _settings.BaseHomeCooldownHeat : _settings.BaseForeignCooldownHeat;
@@ -84,10 +83,8 @@ internal sealed class TankThermals
             double terrainShare = Math.Round(sinkAmount * 0.40);
             double airShare = sinkAmount - terrainShare;
             int radius = Math.Max(1, _settings.TankDigRadius);
-            double removed =
-                heat.ExtractEnergyInRadiusArea(position, radius, terrainShare, TerrainGrid.ThermalField.Terrain) +
-                heat.ExtractEnergyInRadiusArea(position, radius, airShare, TerrainGrid.ThermalField.Air);
-            heat.Ledger.RecordSunkBase(removed);
+            baseColl.AbsorbNearbyHeat(heat, position, radius, terrainShare, TerrainGrid.ThermalField.Terrain);
+            baseColl.AbsorbNearbyHeat(heat, position, radius, airShare, TerrainGrid.ThermalField.Air);
         }
     }
 
@@ -157,32 +154,28 @@ internal sealed class TankThermals
     }
 
     /// <summary>
-    /// The end-of-tick heat step: action heat from digging and shooting, exchange with the terrain and air under the
+    /// The end-of-tick heat step: heat from carried ore, digging and shooting, exchange with the terrain and air under the
     /// tank, overheat and frostbite damage, and the off-network floor.
     /// </summary>
     public void Advance(ITerrainHeatSource heat)
     {
         var position = _tank.Position;
         int radius = _settings.TankDigRadius;
-        float sampledTerrainTemperature = heat.SampleAverageHeat(position, radius) * 255f;
-        float sampledAirTemperature = heat.SampleAverageAirTemperature(position, radius);
+        var contact = heat.SampleTankContact(position, radius);
+        float cargoHeat = _tank.OreHeld * _settings.TankHeatPerOrePerTick;
         var step = _heatEngine.Advance(
-            currentHeat: _tank.Heat,
+            currentHeat: _tank.Heat + cargoHeat,
             frameDugPixels: _frameDugPixels,
             frameShotFired: _frameShotFired,
-            sampledTerrainTemperature: sampledTerrainTemperature,
-            sampledAirTemperature: sampledAirTemperature,
-            terrainCapacity: heat.SumHeatCapacityInRadiusArea(position, radius, TerrainGrid.ThermalField.Terrain),
-            airCapacity: heat.SumHeatCapacityInRadiusArea(position, radius, TerrainGrid.ThermalField.Air));
+            contact: contact);
 
         // Exchange with the grid is an exact transfer both ways: whatever the tank lost, the cells under it gained, and
         // a cold tank draws heat from its surroundings.
         float nextHeat = step.NextHeat;
-        nextHeat -= ExchangeWithGrid(heat, position, radius, step.EnergyToTerrain, TerrainGrid.ThermalField.Terrain);
-        nextHeat -= ExchangeWithGrid(heat, position, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
+        heat.ApplyTankExchange(position, radius, contact, step.EnergyToTerrain, step.EnergyToAir);
 
-        // Digging and shooting create heat from nothing.
-        heat.Ledger.RecordInjected(step.ActionHeat * ThermalCapacity);
+        // Carried emberite and tank actions are external heat sources.
+        heat.Ledger.RecordInjected((cargoHeat + step.ActionHeat) * ThermalCapacity);
 
         if (step.OverheatDamage > 0)
         {
@@ -198,7 +191,7 @@ internal sealed class TankThermals
         // Off network the tank cannot cool below its rising heat floor by shedding into ordinary ground; holding it there
         // is reactor heat, created here. Sub-zero surroundings (a frost pocket) are a real cold sink, though: there the
         // floor follows the tank down, so cooling off at a frost pocket buys back time.
-        if (IsOffNetwork && (sampledTerrainTemperature < 0f || sampledAirTemperature < 0f))
+        if (IsOffNetwork && (contact.SolidTemperature < 0f || contact.AirTemperature < 0f))
             OffNetworkFloor = Math.Min(OffNetworkFloor, nextHeat);
         if (IsOffNetwork && nextHeat < OffNetworkFloor)
         {
@@ -224,19 +217,4 @@ internal sealed class TankThermals
 
     /// <summary>Copies the tank's heat into the reactor's whole-number mirror.</summary>
     private void SyncReactorHeat() => _tank.Reactor.Current.Heat = new Heat((int)MathF.Round(_tank.Heat));
-
-    /// <summary>
-    /// Moves heat between the tank and the grid for one field: a positive <paramref name="energyToField"/> is given to
-    /// the cells, a negative one taken from them (which can chill them below ambient: a cold tank draws heat from its
-    /// surroundings). The flow is bounded by the temperature difference, so this is an exact transfer. Returns how
-    /// much tank heat must be taken back because the area had no cells to exchange with (0 when everything moved).
-    /// </summary>
-    private float ExchangeWithGrid(ITerrainHeatSource terrain, Position position, int radius, double energyToField, TerrainGrid.ThermalField field)
-    {
-        if (energyToField == 0.0)
-            return 0f;
-        double moved = terrain.AddEnergyInRadiusArea(position, radius, energyToField, field);
-        // The tank already changed by -energyToField; whatever did not move goes back to it (the caller subtracts).
-        return (float)((moved - energyToField) / ThermalCapacity);
-    }
 }

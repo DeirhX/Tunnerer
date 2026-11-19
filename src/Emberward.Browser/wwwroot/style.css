@@ -1043,6 +1043,21 @@ meter::-moz-meter-bar {
 }
 .build-status > .eyebrow {
     justify-content: space-between;
+    flex-wrap: wrap;
+}
+.hold-window {
+    display: inline-flex;
+    flex: 0 0 36px;
+    height: 15px;
+    box-sizing: content-box;
+    border: 1px solid var(--hud-bronze);
+    background: #171816;
+}
+.hold-window #ore-pile {
+    width: 100%;
+    height: 100%;
+    background: url("hud/hold_emberite.png") no-repeat;
+    background-size: 800% 500%;
 }
 #ore {
     letter-spacing: 0;
@@ -1590,6 +1605,7 @@ body.playing.art-hud canvas.strip {
 .art-hud .tank-status meter,
 .art-hud .tank-status .meter-label,
 .art-hud .builds,
+.art-hud .hold-window,
 .art-hud #ore {
     display: none;
 }

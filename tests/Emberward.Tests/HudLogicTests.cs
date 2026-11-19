@@ -137,7 +137,7 @@ public class HudLogicTests
     public void Hint_Fallback_SaysHowMuchToMine()
     {
         int relay = Cost(MachineType.Relay);
-        Assert.Equal($"Mine {relay - 3} more ore (teal crystal) to build a relay", HintSelector.Select(Field(ore: 3)).Text);
+        Assert.Equal($"Mine {relay - 3} more ore (gold crystal) to build a relay", HintSelector.Select(Field(ore: 3)).Text);
     }
 
     [Fact]

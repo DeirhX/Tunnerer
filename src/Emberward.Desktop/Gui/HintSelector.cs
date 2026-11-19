@@ -125,6 +125,6 @@ public static class HintSelector
         }
         if (s.Docked && s.HasLeftBase && s.CoolingDown)
             return ("Docked: cooling down and banking your ore", HintTone.Info);
-        return ($"Mine {relayCost - ore} more ore (teal crystal) to build a relay", HintTone.Dim);
+        return ($"Mine {relayCost - ore} more ore (gold crystal) to build a relay", HintTone.Dim);
     }
 }

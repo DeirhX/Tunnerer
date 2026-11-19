@@ -52,12 +52,12 @@ public class ThermalLedgerTests(ITestOutputHelper output)
         Assert.Equal(0f, t.SampleAverageHeat(pos, 0));
         double taken = t.ExtractEnergyInRadiusArea(pos, 0, maxEnergy: 1e9, TerrainGrid.ThermalField.Terrain);
         Assert.Equal(0.0, taken);
-        Assert.True(t.SampleAverageAirTemperature(pos, 0) >= Tweaks.World.ThermalAmbientTemperature,
+        Assert.True(t.SampleTankContact(pos, 0).AirTemperature >= Tweaks.World.ThermalAmbientTemperature,
             "extracting from freshly dug air must not push it below ambient");
     }
 
     [Fact]
-    public void TankHeatEngine_ExchangeWithGrid_ConservesEnergy()
+    public void TankHeatEngine_ContactExchange_ConservesEnergy()
     {
         // Tank sits across dirt, rock and open air so every material capacity is exercised.
         var t = MakeMixedGrid(32, 32);
@@ -75,16 +75,13 @@ public class ThermalLedgerTests(ITestOutputHelper output)
         {
             double before = t.SumTotalThermalEnergy() + tankHeat * tankCapacity;
 
+            var contact = t.SampleTankContact(pos, radius);
             var step = engine.Advance(
                 tankHeat,
                 frameDugPixels: 0,
                 frameShotFired: false,
-                sampledTerrainTemperature: t.SampleAverageHeat(pos, radius) * 255f,
-                sampledAirTemperature: t.SampleAverageAirTemperature(pos, radius),
-                terrainCapacity: t.SumHeatCapacityInRadiusArea(pos, radius, TerrainGrid.ThermalField.Terrain),
-                airCapacity: t.SumHeatCapacityInRadiusArea(pos, radius, TerrainGrid.ThermalField.Air));
-            t.AddEnergyInRadiusArea(pos, radius, step.EnergyToTerrain, TerrainGrid.ThermalField.Terrain);
-            t.AddEnergyInRadiusArea(pos, radius, step.EnergyToAir, TerrainGrid.ThermalField.Air);
+                contact: contact);
+            t.ApplyTankExchange(pos, radius, contact, step.EnergyToTerrain, step.EnergyToAir);
             tankHeat = step.NextHeat;
 
             double after = t.SumTotalThermalEnergy() + tankHeat * tankCapacity;
@@ -94,6 +91,39 @@ public class ThermalLedgerTests(ITestOutputHelper output)
         // The old coupling created ~49x the energy the tank lost; float noise here is orders of magnitude lower.
         Assert.True(maxResidual < 0.05, $"Tank/grid exchange must conserve energy. maxResidualPerStep={maxResidual:0.000000}");
         Assert.NotEqual(90f, tankHeat); // the tank really exchanged heat
+    }
+
+    [Fact]
+    public void TankConductsMoreThroughStoneThanAir_AndOpenCellsExchangeOnlyOnce()
+    {
+        var t = new TerrainGrid(new Size(5, 5));
+        var pos = new Position(2, 2);
+        var engine = new TankHeatEngine();
+        t.Fill(TerrainPixel.Blank);
+        var open = t.SampleTankContact(pos, 2);
+        var inAir = engine.Advance(10, 0, false, open);
+        Assert.Equal(0.0, inAir.EnergyToTerrain);
+        Assert.Equal(10 * Tweaks.Tank.TankAmbientConductance, inAir.EnergyToAir, precision: 5);
+
+        t.Fill(TerrainPixel.Rock);
+        var inRock = engine.Advance(10, 0, false, t.SampleTankContact(pos, 2));
+        Assert.Equal(10 * Tweaks.Tank.TankTerrainConductance, inRock.EnergyToTerrain, precision: 5);
+        Assert.True(inRock.EnergyToTerrain > inAir.EnergyToAir);
+    }
+
+    [Theory]
+    [InlineData(50f, -10f)]
+    [InlineData(-10f, 50f)]
+    public void SmallContactCanReachEquilibriumWithoutCrossingIt(float tankTemperature, float solidTemperature)
+    {
+        const double capacity = 0.1;
+        var contact = new TankHeatContact(solidTemperature, capacity, 1f, 0f, 0.0);
+        var engine = new TankHeatEngine();
+        var step = engine.Advance(tankTemperature, 0, false, contact);
+        double equilibrium = (tankTemperature * engine.TankHeatCapacity + solidTemperature * capacity)
+            / (engine.TankHeatCapacity + capacity);
+        Assert.Equal(equilibrium, step.NextHeat, precision: 4);
+        Assert.Equal(equilibrium, solidTemperature + step.EnergyToTerrain / capacity, precision: 4);
     }
 
     [Theory]

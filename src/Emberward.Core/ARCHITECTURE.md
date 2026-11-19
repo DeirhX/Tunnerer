@@ -162,7 +162,7 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
    the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
    `TankDigger.Move`, spawn shield, shooting, `TankBuildController.Advance`, the upgrade keys, then
-   `TankThermals.Advance` (exchange with the grid).
+   `TankThermals.Advance` (heat from ore still in the hold and from tank actions, then exchange with the grid).
 6. **machines**: `MachineList.Advance` with the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
@@ -232,7 +232,7 @@ The exchange is `TerrainHeatEngine.ComputeRegionDeltaConservative`: a cell's ter
 and with the solid cells beside it, and its air with the air beside it, but only where at least one of the two
 cells is open. The air inside solid ground carries nothing from one solid cell to the next, so ground conducts as
 its material row says; dirt is the insulator (30 times worse than stone). `ResolveCell` then applies the step to a
-cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock, emberite cores) and books what the
+cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock) and books what the
 pin removes or adds as `SunkFixedTemperature`, and it takes each material's `Loss` from unpinned ground and from
 open air, a small share of the temperature above or below ambient, booked as `SunkAmbientLoss`. The loss stands for
 heat leaving to the deep ground and to the surface. It is what gives a hot or frost pocket a halo of a fixed size
@@ -256,8 +256,12 @@ is active.
 Entities exchange energy through the `ITerrainHeatSource` API, never by writing temperatures:
 `AddEnergyInRadiusArea` / `ExtractEnergyInRadiusArea` for transfers the entity books itself, `AddHeat` /
 `AddHeatRadius` / `AddHeatTotalInRadiusArea` for heat that enters from outside (booked as injected). Extraction
-takes only heat above ambient and never from hot or frost rock. A tank exchanges with the grid in both directions
-(`AddEnergyInRadiusArea` with a signed amount), so a cold tank warms by chilling the cells under it. `SetPixel` books the capacity change when a cell changes
+takes only heat above ambient and never from hot or frost rock. Tank contact samples the heat capacity and
+temperature of solid ground and air separately (`SampleTankContact`). The share of the footprint touching
+solid ground scales its conductance. Each exchange stops at thermal equilibrium, and `ApplyTankExchange`
+returns the energy to the sampled cells. Docking-area extraction uses the visited base's reservoir room.
+A relay draws from the terrain field and then from the remaining air, converting each draw at its energy-weighted source temperature.
+`SetPixel` books the capacity change when a cell changes
 material; `SetPixelRaw` is unmetered and only for level generation.
 
 `ThermalLedger` keeps `Injected`, the `Sunk*` totals and `ConvertedToCharge` (heat the base engine turned into
@@ -363,7 +367,7 @@ in every direction), before anything in that cell can reflect it. What it then f
 left (`RadarContact.Strength`). Every hot cell the ray goes through gets a `Heat` contact whose strength is how hot
 the cell is (1 at `HeatFullTemperature`), at most `HeatReturnsPerRay` a ray, and the ray stops when its strength runs
 out: a few cells into very hot ground, many into warm ground. A reflector at or above `HeatScrambleTemperature`
-returns `Heat` instead of what it is; ore included, so a lump, whose core is pinned warm and heats its shell past
+returns `Heat` instead of what it is; ore included, so a lump, whose core is seeded hot (finite, not pinned) and heats its shell past
 that, shows as heat and its contents are found by going there. So a hot zone shows as heat marks reaching a little way into it from the side
 the pulse came from, and nothing behind them. A contact is removed as soon as the side sees its cell, and the side's
 own machines are not radar targets: the radar tells a side only what it cannot see or does not remember. `Radar.HeatLoss` is the share of
@@ -496,6 +500,10 @@ Desktop:
      at construction, so the solver's inner loop pays one array read.
    - `AirExchange`: conductance between the cell's terrain and the air in the same cell.
    - `FixedTemperature`: set it for a source or sink; `ResolveCell` pins the cell there each step.
+   - Emberite is finite by design: ore is ordinary rows (plain ore is stone, the core a denser `EmberiteCore` row with no pin),
+     and `TerrainGrid.PlaceOre` seeds each cell with `capacity * start temperature` of energy through `SeedHeatedPixel`
+     (booked as injected in the ledger, tile woken); after that it cools like any ground. Hot rock, frost rock and the
+     base sinks are still pinned in the code today and change later (DESIGN.md §4.1, §4.10).
    - `Loss`: for a material that stores heat, the share of its temperature above ambient it gives up to the outside
      each tick. Leave it zero only for a pinned material; ground without a loss never settles.
    If entities must not draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.

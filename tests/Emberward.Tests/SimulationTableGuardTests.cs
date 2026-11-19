@@ -104,7 +104,7 @@ public class SimulationTableGuardTests
         foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
             Assert.Equal(airExchange[(int)m], table[m].AirExchange);
         // What leaves the map: open air and unpinned ground give a little up every tick, pinned cells nothing.
-        float[] loss = [0.0010f, 0.0003f, 0.0003f, 0f, 0f, 0f, 0f, 0f];
+        float[] loss = [0.0010f, 0.0003f, 0.0003f, 0f, 0f, 0f, 0f, 0.0003f];
         foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
             Assert.Equal(loss[(int)m], table[m].Loss);
     }
@@ -151,7 +151,6 @@ public class SimulationTableGuardTests
     [Theory]
     [InlineData(TerrainPixel.HotRock)]
     [InlineData(TerrainPixel.FrostRock)]
-    [InlineData(TerrainPixel.EmberiteCore)]
     [InlineData(TerrainPixel.BaseBarrier)]
     [InlineData(TerrainPixel.BaseCore)]
     public void FixedTemperatureCells_StayPinned_AndTheLedgerAccountsForIt(TerrainPixel pinned)

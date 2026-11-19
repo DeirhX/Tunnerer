@@ -31,21 +31,18 @@ const HEADROOM = 44;
 const TEMP = { x: HEAT_X + 170, title: 151.5, readout: 179, right: HEAT_X + 239 },
     SHIELD = { x: SHIELD_X + 80.5, title: 153.5, readout: 180 },
     MATERIALS = { x: MATERIALS_X + 120, title: 154, readout: 184 };
-const ORE_LINE = { x: MATERIALS_X + 126, y: 84, size: 19 };
+const ORE_LINE = { x: MATERIALS_X + 122, y: 133, size: 15 };
 
 // HeatGauge.cs
 const ORB = { x: HEAT_X + 168, y: 72, r: 47 };
 const DIAL_START = (Math.PI * 150) / 180,
     DIAL_SWEEP = (Math.PI * 240) / 180;
 
-// LiquidGauges.cs: the shield crystal and the open top of the chest, in their panels.
+// LiquidGauges.cs: the outline of the shield crystal.
 const SHIELD_OUTLINE = [
     [44, 44], [60, 40], [82, 37], [104, 40], [121, 44], [121, 80],
     [114, 100], [100, 116], [82, 128], [64, 116], [50, 100], [44, 80],
 ].map(([x, y]) => [SHIELD_X + x, y]);
-const CHEST_OUTLINE = [
-    [52, 40], [193, 40], [206, 52], [206, 86], [185, 98], [60, 98], [40, 86], [40, 52],
-].map(([x, y]) => [MATERIALS_X + x, y]);
 
 // BuildPanel.cs: the slots inside build_panel.png, three columns by two rows.
 const SLOT_X = [25, 117, 209],
@@ -57,8 +54,7 @@ const COMMAND = { x0: BUILD_X + 77, y0: 172, x1: BUILD_X + 277, y1: 212 };
 // The desktop's per-frame easing (at 60 frames a second) over one step (24 a second).
 const perStep = (k) => 1 - Math.pow(1 - k, 60 / 24);
 const EASE_HEAT = perStep(0.15),
-    EASE_SHIELD = perStep(0.2),
-    EASE_CHEST = perStep(0.15);
+    EASE_SHIELD = perStep(0.2);
 
 const FONT = '"Chakra Petch", system-ui, sans-serif';
 // ImGui sizes a font by its line's height (ascent to descent) and CSS by its em, so the desktop's sizes are scaled
@@ -76,6 +72,7 @@ const ART = {
     heat: "hud/heat_icon.png",
     shield: "hud/shield_icon.png",
     materials: "hud/panel_frame.png",
+    orePile: "hud/hold_emberite.png",
     build: "hud/build_panel.png",
 };
 
@@ -95,7 +92,7 @@ const BUILD_STATE_BORDER = {
 };
 const CAPTION_COLOR = {
     FromBase: abgr(0xfff0d080),
-    FromHold: abgr(0xffd8e860),
+    FromHold: abgr(0xff78e6ff),
     KeyAndName: abgr(0xffb0b0b0),
 };
 
@@ -148,7 +145,7 @@ export class StripView {
 
     // Forgets what the last match showed: the next frame starts the gauges where they stand.
     reset() {
-        this.shown = { heat: NaN, shield: -1, chest: -1 };
+        this.shown = { heat: NaN, shield: -1 };
         this.lastHeat = NaN;
         this.trend = 0;
     }
@@ -213,10 +210,6 @@ export class StripView {
             this.shown.shield < 0
                 ? p.shield
                 : this.shown.shield + (p.shield - this.shown.shield) * EASE_SHIELD;
-        this.shown.chest =
-            this.shown.chest < 0
-                ? p.holdFill
-                : this.shown.chest + (p.holdFill - this.shown.chest) * EASE_CHEST;
         // The trend arrow: the desktop smooths the change per display frame and shows it past 0.02 a frame.
         if (!Number.isNaN(this.lastHeat) && !p.dead)
             this.trend = this.trend * 0.9 + ((p.heat - this.lastHeat) * 24) / 60 * 0.1;
@@ -250,18 +243,22 @@ export class StripView {
         readout(`${p.dead ? 0 : Math.round(p.heat)}°`, TEMP);
         this.drawTrend(left, p);
         readout(String(p.health), SHIELD);
+        if (p.orePileFrame >= 0) {
+            const column = p.orePileFrame % 8, row = Math.floor(p.orePileFrame / 8);
+            left.drawImage(this.art.orePile, column * 288, row * 120, 288, 120, MATERIALS_X + 51, 48, 144, 60);
+        }
         readout(`${p.ore} / ${p.holdCapacity}`, MATERIALS);
 
-        const oreColor = p.unloading ? 0xff60ff90 : p.holdFull ? 0xff40c0ff : 0xffd8e860;
-        stripText(left, p.oreLine, ORE_LINE.x, ORE_LINE.y, ORE_LINE.size, abgr(oreColor), abgr(0x28806020));
+        const oreColor = p.unloading ? 0xff60ff90 : p.holdFull ? 0xff2880ff : 0xff78e6ff;
+        stripText(left, p.oreLine, ORE_LINE.x, ORE_LINE.y, ORE_LINE.size, abgr(oreColor), abgr(0x2840b0ff));
         if (p.unloading) {
             // Down arrows either side of the word, bobbing: the ore is going down into the base.
             const bob = ((time * 3) % 1) * 5;
             left.fillStyle = abgr(oreColor);
-            for (const dx of [-72, 72]) {
+            for (const dx of [-55, 55]) {
                 const cx = ORE_LINE.x + dx,
-                    top = ORE_LINE.y - 8 + bob;
-                triangle(left, cx - 7, top, cx + 7, top, cx, top + 9);
+                    top = ORE_LINE.y - 5 + bob;
+                triangle(left, cx - 4, top, cx + 4, top, cx, top + 5);
             }
         }
         this.drawOffNetwork(left, p, time);
@@ -496,8 +493,7 @@ export class StripView {
         ctx.fillText(text, cx, cy + 1);
     }
 
-    // LiquidGauges.Draw: the shield crystal and the chest, full up to their level and dark above it, with a softly
-    // waving bright surface. A low shield pulses red and flashes white when hit.
+    // LiquidGauges.Draw: the shield crystal, with a softly waving surface. A low shield pulses red and flashes on a hit.
     drawLiquids(ctx, p, time) {
         const pulse = Math.floor(time * 4) % 2 === 0;
         const [sTop, sBottom] = extent(SHIELD_OUTLINE);
@@ -507,11 +503,6 @@ export class StripView {
             fillBand(ctx, SHIELD_OUTLINE, sLevel, sBottom, abgr(0x703030ff));
         fillBand(ctx, SHIELD_OUTLINE, sTop, sLevel, abgr(0xc8080808));
         surface(ctx, SHIELD_OUTLINE, sLevel, p.shield > 0 ? 0xffffe0a0 : 0, time);
-
-        const [cTop, cBottom] = extent(CHEST_OUTLINE);
-        const cLevel = cBottom - (cBottom - cTop) * this.shown.chest;
-        fillBand(ctx, CHEST_OUTLINE, cTop, cLevel, abgr(0xd8080808));
-        surface(ctx, CHEST_OUTLINE, cLevel, p.holdFill > 0 ? 0xff80d8ff : 0, time);
     }
 
     // BuildPanel.Draw: a slot per machine, filling toward its cost from the stock that would pay (BuildSlotView).

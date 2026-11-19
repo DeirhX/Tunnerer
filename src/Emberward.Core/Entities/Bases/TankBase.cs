@@ -193,32 +193,42 @@ public class TankBase
     public double AbsorbHeatFrom(ITerrainHeatSource terrain, Position center, int radius, double maxEnergy,
         out bool limitedByBase, out double engineOutput, out bool groundWasCold)
     {
-        engineOutput = 0.0;
-        groundWasCold = false;
-        double eta = UpgradedEngineEfficiency(terrain.ExtractableHeatTemperature(center, radius, TerrainGrid.ThermalField.Terrain));
-        double chargeRoom = Math.Max(0.0, ChargeCapacity - Charge);
-        double budget = PumpBudget(eta, maxEnergy);
-        limitedByBase = budget < maxEnergy;
-        if (budget <= 0.0)
-            return 0.0;
-
-        double absorbed = terrain.ExtractEnergyInRadiusArea(center, radius, budget, TerrainGrid.ThermalField.Terrain);
-        absorbed += terrain.ExtractEnergyInRadiusArea(center, radius, budget - absorbed, TerrainGrid.ThermalField.Air);
-        groundWasCold = absorbed == 0.0;
-
-        double toCharge = Math.Min(eta * absorbed, chargeRoom);
-        if (toCharge > 0.0)
+        if (maxEnergy <= 0.0 || ReactorRoomEnergy <= 0.0)
         {
-            Charge += toCharge;
-            terrain.Ledger.RecordToCharge(toCharge);
+            limitedByBase = maxEnergy > 0.0;
+            engineOutput = 0.0;
+            groundWasCold = false;
+            return 0.0;
         }
-        CreditReactor(absorbed - toCharge);
-        // What the engine made from this heat, whether or not the store had room to keep all of it (the core goal
-        // measures the tap, not the store).
-        engineOutput = eta * absorbed;
+        double absorbed = PumpField(terrain, center, radius, TerrainGrid.ThermalField.Terrain, maxEnergy,
+            out limitedByBase, out engineOutput);
+        if (absorbed < maxEnergy)
+        {
+            absorbed += PumpField(terrain, center, radius, TerrainGrid.ThermalField.Air, maxEnergy - absorbed,
+                out bool airLimited, out double airOutput);
+            limitedByBase |= airLimited;
+            engineOutput += airOutput;
+        }
+        groundWasCold = absorbed == 0.0;
         _engineInputThisTick += absorbed;
-        _engineOutputThisTick += toCharge;
         return absorbed;
+    }
+
+    private double PumpField(ITerrainHeatSource terrain, Position center, int radius, TerrainGrid.ThermalField field,
+        double requested, out bool limited, out double output)
+    {
+        double eta = UpgradedEngineEfficiency(terrain.ExtractableHeatTemperature(center, radius, field));
+        double budget = PumpBudget(eta, requested);
+        limited = budget < requested;
+        double taken = terrain.ExtractEnergyInRadiusArea(center, radius, budget, field);
+        // The core tap measures potential output even when the charge store is full.
+        output = eta * taken;
+        double stored = Math.Min(output, Math.Max(0.0, ChargeCapacity - Charge));
+        Charge += stored;
+        terrain.Ledger.RecordToCharge(stored);
+        _engineOutputThisTick += stored;
+        CreditReactor(taken - stored);
+        return taken;
     }
 
     /// <summary>
@@ -291,23 +301,12 @@ public class TankBase
 
         // The reactor is a finite sink: it can only absorb as much energy as it still has room for,
         // and only heat that is actually present in the surroundings.
-        double room = ReactorRoomEnergy;
-        double absorbed = 0.0;
-        double Pull(int radius, double cap, TerrainGrid.ThermalField field)
-        {
-            double taken = terrain.ExtractEnergyInRadiusArea(Position, radius, Math.Min(cap, room - absorbed), field);
-            absorbed += taken;
-            return taken;
-        }
-
-        Pull(outerRadius, Tweaks.Base.AreaCoolingOuterHeatTotal, TerrainGrid.ThermalField.Terrain);
-        Pull(midRadius, Tweaks.Base.AreaCoolingMidHeatTotal, TerrainGrid.ThermalField.Terrain);
-        Pull(innerRadius, Tweaks.Base.AreaCoolingInnerHeatTotal, TerrainGrid.ThermalField.Terrain);
-        Pull(outerRadius, Tweaks.Base.AreaCoolingOuterAirTotal, TerrainGrid.ThermalField.Air);
-        Pull(midRadius, Tweaks.Base.AreaCoolingMidAirTotal, TerrainGrid.ThermalField.Air);
-        Pull(innerRadius, Tweaks.Base.AreaCoolingInnerAirTotal, TerrainGrid.ThermalField.Air);
-
-        CreditReactor(absorbed);
+        AbsorbNearbyHeat(terrain, Position, outerRadius, Tweaks.Base.AreaCoolingOuterHeatTotal, TerrainGrid.ThermalField.Terrain);
+        AbsorbNearbyHeat(terrain, Position, midRadius, Tweaks.Base.AreaCoolingMidHeatTotal, TerrainGrid.ThermalField.Terrain);
+        AbsorbNearbyHeat(terrain, Position, innerRadius, Tweaks.Base.AreaCoolingInnerHeatTotal, TerrainGrid.ThermalField.Terrain);
+        AbsorbNearbyHeat(terrain, Position, outerRadius, Tweaks.Base.AreaCoolingOuterAirTotal, TerrainGrid.ThermalField.Air);
+        AbsorbNearbyHeat(terrain, Position, midRadius, Tweaks.Base.AreaCoolingMidAirTotal, TerrainGrid.ThermalField.Air);
+        AbsorbNearbyHeat(terrain, Position, innerRadius, Tweaks.Base.AreaCoolingInnerAirTotal, TerrainGrid.ThermalField.Air);
 
         // Radiator: the reactor vents HeatCooldown units per tick out of the system. This is the base's finite
         // sink rate; heat pumped in faster than this fills the reactor and the pumping stops.
@@ -331,6 +330,12 @@ public class TankBase
             GiveReactorResources(tankReactor, Tweaks.Base.HomeRechargeHealth);
         else
             GiveReactorResources(tankReactor, Tweaks.Base.ForeignRechargeHealth);
+    }
+
+    internal void AbsorbNearbyHeat(ITerrainHeatSource terrain, Position center, int radius, double limit, TerrainGrid.ThermalField field)
+    {
+        double taken = terrain.ExtractEnergyInRadiusArea(center, radius, Math.Min(limit, ReactorRoomEnergy), field);
+        CreditReactor(taken);
     }
 
     private static void GiveReactorResources(Reactor target, int healthRegen)

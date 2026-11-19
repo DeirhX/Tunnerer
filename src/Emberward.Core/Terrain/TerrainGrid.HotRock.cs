@@ -61,12 +61,21 @@ public partial class TerrainGrid
     /// </summary>
     private void SetPinnedPixel(Position pos, TerrainPixel pixel, ThermalMaterial material)
     {
+        SeedHeatedPixel(pos, pixel, _heatEngine.GetFixedTemperature(material));
+    }
+
+    /// <summary>
+    /// Writes a pixel and sets the cell to <paramref name="temperature"/> at once, recording the energy that adds in
+    /// the <see cref="Ledger"/> as injected, and wakes its tile so the solver steps it. For a pinned material the
+    /// temperature is its pin; for ore it is only a starting temperature, and the cell cools like any ground.
+    /// </summary>
+    private void SeedHeatedPixel(Position pos, TerrainPixel pixel, float temperature)
+    {
         int offset = pos.X + pos.Y * Width;
         SetPixel(pos, pixel);
-        float pinned = _heatEngine.GetFixedTemperature(material);
         float old = _heatTemperature[offset];
-        _heatTemperature[offset] = pinned;
-        Ledger.RecordInjected((pinned - old) * (double)_heatEngine.GetHeatCapacity(material));
+        _heatTemperature[offset] = temperature;
+        Ledger.RecordInjected((temperature - old) * (double)_heatEngine.GetHeatCapacity(Pixel.GetThermalMaterial(pixel)));
         MarkHeatDirty(pos.X, pos.Y);
         ActivateTileByCell(pos.X, pos.Y);
     }

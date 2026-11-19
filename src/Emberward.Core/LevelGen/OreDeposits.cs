@@ -65,6 +65,10 @@ public static class OreDeposits
 
     private static int Scaled(int distance, double scale) => (int)(distance * scale);
 
+    /// <summary>The core cells of a lump of <paramref name="cells"/>: a share of them, so a larger lump runs hotter.</summary>
+    public static int CoreCellsFor(int cells) =>
+        Math.Max(Tweaks.Ore.LumpMinCoreCells, (int)Math.Round(cells * Tweaks.Ore.LumpCoreShare));
+
     private static void PlaceLumps(TerrainGrid terrain, IReadOnlyList<Position> bases, Random rng, int count, int margin,
         double scale, List<OreDeposit> deposits)
     {
@@ -89,7 +93,7 @@ public static class OreDeposits
             if (GeneratorUtils.TooClose(pos, bases, minFromBaseSq) || GeneratorUtils.TooClose(pos, lumps, minBetweenSq))
                 continue;
 
-            var deposit = Grow(terrain, rng, pos, OreDepositKind.Lump, cells, Tweaks.Ore.LumpCoreCells, dirtOnly: false);
+            var deposit = Grow(terrain, rng, pos, OreDepositKind.Lump, cells, CoreCellsFor(cells), dirtOnly: false);
             if (deposit is OreDeposit placed)
             {
                 lumps.Add(pos);

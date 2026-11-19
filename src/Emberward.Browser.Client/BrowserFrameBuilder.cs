@@ -60,7 +60,7 @@ public static class BrowserFrameBuilder
             world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString(),
             Math.Max(0, player.Reactor.Health), HeatScale.Frozen(player.Heat), HeatScale.Boil(player.Heat),
             player.IsOverheating || player.IsAboveSafeHeat, player.IsShieldLow(latched: false),
-            player.HitFlashTicks > Tank.HitFlashDuration - HitFreshTicks, player.HoldFill, player.IsUnloadingOre,
+            player.HitFlashTicks > Tank.HitFlashDuration - HitFreshTicks, BuildSlotView.OrePileFrame(player), player.IsUnloadingOre,
             player.IsOreHoldFull, player.IsOffNetworkUrgent, BuildSlotView.OreLine(player));
         return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
             session.Sounds.Frame(takePlays: includeEvents), builds, upgrades, preview, goal, Guidance(session.Guidance),

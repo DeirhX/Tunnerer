@@ -18,7 +18,6 @@ public interface ITerrainHeatSource
     void CoolDown();
 
     float SampleAverageHeat(Position center, int radius);
-    float SampleAverageAirTemperature(Position center, int radius);
     int CountCellsInRadiusArea(Position center, int radius);
     int AddHeatTotalInRadiusArea(Position center, int radius, int totalAmount);
     int AddAirHeatTotalInRadiusArea(Position center, int radius, int totalAmount);
@@ -26,6 +25,8 @@ public interface ITerrainHeatSource
 
     // --- Energy-exact exchange (every unit moved is metered in the ledger) ---
     Thermal.ThermalLedger Ledger { get; }
+    TankHeatContact SampleTankContact(Position center, int radius);
+    void ApplyTankExchange(Position center, int radius, in TankHeatContact contact, double toSolid, double toAir);
     double SumHeatCapacityInRadiusArea(Position center, int radius, TerrainGrid.ThermalField field);
     double AddEnergyInRadiusArea(Position center, int radius, double energy, TerrainGrid.ThermalField field);
     double ExtractEnergyInRadiusArea(Position center, int radius, double maxEnergy, TerrainGrid.ThermalField field);

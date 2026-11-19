@@ -14,16 +14,16 @@ public static class TankHeatModel
 
     /// <summary>
     /// Heat flowing into the tank from what it touches this tick (negative: the tank loses heat). Terrain and air
-    /// contact use this one formula; only the <paramref name="conductance"/> differs.
+    /// contact use the same formula, with the conductance and heat capacity of the contact.
     /// </summary>
-    public static float ComputeHeatFlowIntoTank(in SimulationSettings s, float conductance, float tankTemperature, float surroundingTemperature)
+    public static float ComputeHeatFlowIntoTank(in SimulationSettings s, float conductance, float tankTemperature,
+        float surroundingTemperature, double surroundingCapacity)
     {
-        float deltaT = surroundingTemperature - tankTemperature;
-        float dQ = conductance * deltaT;
-        float maxStableDQ = s.TankHeatCapacity * MathF.Abs(deltaT) * 0.01f;
-        if (dQ > maxStableDQ) dQ = maxStableDQ;
-        else if (dQ < -maxStableDQ) dQ = -maxStableDQ;
-        return dQ;
+        if (s.TankHeatCapacity <= 0f || surroundingCapacity <= 0.0)
+            return 0f;
+        // Moving Q changes the temperature difference by Q * (1/Ctank + 1/Cfield).
+        double equilibriumConductance = 1.0 / (1.0 / s.TankHeatCapacity + 1.0 / surroundingCapacity);
+        return (float)(Math.Min(conductance, equilibriumConductance) * (surroundingTemperature - tankTemperature));
     }
 
     public static float ComputeTankDeltaFromHeatFlow(in SimulationSettings s, float dQ)

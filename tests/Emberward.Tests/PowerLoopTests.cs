@@ -41,6 +41,83 @@ public class PowerLoopTests
         Assert.Equal(Tweaks.Base.EngineMaxEfficiency, extreme, precision: 6);
     }
 
+    [Theory]
+    [InlineData(0, 90, 200.0)]
+    [InlineData(10, 90, 50.0)]
+    [InlineData(80, 10, 50.0)]
+    public void RelayConvertsEachFieldAtItsOwnTemperature(int rockHeat, int airHeat, double requested)
+    {
+        var t = new TerrainGrid(new Size(5, 5));
+        var pos = new Position(2, 2);
+        t.Fill(TerrainPixel.Rock);
+        t.AddHeat(pos, rockHeat);
+        t.AddAirHeatTotalInRadiusArea(pos, 0, airHeat);
+        var home = new TankBase(pos, 0);
+        double rockEnergy = Math.Min(requested, rockHeat * t.SumHeatCapacityInRadiusArea(pos, 0, TerrainGrid.ThermalField.Terrain));
+        double airEnergy = Math.Min(requested - rockEnergy, airHeat * t.SumHeatCapacityInRadiusArea(pos, 0, TerrainGrid.ThermalField.Air));
+        double expectedCharge = rockEnergy * home.EngineEfficiency(rockHeat) + airEnergy * home.EngineEfficiency(airHeat);
+        double initialCharge = home.Charge;
+        double initialHeat = home.ReactorHeatEnergy;
+        double initialGround = t.SumTotalThermalEnergy();
+
+        double taken = home.AbsorbHeatFrom(t, pos, 0, requested, out bool limited, out double output, out bool cold);
+
+        Assert.False(limited);
+        Assert.False(cold);
+        Assert.Equal(rockEnergy + airEnergy, taken, precision: 4);
+        Assert.Equal(taken, initialGround - t.SumTotalThermalEnergy(), precision: 4);
+        Assert.Equal(expectedCharge, output, precision: 4);
+        Assert.Equal(expectedCharge, t.Ledger.ConvertedToCharge, precision: 4);
+        Assert.Equal(expectedCharge, home.Charge - initialCharge, precision: 4);
+        Assert.Equal(taken - expectedCharge, home.ReactorHeatEnergy - initialHeat, precision: 4);
+    }
+
+    [Fact]
+    public void RelayLimitsItsAirDrawToTheRoomLeftAfterRock()
+    {
+        var t = new TerrainGrid(new Size(5, 5));
+        var pos = new Position(2, 2);
+        t.Fill(TerrainPixel.Rock);
+        t.AddHeat(pos, 5);
+        t.AddAirHeatTotalInRadiusArea(pos, 0, 100);
+        var home = new TankBase(pos, 0);
+        home.AcceptTankHeat(home.ReactorRoomEnergy - 20);
+
+        double taken = home.AbsorbHeatFrom(t, pos, 0, 100, out bool limited, out double output, out bool cold);
+
+        Assert.True(limited);
+        Assert.False(cold);
+        Assert.Equal(0f, t.GetHeatTemperature(pos), precision: 4);
+        Assert.InRange(t.GetAirTemperature(pos), 1f, 99f);
+        Assert.Equal(0, home.ReactorRoomEnergy, precision: 4);
+        Assert.Equal(taken - 20, output, precision: 4);
+        Assert.Equal(output, t.Ledger.ConvertedToCharge, precision: 4);
+    }
+
+    [Fact]
+    public void RelayIntoAFullChargeStore_NeverDrainsTheStore()
+    {
+        var t = new TerrainGrid(new Size(5, 5));
+        var pos = new Position(2, 2);
+        t.Fill(TerrainPixel.Rock);
+        var home = new TankBase(pos, 0);
+        for (int i = 0; i < 20000 && home.Charge < home.ChargeCapacity; i++)
+        {
+            t.AddHeat(pos, 255);
+            home.AbsorbHeatFrom(t, pos, 0, 1e6, out _, out _, out _);
+            home.Advance(t); // the radiator vents the reactor, so the relay keeps delivering
+        }
+        Assert.Equal(home.ChargeCapacity, home.Charge, precision: 6);
+        double chargeBefore = home.Charge;
+        double ledgerBefore = t.Ledger.ConvertedToCharge;
+
+        t.AddHeat(pos, 90);
+        home.AbsorbHeatFrom(t, pos, 0, 1e6, out _, out _, out _);
+
+        Assert.Equal(chargeBefore, home.Charge, precision: 6);
+        Assert.Equal(ledgerBefore, t.Ledger.ConvertedToCharge, precision: 6);
+    }
+
     /// <summary>Charge made per unit of heat a relay delivered from ground heated by <paramref name="amount"/>.</summary>
     private static double ChargePerHeat(int amount)
     {

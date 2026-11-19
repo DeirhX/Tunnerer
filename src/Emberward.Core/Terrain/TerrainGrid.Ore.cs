@@ -1,6 +1,5 @@
 namespace Emberward.Core.Terrain;
 
-using Emberward.Core.Thermal;
 using Emberward.Core.Types;
 
 public partial class TerrainGrid
@@ -75,9 +74,10 @@ public partial class TerrainGrid
 
     /// <summary>
     /// Level generation: turns one cell of solid ground into ore (<see cref="LevelGen.OreDeposits"/>). Specks only
-    /// replace dirt (<paramref name="dirtOnly"/>); pockets and lumps also replace plain rock. A core cell is pinned at
-    /// its fixed temperature at once, like a hot rock pocket. Returns false (and changes nothing) for any other cell
-    /// or one on the border margin.
+    /// replace dirt (<paramref name="dirtOnly"/>); pockets and lumps also replace plain rock. The cell is seeded with
+    /// heat at once: <see cref="Config.Tweaks.Ore.CoreStartTemperature"/> for a core cell, <see cref="Config.Tweaks.Ore.PlainStartTemperature"/>
+    /// otherwise, booked in the <see cref="Ledger"/> as injected. That heat is finite: ore is ordinary stone, so it
+    /// cools. Returns false (and changes nothing) for any other cell or one on the border margin.
     /// </summary>
     public bool PlaceOre(Position pos, bool core, bool dirtOnly)
     {
@@ -89,9 +89,9 @@ public partial class TerrainGrid
             return false;
 
         if (core)
-            SetPinnedPixel(pos, TerrainPixel.EmberiteCore, ThermalMaterial.EmberiteCore);
+            SeedHeatedPixel(pos, TerrainPixel.EmberiteCore, Config.Tweaks.Ore.CoreStartTemperature);
         else
-            SetPixel(pos, TerrainPixel.Emberite);
+            SeedHeatedPixel(pos, TerrainPixel.Emberite, Config.Tweaks.Ore.PlainStartTemperature);
         return true;
     }
 }
