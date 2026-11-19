@@ -74,6 +74,14 @@
     <Copy SourceFiles="@(_SdlGpuShaderOutput)" DestinationFolder="$(OutDir)Shaders" SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- A publish copies only what the project lists as content, so the shaders need their own copy to ship. -->
+  <Target Name="PublishSdlGpuShaders" AfterTargets="Publish">
+    <ItemGroup>
+      <_PublishShaderFile Include="$(OutDir)Shaders\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PublishShaderFile)" DestinationFolder="$(PublishDir)Shaders" SkipUnchangedFiles="true" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
     <PackageReference Include="SDL3-CS" Version="3.4.20" />

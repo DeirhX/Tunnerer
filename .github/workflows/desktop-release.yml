@@ -1,0 +1,132 @@
+name: desktop-release
+
+# Builds the desktop game for Windows, macOS and Linux and publishes each build as an asset of a GitHub Release.
+# A pushed version tag (v*) publishes that tag's release. A run started by hand builds the three archives as run
+# artifacts, and publishes them only when a tag is typed into the form (created at the commit the run uses if it
+# does not exist yet).
+#
+# The archives have fixed names, so each platform has one stable link that always serves the newest release:
+#   https://github.com/DeirhX/Emberward/releases/latest/download/emberward-windows-x64.zip
+#   https://github.com/DeirhX/Emberward/releases/latest/download/emberward-macos-arm64.zip
+#   https://github.com/DeirhX/Emberward/releases/latest/download/emberward-linux-x64.tar.gz
+# The builds are not signed yet: Windows SmartScreen and macOS Gatekeeper will warn about them.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish to, such as v0.2.0. Leave empty to build without publishing."
+        required: false
+        default: ""
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            asset: emberward-windows-x64.zip
+          - os: macos-latest
+            rid: osx-arm64
+            asset: emberward-macos-arm64.zip
+          - os: ubuntu-latest
+            rid: linux-x64
+            asset: emberward-linux-x64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      # Self-contained, so the player needs no .NET runtime. The shaders are compiled to DXIL, SPIR-V and MSL during
+      # this build (tools/Emberward.ShaderCompiler) and the publish copies them beside the game.
+      - name: Publish the game
+        run: dotnet publish src/Emberward.Desktop/Emberward.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish
+      - name: Check the publish has its shaders and resources
+        shell: bash
+        run: |
+          ls publish/Shaders/*.dxil publish/Shaders/*.spv publish/Shaders/*.msl > /dev/null
+          test -f publish/resources/emberward-logo.png
+      - name: Archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path "publish/*" -DestinationPath "dist/${{ matrix.asset }}"
+      # zip keeps the executable bit; the archive's contents sit at its root, with no folder around them.
+      - name: Archive (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p dist
+          (cd publish && zip -r -y "../dist/${{ matrix.asset }}" .)
+      - name: Archive (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p dist
+          tar -C publish -czf "dist/${{ matrix.asset }}" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.rid }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    # Only a pushed tag, or a run started by hand with a tag typed in, publishes. The build alone is for testing.
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Work out the tag and whether it is a pre-release
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          PUSHED_TAG: ${{ github.ref_name }}
+          TYPED_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "$EVENT" = "push" ]; then tag="$PUSHED_TAG"; else tag="$TYPED_TAG"; fi
+          case "$tag" in
+            v*) ;;
+            *) echo "::error::The release tag must start with v, got '$tag'"; exit 1 ;;
+          esac
+          # A tag such as v0.3.0-rc1 is a pre-release. The "latest" link ignores pre-releases, so it keeps the last
+          # full release.
+          prerelease=false
+          case "$tag" in *-*) prerelease=true ;; esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          PRERELEASE: ${{ steps.tag.outputs.prerelease }}
+          SHA: ${{ github.sha }}
+        run: |
+          cd dist
+          sha256sum emberward-* > SHA256SUMS.txt
+          if ! gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            flags=()
+            if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+            gh release create "$TAG" --repo "$REPO" --target "$SHA" --title "Emberward $TAG" --generate-notes "${flags[@]}"
+          fi
+          # --clobber replaces the assets of an earlier run for the same tag, so a re-run finishes the release.
+          gh release upload "$TAG" --repo "$REPO" --clobber emberward-* SHA256SUMS.txt
