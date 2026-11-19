@@ -1,4 +1,4 @@
-# Working on Emberward
+# Working on Emberflow
 
 Read this before changing code. `DESIGN.md` says where the game is going; `ARCHITECTURE.md` and
 `src/Emberward.Core/ARCHITECTURE.md` say how the code is organised.

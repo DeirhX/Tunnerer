@@ -1,6 +1,6 @@
 # Architecture
 
-Emberward is a C# / .NET 10 game that began as a port of a C++ engine (kept on the `cplusplus-legacy` branch) and has
+Emberflow is a C# / .NET 10 game that began as a port of a C++ engine (kept on the `cplusplus-legacy` branch) and has
 since grown its own thermal simulation and a GPU renderer. The simulation is platform-independent
 (`Emberward.Core`); the desktop host lives in `Emberward.Desktop`. The browser host runs Core as WebAssembly in a
 Web Worker (or, where the host and browser allow, on several threads), with a WebGL 2 backend and an installable

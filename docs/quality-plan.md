@@ -1,6 +1,6 @@
 # Code-quality plan
 
-Goal: keep Emberward open to new machines, materials and systems without the code turning into spaghetti.
+Goal: keep Emberflow open to new machines, materials and systems without the code turning into spaghetti.
 The thermal core is sound (one stencil, one apply rule, ledger booking everywhere). The problems are around it:
 nothing stops regressions, rules have several owners, Desktop computes gameplay, and the docs have drifted.
 

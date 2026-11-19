@@ -1,4 +1,4 @@
-# Emberward: Game Design
+# Emberflow: Game Design
 
 Status: direction agreed in a planning session on 2026-11-14. This document records the intended game, not the
 current one. For how the code is organised, see `ARCHITECTURE.md` and `src/Emberward.Core/ARCHITECTURE.md`.
@@ -8,7 +8,7 @@ confirmed). The full list is in [Decision log](#13-decision-log).
 
 ## 1. Vision
 
-Emberward is a top-down digging and building game in which **heat is the waste product of everything you do, and
+Emberflow is a top-down digging and building game in which **heat is the waste product of everything you do, and
 your base is the only place it can leave the world**. You drive a tank that digs, hauls, builds and fights. You
 push out from a cold base into hot ground, build the infrastructure that makes each place workable, and leave
 behind a network that runs without you. You do not grow by owning more things. You grow by being able to get rid

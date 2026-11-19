@@ -10,7 +10,7 @@ System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureIn
 if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
 {
     Console.WriteLine("""
-        Emberward - a 2D tunnelling tank game
+        Emberflow - a 2D tunnelling tank game
 
         Usage: Emberward.Desktop [options]
 

@@ -1,7 +1,7 @@
 {
     "id": "./",
-    "name": "Emberward",
-    "short_name": "Emberward",
+    "name": "Emberflow",
+    "short_name": "Emberflow",
     "description": "Dig, build a cooling network, and tap the hot core.",
     "start_url": "./",
     "scope": "./",

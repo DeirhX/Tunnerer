@@ -212,7 +212,7 @@ its threaded WebAssembly runtime experimental.
 required asset (of two runtimes, the one this browser uses) before becoming active, isolates caches by deployment
 path, and does not reload a running game. A new version installs in the background. A page that holds no game
 (on the start page with nothing to read, not typing in a field) then moves to it and reloads itself, if no other
-Emberward tab is open. Otherwise the page shows an Update button in the header, which reloads when pressed
+Emberflow tab is open. Otherwise the page shows an Update button in the header, which reloads when pressed
 (`install.js`). Pressing it moves every tab to the new version; another tab with a match running keeps playing
 and shows the button too. The start page's footer names the version the page runs and, when it differs, the latest
 one on the server ("VERSION 5cc86e02 · LATEST e7ef5bb1"), or says it is up to date. The page also

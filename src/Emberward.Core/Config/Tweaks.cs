@@ -14,7 +14,7 @@ public static class Tweaks
 {
     public static class System
     {
-        public const string WindowTitle = "Emberward";
+        public const string WindowTitle = "Emberflow";
     }
 
     public static class Perf

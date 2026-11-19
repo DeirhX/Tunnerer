@@ -67,7 +67,7 @@ self.addEventListener("message", (event) => {
     if (event.data?.type === "status")
         event.source?.postMessage({ type: "offline-ready", version: self.emberwardAssets.version });
     // The Update button forces it. Otherwise the page asks only while it holds no game, and another open tab might
-    // hold one, so the worker waits for the player while any other Emberward tab is open.
+    // hold one, so the worker waits for the player while any other Emberflow tab is open.
     if (event.data?.type === "skip-waiting")
         event.waitUntil(
             (async () => {

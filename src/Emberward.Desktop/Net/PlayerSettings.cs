@@ -155,7 +155,7 @@ public sealed class PlayerSettings
 
     private IEnumerable<string> Lines()
     {
-        yield return "# Emberward settings. The secret is stored as written.";
+        yield return "# Emberflow settings. The secret is stored as written.";
         if (Name is not null) yield return "name=" + Name;
         if (Relay is not null) yield return "relay=" + Relay;
         if (Secret is not null) yield return "secret=" + Secret;

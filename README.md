@@ -1,4 +1,4 @@
-# Emberward
+# Emberflow
 
 A 2D tunnelling tank game. You dig through the ground, fight an enemy tank, and manage heat: digging and firing
 heat your tank and the rock around it, your base is the heat sink, and relays pipe heat back to the base.

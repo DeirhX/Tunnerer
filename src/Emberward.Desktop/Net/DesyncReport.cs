@@ -14,7 +14,7 @@ public static class DesyncReport
         IEnumerable<(int Tick, SyncDigest Digest)> digests, World world)
     {
         var inv = CultureInfo.InvariantCulture;
-        writer.WriteLine(string.Create(inv, $"# Emberward desync report: worlds differed at tick {desyncTick}"));
+        writer.WriteLine(string.Create(inv, $"# Emberflow desync report: worlds differed at tick {desyncTick}"));
         writer.WriteLine(string.Create(inv, $"# written by slot {slot}, build {buildId}, at tick {world.AdvanceCount}"));
         writer.WriteLine("# Compare this file with another player's. The first tick whose digest differs is where the");
         writer.WriteLine("# worlds went apart, and the part that differs (state, heat, charge, economy, outcome, latent or");
