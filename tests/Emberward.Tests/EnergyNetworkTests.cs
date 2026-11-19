@@ -191,6 +191,35 @@ public class EnergyNetworkTests
     }
 
     [Fact]
+    public void ARelayRoutedThroughARivalsRelay_IsFedAndCoversItsHarvester()
+    {
+        // Links are shared across owners: our base's power reaches our relay through a rival relay. The route ends at
+        // our base, so the relay is fed, and it covers a harvester through the same route.
+        var size = new Size(430, 140);
+        var generated = new TerrainGrid(size);
+        generated.Fill(TerrainPixel.LevelGenDirt);
+        var world = new World(size, rules: new MatchRules { EnergyNetwork = true });
+        world.Initialize(generated, [new Position(60, 65), new Position(355, 65)]);
+        world.Terrain.Fill(TerrainPixel.Blank);
+        var home = world.TankBases.Bases[0];
+        var rival = world.TankBases.Bases[1];
+        var rivalRelay = world.Machines.Add(new Machine(new Position(150, 65), MachineType.Relay, rival.Color));
+        world.PlantMachine(rivalRelay, rival);
+        var relay = world.Machines.Add(new Machine(new Position(240, 65), MachineType.Relay, home.Color));
+        world.PlantMachine(relay, home);
+        var harvester = world.Machines.Add(new Machine(new Position(245, 75), MachineType.Harvester, home.Color));
+        world.PlantMachine(harvester, home);
+        double plantedCharge = harvester.Charge;
+
+        Advance(world, Tweaks.Perf.TargetFps * 3);
+
+        Assert.Equal(2, relay.LinkPoint!.Hops);
+        Assert.True(world.MachinePowerOf(relay)!.Value.IsFed, "a relay whose route ends at our base is fed");
+        Assert.False(harvester.IsOffNetwork, "the harvester is covered through the fed relay");
+        Assert.True(world.MachinePowerOf(harvester)!.Value.IsFed);
+    }
+
+    [Fact]
     public void ACutOffHarvester_DrainsFlat_AndThenWorksNoMore()
     {
         var s = Scenario(blockLineOfSight: true);

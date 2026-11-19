@@ -21,10 +21,19 @@ public sealed partial class EnergyNetwork
                 nodes.Add(point, capacitor);
         }
 
+        // A base's island takes each of its own nodes whose power route ends at that base: the same predicate that
+        // covers a harvester (LinkPoint.IsPoweredBy). The route may run through a rival's relay, so this is not a walk
+        // over own nodes; a walk would drop such a node while coverage still accepted it.
+        foreach (var capacitor in _capacitors)
+        {
+            var machine = capacitor.Machine;
+            if (machine.IsStanding && machine.LinkPoint is { IsEnabled: true } point &&
+                machine.OwnerBase is TankBase owner && owner.LinkPoint is { IsEnabled: true } basePoint &&
+                machine.OwnerColor == owner.Color && point.IsPoweredBy(basePoint))
+                targets.Add(capacitor, IslandOf(owner));
+        }
+
         var frontier = new List<LinkPoint>();
-        foreach (var island in _islands)
-            if (island.Base is { LinkPoint: { IsEnabled: true } basePoint } owner)
-                ReachFrom(basePoint, island, owner, owner.Color, route: basePoint);
 
         // The first generator in machine order names an island that has no route to the base.
         foreach (var generator in _capacitors)
@@ -35,12 +44,11 @@ public sealed partial class EnergyNetwork
                 continue;
             PowerIsland island = LocalIslandOf(machine);
             targets.Add(generator, island);
-            ReachFrom(point, island, machine.OwnerBase, machine.OwnerColor, route: null);
+            ReachFrom(point, island, machine.OwnerBase, machine.OwnerColor);
         }
 
-        // A base's island takes only the nodes whose power comes from that base (the same route that covers a
-        // harvester, LinkPoint.IsPoweredBy). A node powered through a rival's base belongs to the rival's grid.
-        void ReachFrom(LinkPoint root, PowerIsland island, TankBase? owner, int color, LinkPoint? route)
+        // A local island grows over the generator's own nodes that are not already in an island.
+        void ReachFrom(LinkPoint root, PowerIsland island, TankBase? owner, int color)
         {
             frontier.Clear();
             frontier.Add(root);
@@ -54,7 +62,6 @@ public sealed partial class EnergyNetwork
                     var other = OtherEnd(link, point);
                     if (!nodes.TryGetValue(other, out var neighbor) ||
                         neighbor.Machine.OwnerBase != owner || neighbor.Machine.OwnerColor != color ||
-                        (route != null && !other.IsPoweredBy(route)) ||
                         !targets.TryAdd(neighbor, island))
                         continue;
                     frontier.Add(other);
