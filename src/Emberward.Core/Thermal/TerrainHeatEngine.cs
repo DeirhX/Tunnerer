@@ -350,13 +350,6 @@ public sealed class TerrainHeatEngine
     private float GetConductance(ThermalMaterial a, ThermalMaterial b)
         => _conductance[(int)a * ThermalMaterialTable.Count + (int)b];
 
-    /// <summary>
-    /// Fixed-temperature materials hold their temperature whatever flows in or out: base cells are heat sinks
-    /// (pinned at ambient), hot rock is a heat source and frost rock a cold source. They are not storage, so sinks and
-    /// relays never draw from them.
-    /// </summary>
+    /// <summary>Whether custom thermal settings restore this material's temperature each step.</summary>
     public bool IsFixedTemperatureMaterial(ThermalMaterial material) => _isFixedTemperature[(int)material];
-
-    /// <summary>The temperature a fixed-temperature material is pinned to; 0 for any other material.</summary>
-    public float GetFixedTemperature(ThermalMaterial material) => _fixedTemperature[(int)material];
 }

@@ -34,11 +34,42 @@ public class PowerLoopTests
     public void EngineEfficiency_RisesWithSourceTemperature_AndIsCapped()
     {
         var tankBase = new TankBase(new Position(0, 0), 0);
-        Assert.Equal(0.0, tankBase.EngineEfficiency(Tweaks.World.ThermalMaterials[ThermalMaterial.Base].FixedTemperature.GetValueOrDefault()));
+        Assert.Equal(0.0, tankBase.EngineEfficiency(tankBase.ReactorTemperature));
         Assert.Equal(0.0, tankBase.EngineEfficiency(-20));
         double warm = tankBase.EngineEfficiency(30), hot = tankBase.EngineEfficiency(100), extreme = tankBase.EngineEfficiency(10_000);
         Assert.True(warm > 0.0 && warm < hot, $"warm={warm}, hot={hot}");
         Assert.Equal(Tweaks.Base.EngineMaxEfficiency, extreme, precision: 6);
+    }
+
+    [Fact]
+    public void EngineEfficiency_FallsAsTheReactorWarms()
+    {
+        var home = new TankBase(new Position(0, 0), 0);
+        double startingEfficiency = home.EngineEfficiency(30);
+        double startingTemperature = home.ReactorTemperature;
+
+        home.AcceptTankHeat(home.ReactorRoomEnergy / 2);
+
+        Assert.Equal(startingTemperature + Tweaks.Base.EngineColdSideRise / 2.0, home.ReactorTemperature);
+        Assert.True(home.EngineEfficiency(30) < startingEfficiency);
+        Assert.Equal(0.0, home.EngineEfficiency(home.ReactorTemperature));
+    }
+
+    [Fact]
+    public void BaseCenter_CoolsOnlyByTheHeatTransferredAndVented()
+    {
+        var t = new TerrainGrid(new Size(48, 48));
+        var home = new TankBase(new Position(24, 24), 0);
+        t.SetPixel(home.Position, TerrainPixel.BaseCore);
+        t.AddHeat(home.Position, 255);
+        double injected = t.SumTotalThermalEnergy();
+
+        home.Advance(t);
+
+        Assert.InRange(t.GetHeatTemperature(home.Position), 0.1f, 254.9f);
+        Assert.Equal(0.0, home.ReactorHeatEnergy); // fractional heat was vented too
+        Assert.InRange(t.Ledger.SunkBase, 0.1, home.VentCapacityPerTick);
+        Assert.Equal(injected - t.Ledger.SunkBase, t.SumTotalThermalEnergy(), precision: 4);
     }
 
     [Theory]
@@ -55,7 +86,10 @@ public class PowerLoopTests
         var home = new TankBase(pos, 0);
         double rockEnergy = Math.Min(requested, rockHeat * t.SumHeatCapacityInRadiusArea(pos, 0, TerrainGrid.ThermalField.Terrain));
         double airEnergy = Math.Min(requested - rockEnergy, airHeat * t.SumHeatCapacityInRadiusArea(pos, 0, TerrainGrid.ThermalField.Air));
-        double expectedCharge = rockEnergy * home.EngineEfficiency(rockHeat) + airEnergy * home.EngineEfficiency(airHeat);
+        double rockCharge = rockEnergy * home.EngineEfficiency(rockHeat);
+        var afterRock = new TankBase(pos, 0);
+        afterRock.AcceptTankHeat(rockEnergy - rockCharge);
+        double expectedCharge = rockCharge + airEnergy * afterRock.EngineEfficiency(airHeat);
         double initialCharge = home.Charge;
         double initialHeat = home.ReactorHeatEnergy;
         double initialGround = t.SumTotalThermalEnergy();
@@ -92,6 +126,24 @@ public class PowerLoopTests
         Assert.Equal(0, home.ReactorRoomEnergy, precision: 4);
         Assert.Equal(taken - 20, output, precision: 4);
         Assert.Equal(output, t.Ledger.ConvertedToCharge, precision: 4);
+    }
+
+    [Fact]
+    public void RelayIsNotLimitedWhenHotAirMakesUpTheFullDraw()
+    {
+        var t = new TerrainGrid(new Size(5, 5));
+        var pos = new Position(2, 2);
+        t.Fill(TerrainPixel.Rock);
+        t.AddHeat(pos, 5);
+        t.AddAirHeatTotalInRadiusArea(pos, 0, 400);
+        var home = new TankBase(pos, 0);
+        home.AcceptTankHeat(home.ReactorRoomEnergy - 190);
+        const double requested = 300;
+
+        double taken = home.AbsorbHeatFrom(t, pos, 0, requested, out bool limited, out _, out _);
+
+        Assert.Equal(requested, taken);
+        Assert.False(limited);
     }
 
     [Fact]

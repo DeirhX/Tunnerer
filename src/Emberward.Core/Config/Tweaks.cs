@@ -49,41 +49,28 @@ public static class Tweaks
         //   against itself conducts half its value. Air's value is the air field's, between two neighbouring cells of
         //   which at least one is open;
         // - air exchange: conductance between a cell's terrain and the air in the same cell;
-        // - fixed: the temperature the cell is pinned to (a source or sink), or none;
         // - loss: the fraction of its temperature above ambient the cell gives up to the outside every tick (solid
         //   ground to the deep ground, open air to the surface). It is the only way heat leaves the map other than
-        //   through a base, and it is what gives a hot or frost pocket a halo of a fixed size.
-        // A pair the rule cannot reproduce is listed after the rows as an override (either order).
+        //   through a base radiator, and it bounds how far the heat from a pocket spreads.
         //
         // Dirt is the insulator: it conducts 30 times worse than stone, so a pocket buried in it keeps its heat until a
         // tunnel reaches it, and the halo around the pocket stays about ten cells wide. Open air loses heat faster
         // than the ground does, so a dug-out chamber works as a radiator: the more open space around a heat source,
         // the cooler it runs.
-        // Base and ConstantEnergy cells are heat sinks, so they conduct far better than rock and pull heat out of
-        // whatever touches them. Hot rock conducts like stone and is pinned hot: a permanent heat source for any
-        // tunnel it touches (pocket placement is opt-in per world, World ctor).
-        public static ThermalMaterialTable ThermalMaterials { get; } = new(
-        [
+        // Base walls and core conduct better than rock. Pockets take longer to change temperature than stone
+        // because they hold more energy per degree. The hot rock's small loss preserves its stock during exploration.
+        public static ThermalMaterialTable ThermalMaterials { get; } = new([
             (ThermalMaterial.Air, new(HeatCapacity: 0.8f, Conductivity: 0.48f, AirExchange: 0f, Loss: 0.0010f)),
             (ThermalMaterial.Dirt, new(HeatCapacity: 1.4f, Conductivity: 0.02f, AirExchange: 0.035f, Loss: 0.0003f)),
             (ThermalMaterial.Stone, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
-            (ThermalMaterial.Base, new(HeatCapacity: 2.6f, Conductivity: 1.8f, AirExchange: 0.45f, FixedTemperature: 0f)),
-            (ThermalMaterial.ConstantEnergy, new(HeatCapacity: 2.0f, Conductivity: 1.8f, AirExchange: 0.55f, FixedTemperature: 0f)),
-            (ThermalMaterial.HotRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: 100f)),
-            // Frost rock conducts like stone and is pinned far below ambient: a permanent cold source (see the frost
-            // pocket constants below).
-            (ThermalMaterial.FrostRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: -60f)),
+            (ThermalMaterial.Base, new(HeatCapacity: 2.6f, Conductivity: 1.8f, AirExchange: 0.45f, Loss: 0.0003f)),
+            (ThermalMaterial.ConstantEnergy, new(HeatCapacity: 2.0f, Conductivity: 1.8f, AirExchange: 0.55f, Loss: 0.0003f)),
+            (ThermalMaterial.HotRock, new(HeatCapacity: 128f, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.00005f)),
+            (ThermalMaterial.FrostRock, new(HeatCapacity: 16f, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
             // The core of an emberite lump is an energy-dense store: it conducts like stone but holds Ore.CoreHeatCapacity
             // of heat per degree where stone holds 2.6, so seeded hot (Ore.CoreStartTemperature) it keeps a lot of energy
             // and cools slowly. Nothing is pinned: it is finite, and it cools into the ground and the air like any rock.
             (ThermalMaterial.EmberiteCore, new(HeatCapacity: Ore.CoreHeatCapacity, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
-        ],
-        [
-            // Between two pinned sinks: cell temperatures never depend on these, but the ledger's rounding does when
-            // an entity adds heat to a sink cell, so they keep their tuned values.
-            new(ThermalMaterial.Base, ThermalMaterial.Base, 0.2f),
-            new(ThermalMaterial.ConstantEnergy, ThermalMaterial.ConstantEnergy, 0.3f),
-            new(ThermalMaterial.Base, ThermalMaterial.ConstantEnergy, 0.45f),
         ]);
 
         // Air-field coupling knobs for conservative air/terrain exchange.
@@ -91,6 +78,7 @@ public static class Tweaks
         public const float ThermalAirNeighborCoupling = 0.060f;
 
         public const int HotRockPocketCount = 8;
+        public const float HotRockStartTemperature = 100f;
         // Gradient toward the centre: a large placeholder core at the map centre, and the other pockets biased toward
         // it (uniform sample ^ bias; 1 = uniform scatter) and bigger there. Starting values for the spike.
         public const int HotRockCoreRadius = 8;
@@ -101,11 +89,12 @@ public static class Tweaks
         public const int HotRockMinDistanceBetween = 50;
         public const int HotRockPrewarmTicks = 240;
 
-        // Frost pockets: indestructible rock pinned far below ambient. A tank beside one cools fast, a good place to
+        // Frost pockets: indestructible rock seeded far below ambient. A tank beside one cools fast, a good place to
         // shed heat, but stay too long and it gets cold enough to slow down and then take frostbite. Placed at middle
-        // distances from the bases, away from hot pockets. Their temperature is the FrostRock row of ThermalMaterials.
+        // distances from the bases, away from hot pockets.
         // Starting values; tune in play.
         public const int FrostRockPocketCount = 5;
+        public const float FrostRockStartTemperature = -60f;
         public const int FrostRockMinRadius = 2;
         public const int FrostRockMaxRadius = 4;
         public const int FrostRockMinDistanceFromBase = 45;
@@ -123,15 +112,14 @@ public static class Tweaks
         //   purpose: running on weak computers matters more than an exact halo, and a tile that went to sleep early
         //   is woken by anything that writes heat into it or changes a material beside heat.
         // - ThermalSettledFadeStep degrees back toward ambient. Fading heat is followed until it loses less than this
-        //   a tick, which with the losses above is a third of a degree in the ground and a tenth in open air; that
-        //   much stays behind when the tile goes to sleep.
+        //   a tick. Ambient loss alone leaves up to a third of a degree in most ground, a tenth in open air and
+        //   two degrees in hot rock when its tile goes to sleep.
         public const int ThermalActiveTileSize = 32;
         public const float ThermalSettledGrowStep = 0.001f;
         public const float ThermalSettledFadeStep = 0.0001f;
         // A change of material (digging, regrowth) wakes the solver only where a cell involved is further than this
-        // from ambient. It has to exceed what fading leaves behind (ThermalSettledFadeStep / the smallest loss, a
-        // third of a degree), or every spade of once-warm ground would wake its tile for nothing.
-        public const float ThermalWakeTemperature = 0.5f;
+        // from ambient. It exceeds the trace that fading leaves behind, including in hot rock.
+        public const float ThermalWakeTemperature = 2.1f;
         // A temperature difference or a heat flow below this is treated as none. It has to stay far below the two
         // settle steps: a cut-off near them makes flows switch on and off, and a halo that should have settled
         // keeps twitching and never sleeps.
@@ -260,14 +248,14 @@ public static class Tweaks
         // so the reactor (HeatCapacity units) is a reservoir worth a few hotspots, and HeatCooldown units per tick
         // is the radiator that vents it out of the system (the base's finite sink rate).
         public const float ReactorEnergyPerHeatUnit = 500f;
-        // Per-tick energy caps for the base's area cooling (the "HeatTotal"/"AirTotal" names are legacy:
-        // these are energy, pulled only from cells that are warmer than ambient).
-        public const int AreaCoolingInnerHeatTotal = 6;
-        public const int AreaCoolingMidHeatTotal = 3;
-        public const int AreaCoolingOuterHeatTotal = 1;
-        public const int AreaCoolingInnerAirTotal = 8;
-        public const int AreaCoolingMidAirTotal = 4;
-        public const int AreaCoolingOuterAirTotal = 2;
+        // Area cooling draws from the floor and air above ambient. Its combined maximum of 480 energy per tick
+        // fits the stock radiator, while competing with relay deliveries and tank cooling for the same reservoir.
+        public const int AreaCoolingInnerHeatTotal = 120;
+        public const int AreaCoolingMidHeatTotal = 60;
+        public const int AreaCoolingOuterHeatTotal = 20;
+        public const int AreaCoolingInnerAirTotal = 160;
+        public const int AreaCoolingMidAirTotal = 80;
+        public const int AreaCoolingOuterAirTotal = 40;
         public const int HomeCooldownHeat = 6;
         public const int HomeRechargeHealth = 3;
         public const int ForeignCooldownHeat = 2;
@@ -277,8 +265,10 @@ public static class Tweaks
 
         // Power (DESIGN.md §4.5). Heat relays deliver passes through the base engine on its way to the dimensional-link
         // cold sink; a fraction becomes charge: eta = clamp(dT / (dT + EngineTemperatureScale), 0, EngineMaxEfficiency),
-        // dT = source temperature above the base's. Warm dirt (~30) gives ~0.17, hot rock (~100) 0.4.
-        public const float EngineTemperatureScale = 150f;
+        // dT is the source temperature above the reactor's. An empty reactor is at ambient and warms by up to
+        // EngineColdSideRise as it fills. An empty reactor gets 20% from 30-degree dirt and about 45% from fresh hot rock.
+        public const float EngineColdSideRise = 20f;
+        public const float EngineTemperatureScale = 120f;
         public const float EngineMaxEfficiency = 0.5f;
         public const float ChargeCapacity = 1_000_000f;
         // Enough to run the first harvester and pylon before any engine output.
@@ -353,9 +343,8 @@ public static class Tweaks
         public const int TorchRockHeatAmount = 14;
         public const int TorchRockHeatRadius = 3;
         public const float TankHeatCapacity = 20f;
-        // Docked at its own base, the tank's heat above the base temperature (0) is pumped into the base reservoir at
-        // DockHeatPumpRate of that excess per tick, on top of ordinary conduction with the pinned base floor: a hot
-        // tank cools quickly at first and then levels off near 0, never below it (a full reservoir stops the pump).
+        // Docked at its own base, the tank transfers this share of its heat above the reactor temperature per tick,
+        // in addition to ordinary conduction with the base floor. A full reservoir stops the pump.
         public const float DockHeatPumpRate = 0.04f;
         // Cold (DESIGN.md §4.7). Below ColdSlowStart the tank slows, down to ColdMinSpeed of its speed at
         // ColdSlowFull; below FrostbiteTemperature it takes FrostbiteDamagePerDegree per degree per tick, as

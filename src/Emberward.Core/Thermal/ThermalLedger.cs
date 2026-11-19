@@ -13,10 +13,10 @@ namespace Emberward.Core.Thermal;
 /// </summary>
 public sealed class ThermalLedger
 {
-    /// <summary>Energy added by external sources (explosions, torch, tank action heat, test injections).</summary>
+    /// <summary>Energy added by external sources (starting heat stock, explosions, torch, tank actions).</summary>
     public double Injected { get; private set; }
 
-    /// <summary>Energy deleted by cells pinned to a fixed temperature (base barrier and core cells).</summary>
+    /// <summary>Energy taken by fixed temperatures in custom material settings. Standard materials are all finite.</summary>
     public double SunkFixedTemperature { get; private set; }
 
     /// <summary>
@@ -25,7 +25,7 @@ public sealed class ThermalLedger
     /// </summary>
     public double SunkAmbientLoss { get; private set; }
 
-    /// <summary>Energy vented by a base radiator or removed by the base-centre sink.</summary>
+    /// <summary>Energy vented by the base radiators.</summary>
     public double SunkBase { get; private set; }
 
     /// <summary>Energy a wrecked tank still held when it respawned cold (<c>TankThermals.ResetForSpawn</c>).</summary>

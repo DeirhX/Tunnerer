@@ -31,6 +31,8 @@ public readonly record struct SimulationSettings
     // --- Thermal engine constants ---
     public float ThermalDt { get; init; }
     public float ThermalAmbientTemperature { get; init; }
+    public float HotRockStartTemperature { get; init; }
+    public float FrostRockStartTemperature { get; init; }
 
     // --- Thermal materials: one row per ThermalMaterial, pair conductances derived from the rows ---
     public ThermalMaterialTable ThermalMaterials { get; init; }
@@ -82,6 +84,8 @@ public readonly record struct SimulationSettings
         ThermalSaturationStepIntervalFrames = Tweaks.World.ThermalSaturationStepIntervalFrames,
         ThermalDt = Tweaks.World.ThermalDt,
         ThermalAmbientTemperature = Tweaks.World.ThermalAmbientTemperature,
+        HotRockStartTemperature = Tweaks.World.HotRockStartTemperature,
+        FrostRockStartTemperature = Tweaks.World.FrostRockStartTemperature,
         ThermalMaterials = Tweaks.World.ThermalMaterials,
         ThermalAirCellCoupling = Tweaks.World.ThermalAirCellCoupling,
         ThermalAirNeighborCoupling = Tweaks.World.ThermalAirNeighborCoupling,

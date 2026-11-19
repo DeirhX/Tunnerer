@@ -310,7 +310,7 @@ public class HeatEquilibriumTests
     {
         [Trait("Category", "Slow")]
         [Fact]
-        public void BuriedPocket_KeepsAHaloOfAFixedSize_AndThenCostsNothing_UntilItIsDisturbed()
+        public void BuriedFinitePocket_HasABoundedHalo_AndThenCostsNothing()
         {
             var t = new TerrainGrid(new Size(224, 224));
             t.Fill(TerrainPixel.Dirt);
@@ -318,8 +318,8 @@ public class HeatEquilibriumTests
             const int radius = 4;
             t.PlaceHotRockPocket(pocket, radius);
 
-            int ticks = RunUntilAsleep(t, maxSeconds: 1200);
-            Assert.True(ticks < 1200 * TicksPerSecond, "a buried pocket must reach an equilibrium with the ground around it");
+            for (int i = 0; i < 120 * TicksPerSecond; i++)
+                t.CoolDown();
 
             // The halo: warm enough for the radar (10 degrees) several cells out, gone well before the map's edge.
             float At(int cellsFromPocketEdge) => t.GetHeatTemperature(new Position(pocket.X + radius + cellsFromPocketEdge, pocket.Y));
@@ -327,23 +327,16 @@ public class HeatEquilibriumTests
             Assert.True(At(30) < Tweaks.Radar.HeatThreshold / 2f, $"the halo must stay near the pocket. 30 cells out: {At(30):0.0}");
             Assert.True(At(60) < 1f, $"far ground must stay cold. 60 cells out: {At(60):0.00}");
 
-            // Asleep means asleep: more ticks change nothing and step nothing.
+            int ticks = RunUntilAsleep(t, maxSeconds: 3600);
+            Assert.True(ticks < 3600 * TicksPerSecond, "a finite pocket should cool until its tile can sleep");
+            Assert.True(At(0) < Tweaks.Radar.HeatThreshold, "a cooled pocket no longer shows up as heat");
+
             float haloBefore = At(6);
             for (int i = 0; i < 100; i++)
                 t.CoolDown();
             Assert.Equal(0, t.LastCoolDownProfile.SteppedTiles);
             Assert.Equal(haloBefore, At(6));
 
-            // Uncork it: a tunnel dug up to the pocket starts the heat moving again, into the open space.
-            for (int x = pocket.X + radius + 1; x <= pocket.X + radius + 40; x++)
-                t.SetPixel(new Position(x, pocket.Y), TerrainPixel.Blank);
-            t.CoolDown();
-            Assert.True(t.LastCoolDownProfile.SteppedTiles > 0, "digging into settled warm ground must wake it");
-            float tunnelBefore = t.GetAirTemperature(new Position(pocket.X + radius + 20, pocket.Y));
-            for (int i = 0; i < 60 * TicksPerSecond; i++)
-                t.CoolDown();
-            Assert.True(t.GetAirTemperature(new Position(pocket.X + radius + 20, pocket.Y)) > tunnelBefore + 1f,
-                "the pocket should leak into the tunnel that reached it");
         }
     }
 
@@ -360,7 +353,18 @@ public class HeatEquilibriumTests
             // The pocket sits in the middle of its tile; its halo reaches into the tiles around it, fed across the
             // sides between them. Heat added a tile further on steps the halo tile but, by the ring alone, not the
             // pocket's tile. The side between them must stay open, or the halo loses its supply for as long as that lasts.
-            var t = new TerrainGrid(new Size(288, 224));
+            // Hold the heat source steady to reproduce a settled halo with live heat flow across tile boundaries.
+            var settings = SimulationSettings.FromTweaks();
+            var row = settings.ThermalMaterials[ThermalMaterial.HotRock] with
+            {
+                HeatCapacity = settings.ThermalMaterials[ThermalMaterial.Stone].HeatCapacity,
+                FixedTemperature = settings.HotRockStartTemperature,
+                Loss = 0f,
+            };
+            var t = new TerrainGrid(new Size(288, 224), settings with
+            {
+                ThermalMaterials = settings.ThermalMaterials.With(ThermalMaterial.HotRock, row),
+            });
             t.Fill(TerrainPixel.Dirt);
             t.PlaceHotRockPocket(new Position(112, 112), 4);
             RunUntilAsleep(t, maxSeconds: 1200);

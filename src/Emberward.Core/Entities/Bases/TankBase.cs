@@ -32,14 +32,13 @@ public class TankBase
     private static int Half => Tweaks.Base.BaseSize / 2;
     private static int DoorHalf => Tweaks.Base.DoorSize / 2;
 
-    // The base's own temperature, which the engine's efficiency is measured from.
-    private readonly float _baseTemperature;
+    private readonly float _ambientTemperature;
 
     public TankBase(Position position, int color, SimulationSettings? settings = null)
     {
         Position = position;
         Color = color;
-        _baseTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalMaterials[ThermalMaterial.Base].FixedTemperature.GetValueOrDefault();
+        _ambientTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalAmbientTemperature;
     }
 
     public bool IsInside(Position tested) => BoundingBox.IsInside(tested, Position);
@@ -63,6 +62,9 @@ public class TankBase
             return Math.Clamp(ReactorHeatEnergy / capacityEnergy, 0.0, 1.0);
         }
     }
+
+    /// <summary>The reactor's temperature, which rises as its finite heat store fills.</summary>
+    public double ReactorTemperature => _ambientTemperature + HeatStoreFill * Tweaks.Base.EngineColdSideRise;
 
     /// <summary>
     /// Energy the radiator vents out of the reactor per tick while it holds heat (see <see cref="Advance"/>), with its
@@ -174,7 +176,7 @@ public class TankBase
 
     private double EngineEfficiency(double sourceTemperature, double maxEfficiency, double temperatureScale)
     {
-        double dT = sourceTemperature - _baseTemperature;
+        double dT = sourceTemperature - ReactorTemperature;
         if (dT <= 0.0)
             return 0.0;
         return Math.Min(maxEfficiency, dT / (dT + temperatureScale));
@@ -206,7 +208,7 @@ public class TankBase
         {
             absorbed += PumpField(terrain, center, radius, TerrainGrid.ThermalField.Air, maxEnergy - absorbed,
                 out bool airLimited, out double airOutput);
-            limitedByBase |= airLimited;
+            limitedByBase = absorbed < maxEnergy && (limitedByBase || airLimited);
             engineOutput += airOutput;
         }
         groundWasCold = absorbed == 0.0;
@@ -235,7 +237,7 @@ public class TankBase
     /// What <see cref="AbsorbHeatFrom"/> reports as limited by the base when the ground has no heat to give (heat it
     /// would take at ambient, where the engine makes nothing of it), without looking at the ground.
     /// </summary>
-    public bool LimitsPumpFromColdGround(double maxEnergy) => PumpBudget(UpgradedEngineEfficiency(0.0), maxEnergy) < maxEnergy;
+    public bool LimitsPumpFromColdGround(double maxEnergy) => PumpBudget(0.0, maxEnergy) < maxEnergy;
 
     /// <summary>
     /// The most heat the base can take in one pump. Only what the reactor can hold after the engine's share:
@@ -308,18 +310,18 @@ public class TankBase
         AbsorbNearbyHeat(terrain, Position, midRadius, Tweaks.Base.AreaCoolingMidAirTotal, TerrainGrid.ThermalField.Air);
         AbsorbNearbyHeat(terrain, Position, innerRadius, Tweaks.Base.AreaCoolingInnerAirTotal, TerrainGrid.ThermalField.Air);
 
-        // Radiator: the reactor vents HeatCooldown units per tick out of the system. This is the base's finite
-        // sink rate; heat pumped in faster than this fills the reactor and the pumping stops.
+        // The radiator vents at its finite rate. When it can vent more than the whole units it holds, it can also
+        // vent the remainder, so a reservoir with less than one unit of energy still cools.
         int beforeHeat = Reactor.Heat;
-        Reactor.Exhaust(new ReactorState(Upgrades.RadiatorUnits, 0));
-        int ventedUnits = Math.Max(0, beforeHeat - (int)Reactor.Heat);
-        if (ventedUnits > 0)
-            terrain.Ledger.RecordSunkBase(ventedUnits * energyPerUnit);
-
-        // Keep base center as a hard thermal sink for gameplay/readability:
-        // its cell should not retain residual terrain/air energy. The removed energy is metered.
-        terrain.SinkCellToAmbient(Position, TerrainGrid.ThermalField.Terrain);
-        terrain.SinkCellToAmbient(Position, TerrainGrid.ThermalField.Air);
+        int ventedUnits = Math.Min(beforeHeat, Upgrades.RadiatorUnits);
+        Reactor.Exhaust(new ReactorState(ventedUnits, 0));
+        double vented = ventedUnits * energyPerUnit;
+        if (ventedUnits < Upgrades.RadiatorUnits)
+        {
+            vented += _reactorHeatRemainder;
+            _reactorHeatRemainder = 0.0;
+        }
+        terrain.Ledger.RecordSunkBase(vented);
 
         Reactor.Add(new ReactorState(0, Tweaks.Base.HealthRegen));
     }

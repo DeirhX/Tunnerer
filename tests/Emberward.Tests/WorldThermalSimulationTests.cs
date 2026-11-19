@@ -23,7 +23,8 @@ public class WorldThermalSimulationTests
 
         world.Terrain.AddHeatRadius(basePos, 255, 18);
         visual.Capture(world, "after_heat_injection");
-        TestSimulation.AdvanceIdle(world, frames: 200, visual: visual, phase: "settle", captureEvery: 20);
+        // The blast now has to drain through finite area cooling and the radiator.
+        TestSimulation.AdvanceIdle(world, frames: 400, visual: visual, phase: "settle", captureEvery: 40);
         visual.Capture(world, "end");
 
         float baseInteriorHeat = world.Terrain.SampleAverageHeat(basePos, radius: 12) * 255f;

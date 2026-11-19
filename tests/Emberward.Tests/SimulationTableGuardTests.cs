@@ -32,6 +32,8 @@ public class SimulationTableGuardTests
             Assert.True(row.HeatCapacity > 0f, $"{material} has no positive heat capacity");
             Assert.True(row.Conductivity > 0f, $"{material} has no positive conductivity");
             Assert.True(row.AirExchange >= 0f, $"{material} has a negative air exchange");
+            Assert.False(row.IsFixedTemperature, $"{material} must have a finite heat stock");
+            Assert.True(row.Loss > 0f, $"{material} has no loss to ambient");
         }
     }
 
@@ -80,11 +82,7 @@ public class SimulationTableGuardTests
     public void MaterialTable_ReproducesTheTunedConductances()
     {
         // The table replaced hand-tuned pairwise constants and reproduces every one that can carry heat. These are
-        // those values (hot and frost rock conduct like stone); terrain-air exchange is the AirExchange column, and air-air
-        // the air row's own pair. Base-base, base-core and core-core are left to the rule: both cells are pinned to
-        // the same temperature, so whatever flows between them is pinned away in the same step. Dirt is the
-        // insulator: against itself it conducts 30 times worse than stone, and against anything else the series rule
-        // gives nearly its own half-cell value (PairConductance_IsTheTwoConductivitiesInSeries_UnlessOverridden checks that).
+        // those values (hot and frost rock conduct like stone). Finite base cells now use the same series rule.
         const ThermalMaterial D = ThermalMaterial.Dirt, S = ThermalMaterial.Stone, B = ThermalMaterial.Base,
             E = ThermalMaterial.ConstantEnergy, H = ThermalMaterial.HotRock, F = ThermalMaterial.FrostRock,
             A = ThermalMaterial.Air, O = ThermalMaterial.EmberiteCore;
@@ -92,6 +90,7 @@ public class SimulationTableGuardTests
         [
             (A, A, 0.240f), (D, D, 0.010f),
             (S, S, 0.300f), (S, B, 0.450f), (S, E, 0.450f), (S, H, 0.300f), (H, H, 0.300f), (H, B, 0.450f),
+            (B, B, 0.900f), (B, E, 0.900f), (E, E, 0.900f),
             (H, E, 0.450f), (S, F, 0.300f), (F, F, 0.300f), (F, H, 0.300f), (F, B, 0.450f),
             (F, E, 0.450f), (O, O, 0.300f), (O, S, 0.300f), (O, B, 0.450f), (O, E, 0.450f),
         ];
@@ -103,8 +102,8 @@ public class SimulationTableGuardTests
         float[] airExchange = [0f, 0.035f, 0.220f, 0.450f, 0.550f, 0.220f, 0.220f, 0.220f];
         foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
             Assert.Equal(airExchange[(int)m], table[m].AirExchange);
-        // What leaves the map: open air and unpinned ground give a little up every tick, pinned cells nothing.
-        float[] loss = [0.0010f, 0.0003f, 0.0003f, 0f, 0f, 0f, 0f, 0.0003f];
+        // Hot rock gives up its stock to ambient more slowly than ordinary ground.
+        float[] loss = [0.0010f, 0.0003f, 0.0003f, 0.0003f, 0.0003f, 0.00005f, 0.0003f, 0.0003f];
         foreach (ThermalMaterial m in Enum.GetValues<ThermalMaterial>())
             Assert.Equal(loss[(int)m], table[m].Loss);
     }
@@ -114,7 +113,7 @@ public class SimulationTableGuardTests
     {
         var table = Tweaks.World.ThermalMaterials;
         Assert.Throws<ArgumentException>(() =>
-            table.With(ThermalMaterial.HotRock, table[ThermalMaterial.HotRock] with { Loss = 0.01f }));
+            table.With(ThermalMaterial.HotRock, table[ThermalMaterial.HotRock] with { FixedTemperature = 100f }));
         Assert.Throws<ArgumentException>(() =>
             table.With(ThermalMaterial.Dirt, table[ThermalMaterial.Dirt] with { Loss = 1f }));
         Assert.Throws<ArgumentException>(() =>
@@ -148,20 +147,16 @@ public class SimulationTableGuardTests
         Assert.Equal(reviewed.Order(), actual.Order());
     }
 
-    [Theory]
-    [InlineData(TerrainPixel.HotRock)]
-    [InlineData(TerrainPixel.FrostRock)]
-    [InlineData(TerrainPixel.BaseBarrier)]
-    [InlineData(TerrainPixel.BaseCore)]
-    public void FixedTemperatureCells_StayPinned_AndTheLedgerAccountsForIt(TerrainPixel pinned)
+    [Fact]
+    public void CustomFixedTemperature_StaysPinned_AndTheLedgerAccountsForIt()
     {
-        // A hot neighbour pushes heat into the pinned cell; the solver must put it back and meter the difference.
-        var engine = new TerrainHeatEngine();
-        ThermalMaterial material = Pixel.GetThermalMaterial(pinned);
-        Assert.True(engine.IsFixedTemperatureMaterial(material));
-        float fixedTemperature = engine.GetFixedTemperature(material);
+        var settings = SimulationSettings.FromTweaks();
+        const ThermalMaterial material = ThermalMaterial.Base;
+        const float fixedTemperature = 10f;
+        var row = settings.ThermalMaterials[material] with { FixedTemperature = fixedTemperature, Loss = 0f };
+        var engine = new TerrainHeatEngine(settings with { ThermalMaterials = settings.ThermalMaterials.With(material, row) });
 
-        var pixels = new[] { TerrainPixel.Rock, pinned, TerrainPixel.Rock };
+        var pixels = new[] { TerrainPixel.Rock, TerrainPixel.BaseBarrier, TerrainPixel.Rock };
         var terrain = new[] { 500f, fixedTemperature, 500f };
         var air = new float[3];
         var ledger = new ThermalLedger();

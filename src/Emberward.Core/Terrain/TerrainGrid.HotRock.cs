@@ -1,35 +1,28 @@
 namespace Emberward.Core.Terrain;
 
-using Emberward.Core.Config;
-using Emberward.Core.Thermal;
 using Emberward.Core.Types;
 
 public partial class TerrainGrid
 {
     /// <summary>
-    /// Turns the dirt and rock inside a circle into a hot rock pocket: indestructible, solid, and pinned at
-    /// <see cref="Tweaks.World.ThermalFixedHotRockTemperature"/>, so it is a permanent heat source for any air or
-    /// tunnel it touches. Returns the number of cells converted (see <see cref="PlacePinnedPocket"/>).
+    /// Turns the dirt and rock inside a circle into a finite hot rock pocket and returns the number of cells converted.
     /// </summary>
     public int PlaceHotRockPocket(Position center, int radius) =>
-        PlacePinnedPocket(center, radius, TerrainPixel.HotRock, ThermalMaterial.HotRock);
+        PlacePocket(center, radius, TerrainPixel.HotRock, _simulationSettings.HotRockStartTemperature);
 
     /// <summary>
-    /// Turns the dirt and rock inside a circle into a frost pocket: indestructible, solid, and pinned at
-    /// <see cref="Tweaks.World.ThermalFixedFrostRockTemperature"/>, a permanent cold source for anything nearby.
-    /// Returns the number of cells converted (see <see cref="PlacePinnedPocket"/>).
+    /// Turns the dirt and rock inside a circle into a finite frost pocket and returns the number of cells converted.
     /// </summary>
     public int PlaceFrostRockPocket(Position center, int radius) =>
-        PlacePinnedPocket(center, radius, TerrainPixel.FrostRock, ThermalMaterial.FrostRock);
+        PlacePocket(center, radius, TerrainPixel.FrostRock, _simulationSettings.FrostRockStartTemperature);
 
     /// <summary>
-    /// Converts the dirt and rock inside a circle into <paramref name="pixel"/>, a fixed-temperature material. Open air,
-    /// bases and concrete are left alone. The cells' change to the pinned temperature is recorded in the
-    /// <see cref="Ledger"/> as injected; what the pocket keeps emitting or absorbing afterwards shows up as the
-    /// fixed-temperature sink (the pin re-creates what flowed out or destroys what flowed in).
+    /// Seeds the temperature of the rock that replaces dirt and stone. The new rock exchanges and loses heat normally.
     /// </summary>
-    private int PlacePinnedPocket(Position center, int radius, TerrainPixel pixel, ThermalMaterial material)
+    private int PlacePocket(Position center, int radius, TerrainPixel pixel, float startTemperature)
     {
+        var material = _simulationSettings.ThermalMaterials[Pixel.GetThermalMaterial(pixel)];
+        float temperature = material.FixedTemperature ?? startTemperature;
         int radiusSq = radius * radius;
         int converted = 0;
 
@@ -47,27 +40,16 @@ public partial class TerrainGrid
                 if (!Pixel.IsSolidGround(_data[pos.X + pos.Y * Width]))
                     continue;
 
-                SetPinnedPixel(pos, pixel, material);
+                SeedHeatedPixel(pos, pixel, temperature);
                 converted++;
             }
 
         return converted;
     }
 
-
-    /// <summary>
-    /// Writes a fixed-temperature pixel and sets the cell to its pinned temperature at once, recording the change in
-    /// the <see cref="Ledger"/> as injected. The cell's tile is woken, so the solver steps the new source.
-    /// </summary>
-    private void SetPinnedPixel(Position pos, TerrainPixel pixel, ThermalMaterial material)
-    {
-        SeedHeatedPixel(pos, pixel, _heatEngine.GetFixedTemperature(material));
-    }
-
     /// <summary>
     /// Writes a pixel and sets the cell to <paramref name="temperature"/> at once, recording the energy that adds in
-    /// the <see cref="Ledger"/> as injected, and wakes its tile so the solver steps it. For a pinned material the
-    /// temperature is its pin; for ore it is only a starting temperature, and the cell cools like any ground.
+    /// the <see cref="Ledger"/> as injected, and wakes its tile so the solver steps it.
     /// </summary>
     private void SeedHeatedPixel(Position pos, TerrainPixel pixel, float temperature)
     {

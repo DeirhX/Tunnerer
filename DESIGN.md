@@ -51,22 +51,21 @@ The session loop in detail:
 
 ### 4.1 Rules
 
-- **Every body is finite.** *(Decided. The code still pins some of these today; see §4.10.)* Every cell has a heat
-  capacity and an energy, and none holds a fixed temperature. The map starts with a stock of heat in its hot rock,
-  frost rock, emberite and base, and that stock spreads and cools toward ambient. Nothing is a permanent source or
-  sink. Heat leaves the world only through the outside loss in §4.3, and it enters only through tank actions and any
-  source the design adds later.
+- **Every body is finite.** *(Decided; implemented.)* Every cell has a heat capacity and an energy. Hot rock,
+  frost rock and emberite start with a stock of heat or cold, which spreads through grounded materials and tends
+  toward ambient. The base starts at ambient and can store heat. The radiator and the outside loss in §4.3
+  provide the ongoing routes for rejecting heat.
 - **Everything useful makes heat.** Digging, shooting, harvesting, pumping and, later, refining all inject heat.
   *(Proposed. Today only tank actions, the torch and explosions do.)*
-- **The base is the main heat sink.** *(Decided.)* It has a finite reservoir and a radiator that vents at a fixed
-  rate. The radiator is the shared constraint that everything competes for.
+- **The base is the main heat sink.** *(Decided.)* It has a finite reservoir and a radiator with a fixed vent rate.
+  Delivered heat competes for this vent capacity. Making charge also depends on how much heat remains within reach.
 - **Heat reaches the base in two ways.** *(Decided.)*
-  - **Tanks** carry it. A docked tank's heat is pumped into its base, settling it near 0 (§4.7).
+  - **Tanks** carry it. A docked tank transfers heat to its base as it cools toward the reactor temperature (§4.7).
     Docking also draws heat from nearby terrain and air into the visited base's reservoir while it has room.
   - **Relays** pipe it. A relay pulls heat from the ground around it and sends it to the base.
 - **Tanks and relays have different jobs.** *(Proposed.)* The tank's heat budget decides how long you can stay
   somewhere hot.
-  Relays decide whether a hot place becomes permanently workable. A tank is not a meaningful way to cool the
+  Relays draw down the stock so a hot place becomes workable sooner. A tank is not a meaningful way to cool the
   world, and should not be tuned to become one.
 
 ### 4.2 Conductors and insulators *(Decided)*
@@ -84,16 +83,15 @@ until a tunnel uncorks it.
 
 ### 4.3 Leaks to close *(Proposed)*
 
-Heat currently leaves the world in ways that bypass the base. Each one weakens "the base is the sink":
+Two routes bypass the base:
 
-- Base cells are pinned at ambient today, so heat that conducts into the base interior is deleted without using the
-  reservoir.
 - Digging hot dirt out to air destroys that cell's heat.
-- Ground and open air give a small share of their heat to the outside every tick (deep ground, the surface). This
-  one is now the only way heat leaves the world. With no pinned bodies (§4.1) it is what lets every finite body cool
-  toward ambient, so it stays. It is small
-  (ground loses a third of its heat in about a minute, open air in about 15 seconds), it bounds a pocket's halo at
-  about a dozen cells, and it is what makes a dug-out chamber a radiator for a machine that runs hot.
+- Ground and open air exchange a small share of their heat with the outside every tick (deep ground, the surface).
+  This takes finite bodies toward ambient, limits the reach of a pocket's halo and lets a dug-out chamber cool
+  whatever stands in it. Hot rock loses its stock more slowly than ordinary stone.
+
+Base walls and the base core store heat and conduct it onward. The base draws up to 480 energy a tick from its
+surroundings into the reservoir. Its radiator vents up to 500 a tick, including fractional energy, at the stock rate.
 
 ### 4.4 Heat as a resource *(Proposed)*
 
@@ -103,8 +101,8 @@ powers you, and that power is what taps the core. §4.5 brings the first form of
 
 ### 4.5 Power: heat in, charge out *(Prototype)*
 
-Power is heat taking a detour. The base's dimensional link is a cold sink, and heat travelling from a hot place
-to it can drive an engine. The engine's output is **charge**, which runs the machines. Spending charge turns it
+Power is heat taking a detour. Heat from a hot place drives the engine on the way to the base's finite reactor,
+which vents through the dimensional link. The engine's output is **charge**, which runs the machines. Spending charge turns it
 back into heat where it is spent, so the energy ledger still accounts for every bit of it.
 
 ```
@@ -117,8 +115,9 @@ hot ground --relay--> base engine --> charge store --pylon--> batteries
 
 - **The engine.** Every unit of heat a relay delivers passes through it. A fraction becomes charge and the rest
   goes into the base's heat store as before. The fraction depends on the temperature difference, like a real heat
-  engine: `eta = min(dT / (dT + K), eta_max)`, where dT is how far the source is above the base. Warm dirt gives
-  a trickle and hot rock gives a lot, so **the dangerous hot places are your power plants**. Heat turned into
+  engine: `eta = min(dT / (dT + K), eta_max)`, where dT is how far the source is above the reactor. The reactor
+  starts at ambient and rises by up to 20 °C as it fills. At ambient an unupgraded engine converts 20% of heat from
+  30 °C dirt and about 45% from fresh hot rock. Heat turned into
   charge doesn't have to be vented, so better sources also ease the radiator bottleneck (§12.1). A relay draws from
   the terrain field first and then the remaining air. Each draw contributes charge at its own source temperature.
 - **Charge storage.** The base keeps a charge store and starts with enough for the first harvester, so the loop can
@@ -194,9 +193,9 @@ The tank lives in a band around 0. Both ends hurt, and the world has places at b
 - **Below 0 the tank is chilled.** It slows down, linearly to about a third of its speed at -40, and below -25 it
   takes frostbite damage per degree, the same way overheating does. Negative temperatures are unusual, never a
   reserve to stock up on.
-- **The base settles the tank near 0.** Docked at its own base, a share of the tank's heat above 0 is pumped into the
-  base reservoir every tick, on top of conduction with the base floor. A hot tank cools fast at first and levels off
-  near 0; a cold tank is warmed back by the floor. A full reservoir stops the pump.
+- **Docking cools toward the reactor temperature.** At its own base, a tank transfers a share of its heat above the
+  reactor temperature to the reservoir each tick. Heat also moves between the tank and its surroundings by
+  conduction. A full reservoir stops the pump.
 - **Heat exchange follows the temperature difference.** A tank drifts toward the temperature of whatever it stands in,
   in both directions: hot ground warms it, cold ground chills it, and it warms or chills the cells under it in turn.
   Solid ground transfers heat faster than air. The more of the tank's footprint touches solid ground, the stronger
@@ -213,7 +212,8 @@ Building has to pay off, and exploring has to lead somewhere.
 - **The goal: tap the core.** Every map with hot rock has a large hot core at its centre (moved to the nearest spot
   clear of the bases when a base spawns too close). The sector is won when relays within about 22 cells of the core
   make at least 5k charge/s for the player's base, held for 60 seconds. Falling short drains the hold timer at twice
-  real time, so the tap has to be steady, not a lucky burst.
+  real time, so the tap has to be steady. The core cools even before the relays reach it. The longer it sits, the more
+  important engine upgrades become for sustaining the tap (§4.10).
 - **Why it needs everything.** The core is far from both bases, so reaching it means a relay chain (the network
   leash, §4.6). By the numbers one relay by the core falls well short of the goal rate (a relay pumps 300 a tick and the engine converts at most half), so it takes several, and their heat loads
   the radiator. Mining the ore for all of that is what harvesters are for.
@@ -345,31 +345,32 @@ shield and no lives; per-machine upgrades; throughput limits; turrets; remove th
 
 ### 4.10 Challenges of a finite world *(Proposed; open)*
 
-Making every body finite (§4.1) is decided. It is not free, and these must be solved before the numbers are final:
+The simulation uses finite bodies (§4.1). These are the remaining design questions and the checks so far:
 
 1. **The match's energy budget.** The pins were the only supply that never ran out. Now a match has a stock of heat
-   in its rock, pockets and lumps, plus what tank actions inject. The stock must last as long as a sector, measured
-   against the base radiator's 500 a tick.
-2. **Relays drain sources.** A relay that pulls heat from a pocket uses up what it draws on. §4.1's line that a relay
-   decides whether a hot place becomes permanently workable no longer holds: a relay makes a place workable only
-   until it cools.
-3. **The radiator is no longer the only constraint.** With finite sources, total heat falls over time. The decision
-   that the shared radiator is the bottleneck (§13) must be reworded: the bottleneck becomes the stock and its reach.
-4. **Cost on a large map.** A finite body keeps changing until it reaches ambient, so more tiles stay active for longer.
-   The rule that a step's cost follows activity must still hold. Measure on 1500x750 before tuning.
-5. **Halos.** The pinned ring that bounded a pocket's halo (§4.3) goes. The outside loss must now bound a finite
-   pocket's spread, and "dangerous" becomes a duration, not a distance.
+   in its rock, pockets and lumps, plus what tank actions inject. Hot rock starts at 100 °C and holds 128 energy per
+   degree per cell, giving the largest core up to 2.52 million energy before generation cools it. How long a typical
+   sector needs that stock to last still needs playtesting.
+2. **Relays drain sources.** A relay takes finite heat from a pocket and the surrounding ground and air. A drained
+   pocket cools to ambient without refilling from a pin.
+3. **Thermal constraints.** The stock and its reach determine how much heat can be collected. The shared radiator
+   limits how fast the base can dispose of the portion that does not become charge.
+4. **Cost on a large map.** The solver still steps only changing tiles and the tiles exchanging heat with them.
+   A 1500 × 750 standard map (seed 8181, two idle minutes) averaged 712 stepped tiles out of 1,128, up from 711
+   before the change. See `TODO-gameplay.md` for the probe and the remaining load cases to measure.
+5. **Halos.** Outside loss limits the halo and finite pockets fade below the radar heat threshold as they cool.
 6. **Tuning is a stock problem.** A starting temperature no longer guarantees danger; danger is stored heat over time.
-   Hot rock, lumps, frost rock and the radiator must be tuned together.
-7. **Determinism, saves and multiplayer.** Stored heat is part of the state. The match hash, the snapshot
-   (`SnapshotCoverageTests`), the fingerprints and replays all change, and every client must start from the same stock.
-8. **The ledger's baseline.** The starting stock must be booked as seeded energy, so the ledger balances from tick 0.
-9. **Sectors freeze.** A frozen sector (§7.3) keeps a fixed output rate. With finite bodies its stock must freeze too,
-   or it cools while nobody plays.
-10. **Visuals and the radar.** Glow, frost tint and the radar's heat thresholds (`Radar.HeatThreshold`) must follow
-    temperature, so a cooling speck dims and eventually reads as ground. The radar must still find emberite from afar.
-11. **The base interior.** Base cells become ordinary cells, so heat conducted into the base stays in the ground until
-    the reservoir takes it. Check that the base still acts as the sink.
+   Hot rock, lumps, frost rock and the radiator still need to be tuned together in play.
+7. **Determinism, saves and multiplayer.** The stock lives in the existing temperature and reactor fields, which
+   are already part of snapshots and sync hashes. The same seed gives the same starting stock. Simulation
+   fingerprints change with the new rules.
+8. **The ledger's baseline.** `SeedHeatedPixel` books the starting temperature and material change at generation,
+   and the ledger also accounts for the heat exchanged with ambient during prewarming.
+9. **Sectors freeze.** Preserve the stored heat in the frozen sector's snapshot (§7.3). Sector persistence is still proposed.
+10. **Visuals and the radar.** Glow, frost tint and the radar's heat thresholds (`Radar.HeatThreshold`) already follow
+    temperature. Plain emberite has its own ore return when it is below the heat threshold.
+11. **The base interior.** The base's ordinary cells retain and exchange heat. Area cooling transfers it to the
+    reservoir, and the radiator accounts for what leaves the simulation.
 
 An opportunity: quenchable hot rock (§6.1) already wants rock that cools. Finite bodies make it consistent.
 
@@ -466,10 +467,10 @@ Rare minerals and metals sit in the terrain, and the player has reasons to colle
 made of (§6.4); dirt is worth nothing. Every ore cell glows and gives heat: plain ore starts at 9
 degrees (a speck is a faint warm freckle, a pocket a warm patch), and the core of a lump, about a tenth of its cells,
 starts at 600 degrees and holds about six times the heat per degree of stone, so each core cell is seeded with
-4800 degree-cells of energy (booked in the ledger as injected at generation). That is a stock of heat, not a source:
-nothing is pinned, and it spreads into the shell and the ground, and cools like any ground. The bigger the lump, the more
-core cells (a tenth of its cells), so the more heat it stores and the longer the ground round it stays dangerous. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core cell 3), in three kinds
-of deposit, scaled with map area:
+9,600 degree-cells of energy. The ledger records that starting stock at generation. It spreads into the shell and
+the surrounding ground as the core cools. Bigger lumps have more core cells, so they hold more heat and keep
+the ground around them dangerous for longer. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core
+cell 3), in three kinds of deposit, scaled with map area:
 
 - specks of 1 to 3 cells scattered through the dirt, near the bases too (about 15% of the ore);
 - pockets of 12 to 30 cells at some distance from the bases (about 35%);
@@ -628,7 +629,7 @@ Rules that go with it *(Proposed)*:
    Being pulled back to defend finished sectors for no reason is a known failure of this model.
 4. **Re-freezing requires steady state again**, possibly at a new output rate.
 
-A frozen sector's snapshot stays valid however long the player is away, because it was taken at equilibrium.
+A frozen sector's snapshot holds its temperatures and energy stores until the simulation resumes.
 
 ### 7.4 Sector twists *(Proposed)*
 
@@ -698,8 +699,8 @@ On `master` (2026-11-17) the game has:
   network, refuelling at pylons; a relay keeps them cool, and a lump's core is left to the tank's torch.
 - Network coverage as the tank's leash (§4.6), and tank temperature in a band around 0 (§4.7): docking settles it
   near 0, cold slows it, both extremes damage it.
-- Hot rock pockets as heat stores and frost pockets as cold ones (a match has 8 and 5), both still pinned in the code until §4.1 lands, and a hot core
-  at the centre of the map to tap (§4.8).
+- Hot rock pockets as finite heat stores and frost pockets as finite cold stores (a match has 8 and 5), with a
+  larger hot core at the centre of the map to tap (§4.8).
 - Fog of war and the tank's radar pulse (§6.6).
 - Network matches for up to 8 players through a relay server, in deterministic lockstep, with bots in the empty
   slots (`docs/multiplayer-design.md`); locally, one bot opponent.
@@ -715,9 +716,8 @@ Gaps between that and this design, using the constants in `Tweaks.cs` on `master
 4. **Heat leaks outside the loop** (see 4.3).
 5. **There is one map, one generator and no world map, save format or sector state.**
 
-The radiator is no longer a gap: it vents 500 energy per tick against a 50,000 reservoir, so two relays (300
-each) out-pump it and it is the shared bottleneck (§12.1, step 3). These figures come from reading the
-constants, not from play.
+The radiator vents 500 energy per tick against a 50,000 reservoir. Two relays delivering their full 300 each can
+exceed that rate if too little heat becomes charge. The stock and its reach determine whether they can keep delivering.
 
 ## 12. Build order
 
@@ -765,7 +765,7 @@ upgrades, throughput, turrets, then removing the pylon).
 | Separate sector maps in one persistent world | Proposed |
 | A sector completes at thermal steady state | Proposed |
 | Reach the core; rings that change the kind of heat problem | Proposed |
-| Everything useful makes heat; the radiator is the shared bottleneck | Proposed |
+| Everything useful makes heat; its collection depends on the reachable stock and its disposal shares the radiator | Proposed |
 | Power is converted relay heat; machines run on charge and refuel at pylons | Prototype |
 | The tank's range is set by network coverage and its heat; no second meter on the tank | Prototype |
 | The sector goal is tapping the core; the ore store buys base and tank upgrades | Prototype |
