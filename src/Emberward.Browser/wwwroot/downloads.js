@@ -1,7 +1,8 @@
 // The desktop builds the welcome screen offers (index.html, the Desktop section). The markup lists every platform, in
 // the order written, and a platform with a published build has a link in its row; without JavaScript that list is
-// the whole feature. This module works out which platform the visitor is on and puts that row first, saying so, or
-// says that no build exists for it. It never adds a link: the URLs live in index.html only.
+// the whole feature. This module works out which platform the visitor is on. On a computer it shows only that
+// platform's row, and a button expands the other platforms. On a phone, or where the platform is unknown, the whole
+// list stays. It never adds a link: the URLs live in index.html only.
 
 const NAMES = { windows: "Windows", macos: "macOS", linux: "Linux" };
 
@@ -27,9 +28,9 @@ export function detectPlatform(nav) {
     return "unknown";
 }
 
-// Marks the visitor's platform in the Desktop section: its row moves first and is styled as the main download, and
-// the lead line says whether a build exists for it. A phone, or a platform the page does not know, keeps the list
-// and the lead as written.
+// Narrows the Desktop section to the visitor's platform: its row is the only one shown, styled as the main download,
+// and the lead line says whether a build exists for it. A button under the list shows the other platforms' rows,
+// and hides them again. A phone, or a platform the page does not know, keeps the whole list and the lead as written.
 export function offerDownloads(doc, platform) {
     const list = doc.querySelector(".download-list");
     const lead = doc.getElementById("downloads-lead");
@@ -42,11 +43,25 @@ export function offerDownloads(doc, platform) {
     if (!name) return;
     const row = [...list.children].find((item) => item.dataset.os === platform);
     if (!row) return;
-    if (row.querySelector("a.download-link")) {
-        lead.textContent = `Your computer looks like ${name}, so its build comes first. The others are below.`;
-        list.prepend(row);
-        row.classList.add("is-suggested");
-    } else {
-        lead.textContent = `No ${name} build is published yet. The other platforms are below.`;
-    }
+    const published = Boolean(row.querySelector("a.download-link"));
+    lead.textContent = published
+        ? `Your computer looks like ${name}, so its build is offered here.`
+        : `No ${name} build is published yet.`;
+    list.prepend(row);
+    row.classList.add("is-suggested");
+    const others = [...list.children].filter((item) => item !== row);
+    for (const item of others) item.hidden = true;
+    const toggle = doc.createElement("button");
+    toggle.type = "button";
+    toggle.className = "download-more";
+    toggle.setAttribute("aria-expanded", "false");
+    const closedLabel = `Other platforms (${others.length})`;
+    toggle.textContent = closedLabel;
+    toggle.addEventListener("click", () => {
+        const open = toggle.getAttribute("aria-expanded") !== "true";
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.textContent = open ? "Hide other platforms" : closedLabel;
+        for (const item of others) item.hidden = !open;
+    });
+    list.after(toggle);
 }

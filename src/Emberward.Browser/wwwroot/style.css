@@ -529,6 +529,21 @@ h1 {
     border-color: var(--amber);
     background: #17242bcc;
 }
+/* The rule above sets display, which would win over the hidden attribute; hidden rows stay out of the layout. */
+.download-list li[hidden] {
+    display: none;
+}
+.download-more {
+    margin-top: 10px;
+    padding: 0;
+    background: none;
+    border: 0;
+    font: 13px var(--hud-font);
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-decoration: underline;
+    cursor: pointer;
+}
 .download-os {
     font: 13px var(--hud-font);
     letter-spacing: 1px;
