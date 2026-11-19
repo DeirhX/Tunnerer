@@ -76,7 +76,7 @@ static const float kStoneBevelShade = 0.28;           // darkening on the shaded
 // shader's units (1.0 = 1020 degrees); negative is below ambient.
 static const float kHeatZero = 80.0 / 4.0 / 255.0;
 static const float kHeatByteToDegrees = 4.0 * 255.0;  // (aux.r - kHeatZero) * this = degrees
-// Degrees at which frost is drawn at full strength, in the same units (frost rock is pinned at -60).
+// Frost reaches full strength at the starting temperature of frost rock.
 static const float kFrostFullHeat = 60.0 / (4.0 * 255.0);
 
 // ---- Heat debug overlay ---------------------------------------------------

@@ -19,8 +19,10 @@ public partial class TerrainGrid
     /// <summary>
     /// Seeds the temperature of the rock that replaces dirt and stone. The new rock exchanges and loses heat normally.
     /// </summary>
-    private int PlacePocket(Position center, int radius, TerrainPixel pixel, float temperature)
+    private int PlacePocket(Position center, int radius, TerrainPixel pixel, float startTemperature)
     {
+        var material = _simulationSettings.ThermalMaterials[Pixel.GetThermalMaterial(pixel)];
+        float temperature = material.FixedTemperature ?? startTemperature;
         int radiusSq = radius * radius;
         int converted = 0;
 
@@ -44,7 +46,6 @@ public partial class TerrainGrid
 
         return converted;
     }
-
 
     /// <summary>
     /// Writes a pixel and sets the cell to <paramref name="temperature"/> at once, recording the energy that adds in

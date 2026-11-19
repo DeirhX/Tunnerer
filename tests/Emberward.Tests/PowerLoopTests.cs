@@ -129,6 +129,24 @@ public class PowerLoopTests
     }
 
     [Fact]
+    public void RelayIsNotLimitedWhenHotAirMakesUpTheFullDraw()
+    {
+        var t = new TerrainGrid(new Size(5, 5));
+        var pos = new Position(2, 2);
+        t.Fill(TerrainPixel.Rock);
+        t.AddHeat(pos, 5);
+        t.AddAirHeatTotalInRadiusArea(pos, 0, 400);
+        var home = new TankBase(pos, 0);
+        home.AcceptTankHeat(home.ReactorRoomEnergy - 190);
+        const double requested = 300;
+
+        double taken = home.AbsorbHeatFrom(t, pos, 0, requested, out bool limited, out _, out _);
+
+        Assert.Equal(requested, taken);
+        Assert.False(limited);
+    }
+
+    [Fact]
     public void RelayIntoAFullChargeStore_NeverDrainsTheStore()
     {
         var t = new TerrainGrid(new Size(5, 5));

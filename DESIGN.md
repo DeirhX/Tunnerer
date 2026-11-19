@@ -60,7 +60,7 @@ The session loop in detail:
 - **The base is the main heat sink.** *(Decided.)* It has a finite reservoir and a radiator with a fixed vent rate.
   Delivered heat competes for this vent capacity. Making charge also depends on how much heat remains within reach.
 - **Heat reaches the base in two ways.** *(Decided.)*
-  - **Tanks** carry it. A docked tank's heat is pumped into its base, settling it near 0 (§4.7).
+  - **Tanks** carry it. A docked tank transfers heat to its base as it cools toward the reactor temperature (§4.7).
     Docking also draws heat from nearby terrain and air into the visited base's reservoir while it has room.
   - **Relays** pipe it. A relay pulls heat from the ground around it and sends it to the base.
 - **Tanks and relays have different jobs.** *(Proposed.)* The tank's heat budget decides how long you can stay
@@ -193,9 +193,9 @@ The tank lives in a band around 0. Both ends hurt, and the world has places at b
 - **Below 0 the tank is chilled.** It slows down, linearly to about a third of its speed at -40, and below -25 it
   takes frostbite damage per degree, the same way overheating does. Negative temperatures are unusual, never a
   reserve to stock up on.
-- **Docking cools toward the reactor temperature.** Docked at its own base, a share of the tank's heat above the reactor is pumped into the
-  base reservoir every tick, on top of conduction with the base floor. A hot tank cools fast at first and levels off
-  near 0; a cold tank is warmed back by the floor. A full reservoir stops the pump.
+- **Docking cools toward the reactor temperature.** At its own base, a tank transfers a share of its heat above the
+  reactor temperature to the reservoir each tick. Heat also moves between the tank and its surroundings by
+  conduction. A full reservoir stops the pump.
 - **Heat exchange follows the temperature difference.** A tank drifts toward the temperature of whatever it stands in,
   in both directions: hot ground warms it, cold ground chills it, and it warms or chills the cells under it in turn.
   Solid ground transfers heat faster than air. The more of the tank's footprint touches solid ground, the stronger
@@ -467,10 +467,10 @@ Rare minerals and metals sit in the terrain, and the player has reasons to colle
 made of (§6.4); dirt is worth nothing. Every ore cell glows and gives heat: plain ore starts at 9
 degrees (a speck is a faint warm freckle, a pocket a warm patch), and the core of a lump, about a tenth of its cells,
 starts at 600 degrees and holds about six times the heat per degree of stone, so each core cell is seeded with
-4800 degree-cells of energy (booked in the ledger as injected at generation). That is a stock of heat, not a source:
-nothing is pinned, and it spreads into the shell and the ground, and cools like any ground. The bigger the lump, the more
-core cells (a tenth of its cells), so the more heat it stores and the longer the ground round it stays dangerous. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core cell 3), in three kinds
-of deposit, scaled with map area:
+9,600 degree-cells of energy. The ledger records that starting stock at generation. It spreads into the shell and
+the surrounding ground as the core cools. Bigger lumps have more core cells, so they hold more heat and keep
+the ground around them dangerous for longer. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core
+cell 3), in three kinds of deposit, scaled with map area:
 
 - specks of 1 to 3 cells scattered through the dirt, near the bases too (about 15% of the ore);
 - pockets of 12 to 30 cells at some distance from the bases (about 35%);

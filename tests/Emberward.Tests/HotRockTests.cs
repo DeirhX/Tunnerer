@@ -72,6 +72,29 @@ public class HotRockTests
         Assert.Equal(Hot, t.GetHeatTemperature(new Position(15, 14)), precision: 3);
     }
 
+    [Theory]
+    [InlineData(ThermalMaterial.HotRock, 75f)]
+    [InlineData(ThermalMaterial.FrostRock, -45f)]
+    public void PlacePocket_UsesThePinWhenCustomSettingsSpecifyOne(ThermalMaterial material, float temperature)
+    {
+        var settings = SimulationSettings.FromTweaks();
+        var row = settings.ThermalMaterials[material] with { FixedTemperature = temperature, Loss = 0f };
+        var t = new TerrainGrid(new Size(6, 6), settings with
+        {
+            ThermalMaterials = settings.ThermalMaterials.With(material, row),
+        });
+        t.Fill(TerrainPixel.Rock);
+        var at = new Position(3, 3);
+
+        int placed = material == ThermalMaterial.HotRock
+            ? t.PlaceHotRockPocket(at, radius: 0)
+            : t.PlaceFrostRockPocket(at, radius: 0);
+
+        Assert.Equal(1, placed);
+        Assert.Equal(temperature, t.GetHeatTemperature(at));
+        Assert.Equal(temperature * (double)row.HeatCapacity, t.Ledger.Injected);
+    }
+
     [Fact]
     public void Pocket_Cools_AndHeatsTheTunnelItBorders()
     {
