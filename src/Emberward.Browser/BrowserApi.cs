@@ -26,12 +26,13 @@ public static partial class BrowserApi
     /// <param name="width">The map's width in cells (<c>?map=WxH</c>); 0 for the normal map.</param>
     /// <param name="height">The map's height in cells; 0 for the normal map.</param>
     /// <param name="machines">For measuring (<c>?machines=N</c>): machines planted before play; 0 in a normal match.</param>
+    /// <param name="energyNetwork">The match runs the energy network and shows its charge labels (<c>?energy</c>).</param>
     [JSExport]
-    public static Task Start(int seed, int heatWorkers, int width, int height, int machines)
+    public static Task Start(int seed, int heatWorkers, int width, int height, int machines, bool energyNetwork)
     {
         _net = null;
         _session = new BrowserSession(seed, heatWorkers,
-            width > 0 && height > 0 ? new Size(width, height) : null, Math.Max(0, machines));
+            width > 0 && height > 0 ? new Size(width, height) : null, Math.Max(0, machines), energyNetwork);
         _hudStale = true;
         _dialSent = false;
         return Task.CompletedTask;
@@ -187,7 +188,7 @@ public static partial class BrowserApi
             BuildPrimary = build == 1,
             BuildSecondary = build == 2,
             BuildTertiary = build == 3,
-            Upgrade = Math.Clamp(upgrade, 0, 6),
+            Upgrade = Math.Clamp(upgrade, 0, 7),
         };
     }
 

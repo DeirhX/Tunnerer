@@ -21,6 +21,7 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
           --no-ai             No enemy tank.
           --no-fog            No fog of war: the whole map is shown live.
           --fast              Parallel level generation (another map per seed; still reproducible).
+          --energy-network    Local matches run the energy network (capacitors, charge labels; G hides them).
 
         Network match (see docs/multiplayer-design.md)
           --net[=ROOM]        Join ROOM (default: lobby) on the shared relay. The first player in opens the room
@@ -60,6 +61,7 @@ foreach (string warning in launchWarnings)
 Size? terrainSize = launch.TerrainSize;
 GameLaunchOptions.Seed = launch.Seed;
 GameLaunchOptions.EnergyAudit = launch.EnergyAudit;
+GameLaunchOptions.EnergyNetwork = launch.EnergyNetwork;
 DesktopDisplayOptions.DisplayIndex = launch.DisplayIndex;
 DesktopDisplayOptions.WindowedSize = launch.WindowedSize;
 DesktopDisplayOptions.Hidden = launch.Hidden;

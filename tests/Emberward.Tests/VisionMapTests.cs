@@ -375,7 +375,8 @@ public class VisionMapTests
         Assert.True(map.IsVisible(s.RelayPos));
         Assert.True(map.IsVisible(far), "a relay sees along the tunnel, linked or not");
         Assert.True(map.IsVisible(s.RelayPos + new Offset(10, 10)), "and its whole circle, through the ground");
-        Assert.False(map.IsVisible(s.RelayPos + new Offset(Tweaks.Coverage.NodeRadius + 2, 0)));
+        Assert.True(map.IsVisible(s.RelayPos + new Offset(Tweaks.Coverage.NodeRadius + 2, 0)), "a relay sees past its coverage circle");
+        Assert.False(map.IsVisible(s.RelayPos + new Offset(Tweaks.Coverage.NodeRadius + Tweaks.Vision.NodeSightBonus + 2, 0)));
         Assert.Same(map, s.World.TrackVision(s.Tank));
     }
 

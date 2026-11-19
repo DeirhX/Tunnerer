@@ -40,6 +40,14 @@ public class WorldFactoryTests
             Assert.Equal(a.World.Terrain[i], b.World.Terrain[i]);
     }
 
+    [Fact]
+    public void ALocalMatch_RunsTheEnergyNetworkOnlyWhenAsked()
+    {
+        Assert.Null(WorldFactory.Build(new WorldLaunchOptions(false, SmallSize, LevelGenMode.Deterministic, Seed: 5)).World.Energy);
+        Assert.NotNull(WorldFactory.Build(new WorldLaunchOptions(false, SmallSize, LevelGenMode.Deterministic, Seed: 5,
+            EnergyNetwork: true)).World.Energy);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

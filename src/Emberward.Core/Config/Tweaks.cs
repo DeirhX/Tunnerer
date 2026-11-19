@@ -296,6 +296,8 @@ public static class Tweaks
         // Each engine level multiplies the temperature scale by this, so warm sources convert better too.
         public const double EngineScalePerLevel = 0.8;
         public const float InsulationPerLevel = 0.25f;
+        // Each sensors level adds this many cells to the sight of every relay, pylon and the base (not to coverage).
+        public const int SensorCellsPerLevel = 8;
         // Tank track. The cargo hold takes this much more ore per level (Ore.TankHold 40, then 70, 100, 130).
         public const int CargoHoldPerLevel = 30;
         // Each radar level adds this share of every radar range, and this share of the heat budget of its rays.
@@ -399,6 +401,8 @@ public static class Tweaks
         // A machine sees this close around itself. A link node (relay, pylon) sees its whole coverage circle
         // (Coverage), through solid ground too.
         public const int MachineNearRadius = 6;
+        // A relay or pylon sees this many cells beyond its coverage circle, before any sensors upgrade.
+        public const int NodeSightBonus = 10;
         // The walls around open ground in sight are seen this many cells deep, fading with depth.
         public const int WallSkin = 5;
         // The level falls from full to nothing over the last cells of a source's reach (a short reach: its outer
@@ -489,6 +493,11 @@ public static class Tweaks
         public const float HarvesterCrawlCharge = 200f;
         // About 40 s of mining on a full battery. A harvester is planted full.
         public const float HarvesterBatteryCapacity = 120_000f;
+        // On the energy network (DESIGN.md §4.9) the battery is the harvester's capacitor: it refills at up to this much
+        // a tick while its base's network covers it (more than working spends, about 140 a tick), and it spends
+        // HarvesterIdleDraw a tick just standing, so a cut-off harvester idles flat in about 20 minutes.
+        public const float HarvesterTransferPerTick = 400f;
+        public const float HarvesterIdleDraw = 4f;
         // Below this fraction it heads back to a pylon; it goes back to work once charged above HarvesterResumeAbove.
         public const float HarvesterReturnBelow = 0.25f;
         public const float HarvesterResumeAbove = 0.8f;
@@ -508,6 +517,10 @@ public static class Tweaks
         public const int PylonIntervalMs = 200;
         public const int PylonRange = 12;
         public const float PylonChargePerAction = 6000f;
+        // A pylon's capacitor on the energy network: cut off, its idle draw empties a full one in 100 seconds.
+        public const float PylonCapacitor = 6000f;
+        public const float PylonTransferPerTick = 100f;
+        public const float PylonIdleDraw = 2.5f;
         public const int BoundingBoxHalfSize = 2;
         // A destroyed machine scorches the open ground and dirt within this half-width of its centre; regrowth fades it.
         public const int WreckScorchHalfSize = 2;
@@ -516,6 +529,28 @@ public static class Tweaks
         // surrounding square (half-width RelayCoolingRadius) and pumps it into its owner's base reactor.
         public const int RelayCoolingRadius = 12;
         public const float RelayHeatPumpPerTick = 300f;
+        // A relay's capacitor on the energy network: cut off, its idle draw empties a full one in 100 seconds.
+        public const float RelayCapacitor = 3600f;
+        public const float RelayTransferPerTick = 60f;
+        public const float RelayIdleDraw = 1.5f;
+    }
+
+    /// <summary>
+    /// The energy network (DESIGN.md §4.9, <c>EnergyNetwork</c>): every machine's capacitor, fed by its base's island.
+    /// Each machine's capacitor numbers are in <see cref="Machine"/>.
+    /// </summary>
+    public static class Energy
+    {
+        // A capacitor at rest books the heat of its idle draw into the ground once in this many ticks (spread over the
+        // ticks, a share of the machines each), not every tick.
+        public const int SettlePeriodTicks = 5 * Perf.TargetFps;
+        // A tier the island starved is fed again once the store holds this many ticks of its idle draw, so a store
+        // living on its income does not switch a tier on and off every tick.
+        public const int RefeedIdleTicks = Perf.TargetFps;
+        // The window the charge flows the overlay reads are summed over (one second).
+        public const int FlowWindowTicks = Perf.TargetFps;
+        // Spent idle charge becomes heat within this radius of the machine.
+        public const int IdleHeatRadius = 2;
     }
 
     public static class Explosion

@@ -19,4 +19,6 @@ public enum GameCommand
     /// <summary>In a network lobby, the host starts the match with the players who are there (Enter).</summary>
     StartNetMatch,
     ToggleControls,
+    /// <summary>Shows or hides the charge and flow labels over machines (G); they show only while the energy network runs.</summary>
+    TogglePowerLabels,
 }

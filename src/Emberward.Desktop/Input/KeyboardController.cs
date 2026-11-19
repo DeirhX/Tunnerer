@@ -66,9 +66,9 @@ public class KeyboardController
     public static readonly IReadOnlyList<Scancode> BuildKeys =
         MachinePresentations.All.Select(m => Enum.Parse<Scancode>(m.KeyLabel)).ToArray();
 
-    // Number keys 1-6 buy upgrades while docked: 1-4 the base track, 5-6 the tank track (BaseUpgrade order).
+    // Number keys 1-7 buy upgrades while docked: 1-5 the base track, 6-7 the tank track (BaseUpgrade order).
     private static readonly Scancode[] UpgradeKeys =
-        [Scancode.Alpha1, Scancode.Alpha2, Scancode.Alpha3, Scancode.Alpha4, Scancode.Alpha5, Scancode.Alpha6];
+        [Scancode.Alpha1, Scancode.Alpha2, Scancode.Alpha3, Scancode.Alpha4, Scancode.Alpha5, Scancode.Alpha6, Scancode.Alpha7];
 
     /// <summary>The upgrade key held (1 for the first), or 0 for none.</summary>
     private static int HeldUpgradeKey()

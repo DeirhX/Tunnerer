@@ -120,7 +120,9 @@ public partial class Game : IDisposable
             : $"--seed={Seed.ToString(CultureInfo.InvariantCulture)}";
         var built = WorldFactory.Build(new WorldLaunchOptions(
             terrainTestMode, terrainSizeOverride, genMode, Seed,
-            Players: relay?.Config.Slots ?? Tweaks.LevelGen.DefaultPlayers, CoreTapWins: relay != null));
+            Players: relay?.Config.Slots ?? Tweaks.LevelGen.DefaultPlayers, CoreTapWins: relay != null,
+            // Only a local match takes the launch option; a network match plays the rules its room agreed on.
+            EnergyNetwork: relay == null && GameLaunchOptions.EnergyNetwork));
         _world = built.World;
         _terrainSize = built.TerrainSize;
         _entityLayer.CaptureStep(_world, _localSlot);
@@ -132,6 +134,7 @@ public partial class Game : IDisposable
             _radar = _world.TrackRadar(localTank);
         }
         _terrainView = _vision != null ? TerrainView.Fogged(_world.Terrain, _vision) : TerrainView.Live(_world.Terrain);
+        _hud.Vision = _vision;
 
         _worldPixels = new uint[_terrainSize.Area];
         _terrainAuxUploader = new TerrainAuxUploader(_terrainSize, _terrainAuxBuilder, _drawProfile);

@@ -12,7 +12,8 @@ using Emberward.Core.Entities.Tanks;
 /// Draws the in-game HUD each frame: the game view, crosshair and hit feedback here, and the pieces in their own
 /// files (<see cref="HudStrip"/>, <see cref="NetworkPanel"/>, <see cref="WarningBanner"/>, <see cref="MatchOverlay"/>,
 /// <see cref="PostPassOverlay"/>, <see cref="TerrainTestPanel"/>), plus the tutorial and notifications
-/// (<c>GameHud.Guidance.cs</c>) and the upgrade panel and goal banner (<c>GameHud.Goal.cs</c>).
+/// (<c>GameHud.Guidance.cs</c>), the upgrade panel and goal banner (<c>GameHud.Goal.cs</c>) and the charge labels over
+/// machines (<c>GameHud.Power.cs</c>).
 /// </summary>
 public partial class GameHud
 {
@@ -82,6 +83,7 @@ public partial class GameHud
         DrawGameViewport(gameTextureId, texW, texH);
         if (WaitingForPlayers)
             return;
+        DrawPowerLabels(player, world);
         DrawCrosshair();
         DrawHitFeedback(player);
         _strip.Draw(player, _time);
@@ -129,6 +131,8 @@ public partial class GameHud
             ImGui.SetCursorPos(Vector2.Zero);
             ImGui.Image(gameTextureId, new Vector2(ToUi(texW), ToUi(texH)));
             ViewportRect = (cursorPos.X, cursorPos.Y, ToUi(texW), ToUi(texH));
+            // Drawn into for the rest of the frame by what belongs on the game view under every panel (charge labels).
+            _viewportDrawList = ImGui.GetWindowDrawList();
             if (WaitingForPlayers)
                 ImGui.GetWindowDrawList().AddRectFilled(Vector2.Zero, displaySize, 0xC0000000u);
         }

@@ -1080,6 +1080,10 @@ meter::-moz-meter-bar {
 #power {
     margin-top: 7px;
 }
+#network-power {
+    margin-top: 3px;
+    font-size: 11px;
+}
 #upgrades {
     position: absolute;
     right: 24px;

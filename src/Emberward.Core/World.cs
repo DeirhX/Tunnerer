@@ -33,6 +33,7 @@ public class World
     private readonly List<LevelGen.OreDeposit> _oreDeposits = new();
     private readonly MatchResult _matchResult;
     private SectorGoal? _sectorGoal;
+    private readonly EnergyNetwork? _energy;
     // What tanks and machines see of the world each step; the same every step, so built once.
     [NotSaved("fixed for the match: closures over this world")]
     private readonly SimulationContext _tankContext;
@@ -68,7 +69,8 @@ public class World
         return total;
     }
     /// <summary>
-    /// Charge stored in every base and machine battery. Charge is converted heat, so
+    /// Charge stored in every base and machine battery (capacitor), with what the energy network has paid out and not
+    /// yet turned into heat (<see cref="EnergyNetwork.PendingCharge"/>). Charge is converted heat, so
     /// <c>SumSystemThermalEnergy() + SumSystemCharge()</c> balances against <c>Injected - TotalSunk</c>.
     /// </summary>
     public double SumSystemCharge()
@@ -78,6 +80,8 @@ public class World
             total += tankBase.Charge;
         foreach (var machine in _machines.Machines)
             total += machine.Charge;
+        if (_energy != null)
+            total += _energy.PendingCharge();
         return total;
     }
 
@@ -145,10 +149,14 @@ public class World
         machine.State = MachineState.Planted;
         machine.OwnerBase = owner;
         machine.Anchor = machine.Position;
+        // On the energy network every machine has its whole capacitor (without it, only a battery if it runs on charge).
+        if (_energy != null)
+            machine.ChargeCapacity = machine.Behavior.Capacitor.Capacity;
         if (owner != null)
             machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
         if (machine.Behavior.IsLinkNode)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
+        _energy?.Register(machine);
         _stepEvents.Record(new StepEvent(StepEventKind.MachinePlanted, machine.Position, machine.OwnerColor, machine.Type));
     }
 
@@ -170,6 +178,8 @@ public class World
         if (Rules.TerrainRegrowth)
             _terrainRegrowth = new TerrainRegrowth(_simulationSeed);
         _matchResult = new MatchResult(_tankList.Tanks);
+        if (Rules.EnergyNetwork)
+            _energy = new EnergyNetwork();
         _tankContext = new SimulationContext
         {
             Terrain = _terrain,
@@ -186,7 +196,7 @@ public class World
             Events = _stepEvents,
         };
         _sensing = new SideSensing(_terrain, _machines, _tankList);
-        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents);
+        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy);
         _systems = BuildSystems();
     }
 
@@ -309,6 +319,8 @@ public class World
             _tankList.Advance(in _tankContext, getInput);
         }));
         systems.Add(new("machines", _ => AdvanceMachines()));
+        if (_energy is EnergyNetwork energy)
+            systems.Add(new("power", _ => energy.Advance(_terrain, _linkMap, _tankBases.Bases)));
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain);
@@ -484,6 +496,24 @@ public class World
 
     /// <summary>The match result, for the sync digest.</summary>
     internal MatchResult Result => _matchResult;
+
+    /// <summary>
+    /// The energy network (DESIGN.md §4.9); null when the match rules leave it out. Desktop asks
+    /// <see cref="MachinePowerOf"/> and <see cref="BasePowerOf"/> instead.
+    /// </summary>
+    public EnergyNetwork? Energy => _energy;
+
+    /// <summary>
+    /// A machine's capacitor as an overlay shows it: charge now, capacity, and charge a second in and out over the last
+    /// second (DESIGN.md §4.9). Null when the rules run no energy network or the machine is not planted. Output only.
+    /// </summary>
+    public MachinePower? MachinePowerOf(Machine machine) => _energy?.PowerOf(machine);
+
+    /// <summary>
+    /// A base's charge store as an overlay shows it: level, capacity, and what its engine made and its island drew a
+    /// second over the last second. Null when the rules run no energy network. Output only.
+    /// </summary>
+    public BasePower? BasePowerOf(TankBase tankBase) => _energy?.PowerOf(tankBase);
 
     /// <summary>Dirt regrowth, for the sync digest; null when the match rules leave it out.</summary>
     internal TerrainRegrowth? RegrowthSystem => _terrainRegrowth;

@@ -29,7 +29,7 @@ Run from the repository root.
   - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
   - `Rendering/Shaders`: the HLSL it draws.
 - `src/Emberward.Rendering`: the rendering code every host shares (terrain fields and what a frame uploads of them,
-  entity emitters and machine sprites, the shader constant block, sound (the step-event table, `SoundDirector` and `SoundBank`), the heat colours (`HeatScale`), what a build slot says (`BuildSlotView`) and the HUD's
+  entity emitters and machine sprites, the shader constant block, sound (the step-event table, `SoundDirector` and `SoundBank`), the heat colours (`HeatScale`), what a build slot says (`BuildSlotView`), the HUD palette and the charge labels (`HudPalette`, `PowerLabels`) and the HUD's
   guidance: tutorial, toasts, build-key hint and warnings), and a client's part in a network match (`NetSession`,
   `SlotStepper`, `NetMatch`). Its sources are the files of `src/Emberward.Desktop` listed in
   `Emberward.Rendering.csproj`, which `Emberward.Desktop.csproj` leaves out: sharing a file means adding it to both
@@ -86,9 +86,10 @@ Adding a machine:
 
 1. `MachineType` in `Entities/Machines/Machine.cs`.
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), listed in `MachineBehaviors.All`:
-   action, interval, colour, build cost, build key, and the traits Core reads instead of the type (`BatteryCapacity`,
-   `IsLinkNode`, `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`). `MachineBehaviorTableTests` must pass.
-3. Cost, interval, colour and battery size in `Config/Tweaks.cs`.
+   action, interval, colour, build cost, build key, its `Capacitor` (capacity, transfer rate, `PowerTier`, idle draw;
+   DESIGN.md §4.9), and the traits Core reads instead of the type (`RunsOnCharge`, `IsLinkNode`,
+   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`). `MachineBehaviorTableTests` must pass.
+3. Cost, interval, colour and capacitor numbers in `Config/Tweaks.cs`.
 4. Desktop: a `MachinePresentation` (name, key label, build slot, plant hint; `Presentation/MachinePresentation.cs`), a
    `MachineSprite` in `MachineSprites` (what the entity emitters draw on desktop and in the browser: shader shape,
    size, gauge, sense ring, battery, preview reach; `Rendering/Entities/MachineSprite.cs`) and its build sound in
@@ -182,5 +183,6 @@ that tests can inject their own values.
 - Delete code that nothing calls; do not keep a second implementation beside the one in use.
 - Ask the shared question instead of spelling it out: `Machine.IsStanding` / `StandsFor(base)`; `Pixel.IsOpenGround`,
   `IsSoil`, `IsSolidGround`, `IsAnyBaseCell`; `BaseUpgrades.BaseCoverageRadius` / `NodeCoverageRadius`; per-second
-  rates on `CoreTap` and `TankBase`; HUD colours from `HudTheme` (`LevelColor`, `WithAlpha`, `WithAlphaByte`). A new
+  rates on `CoreTap` and `TankBase`; HUD colours from `HudTheme` (`LevelColor`, `WithAlpha`, `WithAlphaByte`; their
+  values live in `HudPalette`, which the browser shares). A new
   pixel kind, machine or upgrade then changes one place.

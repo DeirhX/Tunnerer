@@ -7,6 +7,7 @@ using Emberward.Core.Config;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Bases;
+using Emberward.Core.Network;
 using static Emberward.Desktop.Gui.HudDraw;
 
 /// <summary>
@@ -64,6 +65,12 @@ public sealed class NetworkPanel
                 $"Charge {tankBase.Charge / 1000.0:0}k / {tankBase.ChargeCapacity / 1000.0:0}k" +
                 (perSecond >= 1.0 ? $"   engine +{perSecond / 1000.0:0.0}k/s" : "   engine idle"));
             HudTheme.BarRow(chargeFill, HudTheme.Teal, null, 10f);
+            // With the energy network (DESIGN.md §4.9): what the engine makes against what the island draws.
+            if (world.BasePowerOf(tankBase) is BasePower basePower)
+            {
+                var power = PowerLabels.Of(basePower);
+                ColoredText(power.Color, $"Network {power.Flow}   {power.Net}");
+            }
 
             if (harvesters > 0)
             {
@@ -107,6 +114,8 @@ public sealed class NetworkPanel
                 HudTheme.WrappedRow(hint.Text, hintColor, 16f);
             }
             HudTheme.KeyRow("H", "heat view", HudTheme.TextDim, 15f);
+            if (world.Energy != null)
+                HudTheme.KeyRow("G", "charge labels", HudTheme.TextDim, 15f);
         }
         HudTheme.EndWindow();
     }

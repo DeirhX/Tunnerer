@@ -111,6 +111,7 @@ public class MachineList : ISnapshotLoaded
             var machine = _machines[i];
             if (!machine.IsAlive)
             {
+                ctx.Energy?.Remove(machine, ctx.Terrain);
                 Wreck(machine, ctx.Terrain);
                 Remove(i);
                 continue;

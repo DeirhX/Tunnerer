@@ -8,42 +8,36 @@ using Emberward.Core;
 /// One look for every piece of UI drawn over the game: the tutorial card, toasts, the status and upgrade panels, the
 /// pause and controls menus and small labels. It follows the bottom HUD art: dark gunmetal plates with chamfered
 /// corners, a bronze frame with an amber inner line, amber corner brackets and rivets, amber titles, and segmented
-/// glowing bars. Colours are ImGui ABGR.
+/// glowing bars. Colours are ImGui ABGR; the palette itself is <see cref="HudPalette"/>, which the browser shares.
 /// </summary>
 public static class HudTheme
 {
-    public static uint Rgba(byte r, byte g, byte b, byte a = 255) => (uint)(a << 24 | b << 16 | g << 8 | r);
+    public static uint Rgba(byte r, byte g, byte b, byte a = 255) => HudPalette.Rgba(r, g, b, a);
 
     /// <summary><paramref name="color"/> with its alpha scaled by <paramref name="alpha"/> (0 to 1).</summary>
-    public static uint WithAlpha(uint color, float alpha) =>
-        (color & 0x00FFFFFFu) | (uint)(Math.Clamp(alpha, 0f, 1f) * (color >> 24)) << 24;
+    public static uint WithAlpha(uint color, float alpha) => HudPalette.WithAlpha(color, alpha);
 
     /// <summary><paramref name="color"/> with its alpha replaced by <paramref name="alpha"/> (0 to 255).</summary>
-    public static uint WithAlphaByte(uint color, uint alpha) => (color & 0x00FFFFFFu) | alpha << 24;
+    public static uint WithAlphaByte(uint color, uint alpha) => HudPalette.WithAlphaByte(color, alpha);
 
     /// <summary>The colour a status gauge shows at <paramref name="level"/>, with <paramref name="ok"/> for a fine one.</summary>
-    public static uint LevelColor(StatusLevel level, uint ok) => level switch
-    {
-        StatusLevel.Ok => ok,
-        StatusLevel.Warn => Warn,
-        _ => Danger,
-    };
+    public static uint LevelColor(StatusLevel level, uint ok) => HudPalette.LevelColor(level, ok);
 
-    // ---- Palette ---------------------------------------------------------------
-    public static readonly uint PlateTop = Rgba(30, 32, 36, 238);
-    public static readonly uint PlateBottom = Rgba(13, 14, 16, 242);
-    public static readonly uint Bronze = Rgba(122, 86, 44);
-    public static readonly uint BronzeDark = Rgba(58, 40, 22);
-    public static readonly uint Amber = Rgba(255, 178, 64);
-    public static readonly uint AmberDim = Rgba(176, 112, 40);
-    public static readonly uint Teal = Rgba(96, 214, 255);
-    public static readonly uint Text = Rgba(234, 228, 216);
-    public static readonly uint TextDim = Rgba(158, 150, 138);
-    public static readonly uint Good = Rgba(118, 230, 128);
-    public static readonly uint Warn = Rgba(255, 198, 64);
-    public static readonly uint Danger = Rgba(255, 86, 66);
-    public static readonly uint Shadow = Rgba(0, 0, 0, 150);
-    public static readonly uint Track = Rgba(8, 8, 10, 230);
+    // ---- Palette (HudPalette, shared with the browser) ---------------------------
+    public static readonly uint PlateTop = HudPalette.PlateTop;
+    public static readonly uint PlateBottom = HudPalette.PlateBottom;
+    public static readonly uint Bronze = HudPalette.Bronze;
+    public static readonly uint BronzeDark = HudPalette.BronzeDark;
+    public static readonly uint Amber = HudPalette.Amber;
+    public static readonly uint AmberDim = HudPalette.AmberDim;
+    public static readonly uint Teal = HudPalette.Teal;
+    public static readonly uint Text = HudPalette.Text;
+    public static readonly uint TextDim = HudPalette.TextDim;
+    public static readonly uint Good = HudPalette.Good;
+    public static readonly uint Warn = HudPalette.Warn;
+    public static readonly uint Danger = HudPalette.Danger;
+    public static readonly uint Shadow = HudPalette.Shadow;
+    public static readonly uint Track = HudPalette.Track;
 
     private const float Chamfer = 9f;
 

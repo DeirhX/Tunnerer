@@ -102,7 +102,7 @@ public sealed class TutorialDirector
                 Target: static (w, p) => FirstHarvester(w, p)),
 
             new("Upgrade",
-                "Dock and press 1-6 to spend the base ore store: radiator, network reach, engine and insulation for the base, a bigger cargo hold and a longer radar for your tank.",
+                "Dock and press 1-7 to spend the base ore store: radiator, network reach, engine, insulation and sensors for the base, a bigger cargo hold and a longer radar for your tank.",
                 static (_, _, p) => p.Base is { } b && Enumerable.Range(0, BaseUpgrades.Count).Any(i => b.Upgrades.Level((BaseUpgrade)i) > 0),
                 Progress: static (_, p) => p.Base is { } b
                     ? Ratio("Base ore store", b.Store.Ore, Tweaks.Upgrades.LevelCosts[0])

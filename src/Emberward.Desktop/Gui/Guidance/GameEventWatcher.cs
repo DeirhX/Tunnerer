@@ -146,7 +146,7 @@ public sealed class GameEventWatcher
 
             if (storeFull && !_storeFull)
                 feed.Post(now, "store-full", "Base ore store full",
-                    "Harvesters idle until you spend ore: dock and buy upgrades (1-6) or build machines.", NotificationKind.Warning);
+                    "Harvesters idle until you spend ore: dock and buy upgrades (1-7) or build machines.", NotificationKind.Warning);
             if (heatStoreFull && !_heatStoreFull)
                 feed.Post(now, "heat-full", "Base heat store nearly full",
                     "Relays and docking cool less until the radiator catches up.", NotificationKind.Warning);
