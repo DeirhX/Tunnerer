@@ -26,9 +26,10 @@ public readonly record struct PowerLabel(string Charge, string Flow, float Fill,
 /// <param name="Net">Production less draw a second: <c>net +900/s</c>.</param>
 /// <param name="Fill">How full the store is, 0 to 1.</param>
 /// <param name="Level">Gaining (Ok), losing with charge in hand (Warn), losing and low, or empty (Bad).</param>
-public readonly record struct BasePowerLabel(string Store, string Flow, string Net, float Fill, StatusLevel Level)
+public readonly record struct BasePowerLabel(string Store, string Flow, string Net, float Fill, StatusLevel Level,
+    bool IsDark = false, string Shield = "")
 {
-    public uint Color => HudPalette.LevelColor(Level, HudPalette.Good);
+    public uint Color => IsDark ? HudPalette.DarkBase : HudPalette.LevelColor(Level, HudPalette.Good);
 }
 
 /// <summary>A machine the overlay labels, with its label and how strongly it shows (0 to 1, by distance).</summary>
@@ -96,13 +97,17 @@ public static class PowerLabels
     {
         double net = power.ProductionPerSecond - power.DrawPerSecond;
         float fill = Fill(power.Charge, power.Capacity);
-        StatusLevel level = power.Charge <= 0.0 || power.Capacity <= 0.0 ? StatusLevel.Bad
+        StatusLevel level = power.IsDark || power.Charge <= 0.0 || power.Capacity <= 0.0 ? StatusLevel.Bad
             : net >= 0.0 ? StatusLevel.Ok
             : fill > LowStoreShare ? StatusLevel.Warn
             : StatusLevel.Bad;
+        string shield = power.IsDark ? "BASE DARK · dock with emberite"
+            : power.ShieldWarmupSeconds > 0.0
+                ? $"Shield {power.ShieldFraction:P0} · restoring in {Math.Ceiling(power.ShieldWarmupSeconds):0}s"
+                : $"Shield {power.ShieldFraction:P0}";
         return new BasePowerLabel(Compact(power.Charge) + "/" + Compact(power.Capacity),
             Flow(power.ProductionPerSecond, power.DrawPerSecond), "net " + SignedRate(net) +
-            (power.GeneratorProductionPerSecond > 0.0 ? " · gen " + SignedRate(power.GeneratorProductionPerSecond) : ""), fill, level);
+            (power.GeneratorProductionPerSecond > 0.0 ? " · gen " + SignedRate(power.GeneratorProductionPerSecond) : ""), fill, level, power.IsDark, shield);
     }
 
     private static float Fill(double charge, double capacity) =>

@@ -20,12 +20,11 @@ public class MatchOutcomeTests
     }
 
     [Fact]
-    public void DeathWithLivesLeft_DoesNotEndTheMatch()
+    public void TankLoss_DoesNotEndTheMatch()
     {
         var world = CreateWorld();
         var player = world.TankList.Tanks[0];
         var enemy = world.TankList.Tanks[1];
-        enemy.LivesLeft = 2;
         enemy.Die();
 
         Assert.False(world.IsMatchOver);
@@ -34,13 +33,12 @@ public class MatchOutcomeTests
     }
 
     [Fact]
-    public void EnemyOutOfLives_IsVictoryForTheLivingPlayerAndDefeatForTheEnemy()
+    public void EnemyBaseDestroyed_IsVictoryForThePlayerAndDefeatForTheEnemy()
     {
         var world = CreateWorld();
         var player = world.TankList.Tanks[0];
         var enemy = world.TankList.Tanks[1];
-        enemy.LivesLeft = 1;
-        enemy.Die();
+        Eliminate(enemy);
 
         Assert.True(world.IsMatchOver);
         Assert.Equal(MatchOutcome.Victory, world.MatchOutcomeFor(player));
@@ -48,18 +46,16 @@ public class MatchOutcomeTests
     }
 
     [Fact]
-    public void PlayerRespawning_WhenEnemyIsOut_IsNotYetVictory()
+    public void PlayerRespawning_StillWinsWhenEnemyBaseFalls()
     {
         var world = CreateWorld();
         var player = world.TankList.Tanks[0];
         var enemy = world.TankList.Tanks[1];
-        enemy.LivesLeft = 1;
-        enemy.Die();
-        player.LivesLeft = 2;
+        Eliminate(enemy);
         player.Die();
 
         Assert.True(world.IsMatchOver);
-        Assert.Equal(MatchOutcome.InProgress, world.MatchOutcomeFor(player));
+        Assert.Equal(MatchOutcome.Victory, world.MatchOutcomeFor(player));
     }
 
     private static World CreateFourTankWorld(bool coreTapWins = false)
@@ -71,14 +67,10 @@ public class MatchOutcomeTests
         return world;
     }
 
-    private static void Eliminate(Tank tank)
-    {
-        tank.LivesLeft = 1;
-        tank.Die();
-    }
+    private static void Eliminate(Tank tank) => tank.Base!.TakeDamage(tank.Base!.Reactor.HealthCapacity);
 
     [Fact]
-    public void WithFourTanks_OneOutOfLivesDoesNotEndTheMatch()
+    public void WithFourTanks_OneLostBaseDoesNotEndTheMatch()
     {
         var world = CreateFourTankWorld();
         var tanks = world.TankList.Tanks;
@@ -100,13 +92,13 @@ public class MatchOutcomeTests
         Eliminate(tanks[3]);
 
         Assert.True(world.IsMatchOver);
-        Assert.Equal((tanks[2], MatchWinReason.LastTankStanding), world.MatchWinner);
+        Assert.Equal((tanks[2], MatchWinReason.LastBaseStanding), world.MatchWinner);
         Assert.Equal(MatchOutcome.Victory, world.MatchOutcomeFor(tanks[2]));
         Assert.Equal(MatchOutcome.Defeat, world.MatchOutcomeFor(tanks[0]));
     }
 
     [Fact]
-    public void EveryTankOutOfLives_IsOverWithNoWinner()
+    public void AllBasesDestroyed_IsOverWithNoWinner()
     {
         var world = CreateWorld();
         foreach (var tank in world.TankList.Tanks)
@@ -147,13 +139,13 @@ public class MatchOutcomeTests
         Eliminate(tanks[1]);
         Eliminate(tanks[3]);
         TestSimulation.AdvanceIdle(world, frames: 1);
-        Assert.Equal((tanks[2], MatchWinReason.LastTankStanding), world.MatchWinner);
+        Assert.Equal((tanks[2], MatchWinReason.LastBaseStanding), world.MatchWinner);
 
         // The winner is lost afterwards: nobody is left, but the match was already won, and stays won for that tank.
         Eliminate(tanks[2]);
         TestSimulation.AdvanceIdle(world, frames: 3);
 
-        Assert.Equal((tanks[2], MatchWinReason.LastTankStanding), world.MatchWinner);
+        Assert.Equal((tanks[2], MatchWinReason.LastBaseStanding), world.MatchWinner);
         Assert.True(world.IsMatchOver);
         Assert.Equal(MatchOutcome.Victory, world.MatchOutcomeFor(tanks[2]));
         Assert.Equal(MatchOutcome.Defeat, world.MatchOutcomeFor(tanks[0]));
@@ -178,7 +170,7 @@ public class MatchOutcomeTests
             .SetValue(world.CoreTapOf(tank.Base), Core.Config.Tweaks.Goal.GoalHoldSeconds + 10);
 
     [Fact]
-    public void ABaseWhoseTankIsOutOfLives_CannotWinTheRaceByFinishingItsHold()
+    public void ADestroyedBase_CannotWinTheRaceByFinishingItsHold()
     {
         var world = CreateFourTankWorld(coreTapWins: true);
         var tanks = world.TankList.Tanks;
@@ -188,7 +180,7 @@ public class MatchOutcomeTests
 
         TestSimulation.AdvanceIdle(world, frames: 1);
 
-        Assert.True(world.CoreTapOf(tanks[1].Base)!.HasTapped);
+        Assert.False(world.CoreTapOf(tanks[1].Base)!.HasTapped);
         Assert.Null(world.MatchWinner);
         Assert.False(world.IsMatchOver);
 

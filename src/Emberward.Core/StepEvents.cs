@@ -91,10 +91,17 @@ public enum StepEventKind
 
     /// <summary>A machine was shot to pieces. <see cref="StepEvent.Color"/> is its owner.</summary>
     MachineWrecked,
+
+    /// <summary>An enemy bullet damaged a base, or destroyed it with the last hit.</summary>
+    BaseDamaged,
+    BaseDestroyed,
+
+    /// <summary>A docked tank burned <see cref="StepEvent.Count"/> units from its hold to restart its base.</summary>
+    RestartOreBurned,
 }
 
 /// <summary>What a <see cref="StepEventKind.BulletImpact"/> struck.</summary>
-public enum ImpactTarget { Terrain, Tank, Machine }
+public enum ImpactTarget { Terrain, Tank, Machine, Base }
 
 /// <summary>
 /// One thing that happened during a <see cref="World.Advance"/> step. Fields that do not apply to the

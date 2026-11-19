@@ -211,11 +211,10 @@ public class NetSessionTests
         StepAll(session);
         Assert.Null(relay.LinkFor(0).MatchOverTick);
 
-        // Every tank but the first loses its last life.
+        // Every base but the first is destroyed.
         foreach (var tank in world.TankList.Tanks.Skip(1))
         {
-            tank.LivesLeft = 1;
-            tank.Die();
+            tank.Base!.TakeDamage(tank.Base!.Reactor.HealthCapacity);
         }
         relay.Advance();
         StepAll(session);
@@ -445,20 +444,21 @@ public class NetSessionTests
     }
 
     [Fact]
-    public void SeatPick_IsTheBotWithTheMostLives_LowestSlotFirst_NeverOneOutOfLives()
+    public void SeatPick_IsTheFirstBotWithAnIntactBase()
     {
         var world = CreateWorld();
         var seats = Seats.ForStart(world, matchSeed: 42, humanMask: 0b0001);
         var tanks = world.TankList.Tanks;
 
         Assert.Equal(1, LateJoin.PickSeat(world, seats, []));
-        tanks[1].LivesLeft--;
+        tanks[1].Die();
+        Assert.Equal(1, LateJoin.PickSeat(world, seats, []));
+        tanks[1].Base!.TakeDamage(tanks[1].Base!.Reactor.HealthCapacity);
         Assert.Equal(2, LateJoin.PickSeat(world, seats, []));
         Assert.Equal(3, LateJoin.PickSeat(world, seats, [2]));
         foreach (var tank in tanks.Skip(1))
         {
-            tank.LivesLeft = 1;
-            tank.Die();
+            tank.Base!.TakeDamage(tank.Base!.Reactor.HealthCapacity);
         }
         Assert.Equal(-1, LateJoin.PickSeat(world, seats, []));
     }

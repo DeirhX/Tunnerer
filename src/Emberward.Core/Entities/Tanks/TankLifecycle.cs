@@ -4,7 +4,6 @@ using Emberward.Core.Config;
 using Emberward.Core.Entities.Projectiles;
 using Emberward.Core.Resources;
 using Emberward.Core.Terrain;
-using Emberward.Core.Thermal;
 using Emberward.Core.Types;
 
 /// <summary>
@@ -31,7 +30,8 @@ internal sealed class TankLifecycle
     public VectorF LastHitVelocity { get; private set; }
     public int SpawnProtectionTicks { get; private set; }
 
-    public TimeSpan RespawnRemaining => _respawning && _tank.LivesLeft > 0 ? _respawnTimer : TimeSpan.Zero;
+    public TimeSpan RespawnRemaining =>
+        _respawning && _tank.Base is { IsDestroyed: false } ? _respawnTimer : TimeSpan.Zero;
 
     public void BeginTick()
     {
@@ -79,7 +79,8 @@ internal sealed class TankLifecycle
         SpawnProtectionTicks--;
     }
 
-    public void Die(ProjectileList? projectiles, ITerrainPixelAccessor? terrain, Func<Position, bool>? isOccupied = null)
+    public void Die(ProjectileList? projectiles, ITerrainPixelAccessor? terrain, Func<Position, bool>? isOccupied = null,
+        TimeSpan? delay = null, bool recall = false)
     {
         if (_respawning)
             return;
@@ -88,11 +89,11 @@ internal sealed class TankLifecycle
         reactor.Exhaust(new ReactorState(reactor.Heat, reactor.Health));
         _build.DiscardCarried();
         DropOre(terrain, isOccupied);
-        _tank.LivesLeft = Math.Max(0, _tank.LivesLeft - 1);
         _respawning = true;
-        _respawnTimer = _tank.LivesLeft > 0 ? Tweaks.Tank.RespawnDelay : TimeSpan.Zero;
+        _respawnTimer = delay ?? Tweaks.Tank.RespawnDelay;
 
-        projectiles?.AddExplosion(_tank.Position, Tweaks.Explosion.Death, Tweaks.Explosion.DeathHeatScale);
+        if (!recall)
+            projectiles?.AddExplosion(_tank.Position, Tweaks.Explosion.Death, Tweaks.Explosion.DeathHeatScale);
     }
 
     /// <summary>
@@ -108,25 +109,25 @@ internal sealed class TankLifecycle
         hold.Ore = 0;
     }
 
-    /// <summary>A dead tank's tick: it explodes once, then respawns at its base when the timer runs out and lives remain.</summary>
-    public void AdvanceDeath(ProjectileList projectiles, ITerrainPixelAccessor terrain, ThermalLedger ledger,
-        StepEventLog? events, Func<Position, bool>? isOccupied)
+    /// <summary>Drops cargo once, then respawns at an intact base when the timer runs out.</summary>
+    public void AdvanceDeath(in SimulationContext ctx, bool recall)
     {
         if (!_respawning)
         {
-            events?.Record(new StepEvent(StepEventKind.TankDied, _tank.Position, _tank.Color));
-            Die(projectiles, terrain, isOccupied);
+            ctx.Events?.Record(new StepEvent(StepEventKind.TankDied, _tank.Position, _tank.Color));
+            var delay = _tank.Base is { } home ? ctx.BasePower?.RespawnDelay(home) : null;
+            Die(ctx.Projectiles, ctx.Terrain, ctx.IsOccupied, delay, recall);
         }
 
-        if (_tank.LivesLeft <= 0)
+        if (_tank.Base is not { IsDestroyed: false })
             return;
 
-        _respawnTimer -= Tweaks.World.AdvanceStep;
-        if (_respawnTimer > TimeSpan.Zero)
+        _respawnTimer -= ctx.Settings.AdvanceStep;
+        if (!recall && _respawnTimer > TimeSpan.Zero)
             return;
 
-        _tank.Spawn(ledger);
-        events?.Record(new StepEvent(StepEventKind.TankRespawned, _tank.Position, _tank.Color));
+        _tank.Spawn(ctx.Heat.Ledger);
+        ctx.Events?.Record(new StepEvent(StepEventKind.TankRespawned, _tank.Position, _tank.Color));
     }
 
     /// <summary>Clears the death state and raises the respawn shield.</summary>

@@ -71,9 +71,10 @@ public sealed record MatchRules
         hash = Fnv1a.Mix(hash, (uint)FrostRockPockets);
         hash = Fnv1a.Mix(hash, SeedOre ? 1u : 0u);
         hash = Fnv1a.Mix(hash, CoreTapWins ? 1u : 0u);
-        // Version of the opt-in rules. Standard matches keep their existing fingerprint.
+        // Base destruction replaces the stock match's tank elimination rule.
+        hash = Fnv1a.Mix(hash, 8u);
         if (EnergyNetwork)
-            hash = Fnv1a.Mix(hash, 0xE4E8u);
+            hash = Fnv1a.Mix(hash, 0xE4E9u);
         return hash;
     }
 }

@@ -36,6 +36,7 @@ const BUILD_KEYS = ["E", "R", "T", "Y"];
 export class StatusView {
     constructor(input) {
         this.input = input;
+        $("recall").onclick = () => input.queue("recall", true);
         this.tankStatus = document.querySelector(".tank-status");
         this.builds = null;
         this.upgrades = null;
@@ -48,7 +49,6 @@ export class StatusView {
         setMeter($("heat"), p.heatGauge);
         setMeter($("shield"), p.shield);
         setText($("shield-text"), `${Math.round(p.shield * 100)}%`);
-        setText($("lives"), `${p.lives} ${p.lives === 1 ? "LIFE" : "LIVES"}`);
         setText(
             $("network"),
             p.docked
@@ -71,26 +71,29 @@ export class StatusView {
         }
         setText(
             $("power"),
-            `BASE CHARGE ${Math.round(p.charge * 100)}% / HEAT STORE ${Math.round(p.baseHeat * 100)}%`,
+            `BASE ARMOR ${Math.round(p.baseArmor * 100)}% / CHARGE ${Math.round(p.charge * 100)}% / HEAT ${Math.round(p.baseHeat * 100)}%`,
         );
         // With the energy network: the base store, what its engine and generators make against what its island draws, and the net.
-        const store = f.power?.base;
+        const store = f.basePower;
         setHidden($("network-power"), !store);
         if (store) {
-            setText($("network-power"), `NETWORK ${store.store} ${store.flow} ${store.net}`);
+            setText($("network-power"), `NETWORK ${store.store} ${store.flow} ${store.net} · ${store.shield}`);
             setProperty($("network-power"), "color", store.color);
         }
         this.updateBuilds(f.builds, p);
         setHidden($("upgrades"), !p.docked || p.dead);
         this.updateUpgrades(f.upgrades, p);
         this.updateHit(p);
+        setHidden($("recall"), !p.canRecall || p.outcome !== "InProgress");
         setHidden($("death"), !p.dead && p.outcome === "InProgress");
         setText(
             $("death"),
             p.outcome === "Victory"
                 ? "SECTOR SECURED\nOpen the menu for a new world."
                 : p.outcome === "Defeat"
-                  ? "DIVE ENDED\nOpen the menu to try a new world."
+                  ? p.baseDestroyed
+                      ? "BASE DESTROYED\nOpen the menu to try a new world."
+                      : "DIVE ENDED\nOpen the menu to try a new world."
                   : `TANK LOST\nRespawning in ${Math.ceil(p.respawnSeconds)}s`,
         );
     }

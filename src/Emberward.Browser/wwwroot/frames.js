@@ -137,6 +137,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                 i?.aimY || 0,
                 i?.build || 0,
                 i?.upgrade || 0,
+                Boolean(i?.recall),
                 data.width,
                 data.height,
                 data.scale,
@@ -144,6 +145,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                 data.delta || 0,
                 data.time || 0,
                 Boolean(data.thermalView),
+                data.powerLabelCellSize || 0,
                 Boolean(data.due),
                 data.now || 0,
             );

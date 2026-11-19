@@ -626,7 +626,8 @@ function animate(now) {
         !pausedFrameSent ||
         view.width !== sentView.width ||
         view.height !== sentView.height ||
-        view.scale !== sentView.scale;
+        view.scale !== sentView.scale ||
+        view.powerLabelCellSize !== sentView.powerLabelCellSize;
     if (playing && !busy && !document.hidden && wanted) {
         let request;
         if (net) {

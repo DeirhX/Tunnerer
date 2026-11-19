@@ -200,7 +200,7 @@ public sealed class BrowserNetMatch
     /// <summary>Keeps a build or upgrade press until a step carries it: a frame may simulate no tick at all.</summary>
     private void Hold(ControllerOutput input)
     {
-        if ((input.BuildPrimary || input.BuildSecondary || input.BuildTertiary || input.BuildQuaternary || input.Upgrade != 0) &&
+        if ((input.BuildPrimary || input.BuildSecondary || input.BuildTertiary || input.BuildQuaternary || input.Recall || input.Upgrade != 0) &&
             _actions.Count < MaxQueuedActions)
             _actions.Enqueue(input);
     }
@@ -214,6 +214,7 @@ public sealed class BrowserNetMatch
         var next = held;
         next.BuildPrimary = next.BuildSecondary = next.BuildTertiary = next.BuildQuaternary = false;
         next.Upgrade = 0;
+        next.Recall = false;
         if (_lastSentAction)
         {
             _lastSentAction = false;
@@ -227,6 +228,7 @@ public sealed class BrowserNetMatch
             next.BuildTertiary = press.BuildTertiary;
             next.BuildQuaternary = press.BuildQuaternary;
             next.Upgrade = press.Upgrade;
+            next.Recall = press.Recall;
         }
         return next;
     }

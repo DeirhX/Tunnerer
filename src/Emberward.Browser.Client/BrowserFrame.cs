@@ -5,31 +5,15 @@ using Emberward.Core.Types;
 
 /// <param name="Dial">The heat dial's colours, with a match's first frame only; null after it.</param>
 /// <param name="Net">The network match (<see cref="BrowserNetMatch"/>); null in a local one.</param>
-/// <param name="Power">The charge labels (<see cref="PowerOverlay"/>); null while the match runs no energy network.</param>
+/// <param name="BasePower">The base charge readout, present in an energy-network match.</param>
 public sealed record BrowserFrame(
     int Seed, int Tick, int TickRate, PlayerStatus Player,
     SoundFrame Sounds, BuildOption[] Builds,
     UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal, GuidanceStatus Guidance, HeatDial? Dial,
-    NetStatus? Net = null, PowerOverlay? Power = null);
-
-/// <summary>
-/// The charge and flow overlay (DESIGN.md §4.9), as the desktop's <c>GameHud.Power</c> draws it: the words, colours and
-/// distance fade come from the shared <c>PowerLabels</c>; the page places each label over its machine's cell, fades it
-/// by zoom between <paramref name="ZoomGone"/> and <paramref name="ZoomFull"/> CSS pixels a cell, and hides them all on G.
-/// </summary>
-/// <param name="Machines">The machines in sight near the player's tank, in machine order.</param>
-/// <param name="Base">The player's base store.</param>
-/// <param name="Text">The colour of a label's charge line, as #rrggbb (<c>HudPalette.Text</c>).</param>
-/// <param name="Track">The colour of a fill bar's empty part, as #rrggbb (<c>HudPalette.Track</c>).</param>
-/// <param name="LiftCells">Cells above a machine's cell where its label's bottom sits.</param>
-public sealed record PowerOverlay(MachineCharge[] Machines, BaseCharge Base, string Text, string Track,
-    float ZoomGone, float ZoomFull, float LiftCells);
-
-/// <summary>One machine's label (<c>PowerLabel</c>): its cell, the two lines, the fill, its colour as #rrggbb and how strongly it shows.</summary>
-public sealed record MachineCharge(Position Position, string Charge, string Flow, float Fill, string Color, float Opacity);
+    NetStatus? Net = null, BaseCharge? BasePower = null);
 
 /// <summary>The base store's row (<c>BasePowerLabel</c>).</summary>
-public sealed record BaseCharge(string Store, string Flow, string Net, float Fill, string Color);
+public sealed record BaseCharge(string Store, string Flow, string Net, float Fill, string Color, string Shield);
 
 /// <summary>
 /// The dial round the desktop's heat orb (<c>HeatGauge</c>): its bands' colours from cold to hot, as #rrggbb, where
@@ -50,10 +34,10 @@ public sealed record HeatDial(string[] Bands, float Ambient, float Safe, float M
 /// <param name="OreLine">The line beneath the hold window (<c>BuildSlotView.OreLine</c>).</param>
 public sealed record PlayerStatus(
     Position Position, Position Home, float Heat, float HeatLimit, float HeatGauge, string HeatColor,
-    float HitFlash, float HitFromX, float HitFromY, float Shield, int Lives,
-    int Ore, int HoldCapacity, int Store, double Charge, double BaseHeat,
-    bool Docked, bool OffNetwork, float SafeSeconds, bool Dead, double RespawnSeconds,
-    string Outcome, string? Carrying,
+    float HitFlash, float HitFromX, float HitFromY, float Shield,
+    int Ore, int HoldCapacity, int Store, double Charge, double BaseHeat, double BaseArmor,
+    bool Docked, bool OffNetwork, float SafeSeconds, bool Dead, double RespawnSeconds, bool CanRecall,
+    string Outcome, string? Carrying, bool BaseDestroyed,
     int Health, float Frozen, float Boil, bool Burning, bool ShieldLow, bool HitFresh, int OrePileFrame,
     bool Unloading, bool HoldFull, bool OffNetworkUrgent, string OreLine);
 

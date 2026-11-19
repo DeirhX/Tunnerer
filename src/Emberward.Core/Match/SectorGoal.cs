@@ -3,7 +3,6 @@ namespace Emberward.Core.Match;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Types;
-using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Bases;
 
 /// <summary>
@@ -36,7 +35,7 @@ public sealed class SectorGoal
     /// <summary>Where the core is: the large hot rock pocket at the map centre, or the nearest spot to it clear of the bases.</summary>
     public Position Core { get; }
 
-    /// <summary>The base that tapped the core first, among those whose tank still had lives left; null until one has.</summary>
+    /// <summary>The base that tapped the core first, among intact bases; null until one has.</summary>
     public TankBase? FirstToTapCore { get; private set; }
 
     /// <summary>How <paramref name="tankBase"/> stands on the goal, or null for a base that is not in the match.</summary>
@@ -49,7 +48,7 @@ public sealed class SectorGoal
         return null;
     }
 
-    public void Advance(MachineList machines, IReadOnlyList<Tank> tanks, double dt)
+    public void Advance(MachineList machines, double dt)
     {
         const int radius = Tweaks.Goal.CoreTapRadius;
         const int radiusSq = radius * radius;
@@ -60,6 +59,11 @@ public sealed class SectorGoal
         {
             TankBase tankBase = _bases[b];
             CoreTap state = _taps[b];
+            if (tankBase.IsDestroyed)
+            {
+                state.TapPerTick = 0.0;
+                continue;
+            }
             double tap = 0.0;
             foreach (var machine in _nearCore)
                 if (machine.IsAlive && machine.Behavior.IsHeatPump && machine.OwnerBase == tankBase &&
@@ -71,9 +75,7 @@ public sealed class SectorGoal
             {
                 state.HasTapped = true;
                 // Bases are visited in slot order, so two that finish on the same tick always resolve the same way.
-                // A base whose tank is out of lives is out of the race, even if its hold was already running.
-                if (!MatchReferee.IsEliminated(tanks, tankBase))
-                    FirstToTapCore ??= tankBase;
+                FirstToTapCore ??= tankBase;
             }
         }
     }

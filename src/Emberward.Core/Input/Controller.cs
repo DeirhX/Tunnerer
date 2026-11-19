@@ -7,6 +7,7 @@ public struct ControllerOutput
 {
     public Offset MoveSpeed;
     public bool ShootPrimary;
+    public bool Recall;
     public DirectionF AimDirection;
     public bool BuildPrimary;
     /// <summary>Second build key: builds (and plants) a harvester instead of a relay.</summary>

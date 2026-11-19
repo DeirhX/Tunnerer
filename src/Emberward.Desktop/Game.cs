@@ -134,7 +134,6 @@ public partial class Game : IDisposable
             _radar = _world.TrackRadar(localTank);
         }
         _terrainView = _vision != null ? TerrainView.Fogged(_world.Terrain, _vision) : TerrainView.Live(_world.Terrain);
-        _hud.Vision = _vision;
 
         _worldPixels = new uint[_terrainSize.Area];
         _terrainAuxUploader = new TerrainAuxUploader(_terrainSize, _terrainAuxBuilder, _drawProfile);

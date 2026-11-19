@@ -1,5 +1,6 @@
 namespace Emberward.Tests;
 
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Emberward.Browser.Client;
 using Emberward.Core;
@@ -9,10 +10,12 @@ using Emberward.Core.Network;
 using Emberward.Core.Types;
 using Emberward.Desktop.Config;
 using Emberward.Desktop.Gui;
+using Emberward.Desktop.Rendering;
+using Emberward.Desktop.Rendering.Entities;
 
 /// <summary>
 /// The charge and flow overlay (DESIGN.md §4.9): the shared words and colours (<see cref="PowerLabels"/>), the machines
-/// it picks, and what the browser's frame carries of it. Output only, from <see cref="World.MachinePowerOf"/> and
+/// it picks, and what the browser's HUD and render packet carry. Output only, from <see cref="World.MachinePowerOf"/> and
 /// <see cref="World.BasePowerOf"/>.
 /// </summary>
 public class PowerLabelsTests
@@ -176,9 +179,11 @@ public class PowerLabelsFrameTests
 {
     [Fact]
     [Trait("Category", "Slow")]
-    public void TheBrowserFrame_CarriesTheLabels_OnlyInAMatchWithTheEnergyNetwork()
+    public void TheBrowserFrame_CarriesChargeQuadsAndABaseReadout_InEnergyMatches()
     {
-        Assert.Null(BrowserFrameBuilder.Capture(new BrowserSession(1234), includeEvents: false).Power);
+        var standard = new BrowserSession(1234);
+        Assert.Null(BrowserFrameBuilder.Capture(standard, includeEvents: false).BasePower);
+        Assert.Empty(RenderLabels(standard, cellSize: 6f));
 
         var session = new BrowserSession(1234, energyNetwork: true);
         var world = session.World;
@@ -189,28 +194,32 @@ public class PowerLabelsFrameTests
         world.PlantMachine(relay, home);
         session.Advance(default);
 
-        var power = BrowserFrameBuilder.Capture(session, includeEvents: false).Power;
-
-        Assert.NotNull(power);
+        var frame = BrowserFrameBuilder.Capture(session, includeEvents: false);
         var expected = PowerLabels.Of(world.BasePowerOf(home)!.Value);
-        Assert.Equal(new BaseCharge(expected.Store, expected.Flow, expected.Net, expected.Fill, HudPalette.Hex(expected.Color)),
-            power.Base);
-        Assert.Equal(HudPalette.Hex(HudPalette.Text), power.Text);
-        Assert.Equal(DesktopScreenTweaks.PowerLabelZoomGone, power.ZoomGone);
-        Assert.Equal(PowerLabels.LiftCells, power.LiftCells);
-        var line = Assert.Single(power.Machines, m => m.Position == spot);
-        var label = PowerLabels.Of(world.MachinePowerOf(relay)!.Value);
-        Assert.Equal((label.Charge, label.Flow, label.Fill, HudPalette.Hex(label.Color)),
-            (line.Charge, line.Flow, line.Fill, line.Color));
-        Assert.All(power.Machines, m => Assert.True(session.Vision.IsVisible(m.Position)));
+        Assert.Equal(new BaseCharge(expected.Store, expected.Flow, expected.Net, expected.Fill, HudPalette.Hex(expected.Color), expected.Shield),
+            frame.BasePower);
 
-        // The page reads it as JSON, under "power".
-        string json = JsonSerializer.Serialize(BrowserFrameBuilder.Capture(session, includeEvents: false),
-            BrowserJsonContext.Default.BrowserFrame);
+        string json = JsonSerializer.Serialize(frame, BrowserJsonContext.Default.BrowserFrame);
         using var parsed = JsonDocument.Parse(json);
-        var machines = parsed.RootElement.GetProperty("power").GetProperty("machines");
-        Assert.Equal(power.Machines.Length, machines.GetArrayLength());
-        Assert.Equal(line.Charge, machines.EnumerateArray().First(m => m.GetProperty("position").GetProperty("x").GetInt32() == spot.X
-            && m.GetProperty("position").GetProperty("y").GetInt32() == spot.Y).GetProperty("charge").GetString());
+        Assert.Equal(expected.Store, parsed.RootElement.GetProperty("basePower").GetProperty("store").GetString());
+
+        Assert.True(session.Vision.IsVisible(spot));
+        var full = RenderLabels(session, cellSize: 6f);
+        Assert.Contains(full, v => v.P2 > 0f);
+        Assert.Contains(full, v => v.P2 == 0f);
+
+        float halfZoom = (DesktopScreenTweaks.PowerLabelZoomGone + DesktopScreenTweaks.PowerLabelZoomFull) * 0.5f;
+        var faded = RenderLabels(session, halfZoom);
+        Assert.Equal(full.Length, faded.Length);
+        Assert.Equal(full[0].P3 * 0.5f, faded[0].P3, precision: 5);
+        Assert.Empty(RenderLabels(session, DesktopScreenTweaks.PowerLabelZoomGone));
+        Assert.Empty(RenderLabels(session, cellSize: 0f));
+    }
+
+    private static EntityVertex[] RenderLabels(BrowserSession session, float cellSize)
+    {
+        session.Scene.Render(1280, 720, 6, alpha: 1f, delta: 0f, time: 0f, powerLabelCellSize: cellSize);
+        return MemoryMarshal.Cast<byte, EntityVertex>(session.Scene.Vertices).ToArray()
+            .Where(v => v.Kind == EntityShape.KindPowerLabel).ToArray();
     }
 }

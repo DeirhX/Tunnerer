@@ -19,9 +19,9 @@ public struct EntityVertex
 
 /// <summary>
 /// Turns simulation snapshots into the entity layer's quads: radar blips, network coverage, links, the placement preview,
-/// machines, tanks and projectiles, in that order (later ones draw on top). <see cref="EntityInterpolator"/> places
+/// machines, tanks, projectiles and charge labels, in that order (later ones draw on top). <see cref="EntityInterpolator"/> places
 /// tanks and machines between the last two simulation steps; each family's emitter in <c>Rendering/Entities</c>
-/// writes its quads. It only reads render snapshots; nothing here feeds back into the simulation.
+/// writes its quads. The layer reads simulation state solely for drawing.
 /// </summary>
 public sealed class EntityLayerBuilder
 {
@@ -38,6 +38,7 @@ public sealed class EntityLayerBuilder
     private readonly BeamFader _beams = new();
     private readonly PreviewQuads _preview = new();
     private readonly ProjectileQuads _projectiles = new();
+    private readonly PowerLabelQuads _powerLabels = new();
     private TankRenderState[] _tankScratch = [];
     private MachineRenderState[] _machineScratch = [];
 
@@ -61,6 +62,7 @@ public sealed class EntityLayerBuilder
         _coverage.Capture(world, localSlot);
         _links.Capture(world);
         _projectiles.Capture(world);
+        _powerLabels.CaptureStep(world, localSlot);
     }
 
     /// <summary>
@@ -76,10 +78,11 @@ public sealed class EntityLayerBuilder
     /// <paramref name="visualSeconds"/> is the game's visual clock, which drives every animation (pulses, blinking).
     /// With fog of war, <paramref name="vision"/> is the player's: tanks, machines, shots and links out of its sight
     /// are left out, and <paramref name="radar"/>'s blips are drawn on the ground it cannot see.
+    /// <paramref name="powerLabelCellSize"/> is the displayed size of a cell in UI units, or zero to hide charge labels.
     /// </summary>
     public void Build(
         in RenderView view, float alpha, float turnSeconds, bool snapHeadings, float visualSeconds,
-        VisionMap? vision = null, Radar? radar = null)
+        VisionMap? vision = null, Radar? radar = null, float powerLabelCellSize = 0f)
     {
         _quads.Begin(view, visualSeconds % AnimationPhaseWrapSeconds, alpha);
         bool protectedBlinkOn = (long)(visualSeconds * 1000f) / ProtectedBlinkMilliseconds % 2 == 0;
@@ -101,5 +104,6 @@ public sealed class EntityLayerBuilder
         MachineQuads.Emit(_quads, _interpolator, turnSeconds, snapHeadings, vision);
         TankQuads.Emit(_quads, _interpolator, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn, vision);
         _projectiles.Emit(_quads, vision);
+        _powerLabels.Emit(_quads, vision, powerLabelCellSize);
     }
 }

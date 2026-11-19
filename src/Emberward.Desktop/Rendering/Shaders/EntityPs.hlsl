@@ -22,6 +22,7 @@
 #include "Entity/Machines.hlsli"
 #include "Entity/Beams.hlsli"
 #include "Entity/Overlays.hlsli"
+#include "Entity/PowerLabel.hlsli"
 
 float4 main(PSIn input) : SV_Target
 {
@@ -68,7 +69,9 @@ float4 main(PSIn input) : SV_Target
         result = RadarBlip(p, input.color.rgb, input.params, aa);
     else if (kind < kKindRadarPulse + 0.5)
         result = RadarPulse(p, input.params, aa);
-    else // kKindGenerator
+    else if (kind < kKindGenerator + 0.5)
         result = Generator(p, input.params, aa);
+    else // kKindPowerLabel
+        result = PowerLabel(p, input.color.rgb, input.params);
     return result;
 }

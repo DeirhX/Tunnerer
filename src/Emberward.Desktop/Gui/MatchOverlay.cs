@@ -8,7 +8,7 @@ using Emberward.Core.Match;
 using Emberward.Core.Entities.Tanks;
 using static Emberward.Desktop.Gui.HudDraw;
 
-/// <summary>Death screen: what destroyed the tank and when it respawns; victory and defeat when lives run out.</summary>
+/// <summary>Death screen: what destroyed the tank and when it respawns; victory and defeat when a base falls or taps the core.</summary>
 public static class MatchOverlay
 {
     /// <param name="canRestart">Whether Enter starts a new match once this one is over.</param>
@@ -34,19 +34,25 @@ public static class MatchOverlay
             return;
         }
 
-        // Still alive, but another tank won the race to the core.
-        if (outcome == MatchOutcome.Defeat && !MatchReferee.IsOutOfLives(player))
+        if (outcome == MatchOutcome.Defeat)
         {
             dl.AddRectFilled(new Vector2(vp.x, vp.y), new Vector2(vp.x + vp.w, vp.y + vp.h), 0x70000000u);
             DrawCenteredText(dl, 44f, cx, cy - 30f, "DEFEAT", 0xFF4040FFu);
-            DrawCenteredText(dl, 20f, cx, cy + 20f, $"{winnerName ?? "Another tank"} tapped the core first", 0xFFFFFFFFu);
+            string why = player.Base?.IsDestroyed == true ? "Your base was destroyed"
+                : world.MatchWinner?.Reason == MatchWinReason.TappedTheCore ? $"{winnerName ?? "Another tank"} tapped the core first"
+                : "The enemy base is the last standing";
+            DrawCenteredText(dl, 20f, cx, cy + 20f, why, 0xFFFFFFFFu);
             if (canRestart)
                 DrawCenteredText(dl, 20f, cx, cy + 50f, "Press Enter to play again", 0xFFC0E0FFu);
             return;
         }
 
         if (!player.IsDead)
+        {
+            if (player.CanRecall)
+                DrawCenteredText(dl, 20f, cx, cy, "Stranded. Press X to drop cargo and respawn", 0xFFC0E0FFu);
             return;
+        }
 
         dl.AddRectFilled(new Vector2(vp.x, vp.y), new Vector2(vp.x + vp.w, vp.y + vp.h), 0x70000000u);
         string cause = player.DeathCause switch
@@ -57,27 +63,17 @@ public static class MatchOverlay
             _ => "Destroyed",
         };
 
-        if (outcome == MatchOutcome.Defeat)
-        {
-            DrawCenteredText(dl, 44f, cx, cy - 30f, "DEFEAT", 0xFF4040FFu);
-            DrawCenteredText(dl, 20f, cx, cy + 20f, cause + " - no lives left", 0xFFFFFFFFu);
-            if (canRestart)
-                DrawCenteredText(dl, 20f, cx, cy + 50f, "Press Enter to play again", 0xFFC0E0FFu);
-            return;
-        }
-
         DrawCenteredText(dl, 44f, cx, cy - 30f, "TANK DESTROYED", 0xFF4060FFu);
         DrawCenteredText(dl, 20f, cx, cy + 20f, cause, 0xFFFFFFFFu);
-        string lives = player.LivesLeft == 1 ? "1 life left" : $"{player.LivesLeft} lives left";
         DrawCenteredText(dl, 20f, cx, cy + 48f,
-            $"Respawning at base in {player.RespawnRemaining.TotalSeconds:0.0} s  -  {lives}", 0xFFC0E0FFu);
+            $"Respawning at base in {player.RespawnRemaining.TotalSeconds:0.0} s", 0xFFC0E0FFu);
     }
 
     /// <summary>Why the player won, in a line.</summary>
     public static string VictoryLine(World world) => world.MatchWinner?.Reason switch
     {
         MatchWinReason.TappedTheCore => "Your base tapped the core first",
-        _ when world.TankList.Count > 2 => "Every other tank is out of lives",
-        _ => "The enemy tank is out of lives",
+        _ when world.TankList.Count > 2 => "Every other base was destroyed",
+        _ => "The enemy base was destroyed",
     };
 }

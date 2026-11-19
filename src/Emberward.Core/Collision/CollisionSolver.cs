@@ -5,6 +5,7 @@ using Emberward.Core.Terrain;
 using Emberward.Core.Entities;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Entities.Bases;
 
 /// <summary>
 /// What stops a tank's step, in the order the move meets them. <see cref="Dirt"/> yields to one dig; <see cref="Hard"/>
@@ -34,6 +35,7 @@ public class CollisionSolver
 {
     private readonly TerrainGrid _terrain;
     private readonly WorldSectors _tankSectors;
+    private readonly TankBases? _bases;
     private TankList? _tanks;
     private MachineList? _machines;
     private readonly List<List<Machine>> _nearMachines = new();
@@ -43,9 +45,14 @@ public class CollisionSolver
 
     public TerrainGrid Terrain => _terrain;
 
-    public CollisionSolver(TerrainGrid terrain)
+    internal TankBase? EnemyBaseAt(Position pos, int ownerColor) =>
+        _bases?.BaseOccupying(pos) is { IsDestroyed: false } tankBase && tankBase.Color != ownerColor
+            ? tankBase : null;
+
+    public CollisionSolver(TerrainGrid terrain, TankBases? bases = null)
     {
         _terrain = terrain;
+        _bases = bases;
         _tankSectors = new WorldSectors(terrain.Size);
     }
 

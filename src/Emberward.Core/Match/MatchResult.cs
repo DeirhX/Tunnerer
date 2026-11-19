@@ -18,14 +18,14 @@ public sealed class MatchResult
     public MatchResult(IReadOnlyList<Tank> tanks) => _tanks = tanks;
 
     /// <summary>
-    /// The tank that has won, and how. Null while the match is undecided, and after a match that ended with no tank
-    /// left. Once <see cref="Latch"/> has recorded a result, it never changes.
+    /// The tank that has won, and how. Null while the match is undecided, and after a match that ended with every base
+    /// destroyed. Once <see cref="Latch"/> has recorded a result, it never changes.
     /// </summary>
     /// <param name="raceWinner">The base that won the race to the core, or null (also when the match is not a race).</param>
     public (Tank Tank, MatchWinReason Reason)? Winner(TankBase? raceWinner) =>
         _decided ? _winner : MatchReferee.Winner(_tanks, raceWinner);
 
-    /// <summary>A match is over once a tank has won, or no tank has a life left. It stays over.</summary>
+    /// <summary>A match is over once a tank has won, or every base is destroyed. It stays over.</summary>
     public bool IsOver(TankBase? raceWinner) =>
         _decided || Winner(raceWinner) != null || MatchReferee.NobodyIsLeft(_tanks);
 

@@ -2,6 +2,9 @@ namespace Emberward.Core.Bots;
 
 using Emberward.Core.Collision;
 using Emberward.Core.Config;
+using Emberward.Core.Terrain;
+using Emberward.Core.Match;
+using Emberward.Core.Entities.Bases;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Types;
 using Emberward.Core.Input;
@@ -120,7 +123,7 @@ public class BotTankAI
         long bestRank = long.MaxValue;
         for (int i = 0; i < tanks.Count; i++)
         {
-            if (i == self)
+            if (i == self || MatchReferee.IsEliminated(tanks[i]))
                 continue;
             // A dead tank ranks behind every live one, whatever the distance.
             long rank = Position.DistanceSquared(tanks[i].Position, tanks[self].Position)
@@ -141,12 +144,20 @@ public class BotTankAI
             SetMode(TwitchMode.Return); // After a kill the bot goes home instead of waiting at the enemy's base exit.
         _gunner.UpdateLineOfSight(tank, enemy, world.Terrain);
 
-        if (tank.IsDead)
+        if (tank.IsDead || MatchReferee.IsEliminated(tank))
         {
             // It respawns in its base, whole and cold: it starts over from there.
             SetMode(TwitchMode.Start);
             _returnCooldownFrames = 0;
             return default;
+        }
+
+        if (tank.Base is { } home && world.IsBaseDark(home))
+        {
+            if (tank.OreHeld > 0 && !tank.IsDockedAtOwnBase && _mode == TwitchMode.Twitch)
+                SetMode(TwitchMode.Return);
+            else if (_mode == TwitchMode.Recharge && tank.IsDockedAtOwnBase && tank.OreHeld == 0 && IsRecharged(tank))
+                SetMode(TwitchMode.Start);
         }
 
         if (_returnCooldownFrames > 0)
@@ -267,10 +278,19 @@ public class BotTankAI
     {
         var profile = _profiles.Active;
         bool hurtOrHot = _returnCooldownFrames <= 0 && (tank.Reactor.Health < ReturnBelowHealth || NeedsToCool(tank));
+        if (hurtOrHot && tank.CanRecall && tank.OreHeld == 0)
+            return new ControllerOutput { Recall = true };
         if (hurtOrHot || IsInsideOwnBase(tank))
         {
             SetMode(TwitchMode.Return);
             return default;
+        }
+
+        if (!_gunner.EnemyInSight && enemy?.Base is { IsDestroyed: false } enemyBase &&
+            FindBaseWall(tank, enemyBase, world) is Position wall)
+        {
+            _timeToChange = 0;
+            return new ControllerOutput { ShootPrimary = true, AimDirection = BotGunner.AimTowardsOffset(wall - tank.Position) };
         }
 
         bool hasTarget = enemy != null && !enemy.IsDead;
@@ -338,6 +358,8 @@ public class BotTankAI
     /// </summary>
     private ControllerOutput DoReturn(Tank tank, World world, int relX, int relY)
     {
+        if (tank.CanRecall && tank.OreHeld == 0)
+            return new ControllerOutput { Recall = true };
         int cellsFromBase = Math.Max(Math.Abs(relX), Math.Abs(relY));
         if (cellsFromBase < _returnNearestCells - ReturnHeadwayCells)
         {
@@ -411,6 +433,28 @@ public class BotTankAI
         int sx = relX != 0 ? (relX < 0 ? 1 : -1) : 0;
         int sy = relY != 0 ? (relY < 0 ? 1 : -1) : 0;
         return new ControllerOutput { MoveSpeed = new Offset(sx, sy) };
+    }
+
+    /// <summary>The first wall or core cell the tank can hit with a straight shot toward the enemy base.</summary>
+    private static Position? FindBaseWall(Tank tank, TankBase home, World world)
+    {
+        var from = tank.Position;
+        int range = Tweaks.Weapon.BotBaseAttackRange;
+        if (Position.DistanceSquared(from, home.Position) > range * range)
+            return null;
+        Position? wall = null;
+        Raycaster.BresenhamLineAny(from, home.Position, pos =>
+        {
+            if (pos == from)
+                return false;
+            var pixel = world.Terrain.GetPixelRaw(pos);
+            if (!Pixel.IsAnyCollision(pixel))
+                return false;
+            if (Pixel.IsAnyBaseCell(pixel) && home.OccupiesCell(pos))
+                wall = pos;
+            return true;
+        });
+        return wall;
     }
 
     /// <summary>Room left before the tank overheats, as a share of a fully cooled tank's room.</summary>

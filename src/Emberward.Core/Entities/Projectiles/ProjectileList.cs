@@ -7,6 +7,7 @@ using Emberward.Core.Entities;
 using Emberward.Core.Resources;
 using Emberward.Core.Collision;
 using Emberward.Core.Rendering;
+using Emberward.Core.Network;
 
 /// <summary>
 /// Defines per-type projectile behavior: how it advances and what color it draws.
@@ -22,6 +23,7 @@ public class ProjectileList
     private readonly List<Projectile> _pending = new();
     private FastRandom _rng;
     private readonly StepEventLog? _events;
+    private readonly BasePowerSystem? _basePower;
 
     /// <summary>
     /// Single source of truth for per-type projectile behavior.
@@ -43,10 +45,11 @@ public class ProjectileList
     }
 
     /// <param name="events">Where impacts, hits and explosions are recorded (<see cref="World.StepEvents"/>); null records nothing.</param>
-    public ProjectileList(int seed, StepEventLog? events = null)
+    public ProjectileList(int seed, StepEventLog? events = null, BasePowerSystem? basePower = null)
     {
         _rng = new FastRandom(seed);
         _events = events;
+        _basePower = basePower;
     }
 
     public int Count => _projectiles.Count + _pending.Count;
@@ -105,7 +108,16 @@ public class ProjectileList
                 onTerrain: pix =>
                 {
                     if (!Pixel.IsAnyCollision(pix)) return false;
-                    self.RecordImpact(ipos, p, ImpactTarget.Terrain);
+                    if (Pixel.IsAnyBaseCell(pix) && solver.EnemyBaseAt(ipos, p.OwnerColor) is { } target)
+                    {
+                        int raw = Tweaks.Weapon.BulletDamage;
+                        target.TakeDamage(self._basePower?.Damage(target, raw) ?? raw);
+                        self._events?.Record(new StepEvent(target.IsDestroyed ? StepEventKind.BaseDestroyed : StepEventKind.BaseDamaged,
+                            target.Position, target.Color));
+                        self.RecordImpact(ipos, p, ImpactTarget.Base);
+                    }
+                    else
+                        self.RecordImpact(ipos, p, ImpactTarget.Terrain);
                     return true;
                 });
 

@@ -39,7 +39,8 @@ public partial class Game
         float visualTime = VisualTime;
         _entityLayer.Build(
             renderView, stepProgress, turnSeconds: WorldStandsStill ? 0f : dt, snapHeadings: !_interpolateFrames,
-            visualSeconds: visualTime, vision: _vision, radar: _radar);
+            visualSeconds: visualTime, vision: _vision, radar: _radar,
+            powerLabelCellSize: _commandController.ShowPowerLabels && !InNetLobby ? scale / ImGuiPlatform.DeviceScale : 0f);
         ScreenEffectLevels screenEffects = _screenEffects.Update(_terrainTestMode ? null : player, WorldStandsStill ? 0f : dt);
         bool steppedSinceRender = _steppedSinceRender;
         _steppedSinceRender = false;
@@ -131,7 +132,6 @@ public partial class Game
                 _hud.Camera = (_renderViewState.CamPixelX, _renderViewState.CamPixelY, _renderViewState.CellPixels);
                 var gameTextureSize = _renderBackend.GameTextureSize;
                 _hud.WaitingForPlayers = InNetLobby;
-                _hud.ShowPowerLabels = _commandController.ShowPowerLabels;
                 DrawProfile.Measure(ref _drawProfile.ScreenHudDraw, () =>
                     _hud.Draw(
                         _renderBackend.GameTextureId,

@@ -39,7 +39,6 @@ public class LinkMap : ISnapshotLoaded
     // What has happened since the last refresh.
     private readonly List<LinkPoint> _unlinked = new();
     private bool _hasDisabledPoint;
-    private bool _hasDisabledMachinePoint;
     private bool _hasSpreadPower;
 
     // Looked up by key only, never enumerated, so its order cannot reach the simulation.
@@ -85,7 +84,6 @@ public class LinkMap : ISnapshotLoaded
         hash = Fnv1a.Mix(hash, _elapsed);
         hash = Fnv1a.Mix(hash, _nextRelink);
         hash = Fnv1a.Mix(hash, _hasDisabledPoint);
-        hash = Fnv1a.Mix(hash, _hasDisabledMachinePoint);
         return Fnv1a.Mix(hash, _hasSpreadPower);
     }
 
@@ -95,8 +93,8 @@ public class LinkMap : ISnapshotLoaded
         _elapsed += dt;
         if (_elapsed >= _nextRelink)
             _nextRelink += Tweaks.World.RefreshLinkMapInterval;
-        else if (!_hasDisabledMachinePoint)
-            return; // a destroyed machine's point is pruned at once, so the network around it changes that tick
+        else if (!_hasDisabledPoint)
+            return; // Destroyed points disconnect the network this tick.
 
         Refresh(terrain);
     }
@@ -109,7 +107,6 @@ public class LinkMap : ISnapshotLoaded
             return;
         }
         _hasDisabledPoint = true;
-        _hasDisabledMachinePoint |= point.Type != LinkPointType.Base;
     }
 
     private int GeneratePointId(int pointIndex)
@@ -145,7 +142,6 @@ public class LinkMap : ISnapshotLoaded
         if (!_hasDisabledPoint)
             return false;
         _hasDisabledPoint = false;
-        _hasDisabledMachinePoint = false;
 
         int kept = 0;
         for (int i = 0; i < _links.Count; i++)
@@ -156,14 +152,13 @@ public class LinkMap : ISnapshotLoaded
             else
                 Unfile(link);
         }
-        bool changed = kept < _links.Count;
         _links.RemoveRange(kept, _links.Count - kept);
 
         foreach (var point in _points)
             if (!point.IsEnabled)
                 point.IsLinked = false;
-        changed |= _points.RemoveAll(p => !p.IsEnabled && p.Type != LinkPointType.Base) > 0;
-        return changed;
+        _points.RemoveAll(p => !p.IsEnabled && p.Type != LinkPointType.Base);
+        return true;
     }
 
     /// <summary>Makes the links of the points registered since the last refresh, to every point within reach.</summary>
@@ -319,7 +314,7 @@ public class LinkMap : ISnapshotLoaded
         _frontier.Clear();
         foreach (var p in _points)
         {
-            p.IsPowered = p.Type == LinkPointType.Base;
+            p.IsPowered = p.IsEnabled && p.Type == LinkPointType.Base;
             p.UpstreamLink = null;
             p.Hops = p.IsPowered ? 0 : -1;
             p.PoweredInRound = p.IsPowered ? 1 : 0;

@@ -33,9 +33,11 @@
 //                   color.r = what heat left of the ray (0..1), color.g = a per-cell seed
 //  16 radar pulse — .x = front radius (cells), .y = fade (1 just sent, 0 at full range)
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
+//  18 power label — .xy = packed 5x7 glyph bitmap (low 20 bits, then high 15), .z = dots per cell
+//                   (0 for a solid bar), .w = opacity
 //
 // color.rgb is the team colour (tank hull, turret), the body colour (hot shot),
-// the tint (reach area, coverage) or data (radar blip). Every other kind owns its colours
+// the tint (reach area, coverage, power label) or data (radar blip). Every other kind owns its colours
 // here in the shader; the C# side sends black for them.
 // ============================================================================
 
@@ -61,6 +63,7 @@ static const float kKindTether = 14.0;
 static const float kKindRadarBlip = 15.0;
 static const float kKindRadarPulse = 16.0;
 static const float kKindGenerator = 17.0;
+static const float kKindPowerLabel = 18.0;
 
 // Machine flags (params.w); EntityShape's MachineFlag* constants must match.
 static const float kMachineFlagStalled = 1.0;

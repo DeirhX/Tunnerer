@@ -122,7 +122,7 @@ internal sealed class TankThermals
         }
 
         Coverage = ctx.CoverageFor(_tank);
-        if (ctx.CheckBaseCollision(_tank.Position) != null)
+        if (ctx.CheckBaseCollision(_tank.Position) is { IsDestroyed: false })
         {
             // Docked or passing through a base: the base itself handles cooling, so the network is not cooling the tank.
             Coverage = TankCoverage.None;

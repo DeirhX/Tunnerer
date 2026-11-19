@@ -931,6 +931,15 @@ footer i {
 #net-latency.bad {
     color: var(--hud-danger);
 }
+#recall {
+    position: absolute;
+    left: 50%;
+    bottom: 18%;
+    transform: translateX(-50%);
+    z-index: 5;
+    pointer-events: auto;
+}
+
 #death {
     position: absolute;
     top: 40%;
@@ -1491,9 +1500,6 @@ dd {
     #ore {
         font-size: 9px;
     }
-    #lives {
-        font-size: 7px;
-    }
     .heat-value strong {
         font-size: 23px;
     }
@@ -1599,7 +1605,7 @@ canvas.strip {
 body.playing.art-hud canvas.strip {
     display: block;
 }
-/* The strip shows the heat and the shield; the lives beside the plate's temperature stay. */
+/* The wide strip shows the heat and shield. */
 .art-hud .tank-status .heat-value .orb,
 .art-hud .tank-status .heat-value strong,
 .art-hud .tank-status meter,

@@ -131,18 +131,19 @@ public static partial class BrowserApi
     /// promise resolves. A local match steps once if <paramref name="step"/>, with the input given. A network match
     /// takes the input whenever it is given, and steps as the relay's ticks have arrived (<paramref name="due"/>:
     /// the page's clock says a step is due). <paramref name="thermalView"/> is the player's thermal view (H,
-    /// <see cref="BrowserSession.ThermalView"/>), which only changes what is drawn. <paramref name="now"/> is the
+    /// <see cref="BrowserSession.ThermalView"/>). <paramref name="powerLabelCellSize"/> is the displayed CSS size of a
+    /// cell, or zero to hide the charge labels (G). <paramref name="now"/> is the
     /// page's clock in milliseconds, which <see cref="Receive"/> times arrivals by.
     /// </summary>
     [JSExport]
     public static Task Frame(bool step, int x, int y, bool fire, double aimX, double aimY, int build,
-        int upgrade, int width, int height, int scale, double alpha, double delta, double time, bool thermalView,
-        bool due, double now)
+        int upgrade, bool recall, int width, int height, int scale, double alpha, double delta, double time, bool thermalView,
+        double powerLabelCellSize, bool due, double now)
     {
         BrowserSession session = _net?.Session ?? _session ?? throw new InvalidOperationException("Start a match first.");
         session.ThermalView = thermalView;
         long began = Stopwatch.GetTimestamp();
-        var input = step ? Input(x, y, fire, aimX, aimY, build, upgrade) : default;
+        var input = step ? Input(x, y, fire, aimX, aimY, build, upgrade, recall) : default;
         int steps = 0;
         if (_net is { } net)
         {
@@ -161,7 +162,7 @@ public static partial class BrowserApi
         }
 
         long stepped = Stopwatch.GetTimestamp();
-        session.Scene.Render(width, height, scale, (float)alpha, (float)delta, (float)time);
+        session.Scene.Render(width, height, scale, (float)alpha, (float)delta, (float)time, (float)powerLabelCellSize);
         string? hud = null;
         if (_hudStale)
         {
@@ -176,7 +177,7 @@ public static partial class BrowserApi
         return Task.CompletedTask;
     }
 
-    private static ControllerOutput Input(int x, int y, bool fire, double aimX, double aimY, int build, int upgrade)
+    private static ControllerOutput Input(int x, int y, bool fire, double aimX, double aimY, int build, int upgrade, bool recall)
     {
         float ax = (float)aimX, ay = (float)aimY;
         float length = MathF.Sqrt(ax * ax + ay * ay);
@@ -189,6 +190,7 @@ public static partial class BrowserApi
             BuildSecondary = build == 2,
             BuildTertiary = build == 3,
             BuildQuaternary = build == 4,
+            Recall = recall,
             Upgrade = Math.Clamp(upgrade, 0, 7),
         };
     }

@@ -25,11 +25,11 @@ public static class DesyncReport
         foreach (var (tick, digest) in digests)
             writer.WriteLine(string.Create(inv, $"#   {tick} {digest.State:X16} {digest.Heat:X16} {digest.Charge:X16} {digest.Economy:X16} {digest.Outcome:X16} {digest.Latent:X16} {digest.Bots:X16}"));
         writer.WriteLine("#");
-        writer.WriteLine(string.Create(inv, $"# tanks at tick {world.AdvanceCount}: slot x y heat health lives"));
+        writer.WriteLine(string.Create(inv, $"# tanks at tick {world.AdvanceCount}: slot x y heat health base-health"));
         var tanks = world.TankList.Tanks;
         for (int i = 0; i < tanks.Count; i++)
             writer.WriteLine(string.Create(inv,
-                $"#   {i} {tanks[i].Position.X} {tanks[i].Position.Y} {tanks[i].Heat:R} {(int)tanks[i].Reactor.Health} {tanks[i].LivesLeft}"));
+                $"#   {i} {tanks[i].Position.X} {tanks[i].Position.Y} {tanks[i].Heat:R} {(int)tanks[i].Reactor.Health} {(int)(tanks[i].Base?.Reactor.Health ?? default)}"));
         writer.WriteLine("#");
         recording.Save(writer);
     }

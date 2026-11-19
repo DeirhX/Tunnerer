@@ -21,6 +21,7 @@ public readonly record struct SimulationContext
     public required Func<Position, TankBase?> CheckBaseCollision { get; init; }
     public required SimulationSettings Settings { get; init; }
     public MatchRules? Rules { get; init; }
+    public BasePowerSystem? BasePower { get; init; }
 
     /// <summary>Machine list a tank builds relays into. Null in contexts that do not support building.</summary>
     public Machines.MachineList? Machines { get; init; }

@@ -40,6 +40,7 @@ export class GameInput {
                     if (e.code === "KeyG") action("power");
                     const build = { KeyE: 1, KeyR: 2, KeyT: 3, KeyY: 4 }[e.code];
                     if (build) this.queue("build", build);
+                    if (e.code === "KeyX") this.queue("recall", true);
                     if (/^Digit[1-7]$/.test(e.code))
                         this.queue("upgrade", Number(e.code.slice(-1)));
                     if (["Equal", "NumpadAdd"].includes(e.code))
@@ -143,7 +144,7 @@ export class GameInput {
             y += ty;
         }
         const action = this.releaseAction ? {} : this.actions.shift() || {};
-        this.releaseAction = !!(action.build || action.upgrade);
+        this.releaseAction = !!(action.build || action.upgrade || action.recall);
         return {
             x: Math.sign(x),
             y: Math.sign(y),
@@ -151,6 +152,7 @@ export class GameInput {
             aimX: this.pointer ? this.pointer.x - (this.aimOffset || 0) : 0,
             aimY: this.pointer ? this.pointer.y - (this.aimOffset || 0) : 0,
             build: action.build || 0,
+            recall: !!action.recall,
             upgrade: action.upgrade || 0,
         };
     }

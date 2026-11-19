@@ -11,7 +11,7 @@ using Emberward.Core.Network;
 using static Emberward.Desktop.Gui.HudDraw;
 
 /// <summary>
-/// Top-right readout: lives, the relay network (how many relays are linked, how full the base reservoir is)
+/// Top-right readout: base armor, the relay network (how many relays are linked, how full the base reservoir is)
 /// and a context hint for the build key that explains what E will do, or why a carried relay will not link.
 /// </summary>
 public sealed class NetworkPanel
@@ -53,7 +53,7 @@ public sealed class NetworkPanel
 
         if (HudTheme.BeginWindow("##HeatNetworkOverlay", new Vector2(vp.x + vp.w - 14f, vp.y + 14f), new Vector2(1f, 0f), 400f))
         {
-            HudTheme.TitleRow($"BASE        lives {player.LivesLeft}", 18f, player.LivesLeft > 1 ? HudTheme.Amber : HudTheme.Danger);
+            HudTheme.TitleRow($"BASE        armor {tankBase.ArmorFill:P0}", 18f, tankBase.IsDestroyed ? HudTheme.Danger : HudTheme.Amber);
             GoalLines.Draw(world, tankBase);
             ColoredText(HudTheme.Teal, $"Base ore store {tankBase.Store.Ore}" +
                 (player.IsUnloadingOre ? "   unloading" : player.IsInOwnNetwork ? "   in network" : ""));
@@ -70,6 +70,7 @@ public sealed class NetworkPanel
             {
                 var power = PowerLabels.Of(basePower);
                 ColoredText(power.Color, $"Network {power.Flow}   {power.Net}");
+                ColoredText(power.Color, power.Shield);
             }
 
             if (harvesters > 0)

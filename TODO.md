@@ -219,9 +219,8 @@ generator and turret readouts) the cost of keeping the two in step grows with it
 1. **One view-model per panel.** Rows, text, colour levels, enabled states and which machines get a label are computed
    once, in code that needs no window, and tested once. Each platform only maps the record to widgets. Do this for every
    new HUD element from now on (`PowerLabels` is the first example).
-2. **World-space overlays in the shared renderer.** Charge and flow labels, gauges above machines and fog-aware markers
-   belong with the entity layer, which both platforms already share through the HLSL-to-GLSL shaders. Add small text
-   quads there (font atlas or SDF) instead of drawing them twice.
+2. **World-space overlays in the shared renderer.** Charge and flow labels now use bitmap glyphs and fill bars in
+   the shared entity layer (`PowerLabelQuads`). Keep new gauges above machines and fog-aware markers in that layer.
 3. **Panels and menus stay per-platform** (ImGui and DOM). A shared widget toolkit would need text layout, hit-testing,
    focus, scrolling and touch, and the browser would lose selectable text, page zoom, IME and accessibility.
 

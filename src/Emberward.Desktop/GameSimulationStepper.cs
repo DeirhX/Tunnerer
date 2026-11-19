@@ -112,6 +112,7 @@ public sealed class GameSimulationStepper
             BuildSecondary = kb.BuildSecondary || scripted.BuildSecondary,
             BuildTertiary = kb.BuildTertiary || scripted.BuildTertiary,
             BuildQuaternary = kb.BuildQuaternary || scripted.BuildQuaternary,
+            Recall = kb.Recall || scripted.Recall,
             Upgrade = kb.Upgrade != 0 ? kb.Upgrade : scripted.Upgrade,
             AimDirection = aimDirection ?? default,
         };

@@ -3,6 +3,7 @@ namespace Emberward.Core.Entities.Bases;
 using Emberward.Core.Types;
 using Emberward.Core.Terrain;
 using Emberward.Core.Config;
+using Emberward.Core.Network;
 
 public class TankBases
 {
@@ -16,9 +17,11 @@ public class TankBases
 
     public IReadOnlyList<TankBase> Bases => _bases;
 
-    public void AddBase(Position position, int color)
+    public TankBase AddBase(Position position, int color)
     {
-        _bases.Add(new TankBase(position, color, _settings));
+        var tankBase = new TankBase(position, color, _settings);
+        _bases.Add(tankBase);
+        return tankBase;
     }
 
     public TankBase? GetSpawn(int color)
@@ -34,15 +37,24 @@ public class TankBases
         return null;
     }
 
+    /// <summary>The base whose cells, wall included, hold <paramref name="pos"/>.</summary>
+    public TankBase? BaseOccupying(Position pos)
+    {
+        foreach (var b in _bases)
+            if (b.OccupiesCell(pos))
+                return b;
+        return null;
+    }
+
     public void CreateBasesInTerrain(ITerrainPixelAccessor terrain)
     {
         for (int i = 0; i < _bases.Count; i++)
             _bases[i].CreateInTerrain(terrain, i);
     }
 
-    public void Advance(ITerrainHeatSource terrain)
+    public void Advance(ITerrainHeatSource terrain, BasePowerSystem? power = null)
     {
         foreach (var b in _bases)
-            b.Advance(terrain);
+            b.Advance(terrain, canRepair: power?.IsDark(b) != true);
     }
 }
