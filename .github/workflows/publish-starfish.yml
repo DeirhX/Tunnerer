@@ -31,6 +31,12 @@ jobs:
           python-version: "3.x"
       - name: Publish the game with the threaded runtime
         run: python tools/browser/publish.py --threads --restore-workloads
+      - name: Prepare desktop downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo "$GITHUB_REPOSITORY" --dir artifacts/desktop-release
+          python tools/browser/prepare_starfish.py artifacts/browser artifacts/desktop-release
       - name: Upload it to Starfish
         env:
           SSH_KEY: ${{ secrets.STARFISH_SSH_KEY }}
@@ -51,4 +57,7 @@ jobs:
           echo "built $built, served $served"
           test "$built" = "$served"
           curl -fsSI https://crust.bokovka.cz/ | grep -qi '^cross-origin-embedder-policy: require-corp'
+          for file in emberward-windows-x64.exe emberward-macos-arm64 emberward-linux-x64; do
+            curl -fsSI -H 'Accept-Encoding: gzip' "https://crust.bokovka.cz/downloads/$file" | grep -qi '^content-encoding: gzip'
+          done
           echo "### Published ${built:0:8} to https://crust.bokovka.cz/" >> "$GITHUB_STEP_SUMMARY"

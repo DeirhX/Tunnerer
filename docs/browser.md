@@ -129,10 +129,13 @@ in `index.html`: a row with an `<a class="download-link">` is a published build,
 "Not published yet". `downloads.js` works out the visitor's platform from the client hints or the user agent
 (`tools/browser/downloads.test.mjs` covers the strings). On a computer it shows only that platform's row, and a
 "Other platforms" button shows the rest; a phone, or an unknown platform, sees the whole list. A row with a link
-points at `releases/latest/download/…`, so it serves the newest release; a row without one is for a platform with no
-build yet. Pushing a `v*` tag runs
-`desktop-release.yml`, which publishes the three archives under those fixed names (`emberward-windows-x64.zip`,
-`emberward-macos-arm64.zip`, `emberward-linux-x64.tar.gz`) with a `SHA256SUMS.txt`.
+points at the latest GitHub release in ordinary browser publishes. On Starfish the publish workflow downloads the
+latest release, checks its SHA-256 sums and exposes its three single-file executables under `/downloads/`. Caddy
+serves precompressed gzip copies when the client accepts gzip, and sends the original executable otherwise. The
+files are excluded from the browser's offline cache. Pushing a `v*` tag runs `desktop-release.yml`, which publishes
+three archives and `SHA256SUMS.txt` on GitHub. Run `publish-starfish` after the release to update Starfish's copies.
+The release and browser build must come from the same commit for cross-play. Downloads on macOS and Linux need their
+executable bit set (for example `chmod +x emberward-macos-arm64`); the builds are unsigned.
 
 ## Controls and installation
 
@@ -229,12 +232,12 @@ smoke test's existing policy. Deployment to a public host is separate; this work
 The public copy is served from the Starfish VM at `https://crust.bokovka.cz`, beside the relay
 (`docs/multiplayer-design.md`, "The relay", describes the VM, SSH access and updating the relay). Caddy's site file,
 `/etc/caddy/conf.d/crust.bokovka.cz.caddy`, sends `/play` and `/health` to the relay and serves everything else
-from `/srv/emberward/browser`. It sends the cross-origin isolation headers and the no-cache headers listed above,
-so deploy a `--threads` publish. `/srv/emberward/browser.prev` keeps the build that was live before.
+from `/srv/tunnerer/browser`. It sends the cross-origin isolation headers and the no-cache headers listed above,
+so deploy a `--threads` publish. `/srv/tunnerer/browser.prev` keeps the build that was live before.
 
 The easy way is the **publish-starfish** workflow (`.github/workflows/publish-starfish.yml`): on GitHub, Actions →
 publish-starfish → Run workflow, with the branch to publish (normally `master`). It runs only when started by hand,
-and its job is skipped unless the repository owner started it. It publishes with `--threads`, uploads the zip,
+and its job is skipped unless the repository owner started it. It publishes with `--threads`, downloads and verifies the latest desktop release, adds executables and gzip copies to the bundle, uploads it,
 checks that the site serves the version it built and with the isolation headers, and writes that version in the
 run's summary.
 
@@ -242,17 +245,19 @@ By hand, publish from an up-to-date `master` and pipe the zip to the deploy scri
 
 ```sh
 python3 tools/browser/publish.py --threads
-ssh Starfish-azureuser sudo /usr/local/bin/emberward-deploy-browser < artifacts/browser/emberward-browser.zip
+gh release download --dir artifacts/desktop-release
+python3 tools/browser/prepare_starfish.py artifacts/browser artifacts/desktop-release
+ssh Starfish-azureuser sudo /usr/local/bin/tunnerer-deploy-browser < artifacts/browser/emberward-browser.zip
 ```
 
 The deploy script is `tools/browser/starfish-deploy.sh`, installed on the VM as
-`/usr/local/bin/emberward-deploy-browser`. It unpacks the zip, stops if it is not a complete `--threads` publish,
+`/usr/local/bin/tunnerer-deploy-browser`. It unpacks the zip, stops if it is not a complete `--threads` publish,
 moves the live build to `browser.prev`, puts the new one in place and prints its version. After changing it,
 install it again:
 
 ```sh
-scp tools/browser/starfish-deploy.sh Starfish-azureuser:/tmp/emberward-deploy-browser
-ssh Starfish-azureuser 'sudo install -m 755 /tmp/emberward-deploy-browser /usr/local/bin/ && rm /tmp/emberward-deploy-browser'
+scp tools/browser/starfish-deploy.sh Starfish-azureuser:/tmp/tunnerer-deploy-browser
+ssh Starfish-azureuser 'sudo install -m 755 /tmp/tunnerer-deploy-browser /usr/local/bin/ && rm /tmp/tunnerer-deploy-browser'
 ```
 
 The workflow signs in with its own key, kept in the `starfish` environment of the repository's settings
@@ -262,7 +267,7 @@ VM, that key's line in `~azureuser/.ssh/authorized_keys` lets it run the deploy 
 leaked key can replace the game but cannot open a shell:
 
 ```
-command="sudo /usr/local/bin/emberward-deploy-browser",restrict ssh-ed25519 AAAA… emberward-publish-starfish
+command="sudo /usr/local/bin/tunnerer-deploy-browser",restrict ssh-ed25519 AAAA… emberward-publish-starfish
 ```
 
 To withdraw the workflow's access, delete that line.
