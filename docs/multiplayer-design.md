@@ -42,7 +42,7 @@ acceptable among friends and is not defended against.
  office firewall (outbound 443 only)
  +--------------------------------+
  |  client A --+                  |
- |  client B --+-- wss://  -------+-----> Starfish: Tunnerer.Relay
+ |  client B --+-- wss://  -------+-----> Starfish: Emberward.Relay
  |  client C --+                  |         room "K7QD": roster, config, tick clock, input log
  |  client D --+                  |
  +--------------------------------+
@@ -78,7 +78,7 @@ Properties:
   relay.
 - **Input delay** is uplink + the wait for the relay's next tick + the client's own step phase + downlink. The
   client keeps no bundle back (`BundleBuffer.TargetDepth` is 0), so an input is simulated at the first local step
-  after its bundle arrives. Measured on localhost with `TUNNERER_NET_LATENCY_LOG=1`: mean 44.6 ms, 91% of inputs
+  after its bundle arrives. Measured on localhost with `EMBERWARD_NET_LATENCY_LOG=1`: mean 44.6 ms, 91% of inputs
   one tick (a depth of 1 gave a mean of 56.5 ms). Entity interpolation already hides one step.
 - **Pacing on the client.** `GameFrameCoordinator` today steps on the wall clock. In a net session it steps when
   a bundle is available, and uses the existing "at most 4 steps to catch up" path when bundles arrive in a burst.
@@ -211,7 +211,7 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
   the digests it reported around the tick, split into state, heat, charge, economy, outcome and latent, where its tanks stand, and the
   match as a `MatchRecording` (settings, which slots were players, every tick's inputs). Comparing two
   players' files shows when and in what the worlds went apart; `MatchRecording.Load(...).Replay()` rebuilds the
-  match tick by tick in a test. `TUNNERER_NET_FAULT_TICK=n` makes one client diverge on purpose, to exercise
+  match tick by tick in a test. `EMBERWARD_NET_FAULT_TICK=n` makes one client diverge on purpose, to exercise
   this.
 
 Determinism risks to check before trusting it:
@@ -224,9 +224,9 @@ Determinism risks to check before trusting it:
 
 ## 7. The relay
 
-- **`src/Tunnerer.Protocol`**: the room's tick rule, message types and the binary codec. No dependencies
+- **`src/Emberward.Protocol`**: the room's tick rule, message types and the binary codec. No dependencies
   (`ArchitectureGuardTests`). Referenced by the relay, Desktop and the tests.
-- **`src/Tunnerer.Relay`**: a small ASP.NET Core (Kestrel) app with one WebSocket endpoint, `/play`, and
+- **`src/Emberward.Relay`**: a small ASP.NET Core (Kestrel) app with one WebSocket endpoint, `/play`, and
   `/health`. Rooms are in memory; a started room is deleted when it has been empty for five minutes, a lobby as soon as it is
   empty. Each started room has one timer loop, which only measures wall time for the room.
   It never references Core, so it never needs redeploying for a gameplay change, only for a protocol change.
@@ -235,33 +235,33 @@ Determinism risks to check before trusting it:
   443, gets certificates automatically and reverse-proxies each site in `/etc/caddy/conf.d/*.caddy` to a
   service on `127.0.0.1`. Services are systemd units, each with its own user, under `/srv/<name>/`. There is no
   Docker and no .NET runtime. The relay follows the same pattern and has been running there since 2026-11-17:
-  - Binary: `/srv/tunnerer/relay/Tunnerer.Relay`, a self-contained single file.
-  - Service: `tunnerer-relay.service`, user `tunnerer-relay`, `Restart=always`, on `127.0.0.1:8130`.
+  - Binary: `/srv/emberward/relay/Emberward.Relay`, a self-contained single file.
+  - Service: `emberward-relay.service`, user `emberward-relay`, `Restart=always`, on `127.0.0.1:8130`.
   - Site: `/etc/caddy/conf.d/crust.bokovka.cz.caddy`, `reverse_proxy 127.0.0.1:8130`. Caddy issued the
     certificate itself and proxies WebSockets with no extra configuration.
   - Clients connect to `wss://crust.bokovka.cz/play`; `https://crust.bokovka.cz/health` says it is up and how
     many rooms are open.
-  - To update it (only needed when `Tunnerer.Protocol` or `Tunnerer.Relay` changes, with a higher
+  - To update it (only needed when `Emberward.Protocol` or `Emberward.Relay` changes, with a higher
     `MessageCodec.ProtocolVersion` if the bytes changed):
 
     ```
-    dotnet publish src/Tunnerer.Relay -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -p:DebugType=none -o /tmp/relay-publish
-    scp /tmp/relay-publish/Tunnerer.Relay Starfish-azureuser:/tmp/
-    ssh Starfish-azureuser 'sudo install -o root -g tunnerer-relay -m 750 /tmp/Tunnerer.Relay /srv/tunnerer/relay/Tunnerer.Relay && sudo systemctl restart tunnerer-relay && rm /tmp/Tunnerer.Relay'
+    dotnet publish src/Emberward.Relay -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -p:DebugType=none -o /tmp/relay-publish
+    scp /tmp/relay-publish/Emberward.Relay Starfish-azureuser:/tmp/
+    ssh Starfish-azureuser 'sudo install -o root -g emberward-relay -m 750 /tmp/Emberward.Relay /srv/emberward/relay/Emberward.Relay && sudo systemctl restart emberward-relay && rm /tmp/Emberward.Relay'
     ```
 
     A restart ends any match in progress.
-  - Secret: `/etc/tunnerer/relay.env` (root, readable by the service's group) sets `TUNNERER_RELAY_SECRET`,
+  - Secret: `/etc/emberward/relay.env` (root, readable by the service's group) sets `EMBERWARD_RELAY_SECRET`,
     and the unit loads it with `EnvironmentFile=`. Read it with
-    `ssh Starfish-azureuser 'sudo cat /etc/tunnerer/relay.env'`; to change it, edit the file and restart the
-    service. Players set the same value in `TUNNERER_RELAY_SECRET` or pass `--secret=`.
+    `ssh Starfish-azureuser 'sudo cat /etc/emberward/relay.env'`; to change it, edit the file and restart the
+    service. Players set the same value in `EMBERWARD_RELAY_SECRET` or pass `--secret=`.
 - **Capacity.** The relay's work is one timer and a few small sends per room per tick, so the VM is ample. One
   thing to settle first: `litestream` (the neride service's database replication) has averaged a full core
   since it started, leaving one of the two cores busy. The relay will still run, but a 24 Hz timer on a
   machine with a pegged core will show more jitter than it should.
 - **If the office proxy blocks WebSocket upgrades**, the fallback is the same messages over HTTP long-polling;
   the transport is behind an interface on both ends to allow that.
-- **Access.** When the relay's `TUNNERER_RELAY_SECRET` is set, a client must send the same secret in `Hello`
+- **Access.** When the relay's `EMBERWARD_RELAY_SECRET` is set, a client must send the same secret in `Hello`
   (`--secret=` or the same environment variable on the client). Unset, the relay is open. Room names are not
   security. A rejoin is by name only (no token): anyone who knows the room, the secret and a dropped player's
   name can take that slot, which among friends is accepted (see the open questions).
@@ -301,7 +301,7 @@ Desktop:
 
 Browser (docs/browser.md, Network play):
 
-- It runs the same `NetSession` and `SlotStepper` (shared through `Tunnerer.Rendering`) and keeps what the relay
+- It runs the same `NetSession` and `SlotStepper` (shared through `Emberward.Rendering`) and keeps what the relay
   said in the protocol's `RoomClient`, which the desktop's `RelayConnection` also wraps. The page's WebSocket only
   carries bytes; `BrowserNetMatch` makes and reads the messages. A browser and a desktop of one commit share a build
   id and compute the same world, so they play in one room.
@@ -339,14 +339,14 @@ Each step is testable without the next.
    per-slot input sources in the stepper, local slot in Desktop, bots that pick their enemy the same way on
    every machine (`BotTankAI.PickEnemy`). The recorded fingerprints are unchanged: the local player's aim is
    quantised in Desktop's stepper, which the fingerprint tests do not go through.
-2. **Lockstep in process** (done). `Tunnerer.Protocol` holds what client and relay share: `LockstepRoom` (the
+2. **Lockstep in process** (done). `Emberward.Protocol` holds what client and relay share: `LockstepRoom` (the
    relay's tick rule, input log and hash comparison), `TickBundle`, `BundleBuffer` (the client's buffer and
    pacing rule) and `ILockstepLink` (the connection as the game sees it). `NetSession` in Desktop steps a world
    from bundles. `NetSessionTests` runs four worlds through an in-memory relay with uneven delays, a client
    that stalls and bursts, and one that drops out, then checks the worlds are identical and that the relay's
    log rebuilds the same world. It needs no socket. Not yet wired into the game loop: that comes with the
    connection in step 3.
-3. **Relay and transport** (done and deployed). The message codec, `Tunnerer.Relay` (`MatchRoom`,
+3. **Relay and transport** (done and deployed). The message codec, `Emberward.Relay` (`MatchRoom`,
    `RelayHub`), `RelayConnection` and the game loop's network path (`Game.Net.cs`). Started from the command
    line with `--relay`, `--room`, `--players` and `--name`; there is no lobby screen yet. Two game clients on
    one machine reported the same world hashes through a local relay and through the relay on Starfish.

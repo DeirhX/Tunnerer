@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Emberward.Browser.Client/Emberward.Browser.Client.csproj" />
+    <Project Path="src/Emberward.Rendering/Emberward.Rendering.csproj" />
+    <Project Path="src/Emberward.Core/Emberward.Core.csproj" />
+    <Project Path="src/Emberward.Desktop/Emberward.Desktop.csproj" />
+    <Project Path="src/Emberward.Protocol/Emberward.Protocol.csproj" />
+    <Project Path="src/Emberward.Relay/Emberward.Relay.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Emberward.ShaderCompiler/Emberward.ShaderCompiler.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Emberward.Tests/Emberward.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,35 +1,35 @@
 # Architecture
 
-Tunnerer is a C# / .NET 10 game that began as a port of a C++ engine (kept on the `cplusplus-legacy` branch) and has
+Emberward is a C# / .NET 10 game that began as a port of a C++ engine (kept on the `cplusplus-legacy` branch) and has
 since grown its own thermal simulation and a GPU renderer. The simulation is platform-independent
-(`Tunnerer.Core`); the desktop host lives in `Tunnerer.Desktop`. The browser host runs Core as WebAssembly in a
+(`Emberward.Core`); the desktop host lives in `Emberward.Desktop`. The browser host runs Core as WebAssembly in a
 Web Worker (or, where the host and browser allow, on several threads), with a WebGL 2 backend and an installable
 offline shell (see `docs/browser.md`). Both hosts use the same procedural shaders and platform-independent
-rendering code in `Tunnerer.Rendering`.
+rendering code in `Emberward.Rendering`.
 
 For build and run instructions, controls and command-line options see `README.md`.
 
 ## Solution structure
 
 ```
-Tunnerer.slnx
+Emberward.slnx
 src/
-  Tunnerer.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
+  Emberward.Core/           Simulation. No SDL, ImGui or Direct3D references (enforced by ArchitectureGuardTests).
     ARCHITECTURE.md        Detailed design
-  Tunnerer.Browser.Client/ Portable browser session (local or network), presentation snapshots; references Core,
+  Emberward.Browser.Client/ Portable browser session (local or network), presentation snapshots; references Core,
                            Rendering and Protocol.
-  Tunnerer.Browser/        WebAssembly exports, WebGL backend, browser input and offline PWA shell.
-  Tunnerer.Rendering/      Shared assembly; compiles the pure rendering sources from Desktop, and the network
+  Emberward.Browser/        WebAssembly exports, WebGL backend, browser input and offline PWA shell.
+  Emberward.Rendering/      Shared assembly; compiles the pure rendering sources from Desktop, and the network
                            session (NetSession, Seats, SlotStepper) the browser plays network matches with.
-  Tunnerer.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
+  Emberward.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
-  Tunnerer.Protocol/       What a network match's clients and relay share: tick bundles and the relay's tick rule.
+  Emberward.Protocol/       What a network match's clients and relay share: tick bundles and the relay's tick rule.
                            References nothing (enforced by ArchitectureGuardTests). See docs/multiplayer-design.md.
-  Tunnerer.Relay/          The relay server (ASP.NET Core, one WebSocket endpoint). References only the protocol.
+  Emberward.Relay/          The relay server (ASP.NET Core, one WebSocket endpoint). References only the protocol.
 tests/
-  Tunnerer.Tests/          xUnit tests for Core and Desktop logic, plus guard tests for both
+  Emberward.Tests/          xUnit tests for Core and Desktop logic, plus guard tests for both
 tools/
-  Tunnerer.ShaderCompiler/ Build step: compiles the HLSL to DXIL, SPIR-V and MSL for SDL_GPU
+  Emberward.ShaderCompiler/ Build step: compiles the HLSL to DXIL, SPIR-V and MSL for SDL_GPU
 ```
 
 ## Design principles
@@ -41,9 +41,9 @@ tools/
   tests and scripted screenshot runs rely on.
 - **Heat is conserved and audited.** Thermal exchange is energy-exact; `ThermalLedger` records every transfer in or
   out of the system, and the profile output reports the residual, which should stay near zero.
-- **Tunables live in one place.** Gameplay and simulation constants are in `Tunnerer.Core/Config/Tweaks.cs`;
+- **Tunables live in one place.** Gameplay and simulation constants are in `Emberward.Core/Config/Tweaks.cs`;
   `SimulationSettings` wraps them so tests can inject other values. Window, render and lighting constants that only
-  the desktop client reads are in `Tunnerer.Desktop/Config/DesktopTweaks.cs`.
+  the desktop client reads are in `Emberward.Desktop/Config/DesktopTweaks.cs`.
 
 ## Frame loop
 
@@ -92,13 +92,13 @@ second in display time (`Rendering/Entities/BeamFader`), so they do not pop with
 The game renders at the display's own pixel density (Retina included): the game view and camera are in device
 pixels, the UI in points. The camera keeps the player in the middle of the screen, running past the map's edges
 when it has to, and the bottom HUD is split into the two bottom corners so the middle of the view stays clear.
-`src/Tunnerer.Desktop/ARCHITECTURE.md`, "Display density and the HUD", has the detail.
+`src/Emberward.Desktop/ARCHITECTURE.md`, "Display density and the HUD", has the detail.
 
 Automated runs are step-locked instead: one frame per step, showing exactly that step, so screenshots and timings
-are reproducible. `TUNNERER_INTERPOLATE=1` turns the in-between frames on for them.
+are reproducible. `EMBERWARD_INTERPOLATE=1` turns the in-between frames on for them.
 
 A network match (`--net`, `Game.Net.cs`) is deterministic lockstep: every client runs the whole simulation and
-normal play exchanges inputs and sync hashes. `Net/NetSession` sends the local player's input to the relay (`Tunnerer.Relay`), steps the world
+normal play exchanges inputs and sync hashes. `Net/NetSession` sends the local player's input to the relay (`Emberward.Relay`), steps the world
 only from the tick bundles the relay sends back, never from the local clock, and reports a world hash once a second
 so a client that drifts apart is caught. Bots drive the slots nobody took, seeded the same on every client. Who
 drives each tank is `Net/Seats`, and only the human mask every bundle carries changes it, so a seat changes hands at
@@ -111,7 +111,7 @@ Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.c
 The pause menu's network entry (`Game.NetMenu.cs`, `Gui/NetMenuView.cs`) only collects choices: `Net/NetMenuModel` is the menu
 without ImGui (screens, fields, validation, the launch Enter produces), `Net/PlayerSettings` is `settings.ini`, and
 `Net/LaunchArguments` parses the command line and builds the one for the next run. The game then closes and `Program.cs`
-starts it again in the match (the secret goes in `TUNNERER_RELAY_SECRET`, never in the arguments); a launch the relay
+starts it again in the match (the secret goes in `EMBERWARD_RELAY_SECRET`, never in the arguments); a launch the relay
 refuses comes back as a local match with the menu open (`docs/multiplayer-lobby-ux.md`).
 A run counts as *automated* when it is scripted, hidden or a perf capture. Automated runs and the terrain test are
 not *interactive* (`Game.IsInteractiveSession`): they keep a fixed seed, make no sound, never pause on their own,
@@ -133,7 +133,7 @@ and Escape quits at once.
     leaves fading contacts where it reflects beyond sight. Output only; the steps above never read them
 
 Detail, and recipes for adding machines, projectiles, materials and collidable entities, are in
-`src/Tunnerer.Core/ARCHITECTURE.md`.
+`src/Emberward.Core/ARCHITECTURE.md`.
 
 ## Rendering pipeline
 
@@ -162,12 +162,12 @@ and draws the radar's blips on the ground the player cannot see.
 
 Nothing is drawn into the world pixels but terrain: links, relays, pylons, harvesters, tanks and projectiles are drawn
 procedurally at screen resolution by the entity layer. Shader passes and backend detail are in
-`src/Tunnerer.Desktop/ARCHITECTURE.md`.
+`src/Emberward.Desktop/ARCHITECTURE.md`.
 
 ## Guidance: tutorial and notifications
 
-`Tunnerer.Desktop/Gui/Guidance` tells the player what to do next without touching the simulation. It only reads Core
-state. It is shared with the browser through `Tunnerer.Rendering`, with `Gui/HintSelector.cs` and
+`Emberward.Desktop/Gui/Guidance` tells the player what to do next without touching the simulation. It only reads Core
+state. It is shared with the browser through `Emberward.Rendering`, with `Gui/HintSelector.cs` and
 `Presentation/MachinePresentation.cs`, so neither file may use ImGui or SDL. `PlayerGuidance` is what both hosts
 hold: they call `AfterStep` after every step and `Update` with their HUD clock, then show its `Tutorial`,
 `Notifications`, `Hint` and `Warning`. The desktop updates it once per displayed frame on the HUD's time; the browser
@@ -199,18 +199,18 @@ cover it.
 
 ## Sound
 
-`Tunnerer.Desktop/Audio` turns the simulation into sound without the simulation knowing. `SoundDirector` runs once
+`Emberward.Desktop/Audio` turns the simulation into sound without the simulation knowing. `SoundDirector` runs once
 after every simulation step, never per displayed frame, so an effect cannot repeat on the frames shown between
 steps. It does not compare the world between steps: Core lists what happened during the step in `World.StepEvents`
 (a shot, an impact, a death, a planting, a docking...) and `SoundDirector` starts the matching effect, placed in
 stereo and attenuated by distance from the player's tank, into an `ISoundSink`. All effects are synthesised
 (`SoundBank`). On the desktop `GameAudio` gives the director its mixer (`SoundMixer`), played through an SDL audio
 device; automated runs open no device. The browser shares `SoundDirector` and `SoundBank`: its sink records each
-step's sounds into the frame, and the page plays them with the bank's samples (`docs/browser.md`). Detail is in `src/Tunnerer.Desktop/ARCHITECTURE.md`.
+step's sounds into the frame, and the page plays them with the bank's samples (`docs/browser.md`). Detail is in `src/Emberward.Desktop/ARCHITECTURE.md`.
 
 ## Tests
 
-`dotnet test Tunnerer.slnx` runs one xUnit project, `tests/Tunnerer.Tests`, which references both Core and Desktop.
+`dotnet test Emberward.slnx` runs one xUnit project, `tests/Emberward.Tests`, which references both Core and Desktop.
 
 - **Core**: terrain and pixels, collision, level generation, tank movement, heat and the temperature band, relays,
   the power loop, network coverage, hot and frost rock, the sector goal and base upgrades, the thermal ledger and whole-world thermal behaviour, determinism, replays and

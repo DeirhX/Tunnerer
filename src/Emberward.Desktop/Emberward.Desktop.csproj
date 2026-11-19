@@ -1,0 +1,85 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emberward.Core\Emberward.Core.csproj" />
+    <ProjectReference Include="../Emberward.Rendering/Emberward.Rendering.csproj" />
+    <ProjectReference Include="..\Emberward.Protocol\Emberward.Protocol.csproj" />
+    <!-- Built first so CompileSdlGpuShaders can run it; nothing from it is referenced or copied. -->
+    <ProjectReference Include="..\..\tools\Emberward.ShaderCompiler\Emberward.ShaderCompiler.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="DrawProfile.cs;Config/DesktopScreenTweaks.cs;Config/PostProcessPassFlags.cs;Rendering/Entities/*.cs" />
+    <Compile Remove="Config/AudioTweaks.cs;Audio/SoundEffect.cs;Audio/StepEventSounds.cs;Audio/SoundDirector.cs;Audio/SoundBank.cs" />
+    <Compile Remove="Presentation/MachinePresentation.cs;Gui/HintSelector.cs;Gui/HeatScale.cs;Gui/BuildSlotView.cs;Gui/Guidance/*.cs" />
+    <Compile Remove="Rendering/EntityLayerBuilder.cs;Rendering/IGameRenderBackend.cs;Rendering/RenderInputEvent.cs;Rendering/PostParamsBlock.cs;Rendering/ScreenEffects.cs" />
+    <Compile Remove="Rendering/TerrainAuxBuilder.cs;Rendering/TerrainAuxUploader.cs;Rendering/TerrainSolidField.cs;Rendering/TerrainMaterialCoverage.cs;Rendering/TerrainGrowthFade.cs;Rendering/TerrainView.cs;Rendering/FogLayer.cs;Rendering/RowParallel.cs" />
+    <Compile Remove="SlotStepper.cs;Config/NetworkTweaks.cs;Net/NetSession.cs;Net/Seats.cs;Net/NetMatch.cs;Net/LobbyText.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="resources\hud\**\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="resources\fonts\*.ttf;resources\fonts\*.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Shader sources live in Rendering\Shaders; includes are inputs of the shader build step. -->
+  <ItemGroup>
+    <ShaderInclude Include="Rendering\Shaders\**\*.hlsli" />
+  </ItemGroup>
+
+  <!-- ===== SDL_GPU backend: every shader compiled to DXIL, SPIR-V and MSL on every OS ===================== -->
+  <ItemGroup>
+    <SdlGpuShader Include="Rendering\Shaders\FullscreenVs.hlsl" Stage="vertex" />
+    <SdlGpuShader Include="Rendering\Shaders\BlitPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\PostPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\ScreenFxPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\TerrainPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\EntityVs.hlsl" Stage="vertex" />
+    <SdlGpuShader Include="Rendering\Shaders\EntityPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\ImGuiVs.hlsl" Stage="vertex" />
+    <SdlGpuShader Include="Rendering\Shaders\ImGuiPs.hlsl" Stage="fragment" />
+    <SdlGpuShader Include="Rendering\Shaders\HeatOrbPs.hlsl" Stage="fragment" />
+  </ItemGroup>
+
+  <Target Name="ResolveShaderCompiler" AfterTargets="ResolveProjectReferences">
+    <MSBuild Projects="..\..\tools\Emberward.ShaderCompiler\Emberward.ShaderCompiler.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" PropertyName="ShaderCompilerPath" />
+    </MSBuild>
+  </Target>
+
+  <Target Name="CompileSdlGpuShaders"
+          AfterTargets="ResolveShaderCompiler"
+          Inputs="@(SdlGpuShader);@(ShaderInclude);$(ShaderCompilerPath)"
+          Outputs="@(SdlGpuShader->'$(IntermediateOutputPath)SdlGpuShaders\%(Filename).json')">
+    <Exec Command="dotnet &quot;$(ShaderCompilerPath)&quot; --out &quot;$(IntermediateOutputPath)SdlGpuShaders&quot; @(SdlGpuShader->'&quot;%(FullPath)=%(Stage)&quot;', ' ')" />
+  </Target>
+
+  <Target Name="CopySdlGpuShaders" AfterTargets="CompileSdlGpuShaders">
+    <ItemGroup>
+      <_SdlGpuShaderOutput Include="$(IntermediateOutputPath)SdlGpuShaders\*.spv;$(IntermediateOutputPath)SdlGpuShaders\*.dxil;$(IntermediateOutputPath)SdlGpuShaders\*.msl;$(IntermediateOutputPath)SdlGpuShaders\*.json" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutDir)Shaders" />
+    <Copy SourceFiles="@(_SdlGpuShaderOutput)" DestinationFolder="$(OutDir)Shaders" SkipUnchangedFiles="true" />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+    <PackageReference Include="SDL3-CS" Version="3.4.20" />
+    <PackageReference Include="SDL3-CS.Windows" Version="3.4.20" />
+    <PackageReference Include="SDL3-CS.MacOS" Version="3.4.20" />
+    <PackageReference Include="SDL3-CS.Linux" Version="3.4.20" />
+    <PackageReference Include="StbImageSharp" Version="2.30.15" />
+  </ItemGroup>
+
+</Project>

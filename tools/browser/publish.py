@@ -14,7 +14,7 @@ import zipfile
 # The two .NET runtimes a deployment can carry, by the directory each is in. Only one is used in any one browser
 # (wwwroot/threads.js decides), so the offline manifest lists them apart and the service worker keeps one.
 RUNTIMES = {"single": "_framework", "threads": "_framework-threads"}
-# The desktop's HUD art (src/Tunnerer.Desktop/resources/hud) that the browser's strip draws.
+# The desktop's HUD art (src/Emberward.Desktop/resources/hud) that the browser's strip draws.
 HUD_ART = ["heat_icon.png", "shield_icon.png", "panel_frame.png", "build_panel.png"]
 ISOLATION_HEADERS = ["Cross-Origin-Opener-Policy: same-origin", "Cross-Origin-Embedder-Policy: require-corp"]
 
@@ -80,8 +80,8 @@ def package(output):
         sizes = (f"{megabytes(shared):.1f} MiB, and one of two runtimes: single-thread "
                  f"{megabytes(groups['single']):.1f} MiB, threaded {megabytes(groups['threads']):.1f} MiB")
     # The same bytes on every OS: no locale encoding, no translated line ends.
-    (root / "assets-manifest.js").write_bytes(("self.tunnererAssets = " + json.dumps(manifest) + ";\n").encode())
-    archive = output / "tunnerer-browser.zip"
+    (root / "assets-manifest.js").write_bytes(("self.emberwardAssets = " + json.dumps(manifest) + ";\n").encode())
+    archive = output / "emberward-browser.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
         for path in sorted(root.rglob("*")):
             if path.is_file():
@@ -128,12 +128,12 @@ def main():
         dotnet = shutil.which("dotnet") or str(Path.home() / ".dotnet" / "dotnet")
         env = dict(os.environ)
         env["PATH"] = str(Path(dotnet).parent) + os.pathsep + env.get("PATH", "")
-        shader_dir = repo / "src/Tunnerer.Browser/wwwroot/shaders"
-        shader_source = repo / "src/Tunnerer.Desktop/Rendering/Shaders"
+        shader_dir = repo / "src/Emberward.Browser/wwwroot/shaders"
+        shader_source = repo / "src/Emberward.Desktop/Rendering/Shaders"
         shaders = [("FullscreenVs", "vertex"), ("TerrainPs", "fragment"), ("PostPs", "fragment"),
                    ("EntityVs", "vertex"), ("EntityPs", "fragment"), ("ScreenFxPs", "fragment")]
         shader_args = [str(shader_source / (name + ".hlsl")) + "=" + stage for name, stage in shaders]
-        subprocess.run([dotnet, "run", "--project", str(repo / "tools/Tunnerer.ShaderCompiler"),
+        subprocess.run([dotnet, "run", "--project", str(repo / "tools/Emberward.ShaderCompiler"),
                         "-c", args.configuration, "--", "--web", "--out", str(shader_dir)] + shader_args,
                        cwd=repo, env=env, check=True)
         # Native shader binaries are needed by desktop only; the browser ships the generated GLSL.
@@ -141,16 +141,16 @@ def main():
             if path.suffix != ".glsl":
                 path.unlink()
         # The HUD's font is the desktop's, copied like the shaders rather than kept twice in the repository.
-        font_dir = repo / "src/Tunnerer.Browser/wwwroot/fonts"
+        font_dir = repo / "src/Emberward.Browser/wwwroot/fonts"
         font_dir.mkdir(exist_ok=True)
         for name in ("ChakraPetch-Medium.ttf", "OFL-chakrapetch.txt"):
-            shutil.copy2(repo / "src/Tunnerer.Desktop/resources/fonts" / name, font_dir / name)
+            shutil.copy2(repo / "src/Emberward.Desktop/resources/fonts" / name, font_dir / name)
         # So is the desktop's HUD art, which the wide layout's strip draws (wwwroot/strip.js).
-        hud_dir = repo / "src/Tunnerer.Browser/wwwroot/hud"
+        hud_dir = repo / "src/Emberward.Browser/wwwroot/hud"
         hud_dir.mkdir(exist_ok=True)
         for name in HUD_ART:
-            shutil.copy2(repo / "src/Tunnerer.Desktop/resources/hud" / name, hud_dir / name)
-        project = str(repo / "src/Tunnerer.Browser/Tunnerer.Browser.csproj")
+            shutil.copy2(repo / "src/Emberward.Desktop/resources/hud" / name, hud_dir / name)
+        project = str(repo / "src/Emberward.Browser/Emberward.Browser.csproj")
         if args.restore_workloads:
             # Which workload that is depends on the SDK in use (wasm-tools on .NET 10, wasm-tools-net10 on later
             # ones), so let the SDK say. It has to read the project as the publish will: only a Release build

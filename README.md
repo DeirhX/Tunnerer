@@ -1,13 +1,13 @@
-# Tunnerer
+# Emberward
 
 A 2D tunnelling tank game. You dig through the ground, fight an enemy tank, and manage heat: digging and firing
 heat your tank and the rock around it, your base is the heat sink, and relays pipe heat back to the base.
 
-Written in C# on .NET 10. The simulation (`Tunnerer.Core`) has no platform dependencies; the desktop client
-(`Tunnerer.Desktop`) uses SDL3 for the window, input and sound, SDL_GPU for rendering and Dear ImGui for the
+Written in C# on .NET 10. The simulation (`Emberward.Core`) has no platform dependencies; the desktop client
+(`Emberward.Desktop`) uses SDL3 for the window, input and sound, SDL_GPU for rendering and Dear ImGui for the
 HUD. The sound effects are synthesised in code when the game starts; there are no sound files.
 
-The browser client (`Tunnerer.Browser`) runs the same Core simulation in WebAssembly, with the desktop's shaders
+The browser client (`Emberward.Browser`) runs the same Core simulation in WebAssembly, with the desktop's shaders
 and shared rendering code drawn through WebGL 2,
 keyboard/mouse and touch controls, and offline installation as a progressive web app. It currently supports
 a local match against a bot. See [Browser play and deployment](docs/browser.md).
@@ -23,7 +23,7 @@ Open [localhost:8703](http://localhost:8703). Once the header says **SAVED FOR O
 Use **Install game** in Chrome/Edge, or your browser's install / Add to Home Screen menu. Building requires
 .NET 10 and Python 3 (`python` or `py` on Windows) and works on Windows, macOS and Linux; players need only a
 modern browser. Upload `artifacts/browser/wwwroot` to an HTTPS static
-host to share the game; the publish also creates `artifacts/browser/tunnerer-browser.zip`.
+host to share the game; the publish also creates `artifacts/browser/emberward-browser.zip`.
 
 ## Requirements
 
@@ -34,21 +34,21 @@ Everything comes from NuGet, including the shader compiler (SDL_shadercross).
 ### Renderer
 
 Rendering goes through SDL_GPU: Metal on macOS, Direct3D 12 or Vulkan on Windows, Vulkan on Linux. The HLSL in
-`src/Tunnerer.Desktop/Rendering/Shaders` is compiled to DXIL, SPIR-V and MSL at build time.
+`src/Emberward.Desktop/Rendering/Shaders` is compiled to DXIL, SPIR-V and MSL at build time.
 
 ## Build, run, test
 
 ```
-dotnet build Tunnerer.slnx
-dotnet run --project src/Tunnerer.Desktop
-dotnet test Tunnerer.slnx
+dotnet build Emberward.slnx
+dotnet run --project src/Emberward.Desktop
+dotnet test Emberward.slnx
 ```
 
-The tests cover `Tunnerer.Core`, the Desktop logic that needs no window, the protocol and the relay, and need neither a GPU nor the shader compiler when run per project:
-`dotnet test tests/Tunnerer.Tests`.
+The tests cover `Emberward.Core`, the Desktop logic that needs no window, the protocol and the relay, and need neither a GPU nor the shader compiler when run per project:
+`dotnet test tests/Emberward.Tests`.
 
 Tests that take more than about five seconds carry `[Trait("Category", "Slow")]`. For a quick run while
-working, skip them with `dotnet test Tunnerer.slnx --filter "Category!=Slow"`; CI and the pre-commit run use the
+working, skip them with `dotnet test Emberward.slnx --filter "Category!=Slow"`; CI and the pre-commit run use the
 full suite.
 
 ## Controls
@@ -75,7 +75,7 @@ The game also pauses when its window loses focus.
 
 ## Command line
 
-Run `Tunnerer.Desktop --help` for the full list. The common ones:
+Run `Emberward.Desktop --help` for the full list. The common ones:
 
 | Option | Effect |
 |--------|--------|
@@ -90,9 +90,9 @@ Run `Tunnerer.Desktop --help` for the full list. The common ones:
 | `--room=NAME` | The room to join, when `--relay` is given without `--net` |
 | `--players=N` | Tanks in the match when opening the room, 2 to 8 (default 4); bots take the slots nobody joins |
 | `--name=NAME` | Your name in the room. If you drop out, starting again with the same room and name puts you back in |
-| `--secret=TEXT` | The relay's shared secret, if it has one (up to 256 characters); `TUNNERER_RELAY_SECRET` does the same |
-| `--volume=N` | Master volume, 0 to 100 (default 70); `TUNNERER_VOLUME` does the same |
-| `--mute` | Start with the sound off; `TUNNERER_MUTE=1` does the same |
+| `--secret=TEXT` | The relay's shared secret, if it has one (up to 256 characters); `EMBERWARD_RELAY_SECRET` does the same |
+| `--volume=N` | Master volume, 0 to 100 (default 70); `EMBERWARD_VOLUME` does the same |
+| `--mute` | Start with the sound off; `EMBERWARD_MUTE=1` does the same |
 | `--hidden` | Never show the window (automated runs) |
 | `--terrain-test` | Static terrain patterns for renderer work |
 | `--perf` | Capture frame times and exit |
@@ -105,17 +105,17 @@ Players connect out to a relay server; nobody needs an open port. Everyone start
 name:
 
 ```
-dotnet run --project src/Tunnerer.Desktop -- --net=friday --name=Ann
+dotnet run --project src/Emberward.Desktop -- --net=friday --name=Ann
 ```
 
 Without arguments, press Esc in the game and then N (or click "Network match") for the network menu: your name, the
 room, and Join or Create (F2: number of tanks, map size, seed). The game then starts again in that match. The menu
-remembers your choices in `settings.ini` under the user's application data folder (`TUNNERER_SETTINGS_FILE` names another file);
+remembers your choices in `settings.ini` under the user's application data folder (`EMBERWARD_SETTINGS_FILE` names another file);
 if the relay refuses you (room full or started, wrong secret, other build, not reachable) you come back to the menu
 with the reason on screen. A relay's secret is asked for only when it is needed, and kept in that file in plain text. In a
 network match the same pause-menu button reads "Leave network match" (L, also in the lobby).
 
-The public relay is open, so no secret is needed. A relay that asks for one: set `TUNNERER_RELAY_SECRET` (or pass
+The public relay is open, so no secret is needed. A relay that asks for one: set `EMBERWARD_RELAY_SECRET` (or pass
 `--secret=`) to the value whoever runs the relay gives you. The lobby shows who is in. The match starts when the room is full, or when the host (the first player in)
 presses Enter; bots play the tanks nobody took. It is a race: the first base to tap the core wins, and a tank out
 of lives is out. The first player's `--seed`, `--size`, `--fast` and `--players` decide the match for everyone.
@@ -132,8 +132,8 @@ to return, and its clock does not run meanwhile.
 To run your own relay instead of the shared one:
 
 ```
-dotnet run --project src/Tunnerer.Relay -- --urls http://127.0.0.1:8130
-dotnet run --project src/Tunnerer.Desktop -- --relay=ws://127.0.0.1:8130/play --room=friday
+dotnet run --project src/Emberward.Relay -- --urls http://127.0.0.1:8130
+dotnet run --project src/Emberward.Desktop -- --relay=ws://127.0.0.1:8130/play --room=friday
 ```
 
 The design and what is still missing are in `docs/multiplayer-design.md`.
@@ -147,27 +147,27 @@ frames keep counting while it is paused, so later commands and screenshots still
 
 | Variable | Meaning |
 |----------|---------|
-| `TUNNERER_SCRIPTED_INPUT` | Player input per simulation frame (record one with F12) |
-| `TUNNERER_COMMAND_SCRIPT` | `frame:Command` pairs, e.g. `30:TogglePause,60:RequestScreenshot,90:TogglePause`; names are the `GameCommand` enum. Script frames also count in a network lobby, so `150:StartNetMatch` starts a match as host |
-| `TUNNERER_SCRIPT_SCREENSHOT_FRAMES` | Simulation frames at which to save a final-frame screenshot |
-| `TUNNERER_RECORD_INPUT_PATH`, `TUNNERER_RECORD_INPUT_AUTOSTART` | Where to save a recording, and whether to start recording at once |
-| `TUNNERER_DISPLAY`, `TUNNERER_WINDOWED`, `TUNNERER_HIDDEN` | Same as the command-line options |
-| `TUNNERER_SCREENSHOT_DIR` | Where screenshots go (default `screenshots/` next to the executable) |
-| `TUNNERER_GPU_DEBUG` | `1` turns on SDL_GPU's validation layer |
-| `TUNNERER_AUDIO_CAPTURE` | Path of a WAV file to write the game's sound to, one simulation step of sound per step, instead of playing it. Works in automated runs (which are otherwise silent), logs every effect as `[Audio] step N ...`, and rewrites the file every two seconds of game time, so a run that is killed still leaves it |
-| `TUNNERER_AUDIO_LOG` | `1` logs every effect as it starts in a normal game too |
-| `TUNNERER_NET_FAULT_TICK` | In a network match, makes this client's world differ from that tick on, to see a desync found and reported |
-| `TUNNERER_INTERPOLATE` | `1` displays frames between simulation steps in an automated run too (a normal game always does); screenshots are then no longer tied to an exact step |
+| `EMBERWARD_SCRIPTED_INPUT` | Player input per simulation frame (record one with F12) |
+| `EMBERWARD_COMMAND_SCRIPT` | `frame:Command` pairs, e.g. `30:TogglePause,60:RequestScreenshot,90:TogglePause`; names are the `GameCommand` enum. Script frames also count in a network lobby, so `150:StartNetMatch` starts a match as host |
+| `EMBERWARD_SCRIPT_SCREENSHOT_FRAMES` | Simulation frames at which to save a final-frame screenshot |
+| `EMBERWARD_RECORD_INPUT_PATH`, `EMBERWARD_RECORD_INPUT_AUTOSTART` | Where to save a recording, and whether to start recording at once |
+| `EMBERWARD_DISPLAY`, `EMBERWARD_WINDOWED`, `EMBERWARD_HIDDEN` | Same as the command-line options |
+| `EMBERWARD_SCREENSHOT_DIR` | Where screenshots go (default `screenshots/` next to the executable) |
+| `EMBERWARD_GPU_DEBUG` | `1` turns on SDL_GPU's validation layer |
+| `EMBERWARD_AUDIO_CAPTURE` | Path of a WAV file to write the game's sound to, one simulation step of sound per step, instead of playing it. Works in automated runs (which are otherwise silent), logs every effect as `[Audio] step N ...`, and rewrites the file every two seconds of game time, so a run that is killed still leaves it |
+| `EMBERWARD_AUDIO_LOG` | `1` logs every effect as it starts in a normal game too |
+| `EMBERWARD_NET_FAULT_TICK` | In a network match, makes this client's world differ from that tick on, to see a desync found and reported |
+| `EMBERWARD_INTERPOLATE` | `1` displays frames between simulation steps in an automated run too (a normal game always does); screenshots are then no longer tied to an exact step |
 
 ## Layout
 
 ```
-src/Tunnerer.Core          simulation: terrain, heat, tanks, projectiles, machines, links, level generation, bot AI
-src/Tunnerer.Desktop       window, input, renderer (SDL_GPU), HUD, sound, game loop
-src/Tunnerer.Protocol      what a network match's clients and relay share: messages and the relay's tick rule
-src/Tunnerer.Relay         the relay server for network matches
-tests/Tunnerer.Tests       xUnit tests for Core, plus source rules for the renderers
-tools/Tunnerer.ShaderCompiler  build step: HLSL to DXIL, SPIR-V and MSL for SDL_GPU
+src/Emberward.Core          simulation: terrain, heat, tanks, projectiles, machines, links, level generation, bot AI
+src/Emberward.Desktop       window, input, renderer (SDL_GPU), HUD, sound, game loop
+src/Emberward.Protocol      what a network match's clients and relay share: messages and the relay's tick rule
+src/Emberward.Relay         the relay server for network matches
+tests/Emberward.Tests       xUnit tests for Core, plus source rules for the renderers
+tools/Emberward.ShaderCompiler  build step: HLSL to DXIL, SPIR-V and MSL for SDL_GPU
 ```
 
 See `ARCHITECTURE.md` for how the pieces fit, and `src/*/ARCHITECTURE.md` for detail.

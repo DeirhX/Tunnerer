@@ -1,7 +1,7 @@
-# Spike: Tunnerer.Core in the browser, with threads
+# Spike: Emberward.Core in the browser, with threads
 
 A throwaway measurement, not part of the solution. It asks two questions about a browser port: how fast does
-`Tunnerer.Core` step when compiled to WebAssembly, on one thread and with .NET's experimental multithreaded runtime
+`Emberward.Core` step when compiled to WebAssembly, on one thread and with .NET's experimental multithreaded runtime
 (`WasmEnableThreads`), and does it give the desktop's exact bits?
 
 - `Bench/Bench.cs`: the benchmark, shared by both apps. Checks the golden `BotVsBot` fingerprint from

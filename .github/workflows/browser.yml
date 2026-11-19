@@ -36,7 +36,7 @@ jobs:
         run: python tools/browser/publish.py --threads --restore-workloads --output artifacts/browser-threads
       - name: Check browser host formatting
         if: runner.os == 'macOS'
-        run: dotnet format src/Tunnerer.Browser/Tunnerer.Browser.csproj --verify-no-changes --no-restore
+        run: dotnet format src/Emberward.Browser/Emberward.Browser.csproj --verify-no-changes --no-restore
       - name: Script tests
         run: node --test tools/browser/pace.test.mjs
       - name: Browser smoke tests
@@ -56,10 +56,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: runner.os == 'macOS' && always()
         with:
-          name: tunnerer-browser
+          name: emberward-browser
           path: |
-            artifacts/browser/tunnerer-browser.zip
-            artifacts/browser-threads/tunnerer-browser.zip
+            artifacts/browser/emberward-browser.zip
+            artifacts/browser-threads/emberward-browser.zip
             artifacts/browser-tests/*.png
             artifacts/browser-server.log
             artifacts/browser-threads-server.log

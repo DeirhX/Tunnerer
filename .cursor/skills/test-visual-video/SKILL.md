@@ -25,25 +25,25 @@ Script behavior:
 
 ## 1) Run tests with visual capture enabled
 
-From repo root (`e:\Projects\New\tunnerer`):
+From repo root (`e:\Projects\New\emberward`):
 
 ```powershell
-$env:TUNNERER_TEST_VISUAL = "1"
-$env:TUNNERER_TEST_VISUAL_EVERY = "2"   # 1 = every frame, 2/3 = smaller output
-dotnet test "tests/Tunnerer.Tests/Tunnerer.Tests.csproj" --filter "FullyQualifiedName~TankHeatBehaviorTests"
+$env:EMBERWARD_TEST_VISUAL = "1"
+$env:EMBERWARD_TEST_VISUAL_EVERY = "2"   # 1 = every frame, 2/3 = smaller output
+dotnet test "tests/Emberward.Tests/Emberward.Tests.csproj" --filter "FullyQualifiedName~TankHeatBehaviorTests"
 ```
 
 Notes:
-- Visual capture is opt-in and only active when `TUNNERER_TEST_VISUAL` is set.
+- Visual capture is opt-in and only active when `EMBERWARD_TEST_VISUAL` is set.
 - Frame output is written under:
-  `tests/Tunnerer.Tests/bin/Debug/net10.0/artifacts/test-visual/<timestamp>_<testname>/`
+  `tests/Emberward.Tests/bin/Debug/net10.0/artifacts/test-visual/<timestamp>_<testname>/`
 
 ## 2) Convert one trace folder to video
 
 `ffmpeg` on this machine may not support `-pattern_type glob`, so use sequential copies:
 
 ```powershell
-$d = "tests/Tunnerer.Tests/bin/Debug/net10.0/artifacts/test-visual/<folder>"
+$d = "tests/Emberward.Tests/bin/Debug/net10.0/artifacts/test-visual/<folder>"
 $files = Get-ChildItem $d -Filter *.ppm | Sort-Object Name
 $i = 0
 foreach ($f in $files) {
@@ -58,7 +58,7 @@ Get-ChildItem $d -Filter "seq_*.ppm" | Remove-Item -Force
 ## 3) Convert recent trace folders in batch
 
 ```powershell
-$dirs = Get-ChildItem "tests/Tunnerer.Tests/bin/Debug/net10.0/artifacts/test-visual" -Directory |
+$dirs = Get-ChildItem "tests/Emberward.Tests/bin/Debug/net10.0/artifacts/test-visual" -Directory |
   Sort-Object LastWriteTime -Descending |
   Select-Object -First 4 -ExpandProperty FullName
 
@@ -81,7 +81,7 @@ After conversion, move each `trace.mp4` to the parent `test-visual` folder and a
 Then remove `.ppm` files and delete each original trace subfolder.
 
 ```powershell
-$root = "tests/Tunnerer.Tests/bin/Debug/net10.0/artifacts/test-visual"
+$root = "tests/Emberward.Tests/bin/Debug/net10.0/artifacts/test-visual"
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 Get-ChildItem $root -Directory | ForEach-Object {
   $dir = $_.FullName
@@ -100,7 +100,7 @@ Get-ChildItem $root -Directory | ForEach-Object {
 ```
 
 Final file location pattern:
-- `tests/Tunnerer.Tests/bin/Debug/net10.0/artifacts/test-visual/<trace-folder-name>_<timestamp>.mp4`
+- `tests/Emberward.Tests/bin/Debug/net10.0/artifacts/test-visual/<trace-folder-name>_<timestamp>.mp4`
 
 ## 5) What to share back
 
@@ -111,7 +111,7 @@ Final file location pattern:
 ## 6) Play latest video (mpv.net)
 
 ```powershell
-$video = Get-ChildItem "tests/Tunnerer.Tests/bin/Debug/net10.0/artifacts/test-visual" -Filter *.mp4 |
+$video = Get-ChildItem "tests/Emberward.Tests/bin/Debug/net10.0/artifacts/test-visual" -Filter *.mp4 |
   Sort-Object LastWriteTime -Descending |
   Select-Object -First 1
 & "$env:LOCALAPPDATA/Programs/mpv.net/mpvnet.exe" "$($video.FullName)"

@@ -41,5 +41,5 @@ if __name__ == "__main__":
     Handler.isolate = args.isolate
     if not (args.directory / "assets-manifest.js").is_file():
         parser.error("Run python3 tools/browser/publish.py first (offline manifest missing).")
-    print(f"Tunnerer: http://localhost:{args.port}", flush=True)
+    print(f"Emberward: http://localhost:{args.port}", flush=True)
     Server(("127.0.0.1", args.port), partial(Handler, directory=str(args.directory.resolve()))).serve_forever()

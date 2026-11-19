@@ -588,7 +588,7 @@ Each step is testable without the next.
    world (`FromSnapshot`), and answers `SnapshotRequest` once its world is at the tick. The uploader sends chunks of up to
    32 KiB. Both clients report `SnapshotDone` with `WorldSnapshot.Digest` of the raw bytes (the first eight bytes of SHA-256) and the
    sync digest. `LateJoin` is the joiner of §9.4 with the checks of §10.3 item 4 and the seat rule of §6.1. The
-   join messages of §4.3 are records in `Tunnerer.Protocol`, with `SnapshotAssembly` (chunks in order, within a
+   join messages of §4.3 are records in `Emberward.Protocol`, with `SnapshotAssembly` (chunks in order, within a
    size) and `SnapshotHold` (one upload, an optional verifier, the offer) for step 5's relay to reuse;
    `ILockstepLink` gained `SendJoin` and `TryReceiveJoin`. `MatchRecording` writes `mask=` lines and a starting
    snapshot (§6.2). The tests' `InMemoryRelay` plays the relay's part: watchers, the hold at the ticks closed when

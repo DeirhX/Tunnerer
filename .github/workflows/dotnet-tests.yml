@@ -8,7 +8,7 @@ on:
 jobs:
   test:
     # Every OS builds the whole solution. The build compiles every shader to DXIL, SPIR-V and MSL
-    # (tools/Tunnerer.ShaderCompiler), so a shader change one GPU API cannot take fails on any runner.
+    # (tools/Emberward.ShaderCompiler), so a shader change one GPU API cannot take fails on any runner.
     # All three must pass: SimulationFingerprintTests also checks that the simulation gives the same result on each.
     strategy:
       fail-fast: false
@@ -21,15 +21,15 @@ jobs:
         with:
           dotnet-version: "10.0.x"
       - name: Restore
-        run: dotnet restore "Tunnerer.slnx"
+        run: dotnet restore "Emberward.slnx"
       - name: Build
-        run: dotnet build "Tunnerer.slnx" -c Release --no-restore
+        run: dotnet build "Emberward.slnx" -c Release --no-restore
       - name: Test
-        run: dotnet test "Tunnerer.slnx" -c Release --no-build
+        run: dotnet test "Emberward.slnx" -c Release --no-build
       # Formatting and analyzer rules from .editorconfig; one OS is enough.
       - name: Check formatting
         if: runner.os == 'Windows'
-        run: dotnet format "Tunnerer.slnx" --verify-no-changes --no-restore
+        run: dotnet format "Emberward.slnx" --verify-no-changes --no-restore
 
       # Runs the game on the SDL_GPU backend (Metal) in a hidden window for ~120 frames and checks it exits cleanly
       # and writes a screenshot. Non-blocking for now: hosted macOS runners expose a virtual Metal device that is
@@ -37,15 +37,15 @@ jobs:
       - name: Smoke run (SDL_GPU, hidden window)
         if: runner.os == 'macOS'
         continue-on-error: true
-        working-directory: src/Tunnerer.Desktop/out/bin/Release/net10.0
+        working-directory: src/Emberward.Desktop/out/bin/Release/net10.0
         env:
-          TUNNERER_SCRIPTED_INPUT: "1,0:24;0,1,1:600"
-          TUNNERER_SCRIPT_SCREENSHOT_FRAMES: "60"
-          TUNNERER_SCREENSHOT_DIR: ${{ runner.temp }}/smoke
+          EMBERWARD_SCRIPTED_INPUT: "1,0:24;0,1,1:600"
+          EMBERWARD_SCRIPT_SCREENSHOT_FRAMES: "60"
+          EMBERWARD_SCREENSHOT_DIR: ${{ runner.temp }}/smoke
         run: |
-          mkdir -p "$TUNNERER_SCREENSHOT_DIR"
-          dotnet Tunnerer.Desktop.dll --hidden --windowed=1280x720 --perf --perf-warmup=30 --perf-frames=90
-          ls "$TUNNERER_SCREENSHOT_DIR"/*.ppm
+          mkdir -p "$EMBERWARD_SCREENSHOT_DIR"
+          dotnet Emberward.Desktop.dll --hidden --windowed=1280x720 --perf --perf-warmup=30 --perf-frames=90
+          ls "$EMBERWARD_SCREENSHOT_DIR"/*.ppm
       - name: Upload smoke screenshot
         if: runner.os == 'macOS' && always()
         continue-on-error: true
