@@ -216,7 +216,7 @@ The exchange is `TerrainHeatEngine.ComputeRegionDeltaConservative`: a cell's ter
 and with the solid cells beside it, and its air with the air beside it, but only where at least one of the two
 cells is open. The air inside solid ground carries nothing from one solid cell to the next, so ground conducts as
 its material row says; dirt is the insulator (30 times worse than stone). `ResolveCell` then applies the step to a
-cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock, emberite cores) and books what the
+cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock) and books what the
 pin removes or adds as `SunkFixedTemperature`, and it takes each material's `Loss` from unpinned ground and from
 open air, a small share of the temperature above or below ambient, booked as `SunkAmbientLoss`. The loss stands for
 heat leaving to the deep ground and to the surface. It is what gives a hot or frost pocket a halo of a fixed size
@@ -351,7 +351,7 @@ in every direction), before anything in that cell can reflect it. What it then f
 left (`RadarContact.Strength`). Every hot cell the ray goes through gets a `Heat` contact whose strength is how hot
 the cell is (1 at `HeatFullTemperature`), at most `HeatReturnsPerRay` a ray, and the ray stops when its strength runs
 out: a few cells into very hot ground, many into warm ground. A reflector at or above `HeatScrambleTemperature`
-returns `Heat` instead of what it is; ore included, so a lump, whose core is pinned warm and heats its shell past
+returns `Heat` instead of what it is; ore included, so a lump, whose core is seeded hot (finite, not pinned) and heats its shell past
 that, shows as heat and its contents are found by going there. So a hot zone shows as heat marks reaching a little way into it from the side
 the pulse came from, and nothing behind them. A contact is removed as soon as the side sees its cell, and the side's
 own machines are not radar targets: the radar tells a side only what it cannot see or does not remember. `Radar.HeatLoss` is the share of
@@ -483,6 +483,10 @@ Desktop:
      at construction, so the solver's inner loop pays one array read.
    - `AirExchange`: conductance between the cell's terrain and the air in the same cell.
    - `FixedTemperature`: set it for a source or sink; `ResolveCell` pins the cell there each step.
+   - Emberite is finite by design: ore is ordinary rows (plain ore is stone, the core a denser `EmberiteCore` row with no pin),
+     and `TerrainGrid.PlaceOre` seeds each cell with `capacity * start temperature` of energy through `SeedHeatedPixel`
+     (booked as injected in the ledger, tile woken); after that it cools like any ground. Hot rock, frost rock and the
+     base sinks are still pinned in the code today and change later (DESIGN.md §4.1, §4.10).
    - `Loss`: for a material that stores heat, the share of its temperature above ambient it gives up to the outside
      each tick. Leave it zero only for a pinned material; ground without a loss never settles.
    If entities must not draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.

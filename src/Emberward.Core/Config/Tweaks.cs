@@ -73,9 +73,10 @@ public static class Tweaks
             // Frost rock conducts like stone and is pinned far below ambient: a permanent cold source (see the frost
             // pocket constants below).
             (ThermalMaterial.FrostRock, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: -60f)),
-            // The core of an emberite lump conducts like stone and is pinned warm (Ore.CoreTemperature): enough ore
-            // together heats itself. Plain ore is stone.
-            (ThermalMaterial.EmberiteCore, new(HeatCapacity: 2.6f, Conductivity: 0.6f, AirExchange: 0.22f, FixedTemperature: Ore.CoreTemperature)),
+            // The core of an emberite lump is an energy-dense store: it conducts like stone but holds Ore.CoreHeatCapacity
+            // of heat per degree where stone holds 2.6, so seeded hot (Ore.CoreStartTemperature) it keeps a lot of energy
+            // and cools slowly. Nothing is pinned: it is finite, and it cools into the ground and the air like any rock.
+            (ThermalMaterial.EmberiteCore, new(HeatCapacity: Ore.CoreHeatCapacity, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
         ],
         [
             // Between two pinned sinks: cell temperatures never depend on these, but the ledger's rounding does when
@@ -163,7 +164,15 @@ public static class Tweaks
     {
         public const int PlainCellUnits = 1;
         public const int CoreCellUnits = 3;
-        public const float CoreTemperature = 90f;
+        // Ore starts the match with heat in it: each cell is seeded at generation with
+        // capacity * start temperature of energy (booked as injected in the ledger), and that energy is all there is: it
+        // conducts out into the ground and the air and is lost like any ground's heat, so the ore cools. A speck or a
+        // shell cell (plain stone) starts barely warm; a lump's core cells (CoreHeatCapacity a degree, against stone's
+        // 2.6) start far above Tank.HeatSafeMax. Bigger lumps have more core cells (LumpCoreShare), so they hold more
+        // energy and stay dangerous for longer.
+        public const float PlainStartTemperature = 9f;
+        public const float CoreHeatCapacity = 16f;
+        public const float CoreStartTemperature = 600f;
 
         // Mining (TankDigger). The tank's dig clears a plain ore cell with this per-mille chance per dig (dirt always
         // clears), so ore is slower than dirt; a core cell needs the torch and its own chance (rock is
@@ -218,7 +227,9 @@ public static class Tweaks
         public const int LumpEveryCells = 125000;
         public const int LumpMinCells = 80;
         public const int LumpMaxCells = 150;
-        public const int LumpCoreCells = 12;
+        // A lump's core is this share of its cells (at least LumpMinCoreCells), so the largest lumps run hottest.
+        public const double LumpCoreShare = 0.10;
+        public const int LumpMinCoreCells = 8;
         public const int LumpMinDistanceFromBase = 130;
         public const int LumpMinDistanceBetween = 90;
         public const double LumpCentreBias = 1.3;

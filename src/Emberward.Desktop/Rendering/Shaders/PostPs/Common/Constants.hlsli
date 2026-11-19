@@ -59,6 +59,9 @@ static const float kMaterialMaskFwidthScale = 0.75;   // anti-aliasing width rel
 static const float kOreFalloff = 1.1;                 // blob width around each ore cell centre (deposits are solid
                                                       // blobs)
 static const float kOreIso = 0.55;                    // field value at the edge of a deposit
+static const float kOreGlowMin = 0.2;                 // share of the glow left in cold ore
+static const float kOreGlowFullTemperature = 25.0;    // ore at or above this (degrees) glows fully
+static const float kOreGlowReach = 0.05;              // field value where an ore cell's halo fades out (~1.5 cells away)
 
 // ---- Stone / dirt boundary depth -------------------------------------------
 static const float kStoneContactShadowCells = 1.10;   // dirt-side shadow reach (cells; 6 screen px per cell)
@@ -72,6 +75,7 @@ static const float kStoneBevelShade = 0.28;           // darkening on the shaded
 // auxTex.r = (temperature + 80) / 4 / 255 (TerrainGrid.HeatToByte). Subtract kHeatZero for the signed heat in the
 // shader's units (1.0 = 1020 degrees); negative is below ambient.
 static const float kHeatZero = 80.0 / 4.0 / 255.0;
+static const float kHeatByteToDegrees = 4.0 * 255.0;  // (aux.r - kHeatZero) * this = degrees
 // Degrees at which frost is drawn at full strength, in the same units (frost rock is pinned at -60).
 static const float kFrostFullHeat = 60.0 / (4.0 * 255.0);
 

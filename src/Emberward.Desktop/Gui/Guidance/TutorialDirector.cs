@@ -58,7 +58,7 @@ public sealed class TutorialDirector
                 Target: static (_, p) => p.Base is { } b ? b.Position + new Offset(0, Tweaks.Base.BaseSize / 2) : null),
 
             new("Mine emberite",
-                "The teal crystal is emberite ore, what everything is paid with. Drive into it to mine it into your hold (MATERIALS). The hold is small: bring it home.",
+                "The gold crystal is emberite ore, what everything is paid with. Drive into it to mine it into your hold (MATERIALS). The hold is small: bring it home.",
                 static (_, w, p) => p.OreHeld >= Cost(MachineType.Relay) || OwnsAny(w, p, MachineType.Relay),
                 Progress: static (_, p) => Ratio("Ore", p.OreHeld, Cost(MachineType.Relay))),
 

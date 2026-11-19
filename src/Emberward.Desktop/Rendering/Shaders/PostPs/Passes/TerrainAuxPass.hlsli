@@ -249,24 +249,28 @@ float3 NaturalMaterialMasks(float3 coverage)
 
 // Emberite deposits are drawn from their exact cells: x = the field of
 // all ore cells (its kOreIso isoline is the deposit's edge), y = the field of the
-// core cells alone (where the lump glows warm).
-float2 OreField(float2 worldCell, int2 cell, int2 cellMax)
+// core cells alone (where the lump glows warm), z = the temperature (degrees) of the ore round
+// here, weighted like x, so the glow dims as the ore cools.
+float3 OreField(float2 worldCell, int2 cell, int2 cellMax)
 {
     float2 field = float2(0.0, 0.0);
+    float heat = 0.0;
     for (int oy = -1; oy <= 1; oy++)
     {
         for (int ox = -1; ox <= 1; ox++)
         {
             int2 c = clamp(cell + int2(ox, oy), int2(0, 0), cellMax);
-            int code = DecodeMaterialCode(auxTex.Load(int3(c, 0)).b);
+            float4 texel = auxTex.Load(int3(c, 0));
+            int code = DecodeMaterialCode(texel.b);
             float isCore = code == kMaterialCodeOreCore ? 1.0 : 0.0;
             float isOre = code == kMaterialCodeOre ? 1.0 : isCore;
             float2 d = worldCell - (float2(c) + 0.5);
             float w = exp(-dot(d, d) * kOreFalloff);
             field += float2(isOre, isCore) * w;
+            heat += isOre * w * (texel.r - kHeatZero) * kHeatByteToDegrees;
         }
     }
-    return field;
+    return float3(field, field.x > 1e-4 ? heat / field.x : 0.0);
 }
 
 // Contact shadow on the dirt side and a bevel rim on the stone side of a
@@ -357,7 +361,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
             float concreteMask = naturalMasks.y;
             float dirtMask = naturalMasks.z;
             float naturalTotal = stoneMask + concreteMask + dirtMask;
-            float2 oreField = OreField(worldCell, auxCell, auxMax);
+            float3 oreField = OreField(worldCell, auxCell, auxMax);
             float baseMask = terrainFactor * baseInfluence;
             // Stone margin gradient (per cell) for the stone/dirt depth cue.
             float2 stoneMarginGrad = 0.5 * float2(

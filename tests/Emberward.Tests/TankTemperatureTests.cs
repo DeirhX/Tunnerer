@@ -234,6 +234,71 @@ public class TankTemperatureTests
         Assert.Equal(pinned.Value, engine.GetFixedTemperature(ThermalMaterial.FrostRock));
     }
 
+    /// <summary>
+    /// How a tank parked in the scenario's tunnel fares beside a round deposit of <paramref name="radius"/> set into the
+    /// wall, with a bay cut through its shell (the torch leaves cores alone) so that the tank sits in open ground
+    /// beside the hot ore: peak heat, seconds above 100 and above 60, and seconds survived. A lump has its core (as
+    /// <see cref="Emberward.Core.LevelGen.OreDeposits.CoreCellsFor"/> sizes it) at the centre; otherwise the deposit is
+    /// plain ore. Off network the tank's heat floor alone climbs 1 degree a second, so a minute of plain ore leaves it
+    /// at about 60.
+    /// </summary>
+    private static (float Peak, float SecondsAboveSafe, float SecondsAboveSixty, float SecondsAlive) HeatBesideDeposit(
+        bool lump, int radius, int seconds)
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var world = s.World;
+        var tank = s.Tank;
+        var at = s.Base.Position + new Offset(0, s.DirY * (Tweaks.Base.BaseSize / 2 + 46));
+        var center = at + new Offset(radius, 0);
+        var disc = new List<Position>();
+        for (int dy = -radius; dy <= radius; dy++)
+            for (int dx = -radius; dx <= radius; dx++)
+                if (dx * dx + dy * dy <= radius * radius)
+                    disc.Add(center + new Offset(dx, dy));
+        disc.Sort((a, b) => Position.DistanceSquared(a, center).CompareTo(Position.DistanceSquared(b, center)));
+        int cores = lump ? Emberward.Core.LevelGen.OreDeposits.CoreCellsFor(disc.Count) : 0;
+        for (int i = 0; i < disc.Count; i++)
+            world.Terrain.PlaceOre(disc[i], core: i < cores, dirtOnly: false);
+        foreach (var cell in disc)
+            if (Position.DistanceSquared(cell, at) <= 9 && !Pixel.IsOreCore(world.Terrain.GetPixelRaw(cell)))
+                world.Terrain.SetPixel(cell, TerrainPixel.Blank);
+        tank.Position = at;
+        SetTankHeat(tank, 0f);
+
+        float peak = tank.Heat;
+        int above100 = 0, above60 = 0, ticks = 0;
+        for (; ticks < Tweaks.Perf.TargetFps * seconds; ticks++)
+        {
+            world.Advance(_ => default);
+            if (tank.IsDead)
+                break;
+            peak = Math.Max(peak, tank.Heat);
+            if (tank.Heat > Tweaks.Tank.HeatSafeMax)
+                above100++;
+            if (tank.Heat > 60f)
+                above60++;
+        }
+        float fps = Tweaks.Perf.TargetFps;
+        return (peak, above100 / fps, above60 / fps, ticks / fps);
+    }
+
+    [Fact]
+    public void ATankBesideALargeLump_Overheats_ForAWhile_ButNotBesideASmallOneOrPlainOre()
+    {
+        var large = HeatBesideDeposit(lump: true, radius: 7, seconds: 60);
+        var small = HeatBesideDeposit(lump: true, radius: 5, seconds: 60);
+        var plain = HeatBesideDeposit(lump: false, radius: 7, seconds: 60);
+
+        // Measured: a large lump (15 core cells) keeps a tank beside it above 100 for about 17 s and above 60 for the
+        // whole minute; a smaller one (8 core cells) for about 9 s and 49 s. The heat is finite, and the tank survives.
+        Assert.True(large.Peak > Tweaks.Tank.HeatSafeMax, $"a large lump overheats a tank. peak={large.Peak:0.0}");
+        Assert.True(large.SecondsAboveSafe >= 10f, $"above 100 for {large.SecondsAboveSafe:0.0} s");
+        Assert.True(large.SecondsAboveSixty >= 40f, $"above 60 for {large.SecondsAboveSixty:0.0} s");
+        Assert.True(large.SecondsAlive >= 55f, "but the heat is finite: a tank with a shield survives it");
+        Assert.True(small.SecondsAboveSafe < large.SecondsAboveSafe, "a smaller lump holds less energy and is dangerous for less time");
+        Assert.True(plain.Peak < 61f, $"plain ore never overheats a tank. peak={plain.Peak:0.0}");
+    }
+
     [Fact]
     public void ATankBesideAFrostPocket_CoolsDown_AndThenGetsTooCold_EvenOffNetwork()
     {

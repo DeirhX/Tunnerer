@@ -43,7 +43,7 @@ public class HarvesterHotLumpTests
     public void AHarvester_PassesOverALumpWhoseCoreIsIn_ForOreItCanWork()
     {
         var s = RelayHeatTests.CreateScenario();
-        OpenBay(s, -14, 4, 12);
+        OpenBay(s, -18, 4, 12);
         // A round lump with its core in, 11 cells along the bay, warmed until its shell is hot.
         var center = s.RelayPos + new Offset(11, 0);
         var lump = new List<Position>();
@@ -55,16 +55,17 @@ public class HarvesterHotLumpTests
                 if (d2 <= LumpRadius * LumpRadius + 3 && s.World.Terrain.PlaceOre(p, core: d2 <= 3, dirtOnly: false))
                     lump.Add(p);
             }
-        Advance(s, 60 * Tweaks.Perf.TargetFps);
+        Advance(s, 12 * Tweaks.Perf.TargetFps);
         Assert.Contains(lump, p => s.World.Terrain.GetPixelRaw(p) == TerrainPixel.Emberite &&
             s.World.Terrain.GetHeatTemperature(p) >= Tweaks.Machine.HarvesterHotOreTemperature);
 
-        // A pocket the other way, farther from the harvester than the lump is.
+        // A pocket the other way, farther from the harvester than the lump is, and out of reach of the heat a core
+        // that hot sends into the bay.
         var pocket = new List<Position>();
         for (int dy = -1; dy <= 1; dy++)
             for (int dx = -1; dx <= 1; dx++)
             {
-                var p = s.RelayPos + new Offset(-9 + dx, dy);
+                var p = s.RelayPos + new Offset(-14 + dx, dy);
                 s.World.Terrain.SetPixel(p, TerrainPixel.Emberite);
                 pocket.Add(p);
             }
@@ -74,7 +75,11 @@ public class HarvesterHotLumpTests
         int plainBefore = lump.Count(p => s.World.Terrain.GetPixelRaw(p) == TerrainPixel.Emberite);
         int storeBefore = s.Base.Store.Ore;
 
-        Advance(s, ActionTicks(40 + pocket.Count * Tweaks.Ore.HarvesterPlainWork));
+        // The harvester starts three cells from a hot lump and first crawls away from it; the bay's air is warm from the
+        // core, so it works slowly. Run until the pocket is cleared (or a minute has passed).
+        for (int tick = 0; tick < 60 * Tweaks.Perf.TargetFps &&
+            pocket.Any(p => s.World.Terrain.GetPixelRaw(p) != TerrainPixel.Blank); tick++)
+            Advance(s, 1);
 
         Assert.All(pocket, p => Assert.Equal(TerrainPixel.Blank, s.World.Terrain.GetPixelRaw(p)));
         Assert.Equal(storeBefore + pocket.Count, s.Base.Store.Ore);

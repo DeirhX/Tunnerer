@@ -69,7 +69,7 @@ public sealed class BuildPanel(HudLayout layout)
             uint color = slot.CaptionKind switch
             {
                 BuildSlotCaption.FromBase => 0xFFF0D080u,
-                BuildSlotCaption.FromHold => 0xFFD8E860u,
+                BuildSlotCaption.FromHold => 0xFF78E6FFu,
                 _ => 0xFFB0B0B0u,
             };
             DrawOutlinedText(dl, S(13f), new Vector2(sMin.X + S(4f), sMin.Y + S(3f)), caption, color, S(1f));

@@ -142,8 +142,8 @@ float4 ChargeBeam(float2 p, float4 params, float aa)
     return result;
 }
 
-// An ore beam: emberite unloaded into the network on its way home. Faceted teal crystals tumble along a faint teal
-// thread toward +x (the base), with a violet glint, one every few cells. It shares links with the heat and charge
+// An ore beam: emberite unloaded into the network on its way home. Faceted gold crystals tumble along a faint gold
+// thread toward +x (the base), with a pale glint, one every few cells. It shares links with the heat and charge
 // beams, so it is drawn as discrete crystals rather than a line.
 float4 OreBeam(float2 p, float4 params, float aa)
 {
@@ -155,7 +155,7 @@ float4 OreBeam(float2 p, float4 params, float aa)
 
     float d = sdSegment(p, float2(0.0, 0.0), float2(len, 0.0));
     float4 result = float4(0.0, 0.0, 0.0, 0.0);
-    Over(result, kOreTeal * 0.7, FillAlpha(d - 0.04, aa) * 0.35 * endFade * flow);
+    Over(result, kOreGold * 0.7, FillAlpha(d - 0.04, aa) * 0.35 * endFade * flow);
 
     // Crystals every 3.5 cells, travelling at 3 cells/s; each a small diamond turning as it goes.
     float spacing = 3.5;
@@ -167,11 +167,11 @@ float4 OreBeam(float2 p, float4 params, float aa)
     q = float2(q.x * c - q.y * s, q.x * s + q.y * c);
     float diamond = abs(q.x) + abs(q.y) - 0.42;
     float glint = step(0.8, BeamHash(cell + 0.31));
-    float3 crystal = lerp(kOreTeal, kOreViolet, glint);
+    float3 crystal = lerp(kOreGold, kOreGlint, glint);
     Over(result, crystal, FillAlpha(diamond, aa) * endFade * flow);
     result.rgb += crystal * exp(-max(diamond, 0.0) * 3.0) * 0.45 * endFade * flow;
     result *= fade.x;
-    result.rgb += kOreTeal * fade.y * exp(-d * 2.0) * endFade;
+    result.rgb += kOreGold * fade.y * exp(-d * 2.0) * endFade;
     return result;
 }
 

@@ -150,7 +150,8 @@ public class NetSessionJoinTests
         var match = PlayAndJoin(relaySeed: 3, joinAt: 2400, playedAfter: 240);
 
         Assert.True(match.HeldAt >= 2400, $"held at {match.HeldAt}");
-        AssertEveryWorldTheSame(match, expectedSlot: 3);
+        // The joiner takes the bot with the most lives left (LateJoin.PickSeat); which that is follows how the match went.
+        AssertEveryWorldTheSame(match, expectedSlot: 2);
         // The joiner's recording starts from its snapshot and rebuilds the same world. (A player's, from tick 0 with
         // the seat changing in it, is checked on a shorter match in NetSessionTests: replaying 2400 ticks costs.)
         Assert.Equal(match.Clients[0].Save(), Rebuild(match.Join.Session!.Recording(Config)));

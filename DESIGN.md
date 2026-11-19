@@ -51,6 +51,11 @@ The session loop in detail:
 
 ### 4.1 Rules
 
+- **Every body is finite.** *(Decided. The code still pins some of these today; see §4.10.)* Every cell has a heat
+  capacity and an energy, and none holds a fixed temperature. The map starts with a stock of heat in its hot rock,
+  frost rock, emberite and base, and that stock spreads and cools toward ambient. Nothing is a permanent source or
+  sink. Heat leaves the world only through the outside loss in §4.3, and it enters only through tank actions and any
+  source the design adds later.
 - **Everything useful makes heat.** Digging, shooting, harvesting, pumping and, later, refining all inject heat.
   *(Proposed. Today only tank actions, the torch and explosions do.)*
 - **The base is the main heat sink.** *(Decided.)* It has a finite reservoir and a radiator that vents at a fixed
@@ -81,17 +86,19 @@ until a tunnel uncorks it.
 
 Heat currently leaves the world in ways that bypass the base. Each one weakens "the base is the sink":
 
-- Base cells are pinned at ambient, so heat that conducts into the base interior is deleted without using the
+- Base cells are pinned at ambient today, so heat that conducts into the base interior is deleted without using the
   reservoir.
 - Digging hot dirt out to air destroys that cell's heat.
 - Ground and open air give a small share of their heat to the outside every tick (deep ground, the surface). This
-  one is kept on purpose: without it a pinned pocket has no equilibrium and its halo spreads for ever. It is small
+  one is now the only way heat leaves the world. With no pinned bodies (§4.1) it is what lets every finite body cool
+  toward ambient, so it stays. It is small
   (ground loses a third of its heat in about a minute, open air in about 15 seconds), it bounds a pocket's halo at
   about a dozen cells, and it is what makes a dug-out chamber a radiator for a machine that runs hot.
 
 ### 4.4 Heat as a resource *(Proposed)*
 
-Late in the campaign the gradient between hot rock and a cold base drives generators. What was killing you now
+Late in the campaign the gradient between hot rock and a cold base drives generators. With every body finite (§4.1)
+that gradient decays as the rock cools, so generators need a source that keeps it up (§4.10). What was killing you now
 powers you, and that power is what taps the core. §4.5 brings the first form of this forward into the core loop.
 
 ### 4.5 Power: heat in, charge out *(Prototype)*
@@ -165,7 +172,7 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
   nothing.
 - **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
   the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node, and while the
-  hold unloads, teal crystals run beside it and along the links home. Off network an
+  hold unloads, gold crystals run beside it and along the links home. Off network an
   "OFF NETWORK ~Ns" tag above the TEMP gauge shows how long until the floor reaches the safe maximum. Tethers,
   links and charge beams grow out from their source when they connect and dissolve when they break, so gaining or
   losing the network is something you see happen, not a line popping on or off.
@@ -185,7 +192,7 @@ The tank lives in a band around 0. Both ends hurt, and the world has places at b
   in both directions: hot ground warms it, cold ground chills it, and it warms or chills the cells under it in turn.
   Solid ground transfers heat faster than air. The more of the tank's footprint touches solid ground, the stronger
   that contact is. Each transfer stops when the tank and the material it touches reach the same temperature.
-- **Frost pockets** are indestructible rock pinned at -60, scattered at middle distances from the bases and away from
+- **Frost pockets** are indestructible rock that starts at -60 and warms back toward ambient as it takes heat, scattered at middle distances from the bases and away from
   hot pockets. Beside one, a hot tank sheds heat quickly, which makes it a place to cool down on a dive (and, off
   network, a way to buy back time, §4.6). Stay too long and the tank gets chilled, then frostbitten. Frost is drawn as
   an icy tint with a slow sparkle on any ground below 0, so cold places read at a glance.
@@ -218,6 +225,36 @@ Building has to pay off, and exploring has to lead somewhere.
 - **The HUD** shows the goal (core tap rate and hold timer) at the top of the base panel, an upgrade list on the left
   of the view while docked (clear of the base's top and bottom entrances; the base track above the tank track, with
   the ore store, each upgrade's level, next cost and key), and a banner when the sector is complete.
+
+### 4.10 Challenges of a finite world *(Proposed; open)*
+
+Making every body finite (§4.1) is decided. It is not free, and these must be solved before the numbers are final:
+
+1. **The match's energy budget.** The pins were the only supply that never ran out. Now a match has a stock of heat
+   in its rock, pockets and lumps, plus what tank actions inject. The stock must last as long as a sector, measured
+   against the base radiator's 500 a tick.
+2. **Relays drain sources.** A relay that pulls heat from a pocket uses up what it draws on. §4.1's line that a relay
+   decides whether a hot place becomes permanently workable no longer holds: a relay makes a place workable only
+   until it cools.
+3. **The radiator is no longer the only constraint.** With finite sources, total heat falls over time. The decision
+   that the shared radiator is the bottleneck (§13) must be reworded: the bottleneck becomes the stock and its reach.
+4. **Cost on a large map.** A finite body keeps changing until it reaches ambient, so more tiles stay active for longer.
+   The rule that a step's cost follows activity must still hold. Measure on 1500x750 before tuning.
+5. **Halos.** The pinned ring that bounded a pocket's halo (§4.3) goes. The outside loss must now bound a finite
+   pocket's spread, and "dangerous" becomes a duration, not a distance.
+6. **Tuning is a stock problem.** A starting temperature no longer guarantees danger; danger is stored heat over time.
+   Hot rock, lumps, frost rock and the radiator must be tuned together.
+7. **Determinism, saves and multiplayer.** Stored heat is part of the state. The match hash, the snapshot
+   (`SnapshotCoverageTests`), the fingerprints and replays all change, and every client must start from the same stock.
+8. **The ledger's baseline.** The starting stock must be booked as seeded energy, so the ledger balances from tick 0.
+9. **Sectors freeze.** A frozen sector (§7.3) keeps a fixed output rate. With finite bodies its stock must freeze too,
+   or it cools while nobody plays.
+10. **Visuals and the radar.** Glow, frost tint and the radar's heat thresholds (`Radar.HeatThreshold`) must follow
+    temperature, so a cooling speck dims and eventually reads as ground. The radar must still find emberite from afar.
+11. **The base interior.** Base cells become ordinary cells, so heat conducted into the base stays in the ground until
+    the reservoir takes it. Check that the base still acts as the sink.
+
+An opportunity: quenchable hot rock (§6.1) already wants rock that cools. Finite bodies make it consistent.
 
 ## 5. The player *(Decided: mainly a builder that can also fight, as in Factorio)*
 
@@ -299,9 +336,12 @@ Rare minerals and metals sit in the terrain, and the player has reasons to colle
 - Each sector's minerals unlock the technology for the next, so sectors cannot be skipped.
 
 **Emberite (Prototype).** The first mineral is an exotic ore, emberite, the only thing machines and upgrades are
-made of (§6.4); dirt is worth nothing. It is inert as a speck but warms itself when
-enough sits together: the core of a large lump is pinned at about 90 degrees, a permanent heat source like hot rock
-until it is mined out. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core cell 3), in three kinds
+made of (§6.4); dirt is worth nothing. Every ore cell glows and gives heat: plain ore starts at 9
+degrees (a speck is a faint warm freckle, a pocket a warm patch), and the core of a lump, about a tenth of its cells,
+starts at 600 degrees and holds about six times the heat per degree of stone, so each core cell is seeded with
+4800 degree-cells of energy (booked in the ledger as injected at generation). That is a stock of heat, not a source:
+nothing is pinned, and it spreads into the shell and the ground, and cools like any ground. The bigger the lump, the more
+core cells (a tenth of its cells), so the more heat it stores and the longer the ground round it stays dangerous. A map of 1500x750 holds about 2,500 units (a plain cell is 1, a core cell 3), in three kinds
 of deposit, scaled with map area:
 
 - specks of 1 to 3 cells scattered through the dirt, near the bases too (about 15% of the ore);
@@ -312,13 +352,16 @@ On a smaller map the minimum distances from the bases and between lumps shrink w
 no less than 0.4 of them), and every map gets at least three pockets and one lump when one fits, so the desktop's
 default 320x200 match has a few hundred units rather than a few dozen. 1500x750 is unchanged.
 
-Ore blocks movement; it is drawn as teal and violet crystal, the core glowing warm.
+Ore blocks movement; it is drawn as gold crystal that glows from within, with a soft gold halo on the ground
+round every cell, and the cores brighter still.
 
-**Cracking a lump.** A lump is the big prize, and it takes the tank. Its core heats the ore round it to 55-80
-degrees and the ground just outside to about 45, so a harvester at its edge senses about 39 degrees and stalls (its
-limit is 30), and the radar reads the whole lump as heat. Harvesters never mine core cells; only the tank's torch
-does. Once the core is out the lump cools: with no relay its edge is workable within about 15 seconds and the whole
-lump within half a minute, and a linked relay beside it cools it in a few seconds. Then harvesters clear the shell, a
+**Cracking a lump.** A lump is the big prize, and it takes the tank, and a tank that digs into one has to be quick:
+a fresh lump's shell is over 100 degrees for about the first 25 seconds and its core heat then drains into the ground and
+the air of any tunnel beside it. A tank parked in a bay cut into a large lump (150 cells) stays above 100 degrees for
+about 17 seconds and above 60 for the whole minute; beside a small lump (80 cells) for about 9 and 49 seconds. A harvester
+at the lump's edge senses over 30 degrees and stalls (its limit) for about the first minute, and the radar reads the
+whole lump as heat while it lasts. Harvesters never mine core cells; only the tank's torch does. The lump cools by itself,
+and a relay beside it cools it faster, since the heat is finite; once it is cool, harvesters clear the shell, a
 cell about every second (about a minute for a hundred cells, more counting trips to a pylon). A relay planted right
 against an intact lump pumps enough heat that harvesters can already work its outer shell, stalling only within a
 few cells of the core; the core itself still waits for the tank. *(Tuning open: whether an intact core should hold
@@ -385,7 +428,7 @@ The player sees only what their side sees, so that learning the shape of the wor
   tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
   it through; rock, hot and frost rock, emberite, another side's base walls, machines and tanks reflect it and stop it.
   Each return is a single blip at the first cell that reflected, flaring the moment the ring reaches it (near
-  things first) and fading over 10 seconds: green for rock, amber for metal, a small teal diamond with a violet heart
+  things first) and fading over 10 seconds: green for rock, amber for metal, a small gold diamond with a pale heart
   for emberite, and a white-violet dot in a ring for something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
   shadow, so the outline of a thing is only learned by pinging it from several sides, and successive pulses hit
   slightly different points, so a shape fills in while you wait. When a later pulse passes an old blip it checks it
@@ -526,7 +569,7 @@ On `master` (2026-11-17) the game has:
   network, refuelling at pylons; a relay keeps them cool, and a lump's core is left to the tank's torch.
 - Network coverage as the tank's leash (§4.6), and tank temperature in a band around 0 (§4.7): docking settles it
   near 0, cold slows it, both extremes damage it.
-- Hot rock pockets as permanent heat sources and frost pockets as cold ones (a match has 8 and 5), and a hot core
+- Hot rock pockets as heat stores and frost pockets as cold ones (a match has 8 and 5), both still pinned in the code until §4.1 lands, and a hot core
   at the centre of the map to tap (§4.8).
 - Fog of war and the tank's radar pulse (§6.6).
 - Network matches for up to 8 players through a relay server, in deterministic lockstep, with bots in the empty
@@ -607,8 +650,10 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 | Hot ground absorbs the radar pulse; the cells it got through show as red dots by heat | Prototype |
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
 | The radar finds emberite (a speck from near, a deep deposit from further); a lump shows only as heat | Prototype |
-| Harvesters leave lump cores to the tank's torch; a warm core (90 degrees) keeps harvesters off its lump until it is cut out | Prototype |
+| Harvesters leave lump cores to the tank's torch; a hot core (600 degrees at the start, dangerous to a tank, and finite) keeps harvesters off its lump while its heat lasts | Prototype |
 | Gold, a pickup left from the original game, is retired: emberite is the only resource on the map | Decided |
+| Every heat body is finite: no pinned temperatures or permanent sources; the outside is a loss, not a cell | Decided |
+| Stored heat is the match's supply; what keeps it up over a long match is open (§4.10) | Proposed |
 
 ## 14. Open questions
 
@@ -623,3 +668,4 @@ return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are
 - Should an intact lump core hold its ore against a relay planted beside it, so harvesters truly wait for the tank?
 - What makes a step cheap on a very large map: bookkeeping that follows activity, or coarser simulation of ground
   nobody sees?
+- With every body finite, what keeps a long match supplied with heat: new sources over time, or a stock that is simply spent (§4.10)?

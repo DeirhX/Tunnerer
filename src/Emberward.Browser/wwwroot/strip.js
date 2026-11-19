@@ -92,7 +92,7 @@ const BUILD_STATE_BORDER = {
 };
 const CAPTION_COLOR = {
     FromBase: abgr(0xfff0d080),
-    FromHold: abgr(0xffd8e860),
+    FromHold: abgr(0xff78e6ff),
     KeyAndName: abgr(0xffb0b0b0),
 };
 
@@ -249,8 +249,8 @@ export class StripView {
         }
         readout(`${p.ore} / ${p.holdCapacity}`, MATERIALS);
 
-        const oreColor = p.unloading ? 0xff60ff90 : p.holdFull ? 0xff40c0ff : 0xffd8e860;
-        stripText(left, p.oreLine, ORE_LINE.x, ORE_LINE.y, ORE_LINE.size, abgr(oreColor), abgr(0x28806020));
+        const oreColor = p.unloading ? 0xff60ff90 : p.holdFull ? 0xff2880ff : 0xff78e6ff;
+        stripText(left, p.oreLine, ORE_LINE.x, ORE_LINE.y, ORE_LINE.size, abgr(oreColor), abgr(0x2840b0ff));
         if (p.unloading) {
             // Down arrows either side of the word, bobbing: the ore is going down into the base.
             const bob = ((time * 3) % 1) * 5;

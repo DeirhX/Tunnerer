@@ -70,7 +70,8 @@ public sealed record BuildSlotView(
         return new BuildSlotView(machine, state, progress, label, caption, kind);
     }
 
-    /// <summary>Frame in the eight-column Emberite pile sprite sheet, or -1 for an empty hold.</summary>
+    /// <summary>Frame in the eight-column Emberite pile sprite sheet (40 frames, tools/hud/make_hold_emberite.py), or
+    /// -1 for an empty hold.</summary>
     public static int OrePileFrame(Tank player)
     {
         ArgumentNullException.ThrowIfNull(player);
