@@ -107,7 +107,6 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                 await api.Join(
                     data.room,
                     data.name,
-                    data.secret || "",
                     data.players,
                     data.seed,
                     data.mapWidth || 0,
