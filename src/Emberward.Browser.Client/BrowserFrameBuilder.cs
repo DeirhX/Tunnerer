@@ -63,7 +63,20 @@ public static class BrowserFrameBuilder
             player.IsOreHoldFull, player.IsOffNetworkUrgent, BuildSlotView.OreLine(player));
         return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
             session.Sounds.Frame(takePlays: includeEvents), builds, upgrades, preview, goal, Guidance(session.Guidance),
-            includeDial ? Dial() : null, net?.Status(), BasePower(world, player));
+            includeDial ? Dial() : null, net?.Status(), BasePower(world, player), MachineUpgrade(session));
+    }
+
+    /// <summary>The machine next to the tank and its panel, as the desktop shows them (<see cref="MachineUpgradeView"/>).</summary>
+    private static MachineUpgradeStatus? MachineUpgrade(BrowserSession session)
+    {
+        if (session.MachineUpgrades.Update(session.World, session.Player) is not { } view)
+            return null;
+        var choices = view.Choices.Select(c => new MachineUpgradeLine(c.Key, c.Name, c.Effect, c.Level, c.Price,
+            c.State.ToString(), c.CanBuy, HudPalette.Hex(c.NameColor), HudPalette.Hex(c.PriceColor))).ToArray();
+        return new MachineUpgradeStatus(view.Machine.Position, view.Title,
+            view.HighlightColor >> 24 != 0 ? HudPalette.Hex(view.HighlightColor) : null,
+            view.Highlight == MachineUpgradeHighlight.Affordable, view.Level, view.MaxLevel, session.MachineUpgrades.IsOpen,
+            choices, view.StoreOre, view.Refusal, MachineUpgradeView.RingCells, MachineUpgradeView.PipLiftCells);
     }
 
     private static BaseCharge? BasePower(World world, Tank player)

@@ -66,6 +66,9 @@ Entities/
   Machines/HarvesterPathing.cs  Where a harvester can stand; the flood that finds the ore nearest by path
   Machines/MachineList.cs    Machine collection, filed by place (`CollectNear`); wrecks dead machines (leave the network, charge to heat, scorch)
   Machines/MachinePlacementPreview.cs   Result of World.PreviewPlacement
+  Machines/MachineUpgrades.cs   MachineUpgradePath, refusals, MachineUpgradeLevel / Offer and what each path and level is worth
+  Machines/MachineUpgradeSystem.cs   (only when MatchRules.MachineUpgrades is on) Per-machine upgrades bought next to the
+                             machine from the base store (DESIGN.md §4.9); World.MachineUpgradeOfferFor / MachineUpgradeOf answer
   Machines/MachineMaterializer.cs   The machine a tank carries before it is planted
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
@@ -89,7 +92,7 @@ Collision/
   Raycaster.cs               Bresenham lines; HasOpenLine (the one line-of-sight test)
 Input/
   Controller.cs              ControllerOutput
-  ControllerOutputCodec.cs   ControllerOutput as 29 bits (network, input logs); quantises the aim
+  ControllerOutputCodec.cs   ControllerOutput as 31 bits (network, input logs); quantises the aim
 Bots/                        The computer player: produces a ControllerOutput like a person would
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
@@ -161,8 +164,13 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage, the
    network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
    the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
-   `TankDigger.Move`, spawn shield, shooting, `TankBuildController.Advance`, the upgrade keys, then
-   `TankThermals.Advance` (heat from ore still in the hold and from tank actions, then exchange with the grid).
+   `TankDigger.Move`, spawn shield, shooting, `TankBuildController.Advance`, the upgrade keys, the machine upgrade
+   key (only when `MatchRules.MachineUpgrades` is on: `MachineUpgradeSystem` buys a level for the nearest own machine
+   in reach on a press of `ControllerOutput.UpgradeMachine` with a key, recorded as `StepEventKind.MachineUpgraded`
+   or `MachineUpgradeRefused`), then `TankThermals.Advance` (heat from ore still in the hold and from tank actions,
+   then exchange with the grid). Machine upgrades take effect where the rest of the game reads them: a relay asks its
+   pump rate (`MachineContext.Upgrades`), the energy network holds a resized capacitor and idle draw
+   (`EnergyNetwork.Resize`), and vision asks a machine's sight bonus.
 6. **machines**: With the energy rule on, `EnergyNetwork.Refresh` first groups each side's connected link nodes
    when `LinkMap.PowerVersion` changes. The base roots its own island. The first generator in machine order roots
    each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's

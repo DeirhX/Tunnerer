@@ -16,8 +16,9 @@ public static class GameLaunchOptions
     public static bool EnergyAudit { get; set; }
 
     /// <summary>
-    /// --energy-network: local matches run the energy network (<c>MatchRules.EnergyNetwork</c>), which is off in
-    /// <c>MatchRules.Standard</c>. Network matches never read it: their rules are the room's.
+    /// --energy-network: local matches run the energy network (<c>MatchRules.EnergyNetwork</c>) and per-machine
+    /// upgrades (<c>MatchRules.MachineUpgrades</c>), which are off in <c>MatchRules.Standard</c>. Network matches never
+    /// read it: their rules are the room's.
     /// </summary>
     public static bool EnergyNetwork { get; set; }
 }

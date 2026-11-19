@@ -38,6 +38,8 @@ export class GameInput {
                 if (this.enabled) {
                     if (e.code === "KeyH") action("thermal");
                     if (e.code === "KeyG") action("power");
+                    // The upgrade panel of the machine next to the tank; while it is open, 1-3 buy for that machine.
+                    if (e.code === "KeyF") this.queue("machineUpgrade", true);
                     const build = { KeyE: 1, KeyR: 2, KeyT: 3, KeyY: 4 }[e.code];
                     if (build) this.queue("build", build);
                     if (e.code === "KeyX") this.queue("recall", true);
@@ -64,14 +66,21 @@ export class GameInput {
         canvas.addEventListener("pointerdown", (e) => {
             if (!this.enabled || e.button !== 0) return;
             canvas.focus({ preventScroll: true });
-            canvas.setPointerCapture(e.pointerId);
-            this.firing = true;
             const r = canvas.getBoundingClientRect();
-            this.pointer = {
+            const pointer = {
                 x: e.clientX - r.left - r.width / 2,
                 y: e.clientY - r.top - r.height / 2,
                 mouse: e.pointerType === "mouse",
             };
+            // On touch, a tap on the lit machine opens (or closes) its upgrade panel instead of firing. A mouse
+            // click always fires: F opens the panel there.
+            if (!pointer.mouse && this.tapMachine?.(pointer)) {
+                this.queue("machineUpgrade", true);
+                return;
+            }
+            canvas.setPointerCapture(e.pointerId);
+            this.firing = true;
+            this.pointer = pointer;
         });
         const release = () => {
             this.firing = false;
@@ -154,6 +163,7 @@ export class GameInput {
             build: action.build || 0,
             recall: !!action.recall,
             upgrade: action.upgrade || 0,
+            machineUpgrade: !!action.machineUpgrade,
         };
     }
 }

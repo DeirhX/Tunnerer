@@ -19,7 +19,8 @@ internal static class TestHelpers
         int hotRockPocketCount = 0,
         int frostRockPocketCount = 0,
         bool seedOre = false,
-        bool energyNetwork = false)
+        bool energyNetwork = false,
+        bool machineUpgrades = false)
     {
         var mapSize = size ?? DefaultMapSize;
         var gen = new ToastGenerator();
@@ -34,6 +35,7 @@ internal static class TestHelpers
                 FrostRockPockets = frostRockPocketCount,
                 SeedOre = seedOre,
                 EnergyNetwork = energyNetwork,
+                MachineUpgrades = machineUpgrades,
             });
         world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;

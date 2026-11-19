@@ -12,7 +12,8 @@ using Emberward.Core.Entities.Tanks;
 /// Draws the in-game HUD each frame: the game view, crosshair and hit feedback here, and the pieces in their own
 /// files (<see cref="HudStrip"/>, <see cref="NetworkPanel"/>, <see cref="WarningBanner"/>, <see cref="MatchOverlay"/>,
 /// <see cref="PostPassOverlay"/>, <see cref="TerrainTestPanel"/>), plus the tutorial and notifications
-/// (<c>GameHud.Guidance.cs</c>) and the upgrade panel and goal banner (<c>GameHud.Goal.cs</c>).
+/// (<c>GameHud.Guidance.cs</c>), the upgrade panel and goal banner (<c>GameHud.Goal.cs</c>) and the machine upgrade
+/// highlight and panel (<c>GameHud.MachineUpgrade.cs</c>).
 /// </summary>
 public partial class GameHud
 {
@@ -89,6 +90,7 @@ public partial class GameHud
         WarningBanner.Draw(ViewportRect, _guidance.Warning, _time);
         DrawGuidance();
         DrawUpgradePanel(player);
+        DrawMachineUpgrade(player, world);
         DrawSectorComplete(player, world);
         MatchOverlay.Draw(PlayRect, player, world, CanRestartMatch, WinnerName);
         if (showPostPassOverlay)

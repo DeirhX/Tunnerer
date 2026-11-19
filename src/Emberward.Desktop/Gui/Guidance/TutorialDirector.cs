@@ -113,6 +113,15 @@ public sealed class TutorialDirector
                     : null,
                 Target: static (_, p) => p.Base?.Position),
 
+            new("Upgrade a relay",
+                "Stop beside one of your relays and press F (or tap it): its panel offers Tap (pumps more heat, so more charge, and runs hotter), Sensor (sees further) or Conduit (a bigger capacitor). Press 1-3 to buy from the base ore store; a relay keeps the path it takes first.",
+                static (_, w, p) => !w.Rules.MachineUpgrades || Owned(w, p, MachineType.Relay).Any(m => w.MachineUpgradeOf(m).Level > 0),
+                Progress: static (_, p) => p.Base is { } b
+                    ? Ratio("Base ore store", b.Store.Ore, MachineUpgrades.CostOfLevel(0))
+                    : null,
+                Target: static (w, p) => w.MachineUpgradeOfferFor(p)?.Machine.Position
+                    ?? Owned(w, p, MachineType.Relay).Select(m => (Position?)m.Position).FirstOrDefault()),
+
             new("Cool off at the frost",
                 "Blue rock is frost. Beside it a hot tank cools fast, a good stop on a long dig. Stay too long and the cold slows you down, then cracks your shield.",
                 static (t, _, _) => t._nearFrost,

@@ -11,6 +11,7 @@ using Emberward.Core.LevelGen;
 using Emberward.Core.Types;
 using Emberward.Desktop;
 using Emberward.Desktop.Audio;
+using Emberward.Desktop.Gui;
 using Emberward.Desktop.Gui.Guidance;
 using Emberward.Protocol;
 
@@ -49,6 +50,26 @@ public sealed class BrowserSession
     {
     }
 
+    /// <summary>
+    /// The machine upgrade panel (F, or a tap on the lit machine), with the closing rules the desktop has. UI state
+    /// only: what reaches the simulation is the upgrade key sent while it is open.
+    /// </summary>
+    public MachineUpgradePanel MachineUpgrades { get; } = new();
+
+    /// <summary>
+    /// The page's input with the machine upgrade panel applied: <paramref name="togglePanel"/> (F or a tap on the lit
+    /// machine) opens or closes it, and while it is open the number keys buy for the machine next to the tank
+    /// (<see cref="ControllerOutput.UpgradeMachine"/>) instead of base upgrades.
+    /// </summary>
+    public ControllerOutput WithMachineUpgradePanel(ControllerOutput input, bool togglePanel)
+    {
+        MachineUpgrades.Update(World, Player);
+        if (togglePanel)
+            MachineUpgrades.Toggle(World, Player);
+        input.UpgradeMachine = MachineUpgrades.IsOpen && input.Upgrade != 0;
+        return input;
+    }
+
     /// <param name="localBot">A local match: the bot drives <see cref="BotSlot"/>.</param>
     private BrowserSession(int seed, Size mapSize, int players, LevelGenMode genMode, int heatWorkers, int localSlot,
         bool localBot = false, int machines = 0, bool energyNetwork = false)
@@ -60,7 +81,7 @@ public sealed class BrowserSession
             settings = settings with { ThermalParallelTileThreshold = int.MaxValue };
         // A network match is a race, as on the desktop: the first base to tap the core wins.
         World = MatchSetup.Build(MapSize, seed,
-            MatchRules.Standard with { CoreTapWins = true, EnergyNetwork = energyNetwork }, players, genMode,
+            MatchRules.Standard with { CoreTapWins = true, EnergyNetwork = energyNetwork, MachineUpgrades = energyNetwork }, players, genMode,
             settings: settings);
         LocalSlot = localSlot;
         if (localBot)

@@ -262,6 +262,7 @@ public class Tank
         AdvanceShooting(input, in ctx);
         _build.Advance(in ctx, input);
         AdvanceUpgrades(input);
+        ctx.MachineUpgrades?.Advance(this, in input);
         _thermals.Advance(ctx.Heat);
     }
 
@@ -283,7 +284,8 @@ public class Tank
     /// <summary>
     /// Upgrade keys (edge triggered): docked at its own base, the tank buys the next level of the chosen upgrade from
     /// the base's ore store. Anywhere else, for a maxed upgrade, or when the store cannot pay, the press is refused
-    /// and <see cref="LastUpgradeRefusal"/> says why.
+    /// and <see cref="LastUpgradeRefusal"/> says why. A key meant for a machine (<see cref="ControllerOutput.UpgradeMachine"/>)
+    /// buys no base upgrade; <see cref="MachineUpgradeSystem"/> handles it.
     /// </summary>
     private void AdvanceUpgrades(ControllerOutput input)
     {
@@ -291,7 +293,7 @@ public class Tank
             UpgradeRefusedTicks--;
         bool pressed = input.Upgrade != 0 && input.Upgrade != _upgradeHeld;
         _upgradeHeld = input.Upgrade;
-        if (!pressed || input.Upgrade < 1 || input.Upgrade > BaseUpgrades.Count)
+        if (!pressed || input.UpgradeMachine || input.Upgrade < 1 || input.Upgrade > BaseUpgrades.Count)
             return;
         var upgrade = (BaseUpgrade)(input.Upgrade - 1);
         UpgradeRefusal refusal = !IsDockedAtOwnBase ? UpgradeRefusal.NotDocked

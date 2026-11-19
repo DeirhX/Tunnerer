@@ -180,6 +180,14 @@ public partial class Game
             }
             return;
         }
+        if (command == GameCommand.ToggleMachineUpgrades)
+        {
+            // UI only: what reaches the simulation is the upgrade key sent with the panel open.
+            if (LocalTank is { } tank)
+                _hud.MachineUpgrades.Toggle(_world, tank);
+            _localController.MachineUpgradeMode = _hud.MachineUpgrades.IsOpen;
+            return;
+        }
         if (HandleSessionCommand(command))
             return;
 

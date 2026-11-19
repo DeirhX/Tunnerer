@@ -114,6 +114,7 @@ public sealed class GameSimulationStepper
             BuildQuaternary = kb.BuildQuaternary || scripted.BuildQuaternary,
             Recall = kb.Recall || scripted.Recall,
             Upgrade = kb.Upgrade != 0 ? kb.Upgrade : scripted.Upgrade,
+            UpgradeMachine = kb.Upgrade != 0 ? kb.UpgradeMachine : scripted.UpgradeMachine,
             AimDirection = aimDirection ?? default,
         };
     }

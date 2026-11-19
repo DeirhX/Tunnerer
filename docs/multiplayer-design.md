@@ -378,6 +378,9 @@ Each step is testable without the next.
 10. **Fourth build key** (protocol 7 in the local-generator tranche). Bit 28 of encoded player input is a build
     key, and the match's input key mask includes it so build presses are never predicted as aim changes.
     The relay must be updated before clients of this build can join a public match.
+11. **Machine upgrade key** (protocol 9 in the per-machine upgrade tranche). Bit 30 of encoded player input says
+    the upgrade key (bits 8-10) is for the machine next to the tank, not the base; it is in the input key mask.
+    The relay must be updated before clients of this build can join a public match.
 
 ## 11. Open questions
 

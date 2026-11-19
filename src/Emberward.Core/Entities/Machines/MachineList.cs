@@ -112,6 +112,7 @@ public class MachineList : ISnapshotLoaded
             if (!machine.IsAlive)
             {
                 ctx.Energy?.Remove(machine, ctx.Terrain);
+                ctx.Upgrades?.Remove(machine);
                 Wreck(machine, ctx.Terrain);
                 Remove(i);
                 continue;

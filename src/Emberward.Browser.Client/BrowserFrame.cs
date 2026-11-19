@@ -6,11 +6,24 @@ using Emberward.Core.Types;
 /// <param name="Dial">The heat dial's colours, with a match's first frame only; null after it.</param>
 /// <param name="Net">The network match (<see cref="BrowserNetMatch"/>); null in a local one.</param>
 /// <param name="BasePower">The base charge readout, present in an energy-network match.</param>
+/// <param name="MachineUpgrade">The machine next to the tank and its upgrade panel; null when none is in reach.</param>
 public sealed record BrowserFrame(
     int Seed, int Tick, int TickRate, PlayerStatus Player,
     SoundFrame Sounds, BuildOption[] Builds,
     UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal, GuidanceStatus Guidance, HeatDial? Dial,
-    NetStatus? Net = null, BaseCharge? BasePower = null);
+    NetStatus? Net = null, BaseCharge? BasePower = null, MachineUpgradeStatus? MachineUpgrade = null);
+
+/// <summary>
+/// The machine upgrade highlight and panel (<c>MachineUpgradeView</c>, shared with the desktop). <c>Ring</c> is the
+/// highlight colour as #rrggbb, or null when the machine is not lit; <c>Open</c> says whether the panel shows.
+/// </summary>
+public sealed record MachineUpgradeStatus(
+    Position Position, string Title, string? Ring, bool Bright, int Level, int MaxLevel, bool Open,
+    MachineUpgradeLine[] Choices, int Store, string? Refusal, float RingCells, float PipLiftCells);
+
+/// <summary>One path in the machine upgrade panel; <c>State</c> is a <c>MachineUpgradeChoiceState</c> name.</summary>
+public sealed record MachineUpgradeLine(
+    int Key, string Name, string Effect, int Level, string Price, string State, bool CanBuy, string NameColor, string PriceColor);
 
 /// <summary>The base store's row (<c>BasePowerLabel</c>).</summary>
 public sealed record BaseCharge(string Store, string Flow, string Net, float Fill, string Color, string Shield);

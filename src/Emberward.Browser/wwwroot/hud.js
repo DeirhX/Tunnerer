@@ -83,6 +83,7 @@ export class StatusView {
         this.updateBuilds(f.builds, p);
         setHidden($("upgrades"), !p.docked || p.dead);
         this.updateUpgrades(f.upgrades, p);
+        this.updateMachineUpgrade(f.machineUpgrade);
         this.updateHit(p);
         setHidden($("recall"), !p.canRecall || p.outcome !== "InProgress");
         setHidden($("death"), !p.dead && p.outcome === "InProgress");
@@ -170,6 +171,46 @@ export class StatusView {
             const disabled = u.maxed || p.store < u.cost;
             if (button.disabled !== disabled) button.disabled = disabled;
         }
+    }
+
+    // The upgrade panel of the machine next to the tank (MachineUpgradeView, as on the desktop): a row per path with
+    // its key, name, price and effect. renderer.js keeps it beside the machine.
+    updateMachineUpgrade(m) {
+        const panel = $("machine-upgrade");
+        setHidden(panel, !m?.open);
+        if (!m?.open) return;
+        setText($("machine-upgrade-title"), `${m.title} · LEVEL ${m.level}/${m.maxLevel}`);
+        const list = $("machine-upgrade-list");
+        if (!this.machineChoices || this.machineChoices.length !== m.choices.length) {
+            list.replaceChildren();
+            this.machineChoices = m.choices.map((choice) => {
+                const button = document.createElement("button");
+                button.onclick = () => this.input.queue("upgrade", choice.key);
+                const key = document.createElement("kbd");
+                key.textContent = String(choice.key);
+                const name = document.createElement("span");
+                name.className = "name";
+                const cost = document.createElement("small");
+                const effect = document.createElement("span");
+                effect.className = "effect";
+                button.append(key, name, cost, effect);
+                list.append(button);
+                return { button, name, cost, effect };
+            });
+            $("machine-upgrade-close").onclick = () => this.input.queue("machineUpgrade", true);
+        }
+        m.choices.forEach((choice, i) => {
+            const row = this.machineChoices[i];
+            setText(row.name, choice.name);
+            setProperty(row.name, "color", choice.nameColor);
+            setText(row.cost, choice.price);
+            setProperty(row.cost, "color", choice.priceColor);
+            setText(row.effect, choice.effect);
+            if (row.button.disabled !== !choice.canBuy) row.button.disabled = !choice.canBuy;
+        });
+        setText($("machine-upgrade-foot"), `BASE ORE STORE ${m.store}`);
+        setHidden($("machine-upgrade-refusal"), !m.refusal);
+        setText($("machine-upgrade-refusal"), m.refusal || "");
     }
 
     // The red flash after a hit, and the wedge pointing the way the shot came from.

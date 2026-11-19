@@ -14,7 +14,8 @@ using Emberward.Core.Network;
 /// <see cref="World"/> runs it as the last system of a step and answers for it.
 /// </summary>
 [NotSaved("output only: vision and radar, which nothing in the simulation reads")]
-internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks, BasePowerSystem? power)
+internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks, BasePowerSystem? power,
+    MachineUpgradeSystem? upgrades = null)
 {
     private readonly List<(Tank Tank, VisionMap Map)> _visions = new();
     private readonly List<(Tank Tank, Radar Radar)> _radars = new();
@@ -106,8 +107,10 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
             {
                 if (!machine.StandsFor(owner))
                     continue;
-                // A relay or pylon sees past its coverage circle, through the ground, linked or not.
-                int reach = machine.Behavior.IsLinkNode ? owner.Upgrades.NodeSightRadius / divisor : near;
+                // A relay or pylon sees past its coverage circle, through the ground, linked or not; a Sensor upgrade
+                // adds to that. A new reach is a new source, so only that machine's eye is cast again.
+                int bonus = upgrades?.SightBonus(machine) ?? 0;
+                int reach = machine.Behavior.IsLinkNode ? (owner.Upgrades.NodeSightRadius + bonus) / divisor : near + bonus;
                 _visionSources.Add(new VisionSource(machine.Position, reach, reach));
             }
         }

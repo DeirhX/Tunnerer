@@ -22,8 +22,8 @@ public sealed class GameCommandController
 
     /// <summary>
     /// Maps a key to a command. The shader-pass toggles (1-7, Shift+1/2) only work while the debug overlay (F11) is
-    /// open, so a stray key press in normal play cannot switch off parts of the renderer; H toggles the thermal view
-    /// and G the charge labels.
+    /// open, so a stray key press in normal play cannot switch off parts of the renderer; H toggles the thermal view,
+    /// G the charge labels and F the machine upgrade panel.
     /// </summary>
     public static bool TryTranslateHotkey(Scancode scancode, bool shiftHeld, bool debugKeysEnabled, out GameCommand command)
     {
@@ -36,6 +36,12 @@ public sealed class GameCommandController
         if (scancode == Scancode.G)
         {
             command = GameCommand.TogglePowerLabels;
+            return true;
+        }
+
+        if (scancode == Scancode.F)
+        {
+            command = GameCommand.ToggleMachineUpgrades;
             return true;
         }
 

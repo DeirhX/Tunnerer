@@ -74,6 +74,8 @@ const input = new GameInput(canvas, (action, direction) => {
         );
 });
 const statusView = new StatusView(input);
+// A tap on the lit machine opens its upgrade panel (touch; input.js).
+input.tapMachine = (p) => renderer.machineAt(p);
 // The desktop's art strip in the bottom corners, where the screen is wide and there is a mouse (strip.js); the
 // COMMAND button opens the upgrades. Elsewhere the plates show the same.
 const strip = new StripView(input, () => ($("upgrades").open = true));
@@ -243,7 +245,7 @@ function reset() {
     input.clear();
     accumulator = 0;
     visualTime = 0;
-    for (const id of ["hud", "guide", "upgrades", "touch", "death", "hit"])
+    for (const id of ["hud", "guide", "upgrades", "machine-upgrade", "touch", "death", "hit"])
         $(id).hidden = true;
     guidance.clear();
     strip.reset();

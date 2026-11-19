@@ -214,6 +214,7 @@ public sealed class BrowserNetMatch
         var next = held;
         next.BuildPrimary = next.BuildSecondary = next.BuildTertiary = next.BuildQuaternary = false;
         next.Upgrade = 0;
+        next.UpgradeMachine = false;
         next.Recall = false;
         if (_lastSentAction)
         {
@@ -228,6 +229,7 @@ public sealed class BrowserNetMatch
             next.BuildTertiary = press.BuildTertiary;
             next.BuildQuaternary = press.BuildQuaternary;
             next.Upgrade = press.Upgrade;
+            next.UpgradeMachine = press.UpgradeMachine;
             next.Recall = press.Recall;
         }
         return next;

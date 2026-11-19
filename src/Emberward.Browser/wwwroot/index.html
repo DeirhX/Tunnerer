@@ -373,6 +373,16 @@
                 <summary class="eyebrow">DOCKED / UPGRADES</summary>
                 <div id="upgrade-list"></div>
             </details>
+            <!-- The machine next to the tank: its upgrade paths (F, or tap the lit machine). renderer.js places it. -->
+            <section id="machine-upgrade" class="plate" hidden aria-label="Machine upgrade">
+                <div class="eyebrow">
+                    <span id="machine-upgrade-title"></span>
+                    <button id="machine-upgrade-close" aria-label="Close the machine upgrade panel"><kbd>F</kbd></button>
+                </div>
+                <div id="machine-upgrade-list"></div>
+                <p id="machine-upgrade-foot"></p>
+                <p id="machine-upgrade-refusal" class="tone-Bad" hidden></p>
+            </section>
             <!-- The desktop's art strip (strip.js), on wide screens with a mouse. -->
             <canvas id="strip-left" class="strip" aria-hidden="true"></canvas>
             <canvas id="strip-right" class="strip" aria-hidden="true"></canvas>
@@ -414,6 +424,12 @@
                 <dd>In energy matches, build and plant a local generator near hot ground.</dd>
                 <dt><kbd>1</kbd> – <kbd>7</kbd></dt>
                 <dd>Buy upgrades while docked at your base.</dd>
+                <dt><kbd>F</kbd>, then <kbd>1</kbd> – <kbd>3</kbd></dt>
+                <dd>
+                    Beside one of your relays (<code>?energy</code>): open its
+                    upgrade panel and buy Tap, Sensor or Conduit from the base
+                    ore store. On touch, tap the lit relay.
+                </dd>
                 <dt><kbd>H</kbd></dt>
                 <dd>Heat view: the ground by its heat. Enemy tunnels glow hot.</dd>
                 <dt><kbd>G</kbd></dt>

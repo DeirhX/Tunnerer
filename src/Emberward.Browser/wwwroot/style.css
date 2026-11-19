@@ -1192,6 +1192,71 @@ meter::-moz-meter-bar {
 #upgrade-list button:disabled small {
     color: var(--hud-dim);
 }
+/* The machine upgrade panel beside the machine next to the tank (GameHud.MachineUpgrade on the desktop). */
+#machine-upgrade {
+    position: absolute;
+    width: 290px;
+    transform: translateY(-50%);
+    pointer-events: auto;
+}
+#machine-upgrade .eyebrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+#machine-upgrade-close {
+    padding: 0;
+    background: none;
+    border: none;
+}
+#machine-upgrade-list {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+}
+#machine-upgrade-list button {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "key name cost" "key effect effect";
+    align-items: center;
+    column-gap: 10px;
+    text-align: left;
+    padding: 6px 8px;
+    background: #0d0e10cc;
+    border-color: #3a2816;
+    font-family: var(--hud-font);
+}
+#machine-upgrade-list button:disabled {
+    cursor: default;
+}
+#machine-upgrade-list kbd {
+    grid-area: key;
+    margin: 0;
+    color: var(--hud-amber);
+    border-color: var(--hud-bronze);
+}
+#machine-upgrade-list .name {
+    grid-area: name;
+    font-size: 13px;
+}
+#machine-upgrade-list .effect {
+    grid-area: effect;
+    color: var(--hud-text);
+    font-size: 12px;
+}
+#machine-upgrade-list small {
+    grid-area: cost;
+    font-size: 12px;
+}
+#machine-upgrade-foot,
+#machine-upgrade-refusal {
+    margin: 8px 0 0;
+    font-size: 11px;
+    color: var(--hud-dim);
+}
+#machine-upgrade-refusal {
+    color: inherit;
+}
 dialog {
     background: #101b21;
     color: var(--ink);

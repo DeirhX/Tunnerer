@@ -1,5 +1,6 @@
 namespace Emberward.Core.Entities.Machines;
 
+using System.Collections.Immutable;
 using Emberward.Core.Types;
 using Emberward.Core.Config;
 using Emberward.Core.Resources;
@@ -18,6 +19,10 @@ using Emberward.Core.Match;
 /// delivers ore from there.
 /// </param>
 /// <param name="Events">Where a machine records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</param>
+/// <param name="Upgrades">
+/// Per-machine upgrades when the match rules run them (<see cref="Match.MatchRules.MachineUpgrades"/>): a relay asks it
+/// its pump rate. Null leaves every machine at its base numbers.
+/// </param>
 /// <param name="Energy">
 /// The energy network (DESIGN.md §4.9) when the match rules run it (<see cref="Match.MatchRules.EnergyNetwork"/>):
 /// machines then spend charge through it, and pylons and harvester refuel trips stand down. Null runs the battery
@@ -25,7 +30,8 @@ using Emberward.Core.Match;
 /// </param>
 public readonly record struct MachineContext(
     ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, MachineList Machines,
-    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null);
+    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null,
+    MachineUpgradeSystem? Upgrades = null);
 
 /// <summary>
 /// Who an island of the energy network feeds first when it runs short (DESIGN.md §4.9): base defence, then turrets,
@@ -100,6 +106,12 @@ public record MachineBehavior(
     public bool IsGenerator { get; init; }
 
     public bool IsAvailable(MatchRules? rules) => !IsGenerator || rules is { EnergyNetwork: true };
+
+    /// <summary>
+    /// The paths it can be upgraded along (<see cref="MachineUpgradeSystem"/>), in the order of the upgrade keys 1, 2,
+    /// 3; empty for a machine without upgrades.
+    /// </summary>
+    public ImmutableArray<MachineUpgradePath> UpgradePaths { get; init; } = [];
 }
 
 /// <summary>What a planted harvester is doing, as of its last action.</summary>
@@ -176,6 +188,7 @@ public static class MachineBehaviors
         IsLinkNode = true,
         RequiresLinkToPlant = true,
         IsHeatPump = true,
+        UpgradePaths = [MachineUpgradePath.Tap, MachineUpgradePath.Sensor, MachineUpgradePath.Conduit],
     };
 
     public static readonly MachineBehavior Generator = new(
@@ -258,16 +271,17 @@ public static class MachineBehaviors
         if (machine.OwnerBase == null || machine.LinkPoint is not { IsPowered: true })
             return;
 
+        double rate = ctx.Upgrades?.PumpPerTick(machine) ?? Tweaks.Machine.RelayHeatPumpPerTick;
         // Ground that had no heat to give has none until heat moves there again: skip the sweep until then.
         long quiet = terrain.QuietHeatStamp(machine.Position, Tweaks.Machine.RelayCoolingRadius);
         if (quiet >= 0 && quiet == machine.ColdGroundStamp)
         {
-            machine.LastPumpLimitedByBase = machine.OwnerBase.LimitsPumpFromColdGround(Tweaks.Machine.RelayHeatPumpPerTick);
+            machine.LastPumpLimitedByBase = machine.OwnerBase.LimitsPumpFromColdGround(rate);
             return;
         }
 
         machine.LastPumpedEnergy = machine.OwnerBase.AbsorbHeatFrom(
-            terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, Tweaks.Machine.RelayHeatPumpPerTick,
+            terrain, machine.Position, Tweaks.Machine.RelayCoolingRadius, rate,
             out bool limited, out double engineOutput, out bool groundWasCold);
         machine.ColdGroundStamp = groundWasCold ? quiet : -1;
         machine.LastPumpLimitedByBase = limited;

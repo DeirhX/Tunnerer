@@ -24,9 +24,11 @@ public class RelayHeatTests
     /// A base with a straight 5-wide tunnel leaving through its door toward the farther map edge. The relay
     /// position is 30 cells beyond the door, well inside the live link range.
     /// </summary>
-    internal static Scenario CreateScenario(int seed = 4242, bool blockLineOfSight = false, bool energyNetwork = false)
+    internal static Scenario CreateScenario(int seed = 4242, bool blockLineOfSight = false, bool energyNetwork = false,
+        bool machineUpgrades = false)
     {
-        var world = TestHelpers.CreateSeededWorld(seed: seed, enableTerrainRegrowth: false, energyNetwork: energyNetwork);
+        var world = TestHelpers.CreateSeededWorld(seed: seed, enableTerrainRegrowth: false, energyNetwork: energyNetwork,
+            machineUpgrades: machineUpgrades);
         var tank = world.TankList.Tanks[0];
         var tankBase = tank.Base!;
         var basePos = tankBase.Position;

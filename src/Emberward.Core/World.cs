@@ -35,6 +35,7 @@ public class World
     private SectorGoal? _sectorGoal;
     private readonly EnergyNetwork? _energy;
     private readonly BasePowerSystem? _basePower;
+    private readonly MachineUpgradeSystem? _machineUpgrades;
     // What tanks and machines see of the world each step; the same every step, so built once.
     [NotSaved("fixed for the match: closures over this world")]
     private readonly SimulationContext _tankContext;
@@ -178,6 +179,8 @@ public class World
             _energy = new EnergyNetwork(_simulationSettings);
             _basePower = new BasePowerSystem();
         }
+        if (Rules.MachineUpgrades)
+            _machineUpgrades = new MachineUpgradeSystem(_machines, _energy, _terrain, _stepEvents, Rules);
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain, _tankBases);
@@ -200,9 +203,11 @@ public class World
             IsOccupied = IsCellOccupied,
             IsTankBlocked = _collisionSolver.BlocksTank,
             Events = _stepEvents,
+            MachineUpgrades = _machineUpgrades,
         };
-        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower);
-        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy, _basePower);
+        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades);
+        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy,
+            _basePower, _machineUpgrades);
         _systems = BuildSystems();
     }
 
@@ -548,6 +553,22 @@ public class World
         : null;
 
     public bool IsBaseDark(TankBase tankBase) => _basePower?.IsDark(tankBase) == true;
+
+    /// <summary>
+    /// What <paramref name="tank"/> could buy for the nearest of its machines in reach (DESIGN.md §4.9): the machine, its
+    /// upgrade so far and the next price. Null when the rules run no machine upgrades or nothing is in reach.
+    /// </summary>
+    public MachineUpgradeOffer? MachineUpgradeOfferFor(Tank tank) => _machineUpgrades?.OfferFor(tank);
+
+    /// <summary>The path <paramref name="machine"/> took and its level; no path and level 0 without machine upgrades.</summary>
+    public MachineUpgradeLevel MachineUpgradeOf(Machine machine) => _machineUpgrades?.LevelOf(machine) ?? default;
+
+    /// <summary>Why <paramref name="tank"/>'s last machine upgrade press bought nothing, while that is still worth saying.</summary>
+    public (MachineUpgradeRefusal Refusal, int Ticks) MachineUpgradeRefusalOf(Tank tank) =>
+        _machineUpgrades?.RefusalOf(tank) ?? (MachineUpgradeRefusal.None, 0);
+
+    /// <summary>Per-machine upgrades, for the hashes; null when the match rules leave them out.</summary>
+    internal MachineUpgradeSystem? UpgradeSystem => _machineUpgrades;
 
     internal ulong MixBasePower(ulong hash) => _basePower?.MixState(hash) ?? hash;
 

@@ -62,7 +62,12 @@ public sealed partial class EnergyNetwork
     /// <summary>A machine was planted: it gets its capacitor, cut off until its island takes it.</summary>
     public void Register(Machine machine)
     {
-        var capacitor = new Capacitor { Machine = machine, SettledThrough = _paidThrough };
+        var capacitor = new Capacitor
+        {
+            Machine = machine,
+            SettledThrough = _paidThrough,
+            IdleDrawPerTick = machine.Behavior.Capacitor.IdleDrawPerTick,
+        };
         int at = IndexOf(machine);
         _capacitors.Insert(at >= 0 ? at : ~at, capacitor);
         if (machine.Behavior.IsGenerator)
@@ -235,7 +240,7 @@ public sealed partial class EnergyNetwork
 
     private static double WindowToSecond => (double)Tweaks.Perf.TargetFps / Tweaks.Energy.FlowWindowTicks;
 
-    private static double IdleDraw(Capacitor capacitor) => capacitor.Machine.Behavior.Capacitor.IdleDrawPerTick;
+    private static double IdleDraw(Capacitor capacitor) => capacitor.IdleDrawPerTick;
 
     private static int TierOf(Capacitor capacitor) => (int)capacitor.Machine.Behavior.Capacitor.Tier;
 
@@ -469,6 +474,8 @@ public sealed partial class EnergyNetwork
         public double Reserve;
         public FlowWindow Production;
         public long QuietGeneratorStamp = -1;
+        // Charge it spends per tick standing: its behavior's, or more after an upgrade (Resize).
+        public double IdleDrawPerTick;
     }
 
     /// <summary>A connected group with producers, consumers and a shared charge balance.</summary>

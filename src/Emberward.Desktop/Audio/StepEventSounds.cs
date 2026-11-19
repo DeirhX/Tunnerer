@@ -54,7 +54,8 @@ public static class StepEventSounds
         StepEventKind.TankRespawned => new(SoundEffect.Respawn, AudioTweaks.RespawnGain, CueHeard.TrackedTank),
         StepEventKind.MachineBuilt => new(BuildSound(machine), AudioTweaks.BuildGain, CueHeard.TrackedTank),
         StepEventKind.MachinePlanted => new(SoundEffect.Plant, AudioTweaks.PlantGain, CueHeard.TrackedTank),
-        StepEventKind.PlantRefused or StepEventKind.BuildRefused =>
+        StepEventKind.MachineUpgraded => new(SoundEffect.Plant, AudioTweaks.PlantGain, CueHeard.Player),
+        StepEventKind.PlantRefused or StepEventKind.BuildRefused or StepEventKind.MachineUpgradeRefused =>
             new(SoundEffect.PlantRefused, AudioTweaks.RefusedGain, CueHeard.Player),
         StepEventKind.OreUnloaded => new(SoundEffect.Pickup, AudioTweaks.UnloadGain, CueHeard.Player),
         StepEventKind.Docked => new(SoundEffect.Dock, AudioTweaks.DockGain, CueHeard.Player),

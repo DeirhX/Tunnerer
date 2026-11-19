@@ -50,6 +50,11 @@ public class MachineBehaviorTableTests
 
         Assert.Single(MachineBehaviors.All, b => b.IsHeatPump);
         Assert.True(MachineBehaviors.Relay.IsHeatPump);
+
+        // Only the relay takes per-machine upgrades so far, on the keys 1-3 in this order.
+        Assert.Equal([MachineUpgradePath.Tap, MachineUpgradePath.Sensor, MachineUpgradePath.Conduit],
+            MachineBehaviors.Relay.UpgradePaths.ToArray());
+        Assert.Single(MachineBehaviors.All, b => !b.UpgradePaths.IsEmpty);
     }
 
     [Fact]

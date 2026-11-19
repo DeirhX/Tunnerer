@@ -11,7 +11,7 @@ public class ControllerOutputCodecTests
     {
         for (int x = -1; x <= 1; x++)
             for (int y = -1; y <= 1; y++)
-                for (int buttons = 0; buttons < 64; buttons++)
+                for (int buttons = 0; buttons < 128; buttons++)
                     for (int upgrade = 0; upgrade <= BaseUpgrades.Count; upgrade++)
                     {
                         var input = new ControllerOutput
@@ -23,6 +23,7 @@ public class ControllerOutputCodecTests
                             BuildTertiary = (buttons & 8) != 0,
                             BuildQuaternary = (buttons & 16) != 0,
                             Recall = (buttons & 32) != 0,
+                            UpgradeMachine = (buttons & 64) != 0,
                             Upgrade = upgrade,
                         };
 
@@ -35,13 +36,14 @@ public class ControllerOutputCodecTests
                         Assert.Equal(input.BuildTertiary, decoded.BuildTertiary);
                         Assert.Equal(input.BuildQuaternary, decoded.BuildQuaternary);
                         Assert.Equal(input.Recall, decoded.Recall);
+                        Assert.Equal(input.UpgradeMachine, decoded.UpgradeMachine);
                         Assert.Equal(input.Upgrade, decoded.Upgrade);
                         Assert.Equal(default, decoded.AimDirection);
                     }
     }
 
     [Fact]
-    public void EncodedInput_FitsIn30Bits()
+    public void EncodedInput_FitsIn31Bits()
     {
         var input = new ControllerOutput
         {
@@ -52,11 +54,12 @@ public class ControllerOutputCodecTests
             BuildTertiary = true,
             BuildQuaternary = true,
             Recall = true,
+            UpgradeMachine = true,
             Upgrade = 4,
             AimDirection = new DirectionF(0.6f, -0.8f),
         };
 
-        Assert.Equal(0u, ControllerOutputCodec.Encode(input) >> 30);
+        Assert.Equal(0u, ControllerOutputCodec.Encode(input) >> 31);
     }
 
     [Fact]
@@ -72,6 +75,14 @@ public class ControllerOutputCodecTests
     {
         uint bits = ControllerOutputCodec.Encode(new ControllerOutput { BuildQuaternary = true });
         Assert.NotEqual(0u, bits);
+        Assert.Equal(bits, bits & ControllerOutputCodec.KeyMask);
+    }
+
+    [Fact]
+    public void TheMachineUpgradeBit_IsAKeyForInputPrediction()
+    {
+        uint bits = ControllerOutputCodec.Encode(new ControllerOutput { UpgradeMachine = true, Upgrade = 2 });
+        Assert.Equal(1u << 30, bits & 1u << 30);
         Assert.Equal(bits, bits & ControllerOutputCodec.KeyMask);
     }
 

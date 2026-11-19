@@ -575,6 +575,28 @@ public static class Tweaks
         public const int IdleHeatRadius = 2;
     }
 
+    /// <summary>
+    /// Per-machine upgrades (DESIGN.md §4.9, <c>MachineUpgradeSystem</c>): bought next to a machine from the base's ore
+    /// store, one path per machine, MaxLevel levels. Starting values; tune in play.
+    /// </summary>
+    public static class MachineUpgrades
+    {
+        public const int MaxLevel = 2;
+        // What level 1 and 2 cost, in ore from the base store.
+        public static readonly ImmutableArray<int> LevelCosts = [8, 16];
+        // The tank buys for the nearest own machine within this many cells of it.
+        public const int Reach = 12;
+        // How long a refused press is shown, in ticks.
+        public const int RefusalTicks = 48;
+        // Tap: each level pumps this share more heat, and spends this much more charge per tick standing (as heat).
+        public const double TapPumpPerLevel = 0.5;
+        public const double TapIdleDrawPerLevel = 1.5;
+        // Sensor: each level adds this many cells to the machine's sight.
+        public const int SensorCellsPerLevel = 10;
+        // Conduit: the capacitor's size at level 0, 1 and 2, as a multiple of the machine's own.
+        public static readonly ImmutableArray<double> ConduitCapacityScale = [1.0, 1.5, 2.0];
+    }
+
     public static class Explosion
     {
         public const int ChanceToDestroyConcrete = 50;

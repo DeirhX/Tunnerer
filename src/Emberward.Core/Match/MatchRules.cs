@@ -54,6 +54,12 @@ public sealed record MatchRules
     /// </summary>
     public bool EnergyNetwork { get; init; }
 
+    /// <summary>
+    /// A tank can buy upgrades for its own machines, next to them, from its base's ore store (DESIGN.md §4.9,
+    /// <see cref="Entities.Machines.MachineUpgradeSystem"/>). Off, machines keep their base numbers.
+    /// </summary>
+    public bool MachineUpgrades { get; init; }
+
     /// <summary>A normal match: hot and frost pockets, ore, regrowth; the core does not end it.</summary>
     public static MatchRules Standard { get; } = new()
     {
@@ -75,6 +81,8 @@ public sealed record MatchRules
         hash = Fnv1a.Mix(hash, 8u);
         if (EnergyNetwork)
             hash = Fnv1a.Mix(hash, 0xE4E9u);
+        if (MachineUpgrades)
+            hash = Fnv1a.Mix(hash, 0x4D55u);
         return hash;
     }
 }

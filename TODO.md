@@ -16,7 +16,8 @@ Open work, written so an agent can pick up one item without the conversation tha
   - **Tranche 1b, charge and flow labels** (key G, `PowerLabels`, `HudPalette`), shared by desktop and browser.
     `--energy-network` (desktop) and `?energy` (browser) turn the network on for local matches only.
 - **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
-- **Items 1 and 2 are implemented.** Continue at item 3 on a new branch stacked on the generator PR.
+- **Items 1 to 4 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it).
+  Continue at item 5.
 
 ## Rules for every item
 
@@ -120,7 +121,16 @@ the protocol before network play). Update `PowerLabels` (a dark base colour) and
 Tests: dark entry and exit with hysteresis, shield value at several charges, restart by hold, match end by base
 destruction, a snapshot taken while dark.
 
-## 4. Per-machine upgrades
+## 4. Per-machine upgrades (implemented)
+
+Built behind `MatchRules.MachineUpgrades` (off by default; local matches turn it on with `--energy-network` or
+`?energy`), in `MachineUpgradeSystem`. F (or a tap on the lit machine) opens the panel of the nearest own relay within
+12 cells; 1-3 then buy Tap, Sensor or Conduit for 8 and 16 ore from the base store. The input is bit 30 of the encoded
+input, so the protocol is 9: deploy that relay version before network clients use this build. Standard and
+energy-rule fingerprints are unchanged; the opt-in rules hash changes only with the new flag on. The highlight and
+panel are one view-model (`Gui/MachineUpgradeView.cs`, shared through `Emberward.Rendering`) drawn with ImGui and in
+the DOM. **For item 5:** Conduit only grows the capacitor so far; its throughput multiplier belongs with the
+throughput limits (read the Conduit level with `World.MachineUpgradeOf`). Not yet seen in a browser.
 
 **Design.** Two levels per machine, bought next to the machine with a key; the cost comes from the base store ore (so
 harvesters still feed everything). The nearest machine in reach is highlighted (amber when affordable, dim when not,

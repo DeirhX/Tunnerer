@@ -244,7 +244,7 @@ Building has to pay off, and exploring has to lead somewhere.
 
 One sentence to hold: **relays are your network; everything else plugs into it and runs on the charge the network
 makes.** This section is the direction for §4.5, §4.6 and §4.8; none of it is built except the Sensors upgrade and,
-behind a match rule, the capacitors, island balance and local generators.
+behind match rules, the capacitors, island balance, local generators and per-machine upgrades.
 
 **Three things to track, not four**
 
@@ -344,12 +344,21 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
 - **Per-machine upgrades**, two levels, bought next to the machine with a key; the nearest machine in reach is
   highlighted (amber when affordable, dim when not) and shows level pips. A relay chooses Tap (more intake and
   charge, hotter), Sensor (more sight) or Conduit (throughput and a bigger capacitor).
+  *Built behind a match rule (`MatchRules.MachineUpgrades`, off by default; local matches turn it on with the energy
+  rule, `--energy-network` or `?energy`).* F beside one of the tank's own machines opens its panel (on touch, a tap
+  on the lit machine); while it is open, 1-3 buy a path for the nearest own machine within 12 cells (the earliest
+  built on a tie), paid from the base ore store: 8 ore for level 1, 16 for level 2. The first purchase fixes the
+  path. Tap pumps 50% more heat a level and spends 1.5 more charge a tick standing, which becomes heat at the relay;
+  Sensor adds 10 cells of sight a level; Conduit makes the capacitor 1.5 then 2 times its size and needs the energy
+  rule (its throughput effect comes with the throughput limits). The panel closes on F, out of reach, or after a
+  purchase. Only the relay has paths so far; the input is bit 30 with the upgrade key (protocol 9).
 - **Turrets** need power, make heat when firing, and fire only at enemy tanks in range and line of sight, with a
   stable tie-break. Mobs (§6.2) hunt heat, which makes the pumping relays what a defence is built around.
 - **Build keys.** E relay, R harvester, T pylon and Y generator. Turrets need their own key while the pylon remains.
 
 **Build order.** Capacitors, island balance and the local generator are implemented behind the energy rule.
-Next come dark state, shield and no lives, then per-machine upgrades, throughput limits, turrets and pylon removal.
+Dark state, shield and no lives, and per-machine upgrades, follow behind their rules. Next come throughput limits,
+turrets and pylon removal.
 
 ### 4.10 Challenges of a finite world *(Proposed; open)*
 
@@ -798,7 +807,7 @@ upgrades, throughput, turrets, then removing the pylon).
 | A base's shield scales with charge and never blocks a hit entirely; a dark base restarts by itself or by hand (§4.9) | Proposed |
 | No lives: only a destroyed base ends a side; death costs the cargo (§4.9) | Proposed |
 | Relay throughput limits are upgradeable and lose heat; a hot relay throttles (§4.9) | Proposed |
-| Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Proposed |
+| Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Proposed (upgrades: Prototype) |
 | Sensors upgrade: relays and pylons see 10 cells past coverage, and 8 more per level (the base 8 more per level) | Prototype |
 | Every heat body is finite: no pinned temperatures or permanent sources; the outside is a loss, not a cell | Decided |
 | Stored heat is the match's supply; what keeps it up over a long match is open (§4.10) | Proposed |
