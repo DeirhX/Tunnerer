@@ -49,15 +49,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
-      # Self-contained, so the player needs no .NET runtime. The shaders are compiled to DXIL, SPIR-V and MSL during
-      # this build (tools/Emberward.ShaderCompiler) and the publish copies them beside the game.
+      # One file, self-contained: the player needs no .NET runtime, and the shaders, HUD art, logo and font are embedded
+      # in the executable (the shaders are compiled to DXIL, SPIR-V and MSL during this build, tools/Emberward.ShaderCompiler).
       - name: Publish the game
-        run: dotnet publish src/Emberward.Desktop/Emberward.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish
-      - name: Check the publish has its shaders and resources
+        run: dotnet publish src/Emberward.Desktop/Emberward.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o publish
+      - name: Check the publish is one executable
         shell: bash
         run: |
-          ls publish/Shaders/*.dxil publish/Shaders/*.spv publish/Shaders/*.msl > /dev/null
-          test -f publish/resources/emberward-logo.png
+          test "$(find publish -type f | wc -l)" -eq 1
       - name: Archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

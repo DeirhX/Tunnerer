@@ -27,9 +27,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="resources\hud\**\*.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="resources\emberward-logo.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="resources\fonts\*.ttf;resources\fonts\*.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The game's files are embedded in the executable under their resources/ paths (EmbeddedAssets reads them). -->
+    <EmbeddedResource Include="resources\hud\*.png" LogicalName="resources/hud/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="resources\emberward-logo.png" LogicalName="resources/emberward-logo.png" />
+    <EmbeddedResource Include="resources\fonts\*.ttf;resources\fonts\*.txt" LogicalName="resources/fonts/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- Shader sources live in Rendering\Shaders; includes are inputs of the shader build step. -->
@@ -66,20 +67,15 @@
     <Exec Command="dotnet &quot;$(ShaderCompilerPath)&quot; --out &quot;$(IntermediateOutputPath)SdlGpuShaders&quot; @(SdlGpuShader->'&quot;%(FullPath)=%(Stage)&quot;', ' ')" />
   </Target>
 
-  <Target Name="CopySdlGpuShaders" AfterTargets="CompileSdlGpuShaders">
+  <!-- The compiled shaders are embedded in the executable, under Shaders/ (EmbeddedAssets reads them there). The
+       outputs exist only after CompileSdlGpuShaders, so the items are made in a target. -->
+  <Target Name="EmbedSdlGpuShaders" AfterTargets="CompileSdlGpuShaders">
     <ItemGroup>
-      <_SdlGpuShaderOutput Include="$(IntermediateOutputPath)SdlGpuShaders\*.spv;$(IntermediateOutputPath)SdlGpuShaders\*.dxil;$(IntermediateOutputPath)SdlGpuShaders\*.msl;$(IntermediateOutputPath)SdlGpuShaders\*.json" />
+      <_SdlGpuShaderBlob Include="$(IntermediateOutputPath)SdlGpuShaders\*.spv;$(IntermediateOutputPath)SdlGpuShaders\*.dxil;$(IntermediateOutputPath)SdlGpuShaders\*.msl;$(IntermediateOutputPath)SdlGpuShaders\*.json" />
     </ItemGroup>
-    <MakeDir Directories="$(OutDir)Shaders" />
-    <Copy SourceFiles="@(_SdlGpuShaderOutput)" DestinationFolder="$(OutDir)Shaders" SkipUnchangedFiles="true" />
-  </Target>
-
-  <!-- A publish copies only what the project lists as content, so the shaders need their own copy to ship. -->
-  <Target Name="PublishSdlGpuShaders" AfterTargets="Publish">
     <ItemGroup>
-      <_PublishShaderFile Include="$(OutDir)Shaders\*" />
+      <EmbeddedResource Include="@(_SdlGpuShaderBlob)" LogicalName="Shaders/%(_SdlGpuShaderBlob.Filename)%(_SdlGpuShaderBlob.Extension)" />
     </ItemGroup>
-    <Copy SourceFiles="@(_PublishShaderFile)" DestinationFolder="$(PublishDir)Shaders" SkipUnchangedFiles="true" />
   </Target>
 
   <ItemGroup>

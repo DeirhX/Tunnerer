@@ -334,8 +334,7 @@ public partial class Game : IDisposable
 
     private void LoadHudSprites()
     {
-        string baseDir = Path.Combine(AppContext.BaseDirectory, "resources", "hud");
-        nint Load(string name) => _textures.LoadTexture(Path.Combine(baseDir, name));
+        nint Load(string name) => _textures.LoadTexture("resources/hud/" + name);
 
         _hud.Init(
             heatIcon: Load("heat_icon.png"),

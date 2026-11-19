@@ -1,6 +1,7 @@
 namespace Emberward.Desktop.Rendering;
 
 using System.Numerics;
+using System.Runtime.InteropServices;
 using ImGuiNET;
 
 /// <summary>
@@ -74,32 +75,52 @@ public static class ImGuiPlatform
     private const float UiFontWidgetSize = 16f;
 
     /// <summary>
-    /// Loads the UI font from <c>resources/fonts</c>: the file named by <c>EMBERWARD_UI_FONT</c>, else
-    /// <see cref="DefaultUiFont"/>. Falls back to ImGui's built-in font when the file is missing.
+    /// Loads the UI font: the one named by <c>EMBERWARD_UI_FONT</c>, else <see cref="DefaultUiFont"/>. The font the
+    /// executable carries is used, unless <c>resources/fonts</c> beside the executable has a file of that name, which
+    /// lets a developer try another font without a rebuild. Falls back to ImGui's built-in font when neither has it.
     /// </summary>
     private static unsafe void LoadUiFont(ImGuiIOPtr io)
     {
         string name = Environment.GetEnvironmentVariable("EMBERWARD_UI_FONT") is { Length: > 0 } chosen ? chosen : DefaultUiFont;
         if (string.Equals(name, "default", StringComparison.OrdinalIgnoreCase))
             return;
-        string path = Path.Combine(AppContext.BaseDirectory, "resources", "fonts", name);
-        if (!File.Exists(path))
+        byte[]? data = ReadUiFontData(name);
+        if (data is null)
         {
-            Console.WriteLine($"[UI] Font '{name}' not found in resources/fonts; using the built-in font.");
+            Console.WriteLine($"[UI] Font '{name}' is neither embedded nor in resources/fonts; using the built-in font.");
             return;
         }
 
+        // ImGui reads the font data for as long as the atlas lives, so the bytes stay pinned for the whole run.
+        if (_fontDataHandle.IsAllocated)
+            _fontDataHandle.Free();
+        _fontDataHandle = GCHandle.Alloc(data, GCHandleType.Pinned);
+        nint fontData = _fontDataHandle.AddrOfPinnedObject();
+
         var config = ImGuiNative.ImFontConfig_ImFontConfig();
+        config->FontDataOwnedByAtlas = 0; // the bytes above belong to this program, not to the atlas
         config->OversampleH = 3;
         config->OversampleV = 2;
         config->PixelSnapH = 0;
-        io.Fonts.AddFontFromFileTTF(path, UiFontBakeSize, config, io.Fonts.GetGlyphRangesDefault());
+        io.Fonts.AddFontFromMemoryTTF(fontData, data.Length, UiFontBakeSize, config, io.Fonts.GetGlyphRangesDefault());
         config->OversampleH = 2;
         config->OversampleV = 1;
-        LargeFont = io.Fonts.AddFontFromFileTTF(path, LargeFontBakeSize, config, io.Fonts.GetGlyphRangesDefault());
+        LargeFont = io.Fonts.AddFontFromMemoryTTF(fontData, data.Length, LargeFontBakeSize, config, io.Fonts.GetGlyphRangesDefault());
         ImGuiNative.ImFontConfig_destroy(config);
         io.FontGlobalScale = UiFontWidgetSize / UiFontBakeSize;
         Console.WriteLine($"[UI] Font {name}");
+    }
+
+    private static GCHandle _fontDataHandle;
+
+    /// <summary>The bytes of a UI font: a file in <c>resources/fonts</c> beside the executable, else the embedded one.</summary>
+    private static byte[]? ReadUiFontData(string name)
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "resources", "fonts", name);
+        if (File.Exists(path))
+            return File.ReadAllBytes(path);
+        string asset = "resources/fonts/" + name;
+        return EmbeddedAssets.Exists(asset) ? EmbeddedAssets.ReadBytes(asset) : null;
     }
 
     private const float LargeFontBakeSize = 72f;
