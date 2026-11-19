@@ -160,7 +160,7 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
    the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
    `TankDigger.Move`, spawn shield, shooting, `TankBuildController.Advance`, the upgrade keys, then
-   `TankThermals.Advance` (exchange with the grid).
+   `TankThermals.Advance` (heat from ore still in the hold and from tank actions, then exchange with the grid).
 6. **machines**: `MachineList.Advance` with the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
@@ -240,8 +240,12 @@ is active.
 Entities exchange energy through the `ITerrainHeatSource` API, never by writing temperatures:
 `AddEnergyInRadiusArea` / `ExtractEnergyInRadiusArea` for transfers the entity books itself, `AddHeat` /
 `AddHeatRadius` / `AddHeatTotalInRadiusArea` for heat that enters from outside (booked as injected). Extraction
-takes only heat above ambient and never from hot or frost rock. A tank exchanges with the grid in both directions
-(`AddEnergyInRadiusArea` with a signed amount), so a cold tank warms by chilling the cells under it. `SetPixel` books the capacity change when a cell changes
+takes only heat above ambient and never from hot or frost rock. Tank contact samples the heat capacity and
+temperature of solid ground and air separately (`SampleTankContact`). The share of the footprint touching
+solid ground scales its conductance. Each exchange stops at thermal equilibrium, and `ApplyTankExchange`
+returns the energy to the sampled cells. Docking-area extraction uses the visited base's reservoir room.
+A relay draws from the terrain field and then from the remaining air, converting each draw at its energy-weighted source temperature.
+`SetPixel` books the capacity change when a cell changes
 material; `SetPixelRaw` is unmetered and only for level generation.
 
 `ThermalLedger` keeps `Injected`, the `Sunk*` totals and `ConvertedToCharge` (heat the base engine turned into

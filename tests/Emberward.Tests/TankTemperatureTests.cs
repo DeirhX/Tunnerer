@@ -70,17 +70,44 @@ public class TankTemperatureTests
     [Fact]
     public void ForeignBase_DoesNotPumpTheTanksHeat()
     {
-        float HeatAfter(bool own)
+        double PumpedIntoReservoir(bool own)
         {
             var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
-            if (!own)
-                tank.Position = world.TankBases.Bases.First(b => b != tank.Base).Position;
+            var visited = own ? tank.Base! : world.TankBases.Bases.First(b => b != tank.Base);
+            tank.Position = visited.Position;
+            CoolAreaToZero(world.Terrain, tank.Position, Tweaks.Tank.DigRadius);
             SetTankHeat(tank, 60f);
-            Advance(world, Tweaks.Perf.TargetFps);
-            return tank.Heat;
+            double before = visited.ReactorHeatEnergy;
+            AdvanceTank(tank, world, frames: 1);
+            return visited.ReactorHeatEnergy - before;
         }
 
-        Assert.True(HeatAfter(own: true) < HeatAfter(own: false) - 5f, "only the tank's own base pumps its heat away");
+        Assert.True(PumpedIntoReservoir(own: true) > 0.0);
+        Assert.Equal(0.0, PumpedIntoReservoir(own: false));
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(0.5)]
+    [InlineData(500.0)]
+    public void DockingAreaHeat_FillsOnlyAvailableReservoirRoom(double room)
+    {
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank();
+        var home = tank.Base!;
+        home.AcceptTankHeat(home.ReactorRoomEnergy - room);
+        SetTankHeat(tank, 0f);
+        world.Terrain.AddHeat(tank.Position, 50);
+        world.Terrain.AddAirHeatTotalInRadiusArea(tank.Position, 0, 50);
+        double stored = home.ReactorHeatEnergy;
+        double total = world.SumSystemThermalEnergy();
+        double sunk = world.Terrain.Ledger.SunkBase;
+
+        AdvanceTank(tank, world, frames: 1); // The radiator vents only on a base step.
+
+        double request = MathF.Round(Tweaks.Base.HomeCooldownHeat * (1f + Tweaks.Tank.HeatBaseCoolBonus));
+        Assert.Equal(Math.Min(request, room), home.ReactorHeatEnergy - stored, precision: 6);
+        Assert.Equal(total, world.SumSystemThermalEnergy(), precision: 3);
+        Assert.Equal(sunk, world.Terrain.Ledger.SunkBase);
     }
 
     [Fact]

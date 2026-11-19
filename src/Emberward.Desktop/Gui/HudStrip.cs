@@ -19,15 +19,15 @@ public sealed class HudStrip
     private const uint ReadoutColor = 0xFFAAFACDu;
     private const float ReadoutSize = 22f;
 
-    // The ore line, drawn in the chest window above the MATERIALS plates (art pixels): teal like the ore, amber once
+    // The ore line, drawn on the narrow plate beneath the hold window (art pixels): teal like the ore, amber once
     // the hold is full, bright green while it unloads.
-    private const float OreLineX = MaterialsX + 126f, OreLineY = 84f, OreLineSize = 19f;
+    private const float OreLineX = MaterialsX + 122f, OreLineY = 133f, OreLineSize = 15f;
     private const uint OreLineColor = 0xFFD8E860u, OreLineFullColor = 0xFF40C0FFu, OreLineUnloadColor = 0xFF60FF90u;
 
     /// <summary>
     /// A panel's plates, measured on the art (art pixels): the centre both lines share, the title plate's centre, and
     /// the readout plate's inner edges. The readout is centred in its plate. The levels themselves show in the art
-    /// above (the heat orb, the shield and the chest fill), so the plates carry no bars.
+    /// above (the heat orb, the shield and the pile of Emberite), so the plates carry no bars.
     /// </summary>
     private readonly record struct Plate(float CenterX, float TitleY, float ReadoutLeft, float ReadoutTop, float ReadoutRight, float ReadoutBottom)
     {
@@ -44,7 +44,7 @@ public sealed class HudStrip
     private readonly BuildPanel _build;
 
     private nint _heatIconTex, _shieldIconTex;
-    private nint _panelFrameTex, _buildPanelTex;
+    private nint _panelFrameTex, _orePileTex, _buildPanelTex;
 
     public HudStrip()
     {
@@ -62,11 +62,12 @@ public sealed class HudStrip
     private Vector2 At(float x, float y) => _layout.At(x, y);
     private float S(float v) => _layout.S(v);
 
-    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel)
+    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint orePile, nint buildPanel)
     {
         _heatIconTex = heatIcon;
         _shieldIconTex = shieldIcon;
         _panelFrameTex = panelFrame;
+        _orePileTex = orePile;
         _buildPanelTex = buildPanel;
     }
 
@@ -84,7 +85,7 @@ public sealed class HudStrip
         DrawPanelLabels(dl);
 
         _heat.DrawOrb(dl, player, time);
-        _liquids.Draw(dl, player, ShieldX, MaterialsX, time);
+        _liquids.Draw(dl, player, ShieldX, time);
 
         // TEMP: the tank's temperature in degrees above ambient. Digging and firing heat it; past the safe maximum
         // the heat burns the shield. A tank docked at its own base is pre-cooled below ambient (negative degrees).
@@ -98,9 +99,16 @@ public sealed class HudStrip
         DrawReadout(dl, ShieldPlate, health.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         // MATERIALS: the ore in the tank's hold against what it takes, the currency structures are built from.
+        int pileFrame = BuildSlotView.OrePileFrame(player);
+        if (pileFrame >= 0)
+        {
+            var cell = new Vector2(1f / 8f, 1f / 5f);
+            var uv = new Vector2(pileFrame % 8, pileFrame / 8) * cell;
+            dl.AddImage(_orePileTex, At(MaterialsX + 51f, 48f), At(MaterialsX + 195f, 108f), uv, uv + cell);
+        }
         DrawReadout(dl, MaterialsPlate, string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{player.OreHeld} / {player.OreHoldCapacity}"));
-        // The chest line: the hold emptying into the base (docked, or through the network), else the base store.
+        // The hold emptying into the base (docked, or through the network), else the base store.
         string oreLine = BuildSlotView.OreLine(player);
         DrawStripText(dl, oreLine, OreLineX, OreLineY, OreLineSize,
             player.IsUnloadingOre ? OreLineUnloadColor : player.IsOreHoldFull ? OreLineFullColor : OreLineColor,
@@ -110,10 +118,10 @@ public sealed class HudStrip
         {
             // Down arrows either side of the word, bobbing: the ore is going down into the base.
             float bob = (time * 3f) % 1f * 5f;
-            foreach (float dx in (ReadOnlySpan<float>)[-72f, 72f])
+            foreach (float dx in (ReadOnlySpan<float>)[-55f, 55f])
             {
-                float cx = OreLineX + dx, top = OreLineY - 8f + bob;
-                dl.AddTriangleFilled(At(cx - 7f, top), At(cx + 7f, top), At(cx, top + 9f), OreLineUnloadColor);
+                float cx = OreLineX + dx, top = OreLineY - 5f + bob;
+                dl.AddTriangleFilled(At(cx - 4f, top), At(cx + 4f, top), At(cx, top + 5f), OreLineUnloadColor);
             }
         }
 

@@ -128,13 +128,6 @@ public partial class TerrainGrid
         return count > 0 ? sum / (count * 255f) : 0f;
     }
 
-    /// <summary>The mean air temperature over the square of <paramref name="radius"/> around <paramref name="center"/>.</summary>
-    public float SampleAverageAirTemperature(Position center, int radius)
-    {
-        float sum = SumOverArea(_airTemperature, center, radius, out int count);
-        return count > 0 ? sum / count : 0f;
-    }
-
     private float SumOverArea(float[] field, Position center, int radius, out int count)
     {
         float sum = 0f;
@@ -391,9 +384,9 @@ public partial class TerrainGrid
     }
 
     /// <summary>
-    /// The temperature (above ambient) of the heat <see cref="ExtractEnergyInRadiusArea"/> would take from this area:
+    /// The source temperature of the heat <see cref="ExtractEnergyInRadiusArea"/> would take from this area:
     /// the cells' excess temperatures weighted by the energy each one gives up. A small hot spot in cold ground
-    /// still reads hot, because nearly all the extracted energy comes from it. Zero when there is nothing to take.
+    /// still reads hot, because nearly all the extracted energy comes from it. Ambient when there is nothing to take.
     /// </summary>
     public double ExtractableHeatTemperature(Position center, int radius, ThermalField field)
     {
@@ -414,7 +407,7 @@ public partial class TerrainGrid
                 energy += e;
                 weighted += e * excess;
             }
-        return energy > 0.0 ? weighted / energy : 0.0;
+        return energy > 0.0 ? ambient + weighted / energy : ambient;
     }
 
     /// <summary>

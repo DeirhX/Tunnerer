@@ -333,6 +333,8 @@ public static class Tweaks
         public const float HeatMax = 100f;
         public const float HeatDigPerPixel = 0.008f;
         public const float HeatShootPerShot = 0.25f;
+        // A full 40-unit hold adds 4 degrees per second before cooling.
+        public const float HeatPerOrePerSecond = 0.1f;
         public const float HeatBaseCoolBonus = 0.20f;
         public const int TorchTerrainHeatAmount = 8;
         public const int TorchRockHeatAmount = 14;

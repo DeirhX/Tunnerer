@@ -70,7 +70,18 @@ public sealed record BuildSlotView(
         return new BuildSlotView(machine, state, progress, label, caption, kind);
     }
 
-    /// <summary>The line in the chest window of the MATERIALS panel: the hold emptying into the base, else the base store.</summary>
+    /// <summary>Frame in the eight-column Emberite pile sprite sheet, or -1 for an empty hold.</summary>
+    public static int OrePileFrame(Tank player)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        if (player.OreHeld == 0)
+            return -1;
+        const int frames = 40;
+        // Even the first unit in an upgraded hold shows a stone. Reserve the final pile for a full hold.
+        return player.IsOreHoldFull ? frames - 1 : Math.Clamp((int)MathF.Round(player.HoldFill * frames), 1, frames - 1) - 1;
+    }
+
+    /// <summary>The line beneath the hold window: the hold emptying into the base, else the base store.</summary>
     public static string OreLine(Tank player)
     {
         ArgumentNullException.ThrowIfNull(player);

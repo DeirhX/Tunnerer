@@ -26,14 +26,15 @@ public sealed record HeatDial(string[] Bands, float Ambient, float Safe, float M
 /// <param name="Boil">How hard it boils (<c>HeatScale.Boil</c>), 0 to 1.</param>
 /// <param name="Burning">Overheating or above the safe maximum: the dial's hot end burns.</param>
 /// <param name="HitFresh">The first frames after a hit, when the shield crystal flashes white.</param>
-/// <param name="OreLine">The line in the MATERIALS chest window (<c>BuildSlotView.OreLine</c>).</param>
+/// <param name="OrePileFrame">The hold's sprite frame, or -1 when empty (<c>BuildSlotView.OrePileFrame</c>).</param>
+/// <param name="OreLine">The line beneath the hold window (<c>BuildSlotView.OreLine</c>).</param>
 public sealed record PlayerStatus(
     Position Position, Position Home, float Heat, float HeatLimit, float HeatGauge, string HeatColor,
     float HitFlash, float HitFromX, float HitFromY, float Shield, int Lives,
     int Ore, int HoldCapacity, int Store, double Charge, double BaseHeat,
     bool Docked, bool OffNetwork, float SafeSeconds, bool Dead, double RespawnSeconds,
     string Outcome, string? Carrying,
-    int Health, float Frozen, float Boil, bool Burning, bool ShieldLow, bool HitFresh, float HoldFill,
+    int Health, float Frozen, float Boil, bool Burning, bool ShieldLow, bool HitFresh, int OrePileFrame,
     bool Unloading, bool HoldFull, bool OffNetworkUrgent, string OreLine);
 
 /// <param name="Slot">The machine's column in the desktop's BUILD STRUCTURES panel.</param>

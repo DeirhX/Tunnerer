@@ -114,45 +114,43 @@ public class NetSessionJoinTests
     /// Every client is at the last tick closed with the same world, all of it, and the seat changed hands everywhere at
     /// the tick the match was held at.
     /// </summary>
-    internal static void AssertEveryWorldTheSame(JoinedMatch match)
+    internal static void AssertEveryWorldTheSame(JoinedMatch match, int expectedSlot = 2)
     {
         var (relay, clients, join, heldAt) = match;
-        Assert.Equal(2, join.Slot);
+        Assert.Equal(expectedSlot, join.Slot);
+        int humanMask = Players | (1 << expectedSlot);
         // Nothing moved during the hold: the joiner starts where the snapshot was saved, which is where the match held.
         Assert.Equal(heldAt, join.Session!.StartTick);
         Assert.Equal(1, relay.OffersSent);
         Assert.Null(relay.Room.DesyncTick);
-        Assert.Equal(0b0111, relay.Room.HumanMask);
+        Assert.Equal(humanMask, relay.Room.HumanMask);
 
         byte[] expected = clients[0].Save();
         foreach (var client in clients)
         {
             Assert.Equal(relay.Room.NextTick, client.World.AdvanceCount);
             Assert.Equal(expected, client.Save());
-            // Slot 2's bot is gone, and its base earns no stand-in income.
-            Assert.Null(client.Session.Bots[2]);
-            Assert.NotNull(client.Session.Bots[3]);
-            Assert.Equal(0b0111, client.Session.HumanMask);
-            Assert.False(client.World.TankBases.Bases[2].IsBotControlled);
+            Assert.Null(client.Session.Bots[expectedSlot]);
+            Assert.NotNull(client.Session.Bots[expectedSlot == 2 ? 3 : 2]);
+            Assert.Equal(humanMask, client.Session.HumanMask);
+            Assert.False(client.World.TankBases.Bases[expectedSlot].IsBotControlled);
         }
 
-        // The joiner played: its inputs drove slot 2 from the tick it was seated at.
+        // The joiner's inputs drove its tank from the tick it was seated at.
         var log = relay.Room.Log;
         Assert.All(log.Take(heldAt), bundle => Assert.Equal(Players, bundle.HumanMask));
-        Assert.All(log.Skip(heldAt), bundle => Assert.Equal(0b0111, bundle.HumanMask));
-        Assert.Contains(log.Skip(heldAt), bundle => bundle.Inputs[2] != LockstepRoom.NeutralInput);
+        Assert.All(log.Skip(heldAt), bundle => Assert.Equal(humanMask, bundle.HumanMask));
+        Assert.Contains(log.Skip(heldAt), bundle => bundle.Inputs[expectedSlot] != LockstepRoom.NeutralInput);
     }
 
     [Fact]
     [Trait("Category", "Slow")]
     public void PlayerJoiningAtTick2400_TakesOverABot_AndEveryWorldStaysTheSame()
     {
-        // With these seeds the bot in slot 2 still has all its lives at tick 2400 and the one in slot 3 has lost one,
-        // so slot 2 is the seat to take.
         var match = PlayAndJoin(relaySeed: 3, joinAt: 2400, playedAfter: 240);
 
         Assert.True(match.HeldAt >= 2400, $"held at {match.HeldAt}");
-        AssertEveryWorldTheSame(match);
+        AssertEveryWorldTheSame(match, expectedSlot: 3);
         // The joiner's recording starts from its snapshot and rebuilds the same world. (A player's, from tick 0 with
         // the seat changing in it, is checked on a shorter match in NetSessionTests: replaying 2400 ticks costs.)
         Assert.Equal(match.Clients[0].Save(), Rebuild(match.Join.Session!.Recording(Config)));

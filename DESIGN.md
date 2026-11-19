@@ -57,6 +57,7 @@ The session loop in detail:
   rate. The radiator is the shared constraint that everything competes for.
 - **Heat reaches the base in two ways.** *(Decided.)*
   - **Tanks** carry it. A docked tank's heat is pumped into its base, settling it near 0 (§4.7).
+    Docking also draws heat from nearby terrain and air into the visited base's reservoir while it has room.
   - **Relays** pipe it. A relay pulls heat from the ground around it and sends it to the base.
 - **Tanks and relays have different jobs.** *(Proposed.)* The tank's heat budget decides how long you can stay
   somewhere hot.
@@ -111,7 +112,8 @@ hot ground --relay--> base engine --> charge store --pylon--> batteries
   goes into the base's heat store as before. The fraction depends on the temperature difference, like a real heat
   engine: `eta = min(dT / (dT + K), eta_max)`, where dT is how far the source is above the base. Warm dirt gives
   a trickle and hot rock gives a lot, so **the dangerous hot places are your power plants**. Heat turned into
-  charge doesn't have to be vented, so better sources also ease the radiator bottleneck (§12.1).
+  charge doesn't have to be vented, so better sources also ease the radiator bottleneck (§12.1). A relay draws from
+  the terrain field first and then the remaining air. Each draw contributes charge at its own source temperature.
 - **Charge storage.** The base keeps a charge store and starts with enough for the first harvester, so the loop can
   start without power already in hand. Harvesters carry batteries, filled from the store when planted.
 - **Pylons** are link nodes that hand base charge to batteries in direct line of sight within a short range,
@@ -181,6 +183,8 @@ The tank lives in a band around 0. Both ends hurt, and the world has places at b
   near 0; a cold tank is warmed back by the floor. A full reservoir stops the pump.
 - **Heat exchange follows the temperature difference.** A tank drifts toward the temperature of whatever it stands in,
   in both directions: hot ground warms it, cold ground chills it, and it warms or chills the cells under it in turn.
+  Solid ground transfers heat faster than air. The more of the tank's footprint touches solid ground, the stronger
+  that contact is. Each transfer stops when the tank and the material it touches reach the same temperature.
 - **Frost pockets** are indestructible rock pinned at -60, scattered at middle distances from the bases and away from
   hot pockets. Beside one, a hot tank sheds heat quickly, which makes it a place to cool down on a dive (and, off
   network, a way to buy back time, §4.6). Stay too long and the tank gets chilled, then frostbitten. Frost is drawn as
@@ -324,12 +328,13 @@ The tank's ordinary dig clears plain ore, slower than dirt; a core cell needs th
 1 unit and a core cell 3, into a small hold of 40 units. A full hold leaves ore in the ground (a core cell is taken only
 if all 3 units fit), so mining never destroys ore. Docking at the own base banks the hold into the base's ore store
 quickly (10 units a tick); inside the own network's coverage it unloads there too, slower (§6.4). The hold grows
-with the cargo hold upgrade (§4.8).
+with the cargo hold upgrade (§4.8). In the hold, each unit of emberite warms the tank by 0.1 degrees per second
+before cooling. A full starting hold adds 4 degrees per second, and each unit unloaded or spent reduces that rate.
 When the tank dies its hold spills back into the ground as plain ore in the nearest open or dirt cells around the wreck,
 never under another tank or a machine (ore blocks links, so it would cut a relay); what does not fit within a few cells
-is lost. Torching rock no longer yields anything. The HUD shows the hold as
-"n / 40" on the MATERIALS plate, above it the base's ore store or, while the hold empties, a blinking UNLOADING
-with down arrows, and the base's ore store in the base panel.
+is lost. Torching rock no longer yields anything. The MATERIALS panel shows a pile of Emberite growing inside the
+hold and the exact ore count against capacity. Beneath the hold window it shows the base's ore store or, while the
+hold empties, a blinking UNLOADING with down arrows. The base panel also shows the store.
 
 ### 6.4 Structures and the ore economy *(Prototype)*
 

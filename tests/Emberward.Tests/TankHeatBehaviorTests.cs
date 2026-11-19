@@ -8,6 +8,44 @@ namespace Emberward.Tests;
 
 public class TankHeatBehaviorTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(20)]
+    [InlineData(40)]
+    public void CarriedOre_WarmsIdleTankAndBooksEnergyUntilUnloaded(int ore)
+    {
+        var (world, tank) = TestHelpers.CreateSeededWorldWithTank();
+        tank.Position = GetWorldCenter(world);
+        ClearArea(world.Terrain, tank.Position, radius: 8);
+        CoolAreaToZero(world.Terrain, tank.Position, radius: 8);
+        SetTankHeat(tank, 0f);
+        tank.Hold.Ore = ore;
+        var ledger = world.Terrain.Ledger;
+        double startEnergy = world.SumSystemThermalEnergy();
+        double startInjected = ledger.Injected;
+
+        AdvanceTank(tank, world, Tweaks.Perf.TargetFps);
+
+        double expected = ore * Tweaks.Tank.HeatPerOrePerSecond * tank.ThermalCapacity;
+        Assert.True(tank.Heat > 0f);
+        Assert.Equal(expected, ledger.Injected - startInjected, precision: 3);
+        Assert.Equal(expected, world.SumSystemThermalEnergy() - startEnergy, precision: 3);
+
+        tank.Position = RequireBasePosition(tank);
+        while (tank.OreHeld > 0)
+        {
+            int before = tank.OreHeld;
+            double injected = ledger.Injected;
+            AdvanceTank(tank, world, 1);
+            Assert.True(tank.OreHeld < before);
+            double remainingLoad = tank.OreHeld * world.Settings.TankHeatPerOrePerTick * tank.ThermalCapacity;
+            Assert.Equal(remainingLoad, ledger.Injected - injected, precision: 4);
+        }
+        double afterUnload = ledger.Injected;
+        AdvanceTank(tank, world, 1);
+        Assert.Equal(afterUnload, ledger.Injected);
+    }
+
     [Fact]
     public void TankHeat_PassivelyCools_WhenNoHeatSource()
     {
@@ -77,7 +115,7 @@ public class TankHeatBehaviorTests
         visual.Capture(world, "start");
 
         float observedMax = tank.Heat;
-        AdvanceTank(tank, world, frames: 220, visual, phase: "cool", captureEvery: 20, afterStep: _ =>
+        AdvanceTank(tank, world, frames: 300, visual, phase: "cool", captureEvery: 20, afterStep: _ =>
         {
             if (tank.Heat > observedMax)
                 observedMax = tank.Heat;
@@ -310,8 +348,8 @@ public class TankHeatBehaviorTests
 
         float terrainInBase = worldInBase.Terrain.SampleAverageHeat(basePos, radius) * 255f;
         float terrainOutside = worldOutside.Terrain.SampleAverageHeat(outsidePos, radius) * 255f;
-        float airInBase = worldInBase.Terrain.SampleAverageAirTemperature(basePos, radius);
-        float airOutside = worldOutside.Terrain.SampleAverageAirTemperature(outsidePos, radius);
+        float airInBase = worldInBase.Terrain.SampleTankContact(basePos, radius).AirTemperature;
+        float airOutside = worldOutside.Terrain.SampleTankContact(outsidePos, radius).AirTemperature;
 
         Assert.True(terrainInBase < terrainOutside,
             $"Expected base cooldown to lower nearby terrain heat too. inBase={terrainInBase:0.00}, outside={terrainOutside:0.00}");

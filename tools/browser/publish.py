@@ -15,7 +15,7 @@ import zipfile
 # (wwwroot/threads.js decides), so the offline manifest lists them apart and the service worker keeps one.
 RUNTIMES = {"single": "_framework", "threads": "_framework-threads"}
 # The desktop's HUD art (src/Emberward.Desktop/resources/hud) that the browser's strip draws.
-HUD_ART = ["heat_icon.png", "shield_icon.png", "panel_frame.png", "build_panel.png"]
+HUD_ART = ["heat_icon.png", "shield_icon.png", "panel_frame.png", "hold_emberite.png", "build_panel.png"]
 ISOLATION_HEADERS = ["Cross-Origin-Opener-Policy: same-origin", "Cross-Origin-Embedder-Policy: require-corp"]
 
 

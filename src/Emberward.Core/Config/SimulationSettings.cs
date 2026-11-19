@@ -42,6 +42,7 @@ public readonly record struct SimulationSettings
     // --- Tank heat model ---
     public float TankHeatDigPerPixel { get; init; }
     public float TankHeatShootPerShot { get; init; }
+    public float TankHeatPerOrePerTick { get; init; }
     public float TankHeatCapacity { get; init; }
     public float TankFrostbiteTemperature { get; init; }
     public float TankFrostbiteDamagePerDegree { get; init; }
@@ -57,7 +58,7 @@ public readonly record struct SimulationSettings
     // --- Base ---
     public int BaseSize { get; init; }
 
-    // --- Tank thermals (TankThermals): work heat, base sinks and the dock heat pump ---
+    // --- Tank thermals (TankThermals): work heat, docking-area cooling and the dock heat pump ---
     public int TankIdleHeatGain { get; init; }
     public int TankMoveHeatGain { get; init; }
     public float TankDockHeatPumpRate { get; init; }
@@ -86,6 +87,7 @@ public readonly record struct SimulationSettings
         ThermalAirNeighborCoupling = Tweaks.World.ThermalAirNeighborCoupling,
         TankHeatDigPerPixel = Tweaks.Tank.HeatDigPerPixel,
         TankHeatShootPerShot = Tweaks.Tank.HeatShootPerShot,
+        TankHeatPerOrePerTick = Tweaks.Tank.HeatPerOrePerSecond / Tweaks.Perf.TargetFps,
         TankHeatCapacity = Tweaks.Tank.TankHeatCapacity,
         TankFrostbiteTemperature = Tweaks.Tank.FrostbiteTemperature,
         TankFrostbiteDamagePerDegree = Tweaks.Tank.FrostbiteDamagePerDegree,
