@@ -25,7 +25,7 @@
         ></canvas>
         <header>
             <a class="brand" href="./" aria-label="Emberward home"
-                ><span class="brand-mark">E</span>EMBERWARD<span class="edition"
+                ><img class="brand-mark" src="./icon.svg" width="36" height="36" alt="" />EMBERWARD<span class="edition"
                     >BROWSER EDITION</span
                 ></a
             >
@@ -40,6 +40,82 @@
         </header>
         <main>
             <section id="welcome" class="landing">
+                <!-- The dig, as a section through the ground: base, tunnel, relay line, tank and the core. Decoration only. -->
+                <div class="landing-art" aria-hidden="true">
+                    <svg viewBox="0 0 720 820" preserveAspectRatio="xMaxYMid meet">
+                        <defs>
+                            <pattern id="art-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                <rect width="2" height="2" fill="#3d4d55" />
+                            </pattern>
+                            <radialGradient id="art-glow" gradientUnits="userSpaceOnUse" cx="470" cy="690" r="400">
+                                <stop offset="0" stop-color="#ff7a2e" stop-opacity="0.5" />
+                                <stop offset="0.35" stop-color="#f0641e" stop-opacity="0.2" />
+                                <stop offset="1" stop-color="#f0641e" stop-opacity="0" />
+                            </radialGradient>
+                            <linearGradient id="art-core" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stop-color="#fff6d8" />
+                                <stop offset="0.55" stop-color="#ffcf6b" />
+                                <stop offset="1" stop-color="#ff8a2e" />
+                            </linearGradient>
+                            <linearGradient id="art-cold" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stop-color="#60d6ff" stop-opacity="0.1" />
+                                <stop offset="1" stop-color="#60d6ff" stop-opacity="0" />
+                            </linearGradient>
+                        </defs>
+                        <rect width="720" height="260" fill="url(#art-cold)" />
+                        <rect width="720" height="820" fill="url(#art-glow)" />
+                        <rect width="720" height="820" fill="url(#art-grid)" />
+                        <g class="art-strata" fill="none" stroke-width="1.5">
+                            <path stroke="#3f6f80" d="M0 110H120V90H520V110H720" />
+                            <path stroke="#35525c" d="M0 230H80V250H200V230H400V210H560V230H660V250H720" />
+                            <path stroke="#4a4a41" d="M0 370H140V350H330V390H560V370H720" />
+                            <path stroke="#6b4a2c" d="M0 510H100V530H340V490H600V510H720" />
+                            <path stroke="#8a4a22" d="M0 610H220V630H350V590H590V630H720" />
+                            <path stroke="#a84a1e" d="M0 750H260V770H390M550 770H640V750H720" />
+                        </g>
+                        <!-- Cold pocket and emberite, as terrain cells. -->
+                        <g fill="#60d6ff">
+                            <path opacity="0.5" d="M580 150h20v20h-20zM620 170h20v20h-20zM600 190h20v20h-20z" />
+                            <path opacity="0.28" d="M600 150h20v20h-20zM580 170h40v20h-40zM620 190h20v20h-20zM640 150h20v20h-20zM560 190h20v20h-20z" />
+                            <path opacity="0.7" d="M130 430l10 -10 10 10 -10 10zM160 450l10 -10 10 10 -10 10zM110 460l10 -10 10 10 -10 10z" />
+                        </g>
+                        <!-- The tunnel from the base to the dig face, and the relay line laid along it. -->
+                        <g class="art-dig">
+                        <path class="art-tunnel" d="M310 104V230H490V370H250V510H470V600" />
+                        <path class="art-relay" d="M310 104V230H490V370H250V510H470V600" />
+                        <path class="art-heat" d="M470 640V510H250V370H490V230H310V104" />
+                        <path fill="#60d6ff" d="M310 222l8 8 -8 8 -8 -8zM490 222l8 8 -8 8 -8 -8zM490 362l8 8 -8 8 -8 -8zM250 362l8 8 -8 8 -8 -8zM250 502l8 8 -8 8 -8 -8zM470 502l8 8 -8 8 -8 -8z" />
+                        <!-- Base. -->
+                        <path fill="#0b1419" stroke="#60d6ff" stroke-width="2" d="M258 50H362L372 60V94L362 104H258L248 94V60Z" />
+                        <path fill="#60d6ff" d="M296 66H324V88H296Z" opacity="0.85" />
+                        <!-- Tank at the dig face. -->
+                        <path fill="#60d6ff" d="M456 574H484V602H456ZM466 602H474V614H466Z" />
+                        <path fill="#080f13" d="M463 581H477V595H463Z" />
+                        <path fill="#ffb240" d="M467 585H473V591H467Z" />
+                        </g>
+                        <!-- The core. -->
+                        <g class="art-core">
+                            <path class="art-ring" d="M470 610L550 690 470 770 390 690Z" />
+                            <path class="art-ring" d="M470 610L550 690 470 770 390 690Z" />
+                            <path class="art-ring" d="M470 610L550 690 470 770 390 690Z" />
+                            <path fill="none" stroke="#ff7a2e" stroke-width="2" opacity="0.8" d="M470 632L528 690 470 748 412 690Z" />
+                            <path class="art-ember" fill="url(#art-core)" d="M470 656L504 690 470 724 436 690Z" />
+                        </g>
+                        <g class="art-labels">
+                            <text x="384" y="82">BASE</text>
+                            <text x="506" y="300">RELAY</text>
+                            <text x="668" y="184" class="cold">&#8722;38&#176;</text>
+                            <text x="96" y="492" class="cold">EMBERITE</text>
+                            <text x="566" y="686" class="hot">CORE</text>
+                            <text x="566" y="704" class="hot">1480&#176;</text>
+                            <text x="706" y="106" text-anchor="end">000</text>
+                            <text x="706" y="226" text-anchor="end">120</text>
+                            <text x="706" y="366" text-anchor="end">260</text>
+                            <text x="706" y="506" text-anchor="end">400</text>
+                            <text x="706" y="606" text-anchor="end">500</text>
+                        </g>
+                    </svg>
+                </div>
                 <div class="eyebrow"><i></i> EXCAVATION PROTOCOL / 001</div>
                 <h1>Go deeper.<br />Keep your cool.</h1>
                 <p class="intro">

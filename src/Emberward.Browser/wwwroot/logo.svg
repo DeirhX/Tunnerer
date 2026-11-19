@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-24 0 2081 400" width="2081" height="400" role="img" aria-label="Emberward">
+  <defs><style>
+    .ember { animation: smoulder 3.2s ease-in-out infinite; }
+    @keyframes smoulder { 50% { opacity: 0.62; } }
+    @media (prefers-reduced-motion: reduce) { .ember { animation: none; } }
+    </style>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="-8" y="58" width="248" height="284">
+      <rect x="-8" y="58" width="248" height="284" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-linejoin="miter"><path d="M-4 110 H236" stroke-width="9"/><path d="M-4 169.4 L116 290 L236 169.4" stroke-width="9"/></g>
+      <rect x="101" y="58" width="30" height="158.1" fill="#000"/>
+      <path d="M116 158.1 L174 216.1 L116 274.1 L58 216.1 Z" fill="#000"/>
+    </mask>
+    <clipPath id="ward"><path d="M36 66 H196 L232 102 V213.4 L116 334 L0 213.4 V102 Z"/></clipPath>
+    <linearGradient id="depth" gradientUnits="userSpaceOnUse" x1="0" y1="110" x2="0" y2="334">
+      <stop offset="0" stop-color="#ffd98f"/>
+      <stop offset="0.4" stop-color="#ffb240"/>
+      <stop offset="0.8" stop-color="#f4702a"/>
+      <stop offset="1" stop-color="#d9431c"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6d8"/>
+      <stop offset="0.55" stop-color="#ffcf6b"/>
+      <stop offset="1" stop-color="#ff8a2e"/>
+    </linearGradient>
+  </defs>
+  <g mask="url(#cut)" clip-path="url(#ward)">
+      <rect x="0" y="110" width="232" height="224" fill="url(#depth)"/>
+      <rect x="0" y="66" width="232" height="44" fill="#60d6ff"/>
+    </g>
+    <path d="M116 66 V173.1" stroke="#60d6ff" stroke-width="5" fill="none"/><path class="node" d="M116 143 L125 152 L116 161 L107 152 Z" fill="#60d6ff"/>
+    <path class="ember" d="M116 185.1 L147 216.1 L116 247.1 L85 216.1 Z" fill="url(#core)"/>
+  <path d="M314 116H426.8V136.2H337V189.7H419.8V209.6H337V263.8H426.8V284H314Z M489.6 116H512.9L565.4 238.9H565.9L618.7 116H642V284H619.9V161.4H619.4L573.8 265H557.5L512.2 161.4H511.7V284H489.6Z M712 116H809.9L832.7 138.8V185.4L821.9 196.4L840.2 214.9V259.8L815.9 284H712ZM799.4 189.9 810.2 179.1V146.2L799.4 135.7H734.6V189.9ZM804.9 264.3 817.6 251.8V221.6L804.9 208.9H734.6V264.3Z M903 116H1015.8V136.2H926V189.7H1008.8V209.6H926V263.8H1015.8V284H903Z M1201.9 231.2V284H1178.9V237L1159 215.6H1101.6V284H1078.6V116H1177.7L1201 139.3V191.6L1182.5 210.1ZM1101.6 195.9H1167.4L1178.2 185.4V146.2L1167.4 135.7H1101.6Z M1261.1 116H1284.4L1309.1 250.2H1309.8L1347.8 116H1367.7L1404.6 250.2H1405.1L1429.4 116H1452.6L1418.6 284H1395.3L1358.1 149.8H1357.4L1318.5 284H1295.2Z M1558.9 116 L1581.9 116 L1642.4 284 L1618.6 284 L1570.4 148.2 L1522.4 284 L1498.6 284 Z M1821.4 231.2V284H1798.3V237L1778.4 215.6H1721V284H1698V116H1797.1L1820.4 139.3V191.6L1801.9 210.1ZM1721 195.9H1786.8L1797.6 185.4V146.2L1786.8 135.7H1721Z M1890.2 116H1990.7L2017.8 143.1V256.9L1990.7 284H1890.2ZM1979.9 263.8 1994.8 249V151L1979.9 136.2H1913.2V263.8Z" fill="#f4ecdc" stroke="#f4ecdc" stroke-width="10" stroke-linejoin="miter"/>
+  <path class="ember" d="M1570.4 219.2 L1597.8 246.6 L1570.4 273.9 L1543 246.6 Z" fill="url(#core)"/>
+</svg>
