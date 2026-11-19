@@ -1,9 +1,9 @@
 #!/bin/sh
 # Puts a published browser game (the emberward-browser.zip publish.py makes, read from standard input) in place on
-# Starfish, keeping the build it replaces in browser.prev. Installed on the VM as /usr/local/bin/emberward-deploy-browser
+# Starfish, keeping the build it replaces in browser.prev. Installed on the VM as /usr/local/bin/tunnerer-deploy-browser
 # and run as root: by hand, and by the publish-starfish workflow, whose key may run nothing else (docs/browser.md).
 set -eu
-site=/srv/emberward/browser
+site=/srv/tunnerer/browser
 work=$(mktemp -d /tmp/emberward-deploy.XXXXXX)
 trap 'rm -rf "$work"' EXIT
 cat > "$work/game.zip"
@@ -13,6 +13,10 @@ python3 -m zipfile -e "$work/game.zip" "$work/new"
 test -f "$work/new/index.html"
 test -f "$work/new/assets-manifest.js"
 test -d "$work/new/_framework-threads"
+for file in emberward-windows-x64.exe emberward-macos-arm64 emberward-linux-x64; do
+    test -s "$work/new/downloads/$file"
+    test -s "$work/new/downloads/$file.gz"
+done
 chown -R root:root "$work/new"
 find "$work/new" -type d -exec chmod 755 {} +
 find "$work/new" -type f -exec chmod 644 {} +
