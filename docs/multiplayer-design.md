@@ -371,8 +371,9 @@ Each step is testable without the next.
    next simulation step, and the relay caps its connections.
 8. **Browser client** (done, 2026-11-18). The browser joins rooms from its welcome screen, with lobby, host start,
    pause for everyone and rejoin by name, and plays with desktop clients of the same commit. No protocol change.
-9. Later: co-op sides, late join ([late-join-design.md](late-join-design.md)), world snapshot for fast rejoin
-   and late join, play from outside the office.
+9. **Late-join transport and seat handoff** (done; the relay on Starfish runs protocol 6 since 2026-11-19).
+   Protocol 6 carries world snapshots and tick-by-tick seat ownership. The player-facing join flow is still pending;
+   see [late-join-design.md](late-join-design.md). Later: co-op sides and play from outside the office.
 
 ## 11. Open questions
 
