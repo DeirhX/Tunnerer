@@ -1,6 +1,6 @@
 namespace Emberward.Desktop.Audio;
 
-/// <summary>Every one-shot and loop the game plays. The loops come last (SoundBank.IsLoop).</summary>
+/// <summary>Every one-shot and loop the game plays. Its value seeds the sound synthesis.</summary>
 public enum SoundEffect
 {
     Fire,
@@ -23,4 +23,5 @@ public enum SoundEffect
     DigLoop,
     TorchLoop,
     RechargeLoop,
+    BuildGenerator,
 }

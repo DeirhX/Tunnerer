@@ -86,7 +86,7 @@ public partial class GameHud
         DrawPowerLabels(player, world);
         DrawCrosshair();
         DrawHitFeedback(player);
-        _strip.Draw(player, _time);
+        _strip.Draw(player, _time, world.Rules);
         _network.Draw(ViewportRect, player, world, _guidance.Hint);
         WarningBanner.Draw(ViewportRect, _guidance.Warning, _time);
         DrawGuidance();

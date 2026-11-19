@@ -60,6 +60,7 @@ static const float kKindCoverage = 13.0;
 static const float kKindTether = 14.0;
 static const float kKindRadarBlip = 15.0;
 static const float kKindRadarPulse = 16.0;
+static const float kKindGenerator = 17.0;
 
 // Machine flags (params.w); EntityShape's MachineFlag* constants must match.
 static const float kMachineFlagStalled = 1.0;

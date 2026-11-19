@@ -26,7 +26,7 @@ public sealed class SoundBank
 
     public float[] this[SoundEffect effect] => _samples[(int)effect];
 
-    public static bool IsLoop(SoundEffect effect) => effect >= SoundEffect.EngineLoop;
+    public static bool IsLoop(SoundEffect effect) => effect is >= SoundEffect.EngineLoop and <= SoundEffect.RechargeLoop;
 
     private static float[] Synthesize(SoundEffect effect)
     {
@@ -43,6 +43,7 @@ public sealed class SoundBank
             SoundEffect.BuildRelay => Build(ref noise, 0.45f, 170f, 430f, 28f, 900f),
             SoundEffect.BuildHarvester => Build(ref noise, 0.56f, 105f, 280f, 19f, 600f),
             SoundEffect.BuildPylon => BuildPylon(ref noise),
+            SoundEffect.BuildGenerator => Build(ref noise, 0.50f, 140f, 360f, 22f, 1200f),
             SoundEffect.Plant => Plant(ref noise),
             SoundEffect.PlantRefused => PlantRefused(),
             SoundEffect.Pickup => Pickup(),

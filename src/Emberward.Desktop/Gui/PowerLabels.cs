@@ -14,10 +14,10 @@ using Emberward.Desktop.Rendering.Entities;
 /// <param name="Flow">Charge a second in and out: <c>+120 -40/s</c>.</param>
 /// <param name="Fill">How full its capacitor is, 0 to 1.</param>
 /// <param name="Level">Fed (<see cref="StatusLevel.Ok"/>), running on its own charge (Warn) or empty and cut off (Bad).</param>
-public readonly record struct PowerLabel(string Charge, string Flow, float Fill, StatusLevel Level)
+public readonly record struct PowerLabel(string Charge, string Flow, float Fill, StatusLevel Level, bool Producing = false)
 {
     /// <summary>The label's colour: the HUD's good green when fed, its warning and danger colours when not.</summary>
-    public uint Color => HudPalette.LevelColor(Level, HudPalette.Good);
+    public uint Color => Producing ? HudPalette.Producer : HudPalette.LevelColor(Level, HudPalette.Good);
 }
 
 /// <summary>What the base's charge row says: its store, production against draw a second, and the net.</summary>
@@ -86,8 +86,10 @@ public static class PowerLabels
     public static PowerLabel Of(MachinePower power)
     {
         StatusLevel level = power.IsFed ? StatusLevel.Ok : power.Charge > 0.0 ? StatusLevel.Warn : StatusLevel.Bad;
-        return new PowerLabel(Compact(power.Charge) + "/" + Compact(power.Capacity),
-            Flow(power.InPerSecond, power.OutPerSecond), Fill(power.Charge, power.Capacity), level);
+        bool producing = power.ProductionPerSecond > 0.0;
+        string flow = producing ? "gen " + SignedRate(power.ProductionPerSecond) : Flow(power.InPerSecond, power.OutPerSecond);
+        return new PowerLabel(Compact(power.Charge) + "/" + Compact(power.Capacity), flow,
+            Fill(power.Charge, power.Capacity), level, producing);
     }
 
     public static BasePowerLabel Of(BasePower power)
@@ -99,7 +101,8 @@ public static class PowerLabels
             : fill > LowStoreShare ? StatusLevel.Warn
             : StatusLevel.Bad;
         return new BasePowerLabel(Compact(power.Charge) + "/" + Compact(power.Capacity),
-            Flow(power.ProductionPerSecond, power.DrawPerSecond), "net " + SignedRate(net), fill, level);
+            Flow(power.ProductionPerSecond, power.DrawPerSecond), "net " + SignedRate(net) +
+            (power.GeneratorProductionPerSecond > 0.0 ? " · gen " + SignedRate(power.GeneratorProductionPerSecond) : ""), fill, level);
     }
 
     private static float Fill(double charge, double capacity) =>

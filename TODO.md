@@ -16,7 +16,7 @@ Open work, written so an agent can pick up one item without the conversation tha
   - **Tranche 1b, charge and flow labels** (key G, `PowerLabels`, `HudPalette`), shared by desktop and browser.
     `--energy-network` (desktop) and `?energy` (browser) turn the network on for local matches only.
 - **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
-- **Item 1 is implemented in the working tree.** Continue at item 2. Each item builds on the previous one.
+- **Items 1 and 2 are implemented.** Continue at item 3 on a new branch stacked on the generator PR.
 
 ## Rules for every item
 
@@ -48,14 +48,15 @@ Open work, written so an agent can pick up one item without the conversation tha
   `RunsOnCharge` (only the harvester) keeps its capacitor as the battery when the flag is off.
 - **Numbers (in `Tweaks.Machine` and `Tweaks.Energy`):** relay 3600 capacity, 60/tick in, 1.5/tick idle; pylon 6000, 100,
   2.5; harvester 120k, 400 in, 4 idle. A cut-off relay or pylon lasts about 100 s.
-- **Islands are keyed by base.** `LinkedIsland` walks upstream links to the base, and membership is looked at again only
-  when `LinkMap.PowerVersion` changes. A network with no base is **not** an island yet, and a group cut off from every
-  base shares no charge (each machine drains alone). Items 2 and 5 must generalise this.
-- **Per tick, per island, tier by tier:** pay members' idle draw from the base store, then top up non-full capacitors by
+- **Islands.** The energy network groups same-side live links when `LinkMap.PowerVersion` changes. Base-connected
+  nodes use the base's island. A disconnected component pools charge if it has a generator. The first generator
+  names that island and each producer carries its own reserve across splits. A disconnected group without a base
+  or generator drains separately. Item 5 can reuse these memberships for the throughput tree.
+- **Per tick, per island, tier by tier:** pay members' idle draw from generator reserves and the base store, then top up non-full capacitors by
   at most their rate. A tier the store cannot pay is starved and fed again once the store holds 24 ticks of its idle
   draw. Everything is in the economy tier today.
 - **Settling:** a capacitor is brought up to date only when used, when it changes island or tier, or every 5 s, and idle
-  draw reaches the ground as heat then. Idle charge paid but not yet settled is `EnergyNetwork.PendingCharge`, counted in
+  draw reaches the ground as heat then. `EnergyNetwork.StoredCharge` counts idle charge yet to settle and generator reserves in
   `World.SumSystemCharge`. **Anything that changes `Machine.Charge` or `ChargeCapacity` must go through
   `EnergyNetwork.Spend` / `Settle`.** A fed capacitor refills only after a spend or an island or tier change.
 - **Failing gently:** a relay still pumps heat with an empty capacitor; only the harvester stops when empty.
@@ -75,27 +76,18 @@ See `TODO-gameplay.md` for the remaining tuning and sector persistence questions
 The simulation fingerprints changed after PR #72 was included. Mention that when committing this item. Network peers
 need the same build. The energy network's flag and capacitor tuning are unchanged.
 
-## 2. Local generator (a new machine)
+## 2. Local generator (implemented)
 
-**Design (`DESIGN.md` §4.9).** Heat only, first. It converts the temperature difference between its intake and its own
-surroundings, so equalised ground yields nothing. Efficiency capped near 0.35 (the base engine's cap is 0.5). Hard output
-cap per generator. Waste heat goes into the ground around it (through the heat writers, which wake the tile and so the
-relays), so output falls as the ground warms and packed generators choke each other. Conversion is booked as
-`ConvertedToCharge` in the ledger. It is a producer in its island: output fills the island pool and capacitors.
-Emberite fuel (fed from the tank's hold) is a later step; do not build it now.
+In energy matches Y builds a generator for 18 ore. Heat over the exhaust temperature is drawn from the intake
+and converted at up to 35% efficiency and 65 charge a tick. Waste heat returns to the exhaust. A generator can
+supply a local island without a base. Each generator carries a 4,800-charge reserve that its island can draw, and
+connected generators fill the base store first. The charge overlay shows output at each generator and includes
+connected output in the base row.
 
-**Needs.**
-- **Islands without a base.** Tranche 1 islands are keyed by base. A generator makes an island that can live without
-  one; membership, the pool and the starved-tier logic must handle a producer other than the base engine, and charge
-  sharing inside a cut-off group.
-- **The machine checklist in `AGENTS.md`:** `MachineType`, a `MachineBehavior` in `MachineBehaviors.All` (action, interval,
-  colour, cost, build key, traits, capacitor), `Tweaks.cs`, a `MachinePresentation`, a `MachineSprite` (shader shape; a new
-  shape needs a branch in `EntityPs.hlsl` and `Layout.hlsli`, see `EntityLayoutGuardTests`), `StepEventSounds.BuildSound`.
-- **A build key.** Only three exist (`BuildKey`): relay, harvester, pylon. The pylon goes in item 7. Decide, and say which:
-  add a fourth key now or temporarily reuse. Item 6 (turret) needs a fourth key in any case.
-- **Guard tests:** a closed loop never gains charge; the tank torching beside a generator gains no more charge than the
-  cap allows (the tank's torch creates heat from outside the system); packed generators produce less than spaced ones.
-- **Labels:** show production in `PowerLabels.Of` (a producer colour) and in the base row.
+The fourth build key uses input bit 28 and advances the relay protocol to 7. Deploy that relay version before
+network clients use this build. The opt-in rules fingerprint changed. Standard matches keep their recorded
+simulation fingerprints. Heat stock, layout and sustained output still need playtesting. Emberite fuel remains
+a later item.
 
 ## 3. Dark base, shield, no lives
 
@@ -172,8 +164,8 @@ fires at enemy tanks in range and line of sight; the range is short, so it defen
 deterministic: a stable tie-break and no unordered iteration; use `MachineList.CollectNear` and vision. Bots must be able
 to build and use them, or turrets are player-only; decide and say so.
 
-**Needs.** The full machine checklist (as in item 2), a fourth build key (change `BuildKey`; the keys, the README, F1
-screen, tutorial and `KeyboardController`/`BrowserApi`/`input.js` all follow), a sprite and shader branch, build and shot
+**Needs.** The full machine checklist (as in item 2), a separate build key (change `BuildKey`, codec, README, F1
+screen, tutorial and `KeyboardController`/`BrowserApi`/`input.js`), a sprite and shader branch, build and shot
 sounds (shots through `StepEventKind`), the tier-ordering test that item 3 and tranche 1 lacked. Upgrades with item 4:
 **Rapid** (faster fire, more heat) and **Long** (more range and damage, slower fire); a Hardened option later.
 Balance risk: a turret beside a relay makes raiding impossible. The power link and a short range and a high cost help;

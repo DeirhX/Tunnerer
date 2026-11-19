@@ -38,7 +38,7 @@ export class GameInput {
                 if (this.enabled) {
                     if (e.code === "KeyH") action("thermal");
                     if (e.code === "KeyG") action("power");
-                    const build = { KeyE: 1, KeyR: 2, KeyT: 3 }[e.code];
+                    const build = { KeyE: 1, KeyR: 2, KeyT: 3, KeyY: 4 }[e.code];
                     if (build) this.queue("build", build);
                     if (/^Digit[1-7]$/.test(e.code))
                         this.queue("upgrade", Number(e.code.slice(-1)));

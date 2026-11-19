@@ -10,7 +10,7 @@ using System.Text;
 public static class MessageCodec
 {
     /// <summary>Changes whenever the bytes of any message change. Client and relay must match.</summary>
-    public const int ProtocolVersion = 6;
+    public const int ProtocolVersion = 7;
 
     /// <summary>Maximum size of an ordinary message. Only a snapshot chunk may exceed it.</summary>
     public const int MaxMessageBytes = 4096;

@@ -8,9 +8,9 @@ using Emberward.Core.Types;
 
 /// <summary>
 /// The energy network (DESIGN.md §4.9), in a world whose rules run it (<see cref="Match.MatchRules.EnergyNetwork"/>).
-/// Every planted machine has a capacitor (<see cref="MachineBehavior.Capacitor"/>); the base's charge store is the
-/// base's. A machine whose base can reach it is a member of that base's island: a link node (relay, pylon) when its
-/// power comes home to its own base over live links, a harvester while that network covers it. Once a tick each island
+/// Every planted machine has a capacitor (<see cref="MachineBehavior.Capacitor"/>). Live links between the side's nodes
+/// form islands supplied by their generators and, when reachable, their base. Nearby harvesters can draw from an
+/// island in line of sight. Once a tick each island
 /// pays, tier by tier (<see cref="PowerTier"/>), the idle draw of its members and then tops up the capacitors that are
 /// not full, each by at most its transfer rate. A tier the store cannot pay is starved: its members drain as if cut off,
 /// and the lowest tier goes first. A machine cut off keeps its charge and drains it by its idle draw and its use.
@@ -24,12 +24,16 @@ using Emberward.Core.Types;
 /// </para>
 /// <para>
 /// Energy: idle charge an island paid that is not yet heat stays stored charge until it is settled
-/// (<see cref="PendingCharge"/>, counted by <see cref="World.SumSystemCharge"/>); settling turns it into heat beside the
+/// (<see cref="StoredCharge"/>, counted by <see cref="World.SumSystemCharge"/>); settling turns it into heat beside the
 /// machine, booked as charge turned back into heat, so the ledger balances on every tick.
 /// </para>
 /// </summary>
-public sealed class EnergyNetwork
+public sealed partial class EnergyNetwork
 {
+    private readonly SimulationSettings _settings;
+
+    public EnergyNetwork(SimulationSettings settings) => _settings = settings;
+
     private const int TierCount = (int)PowerTier.Economy + 1;
 
     // One per planted machine, in machine sequence order (Find looks a machine up by halving).
@@ -38,6 +42,7 @@ public sealed class EnergyNetwork
     // The last tick whose idle draw the islands have paid; settling brings a capacitor up to here.
     private int _paidThrough;
     private int _seenPowerVersion = -1;
+    private int _localIslandCount;
 
     /// <summary>Capacitors registered (planted machines not yet wrecked).</summary>
     public int CapacitorCount => _capacitors.Count;
@@ -60,6 +65,8 @@ public sealed class EnergyNetwork
         var capacitor = new Capacitor { Machine = machine, SettledThrough = _paidThrough };
         int at = IndexOf(machine);
         _capacitors.Insert(at >= 0 ? at : ~at, capacitor);
+        if (machine.Behavior.IsGenerator)
+            _seenPowerVersion = -1;
     }
 
     /// <summary>
@@ -74,7 +81,8 @@ public sealed class EnergyNetwork
         var capacitor = _capacitors[index];
         Settle(capacitor, terrain);
         Move(capacitor, null);
-        machine.Charge += capacitor.Pending;
+        machine.Charge += capacitor.Pending + capacitor.Reserve;
+        capacitor.Reserve = 0.0;
         capacitor.Pending = 0.0;
         _capacitors.RemoveAt(index);
     }
@@ -86,12 +94,14 @@ public sealed class EnergyNetwork
             Settle(capacitor, terrain);
     }
 
-    /// <summary>A harvester's coverage by its own base's linked network: covered, it is a member of its base's island.</summary>
-    public void SetCovered(Machine machine, bool covered)
+    /// <summary>Connects a harvester to its base's grid when covered, or to a nearby local grid when cut off.</summary>
+    public void SetCovered(Machine machine, bool covered, MachineList machines, ITerrainPixelReadOnly terrain, List<Machine> near)
     {
         if (Find(machine) is not Capacitor capacitor)
             return;
-        PowerIsland? island = covered && machine.OwnerBase is TankBase owner ? IslandOf(owner) : null;
+        PowerIsland? island = null;
+        if (machine.OwnerBase is TankBase owner)
+            island = covered ? IslandOf(owner) : LocalIslandAt(machine.Position, owner, owner.Upgrades.NodeCoverageRadius, machines, terrain, near)?.Island;
         if (!ReferenceEquals(island, capacitor.Island))
             Move(capacitor, island);
     }
@@ -115,38 +125,34 @@ public sealed class EnergyNetwork
             StartFilling(capacitor);
     }
 
-    /// <summary>One tick: islands brought up to date if the link network's power changed, a share settled, then each island pays.</summary>
-    public void Advance(ITerrainAccess terrain, LinkMap links, IReadOnlyList<TankBase> bases)
+    /// <summary>Refreshes island membership if the link map made a new power search.</summary>
+    public void Refresh(LinkMap links, IReadOnlyList<TankBase> bases)
     {
+        if (links.PowerVersion == _seenPowerVersion)
+            return;
+        _seenPowerVersion = links.PowerVersion;
         foreach (var tankBase in bases)
             IslandOf(tankBase);
-        if (links.PowerVersion != _seenPowerVersion)
-        {
-            _seenPowerVersion = links.PowerVersion;
-            foreach (var capacitor in _capacitors)
-            {
-                if (!capacitor.Machine.Behavior.IsLinkNode)
-                    continue;
-                PowerIsland? island = LinkedIsland(capacitor.Machine);
-                if (!ReferenceEquals(island, capacitor.Island))
-                    Move(capacitor, island);
-            }
-        }
-        SettleShare(terrain);
+        RefreshIslands();
+    }
 
+    /// <summary>Settles a share of the capacitors, then pays idle draw and tops up the ones still filling.</summary>
+    public void Advance(ITerrainAccess terrain)
+    {
+        SettleShare(terrain);
         int tick = _paidThrough + 1;
         foreach (var island in _islands)
             Pay(island, tick);
         _paidThrough = tick;
     }
 
-    /// <summary>Idle charge islands have paid that is not yet heat: stored charge, for the energy balance.</summary>
-    public double PendingCharge()
+    /// <summary>Charge stored in generator reserves and idle charge islands have paid that is not yet heat.</summary>
+    public double StoredCharge()
     {
         double total = 0.0;
         foreach (var capacitor in _capacitors)
         {
-            total += capacitor.Pending;
+            total += capacitor.Pending + capacitor.Reserve;
             if (IsFed(capacitor))
                 total += IdleDraw(capacitor) * (_paidThrough - capacitor.SettledThrough);
         }
@@ -168,10 +174,11 @@ public sealed class EnergyNetwork
             : Math.Max(0.0, machine.Charge - idle * (_paidThrough - capacitor.SettledThrough));
         var (inflow, outflow) = capacitor.Flow.Last(_paidThrough);
         double idleRate = idle * Tweaks.Perf.TargetFps;
+        var (production, _) = capacitor.Production.Last(_paidThrough);
         return new MachinePower(charge, machine.ChargeCapacity,
             inflow * WindowToSecond + (fed ? idleRate : 0.0),
             outflow * WindowToSecond + (fed || charge > 0.0 ? idleRate : 0.0),
-            fed);
+            fed, production * WindowToSecond);
     }
 
     /// <summary>
@@ -183,7 +190,9 @@ public sealed class EnergyNetwork
         PowerIsland? island = FindIsland(tankBase);
         var (made, _) = island?.Production.Last(_paidThrough) ?? default;
         var (drawn, _) = island?.Draw.Last(_paidThrough) ?? default;
-        return new BasePower(tankBase.Charge, tankBase.ChargeCapacity, made * WindowToSecond, drawn * WindowToSecond);
+        var (generated, _) = island?.GeneratorProduction.Last(_paidThrough) ?? default;
+        return new BasePower(tankBase.Charge, tankBase.ChargeCapacity, (made + generated) * WindowToSecond, drawn * WindowToSecond,
+            generated * WindowToSecond);
     }
 
     /// <summary>Mixes the network's state, which no other part of the world shows, for the world hash.</summary>
@@ -191,17 +200,36 @@ public sealed class EnergyNetwork
     {
         hash = Fnv1a.Mix(hash, _paidThrough);
         hash = Fnv1a.Mix(hash, _seenPowerVersion);
+        hash = Fnv1a.Mix(hash, _localIslandCount);
         foreach (var capacitor in _capacitors)
         {
             hash = Fnv1a.Mix(hash, capacitor.Machine.Sequence);
             hash = Fnv1a.Mix(hash, capacitor.SettledThrough);
             hash = Fnv1a.Mix(hash, capacitor.Pending);
             hash = Fnv1a.Mix(hash, capacitor.IsFilling);
-            hash = Fnv1a.Mix(hash, capacitor.Island?.Base.Color ?? -1);
+            hash = Fnv1a.Mix(hash, capacitor.Island?.Base?.Color ?? -1);
+            hash = Fnv1a.Mix(hash, capacitor.Island?.Generator?.Sequence ?? -1);
+            hash = Fnv1a.Mix(hash, capacitor.Reserve);
+            hash = Fnv1a.Mix(hash, (ulong)capacitor.QuietGeneratorStamp);
         }
         foreach (var island in _islands)
+        {
+            hash = Fnv1a.Mix(hash, island.Base?.Color ?? -1);
+            hash = Fnv1a.Mix(hash, island.Generator?.Sequence ?? -1);
             foreach (bool fed in island.TierFed)
                 hash = Fnv1a.Mix(hash, fed);
+            hash = MixOrder(hash, island.Members);
+            hash = MixOrder(hash, island.Producers);
+            hash = MixOrder(hash, island.Filling);
+        }
+        return hash;
+    }
+
+    private static ulong MixOrder(ulong hash, List<Capacitor> capacitors)
+    {
+        hash = Fnv1a.Mix(hash, capacitors.Count);
+        foreach (var capacitor in capacitors)
+            hash = Fnv1a.Mix(hash, capacitor.Machine.Sequence);
         return hash;
     }
 
@@ -213,18 +241,6 @@ public sealed class EnergyNetwork
 
     private static bool IsFed(Capacitor capacitor) =>
         capacitor.Island is PowerIsland island && island.TierFed[TierOf(capacitor)];
-
-    /// <summary>The island of a link node's own base when its power comes home to that base, else null.</summary>
-    private PowerIsland? LinkedIsland(Machine machine)
-    {
-        if (machine.OwnerBase is not TankBase owner || owner.LinkPoint is null ||
-            machine.LinkPoint is not { IsPowered: true } point)
-            return null;
-        // Power can reach a node through another base's network; it feeds only from its own.
-        for (int hops = 0; point.UpstreamLink is Link link && hops < 64; hops++)
-            point = ReferenceEquals(link.From, point) ? link.To : link.From;
-        return ReferenceEquals(point, owner.LinkPoint) ? IslandOf(owner) : null;
-    }
 
     private PowerIsland? FindIsland(TankBase tankBase)
     {
@@ -318,12 +334,16 @@ public sealed class EnergyNetwork
         if (capacitor.Island is PowerIsland from)
         {
             from.Members.Remove(capacitor);
+            if (capacitor.Machine.Behavior.IsGenerator)
+                from.Producers.Remove(capacitor);
             SumIdle(from, TierOf(capacitor));
         }
         capacitor.Island = to;
         if (to == null)
             return;
         to.Members.Add(capacitor);
+        if (capacitor.Machine.Behavior.IsGenerator)
+            to.Producers.Add(capacitor);
         SumIdle(to, TierOf(capacitor));
         if (IsFed(capacitor))
             StartFilling(capacitor);
@@ -377,33 +397,36 @@ public sealed class EnergyNetwork
     /// <summary>The island pays for tick <paramref name="tick"/>: tier by tier, its members' idle draw, then top-ups.</summary>
     private void Pay(PowerIsland island, int tick)
     {
-        var store = island.Base;
         double drawn = 0.0;
+        double available = island.Available;
+        int producerIndex = 0;
         for (int tier = 0; tier < TierCount; tier++)
         {
             double idle = island.IdleByTier[tier];
             if (!island.TierFed[tier])
             {
-                if (store.Charge < idle * Tweaks.Energy.RefeedIdleTicks)
+                if (available < idle * Tweaks.Energy.RefeedIdleTicks)
                     continue;
                 SetTierFed(island, tier, true);
             }
-            if (store.Charge < idle)
+            if (available < idle)
             {
                 SetTierFed(island, tier, false);
                 continue;
             }
-            drawn += store.DrawCharge(idle);
-            drawn += TopUp(island, tier, tick);
+            double tierDraw = island.DrawCharge(idle, ref producerIndex);
+            tierDraw += TopUp(island, tier, tick, ref producerIndex);
+            drawn += tierDraw;
+            available = Math.Max(0.0, available - tierDraw);
         }
         island.Draw.Add(tick, drawn, 0.0);
-        island.Production.Add(tick, store.EngineOutputPerTick, 0.0);
+        if (island.Base is TankBase tankBase)
+            island.Production.Add(tick, tankBase.EngineOutputPerTick, 0.0);
     }
 
     /// <summary>Tops up the filling capacitors of one tier, in the order they started filling, while the store lasts.</summary>
-    private static double TopUp(PowerIsland island, int tier, int tick)
+    private static double TopUp(PowerIsland island, int tier, int tick, ref int producerIndex)
     {
-        var store = island.Base;
         var filling = island.Filling;
         double drawn = 0.0;
         int kept = 0;
@@ -414,7 +437,7 @@ public sealed class EnergyNetwork
             {
                 var machine = capacitor.Machine;
                 double room = machine.ChargeCapacity - machine.Charge;
-                double given = store.DrawCharge(Math.Min(machine.Behavior.Capacitor.TransferPerTick, room));
+                double given = island.DrawCharge(Math.Min(machine.Behavior.Capacitor.TransferPerTick, room), ref producerIndex);
                 machine.Charge += given;
                 drawn += given;
                 capacitor.Flow.Add(tick, given, 0.0);
@@ -441,18 +464,54 @@ public sealed class EnergyNetwork
         public double Pending;
         public bool IsFilling;
         public FlowWindow Flow;
+        // A generator's contribution to its island's shared reserve. The charge follows this generator on a split.
+        public double Reserve;
+        public FlowWindow Production;
+        public long QuietGeneratorStamp = -1;
     }
 
-    /// <summary>The machines one base feeds, its idle draw per tier, which tiers it feeds and what is filling.</summary>
+    /// <summary>A connected group with producers, consumers and a shared charge balance.</summary>
     private sealed class PowerIsland
     {
-        public TankBase Base = null!;
+        public TankBase? Base;
+        public Machine? Generator;
+        public List<Capacitor> Producers = new();
         public List<Capacitor> Members = new();
         public List<Capacitor> Filling = new();
         public double[] IdleByTier = new double[TierCount];
         public bool[] TierFed = [true, true, true];
         public FlowWindow Production;
         public FlowWindow Draw;
+        public FlowWindow GeneratorProduction;
+
+        public double Available
+        {
+            get
+            {
+                double total = Base?.Charge ?? 0.0;
+                foreach (var producer in Producers)
+                    total += producer.Reserve;
+                return total;
+            }
+        }
+
+        // A tick never refills a reserve while paying, so the next draw can skip producers that are already empty.
+        public double DrawCharge(double wanted, ref int producerIndex)
+        {
+            if (wanted <= 0.0)
+                return 0.0;
+            double drawn = 0.0;
+            while (producerIndex < Producers.Count && drawn < wanted)
+            {
+                var producer = Producers[producerIndex];
+                double share = Math.Min(wanted - drawn, producer.Reserve);
+                producer.Reserve -= share;
+                drawn += share;
+                if (producer.Reserve <= 0.0)
+                    producerIndex++;
+            }
+            return drawn + (Base?.DrawCharge(wanted - drawn) ?? 0.0);
+        }
     }
 
     /// <summary>
@@ -498,12 +557,16 @@ public sealed class EnergyNetwork
 /// <param name="Capacity">The most it holds.</param>
 /// <param name="InPerSecond">Charge a second it took from its island, over the last whole second.</param>
 /// <param name="OutPerSecond">Charge a second it spent (idle draw and use) or passed on, over the last whole second.</param>
-/// <param name="IsFed">A member of its base's island, in a tier the island feeds.</param>
-public readonly record struct MachinePower(double Charge, double Capacity, double InPerSecond, double OutPerSecond, bool IsFed);
+/// <param name="IsFed">A member of an island, in a tier the island feeds.</param>
+/// <param name="ProductionPerSecond">Charge produced a second, over the last whole second.</param>
+public readonly record struct MachinePower(double Charge, double Capacity, double InPerSecond, double OutPerSecond, bool IsFed,
+    double ProductionPerSecond = 0.0);
 
 /// <summary>A base's charge store as an overlay shows it (<see cref="World.BasePowerOf"/>).</summary>
 /// <param name="Charge">The store's level.</param>
 /// <param name="Capacity">The most it holds.</param>
-/// <param name="ProductionPerSecond">Charge a second its engine made, over the last whole second.</param>
+/// <param name="ProductionPerSecond">Charge a second its engine and linked generators made, over the last whole second.</param>
 /// <param name="DrawPerSecond">Charge a second its island drew (idle draw and top-ups), over the last whole second.</param>
-public readonly record struct BasePower(double Charge, double Capacity, double ProductionPerSecond, double DrawPerSecond);
+/// <param name="GeneratorProductionPerSecond">The part of production that came from linked generators.</param>
+public readonly record struct BasePower(double Charge, double Capacity, double ProductionPerSecond, double DrawPerSecond,
+    double GeneratorProductionPerSecond = 0.0);

@@ -184,6 +184,7 @@ public static class Tweaks
         public const int RelayCost = 4;
         public const int PylonCost = 10;
         public const int HarvesterCost = 30;
+        public const int GeneratorCost = 18;
 
         // Harvesters (MachineBehaviors.Harvester) work plain ore within HarvesterReach of their centre (their
         // footprint is 5x5, so ore beside it is 3 cells off): a cell takes HarvesterPlainWork actions. At one action
@@ -532,6 +533,18 @@ public static class Tweaks
         public const int RelayCoolingRadius = 12;
         public const float RelayHeatPumpPerTick = 300f;
         // A relay's capacitor on the energy network: cut off, its idle draw empties a full one in 100 seconds.
+        public const float GeneratorCapacitor = 4800f;
+        public const float GeneratorTransferPerTick = 100f;
+        public const float GeneratorIdleDraw = 2f;
+        public const float GeneratorReserveCapacity = 4800f;
+        public const int GeneratorIntakeRadius = 6;
+        public const int GeneratorExhaustRadius = 3;
+        public const float GeneratorMinTemperatureDifference = 0.01f;
+        public const double GeneratorMaxEfficiency = 0.35;
+        public const double GeneratorTemperatureScale = 80.0;
+        public const double GeneratorMaxHeatPerTick = 220.0;
+        public const double GeneratorMaxChargePerTick = 65.0;
+
         public const float RelayCapacitor = 3600f;
         public const float RelayTransferPerTick = 60f;
         public const float RelayIdleDraw = 1.5f;
@@ -582,6 +595,7 @@ public static class Tweaks
     {
         public static readonly Color FireHot = new(0xff, 0x34, 0x08);
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
+        public static readonly Color Generator = new(0xc2, 0x9c, 0xff);
         public static readonly Color Pylon = new(0x4f, 0x8f, 0xff);
         public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
     }

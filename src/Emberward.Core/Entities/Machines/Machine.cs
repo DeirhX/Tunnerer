@@ -7,7 +7,7 @@ using Emberward.Core.Terrain;
 using Emberward.Core.Network;
 using Emberward.Core.Entities.Bases;
 
-public enum MachineType { Harvester, Pylon, Relay }
+public enum MachineType { Harvester, Pylon, Relay, Generator }
 public enum MachineState { Template, Transporting, Planted }
 
 public class Machine
@@ -58,8 +58,7 @@ public class Machine
     public double LastPumpedEnergy { get; set; }
 
     /// <summary>
-    /// Charge the base engine made from this relay's heat during its last action, counted even when the charge store
-    /// was full and could not keep it.
+    /// Charge this generator stored, or potential charge the base engine made from this relay's heat, last tick.
     /// </summary>
     public double LastChargeMade { get; set; }
 

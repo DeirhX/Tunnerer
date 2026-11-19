@@ -93,8 +93,8 @@ Adding a machine:
 4. Desktop: a `MachinePresentation` (name, key label, build slot, plant hint; `Presentation/MachinePresentation.cs`), a
    `MachineSprite` in `MachineSprites` (what the entity emitters draw on desktop and in the browser: shader shape,
    size, gauge, sense ring, battery, preview reach; `Rendering/Entities/MachineSprite.cs`) and its build sound in
-   `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`). `MachinePresentationTests` must pass. A new shape also needs a shader branch. Only three build keys exist
-   (`BuildKey`), so a fourth machine also needs a new key. The full recipe is in `src/Emberward.Core/ARCHITECTURE.md`.
+   `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`). `MachinePresentationTests` must pass. A new shape also needs a shader branch. Each machine
+   needs a distinct `BuildKey` with desktop, browser and codec wiring. The full recipe is in `src/Emberward.Core/ARCHITECTURE.md`.
 
 Adding a shader:
 

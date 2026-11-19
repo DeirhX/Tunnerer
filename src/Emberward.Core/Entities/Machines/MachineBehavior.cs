@@ -5,6 +5,7 @@ using Emberward.Core.Config;
 using Emberward.Core.Resources;
 using Emberward.Core.Terrain;
 using Emberward.Core.Network;
+using Emberward.Core.Match;
 
 /// <summary>What a machine's action can see and touch.</summary>
 /// <param name="IsOccupied">
@@ -42,8 +43,8 @@ public enum PowerTier { BaseDefence, Turrets, Economy }
 /// <param name="IdleDrawPerTick">Charge it spends every tick, fed or cut off; it becomes heat where the machine stands.</param>
 public readonly record struct MachineCapacitor(double Capacity, double TransferPerTick, PowerTier Tier, double IdleDrawPerTick);
 
-/// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> BuildPrimary, BuildSecondary, BuildTertiary).</summary>
-public enum BuildKey { Primary, Secondary, Tertiary }
+/// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> primary through quaternary).</summary>
+public enum BuildKey { Primary, Secondary, Tertiary, Quaternary }
 
 /// <summary>
 /// Defines per-type machine behavior and traits in one place: Core code asks the behavior, never the type.
@@ -94,6 +95,11 @@ public record MachineBehavior(
 
     /// <summary>It pumps heat out of the ground into its base (<see cref="Machine.LastPumpedEnergy"/>).</summary>
     public bool IsHeatPump { get; init; }
+
+    /// <summary>Converts local heat to charge and can supply an island without a base.</summary>
+    public bool IsGenerator { get; init; }
+
+    public bool IsAvailable(MatchRules? rules) => !IsGenerator || rules is { EnergyNetwork: true };
 }
 
 /// <summary>What a planted harvester is doing, as of its last action.</summary>
@@ -172,8 +178,19 @@ public static class MachineBehaviors
         IsHeatPump = true,
     };
 
+    public static readonly MachineBehavior Generator = new(
+        MachineType.Generator, TimeSpan.Zero,
+        static (machine, ctx) => ctx.Energy?.Generate(machine, ctx.Terrain),
+        Tweaks.Colors.Generator, Tweaks.Ore.GeneratorCost, BuildKey.Quaternary)
+    {
+        Capacitor = new(Tweaks.Machine.GeneratorCapacitor, Tweaks.Machine.GeneratorTransferPerTick,
+            PowerTier.Economy, Tweaks.Machine.GeneratorIdleDraw),
+        IsLinkNode = true,
+        IsGenerator = true,
+    };
+
     /// <summary>Every machine's behavior, indexed by <see cref="MachineType"/>.</summary>
-    public static readonly IReadOnlyList<MachineBehavior> All = BuildTable(Harvester, Pylon, Relay);
+    public static readonly IReadOnlyList<MachineBehavior> All = BuildTable(Harvester, Pylon, Relay, Generator);
 
     public static MachineBehavior Get(MachineType type) =>
         (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));
@@ -291,7 +308,7 @@ public static class MachineBehaviors
             return;
 
         machine.IsOffNetwork = !ctx.IsOnNetwork(machine);
-        ctx.Energy?.SetCovered(machine, !machine.IsOffNetwork);
+        ctx.Energy?.SetCovered(machine, !machine.IsOffNetwork, ctx.Machines, terrain, t_near ??= new List<Machine>());
         // With a flat battery there is nothing to work with. Off the network its ore could not get home, and on ground
         // that is too hot it waits for the ground to cool (a linked relay nearby speeds that up a lot): either way it
         // does not work, but it still crawls on toward ore it could work, so that a tunnel that bends out of its relay's

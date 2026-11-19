@@ -58,9 +58,13 @@ public static class MachineSprites
         Gauge: static (in MachineRenderState m) => m.IsGivingCharge ? 1f : 0f,
         Reach: new MachineReach(Tweaks.Machine.PylonRange, Tweaks.Colors.Pylon, Circle: true));
 
+    public static MachineSprite Generator { get; } = new(EntityShape.KindGenerator, HalfLength: 3.8f, HalfWidth: 3.8f,
+        Gauge: static (in MachineRenderState m) => m.GenerationFraction,
+        Reach: new MachineReach(Tweaks.Machine.GeneratorIntakeRadius, Tweaks.Colors.Generator, Circle: false));
+
     /// <summary>Every machine's sprite, indexed by <see cref="MachineType"/>.</summary>
     public static IReadOnlyList<MachineSprite> All { get; } = BuildTable(
-        (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Pylon, Pylon));
+        (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Pylon, Pylon), (MachineType.Generator, Generator));
 
     public static MachineSprite Get(MachineType type) =>
         (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));

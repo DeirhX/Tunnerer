@@ -18,6 +18,7 @@ internal sealed class TankBuildController
     private bool _primaryHeld;
     private bool _secondaryHeld;
     private bool _tertiaryHeld;
+    private bool _quaternaryHeld;
 
     public TankBuildController(Tank tank, int color)
     {
@@ -46,7 +47,7 @@ internal sealed class TankBuildController
 
     /// <summary>
     /// Build keys (edge triggered): with no machine in hand the primary key builds a relay, the secondary key a
-    /// harvester and the tertiary key a pylon, paid as <see cref="Quote"/> says, and carries it; any build key pressed again
+    /// harvester and the tertiary key a pylon and the fourth a local generator, paid as <see cref="Quote"/> says, and carries it; any build key pressed again
     /// outside a base plants it where the tank stands.
     /// </summary>
     public void Advance(in SimulationContext ctx, ControllerOutput input)
@@ -54,12 +55,16 @@ internal sealed class TankBuildController
         bool primaryPressed = input.BuildPrimary && !_primaryHeld;
         bool secondaryPressed = input.BuildSecondary && !_secondaryHeld;
         bool tertiaryPressed = input.BuildTertiary && !_tertiaryHeld;
+        bool fourthAvailable = MachineBehaviors.Generator.IsAvailable(ctx.Rules);
+        bool quaternaryPressed = fourthAvailable && input.BuildQuaternary && !_quaternaryHeld;
+        _quaternaryHeld = fourthAvailable && input.BuildQuaternary;
         _primaryHeld = input.BuildPrimary;
         _secondaryHeld = input.BuildSecondary;
         _tertiaryHeld = input.BuildTertiary;
-        bool pressed = primaryPressed || secondaryPressed || tertiaryPressed;
+        bool pressed = primaryPressed || secondaryPressed || tertiaryPressed || quaternaryPressed;
         var buildType = MachineBehaviors.ForKey(
-            primaryPressed ? BuildKey.Primary : secondaryPressed ? BuildKey.Secondary : BuildKey.Tertiary).Type;
+            primaryPressed ? BuildKey.Primary : secondaryPressed ? BuildKey.Secondary :
+            tertiaryPressed ? BuildKey.Tertiary : BuildKey.Quaternary).Type;
 
         var position = _tank.Position;
         if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
@@ -70,7 +75,7 @@ internal sealed class TankBuildController
                 // (the harvester) work anywhere outside a base.
                 if (ctx.CheckBaseCollision(position) == null &&
                     _materializer.CarriedType is MachineType carried && MachineBehaviors.Get(carried).RequiresLinkToPlant &&
-                    ctx.CanPlantRelayAt?.Invoke(position) == false)
+                    ctx.CanPlantRelayAt?.Invoke(position, _tank.Base) == false)
                 {
                     Refuse(BuildRefusal.WillNotLink);
                     ctx.Events?.Record(new StepEvent(StepEventKind.PlantRefused, position, _tank.Color, carried));
@@ -129,6 +134,8 @@ internal sealed class TankBuildController
         hash = Fnv1a.Mix(hash, _primaryHeld);
         hash = Fnv1a.Mix(hash, _secondaryHeld);
         hash = Fnv1a.Mix(hash, _tertiaryHeld);
+        if (_quaternaryHeld)
+            hash = Fnv1a.Mix(hash, 0xB4u);
         return _materializer.MixLatent(hash);
     }
 }

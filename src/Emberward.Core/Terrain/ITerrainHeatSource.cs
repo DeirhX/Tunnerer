@@ -31,6 +31,8 @@ public interface ITerrainHeatSource
     double AddEnergyInRadiusArea(Position center, int radius, double energy, TerrainGrid.ThermalField field);
     double ExtractEnergyInRadiusArea(Position center, int radius, double maxEnergy, TerrainGrid.ThermalField field);
     double ExtractableHeatTemperature(Position center, int radius, TerrainGrid.ThermalField field);
+    (double Energy, double Temperature) SampleHeatAround(Position center, int radius, int excludeRadius, float floor);
+    double TakeHeatAround(Position center, int radius, int excludeRadius, float floor, double fraction);
     long QuietHeatStamp(Position center, int radius);
 
     bool TryGetHeatDirtyRect(out Rect dirtyRect);

@@ -9,8 +9,8 @@ namespace Emberward.Tests;
 /// <summary>Every machine can be built from the keyboard, shown in the build panel and drawn.</summary>
 public class MachinePresentationTests
 {
-    // The build panel's top row has three slots.
-    private const int BuildSlotCount = 3;
+    // The build panel has two rows of three slots.
+    private const int BuildSlotCount = 6;
 
     [Fact]
     public void EveryMachineType_HasAPresentation()

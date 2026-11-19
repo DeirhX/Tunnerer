@@ -74,7 +74,7 @@ Network/                     The link network (not network matches: those are De
   LinkPoint.cs, Link.cs, LinkMap.cs   Nodes, edges, refresh, power and flow
   NetworkCoverage.cs         Coverage nodes and the coverage a tank gets at a position
   NetworkStatus.cs           One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
-  EnergyNetwork.cs           (only when MatchRules.EnergyNetwork is on) Every machine's capacitor and each base's island
+  EnergyNetwork.cs           (only when MatchRules.EnergyNetwork is on) Capacitors, generator reserves and islands rooted at bases or generators
                              (DESIGN.md §4.9); MachinePower / BasePower, what World.MachinePowerOf / BasePowerOf answer
 Sensing/
   SideSensing.cs             The vision system: which sides are tracked, what each sees through, and each tank's radar
@@ -89,7 +89,7 @@ Collision/
   Raycaster.cs               Bresenham lines; HasOpenLine (the one line-of-sight test)
 Input/
   Controller.cs              ControllerOutput
-  ControllerOutputCodec.cs   ControllerOutput as 28 bits (network, input logs); quantises the aim
+  ControllerOutputCodec.cs   ControllerOutput as 29 bits (network, input logs); quantises the aim
 Bots/                        The computer player: produces a ControllerOutput like a person would
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
@@ -163,25 +163,31 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
    `TankDigger.Move`, spawn shield, shooting, `TankBuildController.Advance`, the upgrade keys, then
    `TankThermals.Advance` (heat from ore still in the hold and from tank actions, then exchange with the grid).
-6. **machines**: `MachineList.Advance` with the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
+6. **machines**: With the energy rule on, `EnergyNetwork.Refresh` first groups each side's connected link nodes
+   when `LinkMap.PowerVersion` changes. The base roots its own island. The first generator in machine order roots
+   each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
    (`LinkMap.CarryCharge`). A machine that needs the machines near a place (a pylon its batteries, a harvester the
    nodes that cover it, anything asking whether a spot is taken) asks `MachineList.CollectNear`, which returns them
    in list order, and never walks the whole list. A relay that found no heat to pump keeps the ground's
    `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
-   in its reach.
+   in its reach. A generator reads its local exhaust temperature, extracts heat from hotter ground past its exhaust
+   area, and returns the unconverted heat there. Both writes wake the affected tiles. It uses the same quiet stamp
+   to skip sampling when the ground has not changed since it found nothing to convert.
 7. **power** (only when `MatchRules.EnergyNetwork` is on): `EnergyNetwork.Advance` (DESIGN.md §4.9). Every planted
-   machine has a capacitor (`MachineBehavior.Capacitor`, its level in `Machine.Charge`). A link node whose power comes
-   home to its own base, and a harvester its base's network covers, belong to that base's island; each tick the
-   island pays from the base's charge store, tier by tier (`PowerTier`), its members' idle draw and then tops up the
+   machine has a capacitor (`MachineBehavior.Capacitor`, its level in `Machine.Charge`). Harvesters can charge from
+   a local island they can see within node coverage. Ore delivery still requires the base's network. A generator
+   deposits output into the base's store if reachable and into its own shared reserve otherwise or when the base
+   store is full. Reserves follow their producers on splits and become heat on wrecking. Each tick the island pays
+   from these stores, tier by tier (`PowerTier`), its members' idle draw and then tops up the
    capacitors that are not full (each by at most its transfer rate). A tier the store cannot pay is starved and drains
    like a cut-off machine; it is fed again once the store holds `Energy.RefeedIdleTicks` of its draw. Cost follows
    what changes: a full member's idle draw comes out of a per-tier sum, a cut-off machine's level falls on a straight
    line, and a capacitor is brought up to date (settled: its idle draw's heat put in the ground) only when it is used,
    changes island or tier, or once in `Energy.SettlePeriodTicks`. Islands are looked at again only when
    `LinkMap.PowerVersion` changes or a harvester's coverage does. Idle charge paid and not yet heat is
-   `EnergyNetwork.PendingCharge`, counted as stored charge. With the flag on, pylons hand out nothing and harvesters
+   counted by `EnergyNetwork.StoredCharge` alongside the generator reserves. With the flag on, pylons hand out nothing and harvesters
    make no refuel trips. `World.MachinePowerOf` and `World.BasePowerOf` give an overlay its numbers (charge, capacity,
    flows a second over the last whole second); output only. The desktop and browser charge labels
    (`Gui/PowerLabels.cs` in Desktop, shared through `Emberward.Rendering`) read nothing else.
@@ -266,7 +272,7 @@ material; `SetPixelRaw` is unmetered and only for level generation.
 
 `ThermalLedger` keeps `Injected`, the `Sunk*` totals and `ConvertedToCharge` (heat the base engine turned into
 charge, or charge spent back as heat). `World.SumSystemThermalEnergy` (grid, tanks, base reactors) plus
-`World.SumSystemCharge` (base stores, batteries and capacitors, and the energy network's pending charge) changes by exactly `Injected - TotalSunk` each tick.
+`World.SumSystemCharge` (base stores, batteries and capacitors, and the energy network's reserves and pending charge) changes by exactly `Injected - TotalSunk` each tick.
 
 The mechanics built on this (base reservoir and radiator, relays pumping heat home, the base engine and charge,
 pylons and batteries, network coverage, the tank's temperature band, hot and frost rock pockets, the sector goal and
@@ -387,7 +393,7 @@ between pulses only age contacts. Neither depends on the size of the map.
 
 ## Links
 
-Planted machines whose behavior has `IsLinkNode` (relays, pylons) and every base are `LinkPoint`s.
+Planted machines whose behavior has `IsLinkNode` (relays, pylons, generators) and every base are `LinkPoint`s.
 `LinkMap` pairs points within `MaximumTheoreticalLinkDistance`, marks a link live when it is short enough and
 `Raycaster.HasOpenLine` finds no blocking pixel (`Pixel.BlocksLink`), and powers points breadth first from the
 bases, recording each point's `UpstreamLink` and `Hops`. It keeps its links between refreshes and does only what
@@ -453,8 +459,8 @@ Core:
    `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`. The action is a static method in `MachineBehaviors` taking
    `(Machine, MachineContext)`.
 3. Constants (interval, capacitor) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
-4. Each `BuildKey` builds exactly one machine, so a fourth machine needs a new key: a value in `BuildKey`, a field
-   in `ControllerOutput`, and its edge detection in `TankBuildController.Advance`.
+4. Each `BuildKey` builds exactly one machine. Add a value in `BuildKey`, a field in `ControllerOutput`, edge
+   detection in `TankBuildController.Advance` and a key bit in `ControllerOutputCodec` and its key mask.
 5. `NetworkStatus.Collect` counts harvesters and relays by type; extend it if the HUD should report the new one.
 6. Update `MachineBehaviorTableTests` (it names each machine's key and traits).
 
@@ -468,7 +474,8 @@ Desktop:
    switches on the type. Its build sound in `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`, also shared).
    `MachinePresentationTests` checks keys and slots are distinct and fit the panel, and that every sprite is complete.
 8. For a new `BuildKey`: `KeyboardController`, `GameSimulationStepper` (merges keyboard and scripted input) and
-   `Game.ScriptedInput.cs` (scripted `Build` numbers).
+   `Game.ScriptedInput.cs` (scripted `Build` numbers). Browser: `BrowserApi`, `BrowserNetMatch`, `input.js` and the
+   controls help.
 9. A new shape (one no sprite uses yet) needs a `Kind*` constant in `EntityShape`, the matching `kKind*` in
    `Shaders/Entity/Layout.hlsli`, the shape function (e.g. `Shaders/Entity/Machines.hlsli`) and a branch in
    `EntityPs.hlsl`; `EntityLayoutGuardTests` checks the three agree.

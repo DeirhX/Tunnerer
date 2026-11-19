@@ -13,6 +13,8 @@ public struct ControllerOutput
     public bool BuildSecondary;
     /// <summary>Third build key: builds (and plants) a pylon.</summary>
     public bool BuildTertiary;
+    /// <summary>Fourth build key: builds a local generator in energy matches.</summary>
+    public bool BuildQuaternary;
     /// <summary>Upgrade key held: 0 for none, 1-7 for <see cref="BaseUpgrade"/> + 1. Bought while docked.</summary>
     public int Upgrade;
 }

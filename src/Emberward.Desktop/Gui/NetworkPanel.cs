@@ -65,7 +65,7 @@ public sealed class NetworkPanel
                 $"Charge {tankBase.Charge / 1000.0:0}k / {tankBase.ChargeCapacity / 1000.0:0}k" +
                 (perSecond >= 1.0 ? $"   engine +{perSecond / 1000.0:0.0}k/s" : "   engine idle"));
             HudTheme.BarRow(chargeFill, HudTheme.Teal, null, 10f);
-            // With the energy network (DESIGN.md §4.9): what the engine makes against what the island draws.
+            // With the energy network (DESIGN.md §4.9): what the engine and generators make against what the island draws.
             if (world.BasePowerOf(tankBase) is BasePower basePower)
             {
                 var power = PowerLabels.Of(basePower);

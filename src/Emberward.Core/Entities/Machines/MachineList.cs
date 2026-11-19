@@ -172,7 +172,8 @@ public class MachineList : ISnapshotLoaded
                 IsCharging: m.ChargingFrom is { IsAlive: true },
                 ChargingFrom: m.ChargingFrom?.Position ?? default,
                 IsGivingCharge: m.LastChargeGiven > 0.0,
-                Anchor: m.Anchor);
+                Anchor: m.Anchor,
+                GenerationFraction: m.Behavior.IsGenerator ? (float)(m.LastChargeMade / Tweaks.Machine.GeneratorMaxChargePerTick) : 0f);
         }
         return count;
     }

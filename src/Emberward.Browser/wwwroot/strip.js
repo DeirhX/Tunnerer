@@ -130,8 +130,9 @@ export class StripView {
             const col = SLOT_X.findIndex(
                 (x) => p.x >= BUILD_X + x && p.x < BUILD_X + x + SLOT_W,
             );
-            if (col >= 0 && p.y >= SLOT_Y[0] && p.y < SLOT_Y[0] + SLOT_H) {
-                const build = this.frame?.builds.find((b) => b.slot === col);
+            const row = SLOT_Y.findIndex((y) => p.y >= y && p.y < y + SLOT_H);
+            if (col >= 0 && row >= 0) {
+                const build = this.frame?.builds.find((b) => b.slot === row * SLOT_X.length + col);
                 if (build) input.queue("build", build.key);
             } else if (
                 p.x >= COMMAND.x0 && p.x < COMMAND.x1 &&
@@ -508,8 +509,8 @@ export class StripView {
     // BuildPanel.Draw: a slot per machine, filling toward its cost from the stock that would pay (BuildSlotView).
     drawBuild(ctx, builds, p, time) {
         for (const b of builds) {
-            const x0 = BUILD_X + SLOT_X[b.slot],
-                y0 = SLOT_Y[0],
+            const x0 = BUILD_X + SLOT_X[b.slot % SLOT_X.length],
+                y0 = SLOT_Y[Math.floor(b.slot / SLOT_X.length)],
                 x1 = x0 + SLOT_W,
                 y1 = y0 + SLOT_H;
             if (b.state === "Blocked") {

@@ -375,6 +375,10 @@ Each step is testable without the next.
    Protocol 6 carries world snapshots and tick-by-tick seat ownership. The player-facing join flow is still pending;
    see [late-join-design.md](late-join-design.md). Later: co-op sides and play from outside the office.
 
+10. **Fourth build key** (protocol 7 in the local-generator tranche). Bit 28 of encoded player input is a build
+    key, and the match's input key mask includes it so build presses are never predicted as aim changes.
+    The relay must be updated before clients of this build can join a public match.
+
 ## 11. Open questions
 
 - **Rejoin by name is not authenticated.** Anyone with the relay's secret who knows a dropped player's name can

@@ -24,7 +24,7 @@ public sealed class PreviewQuads
         var player = world.TankList.Tanks[localSlot];
         if (player.IsDead || !player.IsCarryingMachine || player.CarriedMachineType is not MachineType type)
             return;
-        var preview = world.PreviewPlacement(type, player.Position);
+        var preview = world.PreviewPlacement(type, player.Position, player.Base);
         _preview = new PlacementPreview(true, type, preview.Link, preview.SenseHeat);
     }
 

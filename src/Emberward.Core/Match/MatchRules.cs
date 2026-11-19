@@ -48,7 +48,7 @@ public sealed record MatchRules
     public bool CoreTapWins { get; init; }
 
     /// <summary>
-    /// Every machine has a capacitor and each base's island feeds its machines by priority tier (the energy network,
+    /// Every machine has a capacitor and islands with a base or generator feed their machines by priority tier (the energy network,
     /// DESIGN.md §4.9, <see cref="Network.EnergyNetwork"/>). Off, the battery rules of §4.5 hold: pylons charge
     /// harvester batteries and a low harvester goes back to a pylon.
     /// </summary>
@@ -71,9 +71,9 @@ public sealed record MatchRules
         hash = Fnv1a.Mix(hash, (uint)FrostRockPockets);
         hash = Fnv1a.Mix(hash, SeedOre ? 1u : 0u);
         hash = Fnv1a.Mix(hash, CoreTapWins ? 1u : 0u);
-        // Mixed only when on, so the rules of every match from before the flag keep their number.
+        // Version of the opt-in rules. Standard matches keep their existing fingerprint.
         if (EnergyNetwork)
-            hash = Fnv1a.Mix(hash, 0xE4E7u);
+            hash = Fnv1a.Mix(hash, 0xE4E8u);
         return hash;
     }
 }
