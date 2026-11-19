@@ -82,6 +82,22 @@ public sealed class SectorGoal
     /// One step of the core-tap hold timer: it grows by <paramref name="dt"/> while the tap meets the goal rate and
     /// drains <c>GoalHoldDecay</c> times as fast (never below zero) while it falls short.
     /// </summary>
+    /// <summary>
+    /// Mixes the race to the core, which decides the winner without passing through anything else the sync digest
+    /// reads: who tapped first and every base's tap, hold and finish.
+    /// </summary>
+    internal ulong MixOutcome(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, FirstToTapCore?.Color ?? -1);
+        foreach (CoreTap tap in _taps)
+        {
+            hash = Fnv1a.Mix(hash, tap.TapPerTick);
+            hash = Fnv1a.Mix(hash, tap.HoldSeconds);
+            hash = Fnv1a.Mix(hash, tap.HasTapped);
+        }
+        return hash;
+    }
+
     public static double NextHold(double hold, double tapPerTick, double dt)
     {
         double goalPerTick = Tweaks.Goal.GoalChargePerSecond * dt;

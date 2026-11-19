@@ -1,5 +1,6 @@
 namespace Emberward.Core.Terrain;
 
+using Emberward.Core.Snapshots;
 using System.Diagnostics;
 using Emberward.Core.Thermal;
 
@@ -15,10 +16,15 @@ public partial class TerrainGrid
     }
 
     private readonly ThermalActivityTracker _thermalActivity;
+    [NotSaved("scratch: a heat step writes each tile's deltas before it reads them")]
     private readonly List<float[]> _tileDelta = new();
+    [NotSaved("scratch: a heat step writes each tile's deltas before it reads them")]
     private readonly List<float[]> _tileAirDelta = new();
+    [NotSaved("fixed: a delegate to this grid's own method")]
     private readonly Action<int> _computeTileDelta;
+    [NotSaved("fixed: a delegate to this grid's own method")]
     private readonly Action<int> _applyTileStep;
+    [NotSaved("fixed for the match: the worker count, from the settings")]
     private readonly ParallelOptions _tileThreads = new();
     private List<int> _steppedTiles = new();
     private TileStepResult[] _tileResults = [];

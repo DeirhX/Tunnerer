@@ -52,4 +52,9 @@ public class MachineMaterializer
             _carrying.IsAlive = false;
         _carrying = null;
     }
+
+    /// <summary>Mixes where the carried machine is, or that there is none, for the sync digest.</summary>
+    internal ulong MixLatent(ulong hash) => _carrying is { } carried
+        ? Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, 1), carried.Position.X), carried.Position.Y)
+        : Fnv1a.Mix(hash, 0);
 }

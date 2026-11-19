@@ -181,4 +181,22 @@ public class Machine
 
         Behavior.PerformAction?.Invoke(this, ctx);
     }
+
+    /// <summary>
+    /// Mixes the machine's state that <see cref="WorldStateHash.Compute"/> does not read and that changes later
+    /// results: when it next acts, a harvester's memory, a pylon's last hand-out, a relay's cold-ground stamp.
+    /// </summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _actionAccumulator);
+        hash = Fnv1a.Mix(Fnv1a.Mix(hash, Anchor.X), Anchor.Y);
+        hash = Fnv1a.Mix(Fnv1a.Mix(hash, Heading.X), Heading.Y);
+        hash = Fnv1a.Mix(hash, IsReturning);
+        hash = Fnv1a.Mix(hash, OreWork);
+        hash = OreWorkCell is Position cell
+            ? Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, 1), cell.X), cell.Y)
+            : Fnv1a.Mix(hash, 0);
+        hash = Fnv1a.Mix(hash, LastChargeGiven);
+        return Fnv1a.Mix(hash, (ulong)ColdGroundStamp);
+    }
 }

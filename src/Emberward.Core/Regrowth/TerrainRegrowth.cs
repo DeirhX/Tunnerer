@@ -255,4 +255,7 @@ public sealed class TerrainRegrowth
             ^ (salt * 83492791u);
         return FastRandom.Hash32(mixed);
     }
+
+    /// <summary>Mixes the regrowth clock and how many appointments are waiting, for the sync digest.</summary>
+    internal ulong MixLatent(ulong hash) => Fnv1a.Mix(Fnv1a.Mix(hash, _tick), CellsWaiting);
 }

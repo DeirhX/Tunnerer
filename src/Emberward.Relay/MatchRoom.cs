@@ -20,7 +20,7 @@ public interface IPeer
 /// sockets and no timer: the hub passes it messages and tells it how much wall time has gone by
 /// (<see cref="AdvanceClock"/>), and the room keeps the match time itself. Every member takes the room's lock, so it can be called from any connection's thread.
 /// </summary>
-public sealed class MatchRoom
+public sealed partial class MatchRoom
 {
     private readonly Lock _lock = new();
     private readonly IPeer?[] _peers;
@@ -39,7 +39,15 @@ public sealed class MatchRoom
     private string[] _startNames = [];
 
     public MatchRoom(string code, string buildId, MatchConfig config)
+        : this(code, buildId, config, new SnapshotBudget())
     {
+    }
+
+    internal MatchRoom(string code, string buildId, MatchConfig config, SnapshotBudget budget)
+    {
+        _snapshotBudget = budget;
+        _canUpload = new bool[config.Slots];
+        _lastHashTick = new int[config.Slots];
         Code = code;
         BuildId = buildId;
         Config = config;
@@ -117,10 +125,9 @@ public sealed class MatchRoom
     }
 
     /// <summary>
-    /// Puts a client in the first free slot and tells it the match settings. Returns the slot, or -1 with the
-    /// <paramref name="refusal"/> to send when it cannot join.
+    /// Returns the player slot or -1. A watcher receives Welcome(-1) and an empty refusal. A rejected peer gets a reason.
     /// </summary>
-    public int Join(IPeer peer, string name, string buildId, out string refusal)
+    public int Join(IPeer peer, string name, string buildId, out string refusal, SnapshotCapabilities snapshots = SnapshotCapabilities.None)
     {
         lock (_lock)
         {
@@ -131,7 +138,14 @@ public sealed class MatchRoom
                 return -1;
             }
             if (IsRunning)
-                return Rejoin(peer, name, out refusal);
+            {
+                int returning = Rejoin(peer, name, out refusal);
+                if (returning >= 0)
+                    _canUpload[returning] = snapshots.HasFlag(SnapshotCapabilities.Upload);
+                else if (snapshots.HasFlag(SnapshotCapabilities.Join))
+                    AdmitWatcher(peer, name, snapshots, out refusal);
+                return returning;
+            }
             int slot = Array.IndexOf(_peers, null);
             if (slot < 0)
             {
@@ -139,6 +153,7 @@ public sealed class MatchRoom
                 return -1;
             }
             _peers[slot] = peer;
+            _canUpload[slot] = snapshots.HasFlag(SnapshotCapabilities.Upload);
             _names[slot] = UniqueName(string.IsNullOrWhiteSpace(name) ? $"Player {slot + 1}" : name.Trim());
             peer.Send(new Welcome(slot, Config));
             Broadcast(new Roster([.. _names]));
@@ -154,7 +169,7 @@ public sealed class MatchRoom
     private string UniqueName(string name)
     {
         string candidate = name;
-        for (int n = 2; _names.Contains(candidate, StringComparer.OrdinalIgnoreCase); n++)
+        for (int n = 2; (_names.Contains(candidate, StringComparer.OrdinalIgnoreCase) || _startNames.Contains(candidate, StringComparer.OrdinalIgnoreCase)); n++)
         {
             string suffix = string.Create(System.Globalization.CultureInfo.InvariantCulture, $" ({n})");
             candidate = name[..Math.Min(name.Length, MessageCodec.MaxTextLength - suffix.Length)] + suffix;
@@ -171,7 +186,7 @@ public sealed class MatchRoom
         refusal = string.Empty;
         int slot = -1;
         for (int i = 0; i < _peers.Length && slot < 0; i++)
-            if (_peers[i] is null && (_humanMask & 1 << i) != 0 &&
+            if (_peers[i] is null && !_lockstep.IsBotSeat(i) &&
                 string.Equals(_startNames[i], name, StringComparison.OrdinalIgnoreCase))
                 slot = i;
         if (slot < 0)
@@ -189,6 +204,8 @@ public sealed class MatchRoom
             peer.Send(chunk);
         if (IsPaused)
             peer.Send(new PauseState(true, _pausedBySlot));
+        if (_hold != null)
+            peer.Send(new JoinHoldState(_watchName));
         _lockstep.Reconnect(slot);
         Broadcast(new Roster([.. _names]));
         return slot;
@@ -203,6 +220,9 @@ public sealed class MatchRoom
             _peers[slot] = null;
             _names[slot] = string.Empty;
             _readyHashes[slot] = null;
+            _canUpload[slot] = false;
+            _lastHashTick[slot] = 0;
+            ProviderLeft(slot);
             if (IsRunning)
                 _lockstep.Disconnect(slot);
             else if (wasHost)
@@ -227,6 +247,15 @@ public sealed class MatchRoom
                     _startRequested = true;
                     StartIfEveryoneIsReady();
                     break;
+                case SnapshotChunk chunk:
+                    ReceiveChunk(slot, chunk);
+                    break;
+                case SnapshotDone done:
+                    FinishReport(slot, done);
+                    break;
+                case JoinFailed when _hold is { } hold && (hold.Uploader == slot || hold.Verifier == slot):
+                    RefuseWatcher("A seated player could not copy the match.");
+                    break;
                 case Input input when IsRunning:
                     _lockstep.Submit(slot, input.Encoded);
                     break;
@@ -240,17 +269,16 @@ public sealed class MatchRoom
                 case MatchOver over when IsRunning && _overAtTick is null &&
                                          over.AtTick > 0 && over.AtTick <= _lockstep.NextTick:
                     _overAtTick = over.AtTick;
+                    RefuseWatcher("The match is over.");
                     break;
                 case Ping ping:
                     _peers[slot]?.Send(new Pong(ping.Id));
                     break;
                 case Hash hash when IsRunning:
                     _lockstep.SubmitHash(hash.AtTick, hash.Value);
-                    if (_lockstep.DesyncTick is int tick && !_desyncSent)
-                    {
-                        _desyncSent = true;
-                        Broadcast(new Desync(tick));
-                    }
+                    if (hash.AtTick <= _lockstep.NextTick)
+                        _lastHashTick[slot] = Math.Max(_lastHashTick[slot], hash.AtTick);
+                    ReportDesync();
                     break;
             }
         }
@@ -269,6 +297,8 @@ public sealed class MatchRoom
         lock (_lock)
         {
             if (!IsRunning)
+                return;
+            if (AdvanceJoinClock(elapsed))
                 return;
             if (_peers.All(p => p is null))
             {
@@ -291,7 +321,7 @@ public sealed class MatchRoom
     {
         lock (_lock)
         {
-            while (IsRunning && !IsPaused && _lockstep.NextTick < ticksDue)
+            while (IsRunning && !IsPaused && _hold == null && _lockstep.NextTick < ticksDue)
                 Broadcast(new Tick(_lockstep.CloseTick()));
         }
     }
@@ -335,7 +365,7 @@ public sealed class MatchRoom
             if (_peers[slot] is not null)
                 humanMask |= 1 << slot;
             else
-                _lockstep.Disconnect(slot);
+                _lockstep.SeatBot(slot);
         }
         IsRunning = true;
         _humanMask = humanMask;

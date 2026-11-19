@@ -14,6 +14,9 @@ public struct FastRandom
         _state = seed == 0 ? 0x9E3779B9u : seed;
     }
 
+    /// <summary>Where the generator is in its sequence, for the sync digest.</summary>
+    internal uint State => _state;
+
     public uint NextUInt()
     {
         uint x = _state;

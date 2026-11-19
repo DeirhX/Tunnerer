@@ -181,12 +181,32 @@ public class OreEconomyTests
     }
 
     [Fact]
+    public void ABotSideHandedBack_StopsItsIncome_AndDropsItsCredit()
+    {
+        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false);
+        var side = world.TankList.Tanks[1].Base!;
+        // A second and a half of income each time: three quarters of a unit, never a whole one on its own.
+        int ticks = Tweaks.Perf.TargetFps * 3 / 2;
+
+        world.SetBotControlled(1, botControlled: true);
+        Advance(world, ticks);
+        world.SetBotControlled(1, botControlled: false);
+        Advance(world, ticks);
+        Assert.False(side.IsBotControlled);
+        world.SetBotControlled(1, botControlled: true);
+        Advance(world, ticks);
+
+        // Had the credit been kept across the handover, the two stretches would have made a whole unit.
+        Assert.Equal(Tweaks.Ore.BaseStartingStore, side.Store.Ore);
+    }
+
+    [Fact]
     public void ABotSide_GetsItsStandInIncome_AndOnlyIt()
     {
         var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false);
         var player = world.TankList.Tanks[0].Base!;
         var bot = world.TankList.Tanks[1].Base!;
-        world.SetBotControlled(1);
+        world.SetBotControlled(1, botControlled: true);
         int seconds = 10;
 
         Advance(world, Tweaks.Perf.TargetFps * seconds);

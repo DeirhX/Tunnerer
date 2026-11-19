@@ -38,7 +38,7 @@ public partial class Game
     /// everyone. Sound loops and animation that runs on frame time stop with it. The frame loop itself keeps
     /// running in a held network match, because the connection still has to be served.
     /// </summary>
-    private bool WorldStandsStill => SimulationPaused || _relay is { Started: true, IsPaused: true };
+    private bool WorldStandsStill => SimulationPaused || _relay is { Started: true, IsHeld: true };
 
     /// <summary>Tells the relay this client's world is built, with its hash, and gets ready to step from bundles.</summary>
     private void StartNetSession(RelayConnection relay)
@@ -68,7 +68,7 @@ public partial class Game
             ReportDesync(relay, session, desyncTick);
         if (relay.Failure != null || relay.DesyncTick != null)
             return;
-        if (relay.Started && _slotNames.Length == 0)
+        if (relay.Started && !_netPlaying)
             BeginNetMatch(relay, session);
         // In the lobby of an automated run, and while the match is paused, the script clock keeps counting, as it
         // does in a local pause, so a command script can start the match (StartNetMatch) or resume it.
@@ -127,7 +127,7 @@ public partial class Game
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using var writer = new StreamWriter(path);
-            DesyncReport.Write(writer, new MatchRecording(relay.Config, relay.HumanMask, session.Played),
+            DesyncReport.Write(writer, session.Recording(relay.Config),
                 desyncTick, relay.Slot, NetMatch.BuildId, session.RecentDigests, _world);
             Console.WriteLine($"[Net] Out of sync at tick {desyncTick}. Report written to {path}");
         }
@@ -140,27 +140,14 @@ public partial class Game
     private static string SafeFileName(string text) =>
         string.Concat(text.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_'));
 
-    /// <summary>What each tank is called in this match: the player's name, or "Bot". Empty until the match starts.</summary>
-    private string[] _slotNames = [];
+    private bool _netPlaying;
 
-    /// <summary>
-    /// The relay has started the match: the slots nobody took get bots, made from the match seed so every client's
-    /// bots are the same, and the names for the tags are fixed.
-    /// </summary>
     private void BeginNetMatch(RelayConnection relay, NetSession session)
     {
-        int tanks = _world.TankList.Count;
-        _slotNames = new string[tanks];
-        for (int slot = 0; slot < tanks; slot++)
-        {
-            bool human = (relay.HumanMask & 1 << slot) != 0;
-            _slotNames[slot] = !human ? "Bot"
-                : slot < relay.Roster.Length && relay.Roster[slot].Length > 0 ? relay.Roster[slot]
-                : "Player " + (slot + 1).ToString(CultureInfo.InvariantCulture);
-        }
-        session.Bots = NetSession.CreateBots(_world, Seed, relay.HumanMask);
-        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"[Net] Match {(relay.Rejoined ? "rejoined" : "started")}: {string.Join(", ", _slotNames)}."));
+        session.StartSeats(Seed, relay.HumanMask);
+        _netPlaying = true;
+        var names = Enumerable.Range(0, _world.TankList.Count).Select(slot => relay.DriverName(slot, session.HumanMask));
+        Console.WriteLine($"[Net] Match {(relay.Rejoined ? "rejoined" : "started")}: {string.Join(", ", names)}.");
     }
 
     private static uint SlotColor(int slot)
@@ -190,7 +177,7 @@ public partial class Game
 
         _hud.CanRestartMatch = _world.IsMatchOver;
         var winner = _world.MatchWinner?.Tank;
-        _hud.WinnerName = winner != null && winner.Color < _slotNames.Length ? _slotNames[winner.Color] : null;
+        _hud.WinnerName = winner != null && _netPlaying ? relay.DriverName(winner.Color, _netSession!.HumanMask) : null;
         DrawNameTags(drawnTankPositions);
 
         var play = _hud.PlayRect;
@@ -283,14 +270,14 @@ public partial class Game
     {
         var tanks = _world.TankList.Tanks;
         var dl = ImGui.GetForegroundDrawList();
-        for (int slot = 0; slot < tanks.Count && slot < drawnTankPositions.Length && slot < _slotNames.Length; slot++)
+        for (int slot = 0; slot < tanks.Count && slot < drawnTankPositions.Length && _netPlaying; slot++)
         {
             // Names follow the same rule as the tanks themselves: nothing is shown of a tank out of sight.
             if (slot == _localSlot || tanks[slot].IsDead || !Rendering.Entities.Sight.Sees(_vision, tanks[slot].Position))
                 continue;
             Vector2 at = _hud.CellToScreen(drawnTankPositions[slot].X + 0.5f, drawnTankPositions[slot].Y - 5f);
             if (_hud.IsInView(at))
-                HudTheme.DrawTag(dl, at, _slotNames[slot], SlotColor(slot), 14f);
+                HudTheme.DrawTag(dl, at, _relay!.DriverName(slot, _netSession!.HumanMask), SlotColor(slot), 14f);
         }
     }
 }

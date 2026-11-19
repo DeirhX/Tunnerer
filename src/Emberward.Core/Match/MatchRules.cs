@@ -1,5 +1,6 @@
 namespace Emberward.Core.Match;
 
+using Emberward.Core.Snapshots;
 using Emberward.Core.Config;
 using Emberward.Core.Types;
 
@@ -14,6 +15,7 @@ using Emberward.Core.Types;
 /// <see cref="Standard"/> is a normal match. The rules are part of <see cref="WorldStateHash.ComputeReady"/>, so two
 /// machines that would build the same map under different rules refuse to start a network match together.
 /// </remarks>
+[NotSaved("fixed for the match: the world is built with the same rules")]
 public sealed record MatchRules
 {
     /// <summary>Dirt grows back into open ground (<see cref="Regrowth.TerrainRegrowth"/>).</summary>

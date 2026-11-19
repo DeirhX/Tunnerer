@@ -1,5 +1,6 @@
 namespace Emberward.Core.Terrain;
 
+using Emberward.Core.Snapshots;
 using System.Diagnostics;
 using Emberward.Core.Config;
 using Emberward.Core.Thermal;
@@ -21,6 +22,7 @@ public partial class TerrainGrid
     private readonly SimulationSettings _simulationSettings;
     private readonly ThermalScheduler _thermalScheduler = new();
 
+    [field: NotSaved("diagnostics: wall-clock timings of the last heat step")]
     public CoolDownProfile LastCoolDownProfile { get; private set; }
 
     /// <summary>

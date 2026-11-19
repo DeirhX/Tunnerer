@@ -1,5 +1,6 @@
 namespace Emberward.Core.Regrowth;
 
+using Emberward.Core.Snapshots;
 using Emberward.Core.Types;
 
 /// <summary>A circle in which no new dirt grows: the range of a planted relay or pylon.</summary>
@@ -14,6 +15,7 @@ internal sealed class RegrowthBlockerIndex
     private const int BucketSize = 64;
 
     private readonly List<RegrowthBlocker> _listed = new();
+    [NotSaved("scratch: filled and read within Update")]
     private readonly HashSet<RegrowthBlocker> _lookup = new();
     private int _bucketsX;
     private int _bucketsY;

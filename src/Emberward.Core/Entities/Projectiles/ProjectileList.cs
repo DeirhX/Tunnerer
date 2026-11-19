@@ -209,4 +209,28 @@ public class ProjectileList
         }
         return count;
     }
+
+    /// <summary>
+    /// Mixes what <see cref="WorldStateHash.Compute"/> does not read: the generator explosions draw from, each live
+    /// projectile's life, owner and heat, and the projectiles waiting to join the list next tick.
+    /// </summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _rng.State);
+        foreach (Projectile p in _projectiles)
+            hash = MixUnhashed(hash, p);
+        hash = Fnv1a.Mix(hash, _pending.Count);
+        foreach (Projectile p in _pending)
+        {
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, p.Position.X), p.Position.Y);
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, p.Speed.X), p.Speed.Y);
+            hash = Fnv1a.Mix(hash, (int)p.Type);
+            hash = Fnv1a.Mix(hash, p.IsAlive);
+            hash = MixUnhashed(hash, p);
+        }
+        return hash;
+
+        static ulong MixUnhashed(ulong hash, Projectile p) =>
+            Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, p.Life), p.OwnerColor), p.HeatScale);
+    }
 }

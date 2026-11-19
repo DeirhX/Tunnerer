@@ -17,8 +17,11 @@ public sealed class RoomClient : ILockstepLink
     /// <summary>A ping unanswered this long is given up on, and the next one sent.</summary>
     public static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(5);
 
+    private readonly string[] _playerNames;
+    private readonly SnapshotCapabilities _snapshots;
     private readonly Action<Message> _send;
     private readonly Queue<TickBundle> _bundles = new();
+    private readonly Queue<Message> _joinMessages = new();
     private TimeSpan _pingSentAt;
     private uint _pingId;
     private bool _pingPending;
@@ -30,10 +33,13 @@ public sealed class RoomClient : ILockstepLink
     {
         ArgumentNullException.ThrowIfNull(hello);
         ArgumentNullException.ThrowIfNull(welcome);
+        _snapshots = hello.Snapshots;
         Room = hello.Room;
         RequestedName = hello.Name;
         Slot = welcome.Slot;
         Config = welcome.Config;
+        _playerNames = Enumerable.Range(1, Config.Slots).Select(i =>
+            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Player {i}")).ToArray();
         _send = send;
     }
 
@@ -48,10 +54,13 @@ public sealed class RoomClient : ILockstepLink
     /// <see cref="RequestedName"/> when someone in the room already had the name ("Ann (2)"). Null until the relay's
     /// first roster has arrived.
     /// </summary>
-    public string? AssignedName => Slot < Roster.Length && Roster[Slot].Length > 0 ? Roster[Slot] : null;
+    public string? AssignedName => Slot >= 0 && Slot < Roster.Length && Roster[Slot].Length > 0 ? Roster[Slot] : null;
+
+    /// <summary>The driver at the tick the game is displaying. Keep a player's name while their seat is vacant.</summary>
+    public string DriverName(int slot, int humanMask) => (humanMask & (1 << slot)) == 0 ? "Bot" : _playerNames[slot];
 
     /// <summary>The slot the relay gave this client: which tank it drives.</summary>
-    public int Slot { get; }
+    public int Slot { get; private set; }
 
     /// <summary>The match every client in the room builds.</summary>
     public MatchConfig Config { get; }
@@ -68,7 +77,7 @@ public sealed class RoomClient : ILockstepLink
     /// <summary>The slot of the host, who may start the match before the room is full: the lowest slot taken.</summary>
     public int HostSlot => RoomRules.HostSlot(Roster.Length, slot => Roster[slot].Length > 0);
 
-    public bool IsHost => HostSlot == Slot;
+    public bool IsHost => Slot >= 0 && HostSlot == Slot;
 
     /// <summary>How many players are in the room now.</summary>
     public int PlayersHere => Roster.Count(name => name.Length > 0);
@@ -78,6 +87,8 @@ public sealed class RoomClient : ILockstepLink
 
     /// <summary>True while the match is held for everyone; no ticks come until someone resumes it.</summary>
     public bool IsPaused { get; private set; }
+
+    public string JoiningName { get; private set; } = string.Empty;
 
     /// <summary>The slot of whoever paused or resumed last.</summary>
     public int PausedBySlot { get; private set; }
@@ -103,7 +114,12 @@ public sealed class RoomClient : ILockstepLink
         switch (message)
         {
             case Tick tick: _bundles.Enqueue(tick.Bundle); break;
-            case Roster roster: Roster = roster.Names; break;
+            case Roster roster:
+                Roster = roster.Names;
+                for (int i = 0; i < Math.Min(_playerNames.Length, Roster.Length); i++)
+                    if (Roster[i].Length > 0)
+                        _playerNames[i] = Roster[i];
+                break;
             case Start start:
                 Started = true;
                 HumanMask = start.HumanMask;
@@ -126,13 +142,32 @@ public sealed class RoomClient : ILockstepLink
                 // Timed to when the answer arrived, not to when the game loop got round to reading it.
                 LatencyMs = (int)Math.Round((arrived - _pingSentAt).TotalMilliseconds);
                 break;
+            case JoinHoldState hold:
+                JoiningName = hold.Name;
+                break;
+            case Seated seated when Slot < 0:
+                Slot = seated.Slot;
+                Started = true;
+                _joinMessages.Enqueue(seated);
+                break;
+            case SnapshotRequest when Slot >= 0 && _snapshots.HasFlag(SnapshotCapabilities.Upload):
+            case SnapshotOffer or SnapshotChunk or SeatRefused when Slot < 0:
+                _joinMessages.Enqueue(message);
+                break;
             case Desync desync: DesyncTick ??= desync.AtTick; break;
-            case Refusal refusal: Failure ??= refusal.Reason; break;
+            case Refusal refusal: Lose(refusal.Reason); break;
         }
     }
 
     /// <summary>The connection ended, for <paramref name="reason"/> (for the player). The first reason given stands.</summary>
-    public void Lose(string reason) => Failure ??= reason;
+    public void Lose(string reason)
+    {
+        if (Failure != null)
+            return;
+        Failure = reason;
+        if (Slot < 0)
+            _joinMessages.Enqueue(new Refusal(reason));
+    }
 
     /// <summary>
     /// Sends a ping when one is due: one a second, and a lost one is given up on after five. Call once per frame
@@ -164,4 +199,11 @@ public sealed class RoomClient : ILockstepLink
     public void SendMatchOver(int tick) => _send(new MatchOver(tick));
 
     public bool TryReceive([NotNullWhen(true)] out TickBundle? bundle) => _bundles.TryDequeue(out bundle);
+
+    /// <summary>
+    /// Sends a message of joining a match in progress (docs/late-join-design.md §4.3).
+    /// </summary>
+    public void SendJoin(Message message) => _send(message);
+
+    public bool TryReceiveJoin([NotNullWhen(true)] out Message? message) => _joinMessages.TryDequeue(out message);
 }

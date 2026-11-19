@@ -17,4 +17,17 @@ public interface ILockstepLink
 
     /// <summary>The next bundle from the relay, in tick order, if one has arrived.</summary>
     bool TryReceive([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TickBundle? bundle);
+
+    /// <summary>
+    /// Sends a message of joining a match in progress (docs/late-join-design.md §4): an uploader's snapshot, or a
+    /// joiner's <see cref="ReadyToLoad"/>, <see cref="TakeSeat"/> or <see cref="JoinFailed"/>.
+    /// </summary>
+    void SendJoin(Message message);
+
+    /// <summary>
+    /// The next message of joining a match in progress from the relay, if one has arrived: a
+    /// <see cref="SnapshotRequest"/>, a <see cref="SnapshotOffer"/> and its chunks, <see cref="Seated"/> or
+    /// <see cref="SeatRefused"/>.
+    /// </summary>
+    bool TryReceiveJoin([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Message? message);
 }

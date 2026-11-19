@@ -197,4 +197,18 @@ internal sealed class ThermalActivityTracker
     public bool TryGetDirtyRect(out Rect dirtyRect) => _dirty.TryGet(out dirtyRect);
 
     public void ClearDirtyRect() => _dirty.Clear();
+
+    /// <summary>
+    /// Mixes which tiles are active (they decide which cells the next step changes) and every tile's disturbance
+    /// count (relays compare stamps made from it), for the sync digest. Costs the number of tiles, not of cells.
+    /// </summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _activeTiles.Count);
+        foreach (int tile in _activeTiles)
+            hash = Fnv1a.Mix(hash, tile);
+        foreach (int disturbances in _disturbances)
+            hash = Fnv1a.Mix(hash, disturbances);
+        return hash;
+    }
 }

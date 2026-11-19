@@ -1,5 +1,6 @@
 namespace Emberward.Core.Network;
 
+using Emberward.Core.Snapshots;
 using Emberward.Core.Types;
 using Emberward.Core.Config;
 using Emberward.Core.Collision;
@@ -17,7 +18,7 @@ using Emberward.Core.Rendering;
 /// changed something. The result is the one a rebuild from nothing would give.
 /// </para>
 /// </summary>
-public class LinkMap
+public class LinkMap : ISnapshotLoaded
 {
     // Side of the squares links are filed in by the cells their line crosses, as a power of two.
     private const int TileShift = 5;
@@ -42,6 +43,7 @@ public class LinkMap
     private bool _hasSpreadPower;
 
     // Looked up by key only, never enumerated, so its order cannot reach the simulation.
+    [NotSaved("rebuilt on load from the link list (OnSnapshotLoaded); looked up by key only")]
     private readonly Dictionary<long, List<Link>> _linksByTile = new();
     private readonly List<Link> _toRecheck = new();
     private readonly List<Link> _candidates = new();
@@ -68,6 +70,17 @@ public class LinkMap
         _points.Add(point);
         _unlinked.Add(point);
         return point;
+    }
+
+    /// <summary>Mixes the map's counters and clocks, which the link list itself does not show, for the sync digest.</summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _nextPointIndex);
+        hash = Fnv1a.Mix(hash, _elapsed);
+        hash = Fnv1a.Mix(hash, _nextRelink);
+        hash = Fnv1a.Mix(hash, _hasDisabledPoint);
+        hash = Fnv1a.Mix(hash, _hasDisabledMachinePoint);
+        return Fnv1a.Mix(hash, _hasSpreadPower);
     }
 
     public void Advance(TerrainGrid terrain, TimeSpan dt)
@@ -261,6 +274,13 @@ public class LinkMap
                 _linksByTile[key] = filed = new List<Link>();
             filed.Add(link);
         });
+    }
+
+    void ISnapshotLoaded.OnSnapshotLoaded()
+    {
+        _linksByTile.Clear();
+        foreach (Link link in _links)
+            File(link);
     }
 
     private void Unfile(Link link)

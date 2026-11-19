@@ -1,5 +1,6 @@
 namespace Emberward.Core.Config;
 
+using Emberward.Core.Snapshots;
 using Emberward.Core.Thermal;
 
 /// <summary>
@@ -7,6 +8,7 @@ using Emberward.Core.Thermal;
 /// Tests can construct custom instances to override any parameter.
 /// Production code uses <see cref="FromTweaks"/>.
 /// </summary>
+[NotSaved("fixed for the match: built from the match settings")]
 public readonly record struct SimulationSettings
 {
     // --- Simulation timing ---

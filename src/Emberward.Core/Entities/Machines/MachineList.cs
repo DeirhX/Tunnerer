@@ -1,5 +1,6 @@
 namespace Emberward.Core.Entities.Machines;
 
+using Emberward.Core.Snapshots;
 using Emberward.Core.Config;
 using Emberward.Core.Types;
 using Emberward.Core.Terrain;
@@ -11,7 +12,7 @@ using Emberward.Core.Network;
 /// (<see cref="CollectNear"/>), so that asking what is near a place looks at the machines there and not at the whole
 /// list; a machine reports its own moves.
 /// </summary>
-public class MachineList
+public class MachineList : ISnapshotLoaded
 {
     // Side of the squares machines are filed in, as a power of two.
     private const int BucketShift = 5;
@@ -21,6 +22,7 @@ public class MachineList
     private readonly List<Machine> _machines = new();
     private readonly List<Machine> _chargers = new();
     // Looked up by key only, never enumerated, so its order cannot reach the simulation.
+    [NotSaved("rebuilt on load from the machine list (OnSnapshotLoaded); looked up by key only")]
     private readonly Dictionary<long, List<Machine>> _buckets = new();
     private int _nextSequence;
 
@@ -91,6 +93,13 @@ public class MachineList
         if (!_buckets.TryGetValue(key, out var bucket) && create)
             _buckets[key] = bucket = new List<Machine>();
         return bucket;
+    }
+
+    void ISnapshotLoaded.OnSnapshotLoaded()
+    {
+        _buckets.Clear();
+        foreach (Machine machine in _machines)
+            BucketAt(machine.Position, create: true)!.Add(machine);
     }
 
     private static long BucketKey(int bucketX, int bucketY) => ((long)bucketY << 32) | (uint)bucketX;

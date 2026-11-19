@@ -1,6 +1,7 @@
 namespace Emberward.Core.Bots;
 
 using Emberward.Core.Config;
+using Emberward.Core.Types;
 
 /// <summary>
 /// One of the bot's play styles: when it retreats, how readily it fires, how often it replans and how it rates tiles.
@@ -90,4 +91,7 @@ internal sealed class BotProfileCycle
         _activeIdx = (_activeIdx + 1) % Profiles.Length;
         _framesUntilSwitch = ProfileSwitchSeconds * Tweaks.Perf.TargetFps;
     }
+
+    /// <summary>Mixes which profile is active and when it changes, for the sync digest.</summary>
+    public ulong MixState(ulong hash) => Fnv1a.Mix(Fnv1a.Mix(hash, _activeIdx), _framesUntilSwitch);
 }

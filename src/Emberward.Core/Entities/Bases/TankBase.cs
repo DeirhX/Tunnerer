@@ -25,7 +25,7 @@ public class TankBase
     /// True when the computer plays this base's side (<see cref="World.SetBotControlled"/>): the bot does not prospect,
     /// so the store gets <see cref="Tweaks.Ore.BotOrePerSecond"/> instead.
     /// </summary>
-    public bool IsBotControlled { get; internal set; }
+    public bool IsBotControlled { get; private set; }
 
     private double _botOreCredit;
 
@@ -364,4 +364,21 @@ public class TankBase
 
     private static bool IsEdge(int dx, int dy) => Math.Abs(dx) == Half || Math.Abs(dy) == Half;
     private static bool IsDoor(int dx) => dx >= -DoorHalf && dx <= DoorHalf;
+
+    /// <summary>
+    /// Hands the side to the computer or back to a player. Handing it back drops the ore credit the bot's income had
+    /// built up, so a side that changes hands twice starts its income from nothing.
+    /// </summary>
+    internal void SetBotControlled(bool botControlled)
+    {
+        IsBotControlled = botControlled;
+        if (!botControlled)
+            _botOreCredit = 0.0;
+    }
+
+    /// <summary>Mixes who plays the side and the bot income's credit, for the sync digest's economy part.</summary>
+    internal ulong MixEconomy(ulong hash) => Fnv1a.Mix(Fnv1a.Mix(hash, IsBotControlled), _botOreCredit);
+
+    /// <summary>Mixes the reactor's exact stored heat, whole units and remainder, for the sync digest's heat part.</summary>
+    internal ulong MixReactorHeat(ulong hash) => Fnv1a.Mix(Fnv1a.Mix(hash, (int)Reactor.Heat), _reactorHeatRemainder);
 }

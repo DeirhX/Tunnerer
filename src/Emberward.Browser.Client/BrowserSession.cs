@@ -60,7 +60,7 @@ public sealed class BrowserSession
         LocalSlot = localSlot;
         if (localBot)
         {
-            World.SetBotControlled(BotSlot);
+            World.SetBotControlled(BotSlot, botControlled: true);
             _bots = new BotTankAI?[World.TankList.Count];
             _bots[BotSlot] = new BotTankAI(MatchSetup.BotSeed(seed, BotSlot));
         }
@@ -76,7 +76,7 @@ public sealed class BrowserSession
     /// <summary>
     /// This player's world in a network match: the room's settings as the desktop builds them
     /// (<c>WorldFactory</c>), so that both compute the same world. Nothing is stepped; the bots come when the match
-    /// starts (<see cref="NetSession.CreateBots"/>).
+    /// starts (<see cref="NetSession.StartSeats"/>).
     /// </summary>
     /// <param name="localSlot">The slot the relay gave this player.</param>
     public static BrowserSession ForNetwork(MatchConfig config, int localSlot, int heatWorkers = 1)
