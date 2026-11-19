@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <!-- Shared source, existing namespaces and file locations. This assembly has no native dependencies. -->
+  <ItemGroup>
+    <ProjectReference Include="../Emberward.Core/Emberward.Core.csproj" />
+    <!-- What a client and the relay share: a network match's session and room state are shared with the browser. -->
+    <ProjectReference Include="../Emberward.Protocol/Emberward.Protocol.csproj" />
+    <Compile Include="../Emberward.Desktop/DrawProfile.cs" Link="DrawProfile.cs" />
+    <Compile Include="../Emberward.Desktop/Config/DesktopScreenTweaks.cs" Link="Config/DesktopScreenTweaks.cs" />
+    <Compile Include="../Emberward.Desktop/Config/PostProcessPassFlags.cs" Link="Config/PostProcessPassFlags.cs" />
+    <Compile Include="../Emberward.Desktop/Config/AudioTweaks.cs" Link="Config/AudioTweaks.cs" />
+    <Compile Include="../Emberward.Desktop/Audio/SoundEffect.cs" Link="Audio/SoundEffect.cs" />
+    <Compile Include="../Emberward.Desktop/Audio/StepEventSounds.cs" Link="Audio/StepEventSounds.cs" />
+    <Compile Include="../Emberward.Desktop/Audio/SoundDirector.cs" Link="Audio/SoundDirector.cs" />
+    <Compile Include="../Emberward.Desktop/Audio/SoundBank.cs" Link="Audio/SoundBank.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/Entities/*.cs" Link="Entities/%(Filename)%(Extension)" />
+    <Compile Include="../Emberward.Desktop/Rendering/EntityLayerBuilder.cs" Link="EntityLayerBuilder.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/IGameRenderBackend.cs" Link="IGameRenderBackend.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/RenderInputEvent.cs" Link="RenderInputEvent.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/PostParamsBlock.cs" Link="PostParamsBlock.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/ScreenEffects.cs" Link="ScreenEffects.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/TerrainAuxBuilder.cs" Link="TerrainAuxBuilder.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/TerrainAuxUploader.cs" Link="TerrainAuxUploader.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/TerrainSolidField.cs" Link="TerrainSolidField.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/TerrainMaterialCoverage.cs" Link="TerrainMaterialCoverage.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/TerrainGrowthFade.cs" Link="TerrainGrowthFade.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/TerrainView.cs" Link="TerrainView.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/FogLayer.cs" Link="FogLayer.cs" />
+    <Compile Include="../Emberward.Desktop/Rendering/RowParallel.cs" Link="RowParallel.cs" />
+    <Compile Include="../Emberward.Desktop/Presentation/MachinePresentation.cs" Link="Presentation/MachinePresentation.cs" />
+    <Compile Include="../Emberward.Desktop/Gui/HintSelector.cs" Link="Gui/HintSelector.cs" />
+    <Compile Include="../Emberward.Desktop/Gui/HeatScale.cs" Link="Gui/HeatScale.cs" />
+    <Compile Include="../Emberward.Desktop/Gui/BuildSlotView.cs" Link="Gui/BuildSlotView.cs" />
+    <Compile Include="../Emberward.Desktop/Gui/Guidance/*.cs" Link="Gui/Guidance/%(Filename)%(Extension)" />
+    <Compile Include="../Emberward.Desktop/SlotStepper.cs" Link="SlotStepper.cs" />
+    <Compile Include="../Emberward.Desktop/Config/NetworkTweaks.cs" Link="Config/NetworkTweaks.cs" />
+    <Compile Include="../Emberward.Desktop/Net/NetSession.cs" Link="Net/NetSession.cs" />
+    <Compile Include="../Emberward.Desktop/Net/NetMatch.cs" Link="Net/NetMatch.cs" />
+    <Compile Include="../Emberward.Desktop/Net/LobbyText.cs" Link="Net/LobbyText.cs" />
+  </ItemGroup>
+</Project>

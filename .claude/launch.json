@@ -2,13 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "tunnerer-browser",
+      "name": "emberward-browser",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["tools/browser/serve.py", "artifacts/browser/wwwroot", "--port", "8703"],
       "port": 8703
     },
     {
-      "name": "tunnerer-browser-threads",
+      "name": "emberward-browser-threads",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["tools/browser/serve.py", "artifacts/browser/wwwroot", "--port", "8704", "--isolate"],
       "port": 8704

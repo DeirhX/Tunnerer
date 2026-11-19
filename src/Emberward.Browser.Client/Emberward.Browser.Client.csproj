@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Emberward.Core/Emberward.Core.csproj" />
+    <ProjectReference Include="../Emberward.Rendering/Emberward.Rendering.csproj" />
+    <ProjectReference Include="../Emberward.Protocol/Emberward.Protocol.csproj" />
+  </ItemGroup>
+</Project>

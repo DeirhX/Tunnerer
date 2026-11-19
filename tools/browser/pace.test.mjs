@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
     RESOLUTION_STEPS,
     ResolutionGovernor,
-} from "../../src/Tunnerer.Browser/wwwroot/pace.js";
+} from "../../src/Emberward.Browser/wwwroot/pace.js";
 
 // Feeds `seconds` of frames whose length `frameMs` works out from the governor's current scale.
 function play(governor, seconds, frameMs, playing = true) {

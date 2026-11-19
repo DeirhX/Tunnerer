@@ -1,6 +1,6 @@
 // Two browser players in one room of a real relay, playing the published WebAssembly game (docs/browser.md).
 //
-// Start a relay first (dotnet run --project src/Tunnerer.Relay -- --urls http://127.0.0.1:8130) and serve the
+// Start a relay first (dotnet run --project src/Emberward.Relay -- --urls http://127.0.0.1:8130) and serve the
 // published game. RELAY names the relay (default ws://127.0.0.1:8130/play), BROWSER_URL the page, RELAY_SECRET the
 // relay's secret if it has one (then a wrong one is tried first). The relay compares the players' world hashes once a second and stops the match if
 // they differ, so a match that plays on to the end of the test computed one world in both pages.
@@ -32,7 +32,7 @@ async function player(name, { tryWrongSecret = false } = {}) {
         deviceScaleFactor: 1,
     });
     await context.addInitScript(() => {
-        window.addEventListener("tunnerer-step", ({ detail }) => {
+        window.addEventListener("emberward-step", ({ detail }) => {
             window.testFrame = detail;
         });
     });

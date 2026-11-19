@@ -1,16 +1,16 @@
-// Spike: how fast does Tunnerer.Core step in the browser, on one thread and on several, and does it give the
+// Spike: how fast does Emberward.Core step in the browser, on one thread and on several, and does it give the
 // same bits as the desktop build? Shared by the native console app and the browser app.
 namespace Spike;
 
 using System.Diagnostics;
-using Tunnerer.Core;
-using Tunnerer.Core.Bots;
-using Tunnerer.Core.Match;
-using Tunnerer.Core.Config;
-using Tunnerer.Core.Input;
-using Tunnerer.Core.LevelGen;
-using Tunnerer.Core.Rendering;
-using Tunnerer.Core.Types;
+using Emberward.Core;
+using Emberward.Core.Bots;
+using Emberward.Core.Match;
+using Emberward.Core.Config;
+using Emberward.Core.Input;
+using Emberward.Core.LevelGen;
+using Emberward.Core.Rendering;
+using Emberward.Core.Types;
 
 public static class Bench
 {

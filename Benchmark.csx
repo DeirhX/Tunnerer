@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using Tunnerer.Core.LevelGen;
-using Tunnerer.Core.Types;
+using Emberward.Core.LevelGen;
+using Emberward.Core.Types;
 
 var size = new Size(1000, 500);
 var gen = new ToastGenerator();

@@ -1,10 +1,10 @@
 #!/bin/sh
-# Puts a published browser game (the tunnerer-browser.zip publish.py makes, read from standard input) in place on
-# Starfish, keeping the build it replaces in browser.prev. Installed on the VM as /usr/local/bin/tunnerer-deploy-browser
+# Puts a published browser game (the emberward-browser.zip publish.py makes, read from standard input) in place on
+# Starfish, keeping the build it replaces in browser.prev. Installed on the VM as /usr/local/bin/emberward-deploy-browser
 # and run as root: by hand, and by the publish-starfish workflow, whose key may run nothing else (docs/browser.md).
 set -eu
-site=/srv/tunnerer/browser
-work=$(mktemp -d /tmp/tunnerer-deploy.XXXXXX)
+site=/srv/emberward/browser
+work=$(mktemp -d /tmp/emberward-deploy.XXXXXX)
 trap 'rm -rf "$work"' EXIT
 cat > "$work/game.zip"
 mkdir "$work/new"

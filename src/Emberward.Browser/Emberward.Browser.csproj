@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- One thread, unless WasmEnableThreads=true is given on the command line: that builds the threaded runtime,
+         which the page loads where it can (docs/browser.md; tools/browser/publish.py publishes both when asked).
+         Directory.Build.props gives that build its own intermediate files. -->
+    <WasmEnableThreads Condition="'$(WasmEnableThreads)' == ''">false</WasmEnableThreads>
+    <DefaultItemExcludes>$(DefaultItemExcludes);out/**</DefaultItemExcludes>
+    <RunAOTCompilation Condition="'$(Configuration)' == 'Release'">true</RunAOTCompilation>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- The service worker versions the complete app. Stable URLs also work in module workers,
+         which do not inherit the document's import map. -->
+    <StaticWebAssetFingerprintingEnabled>false</StaticWebAssetFingerprintingEnabled>
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Emberward.Browser.Client/Emberward.Browser.Client.csproj" />
+  </ItemGroup>
+</Project>

@@ -3,7 +3,7 @@
 The browser edition is a playable local match against the existing bot, with the standard terrain, heat,
 regrowth, ore, machines, power network, fog, radar, upgrades, respawns and the core-tap win condition, and network
 matches on the relay with other browsers and desktop players (Network play, below).
-It uses the real `Tunnerer.Core` assembly compiled to WebAssembly. No simulation rules are translated to JavaScript.
+It uses the real `Emberward.Core` assembly compiled to WebAssembly. No simulation rules are translated to JavaScript.
 
 ## Build and run
 
@@ -72,11 +72,11 @@ runtime, and in the desktop build (`BrowserSessionThreadsTests`; the smoke test 
 browser).
 
 The two builds need no clearing between them: the threaded one keeps its intermediate files apart, under
-`src/Tunnerer.Browser/out/threads`. A `--no-aot` build does not: an AOT publish made over the intermediate files of
+`src/Emberward.Browser/out/threads`. A `--no-aot` build does not: an AOT publish made over the intermediate files of
 an interpreted one gave a threaded runtime that would not start (the smoke test showed it), so delete
-`src/Tunnerer.Browser/out` when going from one to the other.
+`src/Emberward.Browser/out` when going from one to the other.
 
-The browser host is built separately from `Tunnerer.slnx` so desktop builds do not require a WebAssembly workload.
+The browser host is built separately from `Emberward.slnx` so desktop builds do not require a WebAssembly workload.
 The portable browser presentation and shared rendering projects are in the main solution and are covered by
 its analyzers and tests. Publishing also runs the existing shader compiler with `--web`, translating the desktop
 HLSL through SPIR-V into GLSL ES 3.00 using the SPIRV-Cross library already bundled with SDL_shadercross.
@@ -108,11 +108,11 @@ The page compiles and links the shaders with `KHR_parallel_shader_compile` where
 frame at a time. Loading reports its stages (`progress.js`): the shader download, each program's compile and link,
 the runtime's download and start, and the world's generation. The loading line shows the stage under way, and says
 so when one runs past ten seconds; the console logs each stage's time as `[load] ...`; each begin and end is a
-`tunnerer-load` event on `window`, and the list so far is `window.tunnererLoad`, to copy into a bug report. A failed
+`emberward-load` event on `window`, and the list so far is `window.emberwardLoad`, to copy into a bug report. A failed
 start names the stage it stopped in ("while compiling the lighting and materials shaders, 12 s in").
 
 A bar fills through the load. Each phase (shaders, download, runtime start, world) is as wide as it took on this
-device last time (`localStorage`, `tunnerer.load-times`), or a guess on a first visit. The download fills by the bytes
+device last time (`localStorage`, `emberward.load-times`), or a guess on a first visit. The download fills by the bytes
 that have arrived: `publish.py` writes each runtime's size into `threads.js`, and a resource loader in `frames.js`
 counts what .NET fetches. A compile gives no progress, only done or not, so the other phases fill by their time
 against last time's and slow down short of the end. .NET has the browser check every runtime file against its
@@ -154,7 +154,7 @@ A browser plays in the same rooms as the desktop. The relay keeps a room to one 
 is the desktop's: the Core assembly's version, which carries the commit. A browser and a desktop built from the
 same commit compute the same world (the native and WebAssembly fingerprints agree), so the published page joins
 desktop players running the same commit. The browser runs the desktop's own `NetSession` and slot stepper (shared
-through `Tunnerer.Rendering`) and the protocol's `RoomClient`, the relay state the desktop's `RelayConnection` wraps.
+through `Emberward.Rendering`) and the protocol's `RoomClient`, the relay state the desktop's `RelayConnection` wraps.
 The page owns the WebSocket (`net.js`) and carries only bytes: each request to .NET takes what arrived, with
 arrival times on the page's clock, and its answer brings the messages to send (`BrowserNetMatch`, `frames.js`).
 A frame simulates the ticks that have arrived, as on the desktop; a build or upgrade press waits in .NET for a tick
@@ -177,10 +177,10 @@ implemented. Browser storage can be cleared or evicted; reopening online prepare
 
 ## Host it for players
 
-Deploy **the contents of** `artifacts/browser/wwwroot`, or extract `artifacts/browser/tunnerer-browser.zip`, onto
+Deploy **the contents of** `artifacts/browser/wwwroot`, or extract `artifacts/browser/emberward-browser.zip`, onto
 any HTTPS static host. GitHub Pages, Netlify, Cloudflare Pages and a conventional web server can serve it.
 There is no game server or .NET runtime to install on the host. All URLs are relative, so hosting beneath a
-prefix such as `/Tunnerer/` works as well as at the domain root. Keep the directory structure intact.
+prefix such as `/Emberward/` works as well as at the domain root. Keep the directory structure intact.
 
 Serve `.wasm` as `application/wasm`, JavaScript as `text/javascript`, and `.webmanifest` as
 `application/manifest+json`. Serve `index.html`, `sw.js`, `assets-manifest.js` and `threads.js` without long-lived
@@ -198,7 +198,7 @@ its threaded WebAssembly runtime experimental.
 required asset (of two runtimes, the one this browser uses) before becoming active, isolates caches by deployment
 path, and does not reload a running game. A new version installs in the background. A page that holds no game
 (on the start page with nothing to read, not typing in a field) then moves to it and reloads itself, if no other
-Tunnerer tab is open. Otherwise the page shows an Update button in the header, which reloads when pressed
+Emberward tab is open. Otherwise the page shows an Update button in the header, which reloads when pressed
 (`install.js`). Pressing it moves every tab to the new version; another tab with a match running keeps playing
 and shows the button too. The start page's footer names the version the page runs and, when it differs, the latest
 one on the server ("VERSION 5cc86e02 · LATEST e7ef5bb1"), or says it is up to date. The page also
@@ -208,7 +208,7 @@ the publisher rather than editing files in `wwwroot`.
 
 The `browser` GitHub Actions workflow publishes the AOT build on Windows, macOS and Linux, once as the default
 and once with `--threads`, so a change that one OS's toolchain cannot build fails there. On macOS it also runs the
-actual game in Chromium, on one thread and in the threaded runtime, and uploads a `tunnerer-browser` artifact
+actual game in Chromium, on one thread and in the threaded runtime, and uploads a `emberward-browser` artifact
 containing the deployable zips and screenshots. Build, formatting and the script tests
 are blocking; the graphics smoke run is non-blocking because hosted GPU availability varies, following the desktop
 smoke test's existing policy. Deployment to a public host is separate; this workflow does not change Pages settings.
@@ -218,8 +218,8 @@ smoke test's existing policy. Deployment to a public host is separate; this work
 The public copy is served from the Starfish VM at `https://crust.bokovka.cz`, beside the relay
 (`docs/multiplayer-design.md`, "The relay", describes the VM, SSH access and updating the relay). Caddy's site file,
 `/etc/caddy/conf.d/crust.bokovka.cz.caddy`, sends `/play` and `/health` to the relay and serves everything else
-from `/srv/tunnerer/browser`. It sends the cross-origin isolation headers and the no-cache headers listed above,
-so deploy a `--threads` publish. `/srv/tunnerer/browser.prev` keeps the build that was live before.
+from `/srv/emberward/browser`. It sends the cross-origin isolation headers and the no-cache headers listed above,
+so deploy a `--threads` publish. `/srv/emberward/browser.prev` keeps the build that was live before.
 
 The easy way is the **publish-starfish** workflow (`.github/workflows/publish-starfish.yml`): on GitHub, Actions →
 publish-starfish → Run workflow, with the branch to publish (normally `master`). It runs only when started by hand,
@@ -231,17 +231,17 @@ By hand, publish from an up-to-date `master` and pipe the zip to the deploy scri
 
 ```sh
 python3 tools/browser/publish.py --threads
-ssh Starfish-azureuser sudo /usr/local/bin/tunnerer-deploy-browser < artifacts/browser/tunnerer-browser.zip
+ssh Starfish-azureuser sudo /usr/local/bin/emberward-deploy-browser < artifacts/browser/emberward-browser.zip
 ```
 
 The deploy script is `tools/browser/starfish-deploy.sh`, installed on the VM as
-`/usr/local/bin/tunnerer-deploy-browser`. It unpacks the zip, stops if it is not a complete `--threads` publish,
+`/usr/local/bin/emberward-deploy-browser`. It unpacks the zip, stops if it is not a complete `--threads` publish,
 moves the live build to `browser.prev`, puts the new one in place and prints its version. After changing it,
 install it again:
 
 ```sh
-scp tools/browser/starfish-deploy.sh Starfish-azureuser:/tmp/tunnerer-deploy-browser
-ssh Starfish-azureuser 'sudo install -m 755 /tmp/tunnerer-deploy-browser /usr/local/bin/ && rm /tmp/tunnerer-deploy-browser'
+scp tools/browser/starfish-deploy.sh Starfish-azureuser:/tmp/emberward-deploy-browser
+ssh Starfish-azureuser 'sudo install -m 755 /tmp/emberward-deploy-browser /usr/local/bin/ && rm /tmp/emberward-deploy-browser'
 ```
 
 The workflow signs in with its own key, kept in the `starfish` environment of the repository's settings
@@ -251,7 +251,7 @@ VM, that key's line in `~azureuser/.ssh/authorized_keys` lets it run the deploy 
 leaked key can replace the game but cannot open a shell:
 
 ```
-command="sudo /usr/local/bin/tunnerer-deploy-browser",restrict ssh-ed25519 AAAA… tunnerer-publish-starfish
+command="sudo /usr/local/bin/emberward-deploy-browser",restrict ssh-ed25519 AAAA… emberward-publish-starfish
 ```
 
 To withdraw the workflow's access, delete that line.
@@ -271,7 +271,7 @@ back. The relay is deployed on its own and needs updating only when the protocol
 ## Verification
 
 ```sh
-dotnet test Tunnerer.slnx
+dotnet test Emberward.slnx
 node --test tools/browser/pace.test.mjs
 npm install --prefix artifacts/browser-tests playwright@1.65.1
 artifacts/browser-tests/node_modules/.bin/playwright install chromium
@@ -281,7 +281,7 @@ node tools/browser/smoke.mjs
 ```
 
 `tools/browser/net-smoke.mjs` plays two pages in one room of a local relay
-(`dotnet run --project src/Tunnerer.Relay -- --urls http://127.0.0.1:8130`): the lobby, the host's start, a bot in
+(`dotnet run --project src/Emberward.Relay -- --urls http://127.0.0.1:8130`): the lobby, the host's start, a bot in
 the open slot, driving and building through the relay, pause for everyone, and a player who leaves and rejoins.
 The relay compares the players' world hashes once a second, so a match that plays on computed one world in both.
 `BrowserNetMatchTests` in `dotnet test` plays a browser client against a desktop client on the real relay and
@@ -304,7 +304,7 @@ Open the game with `?perf` (for example `http://localhost:8703/?perf`) for a rea
 the display's frames per second and how many of them drew a new picture, the time a simulation step and building
 a frame take inside .NET, how many threads step the heat, texture bytes uploaded per second, the size the
 world is drawn at, and what updating the HUD after a step costs the page (the art strip apart). The same numbers are
-in `window.tunnererPerf`.
+in `window.emberwardPerf`.
 
 Judge the framerate on an AOT publish (the default): a `--no-aot` build steps the simulation about five times more
 slowly, falls behind, and then draws a new picture only with each step. Measured 2026-11-18 in Chromium on an Apple
@@ -365,16 +365,16 @@ window and graphics dependencies out of the shared rendering assembly.
 
 ## Client structure and current scope
 
-- `Tunnerer.Rendering`: the terrain fields, material coverage, the uploader that decides what a frame repacks of
+- `Emberward.Rendering`: the terrain fields, material coverage, the uploader that decides what a frame repacks of
   them, the fog layer, entity emitters, interpolation, machine sprite descriptors, shader constant layout and
   lighting settings used by both hosts, and what the HUD tells the player (`PlayerGuidance`: the tutorial, the
   game-event toasts, the build-key hint and the warning banner), and a client's part in a network match
   (`NetSession`, `SlotStepper`, `NetMatch`). The source files retain their existing Desktop paths and namespaces;
   the assembly references only Core and the protocol, without SDL or ImGui.
-- `Tunnerer.Browser.Client`: the session (local, or this player's world in a network match), the network match
+- `Emberward.Browser.Client`: the session (local, or this player's world in a network match), the network match
   (`BrowserNetMatch`), HUD snapshots, and the frame packet: one buffer with the shader constants, the entity
   vertices and the changed rectangles of the four terrain textures (`BrowserScene`).
-- `Tunnerer.Browser`: WebAssembly exports and the static PWA shell.
+- `Emberward.Browser`: WebAssembly exports and the static PWA shell.
 - `simulation.js`: what the page talks to. It is `worker.js` with the single-thread runtime, or the threaded
   runtime behind the same messages: .NET can only start that one from the page itself, where it then runs on
   threads of its own and answers the page's calls later. `threads.js` decides which.
@@ -383,9 +383,9 @@ window and graphics dependencies out of the shared rendering assembly.
   and it is copied once, into an ordinary buffer (WebGL takes no view of memory that threads share), which the
   worker passes to the page without copying it again. HUD state is sent only with frames that follow a tick.
   The UI keeps at most one request in flight and caps catch-up. After each tick the page announces the HUD state
-  as a `tunnerer-step` event on `window`, which is how the smoke test follows a match in either runtime.
+  as a `emberward-step` event on `window`, which is how the smoke test follows a match in either runtime.
 - `webgl.js`: uploads the shared buffers and draws the translated terrain, post-processing and entity shaders.
-- `progress.js`: the stages of a load, for the loading line, the loading bar, the console and the `tunnerer-load`
+- `progress.js`: the stages of a load, for the loading line, the loading bar, the console and the `emberward-load`
   event.
   Its first pass flips the render-target Y axis for WebGL's framebuffer texture convention; the final pass and
   entity quads use the desktop clip-space convention. Textures use the same linear sampling and premultiplied
@@ -401,7 +401,7 @@ window and graphics dependencies out of the shared rendering assembly.
   toward the shooter. `strip.js` draws the desktop's art strip (below).
 - The HUD looks like the desktop's (`HudTheme`): chamfered plates with a bronze frame and amber corner brackets,
   amber titles, segmented bars and the desktop's palette and font (Chakra Petch, which `publish.py` copies from
-  `src/Tunnerer.Desktop/resources/fonts` as it generates the shaders).
+  `src/Emberward.Desktop/resources/fonts` as it generates the shaders).
 - On a screen at least 1000×620 with a mouse, the page takes the desktop's layout (`HudLayout`): `strip.js` draws
   the desktop's art strip in the bottom corners on two canvases, TEMP, SHIELD and MATERIALS on the left and BUILD
   STRUCTURES and COMMAND on the right, at the desktop's art coordinates and scale. It ports `HudStrip`,
@@ -412,7 +412,7 @@ window and graphics dependencies out of the shared rendering assembly.
   draws the orb's liquid with a shader (`HeatOrbPs`); the canvas draws ice, bubbles and a burning glow instead.
   The plates keep what the strip does not show, at the top right where the desktop's BASE panel stands, and the
   upgrades sit at the left above the strip. `publish.py` copies the four PNGs from
-  `src/Tunnerer.Desktop/resources/hud` (1.4 MiB) into `wwwroot/hud`. Phones and narrow windows keep the plates,
+  `src/Emberward.Desktop/resources/hud` (1.4 MiB) into `wwwroot/hud`. Phones and narrow windows keep the plates,
   which fit them; the art does not. The strip is drawn after each step, not each display frame, and not while
   paused; the heat dial's colours come with a match's first frame only.
 - The HUD's cost follows what changes. It updates after every step, 24 times a second, and writes to the page

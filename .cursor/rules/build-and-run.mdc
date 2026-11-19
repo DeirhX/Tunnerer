@@ -1,5 +1,5 @@
 ---
-description: How to build, run and test Tunnerer (C# / .NET 10) on Windows
+description: How to build, run and test Emberward (C# / .NET 10) on Windows
 alwaysApply: true
 ---
 
@@ -9,26 +9,26 @@ This branch is the C# game. The original C++ engine is on the `cplusplus-legacy`
 with MSBuild/vcxproj or CMake.
 
 ```
-dotnet build Tunnerer.slnx
-dotnet test Tunnerer.slnx
-dotnet run --project src/Tunnerer.Desktop -- --windowed
+dotnet build Emberward.slnx
+dotnet test Emberward.slnx
+dotnet run --project src/Emberward.Desktop -- --windowed
 ```
 
-- Target framework: net10.0. Solution file: `Tunnerer.slnx`.
-- `Tunnerer.Desktop` compiles its HLSL shaders to DXIL, SPIR-V and MSL before each build (SDL_shadercross from NuGet).
-- `Tunnerer.Core` must not reference SDL, ImGui or Direct3D (`ArchitectureGuardTests` enforces it).
+- Target framework: net10.0. Solution file: `Emberward.slnx`.
+- `Emberward.Desktop` compiles its HLSL shaders to DXIL, SPIR-V and MSL before each build (SDL_shadercross from NuGet).
+- `Emberward.Core` must not reference SDL, ImGui or Direct3D (`ArchitectureGuardTests` enforces it).
 - The simulation must stay deterministic for a given seed: no `DateTime`, `Environment.TickCount` or unseeded
-  `Random` in `Tunnerer.Core`.
+  `Random` in `Emberward.Core`.
 
 # Running without disturbing the user
 
 Use `--hidden --windowed=1280x720` for automated runs; the window is never shown. Drive the game with
-`TUNNERER_SCRIPTED_INPUT`, `TUNNERER_COMMAND_SCRIPT` and `TUNNERER_SCRIPT_SCREENSHOT_FRAMES` (see `README.md`).
+`EMBERWARD_SCRIPTED_INPUT`, `EMBERWARD_COMMAND_SCRIPT` and `EMBERWARD_SCRIPT_SCREENSHOT_FRAMES` (see `README.md`).
 Screenshots are written as `.ppm` to `screenshots/` next to the executable.
 
 # Where things are
 
-- Gameplay constants: `src/Tunnerer.Core/Config/Tweaks.cs`
-- Simulation step order: `World.Advance` in `src/Tunnerer.Core/World.cs`
+- Gameplay constants: `src/Emberward.Core/Config/Tweaks.cs`
+- Simulation step order: `World.Advance` in `src/Emberward.Core/World.cs`
 - Game loop: `GameFrameCoordinator`, `Game.cs`; pause / controls / seed: `Game.Session.cs`
-- HUD: `src/Tunnerer.Desktop/Gui/`
+- HUD: `src/Emberward.Desktop/Gui/`

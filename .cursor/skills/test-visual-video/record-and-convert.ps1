@@ -7,12 +7,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = "tests/Tunnerer.Tests/bin/Debug/net10.0/artifacts/test-visual"
+$root = "tests/Emberward.Tests/bin/Debug/net10.0/artifacts/test-visual"
 
-$env:TUNNERER_TEST_VISUAL = "1"
-$env:TUNNERER_TEST_VISUAL_EVERY = $CaptureEvery
+$env:EMBERWARD_TEST_VISUAL = "1"
+$env:EMBERWARD_TEST_VISUAL_EVERY = $CaptureEvery
 
-dotnet test "tests/Tunnerer.Tests/Tunnerer.Tests.csproj" --filter $Filter
+dotnet test "tests/Emberward.Tests/Emberward.Tests.csproj" --filter $Filter
 
 if (-not (Test-Path $root)) {
     Write-Output "No visual output directory found: $root"

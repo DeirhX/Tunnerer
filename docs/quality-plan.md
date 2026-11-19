@@ -1,6 +1,6 @@
 # Code-quality plan
 
-Goal: keep Tunnerer open to new machines, materials and systems without the code turning into spaghetti.
+Goal: keep Emberward open to new machines, materials and systems without the code turning into spaghetti.
 The thermal core is sound (one stencil, one apply rule, ledger booking everywhere). The problems are around it:
 nothing stops regressions, rules have several owners, Desktop computes gameplay, and the docs have drifted.
 
@@ -13,7 +13,7 @@ Baseline (2026-11-15): 0 warnings (no analyzers on), 317 tests pass, 1 skipped a
 2. **Guard, then refactor.** A rule worth keeping gets a test that fails when it is broken.
 3. **One owner per rule, in Core.** Desktop asks Core for answers (docked, match over, network status, build cost).
 4. **Delete, don't keep a second implementation.**
-5. **Small commits**, `dotnet test Tunnerer.slnx` green before each one.
+5. **Small commits**, `dotnet test Emberward.slnx` green before each one.
 
 ## Wave 1: guardrails and cleanup (parallel)
 

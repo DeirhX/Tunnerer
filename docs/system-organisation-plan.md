@@ -9,13 +9,13 @@ it says otherwise.
 
 | Change | Where |
 |---|---|
-| `MatchRules`: one switch for a match's optional systems, part of the hash clients compare before a network match | DeirhX/Tunnerer#40 |
-| The sector goal and the match result out of `World` (`Match/`) | DeirhX/Tunnerer#40 |
-| `World.Advance` runs an ordered list of named systems; a system the world does not have is not in the list | DeirhX/Tunnerer#42 |
-| Core folders by system: `Bots/`, `Network/`, `Regrowth/`, all tank code in `Entities/Tanks/` | DeirhX/Tunnerer#42 |
-| The core tap's per-base state kept by `SectorGoal`; Desktop asks `World.CoreTapOf` | DeirhX/Tunnerer#42 |
-| `Entities/Bases/`, `MachineMaterializer` in `Machines/`, `Resources.cs` split | DeirhX/Tunnerer#43 |
-| The unused sprite path and the composite pixel buffer deleted | DeirhX/Tunnerer#43 |
+| `MatchRules`: one switch for a match's optional systems, part of the hash clients compare before a network match | DeirhX/Emberward#40 |
+| The sector goal and the match result out of `World` (`Match/`) | DeirhX/Emberward#40 |
+| `World.Advance` runs an ordered list of named systems; a system the world does not have is not in the list | DeirhX/Emberward#42 |
+| Core folders by system: `Bots/`, `Network/`, `Regrowth/`, all tank code in `Entities/Tanks/` | DeirhX/Emberward#42 |
+| The core tap's per-base state kept by `SectorGoal`; Desktop asks `World.CoreTapOf` | DeirhX/Emberward#42 |
+| `Entities/Bases/`, `MachineMaterializer` in `Machines/`, `Resources.cs` split | DeirhX/Emberward#43 |
+| The unused sprite path and the composite pixel buffer deleted | DeirhX/Emberward#43 |
 | Gold retired; "Removing a system" checklist in `AGENTS.md` | the gold PR |
 
 The PRs are stacked, each on the one before it. Merge them in order and retarget the next one to `master` after each
@@ -60,7 +60,7 @@ a time into the system that owns the rule, with a `World` query for Desktop, as 
 
 ### 6. Tests by system
 
-`tests/Tunnerer.Tests` has about 90 files in one folder. Group them into folders named after the systems
+`tests/Emberward.Tests` has about 90 files in one folder. Group them into folders named after the systems
 (`Thermal/`, `Network/`, `Sensing/`, `Match/`, ...) so that removing a system mostly removes a folder.
 
 ### Smaller items

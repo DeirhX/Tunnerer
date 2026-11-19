@@ -1,47 +1,47 @@
-# Working on Tunnerer
+# Working on Emberward
 
 Read this before changing code. `DESIGN.md` says where the game is going; `ARCHITECTURE.md` and
-`src/Tunnerer.Core/ARCHITECTURE.md` say how the code is organised.
+`src/Emberward.Core/ARCHITECTURE.md` say how the code is organised.
 
 ## Commands
 
 Run from the repository root.
 
-- Build: `dotnet build Tunnerer.slnx`
-- Test: `dotnet test Tunnerer.slnx` (about 35 seconds; run it before every commit)
-- Fast tests: `dotnet test Tunnerer.slnx --filter "Category!=Slow"` skips tests marked
+- Build: `dotnet build Emberward.slnx`
+- Test: `dotnet test Emberward.slnx` (about 35 seconds; run it before every commit)
+- Fast tests: `dotnet test Emberward.slnx --filter "Category!=Slow"` skips tests marked
   `[Trait("Category", "Slow")]` (over ~5 s each, and the socket tests that must run on their own, in
   `TimedTestGroup`); about 8 seconds. Use it while iterating; mark new tests over ~5 s `Slow`. Slow tests start first
   (`SlowFirstCollectionOrderer`), and xUnit runs a class's tests one after another, so give a slow test a class of
   its own when its class already has one.
-- Run: `dotnet run --project src/Tunnerer.Desktop` (Windows, macOS)
+- Run: `dotnet run --project src/Emberward.Desktop` (Windows, macOS)
 
 ## Layout
 
-- `src/Tunnerer.Core`: the simulation. No window, graphics or input-device dependencies; `ArchitectureGuardTests`
+- `src/Emberward.Core`: the simulation. No window, graphics or input-device dependencies; `ArchitectureGuardTests`
   enforces this.
-- `src/Tunnerer.Desktop`: SDL3 window and input, renderer, HUD. It should read Core state and not own game rules.
+- `src/Emberward.Desktop`: SDL3 window and input, renderer, HUD. It should read Core state and not own game rules.
   - `Net`: a client's part in a network match (`docs/multiplayer-design.md`).
-- `src/Tunnerer.Protocol`: what the game client and the relay server share. It references no other project;
+- `src/Emberward.Protocol`: what the game client and the relay server share. It references no other project;
   `ArchitectureGuardTests` enforces this.
-- `src/Tunnerer.Relay`: the relay server for network matches. It references only the protocol, never Core, so a
-  gameplay change needs no new relay. Run: `dotnet run --project src/Tunnerer.Relay`.
+- `src/Emberward.Relay`: the relay server for network matches. It references only the protocol, never Core, so a
+  gameplay change needs no new relay. Run: `dotnet run --project src/Emberward.Relay`.
   - `Rendering/SdlGpu`: the SDL_GPU backend (Metal, Direct3D 12, Vulkan).
   - `Rendering/Shaders`: the HLSL it draws.
-- `src/Tunnerer.Rendering`: the rendering code every host shares (terrain fields and what a frame uploads of them,
+- `src/Emberward.Rendering`: the rendering code every host shares (terrain fields and what a frame uploads of them,
   entity emitters and machine sprites, the shader constant block, sound (the step-event table, `SoundDirector` and `SoundBank`), the heat colours (`HeatScale`), what a build slot says (`BuildSlotView`) and the HUD's
   guidance: tutorial, toasts, build-key hint and warnings), and a client's part in a network match (`NetSession`,
-  `SlotStepper`, `NetMatch`). Its sources are the files of `src/Tunnerer.Desktop` listed in
-  `Tunnerer.Rendering.csproj`, which `Tunnerer.Desktop.csproj` leaves out: sharing a file means adding it to both
+  `SlotStepper`, `NetMatch`). Its sources are the files of `src/Emberward.Desktop` listed in
+  `Emberward.Rendering.csproj`, which `Emberward.Desktop.csproj` leaves out: sharing a file means adding it to both
   lists. It references only Core and the protocol (`ArchitectureGuardTests`).
-- `src/Tunnerer.Browser.Client`: the browser's match (local, or network through `BrowserNetMatch`) and what it
+- `src/Emberward.Browser.Client`: the browser's match (local, or network through `BrowserNetMatch`) and what it
   draws, in plain .NET so the tests cover it.
-- `src/Tunnerer.Browser`: the WebAssembly exports and the web page (`wwwroot`: WebGL, input, HUD, offline shell).
-  Not in `Tunnerer.slnx`, because building it needs a .NET WebAssembly workload; `docs/browser.md` has the commands.
+- `src/Emberward.Browser`: the WebAssembly exports and the web page (`wwwroot`: WebGL, input, HUD, offline shell).
+  Not in `Emberward.slnx`, because building it needs a .NET WebAssembly workload; `docs/browser.md` has the commands.
 - `tools/browser`: publish, serve and test the browser client.
-- `tools/Tunnerer.ShaderCompiler`: build step that compiles the HLSL for SDL_GPU (DXIL, SPIR-V, MSL) on every OS,
+- `tools/Emberward.ShaderCompiler`: build step that compiles the HLSL for SDL_GPU (DXIL, SPIR-V, MSL) on every OS,
   and with `--web` to GLSL ES for the browser.
-- `tests/Tunnerer.Tests`: xUnit tests for Core and for Desktop logic that needs no window, plus guard tests.
+- `tests/Emberward.Tests`: xUnit tests for Core and for Desktop logic that needs no window, plus guard tests.
 
 ## Rules that tests enforce
 
@@ -93,12 +93,12 @@ Adding a machine:
    `MachineSprite` in `MachineSprites` (what the entity emitters draw on desktop and in the browser: shader shape,
    size, gauge, sense ring, battery, preview reach; `Rendering/Entities/MachineSprite.cs`) and its build sound in
    `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`). `MachinePresentationTests` must pass. A new shape also needs a shader branch. Only three build keys exist
-   (`BuildKey`), so a fourth machine also needs a new key. The full recipe is in `src/Tunnerer.Core/ARCHITECTURE.md`.
+   (`BuildKey`), so a fourth machine also needs a new key. The full recipe is in `src/Emberward.Core/ARCHITECTURE.md`.
 
 Adding a shader:
 
 1. The `.hlsl` file in `Rendering/Shaders`, entry point `main`, resources declared with the register macros.
-2. An `SdlGpuShader` item (with `Stage`) in `Tunnerer.Desktop.csproj`.
+2. An `SdlGpuShader` item (with `Stage`) in `Emberward.Desktop.csproj`.
 
 Removing a system (the gold pickup was the first; its commit is a worked example):
 

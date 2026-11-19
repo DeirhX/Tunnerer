@@ -22,7 +22,7 @@ one, create one and get back to the list, all from inside the game, for groups o
   which the relay already knows from `Ready`.
 - **No chat, no kick, no per-room password, no changing settings in the lobby.** Each one is explained in §5.
 - **Rules stay where they are.** The relay enforces who may join. The client's guess, used to grey out a row, comes
-  from the same function in `Tunnerer.Protocol` (`RoomRules`). Core does not change.
+  from the same function in `Emberward.Protocol` (`RoomRules`). Core does not change.
 
 ## 2. What the current code does that the UX must deal with
 
@@ -69,7 +69,7 @@ Things to know first. The ones marked **(flag)** contradict the docs or are bugs
 ```
 
 Every arrow marked `[restart]` uses the existing restart path: the new process gets arguments built by
-`NetLaunchOptions.ToArguments()` (new) and the secret through `TUNNERER_RELAY_SECRET` in its environment, never on
+`NetLaunchOptions.ToArguments()` (new) and the secret through `EMBERWARD_RELAY_SECRET` in its environment, never on
 the command line, where `ps` would show it. A refused launch opens a local match with the network menu already
 open and the reason on a red plate (item 1 of §2).
 
@@ -233,11 +233,11 @@ uses the existing red `##NetStatus` plate, with a second line that says what the
 - **Name field** at the top of the network screen, defaulting to `Environment.UserName` (as `Program.cs` does).
   The field is checked as the relay checks it: trimmed, 1 to 64 characters. `--name=` still overrides it.
 - **Persistence**: a small `PlayerSettings` file, `settings.ini` under
-  `Environment.SpecialFolder.ApplicationData/Tunnerer`. It holds the name, relay URL, secret, the last create
+  `Environment.SpecialFolder.ApplicationData/Emberward`. It holds the name, relay URL, secret, the last create
   settings and **the last match** (relay, room, the name the relay assigned, when). Volume and mute can move there
   later. There is no settings file today; this is the first one.
 - **Secret**: asked for only when the relay refuses without it. It is masked in the field and stored in the settings
-  file in plain text, which is the same exposure as the `TUNNERER_RELAY_SECRET` variable people use now. It is
+  file in plain text, which is the same exposure as the `EMBERWARD_RELAY_SECRET` variable people use now. It is
   passed to a restarted process through the environment.
 - **Rejoin by name, in the UI**: the list lights "Rejoin as X" when X is the player's name or the assigned name
   saved in "last match". The security note in `multiplayer-design.md` §7 and §11 stands: anyone with the secret who
@@ -257,7 +257,7 @@ The protocol changes are bundled so that the relay on Starfish is redeployed onc
 | `Hello` + `intent` | C to S | `JoinOrCreate` (the command line, unchanged behaviour), `JoinOnly`, `CreateOnly`. Refused with "No room called X" / "A room called X already exists" |
 | `Roster` + `readyMask` | S to C | Bit n set when slot n has sent `Ready`, so the lobby can show "building..." |
 
-Relay changes (`src/Tunnerer.Relay`, protocol only, no Core):
+Relay changes (`src/Emberward.Relay`, protocol only, no Core):
 
 - `RelayHub.ServeAsync`: if the first frame is `ListRooms`, check the secret (same fixed-time compare, same
   refusal), then answer it from a snapshot of `_rooms` taken under the hub lock, and keep answering further
@@ -265,7 +265,7 @@ Relay changes (`src/Tunnerer.Relay`, protocol only, no Core):
   count towards the 1024-connection cap; that is enough.
 - `MatchRoom.Listing()`: a snapshot under the room lock. It never includes the secret, peers or the input log.
 - `RoomRules.CanJoin(state, buildId, slotsFree, away, name)` and `RoomRules.Describe(...)` in
-  `Tunnerer.Protocol`. `MatchRoom.Join` uses `CanJoin` for its decision (the refusal texts stay in the relay), so
+  `Emberward.Protocol`. `MatchRoom.Join` uses `CanJoin` for its decision (the refusal texts stay in the relay), so
   the client's grey rows and the relay's refusals cannot disagree. `RoomRules` is already where "rules both sides
   must agree on" live.
 - The protocol-mismatch refusal says which side is older (§2 item 4).
@@ -313,7 +313,7 @@ ships there until browser net play is designed. Here is what would carry over an
 
 - **Carries over**: the protocol and `RoomRules` (plain .NET, no references); `NetMenuModel` and the
   list ordering and state texts, if they move from `Desktop/Net` to a project both hosts share, as
-  `Tunnerer.Rendering` shares files today; the screen flow of §3.
+  `Emberward.Rendering` shares files today; the screen flow of §3.
 - **Differs**: the screens are HTML in `wwwroot/main.js`, not ImGui. `ClientWebSocket` works in WebAssembly, but the
   relay must accept the page's origin. There is no process to restart; the page can rebuild its world in place,
   which is the single-process flow desktop only gets in phase 4. Settings go in `localStorage`, and **never in the
