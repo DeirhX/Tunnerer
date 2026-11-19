@@ -238,6 +238,29 @@
                         ><span>Turn hot ground into power.</span>
                     </div>
                 </div>
+                <!-- The desktop builds (downloads.js). To publish one, replace a row's status span with
+                     <a class="download-link" href="URL">Download</a>; a row with a link is offered first to visitors on
+                     that platform. macOS has one build for Apple silicon and Intel. -->
+                <section id="downloads" class="downloads" aria-labelledby="downloads-title">
+                    <div id="downloads-title" class="eyebrow"><i></i> DESKTOP EDITION</div>
+                    <p id="downloads-lead" class="muted">
+                        The same game as a native app on your computer, with its own window, sound and renderer.
+                    </p>
+                    <ul class="download-list">
+                        <li data-os="windows">
+                            <span class="download-os">Windows</span>
+                            <span class="download-state">Not published yet</span>
+                        </li>
+                        <li data-os="macos">
+                            <span class="download-os">macOS</span>
+                            <span class="download-state">Not published yet</span>
+                        </li>
+                        <li data-os="linux">
+                            <span class="download-os">Linux</span>
+                            <span class="download-state">Not published yet</span>
+                        </li>
+                    </ul>
+                </section>
             </section>
             <div id="guide" hidden>
                 <aside id="mission" class="plate" aria-label="Next step">
@@ -411,5 +434,9 @@
         </dialog>
         <script src="./threads.js"></script>
         <script type="module" src="./main.js"></script>
+        <script type="module">
+            import { detectPlatform, offerDownloads } from "./downloads.js";
+            offerDownloads(document, detectPlatform(navigator));
+        </script>
     </body>
 </html>
