@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\Tunnerer.Core\Tunnerer.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\Emberward.Core\Emberward.Core.csproj" />
     <Compile Include="..\Bench\*.cs" />
   </ItemGroup>
 </Project>

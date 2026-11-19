@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="104" fill="#0b1419"/>
+  <g transform="scale(1.3881)">
+    <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="60.4" y="46.4" width="248" height="284">
+      <rect x="60.4" y="46.4" width="248" height="284" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-linejoin="miter"><path d="M64.4 108.4 H304.4" stroke-width="14"/></g>
+      <rect x="164.4" y="46.4" width="40" height="158.1" fill="#000"/>
+      <path d="M184.4 138.5 L250.4 204.5 L184.4 270.5 L118.4 204.5 Z" fill="#000"/>
+    </mask>
+    <clipPath id="ward"><path d="M104.4 54.4 H264.4 L300.4 90.4 V201.8 L184.4 322.4 L68.4 201.8 V90.4 Z"/></clipPath>
+    <linearGradient id="depth" gradientUnits="userSpaceOnUse" x1="0" y1="108.4" x2="0" y2="322.4">
+      <stop offset="0" stop-color="#ffd98f"/>
+      <stop offset="0.4" stop-color="#ffb240"/>
+      <stop offset="0.8" stop-color="#f4702a"/>
+      <stop offset="1" stop-color="#d9431c"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6d8"/>
+      <stop offset="0.55" stop-color="#ffcf6b"/>
+      <stop offset="1" stop-color="#ff8a2e"/>
+    </linearGradient>
+    </defs>
+    <g mask="url(#cut)" clip-path="url(#ward)">
+      <rect x="68.4" y="108.4" width="232" height="214" fill="url(#depth)"/>
+      <rect x="68.4" y="54.4" width="232" height="54" fill="#60d6ff"/>
+    </g>
+    
+    <path class="ember" d="M184.4 164.5 L224.4 204.5 L184.4 244.5 L144.4 204.5 Z" fill="url(#core)"/>
+  </g>
+</svg>

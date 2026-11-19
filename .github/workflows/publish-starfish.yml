@@ -42,7 +42,7 @@ jobs:
           chmod 600 ~/.ssh/starfish
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           # The key's forced command on the VM runs the deploy script, which reads the archive from standard input.
-          ssh -T -i ~/.ssh/starfish -o IdentitiesOnly=yes -o BatchMode=yes "$TARGET" < artifacts/browser/tunnerer-browser.zip
+          ssh -T -i ~/.ssh/starfish -o IdentitiesOnly=yes -o BatchMode=yes "$TARGET" < artifacts/browser/emberward-browser.zip
           rm ~/.ssh/starfish
       - name: Check the site serves it
         run: |

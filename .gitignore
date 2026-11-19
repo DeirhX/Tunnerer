@@ -1,9 +1,9 @@
 # Build output
 build/
 artifacts/
-src/Tunnerer.Browser/wwwroot/shaders/
-src/Tunnerer.Browser/wwwroot/fonts/
-src/Tunnerer.Browser/wwwroot/hud/
+src/Emberward.Browser/wwwroot/shaders/
+src/Emberward.Browser/wwwroot/fonts/
+src/Emberward.Browser/wwwroot/hud/
 
 # Visual Studio
 .vs/

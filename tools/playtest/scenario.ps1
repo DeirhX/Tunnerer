@@ -13,22 +13,22 @@ param(
     [string]$Extra = '')
 
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
-$exeDir = Join-Path $root 'src\Tunnerer.Desktop\out\bin\Release\net10.0'
+$exeDir = Join-Path $root 'src\Emberward.Desktop\out\bin\Release\net10.0'
 $out = Join-Path $root "artifacts\playtest\$Name"
 New-Item -ItemType Directory -Force $out | Out-Null
 Get-ChildItem $out -Filter *.ppm -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
-Get-Process Tunnerer.Desktop -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process Emberward.Desktop -ErrorAction SilentlyContinue | Stop-Process -Force
 
-$env:TUNNERER_SCRIPTED_INPUT = $Script
-$env:TUNNERER_SCRIPT_SCREENSHOT_FRAMES = $Shots
-$env:TUNNERER_SCRIPT_KEEP_AI = '1'
-$env:TUNNERER_SCREENSHOT_DIR = $out
+$env:EMBERWARD_SCRIPTED_INPUT = $Script
+$env:EMBERWARD_SCRIPT_SCREENSHOT_FRAMES = $Shots
+$env:EMBERWARD_SCRIPT_KEEP_AI = '1'
+$env:EMBERWARD_SCREENSHOT_DIR = $out
 $gameArgs = @('--hidden', '--windowed=1280x720') + ($Extra -split ' ' | Where-Object { $_ })
-$p = Start-Process (Join-Path $exeDir 'Tunnerer.Desktop.exe') -ArgumentList $gameArgs -WorkingDirectory $exeDir `
+$p = Start-Process (Join-Path $exeDir 'Emberward.Desktop.exe') -ArgumentList $gameArgs -WorkingDirectory $exeDir `
     -PassThru -RedirectStandardOutput (Join-Path $out 'game.out') -RedirectStandardError (Join-Path $out 'game.err')
 $p.WaitForExit($Seconds * 1000) | Out-Null
 if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
-foreach ($envVar in 'TUNNERER_SCRIPTED_INPUT', 'TUNNERER_SCRIPT_SCREENSHOT_FRAMES', 'TUNNERER_SCRIPT_KEEP_AI', 'TUNNERER_SCREENSHOT_DIR') {
+foreach ($envVar in 'EMBERWARD_SCRIPTED_INPUT', 'EMBERWARD_SCRIPT_SCREENSHOT_FRAMES', 'EMBERWARD_SCRIPT_KEEP_AI', 'EMBERWARD_SCREENSHOT_DIR') {
     Remove-Item "Env:$envVar" -ErrorAction SilentlyContinue
 }
 "${Name}: $((Get-ChildItem $out -Filter *.ppm).Count) screenshot(s) in $out"

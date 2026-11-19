@@ -7,7 +7,7 @@
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/src/Tunnerer.Desktop/Tunnerer.Desktop.csproj",
+                "${workspaceFolder}/src/Emberward.Desktop/Emberward.Desktop.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],
@@ -19,7 +19,7 @@
             "type": "process",
             "args": [
                 "publish",
-                "${workspaceFolder}/src/Tunnerer.Desktop/Tunnerer.Desktop.csproj",
+                "${workspaceFolder}/src/Emberward.Desktop/Emberward.Desktop.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],
@@ -33,7 +33,7 @@
                 "watch",
                 "run",
                 "--project",
-                "${workspaceFolder}/src/Tunnerer.Desktop/Tunnerer.Desktop.csproj"
+                "${workspaceFolder}/src/Emberward.Desktop/Emberward.Desktop.csproj"
             ],
             "problemMatcher": "$msCompile"
         }

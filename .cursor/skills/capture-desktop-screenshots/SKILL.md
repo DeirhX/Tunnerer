@@ -1,6 +1,6 @@
 ---
 name: capture-desktop-screenshots
-description: Capture game-window screenshots that include final composited content (scene plus ImGui/HUD). Use when validating font readability, overlays, or UI composition in Tunnerer.Desktop.
+description: Capture game-window screenshots that include final composited content (scene plus ImGui/HUD). Use when validating font readability, overlays, or UI composition in Emberward.Desktop.
 ---
 
 # Capture Final-Frame Screenshots
@@ -22,21 +22,21 @@ Screenshot capture reads the final frame before it is presented, so it includes 
 1. Stop any previous desktop process:
 
 ```powershell
-Get-Process Tunnerer.Desktop -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process Emberward.Desktop -ErrorAction SilentlyContinue | Stop-Process -Force
 ```
 
 2. Request a scripted in-engine screenshot on a known frame:
 
 ```powershell
-$env:TUNNERER_SCRIPT_SCREENSHOT_FRAME = "20"
-dotnet run --configuration Debug --project "src/Tunnerer.Desktop" -- --perf --perf-warmup=0 --perf-frames=80
-Remove-Item Env:TUNNERER_SCRIPT_SCREENSHOT_FRAME -ErrorAction SilentlyContinue
+$env:EMBERWARD_SCRIPT_SCREENSHOT_FRAME = "20"
+dotnet run --configuration Debug --project "src/Emberward.Desktop" -- --perf --perf-warmup=0 --perf-frames=80
+Remove-Item Env:EMBERWARD_SCRIPT_SCREENSHOT_FRAME -ErrorAction SilentlyContinue
 ```
 
 3. Convert the generated `.ppm` to `.png` for easier viewing:
 
 ```powershell
-python -c "from PIL import Image; Image.open(r'src/Tunnerer.Desktop/out/bin/Debug/net10.0/screenshots/<file>.ppm').save(r'artifacts/debug/final_frame_window_capture.png')"
+python -c "from PIL import Image; Image.open(r'src/Emberward.Desktop/out/bin/Debug/net10.0/screenshots/<file>.ppm').save(r'artifacts/debug/final_frame_window_capture.png')"
 ```
 
 4. Read the PNG:
@@ -48,14 +48,14 @@ python -c "from PIL import Image; Image.open(r'src/Tunnerer.Desktop/out/bin/Debu
 ## Notes
 
 - Screenshot output path is printed in logs (`Queued final-frame screenshot capture`).
-- Captures are written under `src/Tunnerer.Desktop/out/bin/.../screenshots/`.
+- Captures are written under `src/Emberward.Desktop/out/bin/.../screenshots/`.
 - Keep runtime bounded with `--perf` so automation exits cleanly.
 - Use `artifacts/debug/` for converted PNGs and comparisons.
 - For base-exit scripts, remember base "doors" are `BaseBarrier` cells: movement-only scripts can get stuck. Use scripted shooting while exiting (see below).
 
 ## Scripted Movement With Shooting
 
-`TUNNERER_SCRIPTED_INPUT` now supports optional shoot flag per segment:
+`EMBERWARD_SCRIPTED_INPUT` now supports optional shoot flag per segment:
 
 ```text
 dx,dy,shoot:frames
@@ -65,7 +65,7 @@ dx,dy,shoot:frames
 - Example bottom-center base exit:
 
 ```powershell
-$env:TUNNERER_SCRIPTED_INPUT = "1,0,0:26;0,1,1:120;0,1,0:90"
+$env:EMBERWARD_SCRIPTED_INPUT = "1,0,0:26;0,1,1:120;0,1,0:90"
 ```
 
 ## Playtests With the AI Opponent
@@ -74,11 +74,11 @@ Scripted input normally turns the AI tank off. For gameplay playtests keep it on
 (final frame, HUD included) to a folder of your choice, in a hidden 1280x720 window:
 
 ```powershell
-$env:TUNNERER_SCRIPTED_INPUT = "0,1:72;0,0:3600"          # dx,dy[,shoot[,build]]:frames ; 24 frames = 1 s
-$env:TUNNERER_SCRIPT_KEEP_AI = "1"                          # keep the AI opponent active
-$env:TUNNERER_SCREENSHOT_DIR = "E:\path\to\captures"      # default: out/bin/.../screenshots/
-$env:TUNNERER_SCRIPT_SCREENSHOT_FRAMES = "24,72,120,168"
-src\Tunnerer.Desktop\out\bin\Release\net10.0\Tunnerer.Desktop.exe --hidden --windowed=1280x720
+$env:EMBERWARD_SCRIPTED_INPUT = "0,1:72;0,0:3600"          # dx,dy[,shoot[,build]]:frames ; 24 frames = 1 s
+$env:EMBERWARD_SCRIPT_KEEP_AI = "1"                          # keep the AI opponent active
+$env:EMBERWARD_SCREENSHOT_DIR = "E:\path\to\captures"      # default: out/bin/.../screenshots/
+$env:EMBERWARD_SCRIPT_SCREENSHOT_FRAMES = "24,72,120,168"
+src\Emberward.Desktop\out\bin\Release\net10.0\Emberward.Desktop.exe --hidden --windowed=1280x720
 ```
 
 - The 4th segment field is the build key (E): `0,0,0,1:2` presses it for two frames (edge-triggered).
@@ -90,28 +90,28 @@ src\Tunnerer.Desktop\out\bin\Release\net10.0\Tunnerer.Desktop.exe --hidden --win
 Use in-engine scripting (not OS key injection) for reliable ON/OFF comparisons:
 
 ```powershell
-$env:TUNNERER_COMMAND_SCRIPT = "120:TogglePostTerrainAux,160:TogglePostTerrainAux,200:TogglePostTankGlow,240:TogglePostTankGlow"
-$env:TUNNERER_SCRIPT_SCREENSHOT_FRAMES = "41,81,121,161,201,241"
-dotnet run --configuration Debug --project "src/Tunnerer.Desktop" -- --perf --perf-warmup=0 --perf-frames=260
-Remove-Item Env:TUNNERER_COMMAND_SCRIPT -ErrorAction SilentlyContinue
-Remove-Item Env:TUNNERER_SCRIPT_SCREENSHOT_FRAMES -ErrorAction SilentlyContinue
+$env:EMBERWARD_COMMAND_SCRIPT = "120:TogglePostTerrainAux,160:TogglePostTerrainAux,200:TogglePostTankGlow,240:TogglePostTankGlow"
+$env:EMBERWARD_SCRIPT_SCREENSHOT_FRAMES = "41,81,121,161,201,241"
+dotnet run --configuration Debug --project "src/Emberward.Desktop" -- --perf --perf-warmup=0 --perf-frames=260
+Remove-Item Env:EMBERWARD_COMMAND_SCRIPT -ErrorAction SilentlyContinue
+Remove-Item Env:EMBERWARD_SCRIPT_SCREENSHOT_FRAMES -ErrorAction SilentlyContinue
 ```
 
 Format details:
-- `TUNNERER_COMMAND_SCRIPT`: comma/semicolon list of `frame:GameCommand`.
+- `EMBERWARD_COMMAND_SCRIPT`: comma/semicolon list of `frame:GameCommand`.
 - `GameCommand` token must match enum names (case-insensitive), e.g. `TogglePostTerrainAux`, `TogglePostTankGlow`, `RequestScreenshot`.
-- `TUNNERER_SCRIPT_SCREENSHOT_FRAMES`: comma/semicolon/space-separated frame list.
+- `EMBERWARD_SCRIPT_SCREENSHOT_FRAMES`: comma/semicolon/space-separated frame list.
 
 ## Optional: Desktop Grab Fallback
 
 Use this only if the in-engine capture fails unexpectedly:
 
 ```powershell
-python -c "import subprocess,time; from PIL import ImageGrab; cwd=r'E:/Projects/New/tunnerer'; out=r'E:/Projects/New/tunnerer/artifacts/debug/desktop_capture_fallback.png'; cmd=['dotnet','run','--configuration','Debug','--project','src/Tunnerer.Desktop','--','--perf','--perf-warmup=0','--perf-frames=240']; p=subprocess.Popen(cmd,cwd=cwd); time.sleep(2.8); ImageGrab.grab().save(out); print(out); p.wait(timeout=35)"
+python -c "import subprocess,time; from PIL import ImageGrab; cwd=r'E:/Projects/New/emberward'; out=r'E:/Projects/New/emberward/artifacts/debug/desktop_capture_fallback.png'; cmd=['dotnet','run','--configuration','Debug','--project','src/Emberward.Desktop','--','--perf','--perf-warmup=0','--perf-frames=240']; p=subprocess.Popen(cmd,cwd=cwd); time.sleep(2.8); ImageGrab.grab().save(out); print(out); p.wait(timeout=35)"
 ```
 
 ## Troubleshooting
 
-- **No screenshot written**: verify `TUNNERER_SCRIPT_SCREENSHOT_FRAME` is set and run long enough to reach that frame.
+- **No screenshot written**: verify `EMBERWARD_SCRIPT_SCREENSHOT_FRAME` is set and run long enough to reach that frame.
 - **Wrong frame**: adjust the frame value (`20`, `40`, etc.) and rerun.
 - **Process hangs**: lower `--perf-frames` or kill stale process before rerun.

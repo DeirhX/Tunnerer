@@ -22,7 +22,7 @@ assert.ok(
 const threads = process.env.SMOKE_THREADS === "1";
 const origin = process.env.BROWSER_URL || "http://localhost:8703";
 // A normal profile is needed to check installation; private contexts prohibit PWA installation.
-const profile = await mkdtemp(join(tmpdir(), "tunnerer-browser-"));
+const profile = await mkdtemp(join(tmpdir(), "emberward-browser-"));
 const context = await playwright[engine].launchPersistentContext(profile, {
     headless: true,
     // Headless Chromium on macOS draws in software unless told to use Metal, and the game's shaders need a GPU.
@@ -47,7 +47,7 @@ let activePage;
 async function observe(context) {
     await context.addInitScript(() => {
         // The page announces the HUD's state after every simulation step, whichever runtime made it.
-        window.addEventListener("tunnerer-step", ({ detail }) => {
+        window.addEventListener("emberward-step", ({ detail }) => {
             window.testFrame = detail;
             window.testEvents = [
                 ...(window.testEvents || []),
