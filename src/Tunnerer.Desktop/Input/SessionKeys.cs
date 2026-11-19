@@ -15,6 +15,7 @@ public enum SessionKey
     Quit,
     NetworkMatch,
     LeaveNetworkMatch,
+    ToggleNewcomers,
 }
 
 public static class SessionKeys
@@ -24,7 +25,8 @@ public static class SessionKeys
     /// (<paramref name="textInputActive"/>) nothing does: typing a name must not quit the game or mute it.
     /// </summary>
     public static SessionKey Classify(
-        Scancode scancode, bool paused, bool showControls, bool inNetworkMatch, bool textInputActive)
+        Scancode scancode, bool paused, bool showControls, bool inNetworkMatch, bool textInputActive,
+        bool canChangeNewcomers = false)
     {
         if (textInputActive)
             return SessionKey.None;
@@ -40,6 +42,7 @@ public static class SessionKeys
             Scancode.Q when onPauseMenu => SessionKey.Quit,
             Scancode.N when onPauseMenu && !inNetworkMatch => SessionKey.NetworkMatch,
             Scancode.L when onPauseMenu && inNetworkMatch => SessionKey.LeaveNetworkMatch,
+            Scancode.C when onPauseMenu && canChangeNewcomers => SessionKey.ToggleNewcomers,
             _ => SessionKey.None,
         };
     }

@@ -100,7 +100,8 @@ public partial class Game
             return false;
         }
 
-        switch (SessionKeys.Classify(scancode, _paused, _showControls, IsNetMatch, NetMenuHasTextInput))
+        switch (SessionKeys.Classify(scancode, _paused, _showControls, IsNetMatch, NetMenuHasTextInput,
+                CanChangeNewcomers))
         {
             case SessionKey.Escape:
                 if (isRepeat)
@@ -142,6 +143,10 @@ public partial class Game
             case SessionKey.LeaveNetworkMatch:
                 if (!isRepeat)
                     LeaveNetworkMatch();
+                return true;
+            case SessionKey.ToggleNewcomers:
+                if (!isRepeat)
+                    ToggleNewcomers();
                 return true;
             default:
                 return false;
@@ -216,7 +221,10 @@ public partial class Game
         SessionOverlayAction action = _sessionOverlay.Draw(
             _hud.PlayRect, _paused, _showControls, Seed, ReplayArguments, deltaTime, ref sound,
             showKeyReminder: IsInteractiveSession,
-            network: new PauseNetworkEntry(IsNetMatch, _leaveArmed));
+            network: new PauseNetworkEntry(IsNetMatch, _leaveArmed,
+                ShowNewcomers: _relay is { Started: true },
+                ClosedToNewcomers: _relay is { IsClosedToNewcomers: true },
+                CanChangeNewcomers: CanChangeNewcomers));
         // The menu only says what the player asked for; GameAudio owns the setting.
         if (sound.Muted != AudioOptions.Muted)
             _audio.SetMuted(sound.Muted);
@@ -240,9 +248,21 @@ public partial class Game
             case SessionOverlayAction.LeaveNetworkMatch:
                 LeaveNetworkMatch();
                 break;
+            case SessionOverlayAction.ToggleNewcomers:
+                ToggleNewcomers();
+                break;
             case SessionOverlayAction.Quit:
                 _isRunning = false;
                 break;
         }
+    }
+
+    /// <summary>Only the host of a started network match can close it to newcomers; the relay checks it again.</summary>
+    private bool CanChangeNewcomers => _relay is { Started: true, IsHost: true };
+
+    private void ToggleNewcomers()
+    {
+        if (CanChangeNewcomers && _relay is { } relay)
+            relay.SetClosedToNewcomers(!relay.IsClosedToNewcomers);
     }
 }

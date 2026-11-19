@@ -5,7 +5,7 @@ using Tunnerer.Relay;
 
 public class MatchRoomJoinTests
 {
-    private sealed class Peer : IPeer
+    internal sealed class Peer : IPeer
     {
         public List<Message> Received { get; } = [];
         public bool Closed { get; private set; }
@@ -16,7 +16,7 @@ public class MatchRoomJoinTests
     private static readonly MatchConfig Config = NetSessionJoinTests.Config;
     private static readonly TimeSpan Second = TimeSpan.FromSeconds(1);
 
-    private static (MatchRoom Room, Peer[] Players, Peer Watcher) Ready(int count = 2)
+    internal static (MatchRoom Room, Peer[] Players, Peer Watcher) Ready(int count = 2)
     {
         var room = new MatchRoom("r", "b", Config);
         var players = Enumerable.Range(0, count).Select(_ => new Peer()).ToArray();
@@ -129,12 +129,111 @@ public class MatchRoomJoinTests
         int tick = room.TicksClosed;
         room.AdvanceClock(Second);
         Assert.Equal(tick + Config.TicksPerSecond, room.TicksClosed);
+        room.AdvanceClock(MatchRoom.FailedJoinWait - Second); // a failed hold is followed by a wait
+        int resumed = room.TicksClosed;
+        Assert.Equal(tick + Config.TicksPerSecond * (int)MatchRoom.FailedJoinWait.TotalSeconds, resumed);
         var next = new Peer();
         room.Join(next, "Cat", "b", out string refusal, SnapshotCapabilities.Join);
         Assert.Empty(refusal);
         room.LeaveWatcher(watcher); // the previous socket's delayed cleanup cannot remove its replacement
         room.HandleWatcher(next, new ReadyToLoad());
         room.AdvanceClock(Second);
-        Assert.Equal(tick + Config.TicksPerSecond, room.TicksClosed);
+        Assert.Equal(resumed, room.TicksClosed);
+    }
+
+    private static string TryJoin(MatchRoom room, out Peer newcomer)
+    {
+        newcomer = new Peer();
+        room.Join(newcomer, "Cat", "b", out string refusal, SnapshotCapabilities.Join);
+        return refusal;
+    }
+
+    // The newcomer asks for the hold and lets it run out.
+    private static void FailTheHold(MatchRoom room, Peer newcomer)
+    {
+        room.HandleWatcher(newcomer, new ReadyToLoad());
+        room.AdvanceClock(MatchRoom.JoinHoldLimit);
+        Assert.True(newcomer.Closed);
+    }
+
+    [Fact]
+    public void AFailedHoldKeepsNewcomersOutUntilTheMatchHasPlayedTheWait()
+    {
+        var (room, _, watcher) = Ready();
+        FailTheHold(room, watcher);
+        Assert.Contains("Try again", TryJoin(room, out _)); // the hold itself played nothing
+        room.AdvanceClock(MatchRoom.FailedJoinWait - Second);
+        Assert.Contains("Try again in 1 seconds", TryJoin(room, out _));
+        room.AdvanceClock(Second);
+        Assert.Empty(TryJoin(room, out var admitted));
+        Assert.Contains(admitted.Received, m => m is Welcome);
+    }
+
+    [Fact]
+    public void TheWaitDoublesAfterEachFailureInARowAndStopsAtTheLongest()
+    {
+        var (room, _, watcher) = Ready();
+        var wait = MatchRoom.FailedJoinWait;
+        for (int failure = 0; failure < 6; failure++)
+        {
+            FailTheHold(room, watcher);
+            Assert.True(wait <= MatchRoom.LongestFailedJoinWait);
+            room.AdvanceClock(wait - Second);
+            Assert.NotEmpty(TryJoin(room, out _));
+            room.AdvanceClock(Second);
+            Assert.Empty(TryJoin(room, out watcher));
+            wait = TimeSpan.FromTicks(Math.Min(wait.Ticks * 2, MatchRoom.LongestFailedJoinWait.Ticks));
+        }
+        Assert.Equal(TimeSpan.FromMinutes(8), wait); // 1, 2, 4, 8 minutes, then 8 again
+    }
+
+    [Fact]
+    public void AJoinThatTakesASeatStartsTheWaitsOver()
+    {
+        var (room, _, watcher) = Ready();
+        FailTheHold(room, watcher);
+        room.AdvanceClock(MatchRoom.FailedJoinWait);
+        Assert.Empty(TryJoin(room, out var second));
+        FailTheHold(room, second);
+        // Two failures in a row make the next wait double; a seated join clears that.
+        room.AdvanceClock(MatchRoom.FailedJoinWait * 2);
+        Assert.Empty(TryJoin(room, out var seatedPeer));
+        int tick = room.TicksClosed;
+        room.HandleWatcher(seatedPeer, new ReadyToLoad());
+        room.Handle(0, new SnapshotChunk(tick, 0, [1]));
+        room.Handle(0, new SnapshotDone(tick, 1, 2, 3));
+        room.Handle(1, new SnapshotDone(tick, 0, 2, 3));
+        Assert.Equal(2, room.HandleWatcher(seatedPeer, new TakeSeat(2)));
+        Assert.Empty(TryJoin(room, out var next)); // a join that worked costs nobody a wait
+        FailTheHold(room, next);
+        room.AdvanceClock(MatchRoom.FailedJoinWait - Second);
+        Assert.NotEmpty(TryJoin(room, out _));
+        room.AdvanceClock(Second);
+        Assert.Empty(TryJoin(room, out _)); // the base wait, not a doubled one
+    }
+
+    [Fact]
+    public void AWatcherWhoLeavesBeforeAskingForTheHoldStartsNoWait()
+    {
+        var (room, _, watcher) = Ready();
+        room.LeaveWatcher(watcher);
+        Assert.Empty(TryJoin(room, out var next));
+        room.LeaveWatcher(next);
+        Assert.Empty(TryJoin(room, out _));
+    }
+
+    [Fact]
+    public void TimeInAPauseDoesNotCountTowardsTheWait()
+    {
+        var (room, _, watcher) = Ready();
+        FailTheHold(room, watcher);
+        room.Handle(1, new SetPaused(true));
+        room.AdvanceClock(MatchRoom.FailedJoinWait * 2);
+        Assert.NotEmpty(TryJoin(room, out _));
+        room.Handle(1, new SetPaused(false));
+        room.AdvanceClock(MatchRoom.FailedJoinWait - Second);
+        Assert.NotEmpty(TryJoin(room, out _));
+        room.AdvanceClock(Second);
+        Assert.Empty(TryJoin(room, out _));
     }
 }

@@ -55,7 +55,7 @@ public class RelaySnapshotJoinTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task ClosingWatcherSocketReleasesHoldAndAcceptsAnotherJoiner()
+    public async Task ClosingWatcherSocketReleasesTheHoldAndTheNextJoinerWaits()
     {
         var (app, address) = await RelayOverSocketsTests.StartRelayAsync();
         await using var _ = app;
@@ -67,14 +67,27 @@ public class RelaySnapshotJoinTests(ITestOutputHelper output)
         player.RequestStart();
         RelayOverSocketsTests.WaitFor(() => player.Started, player);
         var newcomer = hello with { Name = "Cat", Snapshots = SnapshotCapabilities.Join };
-        using (var watcher = RelayConnection.Connect(address, newcomer, TimeSpan.FromSeconds(5)))
+        using (RelayConnection.Connect(address, newcomer, TimeSpan.FromSeconds(5)))
+        {
+            // Leaving before asking for the hold costs nothing: the room admits the next newcomer at once.
+        }
+        RelayConnection? second = null;
+        var give = Stopwatch.StartNew();
+        while (second == null) // the relay may not have seen the first socket close yet
+        {
+            try { second = RelayConnection.Connect(address, newcomer, TimeSpan.FromSeconds(5)); }
+            catch (RelayException) when (give.Elapsed < TimeSpan.FromSeconds(5)) { Thread.Sleep(20); }
+        }
+        using (var watcher = second)
         {
             watcher.SendJoin(new ReadyToLoad());
             RelayOverSocketsTests.WaitFor(() => player.IsHeld, player);
         }
         RelayOverSocketsTests.WaitFor(() => !player.IsHeld, player);
-        using var replacement = RelayConnection.Connect(address, newcomer, TimeSpan.FromSeconds(5));
-        Assert.Equal(-1, replacement.Slot);
+        // The hold that ended with nobody seated makes the next newcomer wait for match time, so it is refused.
+        var refused = Assert.Throws<RelayException>(
+            () => RelayConnection.Connect(address, newcomer, TimeSpan.FromSeconds(5)));
+        Assert.Contains("Try again", refused.Message);
         Assert.Null(player.Failure);
     }
 

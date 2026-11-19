@@ -138,11 +138,14 @@ New or changed, protocol version 6:
 | S to C | `SeatRefused { reason }` | Not granted (another joiner took it); the client may ask for another |
 | S to C | `Tick { n, humanMask, inputs[] }` | As before, with the mask (§4.2) |
 | S to C | `Log { firstTick, slots, masks[], inputs[] }` | As before, with a mask per tick; now only for §11's empty room |
+| C to S | `SetClosedToNewcomers { closed }` | The host closes the running match to newcomers, or opens it again. The relay ignores it from anyone else, and before the match has started |
+| S to C | `NewcomersState { closed }` | To every seated player on each change, and to a returning player when the match is closed |
 | S to C | `Refusal { reason }` | As before, with new reasons: "every tank in this match has a player", "this match is closed to newcomers", "the match is over", "the match could not be copied to you" |
 
-`MatchConfig` gains `LateJoin` (on by default; `--late-join=off` from the host closes the match to newcomers). The
-relay reads it, as it reads `TicksPerSecond`. It is in the settings every client builds from, so the hash clients
-compare before a match covers it.
+A running match is open to newcomers. There is no `MatchConfig` setting for it: the host switches it from the
+in-game menu ("Close to new players" or "Open to new players"; key C on the pause menu in the desktop game), and
+the relay keeps the flag and tells the players (`NewcomersState`). The state is not simulation state, so the hash clients compare before a
+match does not cover it.
 
 ## 5. The relay
 
@@ -154,8 +157,11 @@ at a time and replays the log for returning players. §13 records the implemente
   match clock running.
 - **`Join` on a running room**, in this order:
   1. The name matches a vacant seat's start name: a rejoin, by the same snapshot path, into that seat.
-  2. The match is over, closed to newcomers, has no bot seat left, or already has as many watchers as bot seats:
-     refuse, with the reason that applies.
+  2. The match is over, closed to newcomers (the host's switch, §4.3), has no bot seat left, or already has as many
+     watchers as bot seats: refuse, with the reason that applies. A closed match says so before it says anything
+     about waiting (§5, the hold). Closing the match while a watcher is preparing or in a hold refuses that
+     watcher with the same reason and releases the hold. A returning player (rule 1) is not a newcomer and is not
+     affected.
   3. Otherwise: a watcher. `Welcome { slot: -1 }`.
   The name must still be unique: it is checked against the players present and against the start names of vacant
   seats, so a newcomer cannot be numbered into a dropped player's name.
@@ -165,6 +171,12 @@ at a time and replays the log for returning players. §13 records the implemente
   failed, or after `JoinHoldSeconds` (15): then the relay goes on without them and refuses them with "the match
   could not be copied to you". A player's own pause and a hold are separate; the match runs when neither is on.
   Hold time is not match time, like a pause.
+  A hold that ends with nobody seated (timeout, the joiner leaving or failing, a failed check) makes the room refuse
+  newcomers until the match has played `FailedJoinWait` (60 seconds), so one slow or hostile joiner cannot hold the
+  match again and again. Each further failure in a row doubles the wait, up to `LongestFailedJoinWait` (8 minutes);
+  a join that seats someone resets it. The wait is match time played: a hold, a pause or an empty room does not
+  count. A joiner that leaves before sending `ReadyToLoad` started no hold and is not counted. The refusal says
+  "The last attempt to join this match failed. Try again in N seconds."
 - **`TakeSeat { slot }`.** Granted when the slot is a bot seat. The seat changes at bundle `S`:
   `LockstepRoom.Seat(slot)` reconnects its queue and sets its mask bit from the next bundle, the watcher moves into
   `_peers[slot]`, its name goes into `_names` and `_startNames` (so it can come back by name like anyone who
@@ -489,9 +501,10 @@ itself is today.
 | Two joiners at once | Both are served from one snapshot in one hold. The first `TakeSeat` for a seat wins; the second is refused and picks another from the same world. |
 | A joiner arrives while a hold is on but its world is not built yet | It sends `ReadyToLoad` when built, after this hold ends, and gets a hold of its own. |
 | A player presses P during a hold | Both are on; the match goes on only when the pause and the hold are both off. |
-| The joiner leaves, or fails its checks, during the hold | The hold ends at once without it. |
+| The host closes the match while a joiner is preparing or in a hold | The joiner is refused with "This match is closed to newcomers." and the hold ends at once. The host's choice is not counted as a failed join for the wait of §5. |
+| The joiner leaves, or fails its checks, during the hold | The hold ends at once without it, and the next newcomer waits `FailedJoinWait` of match time (doubling on repeats, §5). |
 | An uploader leaves during the hold | Another seated client is asked for the same tick. With none left, the join fails. |
-| The hold runs past `JoinHoldSeconds` | The match goes on; the joiner is refused and can try again. |
+| The hold runs past `JoinHoldSeconds` | The match goes on; the joiner is refused. It can try again once the match has played `FailedJoinWait` (60 seconds; doubled after each failure in a row, up to 8 minutes). |
 | A late joiner drops out | Same as anyone who started: their seat is vacant, their tank idles, and they come back by name. |
 | A late joiner's name equals a vacant seat's start name | That is a rejoin into the vacant seat (rule 1 in §5). A name is not authentication, as today. |
 | The match ends while a joiner builds its world | The relay refuses the join when it asks; the joiner is told the match is over. |
@@ -619,6 +632,14 @@ Each step is testable without the next.
    requests another at the same tick. A replacement verifier can check an existing upload. The original 15-second
    deadline covers all attempts. A watcher leaving, timing out, failing checks, or taking a seat releases the hold.
    A manual pause survives all four outcomes. `JoinHoldState` reports the join independently of `PauseState`.
+   Unless the join seated someone, the room then refuses newcomers until the match has played 60 seconds, doubling
+   with each failure in a row to a limit of 8 minutes; a join that seats someone resets the wait, and a watcher that
+   leaves before any hold started is not counted.
+
+   The host can close the running match to newcomers from the in-game menu (the desktop pause menu and the browser's
+   menu), and open it again. The relay holds the flag, honours it only from the lowest occupied slot while the match
+   runs, and refuses a newcomer with "This match is closed to newcomers." ahead of any wait. A returning player is
+   not a newcomer. The menu shows the state to every player and enables the button only for the host.
    Each payload is limited to 32 MiB. Room uploads and pending socket deliveries share a 256 MiB payload budget.
 
    `RelaySnapshotJoinTests` runs through the actual WebSocket relay. Two clients play, a third takes a bot seat,
@@ -660,4 +681,4 @@ Each step is testable without the next.
 - **Which seat should a joiner get?** "Most lives, then lowest slot" is a start. Ore, machines and how close the
   bot's base is to tapping the core matter too; a player may rather choose, and the hold gives them a moment to.
 - **Should newcomers be allowed at all in a competitive match?** Among friends, yes. A host who disagrees closes
-  it with `--late-join=off`.
+  it from the in-game menu.

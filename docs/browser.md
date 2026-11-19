@@ -143,7 +143,7 @@ a room opens it with a new seed and that many tanks, on the desktop's map for th
 `?map=WxH` for another); bots take the slots nobody joins. The lobby shows who is in each slot in their tank's
 colour; the host (the lowest slot) starts with **Start match** or Enter, and a full room starts by itself. P pauses
 the match for everyone and resumes it. Escape opens the menu over a running match, which does not stop for one
-player, and **Leave match** leaves the room. A player who left or lost the connection joins again under the same
+player, **Leave match** leaves the room, and the host's **Close to new players** shuts the running match to newcomers (and **Open to new players** reopens it); the button shows the state, disabled, to everyone else. A player who left or lost the connection joins again under the same
 name and the page replays the match to the present, without sound, as the desktop does.
 
 The relay is the site's own `wss://<host>/play` on crust.bokovka.cz, which proxies it, and

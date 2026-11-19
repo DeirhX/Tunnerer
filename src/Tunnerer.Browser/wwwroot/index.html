@@ -331,6 +331,8 @@
                 <dd>Show or hide the tutorial.</dd>
                 <dt><kbd>P</kbd></dt>
                 <dd>Online: pause the match for everyone, or resume it.</dd>
+                <dt>Menu</dt>
+                <dd>Online, host: close the match to new players, or open it again.</dd>
                 <dt><kbd>+</kbd> / <kbd>−</kbd> / wheel</dt>
                 <dd>Zoom. Return to base to cool, repair, and unload ore.</dd>
             </dl>
@@ -345,7 +347,8 @@
                 open; new launches start a new match.
             </p>
             <div class="menu-actions">
-                <button id="resume" class="primary">Back to game →</button
+                <button id="newcomers" hidden>Close to new players</button
+                ><button id="resume" class="primary">Back to game →</button
                 ><button id="restart">New world</button>
             </div>
             <p id="session-seed" class="muted"></p>

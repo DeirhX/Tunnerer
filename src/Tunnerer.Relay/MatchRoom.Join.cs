@@ -6,6 +6,18 @@ public sealed partial class MatchRoom
 {
     public static readonly TimeSpan JoinHoldLimit = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan PrepareLimit = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// After a hold that ended with nobody seated, the match plays this long before the room admits another
+    /// newcomer, and twice as long after each further failure in a row, up to <see cref="LongestFailedJoinWait"/>.
+    /// A hold stops the match for every player, so without this a newcomer who never finishes loading (a link too
+    /// slow for the copy, or someone who means to) could hold it again as soon as the last hold timed out.
+    /// </summary>
+    public static readonly TimeSpan FailedJoinWait = TimeSpan.FromSeconds(60);
+
+    /// <summary>The longest the room makes newcomers wait after failed joins.</summary>
+    public static readonly TimeSpan LongestFailedJoinWait = TimeSpan.FromMinutes(8);
+
     private readonly SnapshotBudget _snapshotBudget;
     private readonly bool[] _canUpload;
     private readonly int[] _lastHashTick;
@@ -15,6 +27,10 @@ public sealed partial class MatchRoom
     private TimeSpan _joinElapsed;
     private SnapshotHold? _hold;
     private bool _offered;
+    private bool _closedToNewcomers;
+    // The wait the last failed hold set (zero after a join that worked) and the match time it ends at.
+    private TimeSpan _failedJoinWait;
+    private double _admitFromMatchSeconds;
 
     // One newcomer at a time. Building their world does not stop the clock.
     private void AdmitWatcher(IPeer peer, string name, SnapshotCapabilities capabilities, out string refusal)
@@ -27,6 +43,11 @@ public sealed partial class MatchRoom
             refusal = "Every tank in this match already has a player.";
         else if (!Providers().Any())
             refusal = "No player in this match can supply a snapshot.";
+        else if (_closedToNewcomers)
+            refusal = "This match is closed to newcomers.";
+        else if (_matchSeconds < _admitFromMatchSeconds)
+            refusal = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"The last attempt to join this match failed. Try again in {Math.Ceiling(_admitFromMatchSeconds - _matchSeconds)} seconds.");
         else
         {
             refusal = string.Empty;
@@ -36,6 +57,20 @@ public sealed partial class MatchRoom
             _joinElapsed = TimeSpan.Zero;
             peer.Send(new Welcome(-1, Config));
             peer.Send(new Roster([.. _names]));
+        }
+    }
+
+    // The host's switch. Closing refuses a newcomer who is already here, which releases any hold.
+    private void SetClosed(bool closed)
+    {
+        _closedToNewcomers = closed;
+        Broadcast(new NewcomersState(closed));
+        if (closed && _watcher != null)
+        {
+            // The host's choice is not a failed join, so it adds nothing to the wait.
+            (var wait, double admitFrom) = (_failedJoinWait, _admitFromMatchSeconds);
+            RefuseWatcher("This match is closed to newcomers.");
+            (_failedJoinWait, _admitFromMatchSeconds) = (wait, admitFrom);
         }
     }
 
@@ -74,7 +109,7 @@ public sealed partial class MatchRoom
                     if (IsPaused)
                         peer.Send(new PauseState(true, _pausedBySlot));
                     Broadcast(new Roster([.. _names]));
-                    EndJoin();
+                    EndJoin(seated: true);
                     return take.Slot;
             }
             return -1;
@@ -199,10 +234,17 @@ public sealed partial class MatchRoom
         EndJoin();
     }
 
-    private void EndJoin()
+    private void EndJoin(bool seated = false)
     {
         if (_hold != null)
+        {
             Broadcast(new JoinHoldState(string.Empty));
+            // Only a hold costs the players anything: a newcomer who leaves before asking for one is not counted.
+            _failedJoinWait = seated ? TimeSpan.Zero
+                : _failedJoinWait == TimeSpan.Zero ? FailedJoinWait
+                : TimeSpan.FromTicks(Math.Min(LongestFailedJoinWait.Ticks, _failedJoinWait.Ticks * 2));
+            _admitFromMatchSeconds = _matchSeconds + _failedJoinWait.TotalSeconds;
+        }
         ReleaseUpload();
         _watcher = null;
         _watchName = string.Empty;

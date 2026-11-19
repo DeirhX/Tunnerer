@@ -122,6 +122,8 @@ Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
 | S to C | `JoinHoldState { name }` | The match is held for this newcomer. An empty name releases the join hold |
 | C to S | `SetPaused { paused }` | Hold the match for everyone, or let it run |
 | S to C | `PauseState { paused, bySlot }` | The match is held or running, and who asked |
+| C to S | `SetClosedToNewcomers { closed }` | The host closes the running match to newcomers, or opens it again (late-join-design.md) |
+| S to C | `NewcomersState { closed }` | Whether the running match is closed to newcomers; sent on each change and to a returning player |
 | both | `Ping { id }`, `Pong { id }` | Times the round trip, once a second |
 | C to S | `MatchOver { n }` | By this client's simulation the match was decided at tick `n`; the room is finished |
 
@@ -142,7 +144,7 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
    is reported before play begins.
 4. **Play.** As §4.
 5. **Pause.** Escape opens the local menu without stopping the simulation. P pauses for everyone: the relay
-   stops closing ticks, and its clock does not count the pause, until anyone presses P again.
+   stops closing ticks, and its clock does not count the pause, until anyone presses P again. On the pause menu the host's **C** closes the match to new players, or opens it again.
 6. **End.** Core reports the outcome; clients show it and tell the relay (`MatchOver`), which does not simulate
    and would not know. The first report is believed, for a tick the relay has closed. A finished room closes
    ticks for 30 more seconds, for the result screens, and then its clock stands. It gives its name up: the next

@@ -82,6 +82,8 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
 
     /// <inheritdoc cref="RoomClient.IsPaused"/>
     public bool IsPaused => _room.IsPaused;
+    /// <inheritdoc cref="RoomClient.IsClosedToNewcomers"/>
+    public bool IsClosedToNewcomers => _room.IsClosedToNewcomers;
     public bool IsHeld => IsPaused || _room.JoiningName.Length > 0;
     public string DriverName(int slot, int humanMask) => _room.DriverName(slot, humanMask);
 
@@ -173,6 +175,9 @@ public sealed class RelayConnection : ILockstepLink, IDisposable
     public int PlayersHere => _room.PlayersHere;
 
     public void SendReady(ulong worldHash) => _room.SendReady(worldHash);
+
+    /// <inheritdoc cref="RoomClient.SetClosedToNewcomers"/>
+    public void SetClosedToNewcomers(bool closed) => _room.SetClosedToNewcomers(closed);
 
     /// <inheritdoc cref="RoomClient.SetPaused"/>
     public void SetPaused(bool paused) => _room.SetPaused(paused);

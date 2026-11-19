@@ -121,6 +121,19 @@ function canControl() {
     );
 }
 
+// The menu's switch for late joiners: shown in a started network match, for the host to use and the others to read.
+function showNewcomers() {
+    const n = state?.net;
+    const button = $("newcomers");
+    button.hidden = !(net && n?.started);
+    button.disabled = !n?.canCloseToNewcomers;
+    button.textContent = n?.closedToNewcomers
+        ? "Open to new players"
+        : "Close to new players";
+}
+$("newcomers").onclick = () =>
+    netCommand(state?.net?.closedToNewcomers ? "open" : "close");
+
 function netCommand(command) {
     if (!net) return;
     net.command = command;
@@ -201,6 +214,7 @@ function openMenu() {
     $("menu-pause-note").textContent = net
         ? "The match goes on while this menu is open. P pauses it for everyone."
         : "The game pauses when this menu opens or you leave the page.";
+    showNewcomers();
     $("restart").textContent = net ? "Leave match" : "New world";
     $("restart").hidden = !playing;
     $("session-seed").textContent = state
@@ -456,6 +470,7 @@ function updateNet(n) {
         $("lobby-hint").textContent = n.lobbyHint || "";
         $("lobby-start").hidden = !n.isHost;
     }
+    showNewcomers();
     $("net-status").hidden = !n.notice;
     $("net-status").textContent = n.notice || "";
     $("net-status").classList.toggle("bad", n.bad);

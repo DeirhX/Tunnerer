@@ -13,7 +13,7 @@ public class TextInputSuppressesHotkeysTests
 {
     public static TheoryData<Scancode> SessionHotkeys => new()
     {
-        Scancode.Q, Scancode.M, Scancode.P, Scancode.N, Scancode.L, Scancode.Minus, Scancode.Equals, Scancode.F1,
+        Scancode.Q, Scancode.M, Scancode.P, Scancode.N, Scancode.L, Scancode.Minus, Scancode.Equals, Scancode.F1, Scancode.C,
     };
 
     [Theory]
@@ -22,7 +22,7 @@ public class TextInputSuppressesHotkeysTests
     {
         foreach (bool paused in new[] { false, true })
             foreach (bool inNetworkMatch in new[] { false, true })
-                Assert.Equal(SessionKey.None, SessionKeys.Classify(key, paused, showControls: false, inNetworkMatch, textInputActive: true));
+                Assert.Equal(SessionKey.None, SessionKeys.Classify(key, paused, showControls: false, inNetworkMatch, textInputActive: true, canChangeNewcomers: true));
     }
 
     [Fact]
@@ -81,5 +81,13 @@ public class TextInputSuppressesHotkeysTests
 
         Assert.Equal("qmpnl", menu.RoomField.Text);
         Assert.Equal(NetMenuScreen.Join, menu.Screen);
+    }
+
+    [Fact]
+    public void CloseToNewcomers_NeedsThePauseMenuAndTheHost()
+    {
+        Assert.Equal(SessionKey.ToggleNewcomers, SessionKeys.Classify(Scancode.C, paused: true, showControls: false, inNetworkMatch: true, textInputActive: false, canChangeNewcomers: true));
+        Assert.Equal(SessionKey.None, SessionKeys.Classify(Scancode.C, paused: true, showControls: false, inNetworkMatch: true, textInputActive: false, canChangeNewcomers: false));
+        Assert.Equal(SessionKey.None, SessionKeys.Classify(Scancode.C, paused: false, showControls: false, inNetworkMatch: true, textInputActive: false, canChangeNewcomers: true));
     }
 }

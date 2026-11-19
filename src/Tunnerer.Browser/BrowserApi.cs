@@ -89,7 +89,7 @@ public static partial class BrowserApi
         return Task.FromResult(net.Session != null ? null : net.Failure ?? string.Empty);
     }
 
-    /// <summary>A request of the player to the room: <c>start</c> (the host starts the match) or <c>pause</c> (for everyone, or resume).</summary>
+    /// <summary>A request of the player to the room: <c>start</c> (the host starts the match), <c>pause</c> (for everyone, or resume), or <c>close</c> / <c>open</c> (the host shuts the running match to newcomers, or reopens it).</summary>
     [JSExport]
     public static Task Command(string command)
     {
@@ -98,6 +98,8 @@ public static partial class BrowserApi
             net.RequestStart();
         else if (command == "pause")
             net.TogglePause();
+        else if (command == "close" || command == "open")
+            net.SetClosedToNewcomers(command == "close");
         DeliverOutgoing(net);
         return Task.CompletedTask;
     }

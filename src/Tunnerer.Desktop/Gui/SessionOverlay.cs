@@ -13,13 +13,19 @@ public enum SessionOverlayAction
     Back,
     NetworkMatch,
     LeaveNetworkMatch,
+    ToggleNewcomers,
     Quit,
 }
 
 /// <summary>What the pause menu's network button says: open the network menu, or leave the match the player is in.</summary>
 /// <param name="InNetworkMatch">The player is in a network match, so the button leaves it.</param>
 /// <param name="ConfirmLeave">Leaving was asked for once and a started match wants it asked again.</param>
-public readonly record struct PauseNetworkEntry(bool InNetworkMatch, bool ConfirmLeave);
+/// <param name="ShowNewcomers">The match has started, so the menu shows whether it is open to newcomers.</param>
+/// <param name="ClosedToNewcomers">The host has closed the match to newcomers.</param>
+/// <param name="CanChangeNewcomers">This player is the host, so the button works; for anyone else it only shows the state.</param>
+public readonly record struct PauseNetworkEntry(
+    bool InNetworkMatch, bool ConfirmLeave,
+    bool ShowNewcomers = false, bool ClosedToNewcomers = false, bool CanChangeNewcomers = false);
 
 /// <summary>
 /// Sound settings as the pause menu shows them. The menu changes <see cref="Volume"/> and <see cref="Muted"/>
@@ -53,6 +59,7 @@ public sealed class SessionOverlay
         ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("Esc / P", "Pause"),
         ("N / L", "Paused: open the network menu / leave the network match"),
+        ("C", "Paused, host of a network match: close it to new players, or open it again"),
         ("F1", "This screen"),
         ("F2", "Show or hide the tutorial"),
         ("M, - / =", "Mute sound, volume down / up"),
@@ -124,7 +131,8 @@ public sealed class SessionOverlay
         ImDrawListPtr dl, (float x, float y, float w, float h) vp, int seed, string replayArguments, ref SoundMenuState sound,
         PauseNetworkEntry network)
     {
-        const float panelW = 380f, panelH = 492f, buttonW = 300f, buttonH = 46f, gap = 12f;
+        const float panelW = 380f, buttonW = 300f, buttonH = 46f, gap = 12f;
+        float panelH = network.ShowNewcomers ? 550f : 492f; // one more button row when the match can be closed
         Vector2 min = PanelOrigin(vp, panelW, panelH);
         DrawPanel(dl, min, new Vector2(panelW, panelH));
 
@@ -143,6 +151,14 @@ public sealed class SessionOverlay
         if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), networkLabel, network.InNetworkMatch ? "L" : "N"))
             action = network.InNetworkMatch ? SessionOverlayAction.LeaveNetworkMatch : SessionOverlayAction.NetworkMatch;
         by += buttonH + gap;
+        if (network.ShowNewcomers)
+        {
+            if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH),
+                    network.ClosedToNewcomers ? "Open to new players" : "Close to new players",
+                    network.CanChangeNewcomers ? "C" : "", enabled: network.CanChangeNewcomers))
+                action = SessionOverlayAction.ToggleNewcomers;
+            by += buttonH + gap;
+        }
         if (Button(dl, new Vector2(bx, by), new Vector2(buttonW, buttonH), "Controls", "F1"))
             action = SessionOverlayAction.ShowControls;
         by += buttonH + gap;
