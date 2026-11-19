@@ -206,6 +206,8 @@ public sealed partial class MatchRoom
             peer.Send(new PauseState(true, _pausedBySlot));
         if (_hold != null)
             peer.Send(new JoinHoldState(_watchName));
+        if (_closedToNewcomers)
+            peer.Send(new NewcomersState(true));
         _lockstep.Reconnect(slot);
         Broadcast(new Roster([.. _names]));
         return slot;
@@ -263,6 +265,9 @@ public sealed partial class MatchRoom
                     IsPaused = pause.Paused;
                     _pausedBySlot = slot;
                     Broadcast(new PauseState(IsPaused, slot));
+                    break;
+                case SetClosedToNewcomers close when IsRunning && slot == HostSlot && close.Closed != _closedToNewcomers:
+                    SetClosed(close.Closed);
                     break;
                 // Every client simulates the same match, so the first to say so is believed. The tick must be one
                 // the relay has closed: nobody can have simulated a later one.

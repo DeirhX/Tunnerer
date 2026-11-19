@@ -115,6 +115,12 @@ public sealed record SetPaused(bool Paused) : Message;
 /// <summary>Relay to clients: the match is paused or running again, and which slot asked.</summary>
 public sealed record PauseState(bool Paused, int BySlot) : Message;
 
+/// <summary>Client to relay: close the running match to newcomers, or open it again. Only the host's request counts.</summary>
+public sealed record SetClosedToNewcomers(bool Closed) : Message;
+
+/// <summary>Relay to clients: whether the running match is closed to newcomers. Sent on every change, and to a player who comes back while it is closed.</summary>
+public sealed record NewcomersState(bool Closed) : Message;
+
 /// <summary>Client to relay: answer with a <see cref="Pong"/> carrying the same number, to time the round trip.</summary>
 public sealed record Ping(uint Id) : Message;
 

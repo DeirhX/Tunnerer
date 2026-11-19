@@ -143,6 +143,13 @@ public sealed class BrowserNetMatch
             room.SetPaused(!room.IsPaused);
     }
 
+    /// <summary>Closes the running match to newcomers, or opens it again; only the host's request counts.</summary>
+    public void SetClosedToNewcomers(bool closed)
+    {
+        if (Room is { Started: true, IsHost: true, Failure: null } room)
+            room.SetClosedToNewcomers(closed);
+    }
+
     /// <summary>
     /// The match's share of one display frame, as on the desktop (<c>Game.AdvanceNetSteps</c>): simulates the ticks
     /// that have arrived and sends one input for each. Far behind (just rejoined, or the page was hidden) it replays
@@ -248,7 +255,7 @@ public sealed class BrowserNetMatch
         return new NetStatus(room.Room, room.Slot, room.Config.Slots, roster, room.Started, room.IsHost, room.IsPaused,
             room.LatencyMs, Notice(room, buffered, out bool bad), bad,
             LobbyText.AssignedNameLine(room.RequestedName, room.AssignedName), room.Started ? null : LobbyHint(room),
-            winnerName);
+            winnerName, room.IsClosedToNewcomers, room.Started && room.IsHost);
     }
 
     /// <summary>
@@ -308,9 +315,12 @@ public sealed class BrowserNetMatch
 /// <param name="NameLine">The name the relay gave this player, when it is not the one asked for.</param>
 /// <param name="LobbyHint">In the lobby: how the match gets started.</param>
 /// <param name="Winner">The name of the player whose base won, once the match is decided.</param>
+/// <param name="ClosedToNewcomers">The host has closed the running match to newcomers.</param>
+/// <param name="CanCloseToNewcomers">This player is the host of a started match, so may change that.</param>
 public sealed record NetStatus(
     string Room, int Slot, int Slots, NetSlot[] Roster, bool Started, bool IsHost, bool Paused, int? LatencyMs,
-    string? Notice, bool Bad, string? NameLine, string? LobbyHint, string? Winner);
+    string? Notice, bool Bad, string? NameLine, string? LobbyHint, string? Winner,
+    bool ClosedToNewcomers = false, bool CanCloseToNewcomers = false);
 
 /// <param name="Color">The tank's colour, as #rrggbb.</param>
 public sealed record NetSlot(string Name, string Color, bool You, bool Open);

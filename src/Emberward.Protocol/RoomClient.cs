@@ -88,6 +88,9 @@ public sealed class RoomClient : ILockstepLink
     /// <summary>True while the match is held for everyone; no ticks come until someone resumes it.</summary>
     public bool IsPaused { get; private set; }
 
+    /// <summary>The host has closed the running match to newcomers.</summary>
+    public bool IsClosedToNewcomers { get; private set; }
+
     public string JoiningName { get; private set; } = string.Empty;
 
     /// <summary>The slot of whoever paused or resumed last.</summary>
@@ -136,6 +139,9 @@ public sealed class RoomClient : ILockstepLink
             case PauseState pause:
                 IsPaused = pause.Paused;
                 PausedBySlot = pause.BySlot;
+                break;
+            case NewcomersState state:
+                IsClosedToNewcomers = state.Closed;
                 break;
             case Pong pong when _pingPending && pong.Id == _pingId:
                 _pingPending = false;
@@ -188,6 +194,9 @@ public sealed class RoomClient : ILockstepLink
 
     /// <summary>Asks the relay to hold the match for everyone, or to let it run again.</summary>
     public void SetPaused(bool paused) => _send(new SetPaused(paused));
+
+    /// <summary>Asks the relay to close the running match to newcomers, or to open it again. Only the host's request counts.</summary>
+    public void SetClosedToNewcomers(bool closed) => _send(new SetClosedToNewcomers(closed));
 
     /// <summary>Asks the relay to start with the players who are here. Only the host's request counts.</summary>
     public void RequestStart() => _send(new StartRequest());

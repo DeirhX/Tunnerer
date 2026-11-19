@@ -67,6 +67,7 @@ public static class MessageCodec
     {
         Hello = 1, Welcome, Roster, Ready, Start, Input, Tick, Hash, Desync, Refusal, StartRequest, Rejoined, Log, SetPaused, PauseState, Ping, Pong, MatchOver,
         ReadyToLoad, SnapshotRequest, SnapshotChunk, SnapshotDone, SnapshotOffer, TakeSeat, Seated, SeatRefused, JoinFailed, JoinHoldState,
+        SetClosedToNewcomers, NewcomersState,
     }
 
     public static byte[] Encode(Message message)
@@ -150,6 +151,14 @@ public static class MessageCodec
                 w.Write((byte)Kind.PauseState);
                 w.Write(m.Paused);
                 w.Write((byte)m.BySlot);
+                break;
+            case SetClosedToNewcomers m:
+                w.Write((byte)Kind.SetClosedToNewcomers);
+                w.Write(m.Closed);
+                break;
+            case NewcomersState m:
+                w.Write((byte)Kind.NewcomersState);
+                w.Write(m.Closed);
                 break;
             case Ping m:
                 w.Write((byte)Kind.Ping);
@@ -247,6 +256,8 @@ public static class MessageCodec
                 Kind.Log => ReadLog(r),
                 Kind.SetPaused => new SetPaused(r.ReadBoolean()),
                 Kind.PauseState => new PauseState(r.ReadBoolean(), r.ReadByte()),
+                Kind.SetClosedToNewcomers => new SetClosedToNewcomers(r.ReadBoolean()),
+                Kind.NewcomersState => new NewcomersState(r.ReadBoolean()),
                 Kind.Ping => new Ping(r.ReadUInt32()),
                 Kind.Pong => new Pong(r.ReadUInt32()),
                 Kind.MatchOver => new MatchOver(r.ReadInt32()),

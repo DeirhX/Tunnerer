@@ -107,6 +107,31 @@ public class BrowserNetMatchTests
     }
 
     [Fact]
+    public void ClosingToNewcomers_IsTheHostsToChangeAndShowsInTheStatus()
+    {
+        var config = NetMatch.ProposeConfig(42, new Size(320, 200), LevelGenMode.Deterministic, 2);
+        var host = new BrowserNetMatch("room", "Ann", config);
+        Feed(host, new Welcome(0, config), new Roster(["Ann", "Bob"]), new Start(0b11));
+        host.TakeOutgoing();
+        Assert.True(host.Status().CanCloseToNewcomers);
+        Assert.False(host.Status().ClosedToNewcomers);
+        host.SetClosedToNewcomers(true);
+        Assert.Equal(new SetClosedToNewcomers(true), Assert.IsType<SetClosedToNewcomers>(Single(host.TakeOutgoing())));
+        Feed(host, new NewcomersState(true));
+        Assert.True(host.Status().ClosedToNewcomers);
+        Feed(host, new NewcomersState(false));
+        Assert.False(host.Status().ClosedToNewcomers);
+
+        var guest = new BrowserNetMatch("room", "Bob", config);
+        Feed(guest, new Welcome(1, config), new Roster(["Ann", "Bob"]), new Start(0b11), new NewcomersState(true));
+        guest.TakeOutgoing();
+        Assert.True(guest.Status().ClosedToNewcomers);
+        Assert.False(guest.Status().CanCloseToNewcomers);
+        guest.SetClosedToNewcomers(false);
+        Assert.Empty(guest.TakeOutgoing());
+    }
+
+    [Fact]
     public void Refusal_BeforeTheWelcome_IsTheFailure()
     {
         var match = new BrowserNetMatch("room", "Ann", BrowserNetMatch.Propose(1, 2));
@@ -258,9 +283,10 @@ public class BrowserNetMatchTests
             {
                 await reader;
             }
-            catch (Exception e) when (e is OperationCanceledException or WebSocketException)
+            catch (Exception e) when (e is OperationCanceledException or WebSocketException or ObjectDisposedException)
             {
-                // The socket was closed under the reader.
+                // The socket was closed under the reader. Which of the three it sees depends on where the reader
+                // was: waiting in a receive (cancelled, or a socket error) or about to start the next one (disposed).
             }
         }
     }
