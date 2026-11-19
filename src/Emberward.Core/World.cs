@@ -448,7 +448,8 @@ public class World
 
     /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
     private bool IsMachineOnNetwork(Machine machine) => machine.OwnerBase is TankBase { IsDestroyed: false } owner &&
-        NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines).Covered;
+        NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines,
+            requireOwnPowerSource: _energy != null).Covered;
 
     /// <summary>
     /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer, or by a player again: the bot
