@@ -88,9 +88,17 @@ internal static class TankHeatTestHelpers
                 if (!terrain.IsInside(pos))
                     continue;
                 // Exactly ambient: a tank now exchanges with sub-zero cells too, so overshooting would freeze it.
-                terrain.SinkCellToAmbient(pos, TerrainGrid.ThermalField.Terrain);
-                terrain.SinkCellToAmbient(pos, TerrainGrid.ThermalField.Air);
+                // The two fields share the same temperature in an open cell, which only stores energy in its air.
+                if (Pixel.GetThermalMaterial(terrain.GetPixelRaw(pos)) != ThermalMaterial.Air)
+                    removeHeat(pos, terrain.GetHeatTemperature(pos), TerrainGrid.ThermalField.Terrain);
+                removeHeat(pos, terrain.GetAirTemperature(pos), TerrainGrid.ThermalField.Air);
             }
+
+        void removeHeat(Position pos, float temperature, TerrainGrid.ThermalField field)
+        {
+            double energy = -temperature * terrain.SumHeatCapacityInRadiusArea(pos, radius: 0, field);
+            terrain.Ledger.RecordInjected(terrain.AddEnergyInRadiusArea(pos, radius: 0, energy, field));
+        }
     }
 
     internal static void SetupHotZoneScenario(World world, Tank tank, Position zonePos, float initialHeat)

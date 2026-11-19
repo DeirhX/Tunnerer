@@ -220,18 +220,29 @@ public class TankTemperatureTests
     }
 
     [Fact]
-    public void FrostRock_IsAPinnedIndestructibleColdSource()
+    public void FrostRock_StartsCold_AndWarmsTowardAmbient()
     {
         Assert.True(Pixel.IsBlockingCollision(TerrainPixel.FrostRock));
         Assert.False(Pixel.IsDiggable(TerrainPixel.FrostRock));
         Assert.False(Pixel.IsRock(TerrainPixel.FrostRock), "ordinary rock can be blasted away; a pocket must not be");
         Assert.Equal(ThermalMaterial.FrostRock, Pixel.GetThermalMaterial(TerrainPixel.FrostRock));
         var engine = new TerrainHeatEngine();
-        Assert.True(engine.IsFixedTemperatureMaterial(ThermalMaterial.FrostRock));
-        float? pinned = Tweaks.World.ThermalMaterials[ThermalMaterial.FrostRock].FixedTemperature;
-        Assert.NotNull(pinned);
-        Assert.True(pinned < Tweaks.Tank.FrostbiteTemperature, "a frost pocket must be cold enough to give frostbite");
-        Assert.Equal(pinned.Value, engine.GetFixedTemperature(ThermalMaterial.FrostRock));
+        Assert.False(engine.IsFixedTemperatureMaterial(ThermalMaterial.FrostRock));
+        var grid = new TerrainGrid(new Size(24, 24));
+        grid.Fill(TerrainPixel.Dirt);
+        var pocket = new Position(12, 12);
+        grid.PlaceFrostRockPocket(pocket, radius: 3);
+        float start = grid.GetHeatTemperature(pocket);
+        Assert.Equal(Tweaks.World.FrostRockStartTemperature, start);
+        Assert.True(start < Tweaks.Tank.FrostbiteTemperature, "a frost pocket must be cold enough to give frostbite");
+        Assert.Equal(grid.SumTotalThermalEnergy(), grid.Ledger.Injected);
+        for (int i = 0; i < 100; i++)
+            grid.CoolDown();
+
+        Assert.InRange(grid.GetHeatTemperature(pocket), start + 1f, -10f);
+        Assert.True(grid.GetHeatTemperature(pocket + new Offset(4, 0)) < 0f);
+        Assert.Equal(0.0, grid.Ledger.SunkFixedTemperature);
+        Assert.Equal(grid.SumTotalThermalEnergy(), grid.Ledger.NetExternal, tolerance: 0.05);
     }
 
     /// <summary>

@@ -60,20 +60,30 @@ public partial class TerrainGrid
             return;
         int offset = pos.X + pos.Y * Width;
         Debug.Assert((uint)offset < (uint)_heatTemperature.Length, "Validated position must map to a valid offset.");
-        InjectTerrainTemperature(pos.X, pos.Y, offset, amount, wake: amount != 0);
+        InjectTerrainHeat(pos.X, pos.Y, offset, amount, wake: amount != 0);
         CommitPixel(pos);
     }
 
     /// <summary>
-    /// Adds <paramref name="delta"/> to one cell's terrain temperature from outside the system: books the energy as
-    /// injected, marks the cell for the renderer if it changed visibly and, if <paramref name="wake"/>, wakes its tile.
+    /// Adds outside heat in the legacy temperature units used for action heat. Hot and frost rock take the same
+    /// energy as ordinary stone, so denser pocket storage does not make impacts release more energy.
     /// </summary>
-    private void InjectTerrainTemperature(int x, int y, int offset, int delta, bool wake = true)
+    private void InjectTerrainHeat(int x, int y, int offset, int amount, bool wake = true, bool limitPocketHeat = true)
     {
+        var material = Pixel.GetThermalMaterial(_data[offset]);
+        float capacity = _heatEngine.GetHeatCapacity(material);
+        float delta = amount;
+        double energy = amount * (double)capacity;
+        if (limitPocketHeat && material is ThermalMaterial.HotRock or ThermalMaterial.FrostRock)
+        {
+            energy = amount * (double)_heatEngine.GetHeatCapacity(ThermalMaterial.Stone);
+            delta = (float)(energy / capacity);
+        }
+
         float old = _heatTemperature[offset];
         AddToTerrainField(offset, delta);
         float next = _heatTemperature[offset];
-        Ledger.RecordInjected((double)delta * TerrainCapacityAt(offset));
+        Ledger.RecordInjected(energy);
         if (ShouldMarkHeatDirty(old, next))
             MarkHeatDirty(x, y);
         if (wake)
@@ -100,7 +110,7 @@ public partial class TerrainGrid
                 float falloff = 1f - (float)dist2 / radiusSq;
                 int scaled = (int)(amount * falloff);
                 if (scaled == 0) continue;
-                InjectTerrainTemperature(nx, ny, nx + ny * Width, scaled);
+                InjectTerrainHeat(nx, ny, nx + ny * Width, scaled);
             }
     }
 
@@ -181,7 +191,7 @@ public partial class TerrainGrid
                 if (delta == 0)
                     continue;
 
-                InjectTerrainTemperature(nx, ny, nx + ny * Width, delta);
+                InjectTerrainHeat(nx, ny, nx + ny * Width, delta, limitPocketHeat: false);
                 applied += delta;
             }
 
@@ -244,13 +254,10 @@ public partial class TerrainGrid
         => Pixel.GetThermalMaterial(_data[offset]) == ThermalMaterial.Air;
 
     /// <summary>
-    /// Sinks and relays only take heat that is stored in the cells. Hot rock (and frost rock as a
-    /// cold source) is a source: it is pinned hot and refills
-    /// itself (and the air in it) from nothing, so drawing from it would be an unlimited supply that cools the source
-    /// instead of the tunnel. Everything else, including the air and pinned cells of a base, can be drawn from.
+    /// A material explicitly pinned by custom settings cannot pay for extraction from its terrain field.
     /// </summary>
     private bool CannotExtractFrom(int offset, ThermalField field)
-        => Pixel.GetThermalMaterial(_data[offset]) is ThermalMaterial.HotRock or ThermalMaterial.FrostRock;
+        => field == ThermalField.Terrain && _heatEngine.IsFixedTemperatureMaterial(Pixel.GetThermalMaterial(_data[offset]));
 
     /// <summary>
     /// Adds a temperature delta to the terrain field of a cell. In an air cell the terrain field is only a
@@ -407,26 +414,6 @@ public partial class TerrainGrid
                 weighted += e * excess;
             }
         return energy > 0.0 ? ambient + weighted / energy : ambient;
-    }
-
-    /// <summary>
-    /// Forces one cell back to ambient and records the removed energy as a base sink in <see cref="Ledger"/>.
-    /// Returns the removed energy (negative if the cell was below ambient).
-    /// </summary>
-    public double SinkCellToAmbient(Position pos, ThermalField field)
-    {
-        if (!IsInside(pos))
-            return 0.0;
-        int offset = pos.X + pos.Y * Width;
-        float[] temperatures = FieldArray(field);
-        float excess = temperatures[offset] - _simulationSettings.ThermalAmbientTemperature;
-        if (excess == 0f)
-            return 0.0;
-
-        ApplyFieldDelta(pos.X, pos.Y, field, -excess);
-        double energy = (double)excess * FieldCapacityAt(field, offset);
-        Ledger.RecordSunkBase(energy);
-        return energy;
     }
 
     public double SumTotalThermalEnergy()

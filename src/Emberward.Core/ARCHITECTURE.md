@@ -29,7 +29,7 @@ Terrain/
   TerrainGrid.cs             Pixel array, change list, SetPixel (metered) and SetPixelRaw (level gen only)
   TerrainGrid.Heat.cs        Terrain and air temperature fields, CoolDown, energy add / extract API
   TerrainGrid.HeatTiles.cs   The solver step over the tiles that are still changing
-  TerrainGrid.HotRock.cs     PlaceHotRockPocket, PlaceFrostRockPocket, SetPinnedPixel
+  TerrainGrid.HotRock.cs     PlaceHotRockPocket, PlaceFrostRockPocket, SeedHeatedPixel
   TerrainGrid.Ore.cs         PlaceOre (level gen); FindOre and the per-tile ore counts behind it
   TerrainGrid.Materialization.cs, .Decoration.cs, .Render.cs   Level-gen markers to pixels, cleanup, Draw*ToSurface
   SightlineChanges.cs        The cells that started or stopped blocking a line of sight, for the link map
@@ -231,13 +231,11 @@ terrain field only mirrors the air field, so such a cell holds one store.
 The exchange is `TerrainHeatEngine.ComputeRegionDeltaConservative`: a cell's terrain trades heat with its own air
 and with the solid cells beside it, and its air with the air beside it, but only where at least one of the two
 cells is open. The air inside solid ground carries nothing from one solid cell to the next, so ground conducts as
-its material row says; dirt is the insulator (30 times worse than stone). `ResolveCell` then applies the step to a
-cell: it pins fixed-temperature materials (base cells, `ConstantEnergy`, hot rock, frost rock) and books what the
-pin removes or adds as `SunkFixedTemperature`, and it takes each material's `Loss` from unpinned ground and from
-open air, a small share of the temperature above or below ambient, booked as `SunkAmbientLoss`. The loss stands for
-heat leaving to the deep ground and to the surface. It is what gives a hot or frost pocket a halo of a fixed size
-(about a dozen cells in dirt) instead of one that spreads for ever, and open air loses faster than ground, so a
-dug-out chamber is a radiator for whatever stands in it.
+its material row says; dirt is the insulator (30 times worse than stone). `ResolveCell` then takes each material's
+`Loss` from solid ground and open air, a share of the temperature above or below ambient, booked as `SunkAmbientLoss`.
+The loss stands for exchange with the deep ground and the surface. It bounds a hot or frost pocket's halo, and open
+air loses faster than ground. Custom settings can still pin a material for tests; the pin's change is booked as
+`SunkFixedTemperature`, which stays zero with the standard materials.
 
 Because of the loss, heat settles, and the solver only works where it has not. `ThermalActivityTracker` keeps a
 grid of tiles (`ThermalActiveTileSize` cells a side). A tile is active when the last step still changed a cell in it
@@ -256,11 +254,13 @@ is active.
 Entities exchange energy through the `ITerrainHeatSource` API, never by writing temperatures:
 `AddEnergyInRadiusArea` / `ExtractEnergyInRadiusArea` for transfers the entity books itself, `AddHeat` /
 `AddHeatRadius` / `AddHeatTotalInRadiusArea` for heat that enters from outside (booked as injected). Extraction
-takes only heat above ambient and never from hot or frost rock. Tank contact samples the heat capacity and
+takes only stored heat above ambient, including finite hot rock. Tank contact samples the heat capacity and
 temperature of solid ground and air separately (`SampleTankContact`). The share of the footprint touching
 solid ground scales its conductance. Each exchange stops at thermal equilibrium, and `ApplyTankExchange`
 returns the energy to the sampled cells. Docking-area extraction uses the visited base's reservoir room.
-A relay draws from the terrain field and then from the remaining air, converting each draw at its energy-weighted source temperature.
+A relay draws from the terrain field and then from the remaining air. The engine compares each draw's
+energy-weighted source temperature to the base reactor's temperature, which rises as its reservoir fills. The base's
+area cooling transfers heat into the same reservoir. Only the radiator books `SunkBase`, up to its vent capacity.
 `SetPixel` books the capacity change when a cell changes
 material; `SetPixelRaw` is unmetered and only for level generation.
 
@@ -496,17 +496,13 @@ Desktop:
      `ka * kb / (ka + kb)`, so a material against itself conducts half its value and against a much better
      conductor (a base core) nearly all of it. Air's value is the air field's, between neighbouring cells.
      A pair that needs a value the rule cannot produce gets a `ThermalPairOverride` in the table's override list
-     (either order; today only pairs of pinned sinks). The engine copies the pair table once
+     (either order). The engine copies the pair table once
      at construction, so the solver's inner loop pays one array read.
    - `AirExchange`: conductance between the cell's terrain and the air in the same cell.
-   - `FixedTemperature`: set it for a source or sink; `ResolveCell` pins the cell there each step.
-   - Emberite is finite by design: ore is ordinary rows (plain ore is stone, the core a denser `EmberiteCore` row with no pin),
-     and `TerrainGrid.PlaceOre` seeds each cell with `capacity * start temperature` of energy through `SeedHeatedPixel`
-     (booked as injected in the ledger, tile woken); after that it cools like any ground. Hot rock, frost rock and the
-     base sinks are still pinned in the code today and change later (DESIGN.md §4.1, §4.10).
-   - `Loss`: for a material that stores heat, the share of its temperature above ambient it gives up to the outside
-     each tick. Leave it zero only for a pinned material; ground without a loss never settles.
-   If entities must not draw heat from it, extend `CannotExtractFrom` in `TerrainGrid.Heat.cs`.
+   - `Loss`: the share of the cell's temperature difference with ambient it exchanges with the outside each tick.
+     All standard materials have a loss, so their heat settles. `FixedTemperature` is available for custom settings.
+   - For initial heat or cold, use `SeedHeatedPixel`, as hot rock, frost rock and emberite do. It sets the starting
+     temperature, books the energy as injected and wakes the tile. From then on the cell exchanges heat normally.
    The table reaches thermal code through `SimulationSettings.ThermalMaterials` (`SourceGuardTests`), so a test can
    swap a row with `ThermalMaterialTable.With`.
 4. Desktop shades pixels, not materials: a new pixel needs a case in `TerrainAuxBuilder` and

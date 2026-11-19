@@ -34,13 +34,15 @@ public class NetworkCoverageTests
         var s = RelayHeatTests.CreateScenario();
         Park(s, AlongTunnel(s, 6), heat: 30f);
         double reactorBefore = s.Base.ReactorHeatEnergy;
+        double ventedBefore = s.World.Terrain.Ledger.SunkBase;
 
         Advance(s, Tweaks.Perf.TargetFps * 2);
 
         Assert.True(s.Tank.Coverage.Covered, "close to the base the tank should be covered");
         Assert.False(s.Tank.IsOffNetwork);
         Assert.True(s.Tank.Heat < 25f, $"the network should cool the tank. heat={s.Tank.Heat:0.0}");
-        Assert.True(s.Base.ReactorHeatEnergy > reactorBefore, "the tank's heat goes to the base reactor");
+        Assert.True(s.Base.ReactorHeatEnergy - reactorBefore + s.World.Terrain.Ledger.SunkBase - ventedBefore > 0.0,
+            "the tank's heat enters the base reactor and may be vented by its radiator");
     }
 
     [Fact]

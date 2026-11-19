@@ -18,7 +18,6 @@ internal sealed class TankThermals
     private readonly Tank _tank;
     private readonly SimulationSettings _settings;
     private readonly TankHeatEngine _heatEngine;
-    private readonly float _baseTemperature;
     private int _frameDugPixels;
     private bool _frameShotFired;
 
@@ -27,7 +26,6 @@ internal sealed class TankThermals
         _tank = tank;
         _settings = settings;
         _heatEngine = new TankHeatEngine(settings);
-        _baseTemperature = settings.ThermalMaterials[ThermalMaterial.Base].FixedTemperature.GetValueOrDefault();
     }
 
     public float ThermalCapacity => _heatEngine.TankHeatCapacity;
@@ -89,18 +87,17 @@ internal sealed class TankThermals
     }
 
     /// <summary>
-    /// A tank docked at its own base has a share of its heat above the base temperature pumped into the base reservoir
-    /// each tick (<c>DockHeatPumpRate</c>), so it cools fast while hot and levels off near 0, never below. This is an
-    /// exact transfer (the tank cools, the reservoir fills), and it stops when the reservoir is full. A cold tank is
-    /// warmed back toward 0 by ordinary conduction with the pinned base floor.
+    /// A tank docked at its own base transfers a share of its heat above the reactor temperature into the reservoir
+    /// each tick (<c>DockHeatPumpRate</c>). The transfer stops when the reservoir is full. The tank also exchanges
+    /// heat through ordinary conduction with the surrounding ground and air.
     /// </summary>
     public void PumpHeatAtBase(TankBase tankBase)
     {
-        float excess = _tank.Heat - _baseTemperature;
-        if (excess <= 0f)
+        double excess = _tank.Heat - tankBase.ReactorTemperature;
+        if (excess <= 0.0)
             return;
 
-        double wanted = excess * _settings.TankDockHeatPumpRate * (double)ThermalCapacity;
+        double wanted = excess * _settings.TankDockHeatPumpRate * ThermalCapacity;
         double accepted = tankBase.AcceptTankHeat(wanted);
         _tank.Heat -= (float)(accepted / ThermalCapacity);
     }

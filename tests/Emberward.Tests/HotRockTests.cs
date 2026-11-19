@@ -11,12 +11,11 @@ using static Emberward.Tests.TankHeatTestHelpers;
 namespace Emberward.Tests;
 
 /// <summary>
-/// Hot rock pockets: indestructible rock pinned at a high temperature, i.e. permanent heat sources that push heat into
-/// any tunnel they touch.
+/// Hot rock pockets store a finite supply of heat and warm the tunnels they touch.
 /// </summary>
 public class HotRockTests
 {
-    private static readonly int Hot = (int)Tweaks.World.ThermalMaterials[ThermalMaterial.HotRock].FixedTemperature.GetValueOrDefault();
+    private const float Hot = Tweaks.World.HotRockStartTemperature;
 
     /// <summary>A dirt block with a two-row tunnel just below a pocket, so the pocket borders open air.</summary>
     private static TerrainGrid PocketNextToTunnel(out Position pocketCenter, out int tunnelY)
@@ -39,7 +38,7 @@ public class HotRockTests
     }
 
     [Fact]
-    public void HotRock_IsSolidIndestructibleAndFixedTemperature()
+    public void HotRock_IsSolidIndestructibleAndFinite()
     {
         Assert.True(Pixel.IsBlockingCollision(TerrainPixel.HotRock));
         Assert.False(Pixel.IsDiggable(TerrainPixel.HotRock));
@@ -47,8 +46,7 @@ public class HotRockTests
         Assert.False(Pixel.IsRock(TerrainPixel.HotRock), "ordinary rock can be blasted away; a pocket must not be");
         Assert.Equal(ThermalMaterial.HotRock, Pixel.GetThermalMaterial(TerrainPixel.HotRock));
         var engine = new TerrainHeatEngine();
-        Assert.True(engine.IsFixedTemperatureMaterial(ThermalMaterial.HotRock));
-        Assert.Equal(Tweaks.World.ThermalMaterials[ThermalMaterial.HotRock].FixedTemperature, engine.GetFixedTemperature(ThermalMaterial.HotRock));
+        Assert.False(engine.IsFixedTemperatureMaterial(ThermalMaterial.HotRock));
     }
 
     [Fact]
@@ -75,15 +73,14 @@ public class HotRockTests
     }
 
     [Fact]
-    public void Pocket_StaysPinnedHot_AndHeatsTheTunnelItBorders()
+    public void Pocket_Cools_AndHeatsTheTunnelItBorders()
     {
         var t = PocketNextToTunnel(out var pocket, out int tunnelY);
 
         for (int i = 0; i < 400; i++)
-        {
             t.CoolDown();
-            Assert.Equal(Hot, t.GetHeatTemperature(pocket), precision: 2); // pinned every step
-        }
+
+        Assert.InRange(t.GetHeatTemperature(pocket), 80f, Hot - 1f);
 
         float near = t.GetAirTemperature(new Position(pocket.X, tunnelY));
         float mid = t.GetAirTemperature(new Position(pocket.X + 8, tunnelY));
@@ -94,13 +91,14 @@ public class HotRockTests
     }
 
     [Fact]
-    public void Pocket_IsASource_AndTheEnergyBalanceStillHolds()
+    public void Pocket_SeedsOnlyItsStartingStock_AndTheEnergyBalanceStillHolds()
     {
-        var t = PocketNextToTunnel(out _, out _);
+        var t = PocketNextToTunnel(out var pocket, out _);
 
         double startEnergy = t.SumTotalThermalEnergy();
         double startNet = t.Ledger.NetExternal;
-        double sunkAtStart = t.Ledger.SunkFixedTemperature;
+        Assert.Equal(startEnergy, startNet);
+        Assert.Equal(Hot, t.GetHeatTemperature(pocket));
         double maxResidual = 0.0;
         for (int i = 0; i < 400; i++)
         {
@@ -109,32 +107,51 @@ public class HotRockTests
             maxResidual = Math.Max(maxResidual, Math.Abs(residual));
         }
 
-        Assert.True(t.SumTotalThermalEnergy() > startEnergy + 1000.0, "the pocket keeps adding heat to the system");
-        Assert.True(t.Ledger.SunkFixedTemperature < sunkAtStart,
-            "the pin re-creates the heat that flowed out, which the ledger records as a negative sink");
+        Assert.True(t.SumTotalThermalEnergy() < startEnergy);
+        Assert.Equal(startEnergy, t.Ledger.Injected);
+        Assert.Equal(0.0, t.Ledger.SunkFixedTemperature);
         Assert.True(maxResidual < 0.5, $"the pocket's output must be fully accounted for. residual={maxResidual:0.0000}");
     }
 
+    [Theory]
+    [InlineData(TerrainPixel.HotRock)]
+    [InlineData(TerrainPixel.FrostRock)]
+    public void Impacts_AddTheSameEnergyToPocketRockAsStone(TerrainPixel rock)
+    {
+        var t = new TerrainGrid(new Size(6, 6));
+        var at = new Position(2, 2);
+        t.SetPixel(at, TerrainPixel.Rock);
+        t.AddHeat(at, 10);
+        double rockHeat = t.Ledger.Injected;
+
+        var pocket = new Position(3, 3);
+        t.SetPixel(pocket, rock);
+        t.AddHeat(pocket, 10);
+
+        Assert.Equal(rockHeat, t.Ledger.Injected - rockHeat);
+        Assert.Equal(t.Ledger.Injected, t.SumTotalThermalEnergy(), precision: 4);
+        Assert.True(t.GetHeatTemperature(pocket) < t.GetHeatTemperature(at));
+    }
+
     [Fact]
-    public void Extraction_NeverDrawsFromAPocket()
+    public void Extraction_DrainsAPocketsStock()
     {
         var t = PocketNextToTunnel(out var pocket, out _);
         for (int i = 0; i < 50; i++)
             t.CoolDown();
 
-        float terrainBefore = t.GetHeatTemperature(pocket);
-        float airBefore = t.GetAirTemperature(pocket);
-        float ringAirBefore = t.GetAirTemperature(new Position(pocket.X, pocket.Y + 4)); // tunnel air under the pocket
+        double before = t.SumTotalThermalEnergy();
 
         // Draw everything possible from an area that contains the whole pocket and some tunnel.
         double taken = t.ExtractEnergyInRadiusArea(pocket, radius: 6, maxEnergy: 1e9, TerrainGrid.ThermalField.Terrain);
         taken += t.ExtractEnergyInRadiusArea(pocket, radius: 6, maxEnergy: 1e9, TerrainGrid.ThermalField.Air);
 
-        Assert.Equal(terrainBefore, t.GetHeatTemperature(pocket));
-        Assert.Equal(airBefore, t.GetAirTemperature(pocket));
-        Assert.True(taken > 0.0, "the tunnel and the ground around the pocket still hold heat that can be taken");
-        Assert.True(t.GetAirTemperature(new Position(pocket.X, pocket.Y + 4)) < ringAirBefore,
-            "the heat is taken from the tunnel, not from the pocket");
+        Assert.Equal(0f, t.GetHeatTemperature(pocket));
+        Assert.Equal(0f, t.GetAirTemperature(pocket));
+        Assert.True(taken > 0.9 * before, $"the area holds most of the pocket's stock, extracted {taken} of {before}");
+        Assert.Equal(before - t.SumTotalThermalEnergy(), taken, tolerance: 0.05);
+        t.CoolDown();
+        Assert.Equal(0f, t.GetHeatTemperature(pocket));
     }
 
     [Fact]
@@ -163,9 +180,9 @@ public class HotRockTests
         float Tunnel(RelayHeatTests.Scenario s) =>
             s.World.Terrain.SampleAverageHeat(s.RelayPos, radius: 2) * 255f;
 
-        Assert.Equal(Hot, withRelay.World.Terrain.GetHeatTemperature(pocketCenter), precision: 2);
+        Assert.True(withRelay.World.Terrain.GetHeatTemperature(pocketCenter) < control.World.Terrain.GetHeatTemperature(pocketCenter));
         Assert.True(Tunnel(control) > 10f, $"the pocket should heat the tunnel in the control world. tunnel={Tunnel(control):0.0}");
-        Assert.True(Tunnel(withRelay) < Tunnel(control) * 0.7f,
+        Assert.True(Tunnel(withRelay) < Tunnel(control) * 0.85f,
             $"the relay should hold the tunnel cooler. withRelay={Tunnel(withRelay):0.0}, control={Tunnel(control):0.0}");
         Assert.True(maxResidual < 0.5, $"relay + pocket must balance. residual={maxResidual:0.0000}");
     }
@@ -251,12 +268,13 @@ public class HotRockTests
 
         // The pre-warm lets heat soak into the ground around the pocket before play starts.
         float ring = world.Terrain.GetHeatTemperature(new Position(pocket.X + Tweaks.World.HotRockMaxRadius + 2, pocket.Y));
-        Assert.Equal(Hot, world.Terrain.GetHeatTemperature(pocket), precision: 2);
+        Assert.InRange(world.Terrain.GetHeatTemperature(pocket), 80f, Hot - 0.1f);
         Assert.True(ring > 1f || world.Terrain.GetHeatTemperature(new Position(pocket.X, pocket.Y + Tweaks.World.HotRockMaxRadius + 2)) > 1f,
             "ground just outside the pocket should already be warm");
 
         double start = world.SumSystemThermalEnergy();
         double startNet = world.Terrain.Ledger.NetExternal;
+        Assert.Equal(start, startNet, tolerance: 0.5);
         double maxResidual = 0.0;
         for (int i = 0; i < 300; i++)
         {

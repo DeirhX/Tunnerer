@@ -93,7 +93,7 @@ public partial class Game
             if (_world.AdvanceCount == _faultTick)
             {
                 // Development only (EMBERWARD_NET_FAULT_TICK): warm a patch of ground on this machine alone, to see
-                // a desync found and reported. The patch is outside the base, whose cells are pinned at ambient.
+                // a desync found and reported. The patch is outside the base's immediate cooling area.
                 var at = _world.TankList.Tanks[_localSlot].Position + new Offset(0, Tweaks.Base.BaseSize);
                 _world.Terrain.AddHeatRadius(at, 20, 3);
                 Console.WriteLine($"[Net] Fault injected at tick {_faultTick}.");

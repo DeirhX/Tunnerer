@@ -15,10 +15,8 @@ Open work, written so an agent can pick up one item without the conversation tha
     hash are unchanged).
   - **Tranche 1b, charge and flow labels** (key G, `PowerLabels`, `HudPalette`), shared by desktop and browser.
     `--energy-network` (desktop) and `?energy` (browser) turn the network on for local matches only.
-- **Another session's work:** emberite finite-ore changes are commit `a6e43f36` on `codex/tank-cargo-heat` (PR #72). That
-  commit also holds the finiteness text in the main checkout's `DESIGN.md` (§4.1, §4.3, §4.4, §4.7, §6.3, §11 and the
-  eleven challenges in §4.10). It is not in this branch until it merges.
-- **Every item below is unstarted.** Do them in the order given; each one builds on the last.
+- **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
+- **Item 1 is implemented in the working tree.** Continue at item 2. Each item builds on the previous one.
 
 ## Rules for every item
 
@@ -67,28 +65,15 @@ Open work, written so an agent can pick up one item without the conversation tha
 - **Known gaps:** "charge passed on to others" is always 0 until item 5; no test reaches the tier-ordering branch until
   item 6 adds a second tier.
 
-## 1. Finite heat sources (heat bodies finite; no pinned temperatures)
+## 1. Finite heat sources (implemented)
 
-**Why.** `DESIGN.md` §4.1 (in the other session's branch) says every body is finite: no pinned temperatures, no permanent
-sources or sinks; the outside is a loss (§4.3), not a pinned cell. This matters for energy: the base engine's efficiency
-uses the temperature above the base's **pinned** 0, and a generator's output depends on its source not running out.
+Hot and frost rock start at 100 °C and −60 °C, respectively, without a pin. Relays draw from finite hot rock. The base
+walls and core store heat like ordinary terrain, and the reservoir receives the base's area cooling. The engine's
+cold side is the reactor, which warms as it fills. The radiator vents up to its capacity, including fractional energy.
+See `TODO-gameplay.md` for the remaining tuning and sector persistence questions and `DESIGN.md` §4.10 for the design.
 
-**Scope.** Remove the remaining pins: hot rock (100 degrees), frost rock (-60), and the base and `ConstantEnergy` sinks (0
-degrees), in `Tweaks.World.ThermalMaterials` and the pocket placement code. Read §4.1, §4.3, §4.4, §4.7, §6.3, §11 and
-§4.10 (the eleven challenges) in `E:\Projects\active\apps\tunnerer\DESIGN.md` (main checkout, branch
-`codex/tank-cargo-heat`) before starting. Report which of the eleven are solved and which remain open.
-
-**Start from the ore commit.** `a6e43f36` (PR #72) already removed the ore pins and the plain-ore floor and made lump
-cores finite stores (`EmberiteCore`, starting at 600 degrees). Start after it merges, or from a branch that includes it.
-Its author asked that this item's fingerprint update come **after** that commit, so the two do not fight over
-`ExpectedRelayPylonHarvesterNetwork`. Do not edit the ore files that work changed (`OreDeposits.cs`, `TerrainPixel.cs`,
-`TerrainGrid.Ore.cs`, `TerrainGrid.HotRock.cs`, `OreMaterial.hlsli`, `Constants.hlsli`, the ore tests) beyond what a merge
-needs; check with the user first.
-
-**Watch for.** The engine's `eta = clamp(dT / (dT + K), 0, max)` with `dT` above the base's temperature, and the base's
-cold sink (the dimensional link) must now come from a finite body or an explicit loss. Hot rock that stops being an
-infinite supply caps relay and generator output; retune `Tweaks.Base` and `Tweaks.Energy` and say so. Update the
-`SimulationFingerprintTests` constants and say so in the commit message.
+The simulation fingerprints changed after PR #72 was included. Mention that when committing this item. Network peers
+need the same build. The energy network's flag and capacitor tuning are unchanged.
 
 ## 2. Local generator (a new machine)
 

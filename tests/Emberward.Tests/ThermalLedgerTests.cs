@@ -191,9 +191,9 @@ public class ThermalLedgerTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Grid_WithFixedTemperatureCells_EnergyBalancesWithLedger()
+    public void Grid_WithFiniteBaseCells_EnergyBalancesWithLedger()
     {
-        // A hot spot next to pinned base cells: the pins delete energy, and the ledger must say how much.
+        // A hot spot next to base cells shares heat with them without a base step running.
         var t = MakeMixedGrid(48, 48);
         for (int y = 20; y < 30; y++)
             for (int x = 30; x < 40; x++)
@@ -215,7 +215,8 @@ public class ThermalLedgerTests(ITestOutputHelper output)
         }
 
         output.WriteLine($"sunkFixed={t.Ledger.SunkFixedTemperature:0.0} maxResidual={maxResidual:0.0000}");
-        Assert.True(t.Ledger.SunkFixedTemperature > 0.0, "the pinned cells should have absorbed heat");
+        Assert.Equal(0.0, t.Ledger.SunkFixedTemperature);
+        Assert.True(t.GetHeatTemperature(new Position(32, 24)) > 0.0, "the base cells should hold heat");
         Assert.True(maxResidual < 0.5, $"Grid energy must balance with the ledger. maxResidual={maxResidual:0.0000}");
     }
 
