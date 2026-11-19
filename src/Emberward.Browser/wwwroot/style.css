@@ -496,6 +496,70 @@ h1 {
     font-size: 13px;
     color: var(--muted);
 }
+/* The desktop builds (index.html, downloads.js): one row per platform, the visitor's first when it has a build. */
+.downloads {
+    max-width: 560px;
+    margin-top: 28px;
+    pointer-events: auto;
+}
+.downloads > .eyebrow {
+    margin-bottom: 6px;
+}
+.downloads > p {
+    margin: 0;
+}
+.download-list {
+    list-style: none;
+    margin: 14px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+.download-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 14px;
+    background: #0d161bcc;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+}
+.download-list li.is-suggested {
+    border-color: var(--amber);
+    background: #17242bcc;
+}
+.download-os {
+    font: 13px var(--hud-font);
+    letter-spacing: 1px;
+    color: #d2d8cb;
+}
+.download-state {
+    font-size: 13px;
+    color: var(--muted);
+}
+.download-link {
+    padding: 8px 16px;
+    color: var(--ink);
+    background: #17242b;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.download-link:hover {
+    background: #24343c;
+    border-color: #798a8b;
+}
+.is-suggested .download-link {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #151b1c;
+}
+.is-suggested .download-link:hover {
+    background: #ffd38d;
+}
 footer {
     position: absolute;
     bottom: 0;

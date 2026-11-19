@@ -122,6 +122,14 @@ therefore fetches without that check, counts a copy as it arrives and checks the
 response, at the moment the browser would have given it, so a file that does not match still stops the load. .NET
 gets the response fetch made, not one built from the copy, so that the browser can keep the runtime's compiled code.
 
+## Desktop builds on the welcome screen
+
+The Desktop section under the welcome screen lists a download per platform (Windows, macOS, Linux). Its rows live
+in `index.html`: a row with an `<a class="download-link">` is a published build, and a row without one says
+"Not published yet". `downloads.js` puts the visitor's own platform first, from the client hints or the user agent
+(`tools/browser/downloads.test.mjs` covers the strings). No build is published from this repository yet, so every row
+currently says so; set the links there once the builds exist.
+
 ## Controls and installation
 
 Drive with WASD or arrows; dirt is dug by moving into it. Aim with the mouse, and fire with a click or Space.
