@@ -46,11 +46,11 @@ public static partial class BrowserApi
     /// <param name="seed">The seed it proposes if it opens the room.</param>
     /// <param name="width">The map it proposes (<c>?map=WxH</c>); 0 for the desktop's map for the player count.</param>
     [JSExport]
-    public static Task Join(string room, string name, string secret, int players, int seed, int width, int height,
+    public static Task Join(string room, string name, int players, int seed, int width, int height,
         int heatWorkers)
     {
         _session = null;
-        _net = new BrowserNetMatch(room, name, secret,
+        _net = new BrowserNetMatch(room, name,
             BrowserNetMatch.Propose(seed, players, width > 0 && height > 0 ? new Size(width, height) : null),
             Math.Max(1, heatWorkers));
         _hudStale = true;
