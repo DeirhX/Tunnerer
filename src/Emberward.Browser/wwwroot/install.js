@@ -1,5 +1,5 @@
 // A new publish installs beside the running one and waits (sw.js). The page moves to it when that loses nothing: at
-// once while this tab holds no game and nothing to read (`idle`), no field is being typed in and no other Emberward
+// once while this tab holds no game and nothing to read (`idle`), no field is being typed in and no other Emberflow
 // tab is open (the worker checks that), otherwise when the player presses the Update button in the header. A game in
 // progress is never reloaded from under the player.
 // The footer says which publish this page runs and which is the latest on the server, so that whoever deployed can
@@ -139,7 +139,7 @@ export async function setupInstallation(notify, idle) {
     window.addEventListener("appinstalled", () => {
         button.hidden = true;
         prompt = null;
-        notify("Emberward installed.");
+        notify("Emberflow installed.");
     });
     button.onclick = async () => {
         if (!prompt) return;
