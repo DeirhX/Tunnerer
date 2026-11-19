@@ -1,7 +1,10 @@
 using Emberward.Core;
 using Emberward.Core.Config;
+using Emberward.Core.Entities.Bases;
 using Emberward.Core.Entities.Machines;
+using Emberward.Core.Match;
 using Emberward.Core.Network;
+using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 using static Emberward.Tests.SnapshotRoundTrip;
 
@@ -96,6 +99,61 @@ public class EnergyNetworkTests
         Assert.Equal(0.0, power.InPerSecond);
         Assert.Equal(IdleRate(MachineType.Relay), power.OutPerSecond, precision: 6);
         Assert.True(relay.Charge >= power.Charge, "the settled level is never below the level now");
+    }
+
+    [Fact]
+    public void ARelayBeyond64Hops_IsFedByItsBase()
+    {
+        const int hops = 65;
+        int spacing = (int)(Tweaks.World.MaximumLiveLinkDistance * 0.8f);
+        var terrain = new TerrainGrid(new Size(spacing * hops + 3, 3));
+        terrain.Fill(TerrainPixel.Blank);
+        var links = new LinkMap();
+        var home = new TankBase(new Position(1, 1), 0);
+        home.LinkPoint = links.RegisterPoint(home.Position, LinkPointType.Base);
+        var network = new EnergyNetwork();
+        var machines = new MachineList();
+        for (int hop = 1; hop <= hops; hop++)
+        {
+            var position = new Position(1 + spacing * hop, 1);
+            var relay = machines.Add(new Machine(position, MachineType.Relay, home.Color));
+            relay.OwnerBase = home;
+            relay.LinkPoint = links.RegisterPoint(position, LinkPointType.Machine);
+            network.Register(relay);
+        }
+
+        links.Advance(terrain, Tweaks.World.RefreshLinkMapInterval);
+        network.Advance(terrain, links, [home]);
+
+        var last = machines.Machines[^1];
+        Assert.Equal(hops, last.LinkPoint!.Hops);
+        Assert.True(network.PowerOf(last)!.Value.IsFed);
+    }
+
+    [Fact]
+    public void AHarvesterCoveredOnlyByARivalPoweredRelay_DrainsItsOwnCharge()
+    {
+        var size = new Size(430, 140);
+        var generated = new TerrainGrid(size);
+        generated.Fill(TerrainPixel.LevelGenDirt);
+        var world = new World(size, rules: new MatchRules { EnergyNetwork = true });
+        world.Initialize(generated, [new Position(60, 65), new Position(355, 65)]);
+        world.Terrain.Fill(TerrainPixel.Blank);
+        var home = world.TankBases.Bases[0];
+        var relay = world.Machines.Add(new Machine(new Position(280, 65), MachineType.Relay, home.Color));
+        world.PlantMachine(relay, home);
+        var harvester = world.Machines.Add(new Machine(new Position(265, 65), MachineType.Harvester, home.Color));
+        world.PlantMachine(harvester, home);
+        double plantedCharge = harvester.Charge;
+
+        Advance(world, Tweaks.Perf.TargetFps * 3);
+
+        Assert.True(relay.LinkPoint!.IsPowered);
+        Assert.False(world.MachinePowerOf(relay)!.Value.IsFed);
+        Assert.True(harvester.IsOffNetwork);
+        var power = world.MachinePowerOf(harvester)!.Value;
+        Assert.False(power.IsFed);
+        Assert.True(power.Charge < plantedCharge);
     }
 
     [Fact]
