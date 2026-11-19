@@ -17,7 +17,7 @@ public class LumpHarvestTests
     /// A round lump 11 cells to the side of the scenario's relay position: about 110 plain cells round a core of 9,
     /// warmed for <paramref name="seconds"/> (the shell is near its steady temperature after a minute).
     /// </summary>
-    private static (RelayHeatTests.Scenario S, Position Center, List<Position> Cells) WarmLump(int seconds = 60)
+    private static (RelayHeatTests.Scenario S, Position Center, List<Position> Cells) WarmLump(int seconds = 15)
     {
         var s = RelayHeatTests.CreateScenario();
         var center = s.RelayPos + new Offset(11, 0);
@@ -66,9 +66,11 @@ public class LumpHarvestTests
         Assert.All(cells, c => Assert.True(s.World.Terrain.GetHeatTemperature(c) >= Tweaks.Radar.HeatScrambleTemperature));
 
         CutTheCore(s, cells);
-        Advance(s, 20 * Tweaks.Perf.TargetFps);
+        // A core holds a lot of heat (Ore.CoreStartTemperature, Ore.CoreHeatCapacity), so the shell it leaves behind holds a lot of heat: it takes
+        // several minutes to give it up without a relay.
+        Advance(s, 240 * Tweaks.Perf.TargetFps);
         Assert.True(Sense(s, center, OuterEdge) < stall,
-            $"twenty seconds after the core is out, the edge should be workable. sensed={Sense(s, center, OuterEdge):0.0}");
+            $"four minutes after the core is out, the edge should be workable. sensed={Sense(s, center, OuterEdge):0.0}");
     }
 
     /// <summary>
@@ -79,13 +81,13 @@ public class LumpHarvestTests
     {
         [Trait("Category", "Slow")]
         [Fact]
-        public void ARelay_CoolsACutLump_WithinSeconds()
+        public void ARelay_CoolsACutLump_WithinHalfAMinute()
         {
             var (s, center, cells) = WarmLump();
             CutTheCore(s, cells);
             RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(-1, 0));
 
-            Advance(s, 10 * Tweaks.Perf.TargetFps);
+            Advance(s, 30 * Tweaks.Perf.TargetFps);
 
             for (int away = 0; away <= OuterEdge; away++)
                 Assert.True(Sense(s, center, away) < Tweaks.Machine.HarvesterStallTemperature,
@@ -101,7 +103,7 @@ public class LumpHarvestTests
     {
         [Trait("Category", "Slow")]
         [Fact]
-        public void AHarvester_ClearsTheShell_ButNeverTheCore()
+        public void AHarvester_LeavesAHotLumpAlone_ClearsTheShellOnceItCools_ButNeverTheCore()
         {
             var (s, _, cells) = WarmLump();
             // The tank's way in: an open bay from the tunnel to the lump, with a linked relay and a pylon to recharge at.
@@ -117,12 +119,19 @@ public class LumpHarvestTests
             s.World.PlantMachine(harvester, s.Base);
             int cores = cells.Count(c => Pixel.IsOreCore(s.World.Terrain.GetPixelRaw(c)));
             int plain = cells.Count - cores;
+            Assert.True(cores > 0);
 
-            Advance(s, 60 * Tweaks.Perf.TargetFps);
+            // Fresh from the ground the whole shell is far too hot to work (the core holds a great deal of heat).
+            Advance(s, 3 * Tweaks.Perf.TargetFps);
+            Assert.Equal(plain, cells.Count(c => s.World.Terrain.GetPixelRaw(c) == TerrainPixel.Emberite));
+
+            // The heat is finite: the relay and the ground take it, the lump cools, and the harvester works the shell
+            // as it becomes workable, but never the core.
+            Advance(s, 180 * Tweaks.Perf.TargetFps);
 
             int plainLeft = cells.Count(c => s.World.Terrain.GetPixelRaw(c) == TerrainPixel.Emberite);
             Assert.Equal(cores, cells.Count(c => Pixel.IsOreCore(s.World.Terrain.GetPixelRaw(c))));
-            Assert.True(plain - plainLeft >= 40, $"a minute's work should clear a good part of the shell. mined={plain - plainLeft}");
+            Assert.True(plain - plainLeft >= 40, $"a cooled lump's shell should be cleared in good part. mined={plain - plainLeft}");
         }
     }
 }

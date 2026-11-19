@@ -188,8 +188,8 @@ updates it after each step on the match's time (`BrowserSession.HudSeconds`) and
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
   docked (base track on keys 1-4, tank track on 5-6) and the sector-complete banner. The build panel asks
-  `Tank.QuoteBuild` for each machine's ore cost and payer; the MATERIALS plate shows the ore hold and, above it, the
-  base store or UNLOADING (`Tank.IsUnloadingOre`).
+  `Tank.QuoteBuild` for each machine's ore cost and payer. The MATERIALS panel shows Emberite piling up inside
+  the hold, the exact count and capacity, and the base store or UNLOADING (`Tank.IsUnloadingOre`).
 
 Every overlay (tutorial card, toasts, status and upgrade panels, warning banners, pause and controls menus, tags) is
 drawn with `HudTheme`, which follows the bottom HUD art: chamfered gunmetal plates, a bronze frame with an amber inner

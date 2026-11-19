@@ -106,7 +106,7 @@ Core decides what is seen; the renderer only shows it.
 - **Radar blips.** `Game` also asks for the player's `Radar` (`World.TrackRadar`). `RadarQuads` draws one small
   quad per contact (`KindRadarBlip`, `RadarBlip` in `Shaders/Entity/Overlays.hlsli`), first in the entity layer so
   everything else is on top: green for rock and walls, amber for metal, dim blue-green for a cave,
-  a white-violet dot in a ring for something alive, and for emberite a small diamond, teal-rimmed with a violet
+  a white-violet dot in a ring for something alive, and for emberite a small diamond, gold-rimmed with a pale
   heart (the only blip that is not round). `Layout.hlsli` lists the echo numbers in `RadarEcho`'s order and
   `EntityLayoutGuardTests.RadarEchoes_MatchTheBlipShader` checks it and the branches of `RadarBlip`. A blip flares
   for a few ticks when the beam finds it, which is what shows the sweep, then fades over the contact's life. A blip
@@ -116,7 +116,7 @@ Core decides what is seen; the renderer only shows it.
   The pulse ring is drawn at `Radar.PulseFront` (moving `Radar.PulseSpeed` a tick, faster with the radar upgrade)
   and fades out at `Radar.PulseRange`, which the upgrade lengthens.
 - **Ore on the network.** Links carry three beams: heat home (orange, `KindLink`), charge out (blue,
-  `KindChargeBeam`) and ore home (`KindOreBeam`, `OreBeam` in `Shaders/Entity/Beams.hlsli`: teal crystals with a violet
+  `KindChargeBeam`) and ore home (`KindOreBeam`, `OreBeam` in `Shaders/Entity/Beams.hlsli`: gold crystals with a pale
   glint, tumbling toward the base). `LinkQuads` draws the ore beam from `LinkRenderState.OreFlow`, which Core keeps up
   for a moment after each unit passes (`Link.OreFlowTicks`), and `CoverageQuads` draws one from the tank to its
   covering node beside the tether while `Tank.IsUnloadingOre`.

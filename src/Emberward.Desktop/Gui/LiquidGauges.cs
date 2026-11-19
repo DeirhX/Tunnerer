@@ -6,8 +6,7 @@ using Emberward.Core.Entities.Tanks;
 using static Emberward.Desktop.Gui.HudDraw;
 
 /// <summary>
-/// Diablo-style liquid gauges in the art: the shield crystal and the materials chest are full up to their level
-/// and dark above it, with a softly waving bright surface. A low shield pulses red and flashes when hit.
+/// The shield crystal is dark above its liquid surface. A low shield pulses red and flashes when hit.
 /// </summary>
 public sealed class LiquidGauges(HudLayout layout)
 {
@@ -17,17 +16,9 @@ public sealed class LiquidGauges(HudLayout layout)
         new(114f, 100f), new(100f, 116f), new(82f, 128f), new(64f, 116f), new(50f, 100f), new(44f, 80f),
     ];
 
-    // The open top of the materials chest, where its contents show.
-    private static readonly Vector2[] ChestOutline =
-    [
-        new(52f, 40f), new(193f, 40f), new(206f, 52f), new(206f, 86f),
-        new(185f, 98f), new(60f, 98f), new(40f, 86f), new(40f, 52f),
-    ];
-
     private float _shownShieldFill = -1f;
-    private float _shownMaterialsFill = -1f;
 
-    public void Draw(ImDrawListPtr dl, Tank player, float shieldPanelX, float materialsPanelX, float time)
+    public void Draw(ImDrawListPtr dl, Tank player, float shieldPanelX, float time)
     {
         float shieldFill = player.ShieldFraction;
         // Ease the shown levels toward the real ones so the liquid moves rather than jumps.
@@ -54,25 +45,6 @@ public sealed class LiquidGauges(HudLayout layout)
         var (sx0, sx1) = PolygonSpanAtY(poly, sLevel);
         if (sx1 > sx0)
             DrawSurface(dl, sLevel, (sx1 - sx0) * 0.5f, (sx0 + sx1) * 0.5f, shieldFill > 0f ? 0xFFFFE0A0u : 0u, time);
-
-        // Materials chest.
-        float materialsFill = player.HoldFill;
-        _shownMaterialsFill = _shownMaterialsFill < 0f
-            ? materialsFill
-            : _shownMaterialsFill + (materialsFill - _shownMaterialsFill) * 0.15f;
-        var chest = new Vector2[ChestOutline.Length];
-        float cTop = float.MaxValue, cBottom = float.MinValue;
-        for (int i = 0; i < chest.Length; i++)
-        {
-            chest[i] = layout.At(new Vector2(materialsPanelX, 0f) + ChestOutline[i]);
-            cTop = MathF.Min(cTop, chest[i].Y);
-            cBottom = MathF.Max(cBottom, chest[i].Y);
-        }
-        float cLevel = cBottom - (cBottom - cTop) * _shownMaterialsFill;
-        FillPolygonBand(dl, chest, cTop, cLevel, 0xD8080808u);               // empty part
-        var (cx0, cx1) = PolygonSpanAtY(chest, cLevel);
-        if (cx1 > cx0)
-            DrawSurface(dl, cLevel, (cx1 - cx0) * 0.5f, (cx0 + cx1) * 0.5f, materialsFill > 0f ? 0xFF80D8FFu : 0u, time);
     }
 
     /// <summary>A gently waving bright line where the liquid meets the empty part.</summary>

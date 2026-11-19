@@ -26,8 +26,8 @@ public partial class GameHud
     /// <summary>State of the temperature orb shader for the frame just drawn; the game passes it to the backend.</summary>
     public HeatOrbState HeatOrb => _strip.HeatOrb;
 
-    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint buildPanel) =>
-        _strip.Init(heatIcon, shieldIcon, panelFrame, buildPanel);
+    public void Init(nint heatIcon, nint shieldIcon, nint panelFrame, nint orePile, nint buildPanel) =>
+        _strip.Init(heatIcon, shieldIcon, panelFrame, orePile, buildPanel);
 
     /// <summary>
     /// Device pixel (the game texture, the camera, the mouse over the view) to UI units. A UI unit is

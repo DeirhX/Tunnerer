@@ -177,6 +177,7 @@ public class BrowserSessionArtStripTests
         Assert.Equal(player.Reactor.Health, p.Health);
         Assert.Equal((HeatScale.Frozen(player.Heat), HeatScale.Boil(player.Heat)), (p.Frozen, p.Boil));
         Assert.Equal(BuildSlotView.OreLine(player), p.OreLine);
+        Assert.Equal(-1, p.OrePileFrame);
         Assert.StartsWith("BASE ORE ", p.OreLine, StringComparison.Ordinal);
         // Each machine in its desktop slot, as the desktop's BuildPanel draws it.
         Assert.Equal([0, 1, 2], first.Builds.Select(b => b.Slot).Order());
@@ -191,6 +192,13 @@ public class BrowserSessionArtStripTests
         var carrying = BrowserFrameBuilder.Capture(session, includeEvents: false).Builds;
         Assert.Equal(nameof(BuildSlotState.Carrying), carrying.Single(b => b.Key == 1).State);
         Assert.All(carrying.Where(b => b.Key != 1), b => Assert.Equal(nameof(BuildSlotState.Blocked), b.State));
+
+        player.Hold.Add(1);
+        Assert.Equal(0, BrowserFrameBuilder.Capture(session, includeEvents: false).Player.OrePileFrame);
+        player.Hold.Ore = player.OreHoldCapacity / 2;
+        Assert.Equal(19, BrowserFrameBuilder.Capture(session, includeEvents: false).Player.OrePileFrame);
+        player.Hold.Add(player.OreHoldCapacity);
+        Assert.Equal(39, BrowserFrameBuilder.Capture(session, includeEvents: false).Player.OrePileFrame);
     }
 
 }

@@ -336,12 +336,10 @@ public class Tank
         _wasDocked = docked;
     }
 
-    /// <summary>
-    /// Any base the tank is in recharges it and sinks heat around it; its own base also banks its ore and
-    /// pumps its heat into the base reservoir.
-    /// </summary>
     private const float BaseServicedHeatDrop = 0.05f;
 
+    /// <summary>Any visited base recharges the tank and stores heat from the docking area. Its own base also banks
+    /// the ore and pumps heat directly from the tank into its reservoir.</summary>
     private void AdvanceBaseInteraction(in SimulationContext ctx)
     {
         var baseColl = ctx.CheckBaseCollision(Position);
@@ -350,7 +348,7 @@ public class Tank
         (int health, float heat) = (Reactor.Health, Heat);
         baseColl.RechargeTank(Reactor, Color);
         bool atOwnBase = baseColl.Color == Color;
-        _thermals.SinkAtBase(ctx.Heat, baseColl, atOwnBase);
+        _thermals.CoolDockingArea(ctx.Heat, baseColl, atOwnBase);
 
         if (atOwnBase)
         {

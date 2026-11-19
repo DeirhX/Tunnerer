@@ -422,13 +422,13 @@ window and graphics dependencies out of the shared rendering assembly.
   the desktop's art strip in the bottom corners on two canvases, TEMP, SHIELD and MATERIALS on the left and BUILD
   STRUCTURES and COMMAND on the right, at the desktop's art coordinates and scale. It ports `HudStrip`,
   `HeatGauge`, `LiquidGauges` and `BuildPanel`: the heat orb with its dial, needle and trend arrow, the shield
-  crystal and ore chest filling like liquid, the OFF NETWORK tag, the build slots and the COMMAND button (a click
+  crystal, the cargo hold filling with pieces of Emberite, the OFF NETWORK tag, the build slots and the COMMAND button (a click
   on a slot builds, on COMMAND opens the upgrades). What the slots say comes from the shared `BuildSlotView`, which
   the desktop's `BuildPanel` draws too, and the orb's frozen and boiling states from `HeatScale`. The desktop
   draws the orb's liquid with a shader (`HeatOrbPs`); the canvas draws ice, bubbles and a burning glow instead.
   The plates keep what the strip does not show, at the top right where the desktop's BASE panel stands, and the
-  upgrades sit at the left above the strip. `publish.py` copies the four PNGs from
-  `src/Emberward.Desktop/resources/hud` (1.4 MiB) into `wwwroot/hud`. Phones and narrow windows keep the plates,
+  upgrades sit at the left above the strip. `publish.py` copies the HUD panels and ore pile sprite sheet from
+  `src/Emberward.Desktop/resources/hud` into `wwwroot/hud`. Phones and narrow windows keep the plates,
   which fit them; the art does not. The strip is drawn after each step, not each display frame, and not while
   paused; the heat dial's colours come with a match's first frame only.
 - The HUD's cost follows what changes. It updates after every step, 24 times a second, and writes to the page

@@ -63,6 +63,12 @@ export class StatusView {
             `X ${p.position.x} / Y ${p.position.y} · WORLD ${f.seed}`,
         );
         setText($("ore"), `${p.ore}/${p.holdCapacity} ORE · BASE ${p.store}`);
+        const pile = $("ore-pile");
+        setHidden(pile, p.orePileFrame < 0);
+        if (p.orePileFrame >= 0) {
+            const column = p.orePileFrame % 8, row = Math.floor(p.orePileFrame / 8);
+            setProperty(pile, "background-position", `${(column / 7) * 100}% ${(row / 4) * 100}%`);
+        }
         setText(
             $("power"),
             `BASE CHARGE ${Math.round(p.charge * 100)}% / HEAT STORE ${Math.round(p.baseHeat * 100)}%`,

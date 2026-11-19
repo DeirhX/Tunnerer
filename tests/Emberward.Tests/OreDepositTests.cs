@@ -11,7 +11,7 @@ namespace Emberward.Tests;
 /// <summary>Emberite ore as terrain: the pixels, the warm core, and how deposits are seeded (DESIGN.md §6.3).</summary>
 public class OreDepositTests
 {
-    private static readonly float CoreTemperature = Tweaks.Ore.CoreTemperature;
+    private static readonly float CoreStart = Tweaks.Ore.CoreStartTemperature;
     private static readonly Size MediumMap = new(800, 400);
 
     [Theory]
@@ -34,12 +34,29 @@ public class OreDepositTests
     }
 
     [Fact]
-    public void Core_IsPinnedWarm()
+    public void Ore_IsFinite_SeededWithHeat_AndNothingIsPinned()
     {
         var engine = new TerrainHeatEngine();
-        Assert.True(engine.IsFixedTemperatureMaterial(ThermalMaterial.EmberiteCore));
-        Assert.Equal(CoreTemperature, engine.GetFixedTemperature(ThermalMaterial.EmberiteCore));
-        Assert.InRange(CoreTemperature, 50f, 90f);
+        Assert.False(engine.IsFixedTemperatureMaterial(Pixel.GetThermalMaterial(TerrainPixel.EmberiteCore)));
+        Assert.False(engine.IsFixedTemperatureMaterial(Pixel.GetThermalMaterial(TerrainPixel.Emberite)));
+        Assert.True(CoreStart > Tweaks.Tank.HeatSafeMax * 2f, "a core starts far above what a tank can bear");
+        Assert.True(Tweaks.Ore.PlainStartTemperature > Tweaks.World.ThermalAmbientTemperature);
+        Assert.True(Tweaks.Ore.PlainStartTemperature <= Tweaks.Radar.HeatThreshold, "the radar must still read fresh plain ore");
+    }
+
+    [Fact]
+    public void SeededOreHeat_IsBookedInTheLedger_AsInjectedEnergy()
+    {
+        var t = new TerrainGrid(new Size(30, 30));
+        t.Fill(TerrainPixel.Rock);
+        double before = t.SumTotalThermalEnergy();
+        Assert.True(t.PlaceOre(new Position(10, 10), core: true, dirtOnly: false));
+        Assert.True(t.PlaceOre(new Position(12, 10), core: false, dirtOnly: false));
+
+        double expected = Tweaks.Ore.CoreHeatCapacity * CoreStart
+            + Tweaks.World.ThermalMaterials[ThermalMaterial.Stone].HeatCapacity * Tweaks.Ore.PlainStartTemperature;
+        Assert.Equal(expected, t.SumTotalThermalEnergy() - before, tolerance: 0.5);
+        Assert.Equal(expected, t.Ledger.NetExternal, tolerance: 0.5);
     }
 
     [Fact]
@@ -58,7 +75,7 @@ public class OreDepositTests
         Assert.False(t.PlaceOre(new Position(8, 5), core: false, dirtOnly: false));
         Assert.Equal(TerrainPixel.Emberite, t.GetPixelRaw(new Position(5, 5)));
         Assert.Equal(TerrainPixel.EmberiteCore, t.GetPixelRaw(new Position(6, 5)));
-        Assert.Equal(CoreTemperature, t.GetHeatTemperature(new Position(6, 5)));
+        Assert.Equal(CoreStart, t.GetHeatTemperature(new Position(6, 5)));
     }
 
     /// <summary>A rock block with a tunnel row, and a 3x3 core lump bordering it.</summary>
@@ -96,20 +113,143 @@ public class OreDepositTests
         }
 
         Step(300);
-        Assert.Equal(CoreTemperature, t.GetHeatTemperature(core), precision: 2);
+        Assert.True(t.GetHeatTemperature(core) < CoreStart, "a core is finite: it has already given some heat away");
+        Assert.True(t.GetHeatTemperature(core) > Tweaks.Ore.PlainStartTemperature, $"but its heat is still there after 12 s. {t.GetHeatTemperature(core):0.0}");
         var below = new Position(core.X, tunnelY);
         float warm = t.GetAirTemperature(below);
         Assert.True(warm > 10f, $"the tunnel beside the core should be warm. air={warm:0.0}");
 
-        // Mine the core out (as the torch does): the cells stop being pinned and the tunnel cools.
+        // Mine the core out (as the torch does): the heat in them goes with them and the tunnel cools.
         for (int dy = -1; dy <= 1; dy++)
             for (int dx = -1; dx <= 1; dx++)
                 t.SetPixel(core + new Offset(dx, dy), TerrainPixel.Blank);
         Step(600);
 
-        Assert.True(t.GetAirTemperature(core) < CoreTemperature - 20f, "a mined-out core is no longer a source");
+        Assert.True(t.GetAirTemperature(core) < warm, "a mined-out core is no longer a source");
         Assert.True(t.GetAirTemperature(below) < warm, "the tunnel cools once the source is gone");
         Assert.True(maxResidual < 0.5, $"the core's heat must be fully accounted for. residual={maxResidual:0.0000}");
+    }
+
+    private static TerrainGrid RockWithTunnelAndOre(int tunnelY, Action<TerrainGrid> placeOre)
+    {
+        var t = new TerrainGrid(new Size(60, 40));
+        for (int y = 0; y < 40; y++)
+            for (int x = 0; x < 60; x++)
+                t.SetPixelRaw(new Position(x, y), TerrainPixel.Rock);
+        for (int x = 1; x < 59; x++)
+            t.SetPixelRaw(new Position(x, tunnelY), TerrainPixel.Blank);
+        placeOre(t);
+        return t;
+    }
+
+    /// <summary>What a run of a tunnel beside ore found: the worst energy-balance residual and the tunnel air's peaks.</summary>
+    private readonly record struct TunnelRun(double Residual, float PeakAir, int PeakHotCells, int TicksAboveSafe, float FinalAir);
+
+    private static TunnelRun Run(TerrainGrid t, int ticks, int tunnelY)
+    {
+        double startEnergy = t.SumTotalThermalEnergy();
+        double startNet = t.Ledger.NetExternal;
+        double residual = 0.0;
+        float peak = float.MinValue;
+        int peakCells = 0, above = 0;
+        float air = 0f;
+        for (int i = 0; i < ticks; i++)
+        {
+            t.CoolDown();
+            residual = Math.Max(residual, Math.Abs(t.SumTotalThermalEnergy() - startEnergy - (t.Ledger.NetExternal - startNet)));
+            air = float.MinValue;
+            int cells = 0;
+            for (int x = 1; x < 59; x++)
+            {
+                float a = t.GetAirTemperature(new Position(x, tunnelY));
+                air = Math.Max(air, a);
+                if (a > Tweaks.Tank.HeatSafeMax)
+                    cells++;
+            }
+            peak = Math.Max(peak, air);
+            peakCells = Math.Max(peakCells, cells);
+            if (air > Tweaks.Tank.HeatSafeMax)
+                above++;
+        }
+        return new TunnelRun(residual, peak, peakCells, above, air);
+    }
+
+    /// <summary>A square block of core cells with its lower edge just above the tunnel row.</summary>
+    private static void PlaceCoreBlock(TerrainGrid t, int side, int tunnelY)
+    {
+        for (int dy = 0; dy < side; dy++)
+            for (int dx = 0; dx < side; dx++)
+                Assert.True(t.PlaceOre(new Position(20 + dx, tunnelY - 1 - dy), core: true, dirtOnly: false));
+    }
+
+    [Fact]
+    public void Speck_WarmsItsGround_AFewDegrees_ThenCoolsAway_WithTheLedgerBalanced()
+    {
+        var t = new TerrainGrid(new Size(30, 30));
+        t.Fill(TerrainPixel.Dirt);
+        var speck = new Position(15, 15);
+        Assert.True(t.PlaceOre(speck, core: false, dirtOnly: true));
+        Assert.Equal(Tweaks.Ore.PlainStartTemperature, t.GetHeatTemperature(speck));
+
+        double startEnergy = t.SumTotalThermalEnergy(), startNet = t.Ledger.NetExternal, residual = 0.0;
+        float early = 0f, beside = 0f;
+        for (int i = 0; i < 1500; i++)
+        {
+            t.CoolDown();
+            residual = Math.Max(residual, Math.Abs(t.SumTotalThermalEnergy() - startEnergy - (t.Ledger.NetExternal - startNet)));
+            if (i == 20)
+            {
+                early = t.GetHeatTemperature(speck);
+                beside = t.GetHeatTemperature(speck + new Offset(1, 0));
+            }
+        }
+
+        Assert.True(beside > 0.5f, "a speck warms the ground beside it");
+        Assert.True(early < Tweaks.Ore.PlainStartTemperature);
+        Assert.True(t.GetHeatTemperature(speck) < early, "a speck is finite: it keeps cooling");
+        Assert.True(t.GetHeatTemperature(speck) < Tweaks.Ore.PlainStartTemperature / 2f);
+        Assert.True(residual < 0.5, $"a speck's heat must be fully accounted for. residual={residual:0.0000}");
+    }
+
+    [Fact]
+    public void ACoreInAShell_PassesItsHeatThroughTheShell_AndCoolsWithIt()
+    {
+        var t = RockWithTunnelAndOre(tunnelY: 20, tt =>
+        {
+            for (int dy = -3; dy <= 3; dy++)
+                for (int dx = -3; dx <= 3; dx++)
+                    Assert.True(tt.PlaceOre(new Position(20 + dx, 16 + dy), core: Math.Abs(dx) <= 1 && Math.Abs(dy) <= 1,
+                        dirtOnly: false));
+        });
+        var run = Run(t, 600, 20);
+
+        Assert.True(t.GetHeatTemperature(new Position(20, 19)) > Tweaks.Ore.PlainStartTemperature,
+            $"the shell between the core and the tunnel carries its heat. {t.GetHeatTemperature(new Position(20, 19)):0.0}");
+        Assert.True(run.Residual < 0.5, $"residual={run.Residual:0.0000}");
+    }
+
+    [Fact]
+    public void LargeLumpCore_IsDangerousToATankForLonger_ThanASmallOne_AndASpeckIsNot()
+    {
+        const int tunnelY = 30;
+        var speck = RockWithTunnelAndOre(tunnelY, t => Assert.True(t.PlaceOre(new Position(20, tunnelY - 1), core: false, dirtOnly: false)));
+        int smallSide = (int)Math.Ceiling(Math.Sqrt(OreDeposits.CoreCellsFor(Tweaks.Ore.LumpMinCells)));
+        int largeSide = (int)Math.Ceiling(Math.Sqrt(OreDeposits.CoreCellsFor(Tweaks.Ore.LumpMaxCells)));
+        var smallLump = RockWithTunnelAndOre(tunnelY, t => PlaceCoreBlock(t, smallSide, tunnelY));
+        var largeLump = RockWithTunnelAndOre(tunnelY, t => PlaceCoreBlock(t, largeSide, tunnelY));
+        int ticks = 600 * Tweaks.Perf.TargetFps / 10;
+
+        var speckRun = Run(speck, ticks, tunnelY);
+        var smallRun = Run(smallLump, ticks, tunnelY);
+        var largeRun = Run(largeLump, ticks, tunnelY);
+
+        Assert.True(speckRun.PeakAir < Tweaks.Tank.HeatSafeMax * 0.1f, $"a speck is merely warm. air={speckRun.PeakAir:0.0}");
+        Assert.True(largeRun.PeakAir > Tweaks.Tank.HeatMax, $"a large lump's core is dangerous. air={largeRun.PeakAir:0.0}");
+        Assert.True(largeRun.TicksAboveSafe > smallRun.TicksAboveSafe,
+            $"a larger core holds more energy and stays dangerous longer. small={smallRun.TicksAboveSafe} large={largeRun.TicksAboveSafe}");
+        Assert.True(largeRun.FinalAir < largeRun.PeakAir, "the core is finite: the tunnel cools again");
+        Assert.True(Math.Max(speckRun.Residual, Math.Max(smallRun.Residual, largeRun.Residual)) < 1.0,
+            $"residual={largeRun.Residual:0.0000}");
     }
 
     private static World SeededWorld(int seed, Size? size = null)
@@ -167,10 +307,14 @@ public class OreDepositTests
             {
                 OreDepositKind.Speck => (Tweaks.Ore.SpeckMinCells, Tweaks.Ore.SpeckMaxCells, Tweaks.Ore.SpeckMinDistanceFromBase),
                 OreDepositKind.Pocket => (1, Tweaks.Ore.PocketMaxCells, Tweaks.Ore.PocketMinDistanceFromBase),
-                _ => (Tweaks.Ore.LumpCoreCells, Tweaks.Ore.LumpMaxCells, Tweaks.Ore.LumpMinDistanceFromBase),
+                _ => (Tweaks.Ore.LumpMinCoreCells, Tweaks.Ore.LumpMaxCells, Tweaks.Ore.LumpMinDistanceFromBase),
             };
             Assert.InRange(d.Cells, min, max);
-            Assert.Equal(d.Kind == OreDepositKind.Lump ? Tweaks.Ore.LumpCoreCells : 0, d.CoreCells);
+            if (d.Kind == OreDepositKind.Lump)
+                Assert.InRange(d.CoreCells, Math.Min(Tweaks.Ore.LumpMinCoreCells, d.Cells),
+                    OreDeposits.CoreCellsFor(Tweaks.Ore.LumpMaxCells));
+            else
+                Assert.Equal(0, d.CoreCells);
             int minFromBase = Scaled(fromBase);
             Assert.All(bases, b => Assert.True(Position.DistanceSquared(d.Center, b) >= minFromBase * minFromBase,
                 $"{d.Kind} at {d.Center} too close to the base at {b}"));
@@ -183,7 +327,8 @@ public class OreDepositTests
         {
             Assert.True(lump.Cells >= Tweaks.Ore.LumpMinCells / 2, $"lump at {lump.Center} has only {lump.Cells} cells");
             Assert.Equal(TerrainPixel.EmberiteCore, world.Terrain.GetPixelRaw(lump.Center));
-            Assert.Equal(CoreTemperature, world.Terrain.GetHeatTemperature(lump.Center), precision: 2);
+            // The level's prewarm (World) has already let the core's heat spread through the shell.
+            Assert.True(world.Terrain.GetHeatTemperature(lump.Center) > Tweaks.Ore.PlainStartTemperature * 2f, $"a lump is still hot at the start of play. {world.Terrain.GetHeatTemperature(lump.Center):0.0}");
         }
         var lumps = byKind[OreDepositKind.Lump].ToArray();
         for (int i = 0; i < lumps.Length; i++)

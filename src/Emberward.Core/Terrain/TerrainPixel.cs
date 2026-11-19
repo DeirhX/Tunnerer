@@ -20,8 +20,8 @@ public enum TerrainPixel : byte
     HotRock = (byte)'h',
     FrostRock = (byte)'f',
     Concrete = (byte)'C',
-    // Emberite ore (DESIGN.md §6.3): the resource machines are made of. Plain ore is inert; a core cell sits at the
-    // heart of a large lump and is pinned warm.
+    // Emberite ore (DESIGN.md §6.3): the resource machines are made of. Ore is stone that is seeded with heat (Tweaks.Ore),
+    // finite and cooling like any ground; a core cell sits at the heart of a lump and starts far hotter.
     Emberite = (byte)'o',
     EmberiteCore = (byte)'O',
 }

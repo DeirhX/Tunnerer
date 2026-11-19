@@ -86,8 +86,8 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 // life. Green for rock and walls, amber for metal (machines), a dim blue-green for the weak return of a
 // cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
 // or a thing too hot to read, is a red dot instead, more opaque the hotter the cell (data.r). Something
-// alive (another tank) is a white-violet dot in a ring. Emberite ore is a small crystal: a teal diamond with a
-// violet heart, the one blip that is not round.
+// alive (another tank) is a white-violet dot in a ring. Emberite ore is a small crystal: a gold diamond with a
+// pale heart, the one blip that is not round.
 float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {
     float life = saturate(params.x);
@@ -100,7 +100,7 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 
     if (echo > 4.5)
     {
-        // Ore: a crystal, a diamond (an L1 disc) with a violet heart and a teal rim, in a faint diamond glow.
+        // Ore: a crystal, a diamond (an L1 disc) with a pale heart and a gold rim, in a faint diamond glow.
         // Dimmer, like the others, the more heat the ray crossed.
         float level = lerp(0.35, 1.0, rayStrength);
         float d = abs(p.x) + abs(p.y);
@@ -109,10 +109,10 @@ float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
         float heart = FillAlpha(d - size * 0.5, aa);
         float rim = body * (1.0 - FillAlpha(d - size * 0.72, aa));
         float glow = exp(-d * d * (1.4 - 0.7 * flash)) * (1.0 - body);
-        float3 teal = float3(0.20, 0.90, 0.80);
-        float3 violet = float3(0.62, 0.28, 1.00);
-        float3 lit = violet * heart * (0.85 + 0.5 * flash) + violet * 0.35 * saturate(body - heart - rim) +
-            teal * rim * (0.95 + 0.5 * flash) + teal * glow * (0.18 + 0.6 * flash);
+        float3 gold = float3(1.0, 0.76, 0.25);
+        float3 pale = float3(1.0, 0.95, 0.72);
+        float3 lit = pale * heart * (0.85 + 0.5 * flash) + pale * 0.35 * saturate(body - heart - rim) +
+            gold * rim * (0.95 + 0.5 * flash) + gold * glow * (0.18 + 0.6 * flash);
         return float4(lit * fade * level, body * fade * level * 0.6);
     }
 

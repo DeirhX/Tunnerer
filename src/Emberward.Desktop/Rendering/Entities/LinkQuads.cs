@@ -55,7 +55,7 @@ public sealed class LinkQuads
                 SubmitChargeBeam(beams, link.From, link.To, chargeFrom.X, chargeFrom.Y, chargeTo.X, chargeTo.Y, link.ChargeFlow);
             }
 
-            // Ore on its way home: teal crystals running toward the base.
+            // Ore on its way home: gold crystals running toward the base.
             if (live && link.OreFlow > 0.01f)
             {
                 Position oreFrom = link.OreFlowsFromTo ? link.From : link.To;

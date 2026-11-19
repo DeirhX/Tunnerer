@@ -3,6 +3,7 @@ namespace Emberward.Core.Thermal;
 using Emberward.Core.Snapshots;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Terrain;
 
 /// <summary>
 /// Result of one tank heat step. Energies are expressed in the grid's units
@@ -53,40 +54,24 @@ public sealed class TankHeatEngine
     /// <summary>Heat capacity of the tank: tank energy is <c>Heat * TankHeatCapacity</c>.</summary>
     public float TankHeatCapacity => _settings.TankHeatCapacity;
 
-    /// <param name="terrainCapacity">Sum of heat capacities of the terrain-field cells under the tank.</param>
-    /// <param name="airCapacity">Sum of heat capacities of the air-field cells under the tank.</param>
     public TankHeatStep Advance(
         float currentHeat,
         int frameDugPixels,
         bool frameShotFired,
-        float sampledTerrainTemperature,
-        float sampledAirTemperature,
-        double terrainCapacity,
-        double airCapacity)
+        in TankHeatContact contact)
     {
         float actionHeat = TankHeatModel.ComputeActionHeat(in _settings, frameDugPixels, frameShotFired);
         float nextHeat = currentHeat + actionHeat;
 
-        double energyToTerrain = 0.0;
-        if (terrainCapacity > 0.0)
-        {
-            float dQTerrain = TankHeatModel.ComputeHeatFlowIntoTank(in _settings, _settings.TankTerrainConductance,
-                nextHeat, sampledTerrainTemperature);
-            nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, dQTerrain);
-            energyToTerrain = -dQTerrain;
-        }
-
-        double energyToAir = 0.0;
-        if (airCapacity > 0.0)
-        {
-            float dQAir = TankHeatModel.ComputeHeatFlowIntoTank(in _settings, _settings.TankAmbientConductance,
-                nextHeat, sampledAirTemperature);
-            nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, dQAir);
-            energyToAir = -dQAir;
-        }
+        float fromSolid = TankHeatModel.ComputeHeatFlowIntoTank(in _settings, _settings.TankTerrainConductance * contact.SolidFraction,
+            nextHeat, contact.SolidTemperature, contact.SolidCapacity);
+        nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, fromSolid);
+        float fromAir = TankHeatModel.ComputeHeatFlowIntoTank(in _settings, _settings.TankAmbientConductance,
+            nextHeat, contact.AirTemperature, contact.AirCapacity);
+        nextHeat += TankHeatModel.ComputeTankDeltaFromHeatFlow(in _settings, fromAir);
 
         int overheatDamage = TankHeatModel.ComputeOverheatDamage(in _settings, nextHeat);
         int frostbiteDamage = TankHeatModel.ComputeFrostbiteDamage(in _settings, nextHeat);
-        return new TankHeatStep(nextHeat, energyToTerrain, energyToAir, actionHeat, overheatDamage, frostbiteDamage);
+        return new TankHeatStep(nextHeat, -fromSolid, -fromAir, actionHeat, overheatDamage, frostbiteDamage);
     }
 }
