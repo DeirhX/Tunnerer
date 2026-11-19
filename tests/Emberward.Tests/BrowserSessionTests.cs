@@ -42,6 +42,10 @@ public class BrowserSessionTests
         Assert.Equal(sounds.Loops, again.Loops);
     }
 
+}
+
+public class BrowserSessionStatusTests
+{
     [Fact]
     public void Status_CarriesTheDesktopsHeatColour_UpgradeTracks_AndNoHitAtTheStart()
     {
@@ -57,6 +61,10 @@ public class BrowserSessionTests
         Assert.All(status.Upgrades, u => Assert.Equal(BaseUpgrades.MaxLevel, u.MaxLevel));
     }
 
+}
+
+public class BrowserSoundBankTests
+{
     [Fact]
     public void SoundBank_PacksEveryDesktopEffect_OneAfterAnother()
     {
@@ -76,6 +84,10 @@ public class BrowserSessionTests
         Assert.Equal(desktop, bank.Samples.AsSpan(fire.Offset, fire.Length).ToArray());
     }
 
+}
+
+public class BrowserPresentationTests
+{
     [Fact]
     [Trait("Category", "Slow")]
     public void BrowserPresentation_LeavesTheSimulationUnchanged_AndUsesCoreBuildAndUpgradeRules()
@@ -142,6 +154,10 @@ public class BrowserSessionTests
             v => v.Kind == EntityShape.KindHotShot);
     }
 
+}
+
+public class BrowserSessionArtStripTests
+{
     [Fact]
     public void Frame_CarriesWhatTheDesktopsArtStripShows_AndTheDialOnlyWhenAsked()
     {
@@ -185,6 +201,10 @@ public class BrowserSessionTests
         Assert.Equal(39, BrowserFrameBuilder.Capture(session, includeEvents: false).Player.OrePileFrame);
     }
 
+}
+
+public class BrowserSessionThermalViewTests
+{
     [Fact]
     public void ThermalView_TintsTheFrame_AndLeavesTheWorldAlone()
     {
@@ -200,6 +220,10 @@ public class BrowserSessionTests
         Assert.Equal(before, WorldStateHash.Compute(session.World));
     }
 
+}
+
+public class BrowserSessionGuidanceTests
+{
     [Fact]
     public void Frame_CarriesTheDesktopGuidance_AndItFollowsTheMatch()
     {
