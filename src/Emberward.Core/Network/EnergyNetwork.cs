@@ -217,13 +217,9 @@ public sealed class EnergyNetwork
     /// <summary>The island of a link node's own base when its power comes home to that base, else null.</summary>
     private PowerIsland? LinkedIsland(Machine machine)
     {
-        if (machine.OwnerBase is not TankBase owner || owner.LinkPoint is null ||
-            machine.LinkPoint is not { IsPowered: true } point)
-            return null;
         // Power can reach a node through another base's network; it feeds only from its own.
-        for (int hops = 0; point.UpstreamLink is Link link && hops < 64; hops++)
-            point = ReferenceEquals(link.From, point) ? link.To : link.From;
-        return ReferenceEquals(point, owner.LinkPoint) ? IslandOf(owner) : null;
+        return machine.OwnerBase is TankBase owner && machine.LinkPoint?.IsPoweredBy(owner.LinkPoint) == true
+            ? IslandOf(owner) : null;
     }
 
     private PowerIsland? FindIsland(TankBase tankBase)

@@ -36,6 +36,18 @@ public class LinkPoint
     /// <summary>Live links between this point and the nearest base: 0 for bases, -1 while unpowered.</summary>
     public int Hops { get; set; } = -1;
 
+    /// <summary>Whether this point's upstream route ends at <paramref name="source"/>.</summary>
+    internal bool IsPoweredBy(LinkPoint? source)
+    {
+        if (!IsPowered || source is null)
+            return false;
+
+        var point = this;
+        for (int remaining = Hops; remaining > 0 && point.UpstreamLink is Link link; remaining--)
+            point = ReferenceEquals(link.From, point) ? link.To : link.From;
+        return ReferenceEquals(point, source);
+    }
+
     /// <summary>The map this point is registered in.</summary>
     internal LinkMap? Map { get; set; }
 
