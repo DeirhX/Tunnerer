@@ -135,10 +135,9 @@ Escape opens the pause menu. Switching away from the page pauses the local match
 ## Network play
 
 The welcome screen has two tabs, **Solo** and **Online**, and keeps the one last chosen. **Online** joins a room on
-the relay (docs/multiplayer-design.md): a name, a room, the number of tanks and the relay's secret if it has one.
-The page remembers them (`localStorage`). The secret's field can be shown, to see what an old visit or a password
-manager left in it; spaces around it are not part of it, here or on the relay, and a refusal for it puts the cursor
-in the field. The relay logs each refusal with the length of what was sent. The first player into
+the relay (docs/multiplayer-design.md): a name, a room and the number of tanks. The page remembers them
+(`localStorage`). The page sends no secret: the public relay is open to everyone, and a relay that asks for a secret
+refuses the browser. The first player into
 a room opens it with a new seed and that many tanks, on the desktop's map for the count (480x300 for more than two,
 `?map=WxH` for another); bots take the slots nobody joins. The lobby shows who is in each slot in their tank's
 colour; the host (the lowest slot) starts with **Start match** or Enter, and a full room starts by itself. P pauses
