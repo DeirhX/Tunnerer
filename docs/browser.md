@@ -126,9 +126,10 @@ gets the response fetch made, not one built from the copy, so that the browser c
 
 The Desktop section under the welcome screen lists a download per platform (Windows, macOS, Linux). Its rows live
 in `index.html`: a row with an `<a class="download-link">` is a published build, and a row without one says
-"Not published yet". `downloads.js` puts the visitor's own platform first, from the client hints or the user agent
-(`tools/browser/downloads.test.mjs` covers the strings). No build is published from this repository yet, so every row
-currently says so; set the links there once the builds exist.
+"Not published yet". `downloads.js` works out the visitor's platform from the client hints or the user agent
+(`tools/browser/downloads.test.mjs` covers the strings). On a computer it shows only that platform's row, and a
+"Other platforms" button shows the rest; a phone, or an unknown platform, sees the whole list. No build is published
+from this repository yet, so every row currently says so; set the links there once the builds exist.
 
 ## Controls and installation
 
