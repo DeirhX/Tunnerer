@@ -208,7 +208,7 @@ public class TankBase
         {
             absorbed += PumpField(terrain, center, radius, TerrainGrid.ThermalField.Air, maxEnergy - absorbed,
                 out bool airLimited, out double airOutput);
-            limitedByBase |= airLimited;
+            limitedByBase = absorbed < maxEnergy && (limitedByBase || airLimited);
             engineOutput += airOutput;
         }
         groundWasCold = absorbed == 0.0;

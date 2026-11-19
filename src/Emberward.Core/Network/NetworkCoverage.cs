@@ -43,16 +43,19 @@ public static class NetworkCoverage
     /// The coverage of <paramref name="owner"/>'s network at <paramref name="position"/>: the strongest node that
     /// covers it, and among equally strong ones the base, then the first machine in list order. Only the machines
     /// near enough to cover the position are looked at. <paramref name="scratch"/> is overwritten.
+    /// With <paramref name="requireOwnPowerSource"/>, a node covers only if its route ends at the owner's base.
     /// </summary>
     public static TankCoverage At(
-        Position position, TankBase owner, MachineList machines, ITerrainPixelReadOnly terrain, List<Machine> scratch)
+        Position position, TankBase owner, MachineList machines, ITerrainPixelReadOnly terrain, List<Machine> scratch,
+        bool requireOwnPowerSource = false)
     {
         int nodeRadius = owner.Upgrades.NodeCoverageRadius;
         var best = TankCoverage.None;
         Consider(BaseNode(owner), position, terrain, ref best);
         machines.CollectNear(position, nodeRadius, scratch);
         foreach (var machine in scratch)
-            if (TryGetNode(machine, owner, nodeRadius, out CoverageNode node))
+            if (TryGetNode(machine, owner, nodeRadius, out CoverageNode node) &&
+                (!requireOwnPowerSource || node.Point?.IsPoweredBy(owner.LinkPoint) == true))
                 Consider(node, position, terrain, ref best);
         return best;
     }
