@@ -32,7 +32,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CODE_DIRS = ("src", "tests")
-TYPE_DECL = re.compile(r"\b(?:class|struct|record|interface|enum)\s+([A-Za-z_]\w*)")
+# "record struct Name" and "record class Name" declare Name, not "struct" or "class"
+TYPE_DECL = re.compile(r"\b(?:class|struct|record|interface|enum)(?:\s+(?:class|struct))?\s+([A-Za-z_]\w*)")
 WORD = re.compile(r"[A-Za-z_]\w*")
 TEST_MARK = re.compile(r"\[(?:Fact|Theory)\]")
 ALWAYS_RUN = {
@@ -149,7 +150,7 @@ def main() -> int:
 
     if args.all:
         full_reasons.append("--all")
-    if not changed:
+    if not changed and not args.all:
         print("No changes since the base: nothing to run.")
         return 0
 
