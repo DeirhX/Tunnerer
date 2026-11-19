@@ -55,7 +55,7 @@ public sealed class SessionOverlay
         ("Left click / Space", "Fire"),
         .. MachinePresentations.InSlotOrder.Select(m =>
             (m.KeyLabel, $"Build a {m.Name} ({m.OreCost} ore); press again to plant it")),
-        ("1-4 / 5-6", "Docked: buy base upgrades / tank upgrades with the base ore store"),
+        ("1-5 / 6-7", "Docked: buy base upgrades / tank upgrades with the base ore store"),
         ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("G", "Charge labels over machines (with --energy-network)"),
         ("Esc / P", "Pause"),

@@ -213,8 +213,8 @@ Building has to pay off, and exploring has to lead somewhere.
     - **Network reach:** +6 cells on every coverage circle per level.
     - **Engine:** +10% maximum efficiency per level, and warm sources convert better.
     - **Insulation:** the off-network clock runs 25% slower per level.
-    - **Sensors:** relays, pylons and the base see 8 cells further per level. Relays already see 10 cells beyond
-      their coverage circle at level 0. Sight is output only (§6.5), so this changes nothing but the ore it cost.
+    - **Sensors:** relays, pylons and the base see 8 cells further per level. Relays and pylons already see 10 cells
+      beyond their coverage circle at level 0. Sight is output only (§6.5), so this changes nothing but the ore it cost.
   - The **tank track**, keys 6-7:
     - **Cargo hold:** +30 ore in the tank's hold per level (40, 70, 100, 130).
     - **Radar:** +20% on every radar range and +25% on each ray's heat budget per level (§6.6). The radar is output
@@ -742,7 +742,7 @@ upgrades, throughput, turrets, then removing the pylon).
 | No lives: only a destroyed base ends a side; death costs the cargo (§4.9) | Proposed |
 | Relay throughput limits are upgradeable and lose heat; a hot relay throttles (§4.9) | Proposed |
 | Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Proposed |
-| Sensors upgrade: relays see 10 cells past coverage, and 8 more per level | Prototype |
+| Sensors upgrade: relays and pylons see 10 cells past coverage, and 8 more per level (the base 8 more per level) | Prototype |
 
 ## 14. Open questions
 

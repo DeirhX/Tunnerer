@@ -141,7 +141,7 @@ executable bit set (for example `chmod +x emberward-macos-arm64`); the builds ar
 
 Drive with WASD or arrows; dirt is dug by moving into it. Aim with the mouse, and fire with a click or Space.
 Firing while moving torches rock. E builds a relay, R a harvester, T a pylon; press a build key again outside a
-base to plant the carried machine. Keys 1–6 buy upgrades while docked. H turns the heat view on and off, as on
+base to plant the carried machine. Keys 1–7 buy upgrades while docked. H turns the heat view on and off, as on
 the desktop: the ground tinted by its heat, so that enemy tunnels glow (it changes only what is drawn). Mouse wheel
 or +/− changes zoom. `?energy` in the address starts a local match with the energy network (DESIGN.md §4.9, off by
 default): every machine in sight near the tank carries the desktop's charge label (charge over capacity, flow in and

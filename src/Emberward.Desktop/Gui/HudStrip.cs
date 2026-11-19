@@ -119,7 +119,7 @@ public sealed class HudStrip
 
         _build.Draw(dl, player, BuildX, time);
 
-        // The COMMAND button stands for the base upgrades: lit while docked (keys 1-4 buy), dimmed elsewhere.
+        // The COMMAND button stands for the base upgrades: lit while docked (keys 1-7 buy), dimmed elsewhere.
         if (!player.IsDockedAtOwnBase)
             dl.AddRectFilled(At(BuildX + 77f, 172f), At(BuildX + 277f, 212f), 0x90000000u, S(10f));
         else

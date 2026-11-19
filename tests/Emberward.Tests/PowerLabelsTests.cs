@@ -3,6 +3,7 @@ namespace Emberward.Tests;
 using System.Text.Json;
 using Emberward.Browser.Client;
 using Emberward.Core;
+using Emberward.Core.Config;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Network;
 using Emberward.Core.Types;
@@ -125,6 +126,37 @@ public class PowerLabelsTests
         RelayHeatTests.PlantRelay(off);
         PowerLabels.Collect(off.World, off.Tank, vision: null, labels, new List<Machine>());
         Assert.Empty(labels);
+    }
+
+    [Fact]
+    public void Collect_LeavesOutEnemyMachinesUnderFog_AsTheSpritesDo()
+    {
+        var s = RelayHeatTests.CreateScenario(energyNetwork: true);
+        var vision = s.World.TrackVision(s.Tank);
+        var enemy = s.World.TankList.Tanks.First(t => t.Base != null && !ReferenceEquals(t.Base, s.Base));
+        Machine PlantEnemy(Position at)
+        {
+            var machine = new Machine(at, MachineType.Relay, enemy.Color);
+            s.World.Machines.Add(machine);
+            s.World.PlantMachine(machine, enemy.Base);
+            return machine;
+        }
+        // One in the open tunnel just outside the base's door, one in the solid rock beside the base, both well within
+        // label reach.
+        var seen = PlantEnemy(s.Base.Position + new Offset(0, s.DirY * (Tweaks.Base.BaseSize / 2 + 4)));
+        var hidden = PlantEnemy(s.Base.Position + new Offset(Tweaks.Base.BaseSize + 30, 0));
+        for (int i = 0; i < 4; i++)
+            s.World.Advance(_ => default);
+        Assert.True(vision.IsVisible(seen.Position), "the tunnel relay should be in sight");
+        Assert.False(vision.IsVisible(hidden.Position), "the relay in the rock should be under fog");
+
+        var labels = new List<MachinePowerLabel>();
+        PowerLabels.Collect(s.World, s.Tank, vision, labels, new List<Machine>());
+
+        Assert.Contains(labels, l => ReferenceEquals(l.Machine, seen));
+        Assert.DoesNotContain(labels, l => ReferenceEquals(l.Machine, hidden));
+        PowerLabels.Collect(s.World, s.Tank, vision: null, labels, new List<Machine>());
+        Assert.Contains(labels, l => ReferenceEquals(l.Machine, hidden));
     }
 }
 

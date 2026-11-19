@@ -61,7 +61,7 @@ public sealed record PlayerStatus(
 /// <paramref name="Caption"/> and <paramref name="CaptionKind"/> are the rest of its <c>BuildSlotView</c>.</param>
 public sealed record BuildOption(int Key, string Name, int Cost, bool Affordable, string Payer,
     int Slot, string State, float Progress, string Label, string? Caption, string CaptionKind);
-/// <param name="Track">Whose upgrade it is: <c>Base</c> (keys 1-4) or <c>Tank</c> (5-6).</param>
+/// <param name="Track">Whose upgrade it is: <c>Base</c> (keys 1-5) or <c>Tank</c> (6-7).</param>
 public sealed record UpgradeOption(
     int Key, string Name, string Effect, string Track, int Level, int MaxLevel, int Cost, bool Maxed);
 public sealed record PlantPreview(string Status, Position Target, float Heat);

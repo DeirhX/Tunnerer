@@ -140,6 +140,28 @@ public class EnergyNetworkTests
     }
 
     [Fact]
+    public void AWreckedMachine_LeavesTheNetwork_EvenWhileItsCapacitorIsFilling()
+    {
+        var s = Scenario();
+        HarvesterHeatTests.SeedOre(s);
+        var relay = RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
+        var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
+        harvester.Charge = Tweaks.Machine.HarvesterBatteryCapacity * 0.1;
+        var energy = s.World.Energy!;
+        for (int i = 0; i < Tweaks.Perf.TargetFps && energy.FillingCount == 0; i++)
+            s.World.Advance(_ => default);
+        Assert.True(energy.FillingCount > 0, "the harvester's capacitor should be filling");
+
+        harvester.TakeDamage(Tweaks.Machine.ReactorHealthCapacity);
+        Advance(s.World, Tweaks.Energy.SettlePeriodTicks + 2);
+
+        Assert.Equal(1, energy.CapacitorCount);
+        Assert.Equal(0, energy.FillingCount);
+        Assert.Null(s.World.MachinePowerOf(harvester));
+        Assert.True(s.World.MachinePowerOf(relay)!.Value.IsFed);
+    }
+
+    [Fact]
     public void AnEmptyStore_StarvesItsTier_UntilTheEngineFillsItAgain()
     {
         var s = Scenario();

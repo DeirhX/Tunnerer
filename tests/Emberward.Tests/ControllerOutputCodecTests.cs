@@ -1,5 +1,6 @@
 namespace Emberward.Tests;
 
+using Emberward.Core.Entities.Bases;
 using Emberward.Core.Input;
 using Emberward.Core.Types;
 
@@ -11,7 +12,7 @@ public class ControllerOutputCodecTests
         for (int x = -1; x <= 1; x++)
             for (int y = -1; y <= 1; y++)
                 for (int buttons = 0; buttons < 16; buttons++)
-                    for (int upgrade = 0; upgrade <= 4; upgrade++)
+                    for (int upgrade = 0; upgrade <= BaseUpgrades.Count; upgrade++)
                     {
                         var input = new ControllerOutput
                         {
