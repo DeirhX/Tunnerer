@@ -24,7 +24,7 @@ public sealed partial class EnergyNetwork
         var frontier = new List<LinkPoint>();
         foreach (var island in _islands)
             if (island.Base is { LinkPoint: { IsEnabled: true } basePoint } owner)
-                ReachFrom(basePoint, island, owner, owner.Color);
+                ReachFrom(basePoint, island, owner, owner.Color, route: basePoint);
 
         // The first generator in machine order names an island that has no route to the base.
         foreach (var generator in _capacitors)
@@ -35,10 +35,12 @@ public sealed partial class EnergyNetwork
                 continue;
             PowerIsland island = LocalIslandOf(machine);
             targets.Add(generator, island);
-            ReachFrom(point, island, machine.OwnerBase, machine.OwnerColor);
+            ReachFrom(point, island, machine.OwnerBase, machine.OwnerColor, route: null);
         }
 
-        void ReachFrom(LinkPoint root, PowerIsland island, TankBase? owner, int color)
+        // A base's island takes only the nodes whose power comes from that base (the same route that covers a
+        // harvester, LinkPoint.IsPoweredBy). A node powered through a rival's base belongs to the rival's grid.
+        void ReachFrom(LinkPoint root, PowerIsland island, TankBase? owner, int color, LinkPoint? route)
         {
             frontier.Clear();
             frontier.Add(root);
@@ -52,6 +54,7 @@ public sealed partial class EnergyNetwork
                     var other = OtherEnd(link, point);
                     if (!nodes.TryGetValue(other, out var neighbor) ||
                         neighbor.Machine.OwnerBase != owner || neighbor.Machine.OwnerColor != color ||
+                        (route != null && !other.IsPoweredBy(route)) ||
                         !targets.TryAdd(neighbor, island))
                         continue;
                     frontier.Add(other);

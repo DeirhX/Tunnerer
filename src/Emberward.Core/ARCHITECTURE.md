@@ -164,7 +164,8 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    `TankDigger.Move`, spawn shield, shooting, `TankBuildController.Advance`, the upgrade keys, then
    `TankThermals.Advance` (heat from ore still in the hold and from tank actions, then exchange with the grid).
 6. **machines**: With the energy rule on, `EnergyNetwork.Refresh` first groups each side's connected link nodes
-   when `LinkMap.PowerVersion` changes. The base roots its own island. The first generator in machine order roots
+   when `LinkMap.PowerVersion` changes. The base roots its own island, which takes only the nodes whose power route
+   ends at that base (`LinkPoint.IsPoweredBy`, the same rule harvester coverage uses in `NetworkCoverage`). The first generator in machine order roots
    each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
