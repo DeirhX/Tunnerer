@@ -48,8 +48,8 @@ Open work, written so an agent can pick up one item without the conversation tha
   `RunsOnCharge` (only the harvester) keeps its capacitor as the battery when the flag is off.
 - **Numbers (in `Tweaks.Machine` and `Tweaks.Energy`):** relay 3600 capacity, 60/tick in, 1.5/tick idle; pylon 6000, 100,
   2.5; harvester 120k, 400 in, 4 idle. A cut-off relay or pylon lasts about 100 s.
-- **Islands.** The energy network groups same-side live links when `LinkMap.PowerVersion` changes. Base-connected
-  nodes use the base's island. A disconnected component pools charge if it has a generator. The first generator
+- **Islands.** The energy network regroups when `LinkMap.PowerVersion` changes. A node whose power route ends at a
+  base (`LinkPoint.IsPoweredBy`) uses that base's island, the same rule harvester coverage uses. A disconnected component pools charge if it has a generator. The first generator
   names that island and each producer carries its own reserve across splits. A disconnected group without a base
   or generator drains separately. Item 5 can reuse these memberships for the throughput tree.
 - **Per tick, per island, tier by tier:** pay members' idle draw from generator reserves and the base store, then top up non-full capacitors by
