@@ -2,5 +2,6 @@ namespace Emberward.Desktop.Rendering;
 
 public interface ITextureLoader : IDisposable
 {
-    nint LoadTexture(string path);
+    /// <summary>Decodes an image the executable embeds (an <see cref="EmbeddedAssets"/> name) into a texture.</summary>
+    nint LoadTexture(string assetName);
 }

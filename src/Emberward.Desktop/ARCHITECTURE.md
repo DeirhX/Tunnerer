@@ -31,8 +31,9 @@ It then builds the world through `WorldFactory` (match level or terrain test pat
 
 One HLSL source in `Rendering/Shaders`. `tools/Emberward.ShaderCompiler` runs before every build that touches a shader (target
   `CompileSdlGpuShaders` in `Emberward.Desktop.csproj`). It uses SDL_shadercross (DXC and SPIRV-Cross, from NuGet) to
-  write `<name>.dxil`, `.spv` and `.msl` plus a `.json` with the resource counts `SDL_CreateGPUShader` needs, into
-  `Shaders/` next to the executable. It compiles all three formats on every OS, so a shader one API cannot take
+  write `<name>.dxil`, `.spv` and `.msl` plus a `.json` with the resource counts `SDL_CreateGPUShader` needs. The build
+  embeds them in the executable under `Shaders/` (`EmbeddedAssets` reads them there), so the game ships as one file.
+  It compiles all three formats on every OS, so a shader one API cannot take
   fails the build where it is edited. It also fails when a texture has no sampler at its index.
 
 SDL_GPU wants fragment textures and samplers in space2, fragment uniforms in space3 and vertex uniforms in space1, so every resource is declared through the macros in

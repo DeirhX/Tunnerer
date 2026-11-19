@@ -4,7 +4,7 @@ using System.Text.Json;
 using SDL3;
 
 /// <summary>
-/// Loads the shaders that tools/Emberward.ShaderCompiler wrote next to the executable (Shaders/&lt;name&gt;.msl,
+/// Loads the shaders that tools/Emberward.ShaderCompiler wrote and the build embedded in the executable (Shaders/&lt;name&gt;.msl,
 /// .dxil, .spv and .json) in the format the GPU device takes.
 /// </summary>
 internal static class SdlGpuShaders
@@ -25,12 +25,11 @@ internal static class SdlGpuShaders
 
     public static nint Load(nint device, string name)
     {
-        string dir = Path.Combine(AppContext.BaseDirectory, "Shaders");
-        string metadataPath = Path.Combine(dir, name + ".json");
-        if (!File.Exists(metadataPath))
-            throw new FileNotFoundException($"Shader metadata missing: {metadataPath}. Was the shader build step run?", metadataPath);
-        var meta = JsonSerializer.Deserialize<Metadata>(File.ReadAllText(metadataPath))
-            ?? throw new InvalidDataException($"Could not read {metadataPath}.");
+        string metadataAsset = "Shaders/" + name + ".json";
+        if (!EmbeddedAssets.Exists(metadataAsset))
+            throw new FileNotFoundException($"Shader metadata missing: {metadataAsset}. Was the shader build step run?", metadataAsset);
+        var meta = JsonSerializer.Deserialize<Metadata>(EmbeddedAssets.ReadText(metadataAsset))
+            ?? throw new InvalidDataException($"Could not read {metadataAsset}.");
 
         SDL.GPUShaderFormat supported = SDL.GetGPUShaderFormats(device);
         (SDL.GPUShaderFormat format, string extension, string entry) =
@@ -39,7 +38,7 @@ internal static class SdlGpuShaders
             : (supported & SDL.GPUShaderFormat.SPIRV) != 0 ? (SDL.GPUShaderFormat.SPIRV, ".spv", meta.SpirvEntrypoint)
             : throw new NotSupportedException($"The GPU device takes none of the shader formats the build produces ({supported}).");
 
-        byte[] code = File.ReadAllBytes(Path.Combine(dir, name + extension));
+        byte[] code = EmbeddedAssets.ReadBytes("Shaders/" + name + extension);
         if (format == SDL.GPUShaderFormat.MSL)
             code = [.. code, 0]; // SDL reads MSL as a C string.
 

@@ -18,16 +18,13 @@ public sealed unsafe class SdlGpuTextureLoader : ITextureLoader
         StbImage.stbi_set_flip_vertically_on_load(0);
     }
 
-    public nint LoadTexture(string path)
+    public nint LoadTexture(string assetName)
     {
-        if (!File.Exists(path))
-            throw new FileNotFoundException($"Texture file not found: {path}", path);
-
-        using var stream = File.OpenRead(path);
+        using var stream = new MemoryStream(EmbeddedAssets.ReadBytes(assetName));
         var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
         fixed (byte* pixels = image.Data)
         {
-            nint texture = _backend.CreateTextureFromRgba(pixels, image.Width, image.Height, Path.GetFileName(path));
+            nint texture = _backend.CreateTextureFromRgba(pixels, image.Width, image.Height, Path.GetFileName(assetName));
             _textures.Add(texture);
             return texture;
         }

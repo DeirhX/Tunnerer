@@ -9,11 +9,11 @@ public partial class Game
     // Present before generating the world so the window has a useful first frame during startup.
     private void DrawStartupSplash()
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "resources", "emberward-logo.png");
-        // The splash is decoration: a missing file must not stop the game from starting.
-        if (!File.Exists(path))
+        const string logoAsset = "resources/emberward-logo.png";
+        // The splash is decoration: a missing logo must not stop the game from starting.
+        if (!EmbeddedAssets.Exists(logoAsset))
             return;
-        nint logo = _textures.LoadTexture(path);
+        nint logo = _textures.LoadTexture(logoAsset);
         var (width, height) = _renderer.GetWindowSize();
         if (width <= 0 || height <= 0)
             return;
