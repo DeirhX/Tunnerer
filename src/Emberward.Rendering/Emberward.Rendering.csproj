@@ -39,6 +39,7 @@
     <Compile Include="../Emberward.Desktop/SlotStepper.cs" Link="SlotStepper.cs" />
     <Compile Include="../Emberward.Desktop/Config/NetworkTweaks.cs" Link="Config/NetworkTweaks.cs" />
     <Compile Include="../Emberward.Desktop/Net/NetSession.cs" Link="Net/NetSession.cs" />
+    <Compile Include="../Emberward.Desktop/Net/Seats.cs" Link="Net/Seats.cs" />
     <Compile Include="../Emberward.Desktop/Net/NetMatch.cs" Link="Net/NetMatch.cs" />
     <Compile Include="../Emberward.Desktop/Net/LobbyText.cs" Link="Net/LobbyText.cs" />
   </ItemGroup>

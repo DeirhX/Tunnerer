@@ -1,5 +1,6 @@
 namespace Emberward.Core;
 
+using Emberward.Core.Snapshots;
 using System.Runtime.InteropServices;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Types;
@@ -113,6 +114,7 @@ public readonly record struct StepEvent(
 /// reads it back, so recording never changes a result. The backing list keeps its capacity, so recording does not
 /// allocate once it has grown to a busy step's size.
 /// </summary>
+[NotSaved("output only: what happened in the last step, for sound and the HUD; cleared before each step")]
 public sealed class StepEventLog
 {
     private readonly List<StepEvent> _events = new();

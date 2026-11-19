@@ -436,4 +436,20 @@ public class Tank
         uint mixed = (uint)(color * 73856093) ^ (uint)(pos.X * 19349663) ^ (uint)(pos.Y * 83492791);
         return (int)FastRandom.Hash32(mixed);
     }
+
+    /// <summary>
+    /// Mixes the tank's state that <see cref="WorldStateHash.Compute"/> does not read and that changes later results:
+    /// held keys, credits, timers, the turret's cooldown, the digger's generator and what the tank carries.
+    /// </summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _upgradeHeld);
+        hash = Fnv1a.Mix(hash, _unloadCredit);
+        hash = Fnv1a.Mix(hash, _thermals.IsOffNetwork);
+        hash = Fnv1a.Mix(hash, _thermals.OffNetworkFloor);
+        hash = Turret.MixLatent(hash);
+        hash = _digger.MixLatent(hash);
+        hash = _build.MixLatent(hash);
+        return _lifecycle.MixLatent(hash);
+    }
 }

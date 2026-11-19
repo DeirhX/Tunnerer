@@ -25,7 +25,7 @@ internal sealed class BotGunner
     /// <summary>Lowest chance (per mille) of firing back while retreating in sight of the enemy.</summary>
     private const int RetreatShootChancePermille = 820;
 
-    private readonly Random _rng;
+    private readonly BotRandom _rng;
     private int _frame;
     private int _losStreak;
     private int _burstFramesLeft = BurstFrames;
@@ -33,7 +33,7 @@ internal sealed class BotGunner
     private int _holdFireUntilFrame;
     private bool _enemyWasDead;
 
-    public BotGunner(Random rng) => _rng = rng;
+    public BotGunner(BotRandom rng) => _rng = rng;
 
     /// <summary>
     /// Advances the gunner's clock and follows the enemy's life: after it respawns, aimed fire is held for a while.
@@ -132,5 +132,16 @@ internal sealed class BotGunner
     {
         float c = (float)DeterministicMath.Cos(radians), s = (float)DeterministicMath.Sin(radians);
         return new DirectionF(d.X * c - d.Y * s, d.X * s + d.Y * c);
+    }
+
+    /// <summary>Mixes the gunner's clock, bursts and held fire, for the sync digest.</summary>
+    internal ulong MixState(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _frame);
+        hash = Fnv1a.Mix(hash, _losStreak);
+        hash = Fnv1a.Mix(hash, _burstFramesLeft);
+        hash = Fnv1a.Mix(hash, _burstPauseLeft);
+        hash = Fnv1a.Mix(hash, _holdFireUntilFrame);
+        return Fnv1a.Mix(hash, _enemyWasDead);
     }
 }

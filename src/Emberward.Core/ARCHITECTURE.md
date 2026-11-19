@@ -11,8 +11,9 @@ conservation, one heat solver) are listed in `AGENTS.md`; this file says where t
 World.cs                     World: owns every subsystem, runs Advance over its list of systems (WorldSystem)
 SimulationProfile.cs         Per-system timings, one section per system label
 StepEvents.cs                StepEvent / StepEventLog: what happened during a step (World.StepEvents)
-WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds heat and
-                             charge totals (what machines in a network match compare)
+WorldStateHash.cs            One number for a world's state (determinism tests), and SyncDigest, which adds what it
+                             does not read: heat per cell, charge per holder, economy, outcome and latent state (what
+                             machines in a network match compare; each owner mixes its own private state)
 StatusLevel.cs               Ok / Warn / Bad for a HUD gauge (Tank.ShieldLevel, TankBase.ChargeLevel, ...)
 Match/
   MatchRules.cs              Which optional systems a world runs (regrowth, pockets, ore, the core race); World.Rules
@@ -90,7 +91,18 @@ Input/
 Bots/                        The computer player: produces a ControllerOutput like a person would
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
+  BotRandom.cs               The one random stream a bot and its parts share: a FastRandom, so its state can be
+                             hashed and saved (System.Random's cannot)
   BotTrail.cs                The way the bot came, retraced to get home
+Snapshots/                   A match's state for a player who joins it in progress (docs/late-join-design.md §9)
+  WorldSnapshot.cs           Save, Load, Compress, Decompress: canonical bytes of the world and the bots beside it
+                             Digest: a hash of the raw bytes, which two players with one world agree on
+  SnapshotWriter.cs, SnapshotReader.cs   The general saver: every field reachable, breadth first, lists through
+                             their public API; loading fills the built world's own objects in place
+  SnapshotLayout.cs          What writer and reader agree on: saved fields in order, kinds of value, shared constants
+  NotSavedAttribute.cs       [NotSaved("reason")], the only way to leave a field out; ISnapshotLoaded rebuilds an
+                             index (machine buckets, link tiles) once a snapshot is loaded
+  SnapshotCoverage.cs        Reachable types allowed by the reader, unsupported fields, and every exclusion
 LevelGen/
   ToastGenerator.cs          Cavern generator (LevelGenMode Deterministic or Optimized)
   GeneratorUtils.cs          Shared drawing and placement helpers (lines, TooClose)

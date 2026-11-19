@@ -1,5 +1,6 @@
 namespace Emberward.Core;
 
+using Emberward.Core.Bots;
 using Emberward.Core.Rendering;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Bases;
@@ -12,7 +13,8 @@ using Emberward.Core.Types;
 /// </summary>
 /// <remarks>
 /// Of heat <see cref="Compute"/> reads only what tanks and machines hold, not the terrain's heat field;
-/// <see cref="ComputeSync"/> adds that.
+/// <see cref="ComputeSync"/> adds that, and the other state <see cref="Compute"/> leaves out (docs/late-join-design.md
+/// §10 lists it).
 /// </remarks>
 public static class WorldStateHash
 {
@@ -116,20 +118,53 @@ public static class WorldStateHash
         (Compute(world) ^ world.Rules.Fingerprint()) * Fnv1a.Prime;
 
     /// <summary>
-    /// What machines in a network match compare: <see cref="Compute"/> plus what it does not read: the totals of
-    /// the heat field and of the stored charge, and the bases' ore and upgrades. The parts are kept apart so that, when two machines differ,
-    /// the first thing known is where.
+    /// What machines in a network match compare: <see cref="Compute"/> plus what it does not read. The parts are kept
+    /// apart so that, when two machines differ, the first thing known is where. Takes one walk over the grid (heat,
+    /// air and scorch together, as the energy total it replaced did); everything else costs what the entities cost.
     /// </summary>
-    public static SyncDigest ComputeSync(World world) => new(
-        Compute(world),
-        BitConverter.DoubleToUInt64Bits(world.SumSystemThermalEnergy()),
-        BitConverter.DoubleToUInt64Bits(world.SumSystemCharge()),
-        ComputeEconomy(world));
+    public static SyncDigest ComputeSync(World world) => ComputeSync(world, []);
 
     /// <summary>
-    /// Every base's ore store and upgrade levels, which <see cref="Compute"/> does not read (its value is pinned
-    /// by the fingerprint tests). Without it two machines could disagree about what a base can pay for until the
-    /// difference reached a tank or the terrain.
+    /// <see cref="ComputeSync(World)"/> with the bots that drive some of the world's tanks. They are not part of the
+    /// world (the session that steps it makes them), but every client runs them, so their state is compared too.
+    /// </summary>
+    /// <param name="bots">Indexed by slot; null where no bot drives the tank.</param>
+    public static SyncDigest ComputeSync(World world, IReadOnlyList<BotTankAI?> bots)
+    {
+        ulong heat = world.Terrain.MixCellFields(Fnv1a.Offset, out ulong scorch);
+        foreach (var tankBase in world.TankBases.Bases)
+            heat = tankBase.MixReactorHeat(heat);
+        return new(Compute(world), heat, ComputeCharge(world), ComputeEconomy(world), ComputeOutcome(world),
+            ComputeLatent(world, scorch), ComputeBots(bots));
+    }
+
+    /// <summary>Every bot's state, slot by slot, with the empty slots marked so that the slots line up.</summary>
+    private static ulong ComputeBots(IReadOnlyList<BotTankAI?> bots)
+    {
+        ulong hash = Fnv1a.Offset;
+        foreach (BotTankAI? bot in bots)
+            hash = bot?.MixState(Fnv1a.Mix(hash, 1)) ?? Fnv1a.Mix(hash, 0);
+        return hash;
+    }
+
+    /// <summary>
+    /// Every holder's stored charge, base by base and battery by battery: a total would not see charge that moved
+    /// from one to another.
+    /// </summary>
+    private static ulong ComputeCharge(World world)
+    {
+        ulong hash = Fnv1a.Offset;
+        foreach (var tankBase in world.TankBases.Bases)
+            hash = Fnv1a.Mix(hash, tankBase.Charge);
+        foreach (var machine in world.Machines.Machines)
+            hash = Fnv1a.Mix(hash, machine.Charge);
+        return hash;
+    }
+
+    /// <summary>
+    /// Every base's ore store, upgrade levels and who plays it, which <see cref="Compute"/> does not read (its value
+    /// is pinned by the fingerprint tests). Without it two machines could disagree about what a base can pay for
+    /// until the difference reached a tank or the terrain.
     /// </summary>
     private static ulong ComputeEconomy(World world)
     {
@@ -140,19 +175,60 @@ public static class WorldStateHash
             hash = Fnv1a.Mix(hash, (uint)tankBase.Store.Capacity);
             for (int upgrade = 0; upgrade < BaseUpgrades.Count; upgrade++)
                 hash = Fnv1a.Mix(hash, (uint)tankBase.Upgrades.Level((BaseUpgrade)upgrade));
+            hash = tankBase.MixEconomy(hash);
         }
         return hash;
+    }
+
+    /// <summary>
+    /// The race to the core and the match result. They decide who won without passing through anything the other
+    /// parts read, so without this two machines could show different winners and never be told.
+    /// </summary>
+    private static ulong ComputeOutcome(World world)
+    {
+        ulong hash = world.Goal?.MixOutcome(Fnv1a.Offset) ?? Fnv1a.Offset;
+        return world.Result.MixOutcome(hash);
+    }
+
+    /// <summary>
+    /// State that changes later results but shows in no other part until it does, which can be much later or only
+    /// on a rare event: random generators, timers, held keys, harvester memory, pending projectiles, which heat
+    /// tiles are awake, the regrowth clock and scorch.
+    /// </summary>
+    private static ulong ComputeLatent(World world, ulong scorch)
+    {
+        ulong hash = Fnv1a.Mix(Fnv1a.Offset, scorch);
+        foreach (var tank in world.TankList.Tanks)
+            hash = tank.MixLatent(hash);
+        foreach (var machine in world.Machines.Machines)
+            hash = machine.MixLatent(hash);
+        hash = world.Projectiles.MixLatent(hash);
+        hash = world.LinkMap.MixLatent(hash);
+        hash = world.Terrain.MixHeatActivity(hash);
+        return world.RegrowthSystem?.MixLatent(hash) ?? hash;
     }
 }
 
 /// <summary>A world's state for comparison between machines (<see cref="WorldStateHash.ComputeSync"/>).</summary>
-/// <param name="State">Terrain pixels, tanks, machines, links and projectiles.</param>
-/// <param name="Heat">The bits of the total thermal energy: terrain, air, tanks and bases.</param>
-/// <param name="Charge">The bits of the total stored charge.</param>
-/// <param name="Economy">Every base's ore store and upgrade levels.</param>
-public readonly record struct SyncDigest(ulong State, ulong Heat, ulong Charge, ulong Economy)
+/// <param name="State">Terrain pixels, tanks, machines, links and projectiles (<see cref="WorldStateHash.Compute"/>).</param>
+/// <param name="Heat">Every cell's heat and air temperature, in cell order, and every base reactor's exact heat.</param>
+/// <param name="Charge">Every base's and every battery's stored charge.</param>
+/// <param name="Economy">Every base's ore store, upgrade levels and whether a bot plays it.</param>
+/// <param name="Outcome">The race to the core and the match result.</param>
+/// <param name="Latent">State that shows elsewhere only later: generators, timers, held keys, harvester memory, heat activity, regrowth, scorch.</param>
+/// <param name="Bots">Every bot's state, its random stream included.</param>
+public readonly record struct SyncDigest(
+    ulong State, ulong Heat, ulong Charge, ulong Economy, ulong Outcome, ulong Latent, ulong Bots)
 {
-    /// <summary>The four parts as one number, which is what travels.</summary>
-    public ulong Combined =>
-        ((State * Fnv1a.Prime ^ Heat) * Fnv1a.Prime ^ Charge) * Fnv1a.Prime ^ Economy;
+    /// <summary>The parts as one number, which is what travels.</summary>
+    public ulong Combined
+    {
+        get
+        {
+            ulong hash = State;
+            foreach (ulong part in (ReadOnlySpan<ulong>)[Heat, Charge, Economy, Outcome, Latent, Bots])
+                hash = hash * Fnv1a.Prime ^ part;
+            return hash;
+        }
+    }
 }

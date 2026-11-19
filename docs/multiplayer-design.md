@@ -107,18 +107,19 @@ Binary frames, one message per WebSocket frame, `TCP_NODELAY` on.
 
 | Direction | Message | Purpose |
 |---|---|---|
-| C to S | `Hello { protocol, buildId, name, room, config, secret }` | Join a room, or open it with `config` if it does not exist. The kind byte and `protocol` come first in every protocol version, so the relay can refuse an old client before reading the rest |
-| S to C | `Welcome { slot, config }` | Slot assignment and the room's match settings |
+| C to S | `Hello { protocol, buildId, name, room, config, secret, snapshots? }` | Join a room, or open it with `config` if it does not exist. The kind byte and `protocol` come first in every protocol version, so the relay can refuse an old client before reading the rest |
+| S to C | `Welcome { slot, config }` | Slot assignment and the room's match settings. A snapshot-capable newcomer gets slot -1 until seated |
 | S to C | `Roster { names[] }` | Who is in each slot; sent on every change |
 | C to S | `Ready { worldHash }` | World built from the config; hash of tick 0 |
 | C to S | `StartRequest` | From the host (lowest slot): start with the players who are here |
 | S to C | `Start { humanMask }` | Everyone here is ready and agrees; the other slots are bots |
 | C to S | `Input { encoded }` | One per tick simulated |
-| S to C | `Tick { n, inputs[] }` | One per server tick |
+| S to C | `Tick { n, inputs[], humanMask }` | Inputs and seat ownership for this tick |
 | C to S | `Hash { n, hash }` | Once a second |
 | S to C | `Desync { n }` | Hashes differed at tick `n` |
 | S to C | `Refusal { reason }` | Cannot join, or the match cannot start; the reason is for the player. The connection closes after it |
-| S to C | `Rejoined { humanMask }`, `Log { firstTick, slots, inputs[] }` | To a returning player: the match is on, and every tick so far in runs of 64 |
+| S to C | `Rejoined { humanMask }`, `Log { firstTick, slots, inputs[], humanMasks[] }` | To a returning player: the match is on, and every tick so far in runs of 64 |
+| S to C | `JoinHoldState { name }` | The match is held for this newcomer. An empty name releases the join hold |
 | C to S | `SetPaused { paused }` | Hold the match for everyone, or let it run |
 | S to C | `PauseState { paused, bySlot }` | The match is held or running, and who asked |
 | both | `Ping { id }`, `Pong { id }` | Times the round trip, once a second |
@@ -181,7 +182,8 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
   (`NetLaunch.RejoinPatience`) before it gives up. The window is closed meanwhile; the console says why. If
   the relay itself was restarted the room is gone, and the player opens a new lobby instead.
 - **Late join** of a new player is the same mechanism plus a free slot, but a tank and base cannot appear
-  mid-match in Core today. Not in the first tranche.
+  mid-match in Core today. Not in the first tranche. [late-join-design.md](late-join-design.md) proposes taking
+  over a bot's tank instead, with the world copied from a snapshot while the match holds for a moment.
 - A world snapshot (which the sector save in DESIGN §12.2 needs anyway) later replaces the fast-forward.
 
 ## 6. Staying in sync
@@ -192,14 +194,19 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
 - **Periodic hash.** Each client sends a digest once a second; the server keeps the first one reported for each
   tick for the whole match (a few thousand numbers an hour) and compares every later report for that tick with
   it, so a client far behind, replaying to catch up, is checked too. A report for a tick the relay has not closed
-  yet is ignored. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus the bits of
-  the total thermal energy and of the total stored charge, which cover the heat field the state hash does not
-  read, and a hash of every base's ore store and upgrade levels, which it does not read either.
-- **Its cost does not yet follow activity.** Both the state hash and the energy total walk the whole grid once
-  a second. That is small on today's maps and will not be on much larger ones; summing per active tile, or
+  yet is ignored. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus
+  what that hash does not read, in five parts: every cell's heat and air temperature, in cell order, and each
+  base reactor's exact heat (where heat is, not only how much); every base's and battery's charge; every base's
+  ore, upgrades and whether a bot plays it; the race to the core and the result (which decide the winner without
+  passing through anything else); and latent state that shows elsewhere only later or on a rare event (random
+  generators, timers, held keys, harvester memory, pending projectiles, which heat tiles are awake, the regrowth
+  clock, scorch). [late-join-design.md](late-join-design.md) §10 says why each is there.
+- **Its cost does not yet follow activity.** Both the state hash and the per-cell heat hash walk the whole grid
+  once a second. The per-cell hash runs in four independent lanes and costs less than the energy total it replaced
+  (0.39 ms against 1.32 ms on 1500 x 750, Release, development Mac). That is small on today's maps and will not be on much larger ones; summing per active tile, or
   hashing the terrain in turns, is the fix when maps grow.
 - **On desync** the match stops and every client writes `artifacts/debug/desync_<room>_tick<n>_slot<k>.txt`:
-  the digests it reported around the tick, split into state, heat, charge and economy, where its tanks stand, and the
+  the digests it reported around the tick, split into state, heat, charge, economy, outcome and latent, where its tanks stand, and the
   match as a `MatchRecording` (settings, which slots were players, every tick's inputs). Comparing two
   players' files shows when and in what the worlds went apart; `MatchRecording.Load(...).Replay()` rebuilds the
   match tick by tick in a test. `EMBERWARD_NET_FAULT_TICK=n` makes one client diverge on purpose, to exercise
@@ -362,7 +369,8 @@ Each step is testable without the next.
    next simulation step, and the relay caps its connections.
 8. **Browser client** (done, 2026-11-18). The browser joins rooms from its welcome screen, with lobby, host start,
    pause for everyone and rejoin by name, and plays with desktop clients of the same commit. No protocol change.
-9. Later: co-op sides, world snapshot for fast rejoin and late join, play from outside the office.
+9. Later: co-op sides, late join ([late-join-design.md](late-join-design.md)), world snapshot for fast rejoin
+   and late join, play from outside the office.
 
 ## 11. Open questions
 

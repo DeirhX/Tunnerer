@@ -29,7 +29,16 @@ public abstract record Message;
 /// <param name="Config">Used only if the room does not exist yet.</param>
 /// <param name="Secret">The relay's shared secret, if it asks for one; empty otherwise.</param>
 public sealed record Hello(
-    int Protocol, string BuildId, string Name, string Room, MatchConfig Config, string Secret = "") : Message;
+    int Protocol, string BuildId, string Name, string Room, MatchConfig Config, string Secret = "",
+    SnapshotCapabilities Snapshots = SnapshotCapabilities.None) : Message;
+
+[Flags]
+public enum SnapshotCapabilities
+{
+    None = 0,
+    Upload = 1,
+    Join = 2,
+}
 
 /// <summary>Relay to client: you are in, in <paramref name="Slot"/>, and this is the match to build.</summary>
 public sealed record Welcome(int Slot, MatchConfig Config) : Message;
@@ -64,18 +73,19 @@ public sealed record Rejoined(int HumanMask) : Message;
 
 /// <summary>Relay to a returning client: a run of past ticks, <paramref name="Slots"/> inputs for each.</summary>
 /// <param name="Inputs">Tick <paramref name="FirstTick"/>'s inputs in slot order, then the next tick's, and so on.</param>
-public sealed record Log(int FirstTick, int Slots, ImmutableArray<uint> Inputs) : Message
+public sealed record Log(int FirstTick, int Slots, ImmutableArray<uint> Inputs, ImmutableArray<byte> HumanMasks) : Message
 {
     public bool Equals(Log? other) =>
-        other is not null && FirstTick == other.FirstTick && Slots == other.Slots && Inputs.SequenceEqual(other.Inputs);
+        other is not null && FirstTick == other.FirstTick && Slots == other.Slots && Inputs.SequenceEqual(other.Inputs)
+        && HumanMasks.SequenceEqual(other.HumanMasks);
 
     public override int GetHashCode() => FirstTick;
 
-    /// <summary>The ticks this message carries, one bundle each.</summary>
+    /// <summary>Restores the inputs and seat ownership as of each recorded tick.</summary>
     public IEnumerable<TickBundle> Bundles()
     {
-        for (int i = 0; i * Slots < Inputs.Length; i++)
-            yield return new TickBundle(FirstTick + i, Inputs.Slice(i * Slots, Slots));
+        for (int i = 0; i < HumanMasks.Length; i++)
+            yield return new TickBundle(FirstTick + i, Inputs.Slice(i * Slots, Slots), HumanMasks[i]);
     }
 
     /// <summary>
@@ -88,9 +98,13 @@ public sealed record Log(int FirstTick, int Slots, ImmutableArray<uint> Inputs) 
         {
             int count = Math.Min(MessageCodec.MaxLogTicks, log.Count - first);
             var inputs = ImmutableArray.CreateBuilder<uint>(count * slots);
+            var masks = ImmutableArray.CreateBuilder<byte>(count);
             for (int i = 0; i < count; i++)
+            {
                 inputs.AddRange(log[first + i].Inputs);
-            yield return new Log(first, slots, inputs.MoveToImmutable());
+                masks.Add(checked((byte)log[first + i].HumanMask));
+            }
+            yield return new Log(first, slots, inputs.MoveToImmutable(), masks.MoveToImmutable());
         }
     }
 }
@@ -110,11 +124,14 @@ public sealed record Pong(uint Id) : Message;
 /// <summary>Client to relay: the local player's encoded input for one step.</summary>
 public sealed record Input(uint Encoded) : Message;
 
-/// <summary>Relay to clients: one tick to simulate.</summary>
+/// <summary>
+/// Relay to clients: one tick's inputs and seat ownership.
+/// </summary>
 public sealed record Tick(TickBundle Bundle) : Message
 {
     public bool Equals(Tick? other) =>
-        other is not null && Bundle.Tick == other.Bundle.Tick && Bundle.Inputs.SequenceEqual(other.Bundle.Inputs);
+        other is not null && Bundle.Tick == other.Bundle.Tick && Bundle.HumanMask == other.Bundle.HumanMask &&
+        Bundle.Inputs.SequenceEqual(other.Bundle.Inputs);
 
     public override int GetHashCode() => Bundle.Tick;
 }
@@ -134,3 +151,73 @@ public sealed record MatchOver(int AtTick) : Message;
 
 /// <summary>Relay to client: the request was refused, or the match cannot go on. The connection closes after it.</summary>
 public sealed record Refusal(string Reason) : Message;
+
+// Joining a match in progress (docs/late-join-design.md §4.3).
+
+/// <summary>Joiner to relay: my world is built from the settings; hold the match and get me a snapshot.</summary>
+public sealed record ReadyToLoad : Message;
+
+/// <summary>
+/// Relay to a seated client: save the world after <paramref name="Tick"/> ticks. Send chunks only when
+/// <paramref name="SendChunks"/> is set. Both the uploader and verifier report the hashes in SnapshotDone.
+/// </summary>
+public sealed record SnapshotRequest(int Tick, bool SendChunks) : Message;
+
+/// <summary>
+/// A piece of a compressed snapshot, uploader to relay and relay to joiner, in order from <paramref name="Index"/> 0.
+/// The relay passes the pieces on without reading them.
+/// </summary>
+public sealed record SnapshotChunk(int Tick, int Index, ImmutableArray<byte> Bytes) : Message
+{
+    /// <summary>The most bytes one chunk carries.</summary>
+    public const int MaxBytes = 32 * 1024;
+
+    public bool Equals(SnapshotChunk? other) =>
+        other is not null && Tick == other.Tick && Index == other.Index && Bytes.SequenceEqual(other.Bytes);
+
+    public override int GetHashCode() => HashCode.Combine(Tick, Index);
+
+    /// <summary>A compressed snapshot as chunks of at most <see cref="MaxBytes"/>, in order.</summary>
+    public static IEnumerable<SnapshotChunk> Split(int tick, byte[] compressed)
+    {
+        ArgumentNullException.ThrowIfNull(compressed);
+        for (int index = 0; index * MaxBytes < compressed.Length; index++)
+        {
+            int start = index * MaxBytes;
+            yield return new SnapshotChunk(
+                tick, index, ImmutableArray.Create(compressed, start, Math.Min(MaxBytes, compressed.Length - start)));
+        }
+    }
+}
+
+/// <summary>
+/// Seated client to relay: the snapshot after <paramref name="Tick"/> ticks has been saved and hashed.
+/// </summary>
+/// <param name="Length">The compressed bytes sent by the uploader, or zero from the verifier.</param>
+/// <param name="Digest">
+/// A hash of the uncompressed snapshot, which is canonical: two clients with the same world send the same digest.
+/// (The compressed bytes are not: the compressor's output can change between runtime versions.)
+/// </param>
+/// <param name="SyncHash">The uploader's sync digest of the world at the same tick, as it would report in a hash.</param>
+public sealed record SnapshotDone(int Tick, int Length, ulong Digest, ulong SyncHash) : Message;
+
+/// <summary>
+/// Relay to a joiner: a snapshot of the world after <paramref name="Tick"/> ticks follows as chunks, with the digest
+/// and the sync digest the uploaders agreed on, for the joiner to check what it loads against.
+/// </summary>
+public sealed record SnapshotOffer(int Tick, int Length, ulong Digest, ulong SyncHash) : Message;
+
+/// <summary>Joiner to relay, with the world loaded: let me drive the bot in this slot.</summary>
+public sealed record TakeSeat(int Slot) : Message;
+
+/// <summary>Joiner to relay: the snapshot failed its checks, or no seat is worth taking; let the match go on.</summary>
+public sealed record JoinFailed(string Reason) : Message;
+
+/// <summary>Relay to a joiner: granted; you drive <paramref name="Slot"/>, and your inputs count from tick <paramref name="AtTick"/>.</summary>
+public sealed record Seated(int Slot, int AtTick) : Message;
+
+/// <summary>Relay to a joiner: not granted (another joiner took the seat first); ask for another.</summary>
+public sealed record SeatRefused(string Reason) : Message;
+
+/// <summary>The match clock is held for this joiner. An empty name releases only the join hold.</summary>
+public sealed record JoinHoldState(string Name) : Message;

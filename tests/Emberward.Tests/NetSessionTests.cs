@@ -3,10 +3,10 @@ namespace Emberward.Tests;
 using Emberward.Core;
 using Emberward.Core.Input;
 using Emberward.Core.LevelGen;
+using Emberward.Core.Snapshots;
 using Emberward.Core.Types;
 using Emberward.Desktop.Net;
 using Emberward.Protocol;
-using Emberward.Core.Bots;
 
 /// <summary>
 /// Several clients, each with its own world, play one match through an in-memory relay. Whatever the connections
@@ -24,10 +24,9 @@ public class NetSessionTests
         return world;
     }
 
-    private static BotTankAI?[] NoBots => new BotTankAI?[Slots];
 
     /// <summary>What a player might press: runs of driving, with shots, a turning aim and the build keys now and then.</summary>
-    private static ControllerOutput ScriptedInput(int slot, int step)
+    internal static ControllerOutput ScriptedInput(int slot, int step)
     {
         int phase = (step + slot * 37) / 20;
         var random = new Random(slot * 7919 + phase);
@@ -127,8 +126,9 @@ public class NetSessionTests
 
         // The client that dropped out comes back: a fresh world and the relay's log give the same state.
         var rejoined = CreateWorld();
+        var seats = Seats.AllPlayers(Slots);
         foreach (TickBundle bundle in relay.Room.Log)
-            NetSession.Step(rejoined, NoBots, bundle);
+            seats.Step(rejoined, bundle);
         Assert.Equal(expected, WorldStateHash.Compute(rejoined));
     }
 
@@ -137,11 +137,12 @@ public class NetSessionTests
     {
         const int Steps = 300;
         var relay = new InMemoryRelay(Slots, seed: 9, maxDelay: 2);
-        static BotTankAI?[] Bots() => [null, null, new BotTankAI(seed: 44), new BotTankAI(seed: 45)];
         var worlds = new[] { CreateWorld(), CreateWorld() };
-        var sessions = worlds.Select((w, slot) => new NetSession(relay.LinkFor(slot), w) { Bots = Bots() }).ToArray();
-        relay.Disconnect(2);
-        relay.Disconnect(3);
+        var sessions = worlds.Select((w, slot) => new NetSession(relay.LinkFor(slot), w)).ToArray();
+        foreach (var session in sessions)
+            session.StartSeats(matchSeed: 42, humanMask: 0b0011);
+        relay.SeatBot(2);
+        relay.SeatBot(3);
 
         for (int step = 0; step < Steps; step++)
         {
@@ -197,7 +198,7 @@ public class NetSessionTests
         relay.Advance();
         StepAll(session);
 
-        Assert.Throws<InvalidOperationException>(() => session.Bots = NoBots);
+        Assert.Throws<InvalidOperationException>(() => session.StartSeats(matchSeed: 42, humanMask: 0b0011));
     }
 
     [Fact]
@@ -205,7 +206,7 @@ public class NetSessionTests
     {
         var relay = new InMemoryRelay(Slots, seed: 1, maxDelay: 0);
         var world = CreateWorld();
-        var session = new NetSession(relay.LinkFor(0), world) { Bots = NoBots };
+        var session = new NetSession(relay.LinkFor(0), world);
         relay.Advance();
         StepAll(session);
         Assert.Null(relay.LinkFor(0).MatchOverTick);
@@ -237,5 +238,228 @@ public class NetSessionTests
         Assert.Equal(before.State, after.State);
         Assert.NotEqual(before.Economy, after.Economy);
         Assert.NotEqual(before.Combined, after.Combined);
+    }
+
+    // Joining a match in progress (docs/late-join-design.md). The full join, at tick 2400, is slow and in
+    // NetSessionJoinTests.
+
+    /// <summary>Two players and two bots, run for a while through the relay and settled: both worlds at the same tick.</summary>
+    private static (InMemoryRelay Relay, World[] Worlds, NetSession[] Sessions) TwoPlayersAndTwoBots(int ticks)
+    {
+        var relay = new InMemoryRelay(Slots, seed: 3, maxDelay: 1);
+        relay.SeatBot(2);
+        relay.SeatBot(3);
+        var worlds = new[] { CreateWorld(), CreateWorld() };
+        var sessions = worlds.Select((w, slot) => new NetSession(relay.LinkFor(slot), w)).ToArray();
+        foreach (var session in sessions)
+            session.StartSeats(matchSeed: 42, humanMask: 0b0011);
+        for (int step = 0; step < ticks; step++)
+        {
+            for (int slot = 0; slot < sessions.Length; slot++)
+                sessions[slot].SendInput(ScriptedInput(slot, step));
+            relay.Advance();
+            foreach (var session in sessions)
+                StepAll(session);
+        }
+        Drain(relay, sessions);
+        return (relay, worlds, sessions);
+    }
+
+    [Fact]
+    public void PlayerJoiningEarly_TakesOverABot_AndEveryRecordingRebuildsTheSameWorld()
+    {
+        var match = NetSessionJoinTests.PlayAndJoin(relaySeed: 4, joinAt: 48, playedAfter: 48);
+
+        NetSessionJoinTests.AssertEveryWorldTheSame(match);
+        byte[] expected = match.Clients[0].Save();
+        // A player's recording runs from tick 0 with a mask line where the seat changed; the joiner's starts from
+        // its snapshot.
+        var recording = match.Clients[0].Session.Recording(NetSessionJoinTests.Config);
+        using var text = new StringWriter();
+        recording.Save(text);
+        Assert.Contains($"{Environment.NewLine}mask=7{Environment.NewLine}", text.ToString(), StringComparison.Ordinal);
+        Assert.Equal(expected, NetSessionJoinTests.Rebuild(recording));
+        Assert.Equal(expected, NetSessionJoinTests.Rebuild(match.Join.Session!.Recording(NetSessionJoinTests.Config)));
+    }
+
+    [Fact]
+    public void VerifierDisagreesWithUploader_ReportsDesync_AndWithholdsOffer()
+    {
+        var (relay, worlds, sessions) = TwoPlayersAndTwoBots(ticks: 48);
+        int tick = relay.Room.NextTick;
+        Assert.All(worlds, w => Assert.Equal(tick, w.AdvanceCount));
+        // A difference only a snapshot sees: the sync digest does not read the thermal ledger, the snapshot does.
+        SyncDigest before = WorldStateHash.ComputeSync(worlds[1], sessions[1].Bots);
+        worlds[1].Terrain.Ledger.RecordInjected(1.0);
+        Assert.Equal(before, WorldStateHash.ComputeSync(worlds[1], sessions[1].Bots));
+
+        var join = new LateJoin(relay.AddJoiner(), CreateWorld(), matchSeed: 42);
+        join.Begin();
+        for (int i = 0; i < 20; i++)
+        {
+            relay.Advance();
+            foreach (var session in sessions)
+                StepAll(session);
+            join.Receive();
+        }
+
+        Assert.Equal(tick, relay.Hold?.Tick);
+        Assert.Null(relay.Hold!.Offer);
+        Assert.Equal(tick, relay.Room.DesyncTick);
+        Assert.Equal(0, relay.OffersSent);
+        Assert.Equal(LateJoin.Stage.CopyingTheMatch, join.Current);
+        // Held: nothing moved while the join was on.
+        Assert.All(worlds, w => Assert.Equal(tick, w.AdvanceCount));
+    }
+
+    /// <summary>A link whose messages from the relay the test puts there, and which keeps what is sent.</summary>
+    private sealed class ScriptedLink : ILockstepLink
+    {
+        public Queue<Message> FromRelay { get; } = new();
+        public List<Message> Sent { get; } = [];
+
+        public void SendInput(uint input) => Sent.Add(new Input(input));
+        public void SendHash(int tick, ulong hash) => Sent.Add(new Hash(tick, hash));
+        public void SendMatchOver(int tick) => Sent.Add(new MatchOver(tick));
+        public void SendJoin(Message message) => Sent.Add(message);
+
+        public bool TryReceive([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TickBundle? bundle)
+        {
+            bundle = FromRelay.TryPeek(out var next) && next is Tick tick ? tick.Bundle : null;
+            if (bundle != null)
+                FromRelay.Dequeue();
+            return bundle != null;
+        }
+
+        public bool TryReceiveJoin([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Message? message)
+        {
+            message = FromRelay.TryPeek(out var next) && next is not Tick ? next : null;
+            if (message != null)
+                FromRelay.Dequeue();
+            return message != null;
+        }
+    }
+
+    [Fact]
+    public void VerifierSendsOnlyTheHashesOfItsOwnSnapshot()
+    {
+        var link = new ScriptedLink();
+        var world = CreateWorld();
+        var session = new NetSession(link, world);
+        link.FromRelay.Enqueue(new SnapshotRequest(0, SendChunks: false));
+
+        session.Receive();
+
+        var snapshot = WorldSnapshot.Save(world, session.Bots);
+        Assert.Equal(new SnapshotDone(0, 0, WorldSnapshot.Digest(snapshot),
+            WorldStateHash.ComputeSync(world, session.Bots).Combined), Assert.Single(link.Sent));
+    }
+
+    /// <summary>What an uploader sends for a match two players and two bots have played for 30 ticks.</summary>
+    private static (SnapshotOffer Offer, SnapshotChunk[] Chunks) UploadOfAMatch()
+    {
+        var (_, worlds, sessions) = TwoPlayersAndTwoBots(ticks: 30);
+        int tick = worlds[0].AdvanceCount;
+        byte[] snapshot = WorldSnapshot.Save(worlds[0], sessions[0].Bots);
+        byte[] compressed = WorldSnapshot.Compress(snapshot);
+        var offer = new SnapshotOffer(tick, compressed.Length, WorldSnapshot.Digest(snapshot),
+            WorldStateHash.ComputeSync(worlds[0], sessions[0].Bots).Combined);
+        return (offer, SnapshotChunk.Split(tick, compressed).ToArray());
+    }
+
+    [Fact]
+    public void Joiner_LoadsAndChecksTheSnapshot_AsksForTheBestBotSeat_AndAnotherWhenRefused()
+    {
+        var (offer, chunks) = UploadOfAMatch();
+        var link = new ScriptedLink();
+        var join = new LateJoin(link, CreateWorld(), matchSeed: 42);
+        join.Begin();
+        Assert.Equal(new ReadyToLoad(), Assert.Single(link.Sent));
+
+        link.FromRelay.Enqueue(offer);
+        foreach (var chunk in chunks)
+            link.FromRelay.Enqueue(chunk);
+        join.Receive();
+        Assert.Equal(LateJoin.Stage.TakingASeat, join.Current);
+        Assert.Equal(new TakeSeat(2), link.Sent[^1]);
+
+        link.FromRelay.Enqueue(new SeatRefused("taken"));
+        join.Receive();
+        Assert.Equal(new TakeSeat(3), link.Sent[^1]);
+
+        link.FromRelay.Enqueue(new Seated(3, offer.Tick));
+        join.Receive();
+        Assert.Equal(LateJoin.Stage.Seated, join.Current);
+        Assert.Equal(3, join.Slot);
+        Assert.Equal(offer.Tick, join.Session!.StartTick);
+        Assert.Equal(0b0011, join.Session.HumanMask);
+
+        // The next bundle hands slot 3 over: its bot goes, and the session steps on from the snapshot's tick.
+        link.FromRelay.Enqueue(new Tick(new TickBundle(offer.Tick, [0u, 0u, 0u, 0u], HumanMask: 0b1011)));
+        join.Session.Receive();
+        Assert.True(join.Session.TryStep());
+        Assert.Equal(0b1011, join.Session.HumanMask);
+        Assert.Null(join.Session.Bots[3]);
+        Assert.NotNull(join.Session.Bots[2]);
+    }
+
+    public static TheoryData<string> BrokenUploads => new() { "digest", "syncHash", "tick", "order", "truncated" };
+
+    [Theory]
+    [MemberData(nameof(BrokenUploads))]
+    public void Joiner_RefusesASnapshotThatFailsAnyCheck(string broken)
+    {
+        var (offer, chunks) = UploadOfAMatch();
+        if (broken == "truncated")
+        {
+            var assembly = new SnapshotAssembly(offer.Tick, offer.Length);
+            Assert.All(chunks, c => Assert.True(assembly.Add(c)));
+            byte[] raw = WorldSnapshot.Decompress(assembly.ToArray());
+            byte[] partial = raw[..(raw.Length / 2)];
+            byte[] compressed = WorldSnapshot.Compress(partial);
+            offer = offer with { Digest = WorldSnapshot.Digest(partial), Length = compressed.Length };
+            chunks = [.. SnapshotChunk.Split(offer.Tick, compressed)];
+        }
+        offer = broken switch
+        {
+            "digest" => offer with { Digest = offer.Digest + 1 },
+            "syncHash" => offer with { SyncHash = offer.SyncHash + 1 },
+            "tick" => offer with { Tick = offer.Tick + 1 },
+            _ => offer,
+        };
+        var link = new ScriptedLink();
+        var join = new LateJoin(link, CreateWorld(), matchSeed: 42);
+        join.Begin();
+        link.FromRelay.Enqueue(offer);
+        // Chunks keep the tick they were cut for, so an offer of another tick does not take them either.
+        if (broken == "order")
+            link.FromRelay.Enqueue(chunks[0] with { Index = 1 });
+        foreach (var chunk in chunks)
+            link.FromRelay.Enqueue(chunk);
+        join.Receive();
+
+        Assert.Equal(LateJoin.Stage.Failed, join.Current);
+        Assert.NotNull(join.Failure);
+        Assert.IsType<JoinFailed>(link.Sent[^1]);
+        Assert.DoesNotContain(link.Sent, m => m is TakeSeat);
+    }
+
+    [Fact]
+    public void SeatPick_IsTheBotWithTheMostLives_LowestSlotFirst_NeverOneOutOfLives()
+    {
+        var world = CreateWorld();
+        var seats = Seats.ForStart(world, matchSeed: 42, humanMask: 0b0001);
+        var tanks = world.TankList.Tanks;
+
+        Assert.Equal(1, LateJoin.PickSeat(world, seats, []));
+        tanks[1].LivesLeft--;
+        Assert.Equal(2, LateJoin.PickSeat(world, seats, []));
+        Assert.Equal(3, LateJoin.PickSeat(world, seats, [2]));
+        foreach (var tank in tanks.Skip(1))
+        {
+            tank.LivesLeft = 1;
+            tank.Die();
+        }
+        Assert.Equal(-1, LateJoin.PickSeat(world, seats, []));
     }
 }

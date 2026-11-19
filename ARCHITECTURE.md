@@ -20,7 +20,7 @@ src/
                            Rendering and Protocol.
   Emberward.Browser/        WebAssembly exports, WebGL backend, browser input and offline PWA shell.
   Emberward.Rendering/      Shared assembly; compiles the pure rendering sources from Desktop, and the network
-                           session (NetSession, SlotStepper) the browser plays network matches with.
+                           session (NetSession, Seats, SlotStepper) the browser plays network matches with.
   Emberward.Desktop/        SDL3 window, input and sound, renderer (SDL_GPU), ImGui HUD, game loop.
     ARCHITECTURE.md        Rendering and sound design
   Emberward.Protocol/       What a network match's clients and relay share: tick bundles and the relay's tick rule.
@@ -98,10 +98,14 @@ Automated runs are step-locked instead: one frame per step, showing exactly that
 are reproducible. `EMBERWARD_INTERPOLATE=1` turns the in-between frames on for them.
 
 A network match (`--net`, `Game.Net.cs`) is deterministic lockstep: every client runs the whole simulation and
-only inputs travel. `Net/NetSession` sends the local player's input to the relay (`Emberward.Relay`), steps the world
+normal play exchanges inputs and sync hashes. `Net/NetSession` sends the local player's input to the relay (`Emberward.Relay`), steps the world
 only from the tick bundles the relay sends back, never from the local clock, and reports a world hash once a second
-so a client that drifts apart is caught. Bots drive the slots nobody took, seeded the same on every client. The
-pause menu opens over a running game. `docs/multiplayer-design.md` has the protocol and the relay.
+so a client that drifts apart is caught. Bots drive the slots nobody took, seeded the same on every client. Who
+drives each tank is `Net/Seats`, and only the human mask every bundle carries changes it, so a seat changes hands at
+the same tick everywhere. During a late join, one player uploads a snapshot and a second verifies it when available.
+`Net/LateJoin` loads the snapshot, checks it and takes a bot seat through the WebSocket relay. The player-facing
+join screens are still pending (`docs/late-join-design.md`). The pause menu opens over a running game.
+`docs/multiplayer-design.md` describes the protocol and the relay.
 
 Session behaviour (pause, controls screen, quit, map seed) is in `Game.Session.cs` and `Gui/SessionOverlay.cs`.
 The pause menu's network entry (`Game.NetMenu.cs`, `Gui/NetMenuView.cs`) only collects choices: `Net/NetMenuModel` is the menu
@@ -219,7 +223,8 @@ step's sounds into the frame, and the page plays them with the bank's samples (`
   planning (`TerrainAuxUploaderTests`), fog rendering (`FogRenderingTests`), world construction (`WorldFactoryTests`), and the solid field and material
   coverage the terrain shader samples.
 - **Network matches**: the input codec and messages (`MessageCodecTests`), the relay's rooms and tick rule
-  (`MatchRoomTests`, `LockstepRoomTests`), client sessions (`NetSessionTests`), recordings, and a relay over real
+  (`MatchRoomTests`, `LockstepRoomTests`, `SnapshotHoldTests`), client sessions and joining in progress
+  (`NetSessionTests`, `NetSessionJoinTests`), recordings, and a relay over real
   sockets (`RelayOverSocketsTests`; the tests that wait on a timer or a paced match are its nested classes in
   `TimedTestGroup`, which never run in parallel with the rest, and the quick run skips them).
   The network menu: `LaunchArgumentsTests` (the command line and the arguments of the next run, the secret kept out

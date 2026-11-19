@@ -202,11 +202,130 @@ public class LockstepRoomTests
 
         Assert.Equal(48, room.DesyncTick);
     }
+
+    [Fact]
+    public void EveryBundle_CarriesTheHumanMask_AndASeatChangesFromTheNextTick()
+    {
+        var room = new LockstepRoom(slots: 3);
+        Assert.Equal(0b111, room.CloseTick().HumanMask);
+        room.SeatBot(2);
+        room.Submit(2, 9);
+        Assert.Equal(0b011, room.CloseTick().HumanMask);
+        Assert.True(room.IsBotSeat(2));
+        Assert.False(room.Seat(1)); // A player has it.
+
+        Assert.True(room.Seat(2));
+        Assert.False(room.Seat(2)); // Taken: a second joiner asking for it is refused.
+        TickBundle first = room.CloseTick();
+        room.Submit(2, 7);
+        TickBundle second = room.CloseTick();
+
+        Assert.Equal(0b111, first.HumanMask);
+        // The bot's time left nothing behind: the slot plays the neutral input until the joiner's first arrives.
+        Assert.Equal(LockstepRoom.NeutralInput, first.Inputs[2]);
+        Assert.Equal(7u, second.Inputs[2]);
+    }
+
+    [Fact]
+    public void SnapshotDigestsThatDiffer_AreADesync_AtTheirTick()
+    {
+        var room = new LockstepRoom(slots: 2);
+        for (int i = 0; i < 50; i++)
+            room.CloseTick();
+        room.SubmitSnapshotDigest(50, 0xAB);
+        room.SubmitSnapshotDigest(50, 0xAB);
+        // A hash and a snapshot digest of one tick are not compared with each other.
+        room.SubmitHash(50, 0xCD);
+        Assert.Null(room.DesyncTick);
+
+        room.SubmitSnapshotDigest(50, 0xAC);
+
+        Assert.Equal(50, room.DesyncTick);
+    }
+}
+
+public class SnapshotHoldTests
+{
+    private static SnapshotChunk Chunk(int tick, int index, int length) => new(tick, index, [.. new byte[length]]);
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void OfferWaitsForTheUploadAndIndependentVerification(bool verifyFirst)
+    {
+        var hold = new SnapshotHold(tick: 100, uploader: 0, verifier: 1, maxBytes: 1000);
+        var upload = new SnapshotDone(100, 500, Digest: 7, SyncHash: 8);
+        var verification = upload with { Length = 0 };
+        Assert.False(hold.AddChunk(1, Chunk(100, 0, 500)));
+        Assert.False(hold.Finish(1, upload));
+        Assert.False(hold.Finish(0, verification));
+        Assert.True(hold.AddChunk(0, Chunk(100, 0, 500)));
+        Assert.True(verifyFirst ? hold.Finish(1, verification) : hold.Finish(0, upload));
+        Assert.Null(hold.Offer);
+        Assert.True(verifyFirst ? hold.Finish(0, upload) : hold.Finish(1, verification));
+
+        Assert.Equal(new SnapshotOffer(100, 500, 7, 8), hold.Offer);
+        Assert.Single(hold.Chunks);
+        Assert.False(hold.Finish(1, verification));
+    }
+
+    [Theory]
+    [InlineData(6, 8)]
+    [InlineData(7, 9)]
+    public void EitherHashDisagreeingWithholdsOffer(int digest, int syncHash)
+    {
+        var hold = new SnapshotHold(100, uploader: 0, verifier: 1, maxBytes: 1000);
+        Assert.True(hold.AddChunk(0, Chunk(100, 0, 500)));
+        Assert.True(hold.Finish(0, new SnapshotDone(100, 500, 7, 8)));
+        Assert.True(hold.Finish(1, new SnapshotDone(100, 0, (ulong)digest, (ulong)syncHash)));
+        Assert.Null(hold.Offer);
+    }
+
+    [Fact]
+    public void ChunksAndEnds_ThatDoNotFit_AreRefused()
+    {
+        var hold = new SnapshotHold(tick: 100, uploader: 0, verifier: null, maxBytes: 1000);
+        Assert.False(hold.AddChunk(1, Chunk(100, 0, 10))); // Not asked.
+        Assert.False(hold.AddChunk(0, Chunk(99, 0, 10))); // Another tick.
+        Assert.False(hold.AddChunk(0, Chunk(100, 1, 10))); // Out of order.
+        Assert.False(hold.AddChunk(0, Chunk(100, 0, 1001))); // Too big.
+        Assert.True(hold.AddChunk(0, Chunk(100, 0, 10)));
+        Assert.False(hold.Finish(0, new SnapshotDone(100, 11, 0, 0))); // Not what arrived.
+        Assert.False(hold.Finish(0, new SnapshotDone(101, 10, 0, 0)));
+        Assert.True(hold.Finish(0, new SnapshotDone(100, 10, 0, 0)));
+        Assert.False(hold.AddChunk(0, Chunk(100, 1, 10))); // After the end.
+        Assert.Equal(new SnapshotOffer(100, 10, 0, 0), hold.Offer);
+        Assert.Throws<ArgumentException>(() => new SnapshotHold(1, 0, 0, 10));
+    }
+
+    [Fact]
+    public void AssemblyAcceptsOnlyFullChunksAndOneNonemptyTail()
+    {
+        var assembly = new SnapshotAssembly(100, 2 * SnapshotChunk.MaxBytes);
+        Assert.False(assembly.Add(Chunk(100, 0, 0)));
+        Assert.False(assembly.Add(Chunk(100, 0, SnapshotChunk.MaxBytes + 1)));
+        Assert.True(assembly.Add(Chunk(100, 0, SnapshotChunk.MaxBytes)));
+        Assert.True(assembly.Add(Chunk(100, 1, 1)));
+        Assert.False(assembly.Add(Chunk(100, 2, 1)));
+        Assert.Equal(SnapshotChunk.MaxBytes + 1, assembly.Length);
+    }
+
+    [Fact]
+    public void Chunks_SplitAndPutBackTogether_GiveTheSameBytes()
+    {
+        byte[] bytes = [.. Enumerable.Range(0, SnapshotChunk.MaxBytes * 2 + 17).Select(i => (byte)(i * 7))];
+        var chunks = SnapshotChunk.Split(5, bytes).ToList();
+        var assembly = new SnapshotAssembly(5, bytes.Length);
+        Assert.All(chunks, chunk => Assert.True(assembly.Add(chunk)));
+
+        Assert.Equal(3, chunks.Count);
+        Assert.Equal(bytes, assembly.ToArray());
+    }
 }
 
 public class BundleBufferTests
 {
-    private static TickBundle Bundle(int tick) => new(tick, [0u]);
+    private static TickBundle Bundle(int tick) => new(tick, [0u], HumanMask: 1);
 
     private static BundleBuffer BufferWith(int count)
     {

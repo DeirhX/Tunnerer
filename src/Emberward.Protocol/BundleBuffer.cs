@@ -18,6 +18,13 @@ public sealed class BundleBuffer
 
     private readonly Queue<TickBundle> _bundles = new();
 
+    /// <param name="firstTick">The tick of the first bundle: 0, or for a player who joined in progress, the tick of the snapshot it loaded.</param>
+    public BundleBuffer(int firstTick = 0)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(firstTick);
+        NextTick = firstTick;
+    }
+
     /// <summary>The tick the next added bundle must carry.</summary>
     public int NextTick { get; private set; }
 

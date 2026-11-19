@@ -24,28 +24,41 @@ public class SimulationFingerprintTests
     private const ulong ExpectedPlayerDrivesAndShoots = 0x6F6977DB7613A6EAUL;
     private const ulong ExpectedRelayPylonHarvesterNetwork = 0xFA4907D86889921DUL;
     private const ulong ExpectedEnemyMachinesShotToPieces = 0xB6102D1B5B5F1E46UL;
-    private const ulong ExpectedBotVsBot = 0xBE06ADA8362A015CUL;
+    private const ulong ExpectedBotVsBot = 0x56BB30122CA13DE1UL;
 
-    [Fact]
-    public void PlayerDrivesAndShoots_MatchesRecordedFingerprint()
+    /// <summary>
+    /// A recorded run: the world as set up, the bots in it (null for a slot the script drives), how many frames it
+    /// runs, the script's input by frame and tank, and how to build the bare world it was set up from, which is what
+    /// a joiner builds before loading a snapshot of it (<see cref="SnapshotRoundTripTests"/>).
+    /// </summary>
+    internal sealed record Scenario(
+        World World, BotTankAI?[] Bots, int Frames, Func<int, int, ControllerOutput> Input, Func<World> BuildBare)
     {
-        var world = TestHelpers.CreateSeededWorld();
-        for (int frame = 0; frame < 300; frame++)
-        {
-            var input = new ControllerOutput
-            {
-                MoveSpeed = new Offset((frame / 40) % 2 == 0 ? 0 : 1, (frame / 40) % 3 == 0 ? -1 : 1),
-                ShootPrimary = frame % 7 == 0,
-                AimDirection = new DirectionF(1, 0),
-            };
-            world.Advance(i => i == 0 ? input : TestSimulation.Idle);
-        }
+        /// <summary>Steps the world <paramref name="frames"/> times from <paramref name="firstFrame"/>.</summary>
+        public void Play(int firstFrame, int frames) => Play(World, Bots, firstFrame, frames, Input);
 
-        AssertFingerprint(ExpectedPlayerDrivesAndShoots, world);
+        public static void Play(World world, BotTankAI?[] bots, int firstFrame, int frames, Func<int, int, ControllerOutput> input)
+        {
+            var tanks = world.TankList.Tanks;
+            for (int f = 0; f < frames; f++)
+            {
+                int frame = firstFrame + f;
+                world.Advance(i => bots[i] is { } bot ? bot.GetInput(tanks[i], tanks[1 - i], world) : input(frame, i));
+            }
+        }
     }
 
-    [Fact]
-    public void RelayPylonHarvesterNetwork_MatchesRecordedFingerprint()
+    internal static Scenario PlayerDrivesAndShoots() => new(
+        TestHelpers.CreateSeededWorld(), [null, null], 300,
+        (frame, i) => i != 0 ? TestSimulation.Idle : new ControllerOutput
+        {
+            MoveSpeed = new Offset((frame / 40) % 2 == 0 ? 0 : 1, (frame / 40) % 3 == 0 ? -1 : 1),
+            ShootPrimary = frame % 7 == 0,
+            AimDirection = new DirectionF(1, 0),
+        },
+        () => TestHelpers.CreateSeededWorld());
+
+    internal static Scenario RelayPylonHarvesterNetwork()
     {
         var s = RelayHeatTests.CreateScenario();
         s.World.Terrain.AddHeatRadius(s.RelayPos, 150, 8);
@@ -57,40 +70,26 @@ public class SimulationFingerprintTests
                 s.World.Terrain.SetPixel(s.Base.Position + new Offset(dx, s.DirY * (Tweaks.Base.BaseSize / 2 + 18 + dy)),
                     Emberward.Core.Terrain.TerrainPixel.Emberite);
         Plant(s, MachineType.Harvester, Tweaks.Base.BaseSize / 2 + 18);
-        int storeBefore = s.Base.Store.Ore;
-
-        for (int frame = 0; frame < 400; frame++)
-        {
-            var input = new ControllerOutput
+        return new(s.World, [null, null], 400,
+            (frame, i) => i != 0 ? TestSimulation.Idle : new ControllerOutput
             {
                 MoveSpeed = new Offset(0, frame < 200 ? s.DirY : -s.DirY),
                 ShootPrimary = frame % 11 == 0,
                 AimDirection = new DirectionF(0, s.DirY),
-            };
-            s.World.Advance(i => i == 0 ? input : TestSimulation.Idle);
-        }
-
-        Assert.True(s.Base.Store.Ore > storeBefore, "the scenario must have the harvester mine ore");
-        AssertFingerprint(ExpectedRelayPylonHarvesterNetwork, s.World);
+            },
+            () => RelayHeatTests.CreateScenario().World);
     }
 
-    [Fact]
-    public void BotVsBot_MatchesRecordedFingerprint()
-    {
-        var world = TestHelpers.CreateSeededWorld();
-        var tanks = world.TankList.Tanks;
-        var bots = new[] { new BotTankAI(seed: 11), new BotTankAI(seed: 22) };
-        for (int frame = 0; frame < 1200; frame++)
-            world.Advance(i => bots[i].GetInput(tanks[i], tanks[1 - i], world));
+    internal static Scenario BotVsBot() => new(
+        TestHelpers.CreateSeededWorld(), [new BotTankAI(seed: 11), new BotTankAI(seed: 22)], 1200,
+        (_, _) => TestSimulation.Idle, () => TestHelpers.CreateSeededWorld());
 
-        AssertFingerprint(ExpectedBotVsBot, world);
-    }
-
-    [Fact]
-    public void EnemyMachinesShotToPieces_MatchesRecordedFingerprint()
+    /// <summary>
+    /// The player shoots down the tunnel into an enemy relay and harvester: hits, wrecks, scorch, wreck shrapnel and
+    /// the network rebuilding all feed the hash.
+    /// </summary>
+    internal static Scenario EnemyMachinesShotToPieces()
     {
-        // The player shoots down the tunnel into an enemy relay and harvester: hits, wrecks, scorch, wreck shrapnel
-        // and the network rebuilding all feed the hash.
         var s = RelayHeatTests.CreateScenario();
         var enemy = s.World.TankBases.Bases.First(b => b.Color != s.Tank.Color);
         var relay = new Machine(s.RelayPos, MachineType.Relay, enemy.Color);
@@ -100,20 +99,54 @@ public class SimulationFingerprintTests
             s.World.Machines.Add(machine);
             s.World.PlantMachine(machine, enemy);
         }
-
-        for (int frame = 0; frame < 400; frame++)
-        {
-            var input = new ControllerOutput
+        return new(s.World, [null, null], 400,
+            (frame, i) => i != 0 ? TestSimulation.Idle : new ControllerOutput
             {
                 MoveSpeed = new Offset(0, frame < 60 ? s.DirY : 0),
                 ShootPrimary = frame % 5 == 0,
                 AimDirection = new DirectionF(0, s.DirY),
-            };
-            s.World.Advance(i => i == 0 ? input : TestSimulation.Idle);
-        }
+            },
+            () => RelayHeatTests.CreateScenario().World);
+    }
 
-        Assert.False(relay.IsAlive, "the scenario must wreck at least the relay");
-        AssertFingerprint(ExpectedEnemyMachinesShotToPieces, s.World);
+    [Fact]
+    public void PlayerDrivesAndShoots_MatchesRecordedFingerprint()
+    {
+        var run = PlayerDrivesAndShoots();
+        run.Play(0, run.Frames);
+
+        AssertFingerprint(ExpectedPlayerDrivesAndShoots, run.World);
+    }
+
+    [Fact]
+    public void RelayPylonHarvesterNetwork_MatchesRecordedFingerprint()
+    {
+        var run = RelayPylonHarvesterNetwork();
+        var tankBase = run.World.TankList.Tanks[0].Base!;
+        int storeBefore = tankBase.Store.Ore;
+        run.Play(0, run.Frames);
+
+        Assert.True(tankBase.Store.Ore > storeBefore, "the scenario must have the harvester mine ore");
+        AssertFingerprint(ExpectedRelayPylonHarvesterNetwork, run.World);
+    }
+
+    [Fact]
+    public void BotVsBot_MatchesRecordedFingerprint()
+    {
+        var run = BotVsBot();
+        run.Play(0, run.Frames);
+
+        AssertFingerprint(ExpectedBotVsBot, run.World);
+    }
+
+    [Fact]
+    public void EnemyMachinesShotToPieces_MatchesRecordedFingerprint()
+    {
+        var run = EnemyMachinesShotToPieces();
+        run.Play(0, run.Frames);
+
+        Assert.DoesNotContain(run.World.Machines.Machines, m => m.Type == MachineType.Relay && m.IsAlive);
+        AssertFingerprint(ExpectedEnemyMachinesShotToPieces, run.World);
     }
 
     private static void Plant(RelayHeatTests.Scenario s, MachineType type, int distanceFromBase)
@@ -129,7 +162,7 @@ public class SimulationFingerprintTests
         Assert.True(expected == actual, $"{ChangedMessage} Expected 0x{expected:X16}UL, got 0x{actual:X16}UL.");
     }
 
-    private static ulong Fingerprint(World world)
+    internal static ulong Fingerprint(World world)
     {
         var h = new Fnv64();
         h.Add(WorldStateHash.Compute(world));

@@ -33,7 +33,7 @@ public class RelayOverSocketsTests
 
     private static readonly TimeSpan QuickTimeout = TimeSpan.FromSeconds(2);
 
-    private static async Task<(WebApplication App, Uri Play)> StartRelayAsync(string secret = "", bool quickKeepAlive = false)
+    internal static async Task<(WebApplication App, Uri Play)> StartRelayAsync(string secret = "", bool quickKeepAlive = false)
     {
         var app = RelayApp.Build(
             ["--urls", "http://127.0.0.1:0", "--Logging:LogLevel:Default=Warning", $"--{RelayHub.SecretKey}={secret}"],
@@ -48,7 +48,7 @@ public class RelayOverSocketsTests
     private static MatchConfig Config(int seed) =>
         NetMatch.ProposeConfig(seed, MapSize, Core.LevelGen.LevelGenMode.Deterministic, players: 2);
 
-    private static void WaitFor(Func<bool> condition, params RelayConnection[] pump) =>
+    internal static void WaitFor(Func<bool> condition, params RelayConnection[] pump) =>
         WaitFor(condition, pump, TimeSpan.FromSeconds(10));
 
     private static void WaitFor(Func<bool> condition, RelayConnection[] pump, TimeSpan timeout)
@@ -579,8 +579,8 @@ public class RelayOverSocketsTests
             void Play(NetSession session, RelayConnection connection, World world, int limit = int.MaxValue)
             {
                 session.Receive();
-                if (connection.Started && world.AdvanceCount == 0 && session.Bots.Count == 0)
-                    session.Bots = NetSession.CreateBots(world, connection.Config.Seed, connection.HumanMask);
+                if (connection.Started && world.AdvanceCount == 0 && session.HumanMask != connection.HumanMask)
+                    session.StartSeats(connection.Config.Seed, connection.HumanMask);
                 while (world.AdvanceCount < limit && session.TryStep())
                     session.SendInput(new ControllerOutput
                     {

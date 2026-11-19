@@ -53,4 +53,13 @@ internal sealed class BotTrail
     }
 
     private static int Distance(Position a, Position b) => Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
+
+    /// <summary>Mixes the waypoints home, in order, for the sync digest.</summary>
+    public ulong MixState(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _waypoints.Count);
+        foreach (Position waypoint in _waypoints)
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, waypoint.X), waypoint.Y);
+        return hash;
+    }
 }

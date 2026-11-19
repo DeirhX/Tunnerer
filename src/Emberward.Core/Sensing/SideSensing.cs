@@ -1,5 +1,6 @@
 namespace Emberward.Core.Sensing;
 
+using Emberward.Core.Snapshots;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Bases;
 using Emberward.Core.Entities.Machines;
@@ -11,6 +12,7 @@ using Emberward.Core.Terrain;
 /// (<see cref="Radar"/>). Output only: nothing in the simulation reads it, and a world nobody asks pays nothing for it.
 /// <see cref="World"/> runs it as the last system of a step and answers for it.
 /// </summary>
+[NotSaved("output only: vision and radar, which nothing in the simulation reads")]
 internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks)
 {
     private readonly List<(Tank Tank, VisionMap Map)> _visions = new();

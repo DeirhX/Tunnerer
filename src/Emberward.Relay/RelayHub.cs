@@ -48,6 +48,7 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         return secret;
     }
 
+    private readonly SnapshotBudget _snapshotBudget = new();
     private readonly Lock _lock = new();
     private readonly Dictionary<string, MatchRoom> _rooms = new(StringComparer.OrdinalIgnoreCase);
 
@@ -63,12 +64,12 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
     /// <summary>Serves one client from its first message until its connection ends.</summary>
     public async Task ServeAsync(WebSocket socket, CancellationToken stopping)
     {
-        using var peer = new SocketPeer(socket);
+        using var peer = new SocketPeer(socket, _snapshotBudget);
         using var served = CancellationTokenSource.CreateLinkedTokenSource(stopping, peer.Closed);
         Task writing = peer.WriteAsync(stopping);
         MatchRoom? room = null;
         int slot = -1;
-        // One buffer for the whole connection: each message is decoded before the next is read into it.
+        // The small greeting is checked before allocating space for snapshot chunks.
         byte[] buffer = new byte[MessageCodec.MaxMessageBytes];
         try
         {
@@ -94,14 +95,21 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
             if (room.IsRunning)
                 StartClock(room, stopping);
 
+            buffer = new byte[MessageCodec.MaxFrameBytes];
             var rate = new MessageRate(MaxMessagesPerSecond);
             while (await MessageFraming.ReadFrameAsync(socket, buffer, served.Token) is { } frame)
             {
                 if (rate.Exceeded())
                     throw new InvalidDataException($"The client sends more than {MaxMessagesPerSecond} messages a second.");
+                // Chunks already in flight can arrive after a cancelled hold. Drop them before copying the payload.
+                if (MessageCodec.IsSnapshotChunk(frame) && !room.ExpectsUpload(slot))
+                    continue;
                 Message message = MessageCodec.Decode(frame);
-                room.Handle(slot, message);
-                if (message is not (Input or Hash) && room.IsRunning)
+                if (slot >= 0)
+                    room.Handle(slot, message);
+                else
+                    slot = room.HandleWatcher(peer, message);
+                if (message is Ready or StartRequest && room.IsRunning)
                     StartClock(room, stopping);
             }
         }
@@ -111,9 +119,12 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         }
         finally
         {
-            if (room is not null && slot >= 0)
+            if (room is not null)
             {
-                room.Leave(slot);
+                if (slot >= 0)
+                    room.Leave(slot);
+                else
+                    room.LeaveWatcher(peer);
                 // The last player who was not ready leaving can be what starts the match.
                 if (room.IsRunning && !room.IsEmpty)
                     StartClock(room, stopping);
@@ -161,13 +172,13 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
                     peer.Send(new Refusal("The relay has no room left."));
                     return (null, -1);
                 }
-                room = new MatchRoom(hello.Room, hello.BuildId, hello.Config);
+                room = new MatchRoom(hello.Room, hello.BuildId, hello.Config, _snapshotBudget);
                 _rooms.Add(hello.Room, room);
                 RelayLog.RoomOpened(logger, room.Code, room.Config.Slots);
             }
 
-            int slot = room.Join(peer, hello.Name, hello.BuildId, out string refusal);
-            if (slot >= 0)
+            int slot = room.Join(peer, hello.Name, hello.BuildId, out string refusal, hello.Snapshots);
+            if (refusal.Length == 0)
                 return (room, slot);
             peer.Send(new Refusal(refusal));
             return (null, -1);
@@ -234,11 +245,11 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
     }
 
     /// <summary>One client's socket as a room sees it: sends are queued and written by <see cref="WriteAsync"/>.</summary>
-    private sealed class SocketPeer(WebSocket socket) : IPeer, IDisposable
+    private sealed class SocketPeer(WebSocket socket, SnapshotBudget budget) : IPeer, IDisposable
     {
         // Room for the whole log of a long match sent to a returning client. A client that falls this far behind
         // on reading is not coming back; the full queue ends its connection.
-        private readonly Channel<byte[]> _outbox = Channel.CreateBounded<byte[]>(
+        private readonly Channel<Message> _outbox = Channel.CreateBounded<Message>(
             new BoundedChannelOptions(16384) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
         private readonly CancellationTokenSource _overflow = new();
         private readonly CancellationTokenSource _closed = new();
@@ -251,27 +262,60 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
         {
             if (_closing)
                 return;
-            if (!_outbox.Writer.TryWrite(MessageCodec.Encode(message)) && !_outbox.Reader.Completion.IsCompleted)
+            int reserved = message is SnapshotChunk chunk ? chunk.Bytes.Length : 0;
+            if (reserved > 0 && !budget.TryReserve(reserved))
+            {
                 _overflow.Cancel();
+                return;
+            }
+            if (!_outbox.Writer.TryWrite(message))
+            {
+                if (reserved > 0)
+                    budget.Release(reserved);
+                _overflow.Cancel();
+            }
         }
 
         public void Close()
         {
             _closing = true;
-            _outbox.Writer.TryComplete();
+            Complete();
         }
 
-        public void Complete() => _outbox.Writer.TryComplete();
+        public void Complete()
+        {
+            // A receiver that stops reading must eventually release its queued payload and connection.
+            _overflow.CancelAfter(MatchRoom.JoinHoldLimit);
+            _outbox.Writer.TryComplete();
+        }
 
         public async Task WriteAsync(CancellationToken stopping)
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(stopping, _overflow.Token);
             try
             {
-                await foreach (byte[] bytes in _outbox.Reader.ReadAllAsync(linked.Token))
-                    await socket.SendAsync(bytes, WebSocketMessageType.Binary, endOfMessage: true, linked.Token);
+                int remaining = 0;
+                await foreach (var outgoing in _outbox.Reader.ReadAllAsync(linked.Token))
+                {
+                    try
+                    {
+                        if (outgoing is SnapshotOffer offer)
+                        {
+                            remaining = offer.Length;
+                            linked.CancelAfter(MatchRoom.JoinHoldLimit);
+                        }
+                        await socket.SendAsync(MessageCodec.Encode(outgoing), WebSocketMessageType.Binary, endOfMessage: true, linked.Token);
+                        if (outgoing is SnapshotChunk sent && (remaining -= sent.Bytes.Length) == 0)
+                            linked.CancelAfter(Timeout.InfiniteTimeSpan);
+                    }
+                    finally
+                    {
+                        if (outgoing is SnapshotChunk chunk)
+                            budget.Release(chunk.Bytes.Length);
+                    }
+                }
                 if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
-                    await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, stopping);
+                    await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, linked.Token);
                 // Closed by the room: the client may never answer the close, so stop waiting for it.
                 if (_closing)
                     await _closed.CancelAsync();
@@ -279,6 +323,13 @@ public sealed class RelayHub(ILogger<RelayHub> logger, IConfiguration configurat
             catch (Exception e) when (e is WebSocketException or OperationCanceledException)
             {
                 socket.Abort();
+            }
+            finally
+            {
+                _outbox.Writer.TryComplete();
+                while (_outbox.Reader.TryRead(out var pending))
+                    if (pending is SnapshotChunk chunk)
+                        budget.Release(chunk.Bytes.Length);
             }
         }
 

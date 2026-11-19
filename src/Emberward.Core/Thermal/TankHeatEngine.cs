@@ -1,5 +1,6 @@
 namespace Emberward.Core.Thermal;
 
+using Emberward.Core.Snapshots;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
 
@@ -34,6 +35,7 @@ public readonly record struct TankHeatStep(
 /// warmed by them (chilling the cells under it), so a tank always drifts toward the temperature of where it stands.
 /// </para>
 /// </summary>
+[NotSaved("fixed for the match: built from the settings")]
 public sealed class TankHeatEngine
 {
     private readonly SimulationSettings _settings;

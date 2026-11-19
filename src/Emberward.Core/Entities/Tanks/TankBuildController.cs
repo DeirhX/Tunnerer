@@ -2,6 +2,7 @@ namespace Emberward.Core.Entities.Tanks;
 
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Input;
+using Emberward.Core.Types;
 
 /// <summary>
 /// The build keys: building a machine with ore from the base store (in the own network) or the tank's hold, carrying
@@ -118,5 +119,16 @@ internal sealed class TankBuildController
         if (hold.CanPay(cost))
             return new BuildQuote(type, cost, OrePayer.Hold, hold.Ore, inNetwork);
         return new BuildQuote(type, cost, OrePayer.None, Math.Max(hold.Ore, store?.Ore ?? 0), inNetwork);
+    }
+
+    /// <summary>
+    /// Mixes the held build keys (a press is a change from these) and what the tank carries, for the sync digest.
+    /// </summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _primaryHeld);
+        hash = Fnv1a.Mix(hash, _secondaryHeld);
+        hash = Fnv1a.Mix(hash, _tertiaryHeld);
+        return _materializer.MixLatent(hash);
     }
 }

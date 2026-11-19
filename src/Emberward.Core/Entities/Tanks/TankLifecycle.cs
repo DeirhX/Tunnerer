@@ -139,4 +139,13 @@ internal sealed class TankLifecycle
         SpawnProtectionTicks = Tank.SpawnProtectionCap;
         _protectedUntilExit = true;
     }
+
+    /// <summary>Mixes the respawn countdown and the spawn protection, for the sync digest.</summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _respawning);
+        hash = Fnv1a.Mix(hash, _respawnTimer);
+        hash = Fnv1a.Mix(hash, SpawnProtectionTicks);
+        return Fnv1a.Mix(hash, _protectedUntilExit);
+    }
 }
