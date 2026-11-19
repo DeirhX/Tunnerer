@@ -119,8 +119,9 @@ Opportunity: quenchable hot rock (DESIGN §6.1) already wants rock that cools. F
 
 ## 5. Open decisions for the user
 
-- **Core start.** 600 °C × 16 capacity per cell. A bare core beside a tank kills it in 1–2 s. A large lump stays above
-  100 °C for about 17 s and above 60 °C for about 57 s (`TankTemperatureTests`). This is the main tuning knob.
+- **Core start: decided, keep 600 °C × 16 capacity per cell** (the user's call, after the measurements). A bare core
+  beside a tank kills it in 1–2 s. A large lump stays above 100 °C for about 17 s and above 60 °C for about 57 s
+  (`TankTemperatureTests`). Do not retune it as part of the finiteness work; it is still the main knob for later.
 - **Relays drain finite lumps.** A relay cools a lump in tens of seconds, so a lump is harvestable early. Should an
   intact core hold against a relay? (DESIGN §14)
 - **Plain ore starts at 9 °C**, just under the radar threshold of 10. Raise the threshold with the start if you raise
