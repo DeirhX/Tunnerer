@@ -283,9 +283,10 @@ public class BrowserNetMatchTests
             {
                 await reader;
             }
-            catch (Exception e) when (e is OperationCanceledException or WebSocketException)
+            catch (Exception e) when (e is OperationCanceledException or WebSocketException or ObjectDisposedException)
             {
-                // The socket was closed under the reader.
+                // The socket was closed under the reader. Which of the three it sees depends on where the reader
+                // was: waiting in a receive (cancelled, or a socket error) or about to start the next one (disposed).
             }
         }
     }
