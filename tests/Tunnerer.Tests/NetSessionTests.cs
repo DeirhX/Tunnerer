@@ -403,7 +403,7 @@ public class NetSessionTests
         Assert.NotNull(join.Session.Bots[2]);
     }
 
-    public static TheoryData<string> BrokenUploads => ["digest", "syncHash", "tick", "order", "truncated"];
+    public static TheoryData<string> BrokenUploads => new() { "digest", "syncHash", "tick", "order", "truncated" };
 
     [Theory]
     [MemberData(nameof(BrokenUploads))]

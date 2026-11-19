@@ -53,9 +53,9 @@ public class BrowserNetMatchTests
     public void Lobby_SaysHelloThenReadyAndStepsOnlyFromBundles()
     {
         var config = NetMatch.ProposeConfig(42, new Size(480, 300), LevelGenMode.Deterministic, 3);
-        var match = new BrowserNetMatch("room", "Ann", "secret", config);
+        var match = new BrowserNetMatch("room", "Ann", config);
         var hello = Assert.IsType<Hello>(Single(match.TakeOutgoing()));
-        Assert.Equal(("room", "Ann", "secret", NetMatch.BuildId), (hello.Room, hello.Name, hello.Secret, hello.BuildId));
+        Assert.Equal(("room", "Ann", "", NetMatch.BuildId), (hello.Room, hello.Name, hello.Secret, hello.BuildId));
         Assert.Null(match.Session);
         Assert.Equal("Connecting to the relay...", match.Status().Notice);
 
@@ -91,7 +91,7 @@ public class BrowserNetMatchTests
     public void Press_WaitsForAStepWhenAFrameHasNone()
     {
         var config = NetMatch.ProposeConfig(42, new Size(320, 200), LevelGenMode.Deterministic, 2);
-        var match = new BrowserNetMatch("room", "Ann", "", config);
+        var match = new BrowserNetMatch("room", "Ann", config);
         Feed(match, new Welcome(0, config), new Roster(["Ann", ""]), new Start(0b01));
         match.TakeOutgoing();
 
@@ -109,7 +109,7 @@ public class BrowserNetMatchTests
     [Fact]
     public void Refusal_BeforeTheWelcome_IsTheFailure()
     {
-        var match = new BrowserNetMatch("room", "Ann", "", BrowserNetMatch.Propose(1, 2));
+        var match = new BrowserNetMatch("room", "Ann", BrowserNetMatch.Propose(1, 2));
         Feed(match, new Refusal("The relay wants a secret."));
         Assert.Equal("The relay wants a secret.", match.Failure);
         Assert.Null(match.Session);
@@ -120,7 +120,7 @@ public class BrowserNetMatchTests
     public void LostConnection_AfterTheStart_TellsHowToComeBack()
     {
         var config = NetMatch.ProposeConfig(42, new Size(320, 200), LevelGenMode.Deterministic, 2);
-        var match = new BrowserNetMatch("room", "Ann", "", config);
+        var match = new BrowserNetMatch("room", "Ann", config);
         Feed(match, new Welcome(0, config), new Roster(["Ann", "Bob"]), new Start(0b11), Tick(0, [0u, 0u], 3));
         match.Advance(default, 1, Now);
         match.Lose("lost the connection to the relay.");
@@ -162,7 +162,7 @@ public class BrowserNetMatchTests
             {
                 TicksPerSecond = MessageCodec.MaxTicksPerSecond,
             };
-            var browser = new BrowserNetMatch("cross", "Ann", "", proposal);
+            var browser = new BrowserNetMatch("cross", "Ann", proposal);
             using var socket = new ClientWebSocket();
             await socket.ConnectAsync(play, CancellationToken.None);
             var inbox = new ConcurrentQueue<byte[]>();

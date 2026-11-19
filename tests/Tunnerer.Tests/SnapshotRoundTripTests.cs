@@ -23,8 +23,10 @@ namespace Tunnerer.Tests;
 /// </summary>
 public class SnapshotRoundTripTests
 {
-    public static TheoryData<string> FingerprintScenarios =>
-        ["PlayerDrivesAndShoots", "RelayPylonHarvesterNetwork", "BotVsBot", "EnemyMachinesShotToPieces"];
+    public static TheoryData<string> FingerprintScenarios => new()
+    {
+        "PlayerDrivesAndShoots", "RelayPylonHarvesterNetwork", "BotVsBot", "EnemyMachinesShotToPieces",
+    };
 
     [Theory]
     [MemberData(nameof(FingerprintScenarios))]

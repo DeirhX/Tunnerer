@@ -152,6 +152,10 @@ nav button {
     padding-left: 15px;
     margin-left: 4px;
 }
+nav #update {
+    border-color: var(--cyan);
+    color: var(--cyan);
+}
 #offline {
     font: 12px var(--hud-font);
     letter-spacing: 1px;
@@ -358,24 +362,6 @@ h1 {
 .online-form > button {
     grid-column: 1 / -1;
     justify-self: start;
-}
-/* The secret's field and its Show button, as one box. */
-.secret-field {
-    display: flex;
-}
-.secret-field input {
-    flex: 1;
-    min-width: 0;
-    border-radius: 4px 0 0 4px;
-}
-.online-form .secret-field button {
-    padding: 0 10px;
-    font-size: 12px;
-    color: var(--muted);
-    background: #101d23;
-    border: 1px solid #334047;
-    border-left: 0;
-    border-radius: 0 4px 4px 0;
 }
 @media (max-width: 560px) {
     .online-form {
