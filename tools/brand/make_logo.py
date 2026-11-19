@@ -1,7 +1,10 @@
 """Builds the Emberward logo and app icon as SVG, with the Chakra Petch glyphs as outlines (no font needed to show them).
 
-    python tools/brand/make_logo.py                    writes the browser's logo.svg (animated) and icon.svg
-    python tools/brand/make_logo.py --static out.svg   also writes the logo without its animation, for rasterising
+    python tools/brand/make_logo.py                    writes the browser's icon.svg
+    python tools/brand/make_logo.py --static out.svg   also writes the logo, without its animation, for rasterising
+    python tools/brand/make_logo.py --animated out.svg the same with the ember's pulse, for a page that shows the logo
+
+The page itself shows only the emblem (icon.svg); the full logo is for the desktop splash and any future use.
 
 The PNGs are those SVGs rendered with resvg (@resvg/resvg-js, `new Resvg(svg, {fitTo: {mode: "width", value}})`):
 the desktop's resources/emberward-logo.png is the static logo at 2400 wide, the browser's icons/ are icon.svg at
@@ -169,10 +172,10 @@ def build_icon():
 
 
 if __name__ == "__main__":
-    (WWWROOT / "logo.svg").write_text(build_logo(animated=True), encoding="utf-8", newline="\n")
     (WWWROOT / "icon.svg").write_text(build_icon(), encoding="utf-8", newline="\n")
-    print("wrote logo.svg and icon.svg in", WWWROOT.relative_to(ROOT))
-    if "--static" in sys.argv:
-        target = Path(sys.argv[sys.argv.index("--static") + 1])
-        target.write_text(build_logo(animated=False), encoding="utf-8", newline="\n")
-        print("wrote", target)
+    print("wrote icon.svg in", WWWROOT.relative_to(ROOT))
+    for flag, animated in (("--static", False), ("--animated", True)):
+        if flag in sys.argv:
+            target = Path(sys.argv[sys.argv.index(flag) + 1])
+            target.write_text(build_logo(animated), encoding="utf-8", newline="\n")
+            print("wrote", target)

@@ -10,6 +10,9 @@ public partial class Game
     private void DrawStartupSplash()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "resources", "emberward-logo.png");
+        // The splash is decoration: a missing file must not stop the game from starting.
+        if (!File.Exists(path))
+            return;
         nint logo = _textures.LoadTexture(path);
         var (width, height) = _renderer.GetWindowSize();
         if (width <= 0 || height <= 0)

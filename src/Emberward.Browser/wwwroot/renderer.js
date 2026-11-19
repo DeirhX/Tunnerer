@@ -85,7 +85,9 @@ export class GameRenderer {
         if (!this.frame) {
             this.worldCanvas.hidden = true;
             c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-            this.drawLanding(c, now);
+            // The welcome screen has its own opaque illustration over the canvas; only the lobby shows this one.
+            this.welcome ??= document.getElementById("welcome");
+            if (this.welcome?.hidden !== false) this.drawLanding(c, now);
             // The landing illustration shares the overlay canvas: the first game frame clears it.
             this.overlayCleared = true;
             return;
