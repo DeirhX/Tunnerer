@@ -36,9 +36,10 @@ public sealed class BrowserNetMatch
 
     /// <param name="proposed">The match this client opens if the room does not exist yet.</param>
     /// <param name="heatWorkers">Threads for the heat solver (<see cref="BrowserSession"/>).</param>
-    public BrowserNetMatch(string room, string name, string secret, MatchConfig proposed, int heatWorkers = 1)
+    public BrowserNetMatch(string room, string name, MatchConfig proposed, int heatWorkers = 1)
     {
-        _hello = new Hello(MessageCodec.ProtocolVersion, NetMatch.BuildId, name, room, proposed, secret);
+        // The public relay is open: the browser sends no secret (Hello's default).
+        _hello = new Hello(MessageCodec.ProtocolVersion, NetMatch.BuildId, name, room, proposed);
         _heatWorkers = heatWorkers;
         _outbox.Add(MessageCodec.Encode(_hello));
     }

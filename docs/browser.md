@@ -135,10 +135,9 @@ Escape opens the pause menu. Switching away from the page pauses the local match
 ## Network play
 
 The welcome screen has two tabs, **Solo** and **Online**, and keeps the one last chosen. **Online** joins a room on
-the relay (docs/multiplayer-design.md): a name, a room, the number of tanks and the relay's secret if it has one.
-The page remembers them (`localStorage`). The secret's field can be shown, to see what an old visit or a password
-manager left in it; spaces around it are not part of it, here or on the relay, and a refusal for it puts the cursor
-in the field. The relay logs each refusal with the length of what was sent. The first player into
+the relay (docs/multiplayer-design.md): a name, a room and the number of tanks. The page remembers them
+(`localStorage`). The page sends no secret: the public relay is open to everyone, and a relay that asks for a secret
+refuses the browser. The first player into
 a room opens it with a new seed and that many tanks, on the desktop's map for the count (480x300 for more than two,
 `?map=WxH` for another); bots take the slots nobody joins. The lobby shows who is in each slot in their tank's
 colour; the host (the lowest slot) starts with **Start match** or Enter, and a full room starts by itself. P pauses
@@ -196,7 +195,13 @@ its threaded WebAssembly runtime experimental.
 
 `publish.py` hashes the complete deployed app and emits `assets-manifest.js`. The service worker caches every
 required asset (of two runtimes, the one this browser uses) before becoming active, isolates caches by deployment
-path, and keeps an open game's existing runtime active until all its tabs/windows close. Failed update downloads
+path, and does not reload a running game. A new version installs in the background. A page that holds no game
+(on the start page with nothing to read, not typing in a field) then moves to it and reloads itself, if no other
+Tunnerer tab is open. Otherwise the page shows an Update button in the header, which reloads when pressed
+(`install.js`). Pressing it moves every tab to the new version; another tab with a match running keeps playing
+and shows the button too. The start page's footer names the version the page runs and, when it differs, the latest
+one on the server ("VERSION 5cc86e02 · LATEST e7ef5bb1"), or says it is up to date. The page also
+looks for a new version when it comes back into view, at most every ten minutes. Failed update downloads
 leave the previous working version active. The manifest must be regenerated after changing a published file; rerun
 the publisher rather than editing files in `wwwroot`.
 
@@ -206,6 +211,61 @@ actual game in Chromium, on one thread and in the threaded runtime, and uploads 
 containing the deployable zips and screenshots. Build, formatting and the script tests
 are blocking; the graphics smoke run is non-blocking because hosted GPU availability varies, following the desktop
 smoke test's existing policy. Deployment to a public host is separate; this workflow does not change Pages settings.
+
+### Starfish (crust.bokovka.cz)
+
+The public copy is served from the Starfish VM at `https://crust.bokovka.cz`, beside the relay
+(`docs/multiplayer-design.md`, "The relay", describes the VM, SSH access and updating the relay). Caddy's site file,
+`/etc/caddy/conf.d/crust.bokovka.cz.caddy`, sends `/play` and `/health` to the relay and serves everything else
+from `/srv/tunnerer/browser`. It sends the cross-origin isolation headers and the no-cache headers listed above,
+so deploy a `--threads` publish. `/srv/tunnerer/browser.prev` keeps the build that was live before.
+
+The easy way is the **publish-starfish** workflow (`.github/workflows/publish-starfish.yml`): on GitHub, Actions →
+publish-starfish → Run workflow, with the branch to publish (normally `master`). It runs only when started by hand,
+and its job is skipped unless the repository owner started it. It publishes with `--threads`, uploads the zip,
+checks that the site serves the version it built and with the isolation headers, and writes that version in the
+run's summary.
+
+By hand, publish from an up-to-date `master` and pipe the zip to the deploy script on the VM:
+
+```sh
+python3 tools/browser/publish.py --threads
+ssh Starfish-azureuser sudo /usr/local/bin/tunnerer-deploy-browser < artifacts/browser/tunnerer-browser.zip
+```
+
+The deploy script is `tools/browser/starfish-deploy.sh`, installed on the VM as
+`/usr/local/bin/tunnerer-deploy-browser`. It unpacks the zip, stops if it is not a complete `--threads` publish,
+moves the live build to `browser.prev`, puts the new one in place and prints its version. After changing it,
+install it again:
+
+```sh
+scp tools/browser/starfish-deploy.sh Starfish-azureuser:/tmp/tunnerer-deploy-browser
+ssh Starfish-azureuser 'sudo install -m 755 /tmp/tunnerer-deploy-browser /usr/local/bin/ && rm /tmp/tunnerer-deploy-browser'
+```
+
+The workflow signs in with its own key, kept in the `starfish` environment of the repository's settings
+(Settings → Environments): the secrets `STARFISH_SSH_KEY` (the private key) and `STARFISH_KNOWN_HOSTS` (the VM's
+line from `ssh-keyscan 52.158.32.240`), and the variable `STARFISH_SSH_TARGET` (`azureuser@52.158.32.240`). On the
+VM, that key's line in `~azureuser/.ssh/authorized_keys` lets it run the deploy script and nothing else, so a
+leaked key can replace the game but cannot open a shell:
+
+```
+command="sudo /usr/local/bin/tunnerer-deploy-browser",restrict ssh-ed25519 AAAA… tunnerer-publish-starfish
+```
+
+To withdraw the workflow's access, delete that line.
+
+The swap needs no Caddy reload. To check it, compare the version the publisher printed with the live one, and
+look at the headers:
+
+```sh
+curl -sS https://crust.bokovka.cz/assets-manifest.js | grep -o '"version": "[^"]*"'
+curl -sSI https://crust.bokovka.cz/ | grep -i cross-origin
+```
+
+Then open the page: its footer should say the version the publisher printed and "UP TO DATE". Start a game. A page on the start page moves to the new version by itself once it has
+downloaded it; one with a match running shows the Update button. To roll back, swap the two directories
+back. The relay is deployed on its own and needs updating only when the protocol changes.
 
 ## Verification
 

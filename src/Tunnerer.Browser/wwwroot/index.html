@@ -31,6 +31,7 @@
             >
             <nav aria-label="Game actions">
                 <span id="offline" role="status" hidden></span>
+                <button id="update" hidden title="A new version of the game is ready. This reloads the page.">Update ↻</button>
                 <button id="install" hidden>Install game ↗</button>
                 <button id="sound" aria-pressed="false">Sound off</button>
                 <button id="help">Controls <kbd>?</kbd></button>
@@ -124,25 +125,6 @@
                                 <option>7</option>
                                 <option>8</option>
                             </select></label
-                        >
-                        <label
-                            >RELAY SECRET
-                            <span class="secret-field"
-                                ><input
-                                    id="net-secret"
-                                    type="password"
-                                    maxlength="256"
-                                    autocomplete="new-password"
-                                    spellcheck="false"
-                                    placeholder="if the relay asks" /><button
-                                    id="net-secret-show"
-                                    type="button"
-                                    aria-pressed="false"
-                                    aria-label="Show the secret"
-                                >
-                                    Show
-                                </button></span
-                            ></label
                         >
                         <button id="join" class="primary" type="submit">
                             Join room <span>→</span>
@@ -302,6 +284,7 @@
         </main>
         <footer id="footer">
             <span>HEAT IS YOUR LIMIT. THE NETWORK IS YOUR LIFELINE.</span
+            ><span id="version" hidden></span
             ><span>LOCAL SIMULATION <i></i> NO DOWNLOAD TO PLAY</span>
         </footer>
         <dialog id="menu">

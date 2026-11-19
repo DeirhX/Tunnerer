@@ -285,9 +285,7 @@ async function start() {
 async function join(event) {
     event.preventDefault();
     const name = $("net-name").value.trim(),
-        room = $("net-room").value.trim(),
-        // A pasted secret often brings a space or a line end with it.
-        secret = $("net-secret").value.trim();
+        room = $("net-room").value.trim();
     if (!name || !room) {
         $("loading").textContent = "Enter your name and a room to join.";
         return;
@@ -297,7 +295,7 @@ async function join(event) {
             "Online play needs a browser with WebAssembly, Web Workers and WebSockets. Try a current Chrome, Edge, Firefox, or Safari.";
         return;
     }
-    saveNetSettings({ name, room, secret, players: $("net-players").value });
+    saveNetSettings({ name, room, players: $("net-players").value });
     net = { socket: null, command: null, requestedAt: 0, stepAt: 0 };
     $("join").disabled = true;
     const values = new Int32Array(1);
@@ -306,7 +304,6 @@ async function join(event) {
         type: "join",
         room,
         name,
-        secret,
         players: Number($("net-players").value),
         seed: values[0],
         mapWidth: mapWidth || 0,
@@ -321,12 +318,6 @@ const JOIN_TIMEOUT_MS = 15000;
 async function onNetAnswer(data) {
     if (data.failure) {
         fail(data.failure, "", "Could not join the room");
-        // The relay's refusal for a secret (RelayHub) says "needs a secret": straight to the field.
-        if (data.failure.includes("needs a secret")) {
-            selectMode("online");
-            $("net-secret").focus();
-            $("net-secret").select();
-        }
         return;
     }
     if (!net.socket) {
@@ -391,7 +382,6 @@ function saveNetSettings(settings) {
     const saved = loadNetSettings();
     $("net-name").value = saved.name || "";
     $("net-room").value = saved.room || "lobby";
-    $("net-secret").value = saved.secret || "";
     if (saved.players) $("net-players").value = saved.players;
 }
 $("online-form").onsubmit = join;
@@ -428,14 +418,6 @@ try {
 } catch {
     // Solo it is.
 }
-// The secret is hidden as it is typed; Show says what the field holds, which may be what a password manager put in.
-$("net-secret-show").onclick = () => {
-    const shown = $("net-secret").type === "password";
-    $("net-secret").type = shown ? "text" : "password";
-    $("net-secret-show").textContent = shown ? "Hide" : "Show";
-    $("net-secret-show").setAttribute("aria-pressed", String(shown));
-    $("net-secret-show").setAttribute("aria-label", shown ? "Hide the secret" : "Show the secret");
-};
 $("lobby-start").onclick = () => {
     netCommand("start");
     canvas.focus({ preventScroll: true });
@@ -692,5 +674,8 @@ function animate(now) {
     if (now > noticeUntil) $("notice").classList.remove("visible");
     requestAnimationFrame(animate);
 }
-setupInstallation(notify);
+// An update applies itself only while no match is running or starting and the start page has nothing to say, such
+// as why a match ended (install.js).
+const restingNote = $("loading").textContent;
+setupInstallation(notify, () => !playing && !busy && !net && $("loading").textContent === restingNote);
 requestAnimationFrame(animate);
