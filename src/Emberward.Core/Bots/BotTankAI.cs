@@ -435,26 +435,52 @@ public class BotTankAI
         return new ControllerOutput { MoveSpeed = new Offset(sx, sy) };
     }
 
-    /// <summary>The first wall or core cell the tank can hit with a straight shot toward the enemy base.</summary>
+    /// <summary>
+    /// The base wall a straight shot from the tank hits first, or null. The centre is aimed at first; a line through
+    /// it on a north-south approach runs through both doors and meets no wall, so then the walls round the edge are
+    /// aimed at (a wall beside a door is in reach from outside the door).
+    /// </summary>
     private static Position? FindBaseWall(Tank tank, TankBase home, World world)
     {
         var from = tank.Position;
         int range = Tweaks.Weapon.BotBaseAttackRange;
         if (Position.DistanceSquared(from, home.Position) > range * range)
             return null;
-        Position? wall = null;
-        Raycaster.BresenhamLineAny(from, home.Position, pos =>
+        if (FirstBaseHit(from, home.Position, home, world) is Position centre)
+            return centre;
+        int half = Tweaks.Base.BaseSize / 2;
+        for (int i = -half; i <= half; i++)
+        {
+            if (FirstBaseHit(from, home.Position + new Offset(i, -half), home, world) is Position top) return top;
+            if (FirstBaseHit(from, home.Position + new Offset(i, half), home, world) is Position bottom) return bottom;
+            if (FirstBaseHit(from, home.Position + new Offset(-half, i), home, world) is Position left) return left;
+            if (FirstBaseHit(from, home.Position + new Offset(half, i), home, world) is Position right) return right;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// What a shot from <paramref name="from"/> aimed at <paramref name="aim"/> hits first, if that is one of the
+    /// base's cells: it walks the cells a bullet fired that way crosses, which passes open ground, open doors and the
+    /// core, and stops at the first cell that collides (a bullet does the same and goes on past the aim).
+    /// </summary>
+    private static Position? FirstBaseHit(Position from, Position aim, TankBase home, World world)
+    {
+        // A base's far wall is within its width of the centre, so this walk reaches it from anywhere in range.
+        int reach = Tweaks.Weapon.BotBaseAttackRange + Tweaks.Base.BaseSize;
+        var step = BotGunner.AimTowardsOffset(aim - from).ToVector(1f);
+        foreach (var pos in Raycaster.CastRay((PositionF)from, step, reach))
         {
             if (pos == from)
-                return false;
+                continue;
+            if (!world.Terrain.IsInside(pos))
+                return null;
             var pixel = world.Terrain.GetPixelRaw(pos);
             if (!Pixel.IsAnyCollision(pixel))
-                return false;
-            if (Pixel.IsAnyBaseCell(pixel) && home.OccupiesCell(pos))
-                wall = pos;
-            return true;
-        });
-        return wall;
+                continue;
+            return Pixel.IsAnyBaseCell(pixel) && home.OccupiesCell(pos) ? pos : null;
+        }
+        return null;
     }
 
     /// <summary>Room left before the tank overheats, as a share of a fully cooled tank's room.</summary>
