@@ -163,7 +163,10 @@ tree is worked out only when the island's filling set, members, links or a node'
 filling capacitors and their ancestors. Each node loses 3% of what it passes on into its pending charge, which settling
 puts in the ground at the node (heat writers, ledger `RecordFromCharge`). At its settling a node that carried charge is
 throttled from 150 °C (half; recovers under 140 °C) and overheated from 250 °C (a quarter, and 100 of its 1000 health
-each check); a node that carried nothing is left normal, so hot rock or the core tap do not harm a leaf relay.
+each check it carried charge, recorded as `MachineDamaged` / `MachineWrecked`); a hot node stays throttled until its
+ground cools, and a cool node that carried nothing is not looked at, so hot rock or the core tap do not harm a leaf
+relay. Open question: a trunk relay on very hot ground (beside a lump core) is still wrecked once it carries charge,
+since the check reads the ground, not the node's own loss heat; decide in play.
 `MachinePower` gained `PassedPerSecond`, `LimitPerSecond` and `Heat`; `PowerLabels` shows `>passed/s` and the new
 `HudPalette.Throttled` / `Overheated` colours (a `>` glyph was added to `PowerLabelQuads`). Standard fingerprints are
 unchanged (no recorded fingerprint runs the energy rule); energy-rule play changes (chains now lose 3% a hop and can be

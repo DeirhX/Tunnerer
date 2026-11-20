@@ -1,5 +1,6 @@
 namespace Emberward.Core.Network;
 
+using System.Diagnostics;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Terrain;
@@ -206,7 +207,9 @@ public sealed partial class EnergyNetwork
         Capacitor? node = UpstreamIn(capacitor, island);
         if (node == null)
         {
-            // The tree changed since it was worked out: the loss stays with the machine, as heat beside it.
+            // Every change of parent or island marks the tree to be worked out again before the next top-up, so this
+            // is not reached; if it were, the loss stays with the machine, as heat beside it, and nothing is lost.
+            Debug.Assert(false, "a capacitor drew a loss with no node on its way: its tree is stale");
             capacitor.Pending += drawn - given;
             return;
         }
@@ -223,27 +226,32 @@ public sealed partial class EnergyNetwork
     }
 
     /// <summary>
-    /// At its settling (before the heat of its last period lands), a node that carried charge since the last one is
-    /// throttled or overheated by the temperature of its ground (with a hysteresis on the way back), and an overheated one loses health. One that carried nothing is
-    /// left normal.
+    /// At its settling (before the heat of its last period lands), a node that carried charge since the last one, or
+    /// that is still hot, is throttled or overheated by the temperature of its ground (with a hysteresis on the way
+    /// back). An overheated one that carried charge loses health, recorded as <see cref="StepEventKind.MachineDamaged"/>
+    /// (or <see cref="StepEventKind.MachineWrecked"/>) like a hit. A cool node that carried nothing is not looked at.
     /// </summary>
-    private static void CheckHeat(Capacitor node, ITerrainAccess terrain)
+    private static void CheckHeat(Capacitor node, ITerrainAccess terrain, StepEventLog? events)
     {
-        var heat = ThroughputHeat.Normal;
-        if (node.HasCarried)
+        bool carried = node.HasCarried;
+        node.HasCarried = false;
+        if (!carried && node.Heat == ThroughputHeat.Normal)
+            return;
+        // SampleAverageHeat is normalised (temperature / 255).
+        float temperature = terrain.SampleAverageHeat(node.Machine.Position, Tweaks.Energy.IdleHeatRadius) * 255f;
+        var heat = temperature >= Tweaks.Throughput.OverheatTemperature ? ThroughputHeat.Overheated
+            : temperature >= Tweaks.Throughput.ThrottleTemperature ? ThroughputHeat.Throttled
+            : node.Heat != ThroughputHeat.Normal &&
+              temperature >= Tweaks.Throughput.ThrottleTemperature - Tweaks.Throughput.ThrottleHysteresis
+                ? ThroughputHeat.Throttled
+            : ThroughputHeat.Normal;
+        var machine = node.Machine;
+        if (heat == ThroughputHeat.Overheated && carried && machine.IsStanding)
         {
-            node.HasCarried = false;
-            // SampleAverageHeat is normalised (temperature / 255).
-            float temperature = terrain.SampleAverageHeat(node.Machine.Position, Tweaks.Energy.IdleHeatRadius) * 255f;
-            heat = temperature >= Tweaks.Throughput.OverheatTemperature ? ThroughputHeat.Overheated
-                : temperature >= Tweaks.Throughput.ThrottleTemperature ? ThroughputHeat.Throttled
-                : node.Heat != ThroughputHeat.Normal &&
-                  temperature >= Tweaks.Throughput.ThrottleTemperature - Tweaks.Throughput.ThrottleHysteresis
-                    ? ThroughputHeat.Throttled
-                : ThroughputHeat.Normal;
+            bool wrecked = machine.TakeDamage(Tweaks.Throughput.OverheatDamage);
+            events?.Record(new StepEvent(wrecked ? StepEventKind.MachineWrecked : StepEventKind.MachineDamaged,
+                machine.Position, machine.OwnerColor, machine.Type));
         }
-        if (heat == ThroughputHeat.Overheated)
-            node.Machine.TakeDamage(Tweaks.Throughput.OverheatDamage);
         if (heat == node.Heat)
             return;
         node.Heat = heat;

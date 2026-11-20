@@ -102,7 +102,7 @@ public static class PowerLabels
         StatusLevel level = power.IsFed ? StatusLevel.Ok : power.Charge > 0.0 ? StatusLevel.Warn : StatusLevel.Bad;
         bool producing = power.ProductionPerSecond > 0.0;
         string flow = producing ? "gen " + SignedRate(power.ProductionPerSecond)
-            : Compact(power.PassedPerSecond) != "0" ? Flow(power.InPerSecond, power.OutPerSecond, power.PassedPerSecond)
+            : Math.Round(power.PassedPerSecond) >= 1.0 ? Flow(power.InPerSecond, power.OutPerSecond, power.PassedPerSecond)
             : Flow(power.InPerSecond, power.OutPerSecond);
         return new PowerLabel(Compact(power.Charge) + "/" + Compact(power.Capacity), flow,
             Fill(power.Charge, power.Capacity), level, producing, power.Heat);

@@ -339,7 +339,7 @@ public class World
             systems.Add(new("islands", _ => network.Refresh(_linkMap, _tankBases.Bases)));
         systems.Add(new("machines", _ => AdvanceMachines()));
         if (_energy is EnergyNetwork energy)
-            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower)));
+            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower, _stepEvents)));
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain, _basePower);

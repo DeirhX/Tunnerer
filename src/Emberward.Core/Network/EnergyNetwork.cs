@@ -159,9 +159,10 @@ public sealed partial class EnergyNetwork
     }
 
     /// <summary>Settles a share of the capacitors, then pays idle draw and tops up the ones still filling.</summary>
-    public void Advance(ITerrainAccess terrain, BasePowerSystem? basePower = null)
+    /// <param name="events">Where a node damaged by overheating is recorded (<see cref="World.StepEvents"/>); null records nothing.</param>
+    public void Advance(ITerrainAccess terrain, BasePowerSystem? basePower = null, StepEventLog? events = null)
     {
-        SettleShare(terrain);
+        SettleShare(terrain, events);
         int tick = _paidThrough + 1;
         foreach (var island in _islands)
             Pay(island, tick, basePower);
@@ -350,14 +351,14 @@ public sealed partial class EnergyNetwork
     /// ticks of a small network). A capacitor added or removed may shift another's turn once, which only moves when its
     /// idle heat reaches the ground.
     /// </summary>
-    private void SettleShare(ITerrainAccess terrain)
+    private void SettleShare(ITerrainAccess terrain, StepEventLog? events)
     {
         int period = Tweaks.Energy.SettlePeriodTicks;
         for (int i = (_paidThrough + 1) % period; i < _capacitors.Count; i += period)
         {
             var capacitor = _capacitors[i];
             if (capacitor.Machine.Behavior.IsLinkNode)
-                CheckHeat(capacitor, terrain);
+                CheckHeat(capacitor, terrain, events);
             Settle(capacitor, terrain);
         }
     }
@@ -402,6 +403,7 @@ public sealed partial class EnergyNetwork
         if (capacitor.IsFilling || capacitor.Island is not PowerIsland island || machine.Charge >= machine.ChargeCapacity)
             return;
         capacitor.IsFilling = true;
+        capacitor.Allowance = 0.0;
         island.Filling.Add(capacitor);
         island.TreeDirty = true;
     }
@@ -443,6 +445,9 @@ public sealed partial class EnergyNetwork
         bool useBaseStore = island.Base is { IsDestroyed: false } home && basePower?.IsDark(home) != true;
         double available = island.Available(useBaseStore);
         int producerIndex = 0;
+        // Worked out once, before any tier draws, so that what the nodes pass on this tick stays within their limits.
+        if (island.TreeDirty)
+            RebuildTree(island);
         for (int tier = 0; tier < TierCount; tier++)
         {
             double idle = island.IdleByTier[tier];
@@ -469,13 +474,12 @@ public sealed partial class EnergyNetwork
 
     /// <summary>
     /// Tops up the filling capacitors of one tier, in the order they started filling, while the store lasts: each by at
-    /// most what the throughput tree allows it (<see cref="RebuildTree"/>), and what the nodes on its way lose as heat is
-    /// drawn with it (<see cref="PassThrough"/>).
+    /// most what the throughput tree allows it (<see cref="RebuildTree"/>, worked out at the start of the tick: one that
+    /// started filling since takes nothing until the next), and what the nodes on its way lose as heat is drawn with it
+    /// (<see cref="PassThrough"/>).
     /// </summary>
-    private double TopUp(PowerIsland island, int tier, int tick, bool useBaseStore, ref int producerIndex)
+    private static double TopUp(PowerIsland island, int tier, int tick, bool useBaseStore, ref int producerIndex)
     {
-        if (island.TreeDirty)
-            RebuildTree(island);
         var filling = island.Filling;
         double drawn = 0.0;
         int kept = 0;

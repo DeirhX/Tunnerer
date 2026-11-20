@@ -33,6 +33,7 @@ public class RelayThroughputTests
         public readonly MachineList Machines = new();
         public readonly List<Machine> Relays = new();
         public readonly List<Machine> Harvesters = new();
+        public readonly StepEventLog Events = new();
         private readonly List<Machine> _near = new();
 
         public Chain(int relays, int harvesters)
@@ -70,7 +71,7 @@ public class RelayThroughputTests
         public void Advance(int ticks = 1)
         {
             for (int i = 0; i < ticks; i++)
-                Network.Advance(Terrain);
+                Network.Advance(Terrain, events: Events);
         }
 
         /// <summary>What each harvester took in one tick.</summary>
@@ -221,11 +222,40 @@ public class RelayThroughputTests
         Assert.All(chain.TakenInOneTick(), t => Assert.Equal(Limit / 2, t, precision: 9));
 
         int health = hot.Reactor.Health;
+        chain.Events.Clear();
         chain.SetGround(hot, Tweaks.Throughput.OverheatTemperature + 5);
         chain.Advance(period);
         Assert.Equal(ThroughputHeat.Overheated, chain.Network.PowerOf(hot)!.Value.Heat);
         Assert.Equal(health - Tweaks.Throughput.OverheatDamage, hot.Reactor.Health);
+        var damaged = Assert.Single(chain.Events.Events.ToArray());
+        Assert.Equal(StepEventKind.MachineDamaged, damaged.Kind);
+        Assert.Equal(hot.Position, damaged.Position);
         Assert.All(chain.TakenInOneTick(), t => Assert.Equal(Limit * Tweaks.Throughput.OverheatedScale / 2, t, precision: 9));
+    }
+
+    [Fact]
+    public void AnOverheatedRelayThatStopsCarrying_StaysHot_ButTakesNoDamage_UntilItsGroundCools()
+    {
+        var chain = new Chain(relays: 1, harvesters: 1);
+        var hot = chain.Relays[0];
+        int period = Tweaks.Energy.SettlePeriodTicks;
+        chain.SetGround(hot, Tweaks.Throughput.OverheatTemperature + 5);
+        chain.Advance(period);
+        Assert.Equal(ThroughputHeat.Overheated, chain.Network.PowerOf(hot)!.Value.Heat);
+
+        // The harvester fills up, so nothing passes through for a whole period: still hot, no further damage.
+        while (chain.Network.FillingCount > 0)
+            chain.Advance();
+        chain.Advance(period);
+        int health = hot.Reactor.Health;
+        chain.SetGround(hot, Tweaks.Throughput.OverheatTemperature + 5);
+        chain.Advance(period);
+        Assert.Equal(ThroughputHeat.Overheated, chain.Network.PowerOf(hot)!.Value.Heat);
+        Assert.Equal(health, hot.Reactor.Health);
+
+        chain.SetGround(hot, 0f);
+        chain.Advance(period);
+        Assert.Equal(ThroughputHeat.Normal, chain.Network.PowerOf(hot)!.Value.Heat);
     }
 
     [Fact]
