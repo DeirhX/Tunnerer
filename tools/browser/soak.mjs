@@ -26,7 +26,7 @@ const context = await playwright[process.env.BROWSER || "chromium"].launchPersis
 const page = await context.newPage();
 const log = [];
 page.on("console", (m) => {
-    if (["error", "warning"].includes(m.type()) || /\[load\]|runtime|Assert/i.test(m.text()))
+    if (["error", "warning"].includes(m.type()) || /\[load\]|\[trace\]|runtime|Assert/i.test(m.text()))
         log.push(`[${m.type()}] ${m.text().slice(0, 3000)}`);
 });
 page.on("pageerror", (e) => log.push(`[pageerror] ${String(e).slice(0, 400)}`));
@@ -41,7 +41,22 @@ await page.addInitScript(() => {
         window.testTick = detail.tick;
     });
 });
+// SOAK_ONLINE=1 plays a network match instead: this player alone in a room of two on the relay SOAK_RELAY (default
+// a local one: dotnet run --project src/Emberward.Relay -- --urls http://127.0.0.1:8130), a bot in the other slot.
+const relay = process.env.SOAK_RELAY || "ws://127.0.0.1:8130/play";
 async function startMatch() {
+    if (process.env.SOAK_ONLINE) {
+        await page.goto(`${origin}${origin.includes("?") ? "&" : "?"}relay=${encodeURIComponent(relay)}`);
+        await page.locator("#mode-online").click();
+        await page.locator("#net-name").fill("Soak");
+        await page.locator("#net-room").fill(`soak-${Date.now().toString(36)}`);
+        await page.locator("#net-players").selectOption("2");
+        await page.locator("#join").click();
+        await page.locator("#lobby").waitFor({ state: "visible", timeout: 60000 });
+        await page.locator("#lobby-start").click();
+        await page.waitForFunction(() => !document.getElementById("hud").hidden, null, { timeout: 180000 });
+        return;
+    }
     await page.goto(origin);
     await page.locator("#seed").fill(process.env.SEED || "1234");
     await page.locator("#start").click();
@@ -120,6 +135,6 @@ while (Date.now() - began < seconds * 1000 && !failure) {
 console.log(`matches played: ${matches}`);
 console.log(`longest gap between steps: ${Math.round(await within(page.evaluate(() => window.testMaxGap), "gap", 5000).catch(() => -1))} ms`);
 console.log(failure ? `FAILED after ${Math.round((Date.now() - began) / 1000)} s: ${failure}` : `ok: played ${seconds} s`);
-for (const line of log.slice(-30)) console.log(line);
+for (const line of log.slice(-(Number(process.env.SOAK_LOG_TAIL) || 30))) console.log(line);
 await within(context.close(), "close", 15000).catch(() => {});
 process.exit(failure ? 1 : 0);

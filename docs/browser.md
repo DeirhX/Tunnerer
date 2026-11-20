@@ -70,8 +70,13 @@ that comes back. The final code: Edge eight matches of 300 s (three with sound o
 with `?threads=4` three more with sound on, none stopped. A network match has only a partial check: `net-smoke.mjs`
 did not pass here, on the original single-thread build either, because two software-rendered pages fall 15 to 20 s
 behind the match on this machine (it did join, start and trade bundles on the new code), and
-`BrowserNetMatchTests` cover the logic. WebKit and Firefox stay on one thread until more has been played on them,
-macOS included.
+`BrowserNetMatchTests` cover the logic. With `SOAK_ONLINE=1` (this player alone in a room of two on a local relay, a bot in the other slot) the final code
+ran three matches of 300 s in Edge and two of 300 s in Firefox with `?threads=4` without a stop (and three more solo
+Firefox ones). WebKit with `?threads=4` still froze in a network match, in all five tried (after 60 to 139 s),
+though it ran six solo matches and a network match on one thread without trouble. Tracing the calls showed each one
+completing and the page then simply stopping, so it is not a call that blocks; a base64 string in place of the byte
+array that `Receive` takes made no difference, and was not kept. Both WebKit and Firefox stay on one thread, and
+nothing was played on macOS.
 
 Do not marshal a view, an object or a delegate to JavaScript on the frame path again, nor call into JavaScript from .NET there. The soak is the check:
 `node tools/browser/soak.mjs` against a `--threads` publish served with `--isolate` and `?threads=8`.
