@@ -31,7 +31,7 @@ function setMeter(meter, value) {
     if (meter.value !== v) meter.value = v;
 }
 
-const BUILD_KEYS = ["E", "R", "T", "Y"];
+const BUILD_KEYS = ["E", "R", "T", "Y", "U"];
 
 export class StatusView {
     constructor(input) {
@@ -182,6 +182,7 @@ export class StatusView {
     updateMachineUpgrade(m) {
         const panel = $("machine-upgrade");
         setHidden(panel, !m?.open);
+        this.input.machinePanelOpen = !!m?.open;
         if (!m?.open) return;
         setText($("machine-upgrade-title"), `${m.title} · LEVEL ${m.level}/${m.maxLevel}`);
         const list = $("machine-upgrade-list");
@@ -189,7 +190,7 @@ export class StatusView {
             list.replaceChildren();
             this.machineChoices = m.choices.map((choice) => {
                 const button = document.createElement("button");
-                button.onclick = () => this.input.queue("upgrade", choice.key);
+                button.onclick = () => this.input.queueUpgrade(choice.key, true);
                 const key = document.createElement("kbd");
                 key.textContent = String(choice.key);
                 const name = document.createElement("span");

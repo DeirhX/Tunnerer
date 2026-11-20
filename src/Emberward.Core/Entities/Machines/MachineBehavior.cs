@@ -7,6 +7,8 @@ using Emberward.Core.Resources;
 using Emberward.Core.Terrain;
 using Emberward.Core.Network;
 using Emberward.Core.Match;
+using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Entities.Projectiles;
 
 /// <summary>What a machine's action can see and touch.</summary>
 /// <param name="IsOccupied">
@@ -14,11 +16,13 @@ using Emberward.Core.Match;
 /// checks it before every step.
 /// </param>
 /// <param name="Machines">Every machine in the world, in a fixed order, and filed by place: pylons look for batteries, harvesters for pylons.</param>
-/// <param name="IsOnNetwork">
-/// True when the machine stands in the coverage of its own base's linked network (DESIGN.md §4.6): a harvester only
-/// delivers ore from there.
+/// <param name="CoverageOf">
+/// The coverage of its own base's linked network where the machine stands (DESIGN.md §4.6), with the node that covers
+/// it: a harvester only delivers ore from there, and on the energy network takes its charge through that node.
 /// </param>
 /// <param name="Events">Where a machine records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</param>
+/// <param name="Tanks">Every tank, in spawn order: a turret looks for enemies among them. Null shoots at nothing.</param>
+/// <param name="Projectiles">Where a turret's shots fly. Null fires nothing.</param>
 /// <param name="Upgrades">
 /// Per-machine upgrades when the match rules run them (<see cref="Match.MatchRules.MachineUpgrades"/>): a relay asks it
 /// its pump rate. Null leaves every machine at its base numbers.
@@ -30,8 +34,8 @@ using Emberward.Core.Match;
 /// </param>
 public readonly record struct MachineContext(
     ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, MachineList Machines,
-    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null,
-    MachineUpgradeSystem? Upgrades = null);
+    Func<Machine, TankCoverage> CoverageOf, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null,
+    MachineUpgradeSystem? Upgrades = null, TankList? Tanks = null, ProjectileList? Projectiles = null);
 
 /// <summary>
 /// Who an island of the energy network feeds first when it runs short (DESIGN.md §4.9): base defence, then turrets,
@@ -49,8 +53,8 @@ public enum PowerTier { BaseDefence, Turrets, Economy }
 /// <param name="IdleDrawPerTick">Charge it spends every tick, fed or cut off; it becomes heat where the machine stands.</param>
 public readonly record struct MachineCapacitor(double Capacity, double TransferPerTick, PowerTier Tier, double IdleDrawPerTick);
 
-/// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> primary through quaternary).</summary>
-public enum BuildKey { Primary, Secondary, Tertiary, Quaternary }
+/// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> primary through quinary).</summary>
+public enum BuildKey { Primary, Secondary, Tertiary, Quaternary, Quinary }
 
 /// <summary>
 /// Defines per-type machine behavior and traits in one place: Core code asks the behavior, never the type.
@@ -105,7 +109,14 @@ public record MachineBehavior(
     /// <summary>Converts local heat to charge and can supply an island without a base.</summary>
     public bool IsGenerator { get; init; }
 
-    public bool IsAvailable(MatchRules? rules) => !IsGenerator || rules is { EnergyNetwork: true };
+    /// <summary>It fires at enemy tanks in its range while its island feeds it (<see cref="TurretAction"/>).</summary>
+    public bool IsTurret { get; init; }
+
+    /// <summary>It works only on the energy network, so only matches that run it can build it.</summary>
+    public bool NeedsEnergyNetwork { get; init; }
+
+    /// <summary>Whether a match with <paramref name="rules"/> can build it.</summary>
+    public bool IsAvailable(MatchRules? rules) => !NeedsEnergyNetwork || rules is { EnergyNetwork: true };
 
     /// <summary>
     /// The paths it can be upgraded along (<see cref="MachineUpgradeSystem"/>), in the order of the upgrade keys 1, 2,
@@ -200,10 +211,21 @@ public static class MachineBehaviors
             PowerTier.Economy, Tweaks.Machine.GeneratorIdleDraw),
         IsLinkNode = true,
         IsGenerator = true,
+        NeedsEnergyNetwork = true,
+    };
+
+    public static readonly MachineBehavior Turret = new(
+        MachineType.Turret, TimeSpan.Zero, TurretAction.Act,
+        Tweaks.Turret.Color, Tweaks.Turret.OreCost, BuildKey.Quinary)
+    {
+        Capacitor = new(Tweaks.Turret.Capacitor, Tweaks.Turret.TransferPerTick, PowerTier.Turrets, Tweaks.Turret.IdleDraw),
+        IsTurret = true,
+        NeedsEnergyNetwork = true,
+        UpgradePaths = [MachineUpgradePath.Rapid, MachineUpgradePath.LongRange],
     };
 
     /// <summary>Every machine's behavior, indexed by <see cref="MachineType"/>.</summary>
-    public static readonly IReadOnlyList<MachineBehavior> All = BuildTable(Harvester, Pylon, Relay, Generator);
+    public static readonly IReadOnlyList<MachineBehavior> All = BuildTable(Harvester, Pylon, Relay, Generator, Turret);
 
     public static MachineBehavior Get(MachineType type) =>
         (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));
@@ -324,8 +346,9 @@ public static class MachineBehaviors
         if (ctx.Energy == null && ReturnToPylon(machine, ctx))
             return;
 
-        machine.IsOffNetwork = !ctx.IsOnNetwork(machine);
-        ctx.Energy?.SetCovered(machine, !machine.IsOffNetwork, ctx.Machines, terrain, t_near ??= new List<Machine>());
+        var coverage = ctx.CoverageOf(machine);
+        machine.IsOffNetwork = !coverage.Covered;
+        ctx.Energy?.SetCovered(machine, coverage, ctx.Machines, terrain, t_near ??= new List<Machine>());
         // With a flat battery there is nothing to work with. Off the network its ore could not get home, and on ground
         // that is too hot it waits for the ground to cool (a linked relay nearby speeds that up a lot): either way it
         // does not work, but it still crawls on toward ore it could work, so that a tunnel that bends out of its relay's

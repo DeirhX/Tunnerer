@@ -44,6 +44,8 @@ public sealed class SoundBank
             SoundEffect.BuildHarvester => Build(ref noise, 0.56f, 105f, 280f, 19f, 600f),
             SoundEffect.BuildPylon => BuildPylon(ref noise),
             SoundEffect.BuildGenerator => Build(ref noise, 0.50f, 140f, 360f, 22f, 1200f),
+            SoundEffect.BuildTurret => Build(ref noise, 0.42f, 210f, 540f, 34f, 1600f),
+            SoundEffect.TurretFire => TurretFire(ref noise),
             SoundEffect.Plant => Plant(ref noise),
             SoundEffect.PlantRefused => PlantRefused(),
             SoundEffect.Pickup => Pickup(),
@@ -76,6 +78,23 @@ public sealed class SoundBank
             phase += Tau * (90f + 160f * Decay(t, 0.03f)) / Rate;
             samples[i] = hiss * Decay(t, 0.05f) * 4f + report * Decay(t, 0.09f) * 3f
                 + MathF.Sin(phase) * Decay(t, 0.06f) * 0.7f;
+        }
+        return samples;
+    }
+
+    /// <summary>A turret's shot: a lighter, higher crack than the tank's cannon, over a short metallic tick.</summary>
+    private static float[] TurretFire(ref Noise noise)
+    {
+        var samples = Buffer(0.16f);
+        var crack = new LowPass();
+        float phase = 0f;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)Rate;
+            float hiss = crack.Process(noise.Next(), 1600f + 7000f * Decay(t, 0.015f));
+            phase += Tau * (180f + 320f * Decay(t, 0.02f)) / Rate;
+            samples[i] = hiss * Decay(t, 0.035f) * 3.5f + MathF.Sin(phase) * Decay(t, 0.04f) * 0.6f
+                + MathF.Sin(Tau * 1870f * t) * Decay(t, 0.02f) * 0.25f;
         }
         return samples;
     }

@@ -47,6 +47,7 @@ public static class StepEventSounds
     public static StepEventCue? CueFor(StepEventKind kind, MachineType machine) => kind switch
     {
         StepEventKind.ShotFired => new(SoundEffect.Fire, AudioTweaks.FireGain, CueHeard.Anywhere, CueVoice.ShotCycle),
+        StepEventKind.TurretFired => new(SoundEffect.TurretFire, AudioTweaks.TurretFireGain, CueHeard.Anywhere, CueVoice.Burst),
         StepEventKind.BulletImpact => new(SoundEffect.Impact, AudioTweaks.ImpactGain, CueHeard.Anywhere, CueVoice.Burst),
         StepEventKind.OreCollected => new(SoundEffect.Pickup, AudioTweaks.PickupGain, CueHeard.Anywhere, CueVoice.PickupStreak),
         StepEventKind.TankHit => new(SoundEffect.TankHit, AudioTweaks.TankHitGain, CueHeard.TrackedTank),
@@ -81,7 +82,8 @@ public static class StepEventSounds
         (MachineType.Relay, SoundEffect.BuildRelay),
         (MachineType.Harvester, SoundEffect.BuildHarvester),
         (MachineType.Pylon, SoundEffect.BuildPylon),
-        (MachineType.Generator, SoundEffect.BuildGenerator));
+        (MachineType.Generator, SoundEffect.BuildGenerator),
+        (MachineType.Turret, SoundEffect.BuildTurret));
 
     private static SoundEffect[] BuildSoundTable(params (MachineType Type, SoundEffect Sound)[] entries)
     {

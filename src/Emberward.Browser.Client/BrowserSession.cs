@@ -59,14 +59,16 @@ public sealed class BrowserSession
     /// <summary>
     /// The page's input with the machine upgrade panel applied: <paramref name="togglePanel"/> (F or a tap on the lit
     /// machine) opens or closes it, and while it is open the number keys buy for the machine next to the tank
-    /// (<see cref="ControllerOutput.UpgradeMachine"/>) instead of base upgrades.
+    /// (<see cref="ControllerOutput.UpgradeMachine"/>) instead of base upgrades. <paramref name="forMachine"/> marks a
+    /// key the page queued while the panel was open (or a click on one of its choices): it stays a machine purchase
+    /// even when an earlier purchase has closed the panel by the time it is sent, so it never buys a base upgrade.
     /// </summary>
-    public ControllerOutput WithMachineUpgradePanel(ControllerOutput input, bool togglePanel)
+    public ControllerOutput WithMachineUpgradePanel(ControllerOutput input, bool togglePanel, bool forMachine = false)
     {
         MachineUpgrades.Update(World, Player);
         if (togglePanel)
             MachineUpgrades.Toggle(World, Player);
-        input.UpgradeMachine = MachineUpgrades.IsOpen && input.Upgrade != 0;
+        input.UpgradeMachine = input.Upgrade != 0 && (forMachine || MachineUpgrades.IsOpen);
         return input;
     }
 

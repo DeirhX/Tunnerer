@@ -210,8 +210,8 @@ public partial class World
             Reserve = _reserve,
         };
         _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades, _reserve);
-        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy,
-            _basePower, _machineUpgrades);
+        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, MachineCoverage, _stepEvents, _energy,
+            _basePower, _machineUpgrades, _tankList, _projectiles);
         _systems = BuildSystems();
     }
 
@@ -343,7 +343,7 @@ public partial class World
             systems.Add(new("islands", _ => network.Refresh(_linkMap, _tankBases.Bases)));
         systems.Add(new("machines", _ => AdvanceMachines()));
         if (_energy is EnergyNetwork energy)
-            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower)));
+            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower, _stepEvents)));
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain, _basePower);
@@ -455,10 +455,10 @@ public partial class World
         ? TankCoverage.None
         : NetworkCoverage.At(tank.Position, tank.Base, _machines, _terrain, _nearMachines);
 
-    /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
-    private bool IsMachineOnNetwork(Machine machine) => machine.OwnerBase is TankBase { IsDestroyed: false } owner &&
-        NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines,
-            requireOwnPowerSource: _energy != null).Covered;
+    /// <summary>The coverage of <paramref name="machine"/>'s own base's linked network where it stands.</summary>
+    private TankCoverage MachineCoverage(Machine machine) => machine.OwnerBase is TankBase { IsDestroyed: false } owner
+        ? NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines, requireOwnPowerSource: _energy != null)
+        : TankCoverage.None;
 
     /// <summary>
     /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer, or by a player again: the bot
@@ -489,7 +489,9 @@ public partial class World
         MachineBehaviors.Get(type).RequiresLinkToPlant
             ? new MachinePlacementPreview(PreviewMachineLink(at, owner), 0f)
             : MachineBehaviors.Get(type).IsMiner ? new MachinePlacementPreview(default,
-                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at))) : default;
+                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)))
+            : MachineBehaviors.Get(type).IsTurret ? new MachinePlacementPreview(default,
+                TurretAction.SenseTemperature(_terrain, at) / Tweaks.Turret.MaxSlowTemperature) : default;
 
     private LinkPreview PreviewMachineLink(Position at, TankBase? owner)
     {

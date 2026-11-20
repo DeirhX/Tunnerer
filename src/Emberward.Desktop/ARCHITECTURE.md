@@ -209,7 +209,8 @@ display's own resolution instead of being stretched by the OS.
   box.
 - **Charge labels** (`PowerLabelQuads`, only while the match runs `MatchRules.EnergyNetwork`: `--energy-network` for a
   local match). Each standing machine in sight within `DesktopScreenTweaks.PowerLabelGoneCells` of the player's tank
-  gets a label with charge over capacity, flow in and out a second and a fill bar. `PowerLabels` picks the machines
+  gets a label with charge over capacity, flow in and out a second (and `>` what a node passed on) and a fill bar,
+  orange while the node is throttled and pink while it is overheated (`HudPalette.Throttled`, `Overheated`). `PowerLabels` picks the machines
   with `MachineList.CollectNear` and the fog rule of the sprites (`Sight`), formats the numbers of
   `World.MachinePowerOf` and fades each label with its distance from the tank. `PowerLabelQuads` applies the zoom
   fade and sends bitmap glyphs and bars to the shared entity shader. The labels sit under the HUD and follow the

@@ -1,5 +1,5 @@
 // ============================================================================
-// Entity/Machines.hlsli — Relay, harvester, pylon and battery gauge
+// Entity/Machines.hlsli — Relay, harvester, pylon, turret, generator and battery gauge
 // ============================================================================
 //
 // Machine bodies. A carried machine is drawn as a see-through ghost. The shader
@@ -255,6 +255,46 @@ float4 Battery(float2 p, float4 params, float aa)
         result.rgb += float3(0.8, 0.9, 1.0) * run * FillAlpha(bar, aa) * 0.7;
     }
     return result;
+}
+
+// Turret: a round, bolted base with a domed head and a barrel along its facing (+x), which turns to where it last
+// aimed. Its head and barrel glow orange-red while its ground is hot enough to slow its fire (the stalled flag).
+float4 Turret(float2 p, float4 params, float aa)
+{
+    float2 light = LocalLight(params.xy);
+    float flags = params.w;
+    float hot = MachineFlag(flags, kMachineFlagStalled) ? 1.0 : 0.0;
+    float4 result = float4(0.0, 0.0, 0.0, 0.0);
+
+    float radius = length(p);
+    float base = radius - 2.6;
+    float barrel = sdRoundBox(p, float2(2.0, 0.0), float2(1.5, 0.42), 0.18);
+    float2 sp = p + light * 0.6;
+    float shadow = min(length(sp) - 2.6, sdRoundBox(sp, float2(2.0, 0.0), float2(1.5, 0.42), 0.18));
+    Over(result, float3(0.0, 0.0, 0.0), 0.40 * smoothstep(0.5, -0.3, shadow));
+
+    // The base ring, with eight bolts.
+    float bolts = smoothstep(0.75, 0.9, cos(atan2(p.y, p.x) * 8.0)) * smoothstep(0.5, 0.0, abs(radius - 2.1));
+    float3 baseColor = lerp(float3(0.24, 0.22, 0.21), float3(0.42, 0.39, 0.35), bolts);
+    Over(result, kOutlineColor, FillAlpha(base - 0.14, aa));
+    Over(result, baseColor, FillAlpha(base, aa));
+
+    // The barrel, hottest toward its muzzle.
+    float heat = hot * smoothstep(0.6, 3.4, p.x);
+    float3 steel = lerp(float3(0.30, 0.31, 0.33), float3(1.0, 0.42, 0.12), heat * 0.8);
+    Over(result, kOutlineColor, FillAlpha(barrel - 0.14, aa));
+    Over(result, steel, FillAlpha(barrel, aa));
+
+    // The domed head, lit from the light, and its sight lamp.
+    float head = radius - 1.45;
+    float2 n = p / max(radius, 1e-4);
+    float lit = 0.8 + 0.35 * dot(n, light) * smoothstep(0.2, 1.45, radius);
+    float3 headColor = lerp(float3(0.78, 0.42, 0.16), float3(0.95, 0.28, 0.10), hot) * lit;
+    Over(result, kOutlineColor, FillAlpha(head - 0.14, aa));
+    Over(result, headColor, FillAlpha(head, aa));
+    float lamp = length(p - float2(0.55, 0.0)) - 0.32;
+    Over(result, lerp(float3(1.0, 0.86, 0.45), float3(1.0, 0.35, 0.20), hot), FillAlpha(lamp, aa));
+    return Ghost(result, flags);
 }
 
 #endif // EMBERWARD_ENTITY_MACHINES_HLSLI

@@ -24,4 +24,6 @@ public enum SoundEffect
     TorchLoop,
     RechargeLoop,
     BuildGenerator,
+    BuildTurret,
+    TurretFire,
 }

@@ -86,8 +86,9 @@ public sealed record MatchRules
         hash = Fnv1a.Mix(hash, CoreTapWins ? 1u : 0u);
         // Base destruction replaces the stock match's tank elimination rule.
         hash = Fnv1a.Mix(hash, 8u);
+        // Version of the energy rules: raised with each machine they add (turrets).
         if (EnergyNetwork)
-            hash = Fnv1a.Mix(hash, 0xE4E9u);
+            hash = Fnv1a.Mix(hash, 0xE4EAu);
         if (MachineUpgrades)
             hash = Fnv1a.Mix(hash, 0x4D55u);
         if (TankReserve)

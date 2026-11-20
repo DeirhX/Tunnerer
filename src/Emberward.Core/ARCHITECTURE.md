@@ -22,6 +22,7 @@ Match/
   SectorGoal.cs              The core tap: each base's CoreTap (tap, hold timer, tapped), the first base to tap the core
 Config/
   Tweaks.cs                  Every gameplay and simulation constant (const / static readonly only)
+  Tweaks.Turrets.cs          The turret's constants (Tweaks is partial; Tweaks.cs is near the file-length cap)
   SimulationSettings.cs      The thermal and tank-heat constants, copied from Tweaks; tests inject their own
   FastRandom.cs              Small seeded RNG used by the simulation
 Terrain/
@@ -73,6 +74,7 @@ Entities/
                              §4.9): the recall key burns carried emberite to lower the off-network floor, the stages of
                              running out and their effects, a generator holding the clock; World.ReserveOf answers
   Machines/MachineMaterializer.cs   The machine a tank carries before it is planted
+  Machines/TurretAction.cs   The turret's action: targeting, firing, overheat slowdown (energy matches only)
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
@@ -82,6 +84,7 @@ Network/                     The link network (not network matches: those are De
   NetworkStatus.cs           One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
   EnergyNetwork.cs           (only when MatchRules.EnergyNetwork is on) Capacitors, generator reserves and islands rooted at bases or generators
                              (DESIGN.md §4.9); MachinePower / BasePower, what World.MachinePowerOf / BasePowerOf answer
+  EnergyNetwork.Throughput.cs   Each island as a tree: node limits (Conduit), losses as heat at the node, ThroughputHeat
 Sensing/
   SideSensing.cs             The vision system: which sides are tracked, what each sees through, and each tank's radar
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
@@ -176,11 +179,12 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    or `MachineUpgradeRefused`), then `TankThermals.Advance` (heat from ore still in the hold and from tank actions,
    then exchange with the grid). Machine upgrades take effect where the rest of the game reads them: a relay asks its
    pump rate (`MachineContext.Upgrades`), the energy network holds a resized capacitor and idle draw
-   (`EnergyNetwork.Resize`), and vision asks a machine's sight bonus.
+   (`EnergyNetwork.Resize`) and a Conduit's throughput (`EnergyNetwork.SetThroughputScale`), and vision asks a
+   machine's sight bonus.
 6. **machines**: With the energy rule on, `EnergyNetwork.Refresh` first regroups the link nodes when
    `LinkMap.PowerVersion` changes. Each base's island takes the nodes whose power route ends at that base
    (`LinkPoint.IsPoweredBy`, the same rule harvester coverage uses in `NetworkCoverage`). The first generator in machine order roots
-   each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
+   each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.CoverageOf`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
    (`LinkMap.CarryCharge`). A machine that needs the machines near a place (a pylon its batteries, a harvester the
@@ -189,14 +193,29 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
    in its reach. A generator reads its local exhaust temperature, extracts heat from hotter ground past its exhaust
    area, and returns the unconverted heat there. Both writes wake the affected tiles. It uses the same quiet stamp
-   to skip sampling when the ground has not changed since it found nothing to convert.
+   to skip sampling when the ground has not changed since it found nothing to convert. A turret (`TurretAction`,
+   energy matches only) counts down between looks; a look joins it to its island as a harvester joins
+   (`EnergyNetwork.SetCovered` from `MachineContext.IsOnNetwork`), reads its ground's temperature, and, while it is on
+   an island, its base is not dark and its capacitor can pay, shoots the nearest enemy tank in range and line of sight
+   (`MachineContext.Tanks`, few, in spawn order; a raycast only for those in range) with a bullet carrying its
+   damage (`MachineContext.Projectiles`, `Projectile.Damage`). The shot's charge is spent through
+   `EnergyNetwork.Spend`, which puts it as heat beside the turret, and is recorded as `StepEventKind.TurretFired`.
 7. **power** (only when `MatchRules.EnergyNetwork` is on): `EnergyNetwork.Advance` (DESIGN.md §4.9). Every planted
    machine has a capacitor (`MachineBehavior.Capacitor`, its level in `Machine.Charge`). Harvesters can charge from
    a local island they can see within node coverage. Ore delivery still requires the base's network. A generator
    deposits output into the base's store if reachable and into its own shared reserve otherwise or when the base
    store is full. Reserves follow their producers on splits and become heat on wrecking. Each tick the island pays
    from these stores, tier by tier (`PowerTier`), its members' idle draw and then tops up the
-   capacitors that are not full (each by at most its transfer rate). A tier the store cannot pay is starved and drains
+   capacitors that are not full (each by at most its transfer rate and what the island's throughput tree allows it).
+   Each island is a tree: a link node's parent is the next node of the island up its power route
+   (`LinkPoint.UpstreamLink`), or the node a local island reached it from, and a harvester hangs off the node that
+   covers it (`MachineContext.CoverageOf`). A node passes on at most `Throughput.NodeLimitPerTick` (times its Conduit
+   scale, capped, and less while hot), so a chain is as fast as its slowest node. The tree is worked out
+   (`RebuildTree`) only when the island's filling set or shape changes, and only over the filling capacitors and the
+   nodes on their way: demand up from the leaves, each node's cap by tier, the share handed back down. Each node on
+   the way loses `Throughput.LossFraction` of what it passes on into its pending charge, which settling turns into
+   heat at the node; at its settling a node that carried charge reads its ground temperature and is throttled, or
+   overheated and damaged (`ThroughputHeat`). A tier the store cannot pay is starved and drains
    like a cut-off machine; it is fed again once the store holds `Energy.RefeedIdleTicks` of its draw. Cost follows
    what changes: a full member's idle draw comes out of a per-tier sum, a cut-off machine's level falls on a straight
    line, and a capacitor is brought up to date (settled: its idle draw's heat put in the ground) only when it is used,
@@ -204,7 +223,7 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    `LinkMap.PowerVersion` changes or a harvester's coverage does. Idle charge paid and not yet heat is
    counted by `EnergyNetwork.StoredCharge` alongside the generator reserves. With the flag on, pylons hand out nothing and harvesters
    make no refuel trips. `World.MachinePowerOf` and `World.BasePowerOf` give an overlay its numbers (charge, capacity,
-   flows a second over the last whole second); output only. The desktop and browser charge labels
+   flows a second over the last whole second, what a node passed on, its limit and heat); output only. The desktop and browser charge labels
    (`Gui/PowerLabels.cs` in Desktop, shared through `Emberward.Rendering`) read nothing else.
 8. **bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then the bot's stand-in ore income for
    bases marked with `World.SetBotControlled`.
@@ -471,8 +490,9 @@ Core:
    `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, ore cost
    and `BuildKey`, its `Capacitor` (capacity, transfer rate, `PowerTier`, idle draw; DESIGN.md §4.9), plus the traits
    Core reads instead of the type: `RunsOnCharge` (which also gives it its §4.5 battery), `IsLinkNode`,
-   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`. The action is a static method in `MachineBehaviors` taking
-   `(Machine, MachineContext)`.
+   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, and `NeedsEnergyNetwork` (only
+   energy matches can build it), and its `UpgradePaths`. The action is a static method taking `(Machine,
+   MachineContext)`, in `MachineBehaviors` or, when it is long, a class of its own (`TurretAction`).
 3. Constants (interval, capacitor) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
 4. Each `BuildKey` builds exactly one machine. Add a value in `BuildKey`, a field in `ControllerOutput`, edge
    detection in `TankBuildController.Advance` and a key bit in `ControllerOutputCodec` and its key mask.

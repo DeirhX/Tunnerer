@@ -112,6 +112,12 @@ public enum StepEventKind
     MachineUpgradeRefused,
 
     /// <summary>
+    /// A turret at <see cref="StepEvent.Position"/> fired at an enemy tank; <see cref="StepEvent.Count"/> is the target's
+    /// colour. <see cref="StepEvent.Color"/> is the turret's owner.
+    /// </summary>
+    TurretFired,
+
+    /// <summary>
     /// A tank off its network burned <see cref="StepEvent.Count"/> units of emberite from its hold to buy back its
     /// reserve (<see cref="Entities.Tanks.TankReserveSystem"/>). <see cref="StepEvent.Color"/> is the tank.
     /// </summary>
