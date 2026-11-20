@@ -73,8 +73,10 @@ behind the match on this machine (it did join, start and trade bundles on the ne
 `BrowserNetMatchTests` cover the logic. With `SOAK_ONLINE=1` (this player alone in a room of two on a local relay, a bot in the other slot) the final code
 ran three matches of 300 s in Edge and two of 300 s in Firefox with `?threads=4` without a stop (and three more solo
 Firefox ones). WebKit with `?threads=4` still froze in a network match, in all five tried (after 60 to 139 s),
-though it ran six solo matches and a network match on one thread without trouble. Tracing the calls showed each one
-completing and the page then simply stopping, so it is not a call that blocks; a base64 string in place of the byte
+though it ran six solo matches and a network match on one thread without trouble. Tracing every call, and the page's handling of each answer,
+showed .NET answering, the page's handler running to its end, and then the next request never being made, with the
+page not answering input: the freeze is in the page after .NET is done, not in a call. (Playwright's WebKit on
+Windows is the WinCairo port, not Safari, so this may not be what Safari does; it was not tried.)  a base64 string in place of the byte
 array that `Receive` takes made no difference, and was not kept. Both WebKit and Firefox stay on one thread, and
 nothing was played on macOS.
 
