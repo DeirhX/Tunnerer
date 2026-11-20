@@ -66,7 +66,13 @@ while (Date.now() - began < seconds * 1000 && !failure) {
         loadingVisible: !document.getElementById("loading")?.hidden,
     })).catch((e) => ({ dead: String(e) }));
     if (state.dead) failure = `page unreachable: ${state.dead}`;
-    else if (state.sinceStep > stallMs) failure = `STALL: no step for ${Math.round(state.sinceStep)} ms at tick ${state.tick}`;
+    else if (state.sinceStep > stallMs) {
+        // Does it come back? A pause that ends is a hitch; one that does not is a hang.
+        const waited = await page
+            .waitForFunction((from) => window.testLast > from, await page.evaluate(() => window.testLast), { timeout: 60000 })
+            .then(() => "and then recovered", () => "and did not recover in 60 s");
+        failure = `STALL: no step for ${Math.round(state.sinceStep)} ms at tick ${state.tick}, ${waited}`;
+    }
     else if (/exited|Assert|Could not|failed/i.test(state.failed || "") && state.loadingVisible) failure = `error shown: ${state.failed}`;
     if (Date.now() - lastReport > 15000) {
         lastReport = Date.now();

@@ -100,8 +100,7 @@ async function start(page) {
 
 try {
     const page = await observe(context);
-    // The threaded runtime is not the default (wwwroot/threads.js); ?threads=4 asks for it.
-    await page.goto(threads && engine === "chromium" ? `${origin}/?threads=4` : origin);
+    await page.goto(origin);
     await page.screenshot({ path: resolve(out, "welcome.png") });
     await start(page);
     assert.equal(

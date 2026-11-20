@@ -40,17 +40,22 @@ python3 tools/browser/serve.py --isolate
 
 (The threaded runtime is the SDK's `wasm-experimental` workload; `--restore-workloads` installs it too.)
 
-**The threaded runtime is off by default** (`threadedByDefault` in `wwwroot/threads.js`); `?threads=N` in the
-address turns it on. Measured 2026-11-20 in Edge 157 on Windows (`tools/browser/soak.mjs`, a script that plays at
-random and reports a stall or a runtime that exited): about one match in five, within the first minutes, .NET logged
-`ReleaseJSOwnedObjectByGCHandle: Unexpected synchronous failure ... ArgumentNullException ... key` on one of its own
-threads and exited with `RuntimeError: unreachable`. The player saw "Assert failed: .NET runtime already exited with
-1", or a frozen game. The single-thread runtime did not do it. The fault is in .NET's JavaScript interop with threads
-(it frees the proxies of calls and frames as the browser collects them), so it is probably what stopped WebKit's
-threaded runtime too. Until a .NET release fixes it, the default is one thread; the rules below say where the
-threaded runtime may be used once it is back on.
+**A fault that ended the threaded runtime, and its fix.** Measured 2026-11-20 in Edge 157 on Windows
+(`tools/browser/soak.mjs`, a script that plays at random and reports a stall or a runtime that exited): in about one
+match in four, within the first minutes, .NET logged `ReleaseJSOwnedObjectByGCHandle: Unexpected synchronous failure
+... ArgumentNullException ... key` on one of its own threads and exited with `RuntimeError: unreachable`. The player
+saw "Assert failed: .NET runtime already exited with 1", or a frozen game. The fault is in .NET's JavaScript interop
+with threads: it frees the proxy of each marshalled value when the browser collects it. The page's one source of
+those proxies was the byte views handed over every frame (`[JSMarshalAs<JSType.MemoryView>]`: the frame's packet,
+the relay's messages, the sound bank). They now cross as an address in .NET's memory, pinned for the call, and a
+length; `frames.js` copies them out of the heap (`copyOut`). The same soak on the same machine, eight heat workers:
+the old code ended in 3 of 12 matches of 45 s; the new code in none of 10 of 45 s, one of 570 s and four of 300 s
+(one of those runs also paused 8 s once, at 293 s, and nothing more is known of it).
+Do not marshal a view, an object or a delegate to JavaScript on the frame path again. The soak is the check:
+`node tools/browser/soak.mjs` against a `--threads` publish served with `--isolate` and `?threads=8`. This was probably
+also what stopped WebKit's threaded runtime below, which has not been tried again.
 
-The page chooses when a match starts (`wwwroot/threads.js`). It would use the threaded runtime only where all of this
+The page chooses when a match starts (`wwwroot/threads.js`). It uses the threaded runtime only where all of this
 holds, and the single-thread runtime in its worker everywhere else:
 
 - The page is cross-origin isolated (`crossOriginIsolated`), which browsers require before they share memory
