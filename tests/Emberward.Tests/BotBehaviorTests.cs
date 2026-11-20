@@ -5,6 +5,7 @@ using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities;
 using Emberward.Core.Input;
+using Emberward.Core.Match;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 using Emberward.Core.Bots;
@@ -122,6 +123,50 @@ public class BotBehaviorTests
         Assert.True(run.LeftBase, $"the bot should torch through the rock outside a door. {run}");
         Assert.True(run.TorchTicks > 0, $"only the torch gets through rock. {run}");
         Assert.Equal(0, run.HardPushedWithoutTorch);
+    }
+
+    [Fact]
+    public void SiegesTheEnemyBase_ThroughItsDoor()
+    {
+        // Blank map, two bases side by side (as in BasePowerTests). Tank 0 is the enemy, tank 1 the bot.
+        var size = new Size(100, 72);
+        var ground = new TerrainGrid(size);
+        ground.Fill(TerrainPixel.Blank);
+        var world = new World(size, rules: new MatchRules { TerrainRegrowth = false });
+        world.Initialize(ground, [new Position(25, 36), new Position(75, 36)]);
+        var enemy = world.TankList.Tanks[0];
+        var bot = world.TankList.Tanks[1];
+        var enemyBase = enemy.Base!;
+
+        // The enemy sits out of sight behind a ring of rock, so the bot is in siege mode, not fighting it.
+        enemy.Position = new Position(60, 60);
+        for (int dy = -3; dy <= 3; dy++)
+            for (int dx = -3; dx <= 3; dx++)
+                if (Math.Max(Math.Abs(dx), Math.Abs(dy)) >= 2)
+                    world.Terrain.SetPixel(enemy.Position + new Offset(dx, dy), TerrainPixel.Rock);
+
+        // Above the enemy base's top door, outside the bot's own base (the bot leaves its base at the start).
+        bot.Position = enemyBase.Position + new Offset(0, -26);
+        var ai = new BotTankAI(9);
+        for (int tick = 0; tick < 600 && ai.Mode != TwitchMode.Twitch; tick++)
+            ai.GetInput(bot, enemy, world);
+        Assert.Equal(TwitchMode.Twitch, ai.Mode);
+
+        // A straight line through the centre runs through both doors and meets no wall, so the bot must aim at a wall
+        // beside a door. Its shots should hit the base (a bullet that finds a wall takes armour off it).
+        double armourBefore = enemyBase.ArmorFill;
+        bool shot = false;
+        for (int tick = 0; tick < 120; tick++)
+            world.Advance(i =>
+            {
+                if (i != 1)
+                    return default;
+                var output = ai.GetInput(bot, enemy, world);
+                shot |= output.ShootPrimary;
+                return output;
+            });
+        Assert.True(shot, "the bot should shoot the enemy base from its open door");
+        Assert.True(enemyBase.ArmorFill < armourBefore, $"its shots should hit the enemy base's wall. {armourBefore:0.000} -> {enemyBase.ArmorFill:0.000}");
     }
 
     [Theory]

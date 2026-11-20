@@ -139,6 +139,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                 i?.upgrade || 0,
                 Boolean(i?.recall),
                 Boolean(i?.machineUpgrade),
+                Boolean(i?.upgradeMachine),
                 data.width,
                 data.height,
                 data.scale,

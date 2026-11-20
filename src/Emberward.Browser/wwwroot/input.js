@@ -44,7 +44,7 @@ export class GameInput {
                     if (build) this.queue("build", build);
                     if (e.code === "KeyX") this.queue("recall", true);
                     if (/^Digit[1-7]$/.test(e.code))
-                        this.queue("upgrade", Number(e.code.slice(-1)));
+                        this.queueUpgrade(Number(e.code.slice(-1)), this.machinePanelOpen);
                     if (["Equal", "NumpadAdd"].includes(e.code))
                         action("zoom", 1);
                     if (["Minus", "NumpadSubtract"].includes(e.code))
@@ -134,6 +134,13 @@ export class GameInput {
             this.actions.push({ [type]: value });
     }
 
+    // An upgrade key, marked for the machine when it was pressed with its panel open (or is one of the panel's
+    // choices): it stays a machine purchase even if an earlier one closes the panel before it is sent.
+    queueUpgrade(key, forMachine) {
+        if (this.enabled && this.actions.length < 16)
+            this.actions.push({ upgrade: key, upgradeMachine: !!forMachine });
+    }
+
     clear() {
         this.keys.clear();
         this.touchMoves.clear();
@@ -164,6 +171,7 @@ export class GameInput {
             recall: !!action.recall,
             upgrade: action.upgrade || 0,
             machineUpgrade: !!action.machineUpgrade,
+            upgradeMachine: !!action.upgradeMachine,
         };
     }
 }
