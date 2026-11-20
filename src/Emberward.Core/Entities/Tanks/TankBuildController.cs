@@ -48,10 +48,12 @@ internal sealed class TankBuildController
     /// <summary>
     /// Build keys (edge triggered): with no machine in hand the primary key builds a relay, the secondary key a
     /// harvester, the tertiary key a local generator and the fourth a turret (the last two only where the match runs
-    /// the energy network), paid as <see cref="Quote"/> says, and carries it; any build key pressed again
-    /// outside a base plants it where the tank stands.
+    /// the energy network), paid as <see cref="Quote"/> says, and carries it; any build key pressed again outside a base
+    /// plants it where the tank stands. While <paramref name="canBuild"/> is false (a stranded tank,
+    /// <see cref="TankReserveEffects.CanBuild"/>) a press plants what the tank carries but builds nothing new; the keys
+    /// are still tracked, so one held through the end of that stage is not taken for a new press.
     /// </summary>
-    public void Advance(in SimulationContext ctx, ControllerOutput input)
+    public void Advance(in SimulationContext ctx, ControllerOutput input, bool canBuild = true)
     {
         bool primaryPressed = input.BuildPrimary && !_primaryHeld;
         bool secondaryPressed = input.BuildSecondary && !_secondaryHeld;
@@ -89,7 +91,7 @@ internal sealed class TankBuildController
                         ctx.PlantMachine(machine, _tank.Base);
                 }
             }
-            else
+            else if (canBuild)
             {
                 var quote = Quote(buildType);
                 if (_tank.PayerStore(quote) is { } payer)

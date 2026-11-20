@@ -147,7 +147,9 @@ the desktop: the ground tinted by its heat, so that enemy tunnels glow (it chang
 or +/− changes zoom. `?energy` in the address starts a local match with the energy network (DESIGN.md §4.9, off by
 default): every machine in sight near the tank carries the desktop's charge label (charge over capacity, flow in and
 out a second, fed or starved colour), the materials plate adds the base store's production, draw and net, and G hides
-or shows the labels. A network match keeps the rules its room agreed on.
+or shows the labels. The off-network clock is the tank's reserve there: the stage's tag sits beside OFF NETWORK, and
+from the warning on X (or the button over the HUD) burns a unit of emberite from the hold. A network match keeps the
+rules its room agreed on.
 The on-screen controls support touch devices; tap the game to aim and fire, or hold FIRE while driving.
 Escape opens the pause menu. Switching away from the page pauses the local match.
 

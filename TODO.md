@@ -16,9 +16,9 @@ Open work, written so an agent can pick up one item without the conversation tha
   - **Tranche 1b, charge and flow labels** (key G, `PowerLabels`, `HudPalette`), shared by desktop and browser.
     `--energy-network` (desktop) and `?energy` (browser) turn the network on for local matches only.
 - **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
-- **Items 1 to 7 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it, with
-  items 5 and 6 merged into it; item 7 on `codex/tranche-7-remove-pylon`, against item 4's branch). Item 8 (the tank's
-  reserve) is in PR #82. Item 9 is deferred.
+- **Items 1 to 8 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it, with
+  items 5, 6 and 8 merged into it; item 7 on `codex/tranche-7-remove-pylon`, against item 4's branch). Item 9 is
+  deferred.
 
 ## Rules for every item
 
@@ -241,17 +241,37 @@ refuel behaviour, and the harvester's return-to-pylon trips and `HarvesterResume
 the network through its capacitor (tranche 1 already does this with the flag on). Update `SimulationFingerprintTests` and
 say so. Rename the relay (for example "tap") is optional: it collides with the multiplayer relay server's name.
 
-## 8. The tank's reserve and exploring
+## 8. The tank's reserve and exploring (implemented)
 
-**Design.** The reserve is the existing off-network clock (`DESIGN.md` §4.6), **not** a second meter. Burning a carried unit
-of emberite extends it and takes that unit's warmth (0.1 degrees a second a unit, see §6.3) out of the tank, so a big
-load is range and risk together. Running out is a staged state: warning, degraded (slower dig, shorter vision, weaker
-shots), stranded (crawl and dig only), then heat death as today; each has a counter. Relays and generators push the safe
-zone out; far lumps pay for the risk.
+Built behind `MatchRules.TankReserve` (off by default, also in `Standard`; local matches turn it on with
+`--energy-network` or `?energy`), in `TankReserveSystem` (`Entities/Tanks`), constants in `Config/Tweaks.Reserve.cs`.
+`DESIGN.md` §4.9 (Death and exploring) has the rules and numbers. What the next items need to know:
 
-**Open.** I read the tank-heat code only through `Tweaks`, not the code itself. Before building, read the tank
-temperature code (`Tank.cs`, `TankTemperatureTests`) to see how a burn adjusts the floor. Needs a burn action (input
-bit or reuse of the hold-dump), the staged effects, HUD tags (the "OFF NETWORK" tag exists), and tests.
+- **The burn is the recall key (X, bit 29); no input bit was added.** There is no hold-dump input in the code. Off the
+  network with emberite aboard and the floor at least a unit's worth up, X burns (`TankReserveSystem.CanBurn`) and
+  does not recall; recall still works once the hold is empty. `World.RecallOffered` is what the HUD asks.
+- **The burn lowers `TankThermals.OffNetworkFloor` and nothing else.** The tank sheds down to the lower floor through
+  the ground, so no energy is made or destroyed and the ledger is untouched (`Burns_LeaveTheLedgerBalanced`).
+- **Stages** go by `Tank.OffNetworkSecondsToOverheat` (warning 30 s, degraded 15, stranded 5, heat death 0) and are
+  settled once a tick in `Tank.Advance`, right after coverage; `TankReserveEffects` masks the gun, tells
+  `TankBuildController` whether a press may build a new machine (a carried one plants either way, and the keys stay
+  tracked so a held key is no press when the stage lifts), and feeds the move factor, the dig credit (`ReadyToDig`,
+  capped at one dig and spent only by a dig that clears ground; stranded has no dig factor, the crawl slows the dig),
+  the gun delay and vision (`SideSensing`). A dead tank's reserve is cleared (`TankReserveSystem.Clear`). The
+  dig, sight and HUD read the stage `Advance` stored, not the clock, so all agree with that tick's effects.
+- **Generators hold the clock** within 20 cells in line of sight (`HoldsClock`, a `CollectNear` per off-network tank),
+  and pay for it: 8 charge a tick from the generator's capacitor (`Tweaks.Reserve.GeneratorHoldChargePerTick`), through
+  `EnergyNetwork.Settle` and `Spend`, so it becomes heat in the ground and the ledger balances
+  (`HoldingTheClock_LeavesTheLedgerBalanced`). The first generator in list order that can pay holds; one that makes
+  nothing holds a lone tank only until its capacitor is spent (about 20 s), so a dead generator is no permanent safe
+  zone. `EnergyNetwork` itself is unchanged.
+- **Deviation:** "weaker shots" is a slower gun (twice the delay), not less damage, to keep out of the projectile code
+  item 6 changes. Damage a shot could follow once turrets have landed.
+- **HUD:** `ReserveTags` (shared view-model) gives the stage tag beside OFF NETWORK and the burn prompt (shown whenever X would burn, a quiet hint before the
+  warning, so X never spends cargo unannounced); desktop draws
+  it in `HeatGauge` and `MatchOverlay`, the browser in `strip.js` and the recall button (`BrowserFrame.Reserve`).
+- **Not done:** no tutorial or toast for the stages, no browser check in a real WebGL browser, and network matches
+  keep `Standard`, so no protocol bump was needed.
 
 ## 9. Smaller follow-ups
 

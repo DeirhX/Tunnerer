@@ -83,7 +83,13 @@ public sealed class BrowserSession
             settings = settings with { ThermalParallelTileThreshold = int.MaxValue };
         // A network match is a race, as on the desktop: the first base to tap the core wins.
         World = MatchSetup.Build(MapSize, seed,
-            MatchRules.Standard with { CoreTapWins = true, EnergyNetwork = energyNetwork, MachineUpgrades = energyNetwork }, players, genMode,
+            MatchRules.Standard with
+            {
+                CoreTapWins = true,
+                EnergyNetwork = energyNetwork,
+                MachineUpgrades = energyNetwork,
+                TankReserve = energyNetwork,
+            }, players, genMode,
             settings: settings);
         LocalSlot = localSlot;
         if (localBot)
