@@ -29,9 +29,10 @@ internal sealed class TankDigger
     /// <summary>
     /// Moves one step by <paramref name="speed"/>. Blocked by terrain, the tank digs instead; with the torch firing
     /// along the move it may get through in the same tick. Another tank or another side's machine stops it
-    /// (<see cref="CollisionSolver.BlocksTank"/>).
+    /// (<see cref="CollisionSolver.BlocksTank"/>). <paramref name="speedFactor"/> slows it further (a stranded tank
+    /// crawls), and a reserve stage may slow the dig (<see cref="TankReserveSystem.ReadyToDig"/>).
     /// </summary>
-    public void Move(in SimulationContext ctx, Offset speed, DirectionF torchHeading, bool torchUse)
+    public void Move(in SimulationContext ctx, Offset speed, DirectionF torchHeading, bool torchUse, float speedFactor = 1f)
     {
         if (speed.X == 0 && speed.Y == 0)
         {
@@ -41,7 +42,7 @@ internal sealed class TankDigger
 
         // A cold tank only gets to act on some ticks (moving and digging alike), so it crawls (DESIGN.md §4.7).
         // The remainder carries over (credit stays below 1 after a move), so a factor of 0.8 moves 4 ticks in 5.
-        _moveCredit += _tank.SpeedFactor;
+        _moveCredit += _tank.SpeedFactor * speedFactor;
         if (_moveCredit < 1f)
             return;
         _moveCredit -= 1f;
@@ -51,7 +52,11 @@ internal sealed class TankDigger
 
         if (CollisionSolver.TestTankTerrain(ctx.Terrain, newPos, dir) != StepObstacle.None)
         {
-            DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse, ctx.Events);
+            var reserve = ctx.Reserve;
+            if (reserve?.ReadyToDig(_tank) == false)
+                return;
+            if (DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse, ctx.Events) > 0)
+                reserve?.SpendDig(_tank);
 
             int torchDir = TankSpriteShape.DirectionOf(new Offset(
                 (int)MathF.Round(torchHeading.X),
@@ -81,7 +86,7 @@ internal sealed class TankDigger
         return dir >= 4 ? dir + 1 : dir;
     }
 
-    private void DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse,
+    private int DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse,
         StepEventLog? events)
     {
         int cleared = 0;
@@ -123,6 +128,7 @@ internal sealed class TankDigger
             }
         if (cleared > 0)
             events?.Record(new StepEvent(StepEventKind.TankDug, center, _tank.Color, Count: cleared, Torch: torchUse));
+        return cleared;
     }
 
     /// <summary>

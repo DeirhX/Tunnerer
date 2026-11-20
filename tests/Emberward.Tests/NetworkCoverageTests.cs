@@ -7,7 +7,7 @@ using static Emberward.Tests.TankHeatTestHelpers;
 namespace Emberward.Tests;
 
 /// <summary>
-/// Network coverage (DESIGN.md §4.6): the base and its powered relays and pylons keep the ground around them cool for
+/// Network coverage (DESIGN.md §4.6): the base and its powered relays keep the ground around them cool for
 /// their tank; outside that the tank's reactor runs hot, so how far it can roam depends on the network it has built.
 /// </summary>
 public class NetworkCoverageTests

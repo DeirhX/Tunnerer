@@ -31,8 +31,8 @@ float4 SenseRing(float2 p, float4 params, float aa)
     return result;
 }
 
-// The ground a carried relay would cool (a square) or a carried pylon would reach (a circle): a faint tinted fill
-// with a soft glowing rim. Ripples run inward for a relay (heat drawn in) and outward for a pylon (charge sent out).
+// The ground a carried relay would cool (a square) or a carried turret would reach (a circle): a faint tinted fill
+// with a soft glowing rim. Ripples run inward for a square (heat drawn in) and outward for a circle (reach sent out).
 float4 ReachArea(float2 p, float3 tint, float4 params, float aa)
 {
     float reach = params.x;
@@ -47,7 +47,7 @@ float4 ReachArea(float2 p, float3 tint, float4 params, float aa)
     float shimmer = 0.6 + 0.4 * sin(angle * 7.0 + phase * 1.7) * sin(angle * 3.0 - phase * 1.1);
     float rim = exp(-abs(d) * 1.2) * shimmer;
 
-    // Round ripples: inward for a relay, outward for a pylon, fading toward the centre.
+    // Round ripples: inward for a square, outward for a circle, fading toward the centre.
     float dir = circle ? -1.0 : 1.0;
     float ripple = pow(saturate(1.0 - abs(frac(length(p) * 0.22 + dir * phase * 0.5) - 0.5) * 2.0), 5.0);
     float falloff = smoothstep(0.0, reach, length(p));

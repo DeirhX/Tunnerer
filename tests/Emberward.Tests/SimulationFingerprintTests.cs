@@ -22,8 +22,8 @@ public class SimulationFingerprintTests
     // The same on every OS: Core uses DeterministicMath instead of the platform math library. A failure on one OS
     // only means something platform-dependent has crept back into the simulation.
     private const ulong ExpectedPlayerDrivesAndShoots = 0x5EEDF84BBD08C2BBUL;
-    private const ulong ExpectedRelayPylonHarvesterNetwork = 0x725682AD3F3BE63EUL;
-    private const ulong ExpectedEnemyMachinesShotToPieces = 0x92C87E72E805335BUL;
+    private const ulong ExpectedRelayHarvesterNetwork = 0xD540548A073D52AAUL;
+    private const ulong ExpectedEnemyMachinesShotToPieces = 0x99F130958F81E9A8UL;
     private const ulong ExpectedBotVsBot = 0xBEE4FE2ECF35CC2CUL;
 
     /// <summary>
@@ -58,12 +58,12 @@ public class SimulationFingerprintTests
         },
         () => TestHelpers.CreateSeededWorld());
 
-    internal static Scenario RelayPylonHarvesterNetwork()
+    internal static Scenario RelayHarvesterNetwork()
     {
         var s = RelayHeatTests.CreateScenario();
         s.World.Terrain.AddHeatRadius(s.RelayPos, 150, 8);
         RelayHeatTests.PlantRelay(s);
-        Plant(s, MachineType.Pylon, Tweaks.Base.BaseSize / 2 + 6);
+        Plant(s, MachineType.Relay, Tweaks.Base.BaseSize / 2 + 6);
         // Ore beside the harvester, which stands in the base's coverage, so it mines into the store.
         for (int dy = -2; dy <= 2; dy++)
             for (int dx = 3; dx <= 5; dx++)
@@ -119,15 +119,15 @@ public class SimulationFingerprintTests
     }
 
     [Fact]
-    public void RelayPylonHarvesterNetwork_MatchesRecordedFingerprint()
+    public void RelayHarvesterNetwork_MatchesRecordedFingerprint()
     {
-        var run = RelayPylonHarvesterNetwork();
+        var run = RelayHarvesterNetwork();
         var tankBase = run.World.TankList.Tanks[0].Base!;
         int storeBefore = tankBase.Store.Ore;
         run.Play(0, run.Frames);
 
         Assert.True(tankBase.Store.Ore > storeBefore, "the scenario must have the harvester mine ore");
-        AssertFingerprint(ExpectedRelayPylonHarvesterNetwork, run.World);
+        AssertFingerprint(ExpectedRelayHarvesterNetwork, run.World);
     }
 
     [Fact]
@@ -213,7 +213,6 @@ public class SimulationFingerprintTests
             h.Add(machine.Position.Y);
             h.Add(machine.Charge);
             h.Add(machine.LastPumpedEnergy);
-            h.Add(machine.LastChargeGiven);
             h.Add(machine.Reactor.Current.Heat.Value);
             h.Add(machine.Reactor.Current.Health.Value);
         }

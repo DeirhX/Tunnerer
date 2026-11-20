@@ -21,7 +21,9 @@ if (args.Any(a => a is "--help" or "-h" or "-?" or "/?"))
           --no-ai             No enemy tank.
           --no-fog            No fog of war: the whole map is shown live.
           --fast              Parallel level generation (another map per seed; still reproducible).
-          --energy-network    Local matches run the energy network (capacitors, charge labels; G hides them).
+          --energy-network    Local matches run the energy network (capacitors, charge labels; G hides them)
+                              per-machine upgrades (F next to a relay) and the tank's reserve (X off the
+                              network burns carried emberite).
 
         Network match (see docs/multiplayer-design.md)
           --net[=ROOM]        Join ROOM (default: lobby) on the shared relay. The first player in opens the room

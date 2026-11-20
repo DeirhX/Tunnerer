@@ -97,7 +97,7 @@ public class TankBase
     public double ReactorRoomEnergy =>
         Math.Max(0, (int)Reactor.HeatCapacity - (int)Reactor.Heat) * (double)Tweaks.Base.ReactorEnergyPerHeatUnit - _reactorHeatRemainder;
 
-    /// <summary>Charge stored at the base: the power machines and pylons draw on (DESIGN.md §4.5).</summary>
+    /// <summary>Charge stored at the base: the power machines draw on (DESIGN.md §4.5).</summary>
     public double Charge { get; private set; } = Tweaks.Base.InitialCharge;
 
     public double ChargeCapacity => Tweaks.Base.ChargeCapacity;

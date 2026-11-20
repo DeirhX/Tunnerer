@@ -31,7 +31,7 @@ public static class Raycaster
     /// <summary>
     /// Line of sight through open ground: true when no cell on the Bresenham line from <paramref name="from"/> to
     /// <paramref name="to"/> (both ends included) blocks a link (<see cref="Pixel.BlocksLink"/>). Links, the link
-    /// preview, network coverage and pylon charging all use this test.
+    /// preview and network coverage use this test.
     /// </summary>
     public static bool HasOpenLine(ITerrainPixelReadOnly terrain, Position from, Position to) =>
         !TryFindLineBlock(terrain, from, to, out _);
@@ -40,7 +40,17 @@ public static class Raycaster
     /// Like <see cref="HasOpenLine"/>, walking from <paramref name="from"/>, but also gives the first blocking cell.
     /// Returns true when the line is blocked.
     /// </summary>
-    public static bool TryFindLineBlock(ITerrainPixelReadOnly terrain, Position from, Position to, out Position firstBlock)
+    public static bool TryFindLineBlock(ITerrainPixelReadOnly terrain, Position from, Position to, out Position firstBlock) =>
+        TryFindBlock(terrain, from, to, shot: false, out firstBlock);
+
+    /// <summary>
+    /// A clear shot: like <see cref="HasOpenLine"/>, but base walls and anything else a bullet stops on
+    /// (<see cref="Pixel.IsAnyCollision"/>) block it too. A turret aims along this.
+    /// </summary>
+    public static bool HasClearShot(ITerrainPixelReadOnly terrain, Position from, Position to) =>
+        !TryFindBlock(terrain, from, to, shot: true, out _);
+
+    private static bool TryFindBlock(ITerrainPixelReadOnly terrain, Position from, Position to, bool shot, out Position firstBlock)
     {
         // The walk of WalkBresenham, written out: this runs for every link, coverage and charging test.
         int x0 = from.X, y0 = from.Y, x1 = to.X, y1 = to.Y;
@@ -50,7 +60,8 @@ public static class Raycaster
         while (true)
         {
             var pos = new Position(x0, y0);
-            if (Pixel.BlocksLink(terrain.GetPixel(pos)))
+            var pixel = terrain.GetPixel(pos);
+            if (Pixel.BlocksLink(pixel) || (shot && Pixel.IsAnyCollision(pixel)))
             {
                 firstBlock = pos;
                 return true;

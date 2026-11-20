@@ -71,6 +71,15 @@ public class PowerLabelsTests
     [Fact]
     public void Production_GivesTheGeneratorItsOwnLabel_AndAddsItToTheBaseRow()
     {
+        // A node that passes charge on says how much, and a hot one takes the throttled or overheated colour.
+        var trunk = PowerLabels.Of(new MachinePower(2400.0, 3600.0, 36.0, 36.0, IsFed: true) { PassedPerSecond = 1200.0 });
+        Assert.Equal("+36 -36 >1.2k/s", trunk.Flow);
+        Assert.Equal(HudPalette.Good, trunk.Color);
+        var throttled = new MachinePower(2400.0, 3600.0, 36.0, 36.0, IsFed: true) { Heat = ThroughputHeat.Throttled };
+        Assert.Equal(HudPalette.Throttled, PowerLabels.Of(throttled).Color);
+        Assert.Equal(HudPalette.Overheated, PowerLabels.Of(throttled with { Heat = ThroughputHeat.Overheated }).Color);
+        Assert.Equal("+36 -36/s", PowerLabels.Of(throttled).Flow);
+
         var generator = PowerLabels.Of(new MachinePower(2400.0, 4800.0, 120.0, 40.0, IsFed: true, ProductionPerSecond: 375.0));
         Assert.Equal(HudPalette.Producer, generator.Color);
         Assert.Equal("gen +375/s", generator.Flow);

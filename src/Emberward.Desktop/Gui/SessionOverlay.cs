@@ -55,10 +55,11 @@ public sealed class SessionOverlay
         ("Left click / Space", "Fire"),
         .. MachinePresentations.InSlotOrder.Select(m =>
             (m.KeyLabel, $"Build a {m.Name} ({m.OreCost} ore); press again to plant it" +
-                (m.Behavior.IsGenerator ? " · energy matches" : ""))),
+                (m.Behavior.NeedsEnergyNetwork ? " · energy matches" : ""))),
         ("1-5 / 6-7", "Docked: buy base upgrades / tank upgrades with the base ore store"),
         ("H / F9", "Thermal view (enemy tunnels glow)"),
         ("G", "Charge labels over machines (with --energy-network)"),
+        ("F, then 1-3", "Beside your relay or turret: open its upgrade panel, buy Tap / Sensor / Conduit or Rapid / Long (with --energy-network)"),
         ("Esc / P", "Pause"),
         ("N / L", "Paused: open the network menu / leave the network match"),
         ("C", "Paused, host of a network match: close it to new players, or open it again"),
@@ -78,7 +79,7 @@ public sealed class SessionOverlay
         "A relay planted in sight of your base network pumps nearby heat back to the base.",
         "Emberite (gold crystal) is the only currency. Mine it into your hold and bring it home: docked, or inside your network, it goes into the base store, which pays for what you build there.",
         "Stay inside your network's pale circles: outside them the tank heats up. Relays widen the network.",
-        "Harvesters mine ore for you inside your network; relays keep them cool and pylons keep them charged.",
+        "Harvesters mine ore for you inside your network; relays keep them cool and your base's charge runs them.",
         "Enemy fire damages base walls. Destroy the enemy base to take its side out of the match.",
     ];
 

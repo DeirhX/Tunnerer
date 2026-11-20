@@ -139,6 +139,16 @@ public class BotTankAI
 
     public ControllerOutput GetInput(Tank tank, Tank? enemy, World world)
     {
+        var input = Decide(tank, enemy, world);
+        // Under the reserve rule a bot that is degraded or worse off its network burns what it carries, as a player
+        // would (DESIGN.md §4.9); the recall key does it.
+        if (world.ReserveOf(tank).ShouldBurn)
+            input.Recall = true;
+        return input;
+    }
+
+    private ControllerOutput Decide(Tank tank, Tank? enemy, World world)
+    {
         _profiles.Advance();
         if (_gunner.BeginTick(enemy) && _mode == TwitchMode.Twitch)
             SetMode(TwitchMode.Return); // After a kill the bot goes home instead of waiting at the enemy's base exit.

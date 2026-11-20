@@ -180,7 +180,7 @@ public class BrowserSessionArtStripTests
         Assert.Equal(-1, p.OrePileFrame);
         Assert.StartsWith("BASE ORE ", p.OreLine, StringComparison.Ordinal);
         // Each machine in its desktop slot, as the desktop's BuildPanel draws it.
-        Assert.Equal([0, 1, 2], first.Builds.Select(b => b.Slot).Order());
+        Assert.Equal([0, 1], first.Builds.Select(b => b.Slot).Order());
         foreach (var b in first.Builds)
         {
             var machine = MachinePresentations.All.Single(m => m.Type.ToString() == b.Name);
@@ -253,7 +253,7 @@ public class BrowserStressTests
     /// <summary>The busy world the browser build is measured in (?machines=N) is networks a player could have built.</summary>
     [Fact]
     [Trait("Category", "Slow")]
-    public void Stress_GrowsPoweredNetworksFromEveryBase_WithHarvestersAndPylons()
+    public void Stress_GrowsPoweredNetworksFromEveryBase_WithHarvesters()
     {
         var session = new BrowserSession(1234, machines: 40);
         var machines = session.World.Machines.Machines;
@@ -262,12 +262,52 @@ public class BrowserStressTests
         Assert.Equal(40, machines.Count);
         foreach (var tank in session.World.TankList.Tanks)
             Assert.Contains(machines, m => m.StandsFor(tank.Base!) && m.Type == MachineType.Relay && m.LinkPoint?.IsPowered == true);
-        // A harvester and a pylon beside every third relay, at most: the rest of the machines extend the networks.
+        // A harvester and a second relay beside every third frontier relay, at most: the rest extend the networks.
         int relays = machines.Count(m => m.Type == MachineType.Relay);
         int harvesters = machines.Count(m => m.Type == MachineType.Harvester);
-        int pylons = machines.Count(m => m.Type == MachineType.Pylon);
         Assert.InRange(harvesters, 1, relays / 3);
-        Assert.InRange(pylons, 1, relays / 3);
+    }
+}
+
+public class BrowserMachineUpgradeInputTests
+{
+    /// <summary>
+    /// The page queues clicks and keys and sends one a step. A purchase closes the machine upgrade panel, so a second
+    /// choice already queued arrives with the panel shut: the mark it was queued with keeps it a machine purchase,
+    /// never a base upgrade. A key queued with the panel shut is a base upgrade, as before.
+    /// </summary>
+    [Fact]
+    public void AKeyQueuedForTheMachine_StaysAMachinePurchase_AfterThePanelCloses()
+    {
+        var session = new BrowserSession(1234, energyNetwork: true);
+        Assert.False(session.MachineUpgrades.IsOpen);
+
+        var queued = session.WithMachineUpgradePanel(new ControllerOutput { Upgrade = 1 }, togglePanel: false, forMachine: true);
+        Assert.True(queued.UpgradeMachine);
+
+        var baseKey = session.WithMachineUpgradePanel(new ControllerOutput { Upgrade = 1 }, togglePanel: false);
+        Assert.False(baseKey.UpgradeMachine);
+
+        var noKey = session.WithMachineUpgradePanel(default, togglePanel: false, forMachine: true);
+        Assert.False(noKey.UpgradeMachine);
+    }
+
+    /// <summary>
+    /// The build buttons write the key that builds each machine, the desktop's label: the generator and the turret
+    /// kept Y and U when the pylon's third key went, so the page must not number the keys itself.
+    /// </summary>
+    [Fact]
+    public void BuildButtons_WriteTheDesktopsKeyLabels()
+    {
+        var session = new BrowserSession(1234, energyNetwork: true);
+
+        var labels = BrowserFrameBuilder.Capture(session, includeEvents: false).Builds
+            .ToDictionary(b => b.Name, b => b.KeyLabel);
+
+        Assert.Equal("E", labels["Relay"]);
+        Assert.Equal("R", labels["Harvester"]);
+        Assert.Equal("Y", labels["Generator"]);
+        Assert.Equal("U", labels["Turret"]);
     }
 }
 

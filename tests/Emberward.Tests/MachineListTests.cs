@@ -1,4 +1,5 @@
 using Emberward.Core.Entities.Machines;
+using Emberward.Core.Network;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 
@@ -73,14 +74,13 @@ public class MachineListTests
         var terrain = new TerrainGrid(new Size(100, 100));
         terrain.Fill(TerrainPixel.Dirt);
         var list = new MachineList();
-        Machine first = Add(list, 40, 40, MachineType.Pylon), doomed = Add(list, 42, 40, MachineType.Pylon), last = Add(list, 44, 40);
+        Machine first = Add(list, 40, 40, MachineType.Relay), doomed = Add(list, 42, 40, MachineType.Relay), last = Add(list, 44, 40);
         doomed.IsAlive = false;
 
-        list.Advance(new MachineContext(terrain, (_, _) => false, list, _ => false), TimeSpan.Zero);
+        list.Advance(new MachineContext(terrain, (_, _) => false, list, _ => TankCoverage.None), TimeSpan.Zero);
 
         Assert.Equal([first, last], list.Machines);
         Assert.Equal([first, last], Near(list, 42, 40, reach: 5));
-        Assert.Equal([first], list.Chargers);
         Assert.True(first.Sequence < last.Sequence);
     }
 }

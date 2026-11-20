@@ -29,7 +29,8 @@ public sealed class TutorialDirector
         Func<World, Tank, (string Text, float Fraction)?>? Progress = null,
         Func<World, Tank, Position?>? Target = null,
         float ReadSeconds = 0f,
-        string? EnergyBody = null);
+        string? EnergyBody = null,
+        float? EnergyReadSeconds = null);
 
     private readonly Step[] _steps;
     private int _index;
@@ -98,11 +99,14 @@ public sealed class TutorialDirector
                 Target: static (w, p) => FirstHarvester(w, p)),
 
             new("Power the harvester",
-                $"Harvesters run on a battery (the bar above them). Press {Key(MachineType.Pylon)} to build a pylon ({Cost(MachineType.Pylon)} ore) where it can see the harvester: it recharges batteries from your base's charge.",
-                static (_, w, p) => w.Rules.EnergyNetwork
-                    ? OwnsAny(w, p, MachineType.Generator) : OwnsPowered(w, p, MachineType.Pylon),
+                "Harvesters run on your base's charge (the Charge bar in the base panel) wherever your network covers them. Relays make that charge from warm ground: keep one by hot rock so the store never runs dry.",
+                // Without the energy network there is nothing to do: a harvester already runs on the base's store, so
+                // the step only explains that and finishes once read. With it the player builds a generator.
+                static (_, w, p) => w.Rules.EnergyNetwork && OwnsAny(w, p, MachineType.Generator),
                 Target: static (w, p) => w.Rules.EnergyNetwork
                     ? Nearest(w.HotRockPockets, p.Position) : FirstHarvester(w, p),
+                ReadSeconds: 12f,
+                EnergyReadSeconds: 0f,
                 EnergyBody: $"Harvesters draw charge through the network. Press {Key(MachineType.Generator)} to build a generator ({Cost(MachineType.Generator)} ore) and plant it beside hot ground. A generator can power nearby machines through their links even when cut off from the base."),
 
             new("Upgrade",
@@ -112,6 +116,23 @@ public sealed class TutorialDirector
                     ? Ratio("Base ore store", b.Store.Ore, Tweaks.Upgrades.LevelCosts[0])
                     : null,
                 Target: static (_, p) => p.Base?.Position),
+
+            new("Upgrade a relay",
+                "Stop beside one of your relays and press F (or tap it): its panel offers Tap (pumps more heat, so more charge, and runs hotter), Sensor (sees further) or Conduit (a bigger capacitor). Press 1-3 to buy from the base ore store; a relay keeps the path it takes first.",
+                static (_, w, p) => !w.Rules.MachineUpgrades || Owned(w, p, MachineType.Relay).Any(m => w.MachineUpgradeOf(m).Level > 0),
+                Progress: static (_, p) => p.Base is { } b
+                    ? Ratio("Base ore store", b.Store.Ore, MachineUpgrades.CostOfLevel(0))
+                    : null,
+                Target: static (w, p) => w.MachineUpgradeOfferFor(p)?.Machine.Position
+                    ?? Owned(w, p, MachineType.Relay).Select(m => (Position?)m.Position).FirstOrDefault()),
+
+            new("Defend with a turret",
+                $"With the energy network, press {Key(MachineType.Turret)} to build a turret ({Cost(MachineType.Turret)} ore) and plant it inside your network's coverage. While its island feeds it, it fires at enemy tanks within {Tweaks.Turret.Range} cells that it can see. Each shot heats the ground around it, and a hot turret fires more slowly: a relay nearby keeps it cool. F beside it offers Rapid or Long.",
+                static (_, w, p) => !w.Rules.EnergyNetwork || OwnsAny(w, p, MachineType.Turret),
+                Progress: static (_, p) => p.Base is { } b
+                    ? Ratio("Base ore store", b.Store.Ore, Cost(MachineType.Turret))
+                    : null,
+                Target: static (w, p) => Owned(w, p, MachineType.Relay).Select(m => (Position?)m.Position).FirstOrDefault()),
 
             new("Cool off at the frost",
                 "Blue rock is frost. Beside it a hot tank cools fast, a good stop on a long dig. Stay too long and the cold slows you down, then cracks your shield.",
@@ -139,8 +160,8 @@ public sealed class TutorialDirector
             if (float.IsNaN(_shownSince))
                 _shownSince = now;
             var step = _steps[_index];
-            bool done = step.IsDone(this, world, player) ||
-                        (step.ReadSeconds > 0f && ShownFor(now) >= step.ReadSeconds);
+            float read = world.Rules.EnergyNetwork ? step.EnergyReadSeconds ?? step.ReadSeconds : step.ReadSeconds;
+            bool done = step.IsDone(this, world, player) || (read > 0f && ShownFor(now) >= read);
             if (!done)
                 break;
             _index++;

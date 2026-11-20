@@ -13,7 +13,7 @@ using Emberward.Core.Types;
 /// outward the way a player builds one. From a base's doors and then from each new relay it digs a tunnel through
 /// dirt (giving up on a line that meets rock, as a player without the torch would) and plants a relay at its end
 /// where the placement preview shows a live link (<see cref="World.PreviewPlacement"/>). Every third relay gets a
-/// harvester and a pylon beside it. The world steps between rounds, so new relays are powered before the next round
+/// harvester and a second relay beside it (off the frontier: nothing grows from it). The world steps between rounds, so new relays are powered before the next round
 /// links to them. Nothing here is part of a normal match.
 /// </summary>
 public static class BrowserStress
@@ -69,7 +69,7 @@ public static class BrowserStress
 
     /// <summary>
     /// Digs to and plants a relay around <paramref name="from"/>, and beside every third relay (<paramref name="relays"/>
-    /// counts them across all bases) a harvester and a pylon.
+    /// counts them across all bases) a harvester and a second relay.
     /// </summary>
     private static int GrowFrom(World world, Tank owner, Position from, Queue<(Position, Position)> frontier, int room,
         ref int relays)
@@ -93,7 +93,7 @@ public static class BrowserStress
                 {
                     foreach (var (type, offset) in new[]
                              {
-                                 (MachineType.Harvester, new Offset(8, 0)), (MachineType.Pylon, new Offset(0, 8)),
+                                 (MachineType.Harvester, new Offset(8, 0)), (MachineType.Relay, new Offset(0, 8)),
                              })
                     {
                         if (planted < room && IsFreeSite(world, at + offset) && Dig(world, at, at + offset))

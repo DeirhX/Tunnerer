@@ -20,7 +20,7 @@
   <ItemGroup>
     <Compile Remove="DrawProfile.cs;Config/DesktopScreenTweaks.cs;Config/PostProcessPassFlags.cs;Rendering/Entities/*.cs" />
     <Compile Remove="Config/AudioTweaks.cs;Audio/SoundEffect.cs;Audio/StepEventSounds.cs;Audio/SoundDirector.cs;Audio/SoundBank.cs" />
-    <Compile Remove="Presentation/MachinePresentation.cs;Gui/HintSelector.cs;Gui/HeatScale.cs;Gui/BuildSlotView.cs;Gui/HudPalette.cs;Gui/PowerLabels.cs;Gui/Guidance/*.cs" />
+    <Compile Remove="Presentation/MachinePresentation.cs;Gui/HintSelector.cs;Gui/HeatScale.cs;Gui/BuildSlotView.cs;Gui/HudPalette.cs;Gui/PowerLabels.cs;Gui/MachineUpgradeView.cs;Gui/ReserveTags.cs;Gui/Guidance/*.cs" />
     <Compile Remove="Rendering/EntityLayerBuilder.cs;Rendering/IGameRenderBackend.cs;Rendering/RenderInputEvent.cs;Rendering/PostParamsBlock.cs;Rendering/ScreenEffects.cs" />
     <Compile Remove="Rendering/TerrainAuxBuilder.cs;Rendering/TerrainAuxUploader.cs;Rendering/TerrainSolidField.cs;Rendering/TerrainMaterialCoverage.cs;Rendering/TerrainGrowthFade.cs;Rendering/TerrainView.cs;Rendering/FogLayer.cs;Rendering/RowParallel.cs" />
     <Compile Remove="SlotStepper.cs;Config/NetworkTweaks.cs;Net/NetSession.cs;Net/Seats.cs;Net/NetMatch.cs;Net/LobbyText.cs" />

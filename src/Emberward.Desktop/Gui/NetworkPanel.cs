@@ -39,7 +39,7 @@ public sealed class NetworkPanel
         var status = world.GetNetworkStatus(tankBase);
         int relays = status.Relays, powered = status.PoweredRelays, pumping = status.PumpingRelays;
         int harvesters = status.Harvesters, stalled = status.HarvestersTooHot, working = status.HarvestersWorking;
-        int recharging = status.HarvestersReturning, flat = status.HarvestersOutOfCharge;
+        int flat = status.HarvestersOutOfCharge;
         // Smooth the readout: relays act every tick but the number is read by eye.
         // The engine turns part of the relay heat into charge; only the rest reaches the radiator.
         _engineOutput += (tankBase.EngineOutputPerTick - _engineOutput) * 0.1;
@@ -87,11 +87,8 @@ public sealed class NetworkPanel
                     ColoredText(HudTheme.Warn, $"{status.HarvestersCoreOnly} at a warm core: torch it out with the tank");
                 if (status.HarvestersStoreFull > 0)
                     ColoredText(HudTheme.Warn, $"{status.HarvestersStoreFull} waiting: the base ore store is full");
-                if (recharging > 0 || flat > 0)
-                    ColoredText(flat > 0 ? HudTheme.Danger : HudTheme.Warn,
-                        (recharging > 0 ? $"{recharging} heading to a pylon" : "") +
-                        (recharging > 0 && flat > 0 ? ", " : "") +
-                        (flat > 0 ? $"{flat} out of charge" : ""));
+                if (flat > 0)
+                    ColoredText(HudTheme.Danger, $"{flat} out of charge");
             }
             if (relays > 0)
             {

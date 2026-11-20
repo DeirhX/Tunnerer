@@ -23,6 +23,12 @@ function versionLine() {
             show();
         },
         async refresh() {
+            // Offline there is nothing to ask, and the browser would log the failed request as an error.
+            if (!navigator.onLine) {
+                latest = null;
+                show();
+                return;
+            }
             try {
                 const text = await (await fetch("./assets-manifest.js", { cache: "no-store" })).text();
                 latest = /"version": "(\w+)"/.exec(text)?.[1] ?? null;
@@ -158,6 +164,8 @@ export async function setupInstallation(notify, idle) {
     try {
         const versions = versionLine();
         versions.refresh();
+        // Asked again when the connection comes back, since an offline start skipped it.
+        window.addEventListener("online", () => versions.refresh());
         const updates = updater(idle, versions);
         const registration = await navigator.serviceWorker.register("./sw.js", {
             updateViaCache: "none",

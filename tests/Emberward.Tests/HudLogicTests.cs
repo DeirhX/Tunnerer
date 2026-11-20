@@ -19,7 +19,7 @@ public class HudLogicTests
     private static HintInputs Field(int ore = 0) => new(
         IsDead: false, HasLeftBase: true, Docked: false, InsideBase: false, RelayJustLinked: false,
         PumpingRelays: 0, PlantRefused: false, Carried: null, CarriedLink: LinkPreviewStatus.NoNetwork,
-        HeatStoreFull: false, Harvesters: 0, SpendableOre: ore, RelayFromBaseStore: false,
+        HeatStoreFull: false, SpendableOre: ore, RelayFromBaseStore: false,
         NotEnoughOre: false, CoolingDown: false);
 
     [Fact]
@@ -59,7 +59,7 @@ public class HudLogicTests
     [Theory]
     [InlineData(MachineType.Relay, "relay")]
     [InlineData(MachineType.Harvester, "harvester")]
-    [InlineData(MachineType.Pylon, "pylon")]
+    [InlineData(MachineType.Generator, "generator")]
     public void Hint_CarryingInsideBase_SaysLeaveTheBase(MachineType type, string name)
     {
         var (text, tone) = HintSelector.Select(Field() with { Carried = type, InsideBase = true });
@@ -77,9 +77,8 @@ public class HudLogicTests
 
     [Theory]
     [InlineData(MachineType.Relay, LinkPreviewStatus.Live, "E: plant relay here - it will link (green line)", HintTone.Good)]
-    [InlineData(MachineType.Pylon, LinkPreviewStatus.Live, "T: plant pylon here - it charges harvesters it can see", HintTone.Good)]
     [InlineData(MachineType.Relay, LinkPreviewStatus.Blocked, "Line to network blocked (red X) - dig it clear", HintTone.Bad)]
-    [InlineData(MachineType.Pylon, LinkPreviewStatus.TooFar, "Too far from the network - move closer", HintTone.Warn)]
+    [InlineData(MachineType.Relay, LinkPreviewStatus.TooFar, "Too far from the network - move closer", HintTone.Warn)]
     [InlineData(MachineType.Relay, LinkPreviewStatus.NoNetwork, "No powered network to link to", HintTone.Warn)]
     public void Hint_CarriedLinkMachine_FollowsLinkPreview(
         MachineType type, LinkPreviewStatus link, string expected, HintTone expectedTone)
@@ -98,15 +97,14 @@ public class HudLogicTests
     }
 
     [Fact]
-    public void Hint_BuildList_GrowsWithOreAndHarvesters()
+    public void Hint_BuildList_GrowsWithOre()
     {
-        int relay = Cost(MachineType.Relay), harvester = Cost(MachineType.Harvester), pylon = Cost(MachineType.Pylon);
+        int relay = Cost(MachineType.Relay), harvester = Cost(MachineType.Harvester);
         Assert.Equal($"E: build relay ({relay} ore)", HintSelector.Select(Field(ore: relay)).Text);
 
-        int rich = Math.Max(relay, Math.Max(harvester, pylon));
-        string all = HintSelector.Select(Field(ore: rich) with { Harvesters = 1 }).Text;
-        Assert.Equal($"E: build relay ({relay} ore)   R: build harvester ({harvester} ore)   T: pylon ({pylon})", all);
-        Assert.DoesNotContain("T: pylon", HintSelector.Select(Field(ore: rich)).Text);
+        int rich = Math.Max(relay, harvester);
+        string all = HintSelector.Select(Field(ore: rich)).Text;
+        Assert.Equal($"E: build relay ({relay} ore)   R: build harvester ({harvester} ore)", all);
     }
 
     [Fact]

@@ -115,8 +115,7 @@ Core decides what is seen; the renderer only shows it.
   the cell is (its strength). `GameEventWatcher` posts "Radar scattered by heat" when `Radar.HeatLoss` passes `RadarScatteredShare`.
   The pulse ring is drawn at `Radar.PulseFront` (moving `Radar.PulseSpeed` a tick, faster with the radar upgrade)
   and fades out at `Radar.PulseRange`, which the upgrade lengthens.
-- **Ore on the network.** Links carry three beams: heat home (orange, `KindLink`), charge out (blue,
-  `KindChargeBeam`) and ore home (`KindOreBeam`, `OreBeam` in `Shaders/Entity/Beams.hlsli`: gold crystals with a pale
+- **Ore on the network.** Links carry two beams: heat home (orange, `KindLink`) and ore home (`KindOreBeam`, `OreBeam` in `Shaders/Entity/Beams.hlsli`: gold crystals with a pale
   glint, tumbling toward the base). `LinkQuads` draws the ore beam from `LinkRenderState.OreFlow`, which Core keeps up
   for a moment after each unit passes (`Link.OreFlowTicks`), and `CoverageQuads` draws one from the tank to its
   covering node beside the tether while `Tank.IsUnloadingOre`.
@@ -160,12 +159,11 @@ The loop around it (polling, fixed simulation steps, composing) is described in 
 1. Sizes the game view (`RenderViewState`: the whole window, in device pixels) and centres the camera on the
    interpolated player. The camera may run up to half a view past the map's edges, so the player stays in the
    middle of the screen everywhere, clear of the HUD in the bottom corners.
-2. Builds the entity layer quads at the frame's step progress (`EntityLayerBuilder.Build`). Links, charge beams
+2. Builds the entity layer quads at the frame's step progress (`EntityLayerBuilder.Build`). Links, ore beams
    and coverage tethers go through `Rendering/Entities/BeamFader`, which gives them a life across frames: a new
    beam grows from its source over 0.9 s, and one that stops being submitted keeps its last shape and, after a
    0.12 s grace (so a one-step blip does not break it), dissolves over 0.7 s. Beams are keyed by kind and end
-   points; a charge beam by the harvester's planted anchor, so it follows a crawling harvester instead of
-   restarting.
+   points, so a flow that changes direction does not break and regrow its beam.
    With fog of war, `FogLayer.Prepare` then repacks the fog texture where the player's vision changed.
 3. Asks `TerrainAuxUploader.Prepare` which part of the terrain aux and material coverage textures to repack,
    given the cells in view (`RenderView.VisibleCells`):
@@ -209,7 +207,8 @@ display's own resolution instead of being stretched by the OS.
   box.
 - **Charge labels** (`PowerLabelQuads`, only while the match runs `MatchRules.EnergyNetwork`: `--energy-network` for a
   local match). Each standing machine in sight within `DesktopScreenTweaks.PowerLabelGoneCells` of the player's tank
-  gets a label with charge over capacity, flow in and out a second and a fill bar. `PowerLabels` picks the machines
+  gets a label with charge over capacity, flow in and out a second (and `>` what a node passed on) and a fill bar,
+  orange while the node is throttled and pink while it is overheated (`HudPalette.Throttled`, `Overheated`). `PowerLabels` picks the machines
   with `MachineList.CollectNear` and the fog rule of the sprites (`Sight`), formats the numbers of
   `World.MachinePowerOf` and fades each label with its distance from the tank. `PowerLabelQuads` applies the zoom
   fade and sends bitmap glyphs and bars to the shared entity shader. The labels sit under the HUD and follow the
@@ -275,7 +274,7 @@ from repeating on the frames drawn between steps.
 | Debris | 3 or more `ShrapnelSpent` within earshot in the step: one rattle at their centre, at most every 6 steps, however many there were |
 | Tank hit | `TankHit` |
 | Tank death, respawn | `TankDied`, `TankRespawned` |
-| Build relay / harvester / pylon, plant | `MachineBuilt` (the machine's own build sound), `MachinePlanted` (a tank that dies drops its machine silently) |
+| Build a machine, plant | `MachineBuilt` (the machine's own build sound), `MachinePlanted` (a tank that dies drops its machine silently) |
 | Plant refused | `PlantRefused`, and `BuildRefused` (not enough ore) (player only) |
 | Pickup | `OreCollected`. At most every 3 steps; a run of pickups climbs in pitch. |
 | Ore unloaded | `OreUnloaded` (player only): the pickup sound, quieter, once per unit unloaded through the network |

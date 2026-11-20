@@ -11,13 +11,21 @@ using Emberward.Desktop.Rendering.Entities;
 
 /// <summary>What a machine's charge label says (DESIGN.md §4.9): charge over capacity, flow in and out a second.</summary>
 /// <param name="Charge">Charge over capacity, compact: <c>2.4k/3.6k</c>.</param>
-/// <param name="Flow">Charge a second in and out: <c>+120 -40/s</c>.</param>
+/// <param name="Flow">Charge a second in and out, and passed on by a node that carries charge: <c>+120 -40 >1.2k/s</c>.</param>
 /// <param name="Fill">How full its capacitor is, 0 to 1.</param>
 /// <param name="Level">Fed (<see cref="StatusLevel.Ok"/>), running on its own charge (Warn) or empty and cut off (Bad).</param>
-public readonly record struct PowerLabel(string Charge, string Flow, float Fill, StatusLevel Level, bool Producing = false)
+/// <param name="Heat">A node running hot from what it carries: throttled, or overheated and losing health.</param>
+public readonly record struct PowerLabel(string Charge, string Flow, float Fill, StatusLevel Level, bool Producing = false,
+    ThroughputHeat Heat = ThroughputHeat.Normal)
 {
-    /// <summary>The label's colour: the HUD's good green when fed, its warning and danger colours when not.</summary>
-    public uint Color => Producing ? HudPalette.Producer : HudPalette.LevelColor(Level, HudPalette.Good);
+    /// <summary>
+    /// The label's colour: a producer's violet; a hot node's throttled or overheated colour; else the HUD's good green
+    /// when fed, its warning and danger colours when not.
+    /// </summary>
+    public uint Color => Producing ? HudPalette.Producer
+        : Heat == ThroughputHeat.Overheated ? HudPalette.Overheated
+        : Heat == ThroughputHeat.Throttled ? HudPalette.Throttled
+        : HudPalette.LevelColor(Level, HudPalette.Good);
 }
 
 /// <summary>What the base's charge row says: its store, production against draw a second, and the net.</summary>
@@ -77,6 +85,11 @@ public static class PowerLabels
     public static string Flow(double inPerSecond, double outPerSecond) =>
         "+" + Compact(Math.Max(0.0, inPerSecond)) + " -" + Compact(Math.Max(0.0, outPerSecond)) + "/s";
 
+    /// <summary>Charge a second in and out, and passed on to the machines behind: <c>+in -out >passed/s</c>.</summary>
+    public static string Flow(double inPerSecond, double outPerSecond, double passedPerSecond) =>
+        "+" + Compact(Math.Max(0.0, inPerSecond)) + " -" + Compact(Math.Max(0.0, outPerSecond)) +
+        " >" + Compact(Math.Max(0.0, passedPerSecond)) + "/s";
+
     /// <summary>A rate with its sign always shown: <c>+900/s</c>, <c>-1.2k/s</c>, <c>0/s</c>.</summary>
     public static string SignedRate(double perSecond)
     {
@@ -88,9 +101,11 @@ public static class PowerLabels
     {
         StatusLevel level = power.IsFed ? StatusLevel.Ok : power.Charge > 0.0 ? StatusLevel.Warn : StatusLevel.Bad;
         bool producing = power.ProductionPerSecond > 0.0;
-        string flow = producing ? "gen " + SignedRate(power.ProductionPerSecond) : Flow(power.InPerSecond, power.OutPerSecond);
+        string flow = producing ? "gen " + SignedRate(power.ProductionPerSecond)
+            : Math.Round(power.PassedPerSecond) >= 1.0 ? Flow(power.InPerSecond, power.OutPerSecond, power.PassedPerSecond)
+            : Flow(power.InPerSecond, power.OutPerSecond);
         return new PowerLabel(Compact(power.Charge) + "/" + Compact(power.Capacity), flow,
-            Fill(power.Charge, power.Capacity), level, producing);
+            Fill(power.Charge, power.Capacity), level, producing, power.Heat);
     }
 
     public static BasePowerLabel Of(BasePower power)

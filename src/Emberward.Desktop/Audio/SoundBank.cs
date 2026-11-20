@@ -42,8 +42,9 @@ public sealed class SoundBank
             SoundEffect.Dock => Dock(ref noise),
             SoundEffect.BuildRelay => Build(ref noise, 0.45f, 170f, 430f, 28f, 900f),
             SoundEffect.BuildHarvester => Build(ref noise, 0.56f, 105f, 280f, 19f, 600f),
-            SoundEffect.BuildPylon => BuildPylon(ref noise),
             SoundEffect.BuildGenerator => Build(ref noise, 0.50f, 140f, 360f, 22f, 1200f),
+            SoundEffect.BuildTurret => Build(ref noise, 0.42f, 210f, 540f, 34f, 1600f),
+            SoundEffect.TurretFire => TurretFire(ref noise),
             SoundEffect.Plant => Plant(ref noise),
             SoundEffect.PlantRefused => PlantRefused(),
             SoundEffect.Pickup => Pickup(),
@@ -76,6 +77,23 @@ public sealed class SoundBank
             phase += Tau * (90f + 160f * Decay(t, 0.03f)) / Rate;
             samples[i] = hiss * Decay(t, 0.05f) * 4f + report * Decay(t, 0.09f) * 3f
                 + MathF.Sin(phase) * Decay(t, 0.06f) * 0.7f;
+        }
+        return samples;
+    }
+
+    /// <summary>A turret's shot: a lighter, higher crack than the tank's cannon, over a short metallic tick.</summary>
+    private static float[] TurretFire(ref Noise noise)
+    {
+        var samples = Buffer(0.16f);
+        var crack = new LowPass();
+        float phase = 0f;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)Rate;
+            float hiss = crack.Process(noise.Next(), 1600f + 7000f * Decay(t, 0.015f));
+            phase += Tau * (180f + 320f * Decay(t, 0.02f)) / Rate;
+            samples[i] = hiss * Decay(t, 0.035f) * 3.5f + MathF.Sin(phase) * Decay(t, 0.04f) * 0.6f
+                + MathF.Sin(Tau * 1870f * t) * Decay(t, 0.02f) * 0.25f;
         }
         return samples;
     }
@@ -230,42 +248,6 @@ public sealed class SoundBank
             if (local >= 0f)
                 latch = noise.Next() * Decay(local, 0.006f) * 0.8f + MathF.Sin(Tau * latchHz * local) * Decay(local, 0.03f) * 0.5f;
             samples[i] = whirr + latch;
-        }
-        return samples;
-    }
-
-    /// <summary>
-    /// Raising a pylon: an electrical whine charging up through a mains buzz, then a spark and a ringing hum. The
-    /// relay and harvester whirr like servos; the pylon, which hands out charge, sounds like a capacitor.
-    /// </summary>
-    private static float[] BuildPylon(ref Noise noise)
-    {
-        const float chargeEnd = 0.4f;
-        var samples = Buffer(0.62f);
-        var sparkLow = new LowPass();
-        float whine = 0f;
-        for (int i = 0; i < samples.Length; i++)
-        {
-            float t = i / (float)Rate;
-            float charge = 0f;
-            if (t < chargeEnd)
-            {
-                float progress = t / chargeEnd;
-                whine += Tau * (320f + 1400f * progress * progress) / Rate;
-                float buzz = 0.6f + 0.4f * MathF.Sin(Tau * 100f * t);
-                charge = (MathF.Sin(whine) + 0.35f * MathF.Sin(2f * whine) + 0.2f * MathF.Sin(3f * whine))
-                    * buzz * (0.3f + 0.5f * progress) * Attack(t, 0.02f) * Attack(chargeEnd - t, 0.01f);
-            }
-            float discharge = 0f;
-            float local = t - chargeEnd;
-            if (local >= 0f)
-            {
-                float white = noise.Next();
-                float crackle = white - sparkLow.Process(white, 2500f);
-                discharge = crackle * Decay(local, 0.012f) * 0.45f
-                    + (MathF.Sin(Tau * 120f * local) + 0.5f * MathF.Sin(Tau * 240f * local)) * Decay(local, 0.07f) * 0.5f;
-            }
-            samples[i] = charge + discharge;
         }
         return samples;
     }

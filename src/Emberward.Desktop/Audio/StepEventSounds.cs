@@ -47,6 +47,7 @@ public static class StepEventSounds
     public static StepEventCue? CueFor(StepEventKind kind, MachineType machine) => kind switch
     {
         StepEventKind.ShotFired => new(SoundEffect.Fire, AudioTweaks.FireGain, CueHeard.Anywhere, CueVoice.ShotCycle),
+        StepEventKind.TurretFired => new(SoundEffect.TurretFire, AudioTweaks.TurretFireGain, CueHeard.Anywhere, CueVoice.Burst),
         StepEventKind.BulletImpact => new(SoundEffect.Impact, AudioTweaks.ImpactGain, CueHeard.Anywhere, CueVoice.Burst),
         StepEventKind.OreCollected => new(SoundEffect.Pickup, AudioTweaks.PickupGain, CueHeard.Anywhere, CueVoice.PickupStreak),
         StepEventKind.TankHit => new(SoundEffect.TankHit, AudioTweaks.TankHitGain, CueHeard.TrackedTank),
@@ -54,9 +55,10 @@ public static class StepEventSounds
         StepEventKind.TankRespawned => new(SoundEffect.Respawn, AudioTweaks.RespawnGain, CueHeard.TrackedTank),
         StepEventKind.MachineBuilt => new(BuildSound(machine), AudioTweaks.BuildGain, CueHeard.TrackedTank),
         StepEventKind.MachinePlanted => new(SoundEffect.Plant, AudioTweaks.PlantGain, CueHeard.TrackedTank),
-        StepEventKind.PlantRefused or StepEventKind.BuildRefused =>
+        StepEventKind.MachineUpgraded => new(SoundEffect.Plant, AudioTweaks.PlantGain, CueHeard.Player),
+        StepEventKind.PlantRefused or StepEventKind.BuildRefused or StepEventKind.MachineUpgradeRefused =>
             new(SoundEffect.PlantRefused, AudioTweaks.RefusedGain, CueHeard.Player),
-        StepEventKind.OreUnloaded => new(SoundEffect.Pickup, AudioTweaks.UnloadGain, CueHeard.Player),
+        StepEventKind.OreUnloaded or StepEventKind.ReserveBurned => new(SoundEffect.Pickup, AudioTweaks.UnloadGain, CueHeard.Player),
         StepEventKind.Docked => new(SoundEffect.Dock, AudioTweaks.DockGain, CueHeard.Player),
         _ => null,
     };
@@ -79,8 +81,8 @@ public static class StepEventSounds
     private static readonly SoundEffect[] BuildSounds = BuildSoundTable(
         (MachineType.Relay, SoundEffect.BuildRelay),
         (MachineType.Harvester, SoundEffect.BuildHarvester),
-        (MachineType.Pylon, SoundEffect.BuildPylon),
-        (MachineType.Generator, SoundEffect.BuildGenerator));
+        (MachineType.Generator, SoundEffect.BuildGenerator),
+        (MachineType.Turret, SoundEffect.BuildTurret));
 
     private static SoundEffect[] BuildSoundTable(params (MachineType Type, SoundEffect Sound)[] entries)
     {

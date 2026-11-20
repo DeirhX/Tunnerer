@@ -51,10 +51,6 @@ float4 main(PSIn input) : SV_Target
         result = SenseRing(p, input.params, aa);
     else if (kind < kKindLink + 0.5)
         result = LinkBeam(p, input.params, aa);
-    else if (kind < kKindChargeBeam + 0.5)
-        result = ChargeBeam(p, input.params, aa);
-    else if (kind < kKindPylon + 0.5)
-        result = Pylon(p, input.params, aa);
     else if (kind < kKindBattery + 0.5)
         result = Battery(p, input.params, aa);
     else if (kind < kKindPreviewBeam + 0.5)
@@ -71,7 +67,9 @@ float4 main(PSIn input) : SV_Target
         result = RadarPulse(p, input.params, aa);
     else if (kind < kKindGenerator + 0.5)
         result = Generator(p, input.params, aa);
-    else // kKindPowerLabel
+    else if (kind < kKindPowerLabel + 0.5)
         result = PowerLabel(p, input.color.rgb, input.params);
+    else // kKindTurret
+        result = Turret(p, input.params, aa);
     return result;
 }

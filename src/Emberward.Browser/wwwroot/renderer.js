@@ -122,6 +122,7 @@ export class GameRenderer {
                 this.bearing(c, this.frame.player.home, "HOME", "#83d9cf") ||
                 drawn;
         if (this.target) drawn = this.pointer(c, this.target, now) || drawn;
+        drawn = this.machineUpgrade(c, this.frame.machineUpgrade) || drawn;
         if (shaken) drawn = this.crosshair(c, aim) || drawn;
         this.overlayDrawn = drawn;
     }
@@ -150,6 +151,73 @@ export class GameRenderer {
         c.stroke();
         c.restore();
         return true;
+    }
+
+    // The machine next to the tank (MachineUpgradeView, shared with the desktop): a ring in its highlight colour, its
+    // level pips under it (its charge label is above) and, while its panel is closed, the key that opens it. The
+    // panel (hud.js) is kept beside it here, since the machine moves on screen with the camera between HUD updates.
+    // Returns whether it drew.
+    machineUpgrade(c, m) {
+        this.machinePanel ??= document.getElementById("machine-upgrade");
+        const scale = this.cellSize;
+        const { dx, dy } = m ? this.fromCentre(m.position) : { dx: 0, dy: 0 };
+        const x = this.width / 2 + dx,
+            y = this.height / 2 + dy,
+            r = m ? m.ringCells * scale : 0;
+        const onScreen =
+            m && x > -r && y > -r && x < this.width + r && y < this.height + r;
+        if (this.machinePanel && m?.open && onScreen) {
+            const left = x + r + 14 + this.machinePanel.offsetWidth > this.width;
+            const panelX = left ? x - r - 14 - this.machinePanel.offsetWidth : x + r + 14;
+            // Level with the machine, but kept inside the view (MachineUpgradeView.PanelCentreY, as on the desktop):
+            // on a short screen (a phone held sideways) a machine below the tank would otherwise push the panel's
+            // lower rows off the bottom.
+            const half = this.machinePanel.offsetHeight / 2;
+            const panelY = Math.max(half + 4, Math.min(this.height - half - 4, y));
+            const panelLeft = `${Math.round(Math.max(4, panelX))}px`,
+                top = `${Math.round(panelY)}px`;
+            if (this.machinePanel.style.left !== panelLeft) this.machinePanel.style.left = panelLeft;
+            if (this.machinePanel.style.top !== top) this.machinePanel.style.top = top;
+        }
+        if (!onScreen) return false;
+        c.save();
+        if (m.ring) {
+            c.strokeStyle = m.ring;
+            c.globalAlpha = m.bright ? 1 : 0.7;
+            c.lineWidth = m.open ? 3 : 2;
+            c.beginPath();
+            c.arc(x, y, r, 0, Math.PI * 2);
+            c.stroke();
+            c.globalAlpha = 1;
+        }
+        const pip = 8,
+            step = 11,
+            py = y + m.pipDropCells * scale;
+        const px = x - (m.maxLevel * step - (step - pip)) / 2;
+        for (let i = 0; i < m.maxLevel; i++) {
+            c.fillStyle = i < m.level ? "#ffb240" : "#08080ae6";
+            c.fillRect(px + i * step, py - pip / 2, pip, pip * 0.8);
+            c.strokeStyle = "#3a2816";
+            c.lineWidth = 1;
+            c.strokeRect(px + i * step, py - pip / 2, pip, pip * 0.8);
+        }
+        if (!m.open) {
+            c.font = "bold 11px monospace";
+            c.fillStyle = m.bright ? "#ffb240" : "#9e968a";
+            c.textAlign = "left";
+            c.fillText("F", x + r + 4, y + 4);
+        }
+        c.restore();
+        return true;
+    }
+
+    // Whether `p`, a point from the centre of the view in CSS pixels (input.js), lies on a machine that takes the tap:
+    // a lit one, or any while its panel is open (MachineUpgradeView.CatchesTaps). A tap near a maxed machine fires.
+    machineAt(p) {
+        const m = this.frame?.machineUpgrade;
+        if (!m?.tappable || !p) return false;
+        const { dx, dy } = this.fromCentre(m.position);
+        return Math.hypot(p.x - dx, p.y - dy) <= m.ringCells * this.cellSize + 8;
     }
 
     // Where a cell is on screen, from the centre of the view, in CSS pixels.

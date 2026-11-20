@@ -6,11 +6,33 @@ using Emberward.Core.Types;
 /// <param name="Dial">The heat dial's colours, with a match's first frame only; null after it.</param>
 /// <param name="Net">The network match (<see cref="BrowserNetMatch"/>); null in a local one.</param>
 /// <param name="BasePower">The base charge readout, present in an energy-network match.</param>
+/// <param name="MachineUpgrade">The machine next to the tank and its upgrade panel; null when none is in reach.</param>
+/// <param name="Reserve">The reserve's stage tag and burn prompt; null when there is nothing to say.</param>
 public sealed record BrowserFrame(
     int Seed, int Tick, int TickRate, PlayerStatus Player,
     SoundFrame Sounds, BuildOption[] Builds,
     UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal, GuidanceStatus Guidance, HeatDial? Dial,
-    NetStatus? Net = null, BaseCharge? BasePower = null);
+    NetStatus? Net = null, BaseCharge? BasePower = null, MachineUpgradeStatus? MachineUpgrade = null,
+    ReserveStatus? Reserve = null);
+
+/// <summary>
+/// The tank's reserve (<c>ReserveTags</c>, shared with the desktop): the stage tag drawn beside OFF NETWORK with its
+/// colour as #rrggbb and whether it blinks (all null when there is no tag), and what the recall key burns now, if it does.
+/// </summary>
+public sealed record ReserveStatus(string? Tag, string? Color, bool Blink, string? Burn);
+
+/// <summary>
+/// The machine upgrade highlight and panel (<c>MachineUpgradeView</c>, shared with the desktop). <c>Ring</c> is the
+/// highlight colour as #rrggbb, or null when the machine is not lit; <c>Open</c> says whether the panel shows;
+/// <c>Tappable</c> whether a touch on the ring goes to the panel instead of firing (<c>MachineUpgradeView.CatchesTaps</c>).
+/// </summary>
+public sealed record MachineUpgradeStatus(
+    Position Position, string Title, string? Ring, bool Bright, int Level, int MaxLevel, bool Open,
+    MachineUpgradeLine[] Choices, int Store, string? Refusal, float RingCells, float PipDropCells, bool Tappable);
+
+/// <summary>One path in the machine upgrade panel; <c>State</c> is a <c>MachineUpgradeChoiceState</c> name.</summary>
+public sealed record MachineUpgradeLine(
+    int Key, string Name, string Effect, int Level, string Price, string State, bool CanBuy, string NameColor, string PriceColor);
 
 /// <summary>The base store's row (<c>BasePowerLabel</c>).</summary>
 public sealed record BaseCharge(string Store, string Flow, string Net, float Fill, string Color, string Shield);
@@ -41,10 +63,11 @@ public sealed record PlayerStatus(
     int Health, float Frozen, float Boil, bool Burning, bool ShieldLow, bool HitFresh, int OrePileFrame,
     bool Unloading, bool HoldFull, bool OffNetworkUrgent, string OreLine);
 
+/// <param name="KeyLabel">The key that builds it, as the desktop writes it (<c>MachinePresentation.KeyLabel</c>).</param>
 /// <param name="Slot">The machine's column in the desktop's BUILD STRUCTURES panel.</param>
 /// <param name="State">A <c>BuildSlotState</c> name; <paramref name="Progress"/>, <paramref name="Label"/>,
 /// <paramref name="Caption"/> and <paramref name="CaptionKind"/> are the rest of its <c>BuildSlotView</c>.</param>
-public sealed record BuildOption(int Key, string Name, int Cost, bool Affordable, string Payer,
+public sealed record BuildOption(int Key, string KeyLabel, string Name, int Cost, bool Affordable, string Payer,
     int Slot, string State, float Progress, string Label, string? Caption, string CaptionKind);
 /// <param name="Track">Whose upgrade it is: <c>Base</c> (keys 1-5) or <c>Tank</c> (6-7).</param>
 public sealed record UpgradeOption(

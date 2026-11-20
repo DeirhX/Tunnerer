@@ -30,6 +30,12 @@ public class KeyboardController
     public bool IsUpHeld => IsHeld(_keys.Up);
     public bool IsDownHeld => IsHeld(_keys.Down);
 
+    /// <summary>
+    /// The machine upgrade panel is open: the number keys buy for the machine next to the tank
+    /// (<see cref="ControllerOutput.UpgradeMachine"/>) instead of base upgrades.
+    /// </summary>
+    public bool MachineUpgradeMode { get; set; }
+
     public ControllerOutput Poll()
     {
         int dx = 0, dy = 0;
@@ -52,6 +58,7 @@ public class KeyboardController
             }
         }
 
+        int upgrade = HeldUpgradeKey();
         return new ControllerOutput
         {
             MoveSpeed = new Offset(dx, dy),
@@ -61,7 +68,8 @@ public class KeyboardController
             BuildSecondary = secondary,
             BuildTertiary = tertiary,
             BuildQuaternary = quaternary,
-            Upgrade = HeldUpgradeKey(),
+            Upgrade = upgrade,
+            UpgradeMachine = MachineUpgradeMode && upgrade != 0,
         };
     }
 
@@ -69,7 +77,8 @@ public class KeyboardController
     public static readonly IReadOnlyList<Scancode> BuildKeys =
         MachinePresentations.All.Select(m => Enum.Parse<Scancode>(m.KeyLabel)).ToArray();
 
-    // Number keys 1-7 buy upgrades while docked: 1-5 the base track, 6-7 the tank track (BaseUpgrade order).
+    // Number keys 1-7 buy upgrades while docked: 1-5 the base track, 6-7 the tank track (BaseUpgrade order). With the
+    // machine upgrade panel open, 1-3 buy the paths of the machine next to the tank instead.
     private static readonly Scancode[] UpgradeKeys =
         [Scancode.Alpha1, Scancode.Alpha2, Scancode.Alpha3, Scancode.Alpha4, Scancode.Alpha5, Scancode.Alpha6, Scancode.Alpha7];
 

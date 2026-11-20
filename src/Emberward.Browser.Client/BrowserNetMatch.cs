@@ -31,6 +31,8 @@ public sealed class BrowserNetMatch
     private readonly List<byte[]> _outbox = [];
     private readonly Queue<ControllerOutput> _actions = new();
     private bool _lastSentAction;
+    // The recall key as last seen: only its press is queued, while holding it carries in the held controls.
+    private bool _recallDown;
     private string? _failure;
     private bool _begun;
 
@@ -197,24 +199,31 @@ public sealed class BrowserNetMatch
         return taken;
     }
 
-    /// <summary>Keeps a build or upgrade press until a step carries it: a frame may simulate no tick at all.</summary>
+    /// <summary>
+    /// Keeps a build, upgrade or recall press until a step carries it: a frame may simulate no tick at all. Recall is
+    /// also a held control (held off the network it keeps burning emberite, TankReserveSystem), so only the frame it
+    /// goes down is a press; the frames it stays down add nothing to the queue.
+    /// </summary>
     private void Hold(ControllerOutput input)
     {
-        if ((input.BuildPrimary || input.BuildSecondary || input.BuildTertiary || input.BuildQuaternary || input.Recall || input.Upgrade != 0) &&
+        bool recallPressed = input.Recall && !_recallDown;
+        _recallDown = input.Recall;
+        if ((input.BuildPrimary || input.BuildSecondary || input.BuildTertiary || input.BuildQuaternary || recallPressed || input.Upgrade != 0) &&
             _actions.Count < MaxQueuedActions)
-            _actions.Enqueue(input);
+            _actions.Enqueue(input with { Recall = recallPressed });
     }
 
     /// <summary>
     /// The input for the next tick: the controls held now, with the next held press. A tick without one follows
-    /// every press, because Core reads a press as the change from one tick's input to the next.
+    /// every press, because Core reads a press as the change from one tick's input to the next. A held recall key
+    /// stays down through those ticks too.
     /// </summary>
     private ControllerOutput NextInput(ControllerOutput held)
     {
         var next = held;
         next.BuildPrimary = next.BuildSecondary = next.BuildTertiary = next.BuildQuaternary = false;
         next.Upgrade = 0;
-        next.Recall = false;
+        next.UpgradeMachine = false;
         if (_lastSentAction)
         {
             _lastSentAction = false;
@@ -228,7 +237,8 @@ public sealed class BrowserNetMatch
             next.BuildTertiary = press.BuildTertiary;
             next.BuildQuaternary = press.BuildQuaternary;
             next.Upgrade = press.Upgrade;
-            next.Recall = press.Recall;
+            next.UpgradeMachine = press.UpgradeMachine;
+            next.Recall = press.Recall || held.Recall;
         }
         return next;
     }

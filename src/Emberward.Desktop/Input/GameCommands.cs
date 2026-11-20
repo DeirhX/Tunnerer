@@ -21,4 +21,6 @@ public enum GameCommand
     ToggleControls,
     /// <summary>Shows or hides the charge and flow labels over machines (G); they show only while the energy network runs.</summary>
     TogglePowerLabels,
+    /// <summary>Opens or closes the upgrade panel of the machine next to the tank (F); UI only, the keys it sends are input.</summary>
+    ToggleMachineUpgrades,
 }

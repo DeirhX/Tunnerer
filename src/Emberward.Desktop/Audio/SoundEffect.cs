@@ -12,7 +12,6 @@ public enum SoundEffect
     Dock,
     BuildRelay,
     BuildHarvester,
-    BuildPylon,
     Plant,
     PlantRefused,
     Pickup,
@@ -24,4 +23,6 @@ public enum SoundEffect
     TorchLoop,
     RechargeLoop,
     BuildGenerator,
+    BuildTurret,
+    TurretFire,
 }

@@ -88,7 +88,7 @@ public class ProjectileList
                 onTank: tank =>
                 {
                     if (tank.Color == p.OwnerColor) return false;
-                    if (tank.TakeDamage(Tweaks.Weapon.BulletDamage, DamageCause.EnemyFire, p.Speed))
+                    if (tank.TakeDamage(p.Damage, DamageCause.EnemyFire, p.Speed))
                         self._events?.Record(new StepEvent(StepEventKind.TankHit, tank.Position, tank.Color));
                     self.RecordImpact(ipos, p, ImpactTarget.Tank);
                     return true;
@@ -97,7 +97,7 @@ public class ProjectileList
                 onMachine: machine =>
                 {
                     if (machine.OwnerColor == p.OwnerColor) return false;
-                    bool wrecked = machine.TakeDamage(Tweaks.Weapon.BulletDamage);
+                    bool wrecked = machine.TakeDamage(p.Damage);
                     self._events?.Record(new StepEvent(wrecked ? StepEventKind.MachineWrecked : StepEventKind.MachineDamaged,
                         machine.Position, machine.OwnerColor, machine.Type));
                     if (wrecked)
@@ -110,7 +110,7 @@ public class ProjectileList
                     if (!Pixel.IsAnyCollision(pix)) return false;
                     if (Pixel.IsAnyBaseCell(pix) && solver.EnemyBaseAt(ipos, p.OwnerColor) is { } target)
                     {
-                        int raw = Tweaks.Weapon.BulletDamage;
+                        int raw = p.Damage;
                         target.TakeDamage(self._basePower?.Damage(target, raw) ?? raw);
                         self._events?.Record(new StepEvent(target.IsDestroyed ? StepEventKind.BaseDestroyed : StepEventKind.BaseDamaged,
                             target.Position, target.Color));
@@ -242,7 +242,11 @@ public class ProjectileList
         }
         return hash;
 
-        static ulong MixUnhashed(ulong hash, Projectile p) =>
-            Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, p.Life), p.OwnerColor), p.HeatScale);
+        static ulong MixUnhashed(ulong hash, Projectile p)
+        {
+            hash = Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, p.Life), p.OwnerColor), p.HeatScale);
+            // Mixed only when it is not a tank's shell, so the digest of a world without turrets is what it always was.
+            return p.Damage != Tweaks.Weapon.BulletDamage ? Fnv1a.Mix(hash, p.Damage) : hash;
+        }
     }
 }

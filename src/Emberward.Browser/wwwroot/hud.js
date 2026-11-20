@@ -31,8 +31,6 @@ function setMeter(meter, value) {
     if (meter.value !== v) meter.value = v;
 }
 
-const BUILD_KEYS = ["E", "R", "T", "Y"];
-
 export class StatusView {
     constructor(input) {
         this.input = input;
@@ -54,7 +52,7 @@ export class StatusView {
             p.docked
                 ? "DOCKED"
                 : p.offNetwork
-                  ? `OFF GRID / ${Math.ceil(p.safeSeconds)}s`
+                  ? `OFF GRID / ${Math.ceil(p.safeSeconds)}s` + (f.reserve?.tag ? ` · ${f.reserve.tag}` : "")
                   : "ON NETWORK",
         );
         setClass($("network"), p.offNetwork ? "tone-Warn" : "tone-Info");
@@ -83,8 +81,13 @@ export class StatusView {
         this.updateBuilds(f.builds, p);
         setHidden($("upgrades"), !p.docked || p.dead);
         this.updateUpgrades(f.upgrades, p);
+        this.updateMachineUpgrade(f.machineUpgrade);
         this.updateHit(p);
-        setHidden($("recall"), !p.canRecall || p.outcome !== "InProgress");
+        // The recall key gives up and respawns, or, under the reserve rule with emberite aboard, burns a unit
+        // (ReserveTags.BurnPrompt); X held keeps burning, as on desktop, while a tap of this button burns one.
+        const burn = f.reserve?.burn;
+        setText($("recall-text"), burn ?? "Drop cargo and respawn");
+        setHidden($("recall"), !(p.canRecall || burn) || p.outcome !== "InProgress");
         setHidden($("death"), !p.dead && p.outcome === "InProgress");
         setText(
             $("death"),
@@ -106,7 +109,7 @@ export class StatusView {
                 const button = document.createElement("button");
                 button.onclick = () => this.input.queue("build", b.key);
                 const key = document.createElement("kbd");
-                key.textContent = BUILD_KEYS[b.key - 1];
+                key.textContent = b.keyLabel;
                 const name = document.createElement("span");
                 name.textContent = b.name;
                 const cost = document.createElement("small");
@@ -170,6 +173,47 @@ export class StatusView {
             const disabled = u.maxed || p.store < u.cost;
             if (button.disabled !== disabled) button.disabled = disabled;
         }
+    }
+
+    // The upgrade panel of the machine next to the tank (MachineUpgradeView, as on the desktop): a row per path with
+    // its key, name, price and effect. renderer.js keeps it beside the machine.
+    updateMachineUpgrade(m) {
+        const panel = $("machine-upgrade");
+        setHidden(panel, !m?.open);
+        this.input.machinePanelOpen = !!m?.open;
+        if (!m?.open) return;
+        setText($("machine-upgrade-title"), `${m.title} · LEVEL ${m.level}/${m.maxLevel}`);
+        const list = $("machine-upgrade-list");
+        if (!this.machineChoices || this.machineChoices.length !== m.choices.length) {
+            list.replaceChildren();
+            this.machineChoices = m.choices.map((choice) => {
+                const button = document.createElement("button");
+                button.onclick = () => this.input.queueUpgrade(choice.key, true);
+                const key = document.createElement("kbd");
+                key.textContent = String(choice.key);
+                const name = document.createElement("span");
+                name.className = "name";
+                const cost = document.createElement("small");
+                const effect = document.createElement("span");
+                effect.className = "effect";
+                button.append(key, name, cost, effect);
+                list.append(button);
+                return { button, name, cost, effect };
+            });
+            $("machine-upgrade-close").onclick = () => this.input.queue("machineUpgrade", true);
+        }
+        m.choices.forEach((choice, i) => {
+            const row = this.machineChoices[i];
+            setText(row.name, choice.name);
+            setProperty(row.name, "color", choice.nameColor);
+            setText(row.cost, choice.price);
+            setProperty(row.cost, "color", choice.priceColor);
+            setText(row.effect, choice.effect);
+            if (row.button.disabled !== !choice.canBuy) row.button.disabled = !choice.canBuy;
+        });
+        setText($("machine-upgrade-foot"), `BASE ORE STORE ${m.store}`);
+        setHidden($("machine-upgrade-refusal"), !m.refusal);
+        setText($("machine-upgrade-refusal"), m.refusal || "");
     }
 
     // The red flash after a hit, and the wedge pointing the way the shot came from.

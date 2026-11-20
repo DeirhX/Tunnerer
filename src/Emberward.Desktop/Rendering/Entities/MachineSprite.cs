@@ -23,7 +23,7 @@ public delegate float MachineReading(in MachineRenderState machine);
 /// <param name="SenseRadius">
 /// Radius of the ground ring it senses, drawn round it while planted and as its preview while carried; null for none.
 /// </param>
-/// <param name="ShowsBattery">Planted, it shows a battery gauge above it and a charge beam while a pylon fills it.</param>
+/// <param name="ShowsBattery">Planted with a capacitor (on the energy network), it shows a gauge of its charge above it.</param>
 /// <param name="Reach">
 /// The ground its preview tints while carried. A machine with a reach also previews the link it would make; one
 /// without previews only its sense ring.
@@ -54,17 +54,19 @@ public static class MachineSprites
     public static MachineSprite Harvester { get; } = new(EntityShape.KindHarvester, HalfLength: 3.4f, HalfWidth: 3.0f,
         FacesHeading: true, SenseRadius: Tweaks.Machine.HarvesterHeatSenseRadius + 1.5f, ShowsBattery: true);
 
-    public static MachineSprite Pylon { get; } = new(EntityShape.KindPylon, HalfLength: 3.6f, HalfWidth: 3.6f,
-        Gauge: static (in MachineRenderState m) => m.IsGivingCharge ? 1f : 0f,
-        Reach: new MachineReach(Tweaks.Machine.PylonRange, Tweaks.Colors.Pylon, Circle: true));
-
     public static MachineSprite Generator { get; } = new(EntityShape.KindGenerator, HalfLength: 3.8f, HalfWidth: 3.8f,
         Gauge: static (in MachineRenderState m) => m.GenerationFraction,
         Reach: new MachineReach(Tweaks.Machine.GeneratorIntakeRadius, Tweaks.Colors.Generator, Circle: false));
 
+    // A turret turns to where it last aimed; its ring is the ground whose heat slows its fire.
+    public static MachineSprite Turret { get; } = new(EntityShape.KindTurret, HalfLength: 3.6f, HalfWidth: 3.6f,
+        FacesHeading: true, SenseRadius: Tweaks.Turret.HeatSenseRadius + 1.5f,
+        Reach: new MachineReach(Tweaks.Turret.Range, Tweaks.Turret.Color, Circle: true));
+
     /// <summary>Every machine's sprite, indexed by <see cref="MachineType"/>.</summary>
     public static IReadOnlyList<MachineSprite> All { get; } = BuildTable(
-        (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Pylon, Pylon), (MachineType.Generator, Generator));
+        (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Generator, Generator),
+        (MachineType.Turret, Turret));
 
     public static MachineSprite Get(MachineType type) =>
         (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));

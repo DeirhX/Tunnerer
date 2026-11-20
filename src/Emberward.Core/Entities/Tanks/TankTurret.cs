@@ -42,11 +42,12 @@ public class TankTurret
             tankPos.Y + _direction.Y * Tweaks.Tank.TurretLength);
     }
 
-    public Projectile? TryShoot(Position tankPos, ProjectileList projectileList)
+    /// <param name="delayFactor">How many times the usual delay the next shot waits (a degraded reserve slows the gun).</param>
+    public Projectile? TryShoot(Position tankPos, ProjectileList projectileList, int delayFactor = 1)
     {
         if (!IsShooting || _cooldown > 0) return null;
 
-        _cooldown = Tweaks.Tank.TurretDelay;
+        _cooldown = Tweaks.Tank.TurretDelay * delayFactor;
         var barrel = GetBarrelTip(tankPos);
         var speed = _direction.ToVector(Tweaks.Weapon.CannonBulletSpeed);
         var bullet = Projectile.CreateBullet((Position)barrel, speed, _ownerColor);

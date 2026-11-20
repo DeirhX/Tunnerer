@@ -10,7 +10,7 @@ using Emberward.Core.Entities.Bases;
 
 public readonly record struct ExplosionParams(int ShrapnelCount, float Speed, int Frames);
 
-public static class Tweaks
+public static partial class Tweaks
 {
     public static class System
     {
@@ -171,8 +171,8 @@ public static class Tweaks
 
         // The economy (DESIGN.md §6.4): ore is the only currency. A base starts with BaseStartingStore and holds up to
         // BaseStoreCapacity. Docked, the hold empties into the store at Base.HomeAbsorbOre a tick; inside the coverage
-        // of its own linked network (Coverage) it unloads at NetworkUnloadPerSecond, slower, so relays and pylons are
-        // also drop-off points.
+        // of its own linked network (Coverage) it unloads at NetworkUnloadPerSecond, slower, so relays are also drop-off
+        // points.
         public const int BaseStartingStore = 30;
         public const int BaseStoreCapacity = 20000;
         public const int NetworkUnloadPerSecond = 4;
@@ -182,7 +182,6 @@ public static class Tweaks
         // Build costs, paid in ore (Entities/Tanks/TankBuildController: the base store inside the own network, else
         // the hold).
         public const int RelayCost = 4;
-        public const int PylonCost = 10;
         public const int HarvesterCost = 30;
         public const int GeneratorCost = 18;
 
@@ -278,7 +277,7 @@ public static class Tweaks
         public const float EngineTemperatureScale = 120f;
         public const float EngineMaxEfficiency = 0.5f;
         public const float ChargeCapacity = 1_000_000f;
-        // Enough to run the first harvester and pylon before any engine output.
+        // Enough to run the first harvesters before any engine output.
         public const float InitialCharge = 300_000f;
 
         // Base status (TankBase.ChargeLevel, NetworkStatus.HeatStoreLevel, TankBase.RadiatorLoadLevel), as fractions.
@@ -304,7 +303,7 @@ public static class Tweaks
         // Each engine level multiplies the temperature scale by this, so warm sources convert better too.
         public const double EngineScalePerLevel = 0.8;
         public const float InsulationPerLevel = 0.25f;
-        // Each sensors level adds this many cells to the sight of every relay, pylon and the base (not to coverage).
+        // Each sensors level adds this many cells to the sight of every relay and the base (not to coverage).
         public const int SensorCellsPerLevel = 8;
         // Tank track. The cargo hold takes this much more ore per level (Ore.TankHold 40, then 70, 100, 130).
         public const int CargoHoldPerLevel = 30;
@@ -389,7 +388,7 @@ public static class Tweaks
         public const float HeatGaugeOverheatMargin = 1.25f;
     }
 
-    /// <summary>Network coverage: the ground the base and its powered relays and pylons cool for their tanks.</summary>
+    /// <summary>Network coverage: the ground the base and its powered relays cool for their tanks.</summary>
     public static class Coverage
     {
         public const int NodeRadius = 20;
@@ -407,10 +406,10 @@ public static class Tweaks
         public const int TankRadius = 45;
         // ...and everything this close, through solid ground too, so digging is not blind.
         public const int TankNearRadius = 7;
-        // A machine sees this close around itself. A link node (relay, pylon) sees its whole coverage circle
+        // A machine sees this close around itself. A link node (relay, generator) sees its whole coverage circle
         // (Coverage), through solid ground too.
         public const int MachineNearRadius = 6;
-        // A relay or pylon sees this many cells beyond its coverage circle, before any sensors upgrade.
+        // A link node sees this many cells beyond its coverage circle, before any sensors upgrade.
         public const int NodeSightBonus = 10;
         // The walls around open ground in sight are seen this many cells deep, fading with depth.
         public const int WallSkin = 5;
@@ -501,16 +500,13 @@ public static class Tweaks
         // Starting guesses for the first-prototype spike; tune in play.
         public const float HarvesterHeatPerHarvest = 500f;
         public const float HarvesterCrawlCharge = 200f;
-        // About 40 s of mining on a full battery. A harvester is planted full.
-        public const float HarvesterBatteryCapacity = 120_000f;
-        // On the energy network (DESIGN.md §4.9) the battery is the harvester's capacitor: it refills at up to this much
-        // a tick while its base's network covers it (more than working spends, about 140 a tick), and it spends
-        // HarvesterIdleDraw a tick just standing, so a cut-off harvester idles flat in about 20 minutes.
+        // On the energy network (DESIGN.md §4.9) a harvester pays from its capacitor: about 40 s of mining when full,
+        // and it is planted full. It refills at up to this much a tick while its base's network covers it (more than
+        // working spends, about 140 a tick), and it spends HarvesterIdleDraw a tick just standing, so a cut-off
+        // harvester idles flat in about 20 minutes. Without the network it pays straight from its base's store.
+        public const float HarvesterCapacitor = 120_000f;
         public const float HarvesterTransferPerTick = 400f;
         public const float HarvesterIdleDraw = 4f;
-        // Below this fraction it heads back to a pylon; it goes back to work once charged above HarvesterResumeAbove.
-        public const float HarvesterReturnBelow = 0.25f;
-        public const float HarvesterResumeAbove = 0.8f;
         public const int HarvesterHeatRadius = 2;
         // A harvester stalls while the ground around it is hotter than this (average over the sense radius), so the
         // heat it makes can never run away: it keeps itself bounded, and a relay that pumps the heat out is what
@@ -522,15 +518,6 @@ public static class Tweaks
         // sit stalled at the edge for ever. Cooled below this (a relay beside it, or the core out), it is worked again.
         public const float HarvesterHotOreTemperature = 45f;
 
-        // Pylon: a link node that hands base charge to batteries in direct line of sight within PylonRange, drawing
-        // it from its base over the link network.
-        public const int PylonIntervalMs = 200;
-        public const int PylonRange = 12;
-        public const float PylonChargePerAction = 6000f;
-        // A pylon's capacitor on the energy network: cut off, its idle draw empties a full one in 100 seconds.
-        public const float PylonCapacitor = 6000f;
-        public const float PylonTransferPerTick = 100f;
-        public const float PylonIdleDraw = 2.5f;
         public const int BoundingBoxHalfSize = 2;
         // A destroyed machine scorches the open ground and dirt within this half-width of its centre; regrowth fades it.
         public const int WreckScorchHalfSize = 2;
@@ -575,6 +562,28 @@ public static class Tweaks
         public const int IdleHeatRadius = 2;
     }
 
+    /// <summary>
+    /// Per-machine upgrades (DESIGN.md §4.9, <c>MachineUpgradeSystem</c>): bought next to a machine from the base's ore
+    /// store, one path per machine, MaxLevel levels. Starting values; tune in play.
+    /// </summary>
+    public static class MachineUpgrades
+    {
+        public const int MaxLevel = 2;
+        // What level 1 and 2 cost, in ore from the base store.
+        public static readonly ImmutableArray<int> LevelCosts = [8, 16];
+        // The tank buys for the nearest own machine within this many cells of it.
+        public const int Reach = 12;
+        // How long a refused press is shown, in ticks.
+        public const int RefusalTicks = 48;
+        // Tap: each level pumps this share more heat, and spends this much more charge per tick standing (as heat).
+        public const double TapPumpPerLevel = 0.5;
+        public const double TapIdleDrawPerLevel = 1.5;
+        // Sensor: each level adds this many cells to the machine's sight.
+        public const int SensorCellsPerLevel = 10;
+        // Conduit: the capacitor's size at level 0, 1 and 2, as a multiple of the machine's own.
+        public static readonly ImmutableArray<double> ConduitCapacityScale = [1.0, 1.5, 2.0];
+    }
+
     public static class Explosion
     {
         public const int ChanceToDestroyConcrete = 50;
@@ -603,7 +612,6 @@ public static class Tweaks
         public static readonly Color FireHot = new(0xff, 0x34, 0x08);
         public static readonly Color Harvester = new(0x00, 0x88, 0x00);
         public static readonly Color Generator = new(0xc2, 0x9c, 0xff);
-        public static readonly Color Pylon = new(0x4f, 0x8f, 0xff);
         public static readonly Color Relay = new(0x20, 0xd8, 0xe8);
     }
 

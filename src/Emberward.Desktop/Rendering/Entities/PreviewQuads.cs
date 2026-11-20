@@ -8,7 +8,7 @@ using Emberward.Core.Network;
 /// <summary>
 /// What the player's carried machine would do if planted now, drawn from the player tank as its
 /// <see cref="MachineSprites"/> says: the ground it would sense, or the ground it would reach (a relay
-/// cools, a pylon charges) and the link it would make.
+/// cools, a turret shoots) and the link it would make.
 /// </summary>
 public sealed class PreviewQuads
 {

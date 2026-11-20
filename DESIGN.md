@@ -106,11 +106,11 @@ which vents through the dimensional link. The engine's output is **charge**, whi
 back into heat where it is spent, so the energy ledger still accounts for every bit of it.
 
 ```
-hot ground --relay--> base engine --> charge store --pylon--> batteries
-     ^                    | waste heat                          |
-     |                    v                                     |
-     |                radiator                                  |
-     +---------- work heat (digging, mining) <------------------+
+hot ground --relay--> base engine --> charge store --network--> harvesters
+     ^                    | waste heat                              |
+     |                    v                                         |
+     |                radiator                                      |
+     +---------- work heat (digging, mining) <----------------------+
 ```
 
 - **The engine.** Every unit of heat a relay delivers passes through it. A fraction becomes charge and the rest
@@ -120,19 +120,18 @@ hot ground --relay--> base engine --> charge store --pylon--> batteries
   30 °C dirt and about 45% from fresh hot rock. Heat turned into
   charge doesn't have to be vented, so better sources also ease the radiator bottleneck (§12.1). A relay draws from
   the terrain field first and then the remaining air. Each draw contributes charge at its own source temperature.
-- **Charge storage.** The base keeps a charge store and starts with enough for the first harvester, so the loop can
-  start without power already in hand. Harvesters carry batteries, filled from the store when planted.
-- **Pylons** are link nodes that hand base charge to batteries in direct line of sight within a short range,
-  drawing it over the link network. A link carries orange heat in and blue charge out. A relay cools a spot and a
-  pylon powers one, so a dig site needs both laid out with connecting lines of sight: a small **mining camp**.
-- **Harvesters refuel.** Each action of work on ore and each crawl step costs charge, which ends up as heat in the ground
-  beside the harvester. Below a quarter full, a harvester stops mining and crawls back toward the nearest powered
-  pylon of its base. It waits in the pylon's beam and goes back to work above 80%. With no pylon to go to, it works
-  until the battery is flat.
+- **Charge storage.** The base keeps a charge store and starts with enough for the first harvesters, so the loop can
+  start without power already in hand.
+- **Harvesters run on the network.** Each action of work on ore and each crawl step costs charge, which ends up as
+  heat in the ground beside the harvester. Without the energy rule (§4.9) a harvester has no battery: it pays each
+  action straight from its base's store, and it only works where its base's network covers it anyway. A relay both
+  cools a dig site and carries its power, so a **mining camp** is a relay with harvesters beside it. With the energy
+  rule a harvester pays from its capacitor, which its island refills while it is covered. There are no refuel trips.
+  *(The pylon, which handed base charge to harvester batteries in its sight, was removed in tranche 7, §4.9.)*
 - **Running at a loss.** A camp beside hot rock makes more charge than its harvesters spend. A camp in cold dirt
   only recovers the harvesters' own warm waste heat, at low efficiency, so it slowly drains the base. The loop only
   comes out ahead when it taps a real heat source.
-- **Failing gently.** With the store empty, pylons stop and harvesters strand where they are. Relays keep pumping:
+- **Failing gently.** With the store empty, harvesters stop where they are. Relays keep pumping:
   they are passive heat pipes.
 - **Accounting.** Heat converted to charge, and charge spent back as heat, are booked in the ledger
   (`ConvertedToCharge`). Thermal energy plus all stored charge balances against what entered and left the system.
@@ -145,8 +144,8 @@ Still to do (Proposed):
 The tank does not use charge. Its one limit is heat (§4.6); a second meter on the tank was rejected so the player
 never tracks two resources at once.
 
-*Direction (Proposed, §4.9):* the loop above stays, but relays become the only node (no pylon, no harvester battery
-trips); every machine gets a capacitor, a priority tier and an idle draw, so a cut-off machine drains; local
+*Direction (Proposed, §4.9):* the loop above stays, with relays as the only node (done: the pylon and the harvester
+battery are gone); every machine gets a capacitor, a priority tier and an idle draw, so a cut-off machine drains; local
 generators add producers beyond the base; and an empty store makes the base *dark* (no shield, slow respawn), which
 the tank can restart by carrying emberite home. The tank still has no charge meter.
 
@@ -156,10 +155,10 @@ Exploring should be planned, not free. The network you have built is your coolin
 tank is cooled through the links; outside it, the tank heats up. How far you can go is how long your heat lasts
 off the network. There is no new meter: the TEMP gauge is the only thing to watch.
 
-- **Coverage.** The base and every powered relay and pylon cover a circle around themselves. A position is covered
+- **Coverage.** The base and every powered relay (and, with the energy rule, generator) cover a circle around themselves. A position is covered
   when it is inside a node's circle and in direct line of sight through open ground, the same rule links use, so
   coverage follows your tunnels.
-- **Relays hold the ground open** *(Prototype)*. No new dirt grows within the range of a planted relay or pylon,
+- **Relays hold the ground open** *(Prototype)*. No new dirt grows within the range of a planted relay or generator,
   linked or not, so tunnels along a network stay dug. Elsewhere dirt closes in again, slowly.
 - **Inside coverage** the tank's heat goes down the links into the base reactor, so it competes with the relays for
   the same radiator. Coverage only takes heat away; it never chills the tank below 0.
@@ -177,7 +176,7 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
 - **Direction (Proposed, §4.9).** The relay becomes the only node, with pumping and coverage one circle. The off-network
   clock is the tank's reserve: burning a carried unit of emberite extends it and takes its warmth out of the tank,
   and running out is staged (warning, degraded, stranded, then heat death), not a cliff. Relays and generators push
-  the safe zone out; far lumps pay for the risk.
+  the safe zone out; far lumps pay for the risk. The reserve is built behind its own rule (§4.9, Death and exploring).
 - **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
   the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node, and while the
   hold unloads, gold crystals run beside it and along the links home. Off network an
@@ -224,8 +223,8 @@ Building has to pay off, and exploring has to lead somewhere.
     - **Network reach:** +6 cells on every coverage circle per level.
     - **Engine:** +10% maximum efficiency per level, and warm sources convert better.
     - **Insulation:** the off-network clock runs 25% slower per level.
-    - **Sensors:** relays, pylons and the base see 8 cells further per level. Relays and pylons already see 10 cells
-      beyond their coverage circle at level 0. Sight is output only (§6.5), so this changes nothing but the ore it cost.
+    - **Sensors:** relays, generators and the base see 8 cells further per level. Relays and generators already see 10
+      cells beyond their coverage circle at level 0. Sight is output only (§6.5), so this changes nothing but the ore it cost.
   - The **tank track**, keys 6-7:
     - **Cargo hold:** +30 ore in the tank's hold per level (40, 70, 100, 130).
     - **Radar:** +20% on every radar range and +25% on each ray's heat budget per level (§6.6). The radar is output
@@ -244,7 +243,8 @@ Building has to pay off, and exploring has to lead somewhere.
 
 One sentence to hold: **relays are your network; everything else plugs into it and runs on the charge the network
 makes.** This section is the direction for §4.5, §4.6 and §4.8; none of it is built except the Sensors upgrade and,
-behind a match rule, the capacitors, island balance and local generators.
+behind match rules, the capacitors, island balance, local generators, per-machine upgrades, throughput limits,
+turrets and the tank's reserve.
 
 **Three things to track, not four**
 
@@ -261,10 +261,17 @@ actions to heat (created from outside, as now); and carried ore warms the tank.
 **Relays are the only node; the pylon is dropped.** A pylon shares everything with a relay (links, coverage, cooling,
 drop-off, sight, keeping tunnels open) except charging harvester batteries, and a harvester only works inside linked
 coverage anyway. Every camp ended up as "relay plus pylon", which is one decision on two keys, and nobody extends a
-network with the 10-ore pylon when the 4-ore relay does it. So the relay becomes one circle (pumping and coverage the
-same radius, strongest at the centre) and a harvester draws charge from the network while covered, with no refuel
-trips. Removal follows the checklist in `AGENTS.md`; not started. The relay's name collides with the multiplayer
-relay server, so renaming it is open but can wait. Sight stays wider than coverage on purpose (§4.8 Sensors).
+network with the 10-ore pylon when the 4-ore relay does it. So a harvester draws charge from the network while
+covered, with no refuel trips. *Built (tranche 7):* the pylon, its build key, sprite, sound, tutorial step and hints,
+the charge it handed out along links, and the harvester's battery and return trips are gone. Without the energy rule
+no machine has a capacitor and a harvester pays each action from its base's store; with it, from its capacitor as
+before. The generator and the turret moved to the third and fourth build keys (still Y and U), which frees bit 31 of
+the encoded input (protocol 11). Standard simulation results changed (recorded fingerprints updated). *Still open:*
+the relay as **one circle**, pumping over its coverage circle and strongest at the centre. It pumps over its 25-cell
+square today, inside a 20-cell coverage circle that the reach upgrade widens to 38; pumping over the whole circle
+would make each relay's heat sweep 2 to 7 times larger and is a tuning change, so it waits for a decision. The
+relay's name collides with the multiplayer relay server, so renaming it is open but can wait. Sight stays wider than
+coverage on purpose (§4.8 Sensors).
 
 **The energy network**
 
@@ -274,16 +281,17 @@ relay server, so renaming it is open but can wait. Sight stays wider than covera
   from it by tier, capped by their rates. Tiers are fixed by machine type: base defence, then turrets, then economy.
   A shortage starves the lowest tier first.
 - **Cut off.** A machine that loses the network keeps its charge and drains it by its idle draw and use, so a remote
-  harvester or turret runs for a while and then stops, unless its island has a producer.
+  harvester runs for a while and then stops, unless its island has a producer. A turret is stricter: it holds fire
+  as soon as it is cut off from every island (see Turrets below).
 - **Cost.** A machine at rest costs nothing per tick: levels move linearly between changes, and an island is
   recomputed only when links or demand change.
 - **Ledger.** Stored charge in every capacitor counts toward the balance, and spent charge becomes heat where it was
   spent. A guard test: a closed loop of powered machines on ambient ground never gains charge.
-- *Built behind a match rule (`MatchRules.EnergyNetwork`, off by default).* Same-side live links join relays, pylons
-  and generators to their base or to a local generator island. A group without a producer or a base drains from
+- *Built behind a match rule (`MatchRules.EnergyNetwork`, off by default).* Same-side live links join relays and
+  generators to their base or to a local generator island. A group without a producer or a base drains from
   its own capacitors. Harvesters can recharge in sight of a local island but deliver ore only through base coverage.
-  Relays can be planted with a link to a local island. Relays, pylons, harvesters and generators use the economy
-  tier until defence and turrets exist. Pylons hand out nothing and harvesters make no refuel trips. A relay still
+  Relays can be planted with a link to a local island. Relays, harvesters and generators use the economy
+  tier and turrets the turrets tier; nothing is in the base defence tier yet. A relay still
   pumps while its capacitor is empty if it has a route home (§4.5). Idle draw reaches the ground as heat when a
   capacitor is settled, at most every 5 s.
 - **Seeing it.** With the rule on, every machine in sight near the tank carries a small label: charge over capacity
@@ -297,6 +305,22 @@ relay server, so renaming it is open but can wait. Sight stays wider than covera
 - **Throughput.** Each relay has a transfer limit and a chain is as fast as its slowest node. Charge passing through
   loses a few percent as heat at the relay; a hot relay throttles and then takes damage. The Conduit upgrade
   raises the limit (about x1.5, then x2) and is capped.
+  *Built with the energy rule:* each island is a tree rooted at its base (or its local generator). A node's parent is
+  the next node of the island on its power route home, and a harvester takes its charge through the node that covers
+  it. Every link node (relay, generator) passes on at most 400 charge a tick to the machines behind it (one
+  refilling harvester; about three working ones), its own top-up not counted; Conduit makes that 600 then 800, and
+  800 is the ceiling. Where a node cannot pass on all that is asked, the higher tiers go first and a tier's share is
+  split in proportion. Each node on the way loses 3% of what it passes on as heat where it stands (put in the ground
+  when its capacitor settles, at most every 5 s), so the island draws a little more than arrives. At each settling a
+  node that ran at its limit (asked for all it can pass on) reads its ground (the 5-cell square under it): from 150 °C
+  it passes on half (back to normal under 140 °C), and from 250 °C a quarter and it loses a tenth of its health each
+  time it ran at its limit (a damage event, like a hit). A hot node stays throttled until its ground cools; a cool node
+  below its limit is never looked at, so hot ground alone (hot rock, a lump core, the core tap) never harms a relay
+  that is not saturated. The tree is worked out once a tick, before any tier draws. The tree is
+  worked out only when what is filling, the links or a node's limit change, and only over the capacitors filling and
+  the nodes on their way. Idle draw is still paid at the root, not through the tree, and generator output reaches its
+  island's store directly. The charge labels show what a node passes on (`>1.2k/s`) and turn orange while it is
+  throttled and pink while it is overheated.
 - **Conductors sit alongside relays** (this answers the open question in §14): relays are the nodes, a conductor
   line is a trunk that carries heat, and Conduit carries charge.
 
@@ -338,18 +362,64 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
 - **Running out is a state, not a cliff:** warning, then degraded (slower dig, shorter vision, weaker shots), then
   stranded (crawl and dig only), then heat death as today. Each has a counter. Relays and generators push the safe
   zone out, and far lumps pay for the risk (§6.3).
+- *Built behind a match rule (`MatchRules.TankReserve`, off by default; local matches turn it on with the energy rule,
+  `--energy-network` or `?energy`).* The burn rides on the recall key (X, bit 29), so it needs no input of its own:
+  off the network with emberite aboard, X burns a unit (one on the press, then 4 a second while held) instead of
+  recalling, and lowers the floor by 5 degrees (5 s at the base rate; a 40-unit hold is 200 s). The tank's heat is
+  not touched: the unit stops warming it, and with the floor lower it sheds into the ground as usual, so the burn
+  makes and destroys no heat and books nothing. A burn waits until the floor has climbed a unit's worth, so holding
+  X just outside the network wastes nothing, and in heat death a burn starts from the safe maximum, so the time spent
+  past it is no debt and every unit buys its full 5 s. With the hold empty and the clock out, X recalls as before. The stages
+  go by the seconds left on the clock: warning at 30, degraded at 15 (half the dig, 60% of the sight, half the rate
+  of fire), stranded at 5 (the slower gun's cooldown, a crawl at 35% speed that slows the dig with it, 40% of the sight, no
+  gun, torch or new machine, though a carried one can still be planted, so a relay in hand can still save it), then
+  heat death at 0, where the floor passes the safe maximum and overheating burns the shield as it always did. Each
+  stage counts its ticks (a tank that dies starts its next life with a fresh reserve), and the HUD's tag beside OFF
+  NETWORK shows the seconds to the next stage (`RESERVE LOW 12s`, `DEGRADED 7s`, `STRANDED 4s`, `HEAT DEATH`).
+  Whenever X would burn the HUD says so, a quiet hint until the warning, so a press never spends cargo unannounced.
+  Relays push the safe zone out through coverage;
+  a standing generator of the tank's side holds the clock within 20 cells in line of sight (the floor stops rising
+  but does not fall, `CLOCK HELD`) and pays 8 charge a tick for it, which becomes heat beside it as spent charge
+  does. A working generator keeps that up easily (it makes up to 65); one that makes nothing holds a lone tank only
+  until its capacitor is spent, about 20 s, so a generator is powered ground, not a flag. A bot that is degraded or worse with ore aboard burns it. "Weaker shots" is built
+  as a slower gun, not less damage a shot, to stay out of the projectile code the turrets are changing.
 
 **Machines and upgrades**
 
 - **Per-machine upgrades**, two levels, bought next to the machine with a key; the nearest machine in reach is
   highlighted (amber when affordable, dim when not) and shows level pips. A relay chooses Tap (more intake and
   charge, hotter), Sensor (more sight) or Conduit (throughput and a bigger capacitor).
+  *Built behind a match rule (`MatchRules.MachineUpgrades`, off by default; local matches turn it on with the energy
+  rule, `--energy-network` or `?energy`).* F beside one of the tank's own machines opens its panel (on touch, a tap
+  on the lit machine); while it is open, 1-3 buy a path for the nearest own machine within 12 cells (the earliest
+  built on a tie), paid from the base ore store: 8 ore for level 1, 16 for level 2. The first purchase fixes the
+  path. Tap pumps 50% more heat a level and spends 1.5 more charge a tick standing, which becomes heat at the relay;
+  Sensor adds 10 cells of sight a level; Conduit makes the capacitor and the throughput limit 1.5 then 2 times their
+  size and needs the energy rule. The panel closes on F, out of reach, or after a purchase. The relay and the turret
+  have paths (the turret's below); the input is bit 30 with the upgrade key (protocol 9).
 - **Turrets** need power, make heat when firing, and fire only at enemy tanks in range and line of sight, with a
   stable tie-break. Mobs (§6.2) hunt heat, which makes the pumping relays what a defence is built around.
-- **Build keys.** E relay, R harvester, T pylon and Y generator. Turrets need their own key while the pylon remains.
+  *Built with the energy rule:* U builds a turret for 24 ore. It is no link node (it does not extend the network,
+  cool tanks or keep tunnels open): like a harvester it joins the island whose coverage it stands in, its base's or
+  a local generator's, and it fires only while it is on an island, its base is not dark and its capacitor (2,400,
+  topped up at 40 a tick in the turrets tier, idle draw 1 a tick) holds a shot. It looks for a target four times a
+  second: the nearest live enemy tank without a respawn shield within 24 cells and in direct line of sight through
+  open ground, the first in spawn order on a tie. Vision (fog of war) is output only, so the turret casts its own
+  line, as links and coverage do, except that a base wall blocks it: a bullet stops there, though links pass. It fires a bullet (80 damage against a tank shell's 160) every 12 ticks (0.5 s);
+  each shot spends 150 charge, which the network turns into heat in the ground beside it, so a lone turret firing
+  warms its ground by about 4 degrees a shot. Above 60 degrees it fires more slowly, up to 4 times its interval at
+  140 degrees; a relay nearby pumps the heat away. Its upgrades: **Rapid** (interval x0.7, then x0.5; each shot
+  spends x1.2, then x1.4) and **Long** (+8 cells of range a level, damage x1.5, then x2; interval x1.25, then
+  x1.5). Shots are `StepEventKind.TurretFired`. **Bots do not build turrets** (they build no machines at all), so
+  turrets are a player's tool for now; a turret fires at bot tanks like any other enemy. It took bit 31 of the encoded
+  input (protocol 10) and moved to the fourth build key, bit 28, when the pylon went (protocol 11). Balance is
+  untuned: a turret beside a relay may still make raiding too hard; its cost, range and the link it needs are the
+  levers.
+- **Build keys.** E relay, R harvester, Y generator and U turret (the last two in energy matches). T is free.
 
-**Build order.** Capacitors, island balance and the local generator are implemented behind the energy rule.
-Next come dark state, shield and no lives, then per-machine upgrades, throughput limits, turrets and pylon removal.
+**Build order.** Capacitors, island balance, the local generator and throughput limits are implemented behind the
+energy rule. Dark state, shield and no lives, per-machine upgrades, turrets and the tank's reserve follow behind their
+rules. The pylon is removed.
 
 ### 4.10 Challenges of a finite world *(Proposed; open)*
 
@@ -498,7 +568,7 @@ about 17 seconds and above 60 for the whole minute; beside a small lump (80 cell
 at the lump's edge senses over 30 degrees and stalls (its limit) for about the first minute, and the radar reads the
 whole lump as heat while it lasts. Harvesters never mine core cells; only the tank's torch does. The lump cools by itself,
 and a relay beside it cools it faster, since the heat is finite; once it is cool, harvesters clear the shell, a
-cell about every second (about a minute for a hundred cells, more counting trips to a pylon). A relay planted right
+cell about every second (about a minute for a hundred cells). A relay planted right
 against an intact lump pumps enough heat that harvesters can already work its outer shell, stalling only within a
 few cells of the core; the core itself still waits for the tank. *(Tuning open: whether an intact core should hold
 its shell against a relay too.)*
@@ -517,11 +587,10 @@ hold empties, a blinking UNLOADING with down arrows. The base panel also shows t
 
 ### 6.4 Structures and the ore economy *(Prototype)*
 
-Existing: harvester, relay, pylon. Planned: conductor lines, insulating walls, haulers, turrets, props, heat pumps,
-generators. *Direction (Proposed, §4.9):* the pylon is dropped, and the generator and the turret are the next
-machines.
+Existing: harvester, relay, and in energy matches the generator and the turret. Planned: conductor lines, insulating
+walls, haulers, props, heat pumps. The pylon was dropped (§4.9).
 
-**Ore is the only currency.** Digging dirt only clears it. A relay costs 4 ore, a pylon 10, a harvester 30; the
+**Ore is the only currency.** Digging dirt only clears it. A relay costs 4 ore, a harvester 30; the
 base store starts with 30. The tank's hold is small (40), so getting ore home is the work, and the network is how:
 
 - **Who pays.** Docked at the own base, or inside the coverage of the own linked network (§4.6), the base store pays;
@@ -529,7 +598,7 @@ base store starts with 30. The tank's hold is small (40), so getting ore home is
   cost and the stock that would pay (BASE or HOLD), or how far the tank is from affording it; a refused press says
   "not enough ore" apart from "would not link".
 - **Unloading through the network.** Inside linked coverage the hold unloads into the base store at 4 units a
-  second, a unit at a time, while the store has room; docking is faster. Relays and pylons are therefore also
+  second, a unit at a time, while the store has room; docking is faster. Relays are therefore also
   drop-off points: planting one near a dig site saves the trip home.
 - **Harvesters mine ore.** A harvester works the plain ore within 4 cells of itself (6 actions a cell, every 150 ms), crawls
   along the shortest path to plain ore in its work area that it can get within reach of, clearing the dirt in its
@@ -557,7 +626,7 @@ The player sees only what their side sees, so that learning the shape of the wor
 - **Three kinds of ground.** *In sight*: shown live. *Remembered*: seen before, shown as it was last seen, drained
   toward a cool blue-grey and dimmed, with no entities and no live heat. *Unknown*: never seen, black.
 - **What sees.** The tank sees along open tunnel (about 45 cells) and a little through solid ground around itself.
-  The base sees along open ground over its coverage circle (plus the Sensors upgrade, §4.8). A relay or pylon sees its
+  The base sees along open ground over its coverage circle (plus the Sensors upgrade, §4.8). A relay or generator sees its
   whole coverage circle and 10 cells beyond it, plus the Sensors upgrade, through the ground, whether or not it is
   linked; every other machine sees a few cells around itself. The network is
   therefore the player's eyes as well as its cooling line (§4.6): a place stays lit, with its live heat, only while
@@ -700,11 +769,11 @@ On `master` (2026-11-17) the game has:
 - An energy-exact heat simulation over terrain and air fields, with a ledger of every source and sink.
 - A base with a finite reservoir and a radiator, and base and tank upgrades bought from its ore store (§4.8).
 - Relays that pump heat from a radius into the base when linked by direct line of sight through open tunnel.
-- The power loop (§4.5): the base engine turns relay heat into charge; pylons hand it to harvester batteries.
+- The power loop (§4.5): the base engine turns relay heat into charge, which harvesters spend as they work.
 - Emberite ore as the only currency (§6.3, §6.4): specks, pockets and warm-cored lumps; a small tank hold that
   unloads at the base or through the network; machines paid for in ore.
 - Harvesters that crawl to the plain ore near where they were planted and mine it into the base store through the
-  network, refuelling at pylons; a relay keeps them cool, and a lump's core is left to the tank's torch.
+  network, paying their work in the base's charge; a relay keeps them cool, and a lump's core is left to the tank's torch.
 - Network coverage as the tank's leash (§4.6), and tank temperature in a band around 0 (§4.7): docking settles it
   near 0, cold slows it, both extremes damage it.
 - Hot rock pockets as finite heat stores and frost pockets as finite cold stores (a match has 8 and 5), with a
@@ -738,7 +807,7 @@ Three changes, to find out whether the step from ring 1 to ring 2 is fun:
 3. A radiator tuned to be the real bottleneck.
 
 Step 3 is in. Steps 1 and 2 are partly in: the map has one hot core at its centre rather than a gradient, and
-harvesters' spent charge ends up as heat in the ground (§4.5), but relays and pylons make none of their own.
+harvesters' spent charge ends up as heat in the ground (§4.5), but relays make none of their own.
 
 ### 12.2 After that
 
@@ -752,10 +821,10 @@ Each step should be playable without the next.
 6. World map, sector save, freeze and resume.
 7. Heat pumps, structure failure by temperature, generators.
 
-The power loop (§4.5) is in as a prototype: the engine, the charge store, pylons, and harvester batteries with the
-return-to-pylon behaviour. Network coverage (§4.6) is in too. Their numbers are starting guesses to tune in play.
+The power loop (§4.5) is in as a prototype: the engine, the charge store, and harvesters that pay their work from
+it. Network coverage (§4.6) is in too. Their numbers are starting guesses to tune in play.
 The next steps for power, deaths and machines are in §4.9 (capacitors, generator, dark base and shield, per-machine
-upgrades, throughput, turrets, then removing the pylon).
+upgrades, throughput, turrets, removing the pylon and the tank's reserve are in).
 
 ## 13. Decision log
 
@@ -774,7 +843,7 @@ upgrades, throughput, turrets, then removing the pylon).
 | A sector completes at thermal steady state | Proposed |
 | Reach the core; rings that change the kind of heat problem | Proposed |
 | Everything useful makes heat; its collection depends on the reachable stock and its disposal shares the radiator | Proposed |
-| Power is converted relay heat; machines run on charge and refuel at pylons | Prototype |
+| Power is converted relay heat; machines run on charge drawn through the network | Prototype |
 | The tank's range is set by network coverage and its heat; no second meter on the tank | Prototype |
 | The sector goal is tapping the core; the ore store buys base and tank upgrades | Prototype |
 | Emberite ore is the only currency; the network is where the hold unloads and the store pays | Prototype |
@@ -792,14 +861,16 @@ upgrades, throughput, turrets, then removing the pylon).
 | Harvesters leave lump cores to the tank's torch; a hot core (600 degrees at the start, dangerous to a tank, and finite) keeps harvesters off its lump while its heat lasts | Prototype |
 | Gold, a pickup left from the original game, is retired: emberite is the only resource on the map | Decided |
 | Heat limits the tank, charge runs base and machines, ore is what is spent and burned (§4.9) | Proposed |
-| The relay is the only network node; the pylon and the harvester battery are dropped (§4.9) | Proposed |
+| The relay is the only network node; the pylon and the harvester battery are dropped (§4.9) | Prototype |
 | Every machine has a capacitor, a rate, a priority tier and an idle draw; cut-off machines drain (§4.9) | Proposed |
 | Local generators convert a temperature difference and dump waste heat locally (§4.9) | Proposed |
 | A base's shield scales with charge and never blocks a hit entirely; a dark base restarts by itself or by hand (§4.9) | Proposed |
 | No lives: only a destroyed base ends a side; death costs the cargo (§4.9) | Proposed |
 | Relay throughput limits are upgradeable and lose heat; a hot relay throttles (§4.9) | Proposed |
-| Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Proposed |
-| Sensors upgrade: relays and pylons see 10 cells past coverage, and 8 more per level (the base 8 more per level) | Prototype |
+| Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Prototype |
+| Turrets are player-only for now: bots build no machines; turrets shoot bot tanks like any enemy (§4.9) | Prototype |
+| The off-network clock is the tank's reserve: X burns carried emberite to buy it back, and running out is staged (§4.9) | Prototype |
+| Sensors upgrade: relays and generators see 10 cells past coverage, and 8 more per level (the base 8 more per level) | Prototype |
 | Every heat body is finite: no pinned temperatures or permanent sources; the outside is a loss, not a cell | Decided |
 | Stored heat is the match's supply; what keeps it up over a long match is open (§4.10) | Proposed |
 

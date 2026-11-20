@@ -143,6 +143,8 @@ public partial class Game
                         _commandController.ShowHeatDebugOverlay,
                         _commandController.EnabledPostPasses,
                         _commandController.ShowPostPassOverlay));
+                // The panel closes by itself (out of reach, a level bought); the number keys follow it.
+                _localController.MachineUpgradeMode = _hud.MachineUpgrades.IsOpen;
                 _renderBackend.SetHeatOrb(_hud.HeatOrb);
                 DrawSessionOverlay(dt);
                 DrawNetOverlays(drawnTankPositions);

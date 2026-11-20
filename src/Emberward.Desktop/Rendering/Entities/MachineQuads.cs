@@ -7,30 +7,10 @@ using Emberward.Core.Types;
 
 /// <summary>
 /// Machines, planted or carried, drawn as <see cref="MachineSprites"/> says: the body, and while
-/// planted the ground it senses and its battery gauge. <see cref="SubmitChargeBeams"/> adds the beams of pylons filling
-/// batteries.
+/// planted the ground it senses and, on the energy network, its capacitor gauge.
 /// </summary>
 public static class MachineQuads
 {
-    /// <summary>A charge beam from each pylon to the planted machine whose battery it is filling.</summary>
-    public static void SubmitChargeBeams(BeamFader beams, EntityInterpolator interpolator, float alpha, VisionMap? vision)
-    {
-        ReadOnlySpan<MachineRenderState> machines = interpolator.Machines;
-        for (int i = 0; i < machines.Length; i++)
-        {
-            ref readonly MachineRenderState machine = ref machines[i];
-            if (!machine.IsAlive || !machine.IsCharging || machine.State != MachineState.Planted ||
-                !MachineSprites.Get(machine.Type).ShowsBattery)
-                continue;
-            if (!Sight.Sees(vision, machine.Position))
-                continue;
-            PositionF at = interpolator.MachinePosition(i, alpha);
-            // Keyed by the anchor, where the machine was planted, so the beam follows a harvester as it crawls.
-            LinkQuads.SubmitChargeBeam(beams, machine.ChargingFrom, machine.Anchor,
-                machine.ChargingFrom.X, machine.ChargingFrom.Y, at.X, at.Y, 1f);
-        }
-    }
-
     public static void Emit(
         EntityQuads quads, EntityInterpolator interpolator, float turnSeconds, bool snapHeadings, VisionMap? vision)
     {
@@ -80,12 +60,11 @@ public static class MachineQuads
                 quads.Add(cx, cy, 1f, 0f, -l, l, -w, w, sprite.Kind, powered, gauge, phase, flags);
             }
 
-            if (!carried && sprite.ShowsBattery)
+            if (!carried && sprite.ShowsBattery && machine.HasCapacitor)
             {
-                // Battery gauge above the machine, upright whichever way it faces.
+                // Capacitor gauge above the machine, upright whichever way it faces.
                 quads.Add(cx, cy - 4.6f * scale, 1f, 0f, -2.4f, 2.4f, -0.9f, 0.9f,
-                    EntityShape.KindBattery, machine.Charge, machine.IsReturning ? 1f : 0f, phase,
-                    machine.IsCharging ? 1f : 0f);
+                    EntityShape.KindBattery, machine.Charge, 0f, 0f, 0f);
             }
         }
     }

@@ -47,20 +47,24 @@ internal sealed class TankBuildController
 
     /// <summary>
     /// Build keys (edge triggered): with no machine in hand the primary key builds a relay, the secondary key a
-    /// harvester and the tertiary key a pylon and the fourth a local generator, paid as <see cref="Quote"/> says, and carries it; any build key pressed again
-    /// outside a base plants it where the tank stands.
+    /// harvester, the tertiary key a local generator and the fourth a turret (the last two only where the match runs
+    /// the energy network), paid as <see cref="Quote"/> says, and carries it; any build key pressed again outside a base
+    /// plants it where the tank stands. While <paramref name="canBuild"/> is false (a stranded tank,
+    /// <see cref="TankReserveEffects.CanBuild"/>) a press plants what the tank carries but builds nothing new; the keys
+    /// are still tracked, so one held through the end of that stage is not taken for a new press.
     /// </summary>
-    public void Advance(in SimulationContext ctx, ControllerOutput input)
+    public void Advance(in SimulationContext ctx, ControllerOutput input, bool canBuild = true)
     {
         bool primaryPressed = input.BuildPrimary && !_primaryHeld;
         bool secondaryPressed = input.BuildSecondary && !_secondaryHeld;
-        bool tertiaryPressed = input.BuildTertiary && !_tertiaryHeld;
-        bool fourthAvailable = MachineBehaviors.Generator.IsAvailable(ctx.Rules);
+        bool thirdAvailable = MachineBehaviors.ForKey(BuildKey.Tertiary).IsAvailable(ctx.Rules);
+        bool tertiaryPressed = thirdAvailable && input.BuildTertiary && !_tertiaryHeld;
+        _tertiaryHeld = thirdAvailable && input.BuildTertiary;
+        bool fourthAvailable = MachineBehaviors.ForKey(BuildKey.Quaternary).IsAvailable(ctx.Rules);
         bool quaternaryPressed = fourthAvailable && input.BuildQuaternary && !_quaternaryHeld;
         _quaternaryHeld = fourthAvailable && input.BuildQuaternary;
         _primaryHeld = input.BuildPrimary;
         _secondaryHeld = input.BuildSecondary;
-        _tertiaryHeld = input.BuildTertiary;
         bool pressed = primaryPressed || secondaryPressed || tertiaryPressed || quaternaryPressed;
         var buildType = MachineBehaviors.ForKey(
             primaryPressed ? BuildKey.Primary : secondaryPressed ? BuildKey.Secondary :
@@ -87,7 +91,7 @@ internal sealed class TankBuildController
                         ctx.PlantMachine(machine, _tank.Base);
                 }
             }
-            else
+            else if (canBuild)
             {
                 var quote = Quote(buildType);
                 if (_tank.PayerStore(quote) is { } payer)

@@ -25,6 +25,8 @@ public class SnapshotCoverageTests
     [
         "Config.SimulationSettings: fixed for the match: built from the match settings",
         "Entities.Machines.MachineList._buckets: rebuilt on load from the machine list (OnSnapshotLoaded); looked up by key only",
+        "Entities.Machines.MachineUpgradeSystem._near: scratch: filled and read within one question",
+        "Entities.Tanks.TankReserveSystem._near: scratch: filled and read within one question",
         "Match.MatchRules: fixed for the match: the world is built with the same rules",
         "Network.LinkMap._linksByTile: rebuilt on load from the link list (OnSnapshotLoaded); looked up by key only",
         "Regrowth.RegrowthBlockerIndex._lookup: scratch: filled and read within Update",

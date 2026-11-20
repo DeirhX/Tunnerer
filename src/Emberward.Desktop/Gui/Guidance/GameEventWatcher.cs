@@ -21,7 +21,6 @@ public sealed class GameEventWatcher
     private int _harvesters;
     private int _stalledHarvesters;
     private int _dryHarvesters;
-    private int _returningHarvesters;
     private bool _storeFull;
     private bool _heatStoreFull;
     private bool _chargeLow;
@@ -66,8 +65,7 @@ public sealed class GameEventWatcher
 
         var network = world.GetNetworkStatus(home);
         int poweredRelays = network.PoweredRelays, harvesters = network.Harvesters;
-        int stalled = network.HarvestersTooHot, dry = network.HarvestersOutOfCharge, returning = network.HarvestersReturning;
-        bool hasPylon = network.PoweredChargers > 0;
+        int stalled = network.HarvestersTooHot, dry = network.HarvestersOutOfCharge;
 
         int store = home.Store.Ore;
         bool storeFull = home.Store.IsFull;
@@ -137,12 +135,8 @@ public sealed class GameEventWatcher
                     "Mining heats the ground. A linked relay near it pumps that heat away.", NotificationKind.Warning);
             if (dry > _dryHarvesters)
                 feed.Post(now, "harvester-dry", "Harvester out of charge",
-                    hasPylon ? "Move a pylon where it can see the harvester."
-                        : $"Build a pylon ({MachinePresentations.Get(MachineType.Pylon).KeyLabel}) near it so it can recharge.",
+                    "It runs on your base's charge where your network covers it. Put a relay by hot rock to make more.",
                     NotificationKind.Danger);
-            if (returning > _returningHarvesters)
-                feed.Post(now, "harvester-returning", "Harvester heading to a pylon",
-                    "Its battery is low. It goes back to work once recharged.", NotificationKind.Info, cooldown: 60f);
 
             if (storeFull && !_storeFull)
                 feed.Post(now, "store-full", "Base ore store full",
@@ -187,7 +181,6 @@ public sealed class GameEventWatcher
         _harvesters = harvesters;
         _stalledHarvesters = stalled;
         _dryHarvesters = dry;
-        _returningHarvesters = returning;
         _storeFull = storeFull;
         _heatStoreFull = heatStoreFull;
         _chargeLow = chargeLow;

@@ -15,17 +15,16 @@ public static class EntityShape
     public const float KindHarvester = 5f;
     public const float KindSenseRing = 6f;
     public const float KindLink = 7f;
-    public const float KindChargeBeam = 8f;
-    public const float KindPylon = 9f;
-    public const float KindBattery = 10f;
-    public const float KindPreviewBeam = 11f;
-    public const float KindReachArea = 12f;
-    public const float KindCoverage = 13f;
-    public const float KindTether = 14f;
-    public const float KindRadarBlip = 15f;
-    public const float KindRadarPulse = 16f;
-    public const float KindGenerator = 17f;
-    public const float KindPowerLabel = 18f;
+    public const float KindBattery = 8f;
+    public const float KindPreviewBeam = 9f;
+    public const float KindReachArea = 10f;
+    public const float KindCoverage = 11f;
+    public const float KindTether = 12f;
+    public const float KindRadarBlip = 13f;
+    public const float KindRadarPulse = 14f;
+    public const float KindGenerator = 15f;
+    public const float KindPowerLabel = 16f;
+    public const float KindTurret = 17f;
 
     public const float MachineFlagStalled = 1f;
     public const float MachineFlagCarried = 2f;

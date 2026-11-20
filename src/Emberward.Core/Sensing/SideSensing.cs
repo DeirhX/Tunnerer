@@ -14,7 +14,8 @@ using Emberward.Core.Network;
 /// <see cref="World"/> runs it as the last system of a step and answers for it.
 /// </summary>
 [NotSaved("output only: vision and radar, which nothing in the simulation reads")]
-internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks, BasePowerSystem? power)
+internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks, BasePowerSystem? power,
+    MachineUpgradeSystem? upgrades = null, TankReserveSystem? reserve = null)
 {
     private readonly List<(Tank Tank, VisionMap Map)> _visions = new();
     private readonly List<(Tank Tank, Radar Radar)> _radars = new();
@@ -24,7 +25,7 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
     /// <summary>
     /// Starts tracking what <paramref name="tank"/>'s side sees and returns the map, which every
     /// <see cref="Advance"/> then keeps up to date. The side sees through its tank, its base and its machines:
-    /// the tank and the base along open tunnel, link nodes (relays, pylons) over their whole coverage circles, every
+    /// the tank and the base along open tunnel, link nodes (relays, generators) over their whole coverage circles, every
     /// machine a little around itself.
     /// </summary>
     public VisionMap TrackVision(Tank tank)
@@ -97,7 +98,12 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
         _visionSources.Clear();
         int divisor = tank.Base is { } home && power?.IsDark(home) == true ? Tweaks.Base.DarkSightDivisor : 1;
         if (!tank.IsDead && tank.Base?.IsDestroyed != true)
-            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius / divisor, Tweaks.Vision.TankNearRadius / divisor));
+        {
+            // A tank far into its reserve sees less (a new reach is a new source, so only its eye is cast again).
+            int sight = reserve?.SightPercent(tank) ?? 100;
+            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius * sight / 100 / divisor,
+                Tweaks.Vision.TankNearRadius / divisor));
+        }
         if (tank.Base is { IsDestroyed: false } owner)
         {
             const int near = Tweaks.Vision.MachineNearRadius;
@@ -106,8 +112,10 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
             {
                 if (!machine.StandsFor(owner))
                     continue;
-                // A relay or pylon sees past its coverage circle, through the ground, linked or not.
-                int reach = machine.Behavior.IsLinkNode ? owner.Upgrades.NodeSightRadius / divisor : near;
+                // A link node sees past its coverage circle, through the ground, linked or not; a Sensor upgrade
+                // adds to that. A new reach is a new source, so only that machine's eye is cast again.
+                int bonus = upgrades?.SightBonus(machine) ?? 0;
+                int reach = machine.Behavior.IsLinkNode ? (owner.Upgrades.NodeSightRadius + bonus) / divisor : near + bonus;
                 _visionSources.Add(new VisionSource(machine.Position, reach, reach));
             }
         }

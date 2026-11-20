@@ -18,7 +18,7 @@ using Emberward.Core.Network;
 using Emberward.Core.Regrowth;
 using Emberward.Core.Entities.Bases;
 
-public class World
+public partial class World
 {
     private readonly TerrainGrid _terrain;
     private readonly TankBases _tankBases;
@@ -35,6 +35,8 @@ public class World
     private SectorGoal? _sectorGoal;
     private readonly EnergyNetwork? _energy;
     private readonly BasePowerSystem? _basePower;
+    private readonly MachineUpgradeSystem? _machineUpgrades;
+    private readonly TankReserveSystem? _reserve;
     // What tanks and machines see of the world each step; the same every step, so built once.
     [NotSaved("fixed for the match: closures over this world")]
     private readonly SimulationContext _tankContext;
@@ -150,11 +152,14 @@ public class World
         machine.State = MachineState.Planted;
         machine.OwnerBase = owner;
         machine.Anchor = machine.Position;
-        // On the energy network every machine has its whole capacitor (without it, only a battery if it runs on charge).
+        // On the energy network every machine has its whole capacitor, filled from its base's store so no charge
+        // appears from nothing. Without it no machine has a capacitor.
         if (_energy != null)
+        {
             machine.ChargeCapacity = machine.Behavior.Capacitor.Capacity;
-        if (owner is { IsDestroyed: false } && _basePower?.IsDark(owner) != true)
-            machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
+            if (owner is { IsDestroyed: false } && _basePower?.IsDark(owner) != true)
+                machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
+        }
         if (machine.Behavior.IsLinkNode)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
         _energy?.Register(machine);
@@ -178,6 +183,10 @@ public class World
             _energy = new EnergyNetwork(_simulationSettings);
             _basePower = new BasePowerSystem();
         }
+        if (Rules.MachineUpgrades)
+            _machineUpgrades = new MachineUpgradeSystem(_machines, _energy, _terrain, _stepEvents, Rules);
+        if (Rules.TankReserve)
+            _reserve = new TankReserveSystem(_machines, _terrain, _energy);
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain, _tankBases);
@@ -200,9 +209,12 @@ public class World
             IsOccupied = IsCellOccupied,
             IsTankBlocked = _collisionSolver.BlocksTank,
             Events = _stepEvents,
+            MachineUpgrades = _machineUpgrades,
+            Reserve = _reserve,
         };
-        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower);
-        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy, _basePower);
+        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades, _reserve);
+        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, MachineCoverage, _stepEvents, _energy,
+            _basePower, _machineUpgrades, _tankList, _projectiles);
         _systems = BuildSystems();
     }
 
@@ -334,7 +346,7 @@ public class World
             systems.Add(new("islands", _ => network.Refresh(_linkMap, _tankBases.Bases)));
         systems.Add(new("machines", _ => AdvanceMachines()));
         if (_energy is EnergyNetwork energy)
-            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower)));
+            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower, _stepEvents)));
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain, _basePower);
@@ -373,17 +385,11 @@ public class World
         if (heat.UsedParallel) Profile.CooldownParallelFrames++;
     }
 
-    /// <summary>Machines act, then each pylon's last hand-out is booked on its route.</summary>
+    /// <summary>Machines act; relays book the heat they pump on their routes.</summary>
     private void AdvanceMachines()
     {
         _linkMap.ClearHeatFlow();
         _machines.Advance(_machineContext, _simulationSettings.AdvanceStep);
-        // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
-        _linkMap.ClearChargeFlow();
-        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
-        foreach (var machine in _machines.Machines)
-            if (machine.IsAlive)
-                LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
     }
 
     /// <summary>
@@ -412,7 +418,7 @@ public class World
 
     private readonly List<RegrowthBlocker> _regrowthBlockers = new();
 
-    /// <summary>Regrows dirt, except within the range of a planted relay or pylon, which keeps its ground open.</summary>
+    /// <summary>Regrows dirt, except within the range of a planted link node, which keeps its ground open.</summary>
     private void AdvanceRegrowth(TerrainRegrowth regrowth)
     {
         _regrowthBlockers.Clear();
@@ -446,10 +452,10 @@ public class World
         ? TankCoverage.None
         : NetworkCoverage.At(tank.Position, tank.Base, _machines, _terrain, _nearMachines);
 
-    /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
-    private bool IsMachineOnNetwork(Machine machine) => machine.OwnerBase is TankBase { IsDestroyed: false } owner &&
-        NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines,
-            requireOwnPowerSource: _energy != null).Covered;
+    /// <summary>The coverage of <paramref name="machine"/>'s own base's linked network where it stands.</summary>
+    private TankCoverage MachineCoverage(Machine machine) => machine.OwnerBase is TankBase { IsDestroyed: false } owner
+        ? NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines, requireOwnPowerSource: _energy != null)
+        : TankCoverage.None;
 
     /// <summary>
     /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer, or by a player again: the bot
@@ -480,7 +486,9 @@ public class World
         MachineBehaviors.Get(type).RequiresLinkToPlant
             ? new MachinePlacementPreview(PreviewMachineLink(at, owner), 0f)
             : MachineBehaviors.Get(type).IsMiner ? new MachinePlacementPreview(default,
-                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at))) : default;
+                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)))
+            : MachineBehaviors.Get(type).IsTurret ? new MachinePlacementPreview(default,
+                TurretAction.SenseTemperature(_terrain, at) / Tweaks.Turret.MaxSlowTemperature) : default;
 
     private LinkPreview PreviewMachineLink(Position at, TankBase? owner)
     {
@@ -548,6 +556,22 @@ public class World
         : null;
 
     public bool IsBaseDark(TankBase tankBase) => _basePower?.IsDark(tankBase) == true;
+
+    /// <summary>
+    /// What <paramref name="tank"/> could buy for the nearest of its machines in reach (DESIGN.md §4.9): the machine, its
+    /// upgrade so far and the next price. Null when the rules run no machine upgrades or nothing is in reach.
+    /// </summary>
+    public MachineUpgradeOffer? MachineUpgradeOfferFor(Tank tank) => _machineUpgrades?.OfferFor(tank);
+
+    /// <summary>The path <paramref name="machine"/> took and its level; no path and level 0 without machine upgrades.</summary>
+    public MachineUpgradeLevel MachineUpgradeOf(Machine machine) => _machineUpgrades?.LevelOf(machine) ?? default;
+
+    /// <summary>Why <paramref name="tank"/>'s last machine upgrade press bought nothing, while that is still worth saying.</summary>
+    public (MachineUpgradeRefusal Refusal, int Ticks) MachineUpgradeRefusalOf(Tank tank) =>
+        _machineUpgrades?.RefusalOf(tank) ?? (MachineUpgradeRefusal.None, 0);
+
+    /// <summary>Per-machine upgrades, for the hashes; null when the match rules leave them out.</summary>
+    internal MachineUpgradeSystem? UpgradeSystem => _machineUpgrades;
 
     internal ulong MixBasePower(ulong hash) => _basePower?.MixState(hash) ?? hash;
 

@@ -198,7 +198,7 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
   it, so a client far behind, replaying to catch up, is checked too. A report for a tick the relay has not closed
   yet is ignored. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus
   what that hash does not read, in five parts: every cell's heat and air temperature, in cell order, and each
-  base reactor's exact heat (where heat is, not only how much); every base's and battery's charge; every base's
+  base reactor's exact heat (where heat is, not only how much); every base's and capacitor's charge; every base's
   ore, upgrades and whether a bot plays it; the race to the core and the result (which decide the winner without
   passing through anything else); and latent state that shows elsewhere only later or on a rare event (random
   generators, timers, held keys, harvester memory, pending projectiles, which heat tiles are awake, the regrowth
@@ -378,6 +378,17 @@ Each step is testable without the next.
 10. **Fourth build key** (protocol 7 in the local-generator tranche). Bit 28 of encoded player input is a build
     key, and the match's input key mask includes it so build presses are never predicted as aim changes.
     The relay must be updated before clients of this build can join a public match.
+11. **Machine upgrade key** (protocol 9 in the per-machine upgrade tranche). Bit 30 of encoded player input says
+    the upgrade key (bits 8-10) is for the machine next to the tank, not the base; it is in the input key mask.
+    The relay must be updated before clients of this build can join a public match.
+12. **Fifth build key** (protocol 10 in the turret tranche). Bit 31 of encoded player input builds a turret in
+    energy matches; it is in the input key mask. It is the last free bit: the next input needs a wider encoding
+    or a reused bit. The energy rules' version in the rules hash changed with it. The relay must be updated before
+    clients of this build can join a public match.
+13. **Pylon removed** (protocol 11). The generator and the turret moved to the third and fourth build keys (bits 7
+    and 28; their keys stay Y and U), so bit 31 is free again and out of the input key mask. Standard simulation
+    results changed too (a harvester pays its work from its base's store). The relay must be updated before clients
+    of this build can join a public match.
 
 ## 11. Open questions
 

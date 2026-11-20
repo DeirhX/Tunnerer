@@ -312,7 +312,7 @@
             <div id="net-status" class="plate" role="status" hidden></div>
             <div id="net-latency" hidden></div>
             <div id="death" hidden></div>
-            <button id="recall" class="plate" hidden>Drop cargo and respawn <kbd>X</kbd></button>
+            <button id="recall" class="plate" hidden><span id="recall-text">Drop cargo and respawn</span> <kbd>X</kbd></button>
             <section id="hud" hidden aria-label="Tank status">
                 <div class="plate tank-status">
                     <div class="eyebrow">
@@ -373,6 +373,16 @@
                 <summary class="eyebrow">DOCKED / UPGRADES</summary>
                 <div id="upgrade-list"></div>
             </details>
+            <!-- The machine next to the tank: its upgrade paths (F, or tap the lit machine). renderer.js places it. -->
+            <section id="machine-upgrade" class="plate" hidden aria-label="Machine upgrade">
+                <div class="eyebrow">
+                    <span id="machine-upgrade-title"></span>
+                    <button id="machine-upgrade-close" aria-label="Close the machine upgrade panel"><kbd>F</kbd></button>
+                </div>
+                <div id="machine-upgrade-list"></div>
+                <p id="machine-upgrade-foot"></p>
+                <p id="machine-upgrade-refusal" class="tone-Bad" hidden></p>
+            </section>
             <!-- The desktop's art strip (strip.js), on wide screens with a mouse. -->
             <canvas id="strip-left" class="strip" aria-hidden="true"></canvas>
             <canvas id="strip-right" class="strip" aria-hidden="true"></canvas>
@@ -405,15 +415,27 @@
                 <dd>Drive & dig. Fire while driving to torch rock.</dd>
                 <dt>Mouse / touch</dt>
                 <dd>Aim. Click, hold Space, or press FIRE to shoot.</dd>
-                <dt><kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd></dt>
+                <dt><kbd>E</kbd> <kbd>R</kbd></dt>
                 <dd>
-                    Build a relay, harvester, or pylon. Press again outside base
-                    to plant.
+                    Build a relay or a harvester. Press again outside base to
+                    plant.
                 </dd>
                 <dt><kbd>Y</kbd></dt>
                 <dd>In energy matches, build and plant a local generator near hot ground.</dd>
+                <dt><kbd>U</kbd></dt>
+                <dd>
+                    In energy matches, build a turret and plant it in your network's
+                    coverage: it fires at enemy tanks in range.
+                </dd>
                 <dt><kbd>1</kbd> – <kbd>7</kbd></dt>
                 <dd>Buy upgrades while docked at your base.</dd>
+                <dt><kbd>F</kbd>, then <kbd>1</kbd> – <kbd>3</kbd></dt>
+                <dd>
+                    Beside one of your relays or turrets (<code>?energy</code>):
+                    open its upgrade panel and buy Tap, Sensor or Conduit (relay)
+                    or Rapid or Long (turret) from the base ore store. On touch,
+                    tap the lit machine.
+                </dd>
                 <dt><kbd>H</kbd></dt>
                 <dd>Heat view: the ground by its heat. Enemy tunnels glow hot.</dd>
                 <dt><kbd>G</kbd></dt>
@@ -433,8 +455,9 @@
             </dl>
             <p class="muted">
                 Mine gold emberite for building materials. Relays cool the
-                ground and make power; pylons recharge harvesters. Extend linked
-                relays to the core and hold the required power output to win.
+                ground and make power, which runs harvesters in their coverage.
+                Extend linked relays to the core and hold the required power
+                output to win.
             </p>
             <p id="install-hint" class="muted">
                 Install from your browser’s menu, or use Add to Home Screen on

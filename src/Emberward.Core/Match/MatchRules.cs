@@ -49,10 +49,23 @@ public sealed record MatchRules
 
     /// <summary>
     /// Every machine has a capacitor and islands with a base or generator feed their machines by priority tier (the energy network,
-    /// DESIGN.md §4.9, <see cref="Network.EnergyNetwork"/>). Off, the battery rules of §4.5 hold: pylons charge
-    /// harvester batteries and a low harvester goes back to a pylon.
+    /// DESIGN.md §4.9, <see cref="Network.EnergyNetwork"/>). Off, no machine has a capacitor and a harvester pays for
+    /// its work straight from its base's store (§4.5).
     /// </summary>
     public bool EnergyNetwork { get; init; }
+
+    /// <summary>
+    /// A tank can buy upgrades for its own machines, next to them, from its base's ore store (DESIGN.md §4.9,
+    /// <see cref="Entities.Machines.MachineUpgradeSystem"/>). Off, machines keep their base numbers.
+    /// </summary>
+    public bool MachineUpgrades { get; init; }
+
+    /// <summary>
+    /// The off-network clock is the tank's reserve (DESIGN.md §4.9, <see cref="Entities.Tanks.TankReserveSystem"/>):
+    /// the recall key burns carried emberite to buy it back, and running out goes through warning, degraded and
+    /// stranded before heat death. Off, the clock runs out straight into overheating.
+    /// </summary>
+    public bool TankReserve { get; init; }
 
     /// <summary>A normal match: hot and frost pockets, ore, regrowth; the core does not end it.</summary>
     public static MatchRules Standard { get; } = new()
@@ -73,8 +86,13 @@ public sealed record MatchRules
         hash = Fnv1a.Mix(hash, CoreTapWins ? 1u : 0u);
         // Base destruction replaces the stock match's tank elimination rule.
         hash = Fnv1a.Mix(hash, 8u);
+        // Version of the energy rules: raised with each machine they add (turrets).
         if (EnergyNetwork)
-            hash = Fnv1a.Mix(hash, 0xE4E9u);
+            hash = Fnv1a.Mix(hash, 0xE4EAu);
+        if (MachineUpgrades)
+            hash = Fnv1a.Mix(hash, 0x4D55u);
+        if (TankReserve)
+            hash = Fnv1a.Mix(hash, 0x5253u);
         return hash;
     }
 }

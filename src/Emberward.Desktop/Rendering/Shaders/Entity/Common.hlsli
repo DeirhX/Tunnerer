@@ -46,9 +46,8 @@ float2 LocalLight(float2 facing)
     return float2(dot(kLightDir, facing), dot(kLightDir, float2(-facing.y, facing.x)));
 }
 
-// Charge (pylons, charge beams, battery gauges) is blue.
+// Charge (capacitor gauges) is blue.
 static const float3 kChargeBlue = float3(0.30, 0.55, 1.00);
-static const float3 kChargeViolet = float3(0.62, 0.45, 1.00);
 // Emberite, as the terrain draws it: gold plain ore, with a pale gold glint (matches the HUD's hold sprite).
 static const float3 kOreGold = float3(1.0, 0.76, 0.25);
 static const float3 kOreGlint = float3(1.0, 0.95, 0.72);

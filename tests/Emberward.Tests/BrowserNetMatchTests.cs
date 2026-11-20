@@ -107,6 +107,30 @@ public class BrowserNetMatchTests
     }
 
     [Fact]
+    public void Recall_IsHeldAcrossTicks_AndOnlyItsPressIsQueued()
+    {
+        var config = NetMatch.ProposeConfig(42, new Size(320, 200), LevelGenMode.Deterministic, 2);
+        var match = new BrowserNetMatch("room", "Ann", config);
+        Feed(match, new Welcome(0, config), new Roster(["Ann", ""]), new Start(0b01));
+        match.TakeOutgoing();
+        var recall = new ControllerOutput { Recall = true };
+        string Sent() => string.Join(',', match.TakeOutgoing().Select(b => MessageCodec.Decode(b)).OfType<Input>()
+            .Select(i => ControllerOutputCodec.Decode(i.Encoded).Recall));
+
+        // Held over frames that simulate nothing, the key is one press, not one a frame.
+        for (int frame = 0; frame < 5; frame++)
+            Assert.Equal(0, match.Advance(recall, 1, Now));
+        Feed(match, Tick(0, [0u, 0u], 1), Tick(1, [0u, 0u], 1), Tick(2, [0u, 0u], 1));
+        Assert.Equal(3, match.Advance(default, 1, Now));
+        Assert.Equal("True,False,False", Sent());
+
+        // Held while ticks run, it stays down on every tick (the reserve's burn repeats on a held key).
+        Feed(match, Tick(3, [0u, 0u], 1), Tick(4, [0u, 0u], 1), Tick(5, [0u, 0u], 1));
+        Assert.Equal(3, match.Advance(recall, 1, Now));
+        Assert.Equal("True,True,True", Sent());
+    }
+
+    [Fact]
     public void ClosingToNewcomers_IsTheHostsToChangeAndShowsInTheStatus()
     {
         var config = NetMatch.ProposeConfig(42, new Size(320, 200), LevelGenMode.Deterministic, 2);

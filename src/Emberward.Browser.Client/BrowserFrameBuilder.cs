@@ -28,7 +28,7 @@ public static class BrowserFrameBuilder
         {
             BuildQuote quote = player.QuoteBuild(machine.Type);
             var slot = BuildSlotView.Of(machine, quote, player.CarriedMachineType);
-            return new BuildOption((int)machine.BuildKey + 1, machine.Type.ToString(), quote.Cost, quote.CanAfford, quote.Payer.ToString(),
+            return new BuildOption((int)machine.BuildKey + 1, machine.KeyLabel, machine.Type.ToString(), quote.Cost, quote.CanAfford, quote.Payer.ToString(),
                 slot.Machine.BuildSlot, slot.State.ToString(), slot.Progress, slot.Label, slot.Caption,
                 slot.CaptionKind.ToString());
         }).OrderBy(b => b.Key).ToArray();
@@ -55,7 +55,7 @@ public static class BrowserFrameBuilder
             player.IsDead ? 0f : player.HitFlashTicks / (float)Tank.HitFlashDuration, hitFromX, hitFromY,
             player.ShieldFraction, player.OreHeld, player.OreHoldCapacity, home.Store.Ore,
             home.ChargeFill, home.HeatStoreFill, home.ArmorFill, player.IsDockedAtOwnBase, player.IsOffNetwork,
-            player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds, player.CanRecall,
+            player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds, world.RecallOffered(player),
             world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString(), home.IsDestroyed,
             Math.Max(0, player.Reactor.Health), HeatScale.Frozen(player.Heat), HeatScale.Boil(player.Heat),
             player.IsOverheating || player.IsAboveSafeHeat, player.IsShieldLow(latched: false),
@@ -63,7 +63,31 @@ public static class BrowserFrameBuilder
             player.IsOreHoldFull, player.IsOffNetworkUrgent, BuildSlotView.OreLine(player));
         return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
             session.Sounds.Frame(takePlays: includeEvents), builds, upgrades, preview, goal, Guidance(session.Guidance),
-            includeDial ? Dial() : null, net?.Status(), BasePower(world, player));
+            includeDial ? Dial() : null, net?.Status(), BasePower(world, player), MachineUpgrade(session),
+            Reserve(world.ReserveOf(player)));
+    }
+
+    /// <summary>The reserve's stage tag and burn prompt, as the desktop shows them (<see cref="ReserveTags"/>).</summary>
+    private static ReserveStatus? Reserve(in TankReserveView view)
+    {
+        var tag = ReserveTags.Of(view);
+        string? burn = ReserveTags.BurnPrompt(view);
+        return tag is null && burn is null ? null
+            : new ReserveStatus(tag?.Text, tag is { } t ? HudPalette.Hex(t.Color) : null, tag?.Blink ?? false, burn);
+    }
+
+    /// <summary>The machine next to the tank and its panel, as the desktop shows them (<see cref="MachineUpgradeView"/>).</summary>
+    private static MachineUpgradeStatus? MachineUpgrade(BrowserSession session)
+    {
+        if (session.MachineUpgrades.Update(session.World, session.Player) is not { } view)
+            return null;
+        var choices = view.Choices.Select(c => new MachineUpgradeLine(c.Key, c.Name, c.Effect, c.Level, c.Price,
+            c.State.ToString(), c.CanBuy, HudPalette.Hex(c.NameColor), HudPalette.Hex(c.PriceColor))).ToArray();
+        return new MachineUpgradeStatus(view.Machine.Position, view.Title,
+            view.HighlightColor >> 24 != 0 ? HudPalette.Hex(view.HighlightColor) : null,
+            view.Highlight == MachineUpgradeHighlight.Affordable, view.Level, view.MaxLevel, session.MachineUpgrades.IsOpen,
+            choices, view.StoreOre, view.Refusal, MachineUpgradeView.RingCells, MachineUpgradeView.PipDropCells,
+            view.CatchesTaps(session.MachineUpgrades.IsOpen));
     }
 
     private static BaseCharge? BasePower(World world, Tank player)

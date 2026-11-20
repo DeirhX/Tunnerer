@@ -17,8 +17,9 @@ using Emberward.Desktop.Config;
 /// <param name="Players">How many bases, and so tanks, the match has.</param>
 /// <param name="CoreTapWins">The first base to tap the core wins the match (a network match is a race).</param>
 /// <param name="EnergyNetwork">
-/// The match runs the energy network (<see cref="MatchRules.EnergyNetwork"/>; a local match with
-/// <c>--energy-network</c>). Never set for a network match, whose rules every client must build alike.
+/// The match runs the energy network (<see cref="MatchRules.EnergyNetwork"/>) and per-machine upgrades
+/// (<see cref="MatchRules.MachineUpgrades"/>) and the tank's reserve (<see cref="MatchRules.TankReserve"/>; a local
+/// match with <c>--energy-network</c>). Never set for a network match, whose rules every client must build alike.
 /// </param>
 public readonly record struct WorldLaunchOptions(
     bool TerrainTest, Size? TerrainSizeOverride, LevelGenMode GenMode, int Seed,
@@ -52,7 +53,13 @@ public static class WorldFactory
         World world = options.TerrainTest
             ? BuildTerrainTest(options.TerrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize)
             : BuildMatch(options.TerrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize,
-                options.GenMode, seed, parallel, options.Players, MatchRules.Standard with { CoreTapWins = options.CoreTapWins, EnergyNetwork = options.EnergyNetwork });
+                options.GenMode, seed, parallel, options.Players, MatchRules.Standard with
+                {
+                    CoreTapWins = options.CoreTapWins,
+                    EnergyNetwork = options.EnergyNetwork,
+                    MachineUpgrades = options.EnergyNetwork,
+                    TankReserve = options.EnergyNetwork,
+                });
         return new BuiltWorld(world, parallel, seed);
     }
 

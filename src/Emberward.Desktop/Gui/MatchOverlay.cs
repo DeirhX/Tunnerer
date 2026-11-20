@@ -49,8 +49,17 @@ public static class MatchOverlay
 
         if (!player.IsDead)
         {
-            if (player.CanRecall)
+            if (world.RecallOffered(player))
                 DrawCenteredText(dl, 20f, cx, cy, "Stranded. Press X to drop cargo and respawn", 0xFFC0E0FFu);
+            else if (world.ReserveOf(player) is var reserve && ReserveTags.BurnPrompt(reserve) is string burn)
+            {
+                // From the warning on the prompt asks for attention; before it, a quiet hint below the tank says what
+                // X would do, so it never burns cargo unannounced.
+                if (ReserveTags.BurnIsUrgent(reserve))
+                    DrawCenteredText(dl, 20f, cx, cy, $"X: {burn}", 0xFFC0E0FFu);
+                else
+                    DrawCenteredText(dl, 15f, cx, cy + 40f, $"X: {burn}", HudTheme.WithAlpha(0xFFC0E0FFu, 0.55f));
+            }
             return;
         }
 

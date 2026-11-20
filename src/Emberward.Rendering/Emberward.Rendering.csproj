@@ -37,6 +37,8 @@
     <Compile Include="../Emberward.Desktop/Gui/BuildSlotView.cs" Link="Gui/BuildSlotView.cs" />
     <Compile Include="../Emberward.Desktop/Gui/HudPalette.cs" Link="Gui/HudPalette.cs" />
     <Compile Include="../Emberward.Desktop/Gui/PowerLabels.cs" Link="Gui/PowerLabels.cs" />
+    <Compile Include="../Emberward.Desktop/Gui/MachineUpgradeView.cs" Link="Gui/MachineUpgradeView.cs" />
+    <Compile Include="../Emberward.Desktop/Gui/ReserveTags.cs" Link="Gui/ReserveTags.cs" />
     <Compile Include="../Emberward.Desktop/Gui/Guidance/*.cs" Link="Gui/Guidance/%(Filename)%(Extension)" />
     <Compile Include="../Emberward.Desktop/SlotStepper.cs" Link="SlotStepper.cs" />
     <Compile Include="../Emberward.Desktop/Config/NetworkTweaks.cs" Link="Config/NetworkTweaks.cs" />

@@ -8,7 +8,7 @@ Open work, written so an agent can pick up one item without the conversation tha
 
 - **Done, in PR #75** (`claude/upgradables-review-8a3ab6`, not yet merged):
   - **Sensors upgrade** (base-track key 5; Cargo hold and Radar moved to keys 6 and 7): +8 cells of sight per level for
-    relays, pylons and the base. A relay sees 10 cells past its coverage circle before any upgrade
+    relays (and generators) and the base. A relay sees 10 cells past its coverage circle before any upgrade
     (`Tweaks.Vision.NodeSightBonus`). Presentation only.
   - **Tranche 1, capacitors and island balance**, `src/Emberward.Core/Network/EnergyNetwork.cs`, behind
     `MatchRules.EnergyNetwork` (**off by default, including in `MatchRules.Standard`**, so fingerprints and the rules
@@ -16,7 +16,9 @@ Open work, written so an agent can pick up one item without the conversation tha
   - **Tranche 1b, charge and flow labels** (key G, `PowerLabels`, `HudPalette`), shared by desktop and browser.
     `--energy-network` (desktop) and `?energy` (browser) turn the network on for local matches only.
 - **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
-- **Items 1 and 2 are implemented.** Continue at item 3 on a new branch stacked on the generator PR.
+- **Items 1 to 8 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it, with
+  items 5, 6 and 8 merged into it; item 7 on `codex/tranche-7-remove-pylon`, against item 4's branch). Item 9 is
+  deferred.
 
 ## Rules for every item
 
@@ -45,9 +47,10 @@ Open work, written so an agent can pick up one item without the conversation tha
 
 - **Capacitor traits** are on `MachineBehavior` (`Capacitor`: capacity, transfer rate per tick, `PowerTier` of
   BaseDefence / Turrets / Economy, idle draw per tick). The old `BatteryCapacity` is derived from it; a machine marked
-  `RunsOnCharge` (only the harvester) keeps its capacitor as the battery when the flag is off.
-- **Numbers (in `Tweaks.Machine` and `Tweaks.Energy`):** relay 3600 capacity, 60/tick in, 1.5/tick idle; pylon 6000, 100,
-  2.5; harvester 120k, 400 in, 4 idle. A cut-off relay or pylon lasts about 100 s.
+  `RunsOnCharge` (only the harvester) kept its capacitor as the battery when the flag was off, until item 7 removed the
+  battery: off the network no machine has a capacitor now.
+- **Numbers (in `Tweaks.Machine` and `Tweaks.Energy`):** relay 3600 capacity, 60/tick in, 1.5/tick idle; harvester
+  120k, 400 in, 4 idle. A cut-off relay lasts about 100 s. (The pylon, 6000, 100, 2.5, went with item 7.)
 - **Islands.** The energy network regroups when `LinkMap.PowerVersion` changes. A node whose power route ends at a
   base (`LinkPoint.IsPoweredBy`) uses that base's island, the same rule harvester coverage uses. A disconnected component pools charge if it has a generator. The first generator
   names that island and each producer carries its own reserve across splits. A disconnected group without a base
@@ -63,8 +66,8 @@ Open work, written so an agent can pick up one item without the conversation tha
 - **Output-only queries for the HUD:** `World.MachinePowerOf(machine)` (charge, capacity, in and out per second, fed) and
   `World.BasePowerOf(base)` (store, capacity, production, island draw). They return null while the flag is off.
   `PowerLabels.Of` holds all label wording and colour rules; extend it when a new state appears.
-- **Known gaps:** "charge passed on to others" is always 0 until item 5; no test reaches the tier-ordering branch until
-  item 6 adds a second tier.
+- **Known gaps:** "charge passed on to others" became real with item 5 (`MachinePower.PassedPerSecond`). Item 6's
+  turrets are the second tier, and `TurretTests` reaches the tier-ordering branch.
 
 ## 1. Finite heat sources (implemented)
 
@@ -120,7 +123,16 @@ the protocol before network play). Update `PowerLabels` (a dark base colour) and
 Tests: dark entry and exit with hysteresis, shield value at several charges, restart by hold, match end by base
 destruction, a snapshot taken while dark.
 
-## 4. Per-machine upgrades
+## 4. Per-machine upgrades (implemented)
+
+Built behind `MatchRules.MachineUpgrades` (off by default; local matches turn it on with `--energy-network` or
+`?energy`), in `MachineUpgradeSystem`. F (or a tap on the lit machine) opens the panel of the nearest own relay within
+12 cells; 1-3 then buy Tap, Sensor or Conduit for 8 and 16 ore from the base store. The input is bit 30 of the encoded
+input, so the protocol is 9: deploy that relay version before network clients use this build. Standard and
+energy-rule fingerprints are unchanged; the opt-in rules hash changes only with the new flag on. The highlight and
+panel are one view-model (`Gui/MachineUpgradeView.cs`, shared through `Emberward.Rendering`) drawn with ImGui and in
+the DOM. **For item 5:** Conduit only grows the capacitor so far; its throughput multiplier belongs with the
+throughput limits (read the Conduit level with `World.MachineUpgradeOf`). Checked in a browser (item 9).
 
 **Design.** Two levels per machine, bought next to the machine with a key; the cost comes from the base store ore (so
 harvesters still feed everything). The nearest machine in reach is highlighted (amber when affordable, dim when not,
@@ -142,9 +154,30 @@ Global upgrades (`BaseUpgrades`) stay as the baseline.
 - **Tests:** buying, refusal (maxed, not enough ore, out of reach), nearest-machine choice with a stable tie-break,
   snapshot round trip, each relay path's effect.
 
-## 5. Relay throughput limits and the Conduit upgrade
+## 5. Relay throughput limits and the Conduit upgrade (implemented)
 
-**Design.** Each relay has a charge-transfer limit; a chain is as fast as its slowest node. Compute a tree from the
+Built behind `MatchRules.EnergyNetwork`, in `Network/EnergyNetwork.Throughput.cs`; numbers in `Tweaks.Throughput`
+(`Config/Tweaks.Throughput.cs`). Each island is a tree: a node's parent is the next node of its island up
+`LinkPoint.UpstreamLink` (the route `IsPoweredBy` follows), or the node a local island's search reached it from; a
+harvester hangs off the node that covers it (`MachineContext.CoverageOf` now returns the `TankCoverage`, with its
+point). Every link node passes on at most 400 a tick (Conduit 600, 800; ceiling 800), its own top-up not counted. The
+tree is worked out only when the island's filling set, members, links or a node's limit change, and only over the
+filling capacitors and their ancestors. Each node loses 3% of what it passes on into its pending charge, which settling
+puts in the ground at the node (heat writers, ledger `RecordFromCharge`). At its settling a node that ran at its limit
+(saturated: asked for all it can pass on, at its last tree) is throttled from 150 °C (half; recovers under 140 °C) and
+overheated from 250 °C (a quarter, and 100 of its 1000 health each check it ran at its limit, recorded as
+`MachineDamaged` / `MachineWrecked`); a hot node stays throttled until its ground cools, and a cool node below its
+limit is not looked at, so hot ground alone never harms a relay that is not saturated (decided: a lightly loaded relay
+beside a lump core is safe; a saturated one there throttles and can be wrecked).
+`MachinePower` gained `PassedPerSecond`, `LimitPerSecond` and `Heat`; `PowerLabels` shows `>passed/s` and the new
+`HudPalette.Throttled` / `Overheated` colours (a `>` glyph was added to `PowerLabelQuads`). Standard fingerprints are
+unchanged (no recorded fingerprint runs the energy rule); energy-rule play changes (chains now lose 3% a hop and can be
+limited), with no new flag, so the rules hash is the same: **bump the protocol before network play** (item 6 bumps it
+anyway). Not changed: idle draw is still paid at the root, not through the tree; generator output reaches the island's
+store directly; the limits apply to top-ups, not to idle draw. Tune the limit, loss and temperatures in play (a node in
+open air with nothing pumping warms fast: air holds 0.8 a degree a cell).
+
+**Design (as planned).** Each relay has a charge-transfer limit; a chain is as fast as its slowest node. Compute a tree from the
 producers (reuse `LinkMap`'s power search; recompute only when links or demand change): demand is added up from the
 leaves, each node caps what passes through it, supply is handed back down by tier. Charge passing through loses a few
 percent as heat **at the relay**, booked through the heat writers so the ledger balances; a hot relay throttles, and
@@ -156,22 +189,46 @@ Conductors (`DESIGN.md` §4.2) sit alongside relays: a conductor is a heat trunk
 upgrade on one relay changes nothing until the whole trunk is upgraded; the loss heats the relay and the ledger
 balances; throttling above the temperature.
 
-## 6. Turrets
+## 6. Turrets (implemented)
 
-**Design.** A powered machine: it works only while powered and linked, draws charge to fire (the Turrets tier, between
-base defence and economy), and makes heat in its own cell when it fires (heat writers; overheating slows its fire). It
-fires at enemy tanks in range and line of sight; the range is short, so it defends a zone. Targeting must be
-deterministic: a stable tie-break and no unordered iteration; use `MachineList.CollectNear` and vision. Bots must be able
-to build and use them, or turrets are player-only; decide and say so.
+In energy matches U builds a turret for 24 ore (`TurretAction`, `Tweaks.Turret` in `Config/Tweaks.Turrets.cs`). It is
+no link node: it joins the island whose coverage it stands in, as a harvester does, and fires only while it is on an
+island, its base is not dark and its capacitor (2,400, the Turrets tier) holds a shot. Four times a second it looks
+for the nearest live, unshielded enemy tank within 24 cells in line of sight (its own raycast: `VisionMap` is output
+only), the first in spawn order on a tie, and fires a bullet of 80 damage every 12 ticks. A shot spends 150 charge
+through `EnergyNetwork.Spend`, which puts it as heat beside the turret; above 60 degrees it slows, up to 4 times its
+interval at 140. Shots are `StepEventKind.TurretFired` (sound `TurretFire`). Upgrades: Rapid (faster, dearer shots)
+and Long (`MachineUpgradePath.LongRange`: range, damage, slower). Bots build no machines, so turrets are
+player-only; they shoot bot tanks. The fifth build key is bit 31, the last free bit of the encoded input
+(protocol 10; deploy that relay version first). The energy rules' version in the rules hash changed; Standard and
+energy-rule simulation fingerprints are unchanged (no fingerprint scenario builds a turret). The tier-ordering test
+is `TurretTests.AStoreThatCannotPayEveryTier_FeedsTurretsBeforeTheEconomy`. **Not tuned in play:** cost, range,
+heat per shot and the overheat curve; a turret beside a relay may still stop raiding. Checked in a browser (item 9).
 
-**Needs.** The full machine checklist (as in item 2), a separate build key (change `BuildKey`, codec, README, F1
-screen, tutorial and `KeyboardController`/`BrowserApi`/`input.js`), a sprite and shader branch, build and shot
-sounds (shots through `StepEventKind`), the tier-ordering test that item 3 and tranche 1 lacked. Upgrades with item 4:
-**Rapid** (faster fire, more heat) and **Long** (more range and damage, slower fire); a Hardened option later.
-Balance risk: a turret beside a relay makes raiding impossible. The power link and a short range and a high cost help;
-tune in play.
+## 7. Remove the pylon and the harvester battery (implemented)
 
-## 7. Remove the pylon and the harvester battery
+Done on `codex/tranche-7-remove-pylon`, following "Removing a system" in `AGENTS.md`. Gone: `MachineType.Pylon`, its
+behavior (`ChargeBatteries`, `CanCharge`, `IsCharger`, `MachineList.Chargers`), presentation, sprite and shader
+branch (`KindPylon`), the charge beams (`KindChargeBeam`, `Link.ChargeFlow`, `LinkMap.CarryCharge`, the battery
+gauge's charging and returning states), the build sound, the tutorial's pylon step and HUD hints, every `Pylon*`
+constant and its colour, the harvester's return trips (`IsReturning`, `HarvesterState.Returning`,
+`HarvesterReturnBelow`, `HarvesterResumeAbove`, `HarvesterPathing.ChooseStep`) and the battery
+(`BatteryCapacity`, `HasBattery`; `HarvesterBatteryCapacity` is now `HarvesterCapacitor`).
+- **Without the energy rule** no machine has a capacitor: a harvester pays each action straight from its base's charge
+  store (`PayForWork`, `Machine.ReleaseChargeAsHeat`) and is out of charge when the store is
+  (`MachineBehaviors.ChargeAvailableTo`). The capacitor gauge shows only on the network (`MachineRenderState.HasCapacitor`).
+  The tutorial's "Power the harvester" step explains this and finishes once a harvester has charge; with the energy
+  rule it still asks for a generator.
+- **Build keys:** the generator moved to the third build key (bit 7) and the turret to the fourth (bit 28); their keys
+  stay Y and U, and T is free. Bit 31 is free again and out of `KeyMask`. **Protocol 11**: deploy that relay
+  version before network clients use this build.
+- **Fingerprints changed** (`RelayHarvesterNetwork`, renamed from `RelayPylonHarvesterNetwork`, with a second relay
+  where the pylon stood; `EnemyMachinesShotToPieces`, whose harvester no longer carries a battery). The browser stress
+  world plants a second relay where it planted a pylon.
+- **Not done, on purpose: one circle.** The relay still pumps over its 25-cell square (`RelayCoolingRadius` 12), not
+  its coverage circle (20 cells, 38 with three reach levels). Pumping over the whole circle, strongest at the centre,
+  makes each relay's heat sweep 2 to 7 times larger and changes tuning (relays would reach hot rock they cannot reach
+  today), so it waits for a decision. The relay is not renamed.
 
 **Why (`DESIGN.md` §4.9).** The pylon shares everything with a relay except charging harvester batteries, and a harvester
 only works inside linked coverage anyway. Every camp ends up as "relay plus pylon". After this the relay is the only
@@ -184,17 +241,37 @@ refuel behaviour, and the harvester's return-to-pylon trips and `HarvesterResume
 the network through its capacitor (tranche 1 already does this with the flag on). Update `SimulationFingerprintTests` and
 say so. Rename the relay (for example "tap") is optional: it collides with the multiplayer relay server's name.
 
-## 8. The tank's reserve and exploring
+## 8. The tank's reserve and exploring (implemented)
 
-**Design.** The reserve is the existing off-network clock (`DESIGN.md` §4.6), **not** a second meter. Burning a carried unit
-of emberite extends it and takes that unit's warmth (0.1 degrees a second a unit, see §6.3) out of the tank, so a big
-load is range and risk together. Running out is a staged state: warning, degraded (slower dig, shorter vision, weaker
-shots), stranded (crawl and dig only), then heat death as today; each has a counter. Relays and generators push the safe
-zone out; far lumps pay for the risk.
+Built behind `MatchRules.TankReserve` (off by default, also in `Standard`; local matches turn it on with
+`--energy-network` or `?energy`), in `TankReserveSystem` (`Entities/Tanks`), constants in `Config/Tweaks.Reserve.cs`.
+`DESIGN.md` §4.9 (Death and exploring) has the rules and numbers. What the next items need to know:
 
-**Open.** I read the tank-heat code only through `Tweaks`, not the code itself. Before building, read the tank
-temperature code (`Tank.cs`, `TankTemperatureTests`) to see how a burn adjusts the floor. Needs a burn action (input
-bit or reuse of the hold-dump), the staged effects, HUD tags (the "OFF NETWORK" tag exists), and tests.
+- **The burn is the recall key (X, bit 29); no input bit was added.** There is no hold-dump input in the code. Off the
+  network with emberite aboard and the floor at least a unit's worth up, X burns (`TankReserveSystem.CanBurn`) and
+  does not recall; recall still works once the hold is empty. `World.RecallOffered` is what the HUD asks.
+- **The burn lowers `TankThermals.OffNetworkFloor` and nothing else.** The tank sheds down to the lower floor through
+  the ground, so no energy is made or destroyed and the ledger is untouched (`Burns_LeaveTheLedgerBalanced`).
+- **Stages** go by `Tank.OffNetworkSecondsToOverheat` (warning 30 s, degraded 15, stranded 5, heat death 0) and are
+  settled once a tick in `Tank.Advance`, right after coverage; `TankReserveEffects` masks the gun, tells
+  `TankBuildController` whether a press may build a new machine (a carried one plants either way, and the keys stay
+  tracked so a held key is no press when the stage lifts), and feeds the move factor, the dig credit (`ReadyToDig`,
+  capped at one dig and spent only by a dig that clears ground; stranded has no dig factor, the crawl slows the dig),
+  the gun delay and vision (`SideSensing`). A dead tank's reserve is cleared (`TankReserveSystem.Clear`). The
+  dig, sight and HUD read the stage `Advance` stored, not the clock, so all agree with that tick's effects.
+- **Generators hold the clock** within 20 cells in line of sight (`HoldsClock`, a `CollectNear` per off-network tank),
+  and pay for it: 8 charge a tick from the generator's capacitor (`Tweaks.Reserve.GeneratorHoldChargePerTick`), through
+  `EnergyNetwork.Settle` and `Spend`, so it becomes heat in the ground and the ledger balances
+  (`HoldingTheClock_LeavesTheLedgerBalanced`). The first generator in list order that can pay holds; one that makes
+  nothing holds a lone tank only until its capacitor is spent (about 20 s), so a dead generator is no permanent safe
+  zone. `EnergyNetwork` itself is unchanged.
+- **Deviation:** "weaker shots" is a slower gun (twice the delay), not less damage, to keep out of the projectile code
+  item 6 changes. Damage a shot could follow once turrets have landed.
+- **HUD:** `ReserveTags` (shared view-model) gives the stage tag beside OFF NETWORK and the burn prompt (shown whenever X would burn, a quiet hint before the
+  warning, so X never spends cargo unannounced); desktop draws
+  it in `HeatGauge` and `MatchOverlay`, the browser in `strip.js` and the recall button (`BrowserFrame.Reserve`).
+- **Not done:** no tutorial or toast for the stages, no browser check in a real WebGL browser, and network matches
+  keep `Standard`, so no protocol bump was needed.
 
 ## 9. Smaller follow-ups
 
@@ -205,8 +282,15 @@ bit or reuse of the hold-dump), the staged effects, HUD tags (the "OFF NETWORK" 
 - **What a cut costs the defender.** Relays cost 4 ore, so a cut is easily rebuilt; decide a relink and warm-up time and
   dearer links (`DESIGN.md` §4.11).
 - **Priority tiers player-set:** only if fixed tiers prove too rigid.
-- **Browser check:** the power labels were never seen in the browser (the pane had no WebGL 2, and `smoke.mjs` was not
-  run). Check them in a real browser with `?energy`.
+- **Browser check (done 2026-11-20).** Played with `?energy` in headless Chromium on Metal (Playwright, as
+  `smoke.mjs` does; the app's browser pane throttles a hidden page to one frame a second). Seen working: the charge
+  labels and G, `>passed/s` on a relay feeding a Conduit relay behind it, the upgrade panel (F beside the lit relay, a
+  tap on touch, keys 1 to 3 and the choice buttons, two quick clicks both buying for the machine, closing by F, its
+  button or driving away), and the turret (U for 24 ore, shots at a bot tank with the `TurretFire` sound). Fixed: the
+  level pips sat on the charge label's flow line (now under the ring, desktop too), the panel ran off the bottom of a
+  phone held sideways, and the footer's version check logged an error offline, which failed `smoke.mjs` (it passes
+  now). Not seen: the throttled and overheated label colours (no relay got that hot in play). Left as they are: labels
+  of machines side by side overlap, and on touch the panel covers the FIRE button while it is open.
 
 ## HUD: share more between desktop and browser
 

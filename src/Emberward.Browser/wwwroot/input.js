@@ -38,11 +38,13 @@ export class GameInput {
                 if (this.enabled) {
                     if (e.code === "KeyH") action("thermal");
                     if (e.code === "KeyG") action("power");
-                    const build = { KeyE: 1, KeyR: 2, KeyT: 3, KeyY: 4 }[e.code];
+                    // The upgrade panel of the machine next to the tank; while it is open, 1-3 buy for that machine.
+                    if (e.code === "KeyF") this.queue("machineUpgrade", true);
+                    const build = { KeyE: 1, KeyR: 2, KeyY: 3, KeyU: 4 }[e.code];
                     if (build) this.queue("build", build);
                     if (e.code === "KeyX") this.queue("recall", true);
                     if (/^Digit[1-7]$/.test(e.code))
-                        this.queue("upgrade", Number(e.code.slice(-1)));
+                        this.queueUpgrade(Number(e.code.slice(-1)), this.machinePanelOpen);
                     if (["Equal", "NumpadAdd"].includes(e.code))
                         action("zoom", 1);
                     if (["Minus", "NumpadSubtract"].includes(e.code))
@@ -64,14 +66,21 @@ export class GameInput {
         canvas.addEventListener("pointerdown", (e) => {
             if (!this.enabled || e.button !== 0) return;
             canvas.focus({ preventScroll: true });
-            canvas.setPointerCapture(e.pointerId);
-            this.firing = true;
             const r = canvas.getBoundingClientRect();
-            this.pointer = {
+            const pointer = {
                 x: e.clientX - r.left - r.width / 2,
                 y: e.clientY - r.top - r.height / 2,
                 mouse: e.pointerType === "mouse",
             };
+            // On touch, a tap on the lit machine opens (or closes) its upgrade panel instead of firing. A mouse
+            // click always fires: F opens the panel there.
+            if (!pointer.mouse && this.tapMachine?.(pointer)) {
+                this.queue("machineUpgrade", true);
+                return;
+            }
+            canvas.setPointerCapture(e.pointerId);
+            this.firing = true;
+            this.pointer = pointer;
         });
         const release = () => {
             this.firing = false;
@@ -125,6 +134,13 @@ export class GameInput {
             this.actions.push({ [type]: value });
     }
 
+    // An upgrade key, marked for the machine when it was pressed with its panel open (or is one of the panel's
+    // choices): it stays a machine purchase even if an earlier one closes the panel before it is sent.
+    queueUpgrade(key, forMachine) {
+        if (this.enabled && this.actions.length < 16)
+            this.actions.push({ upgrade: key, upgradeMachine: !!forMachine });
+    }
+
     clear() {
         this.keys.clear();
         this.touchMoves.clear();
@@ -152,8 +168,12 @@ export class GameInput {
             aimX: this.pointer ? this.pointer.x - (this.aimOffset || 0) : 0,
             aimY: this.pointer ? this.pointer.y - (this.aimOffset || 0) : 0,
             build: action.build || 0,
-            recall: !!action.recall,
+            // X is held, as on desktop: held off the network it burns emberite at the repeat rate. Its press (and the
+            // HUD button's tap) is queued as well, so a tap is never lost between ticks.
+            recall: !!action.recall || !!held("KeyX"),
             upgrade: action.upgrade || 0,
+            machineUpgrade: !!action.machineUpgrade,
+            upgradeMachine: !!action.upgradeMachine,
         };
     }
 }

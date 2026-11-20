@@ -86,23 +86,10 @@ public class MachineBehaviorTests
     }
 
     [Fact]
-    public void Pylon_HasPerformAction()
-    {
-        Assert.NotNull(MachineBehaviors.Pylon.PerformAction);
-    }
-
-    [Fact]
     public void Harvester_BuildCost_IsThirtyOre()
     {
         Assert.Equal(Tweaks.Ore.HarvesterCost, MachineBehaviors.Harvester.OreCost);
         Assert.Equal(30, MachineBehaviors.Harvester.OreCost);
-    }
-
-    [Fact]
-    public void Pylon_BuildCost_IsTenOre()
-    {
-        Assert.Equal(Tweaks.Ore.PylonCost, MachineBehaviors.Pylon.OreCost);
-        Assert.Equal(10, MachineBehaviors.Pylon.OreCost);
     }
 
     [Fact]
@@ -119,18 +106,12 @@ public class MachineBehaviorTests
     }
 
     [Fact]
-    public void Pylon_ActiveColor_IsBlue()
-    {
-        Assert.Equal(Tweaks.Colors.Pylon, MachineBehaviors.Pylon.ActiveColor);
-    }
-
-    [Fact]
     public void Machine_StoresBehavior_FromType()
     {
         var machine = new Machine(new Position(50, 50), MachineType.Harvester, 0);
         Assert.Same(MachineBehaviors.Harvester, machine.Behavior);
 
-        var pylon = new Machine(new Position(50, 50), MachineType.Pylon, 0);
-        Assert.Same(MachineBehaviors.Pylon, pylon.Behavior);
+        var relay = new Machine(new Position(50, 50), MachineType.Relay, 0);
+        Assert.Same(MachineBehaviors.Relay, relay.Behavior);
     }
 }
