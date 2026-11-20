@@ -11,6 +11,11 @@
     // How many bytes of .wasm each runtime downloads, for the loading bar; publish.py fills it in.
     const runtimeBytes = { single: 0, threads: 0 };
     const cores = navigator.hardwareConcurrency || 1;
+    // Off until .NET's threaded interop stops killing the runtime: now and then, a few minutes into a match, .NET
+    // fails in ReleaseJSOwnedObjectByGCHandle on one of its own threads, the runtime exits with code 1 and the page
+    // is left with "Assert failed: .NET runtime already exited with 1" (measured in Edge on Windows; docs/browser.md
+    // has it). The single-thread runtime does not. ?threads=4 in the address uses the threaded runtime anyway.
+    const threadedByDefault = false;
     // Only Chromium (Chrome, Edge and their relatives) so far. In WebKit the threaded runtime sometimes stops
     // answering the page in the middle of a match (docs/browser.md has what was measured), and Firefox has not
     // been tried. ?threads=4 in the address tries it in any browser.
@@ -20,7 +25,7 @@
     const possible = published && self.crossOriginIsolated === true;
     self.emberwardThreads = {
         possible,
-        use: possible && chromium && cores > 2,
+        use: threadedByDefault && possible && chromium && cores > 2,
         // One core is left to the page, which draws while the simulation steps. More than eight workers were not
         // measured (spikes/WasmThreads) and each is a thread to start.
         heatWorkers: Math.max(2, Math.min(8, cores - 1)),

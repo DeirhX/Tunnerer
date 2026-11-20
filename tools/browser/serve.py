@@ -8,7 +8,7 @@ from pathlib import Path
 
 class Handler(SimpleHTTPRequestHandler):
     extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".wasm": "application/wasm",
-                      ".webmanifest": "application/manifest+json", ".js": "text/javascript"}
+                      ".webmanifest": "application/manifest+json", ".js": "text/javascript", ".mjs": "text/javascript"}
 
     isolate = False
 
