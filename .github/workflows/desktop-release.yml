@@ -9,7 +9,8 @@ name: desktop-release
 #   https://github.com/DeirhX/Emberward/releases/latest/download/emberward-windows-x64.zip
 #   https://github.com/DeirhX/Emberward/releases/latest/download/emberward-macos-arm64.zip
 #   https://github.com/DeirhX/Emberward/releases/latest/download/emberward-linux-x64.tar.gz
-# The builds are not signed yet: Windows SmartScreen and macOS Gatekeeper will warn about them.
+# Release assets and their extracted executables get GitHub provenance attestations. The executables do not have
+# native OS code signatures, so Windows SmartScreen and macOS Gatekeeper may still warn about them.
 
 on:
   push:
@@ -89,6 +90,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Work out the tag and whether it is a pre-release
         id: tag
@@ -112,6 +115,24 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Create checksums
+        working-directory: dist
+        run: sha256sum emberward-* > SHA256SUMS.txt
+      # The browser site serves these extracted executables directly. Attest them as well as the release archives so
+      # players can verify either download form against the same workflow provenance.
+      - name: Extract executable subjects
+        run: |
+          mkdir -p attest
+          unzip -p dist/emberward-windows-x64.zip Emberward.Desktop.exe > attest/emberward-windows-x64.exe
+          unzip -p dist/emberward-macos-arm64.zip Emberward.Desktop > attest/emberward-macos-arm64
+          tar -xOf dist/emberward-linux-x64.tar.gz ./Emberward.Desktop > attest/emberward-linux-x64
+      - name: Attest desktop release files
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/emberward-*
+            dist/SHA256SUMS.txt
+            attest/emberward-*
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -121,7 +142,6 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           cd dist
-          sha256sum emberward-* > SHA256SUMS.txt
           if ! gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
             flags=()
             if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
