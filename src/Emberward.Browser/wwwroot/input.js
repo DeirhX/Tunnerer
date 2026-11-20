@@ -40,7 +40,7 @@ export class GameInput {
                     if (e.code === "KeyG") action("power");
                     // The upgrade panel of the machine next to the tank; while it is open, 1-3 buy for that machine.
                     if (e.code === "KeyF") this.queue("machineUpgrade", true);
-                    const build = { KeyE: 1, KeyR: 2, KeyT: 3, KeyY: 4 }[e.code];
+                    const build = { KeyE: 1, KeyR: 2, KeyT: 3, KeyY: 4, KeyU: 5 }[e.code];
                     if (build) this.queue("build", build);
                     if (e.code === "KeyX") this.queue("recall", true);
                     if (/^Digit[1-7]$/.test(e.code))

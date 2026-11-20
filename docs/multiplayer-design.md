@@ -381,6 +381,10 @@ Each step is testable without the next.
 11. **Machine upgrade key** (protocol 9 in the per-machine upgrade tranche). Bit 30 of encoded player input says
     the upgrade key (bits 8-10) is for the machine next to the tank, not the base; it is in the input key mask.
     The relay must be updated before clients of this build can join a public match.
+12. **Fifth build key** (protocol 10 in the turret tranche). Bit 31 of encoded player input builds a turret in
+    energy matches; it is in the input key mask. It is the last free bit: the next input needs a wider encoding
+    or a reused bit. The energy rules' version in the rules hash changed with it. The relay must be updated before
+    clients of this build can join a public match.
 
 ## 11. Open questions
 

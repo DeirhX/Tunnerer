@@ -3,14 +3,15 @@ namespace Emberward.Core.Input;
 using Emberward.Core.Types;
 
 /// <summary>
-/// Packs a <see cref="ControllerOutput"/> into 31 bits, the form a player's input takes on the network and in an
+/// Packs a <see cref="ControllerOutput"/> into 32 bits, the form a player's input takes on the network and in an
 /// input log. The aim becomes one of <see cref="AimSteps"/> angles, so an input that will be shared must go through
 /// <see cref="Quantize"/> before anyone simulates with it: every machine then feeds Core the same floats.
 /// </summary>
 /// <remarks>
 /// Bits 0-1 move X, 2-3 move Y (each 0, 1 or 3 for -1), 4 shoot, 5-7 the build keys, 8-10 the upgrade key,
 /// 11 "has an aim", 12-27 the aim angle, 28 the fourth build key, 29 recall, 30 "the upgrade key is for the machine
-/// next to the tank". An input with no aim (a zero direction) stays without one.
+/// next to the tank", 31 the fifth build key. Every bit is now taken. An input with no aim (a zero direction) stays
+/// without one.
 /// </remarks>
 public static class ControllerOutputCodec
 {
@@ -21,8 +22,9 @@ public static class ControllerOutputCodec
     /// The bits of an encoded input that are keys: everything but the aim angle. Two inputs equal under this mask
     /// differ only in where they aim.
     /// </summary>
-    public const uint KeyMask = ((1u << 12) - 1) | FourthBuildBit | RecallBit | UpgradeMachineBit;
+    public const uint KeyMask = ((1u << 12) - 1) | FourthBuildBit | RecallBit | UpgradeMachineBit | FifthBuildBit;
 
+    private const uint FifthBuildBit = 1u << 31;
     private const uint UpgradeMachineBit = 1u << 30;
     private const uint RecallBit = 1u << 29;
     private const uint FourthBuildBit = 1u << 28;
@@ -38,6 +40,7 @@ public static class ControllerOutputCodec
         if (input.BuildSecondary) bits |= 1u << 6;
         if (input.BuildTertiary) bits |= 1u << 7;
         if (input.BuildQuaternary) bits |= FourthBuildBit;
+        if (input.BuildQuinary) bits |= FifthBuildBit;
         if (input.Recall) bits |= RecallBit;
         if (input.UpgradeMachine) bits |= UpgradeMachineBit;
         bits |= (uint)(Math.Clamp(input.Upgrade, 0, UpgradeMask) & UpgradeMask) << 8;
@@ -54,6 +57,7 @@ public static class ControllerOutputCodec
         BuildSecondary = (bits & 1u << 6) != 0,
         BuildTertiary = (bits & 1u << 7) != 0,
         BuildQuaternary = (bits & FourthBuildBit) != 0,
+        BuildQuinary = (bits & FifthBuildBit) != 0,
         Recall = (bits & RecallBit) != 0,
         UpgradeMachine = (bits & UpgradeMachineBit) != 0,
         Upgrade = (int)(bits >> 8 & UpgradeMask),

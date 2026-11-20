@@ -32,6 +32,8 @@ public static class AudioTweaks
     public const int MaxVoicesPerEffect = 4;
 
     public const float FireGain = 0.60f;
+    // A turret's shot, heard wherever it is: quieter than the tank's own cannon.
+    public const float TurretFireGain = 0.40f;
     public const float ImpactGain = 0.60f;
     public const float DebrisGain = 0.30f;
     public const float TankHitGain = 0.70f;

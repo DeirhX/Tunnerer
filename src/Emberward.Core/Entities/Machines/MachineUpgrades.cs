@@ -18,7 +18,22 @@ public enum MachineUpgradePath
 
     /// <summary>On the energy network, a relay passes more charge on to the machines behind it, and holds more.</summary>
     Conduit,
+
+    /// <summary>A turret fires faster, and each shot spends more charge, which heats it more.</summary>
+    Rapid,
+
+    /// <summary>A turret reaches further and hits harder, and fires more slowly. Shown as "Long".</summary>
+    LongRange,
 }
+
+/// <summary>
+/// How a turret fights at its upgrade level (<see cref="MachineUpgrades.TurretStatsOf"/>).
+/// </summary>
+/// <param name="Range">Cells it shoots across.</param>
+/// <param name="Damage">What each bullet takes off what it strikes.</param>
+/// <param name="IntervalTicks">Ticks between shots while it is cool.</param>
+/// <param name="ShotCharge">Charge each shot spends, which becomes heat beside it.</param>
+public readonly record struct TurretStats(int Range, int Damage, int IntervalTicks, double ShotCharge);
 
 /// <summary>Why a machine upgrade press bought nothing.</summary>
 public enum MachineUpgradeRefusal
@@ -97,6 +112,20 @@ public static class MachineUpgrades
     public static double ThroughputScaleOf(MachineUpgradeLevel upgrade) =>
         Tweaks.Throughput.ConduitScale[Math.Clamp(upgrade.LevelOf(MachineUpgradePath.Conduit), 0, Tweaks.Throughput.ConduitScale.Length - 1)];
 
+    /// <summary>A turret's range, damage, interval and shot charge with <paramref name="upgrade"/>.</summary>
+    public static TurretStats TurretStatsOf(MachineUpgradeLevel upgrade)
+    {
+        int rapid = Math.Clamp(upgrade.LevelOf(MachineUpgradePath.Rapid), 0, MaxLevel);
+        int longLevel = Math.Clamp(upgrade.LevelOf(MachineUpgradePath.LongRange), 0, MaxLevel);
+        double interval = Tweaks.Turret.FireIntervalTicks *
+            Tweaks.Turret.RapidIntervalScale[rapid] * Tweaks.Turret.LongIntervalScale[longLevel];
+        return new TurretStats(
+            Tweaks.Turret.Range + Tweaks.Turret.LongRangePerLevel * longLevel,
+            (int)Math.Round(Tweaks.Turret.Damage * Tweaks.Turret.LongDamageScale[longLevel]),
+            Math.Max(1, (int)Math.Round(interval)),
+            Tweaks.Turret.ShotCharge * Tweaks.Turret.RapidShotChargeScale[rapid]);
+    }
+
     /// <summary>Extra cells of sight at Sensor level <paramref name="sensorLevel"/>.</summary>
     public static int SightBonus(int sensorLevel) => Tweaks.MachineUpgrades.SensorCellsPerLevel * sensorLevel;
 
@@ -109,6 +138,10 @@ public static class MachineUpgrades
             $"+{Tweaks.MachineUpgrades.SensorCellsPerLevel} cells of sight")),
         MachineUpgradePath.Conduit => ("Conduit", string.Create(CultureInfo.InvariantCulture,
             $"passes on x{Tweaks.Throughput.ConduitScale[1]:0.#}, then x{Tweaks.Throughput.ConduitScale[2]:0.#}, and holds more")),
+        MachineUpgradePath.Rapid => ("Rapid", string.Create(CultureInfo.InvariantCulture,
+            $"fires faster (x{1.0 / Tweaks.Turret.RapidIntervalScale[1]:0.0}, then x{1.0 / Tweaks.Turret.RapidIntervalScale[2]:0.0}), runs hotter")),
+        MachineUpgradePath.LongRange => ("Long", string.Create(CultureInfo.InvariantCulture,
+            $"+{Tweaks.Turret.LongRangePerLevel} cells of range a level, x{Tweaks.Turret.LongDamageScale[1]:0.0} then x{Tweaks.Turret.LongDamageScale[2]:0.0} damage, fires slower")),
         _ => (path.ToString(), ""),
     };
 }

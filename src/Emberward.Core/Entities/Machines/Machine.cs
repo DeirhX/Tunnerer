@@ -7,7 +7,7 @@ using Emberward.Core.Terrain;
 using Emberward.Core.Network;
 using Emberward.Core.Entities.Bases;
 
-public enum MachineType { Harvester, Pylon, Relay, Generator }
+public enum MachineType { Harvester, Pylon, Relay, Generator, Turret }
 public enum MachineState { Template, Transporting, Planted }
 
 public class Machine
@@ -71,16 +71,27 @@ public class Machine
     /// </summary>
     internal long ColdGroundStamp { get; set; } = -1;
 
-    /// <summary>True when a harvester skipped its last action because the ground around it was too hot.</summary>
+    /// <summary>
+    /// True when a harvester skipped its last action because the ground around it was too hot, or a turret's ground is
+    /// hot enough to slow its fire.
+    /// </summary>
     public bool IsStalled { get; set; }
 
-    /// <summary>A harvester's ground temperature at its last action, as a fraction of its stall temperature.</summary>
+    /// <summary>
+    /// A harvester's ground temperature at its last action, as a fraction of its stall temperature; a turret's, as a
+    /// fraction of the temperature that slows it most.
+    /// </summary>
     public float SenseHeat { get; set; }
+
+    /// <summary>A turret: ticks until it looks for a target again (<see cref="TurretAction"/>).</summary>
+    public int TurretCooldown { get; internal set; }
 
     /// <summary>Where a harvester was planted: it roams and mines within <c>HarvestRange</c> of this point.</summary>
     public Position Anchor { get; set; }
 
-    /// <summary>The last step a harvester crawled (zero before it first moves); also the way it faces.</summary>
+    /// <summary>
+    /// The last step a harvester crawled (zero before it first moves), or where a turret last aimed: the way it faces.
+    /// </summary>
     public Offset Heading { get; set; }
 
     /// <summary>
@@ -203,6 +214,9 @@ public class Machine
             ? Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, 1), cell.X), cell.Y)
             : Fnv1a.Mix(hash, 0);
         hash = Fnv1a.Mix(hash, LastChargeGiven);
+        // Mixed only when set, so the digest of a world without turrets is what it always was.
+        if (TurretCooldown != 0)
+            hash = Fnv1a.Mix(hash, TurretCooldown);
         return Fnv1a.Mix(hash, (ulong)ColdGroundStamp);
     }
 }

@@ -122,6 +122,14 @@ public sealed class TutorialDirector
                 Target: static (w, p) => w.MachineUpgradeOfferFor(p)?.Machine.Position
                     ?? Owned(w, p, MachineType.Relay).Select(m => (Position?)m.Position).FirstOrDefault()),
 
+            new("Defend with a turret",
+                $"With the energy network, press {Key(MachineType.Turret)} to build a turret ({Cost(MachineType.Turret)} ore) and plant it inside your network's coverage. While its island feeds it, it fires at enemy tanks within {Tweaks.Turret.Range} cells that it can see. Each shot heats the ground around it, and a hot turret fires more slowly: a relay nearby keeps it cool. F beside it offers Rapid or Long.",
+                static (_, w, p) => !w.Rules.EnergyNetwork || OwnsAny(w, p, MachineType.Turret),
+                Progress: static (_, p) => p.Base is { } b
+                    ? Ratio("Base ore store", b.Store.Ore, Cost(MachineType.Turret))
+                    : null,
+                Target: static (w, p) => Owned(w, p, MachineType.Relay).Select(m => (Position?)m.Position).FirstOrDefault()),
+
             new("Cool off at the frost",
                 "Blue rock is frost. Beside it a hot tank cools fast, a good stop on a long dig. Stay too long and the cold slows you down, then cracks your shield.",
                 static (t, _, _) => t._nearFrost,

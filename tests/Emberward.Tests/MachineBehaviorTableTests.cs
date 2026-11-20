@@ -24,6 +24,7 @@ public class MachineBehaviorTableTests
         Assert.Equal(MachineType.Harvester, MachineBehaviors.ForKey(BuildKey.Secondary).Type);
         Assert.Equal(MachineType.Pylon, MachineBehaviors.ForKey(BuildKey.Tertiary).Type);
         Assert.Equal(MachineType.Generator, MachineBehaviors.ForKey(BuildKey.Quaternary).Type);
+        Assert.Equal(MachineType.Turret, MachineBehaviors.ForKey(BuildKey.Quinary).Type);
     }
 
     [Fact]
@@ -51,10 +52,20 @@ public class MachineBehaviorTableTests
         Assert.Single(MachineBehaviors.All, b => b.IsHeatPump);
         Assert.True(MachineBehaviors.Relay.IsHeatPump);
 
-        // Only the relay takes per-machine upgrades so far, on the keys 1-3 in this order.
+        // A turret is no link node: it joins its island through coverage, as a harvester does, and only on the network.
+        var turret = Assert.Single(MachineBehaviors.All, b => b.IsTurret);
+        Assert.False(turret.IsLinkNode);
+        Assert.False(turret.RequiresLinkToPlant);
+        Assert.Equal(PowerTier.Turrets, turret.Capacitor.Tier);
+        Assert.Equal([MachineType.Generator, MachineType.Turret],
+            MachineBehaviors.All.Where(b => b.NeedsEnergyNetwork).Select(b => b.Type).ToArray());
+
+        // The relay and the turret take per-machine upgrades, on the keys 1-3 in this order.
         Assert.Equal([MachineUpgradePath.Tap, MachineUpgradePath.Sensor, MachineUpgradePath.Conduit],
             MachineBehaviors.Relay.UpgradePaths.ToArray());
-        Assert.Single(MachineBehaviors.All, b => !b.UpgradePaths.IsEmpty);
+        Assert.Equal([MachineUpgradePath.Rapid, MachineUpgradePath.LongRange], MachineBehaviors.Turret.UpgradePaths.ToArray());
+        Assert.Equal([MachineType.Relay, MachineType.Turret],
+            MachineBehaviors.All.Where(b => !b.UpgradePaths.IsEmpty).Select(b => b.Type).ToArray());
     }
 
     [Fact]

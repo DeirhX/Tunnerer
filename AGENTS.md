@@ -88,14 +88,16 @@ Adding a machine:
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), listed in `MachineBehaviors.All`:
    action, interval, colour, build cost, build key, its `Capacitor` (capacity, transfer rate, `PowerTier`, idle draw;
    DESIGN.md §4.9), and the traits Core reads instead of the type (`RunsOnCharge`, `IsLinkNode`,
-   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`), and its `UpgradePaths` if it takes per-machine
+   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, `NeedsEnergyNetwork`), and its `UpgradePaths` if it takes per-machine
    upgrades (`MachineUpgrades.cs` says what each path does). `MachineBehaviorTableTests` must pass.
-3. Cost, interval, colour and capacitor numbers in `Config/Tweaks.cs`.
+3. Cost, interval, colour and capacitor numbers in `Config/Tweaks.cs`, or in a partial of its own beside it
+   (`Tweaks.Turrets.cs`) while `Tweaks.cs` is near the file-length cap.
 4. Desktop: a `MachinePresentation` (name, key label, build slot, plant hint; `Presentation/MachinePresentation.cs`), a
    `MachineSprite` in `MachineSprites` (what the entity emitters draw on desktop and in the browser: shader shape,
    size, gauge, sense ring, battery, preview reach; `Rendering/Entities/MachineSprite.cs`) and its build sound in
    `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`). `MachinePresentationTests` must pass. A new shape also needs a shader branch. Each machine
-   needs a distinct `BuildKey` with desktop, browser and codec wiring. The full recipe is in `src/Emberward.Core/ARCHITECTURE.md`.
+   needs a distinct `BuildKey` with desktop, browser and codec wiring. Every bit of the encoded input is now taken
+   (bit 31 is the fifth build key): a sixth build key needs a wider encoding or a reused bit. The full recipe is in `src/Emberward.Core/ARCHITECTURE.md`.
 
 Adding a shader:
 

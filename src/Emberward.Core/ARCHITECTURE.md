@@ -22,6 +22,7 @@ Match/
   SectorGoal.cs              The core tap: each base's CoreTap (tap, hold timer, tapped), the first base to tap the core
 Config/
   Tweaks.cs                  Every gameplay and simulation constant (const / static readonly only)
+  Tweaks.Turrets.cs          The turret's constants (Tweaks is partial; Tweaks.cs is near the file-length cap)
   SimulationSettings.cs      The thermal and tank-heat constants, copied from Tweaks; tests inject their own
   FastRandom.cs              Small seeded RNG used by the simulation
 Terrain/
@@ -70,6 +71,7 @@ Entities/
   Machines/MachineUpgradeSystem.cs   (only when MatchRules.MachineUpgrades is on) Per-machine upgrades bought next to the
                              machine from the base store (DESIGN.md §4.9); World.MachineUpgradeOfferFor / MachineUpgradeOf answer
   Machines/MachineMaterializer.cs   The machine a tank carries before it is planted
+  Machines/TurretAction.cs   The turret's action: targeting, firing, overheat slowdown (energy matches only)
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
@@ -185,7 +187,13 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
    in its reach. A generator reads its local exhaust temperature, extracts heat from hotter ground past its exhaust
    area, and returns the unconverted heat there. Both writes wake the affected tiles. It uses the same quiet stamp
-   to skip sampling when the ground has not changed since it found nothing to convert.
+   to skip sampling when the ground has not changed since it found nothing to convert. A turret (`TurretAction`,
+   energy matches only) counts down between looks; a look joins it to its island as a harvester joins
+   (`EnergyNetwork.SetCovered` from `MachineContext.IsOnNetwork`), reads its ground's temperature, and, while it is on
+   an island, its base is not dark and its capacitor can pay, shoots the nearest enemy tank in range and line of sight
+   (`MachineContext.Tanks`, few, in spawn order; a raycast only for those in range) with a bullet carrying its
+   damage (`MachineContext.Projectiles`, `Projectile.Damage`). The shot's charge is spent through
+   `EnergyNetwork.Spend`, which puts it as heat beside the turret, and is recorded as `StepEventKind.TurretFired`.
 7. **power** (only when `MatchRules.EnergyNetwork` is on): `EnergyNetwork.Advance` (DESIGN.md §4.9). Every planted
    machine has a capacitor (`MachineBehavior.Capacitor`, its level in `Machine.Charge`). Harvesters can charge from
    a local island they can see within node coverage. Ore delivery still requires the base's network. A generator
@@ -476,8 +484,9 @@ Core:
    `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, ore cost
    and `BuildKey`, its `Capacitor` (capacity, transfer rate, `PowerTier`, idle draw; DESIGN.md §4.9), plus the traits
    Core reads instead of the type: `RunsOnCharge` (which also gives it its §4.5 battery), `IsLinkNode`,
-   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`. The action is a static method in `MachineBehaviors` taking
-   `(Machine, MachineContext)`.
+   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, and `NeedsEnergyNetwork` (only
+   energy matches can build it), and its `UpgradePaths`. The action is a static method taking `(Machine,
+   MachineContext)`, in `MachineBehaviors` or, when it is long, a class of its own (`TurretAction`).
 3. Constants (interval, capacitor) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
 4. Each `BuildKey` builds exactly one machine. Add a value in `BuildKey`, a field in `ControllerOutput`, edge
    detection in `TankBuildController.Advance` and a key bit in `ControllerOutputCodec` and its key mask.

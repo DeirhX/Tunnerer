@@ -16,13 +16,17 @@ public class Projectile
     public int OwnerColor { get; init; } = -1;
     public float HeatScale { get; init; } = 1f;
 
-    public static Projectile CreateBullet(Position pos, VectorF speed, int ownerColor) => new()
+    /// <summary>What a bullet takes off what it strikes: a tank's shell does <see cref="Tweaks.Weapon.BulletDamage"/>.</summary>
+    public int Damage { get; init; } = Tweaks.Weapon.BulletDamage;
+
+    public static Projectile CreateBullet(Position pos, VectorF speed, int ownerColor, int damage = Tweaks.Weapon.BulletDamage) => new()
     {
         Position = (PositionF)pos,
         Speed = speed,
         Type = ProjectileType.Bullet,
         IsAlive = true,
         OwnerColor = ownerColor,
+        Damage = damage,
     };
 
     public static Projectile CreateShrapnel(Position pos, VectorF speed, int life, float heatScale = 1f) => new()
