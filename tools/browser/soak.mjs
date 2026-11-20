@@ -15,7 +15,7 @@ const playwright = await import(
 const origin = process.env.BROWSER_URL || "http://localhost:8703";
 const seconds = Number(process.env.SOAK_SECONDS || 180);
 const stallMs = Number(process.env.STALL_MS || 8000);
-const context = await playwright.chromium.launchPersistentContext(await mkdtemp(join(tmpdir(), "soak-")), {
+const context = await playwright[process.env.BROWSER || "chromium"].launchPersistentContext(await mkdtemp(join(tmpdir(), "soak-")), {
     headless: !process.env.HEADED,
     // Headless Chromium on macOS needs Metal for the game's shaders.
     args: process.platform === "darwin" ? ["--use-angle=metal"] : [],
@@ -51,6 +51,9 @@ await startMatch();
 let matches = 1;
 console.log("match started");
 
+// A page that stops answering input or queries (a hung runtime blocks it) would leave Playwright waiting for ever.
+const within = (promise, what, ms = 25000) =>
+    Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`${what}: no answer in ${ms / 1000} s`)), ms))]);
 const keys = ["KeyW", "KeyA", "KeyS", "KeyD"];
 const builds = ["KeyE", "KeyR", "KeyT", "KeyY"];
 const began = Date.now();
@@ -58,21 +61,31 @@ let failure = null;
 let lastReport = 0;
 while (Date.now() - began < seconds * 1000 && !failure) {
     const k = keys[Math.floor(Math.random() * 4)];
-    await page.keyboard.down(k);
-    await page.mouse.move(200 + Math.random() * 1000, 100 + Math.random() * 700);
-    if (Math.random() < 0.6) await page.keyboard.down("Space");
-    await page.waitForTimeout(300 + Math.random() * 900);
-    await page.keyboard.up("Space");
-    await page.keyboard.up(k);
-    if (Math.random() < 0.25) await page.keyboard.press(builds[Math.floor(Math.random() * 4)]);
-    if (Math.random() < 0.1) await page.keyboard.press(`Digit${1 + Math.floor(Math.random() * 7)}`);
-    const state = await page.evaluate(() => ({
+    try {
+        await within(
+            (async () => {
+                await page.keyboard.down(k);
+                await page.mouse.move(200 + Math.random() * 1000, 100 + Math.random() * 700);
+                if (Math.random() < 0.6) await page.keyboard.down("Space");
+                await page.waitForTimeout(300 + Math.random() * 900);
+                await page.keyboard.up("Space");
+                await page.keyboard.up(k);
+                if (Math.random() < 0.25) await page.keyboard.press(builds[Math.floor(Math.random() * 4)]);
+                if (Math.random() < 0.1) await page.keyboard.press(`Digit${1 + Math.floor(Math.random() * 7)}`);
+            })(),
+            "input",
+        );
+    } catch (e) {
+        failure = `HANG: ${e.message}`;
+        break;
+    }
+    const state = await within(page.evaluate(() => ({
         sinceStep: performance.now() - window.testLast,
         steps: window.testSteps,
         tick: window.testTick,
         failed: document.getElementById("loading")?.textContent,
         loadingVisible: !document.getElementById("loading")?.hidden,
-    })).catch((e) => ({ dead: String(e) }));
+    })), "state query").catch((e) => ({ dead: String(e) }));
     if (state.dead) failure = `page unreachable: ${state.dead}`;
     else if (state.sinceStep > stallMs && (await page.evaluate(() => /BASE DESTROYED|Open the menu to try a new world|VICTORY|YOU WIN/i.test(document.body.innerText)))) {
         // Random play lost (or won) the match, and the game stops stepping then: not a stall. Play another.
@@ -103,8 +116,8 @@ while (Date.now() - began < seconds * 1000 && !failure) {
     }
 }
 console.log(`matches played: ${matches}`);
-console.log(`longest gap between steps: ${Math.round(await page.evaluate(() => window.testMaxGap).catch(() => -1))} ms`);
+console.log(`longest gap between steps: ${Math.round(await within(page.evaluate(() => window.testMaxGap), "gap", 5000).catch(() => -1))} ms`);
 console.log(failure ? `FAILED after ${Math.round((Date.now() - began) / 1000)} s: ${failure}` : `ok: played ${seconds} s`);
 for (const line of log.slice(-30)) console.log(line);
-await context.close();
+await within(context.close(), "close", 15000).catch(() => {});
 process.exit(failure ? 1 : 0);

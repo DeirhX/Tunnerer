@@ -56,7 +56,10 @@ match then.) The published final code, on the default address, nothing else runn
 and Playwright's Chromium three on the normal map, then Edge five and Chromium two more, the heavy ones on
 `?map=2000x1000&machines=300`, with losing matches replaced. None crashed or stalled (the soak waits 60 s after a
 stall to see whether play resumes), and `smoke.mjs` with `SMOKE_THREADS=1` passes, as does the full `dotnet test`
-(1258 tests, Slow ones included). macOS, Firefox and WebKit were not run.
+(1258 tests, Slow ones included). Other engines, Playwright's on Windows, the soak with `?threads=4` (the page keeps
+them on one thread otherwise): Firefox two matches of 240 s without a stop, but too few to turn it on there;
+WebKit's threaded runtime still stopped answering the page (input unanswered at 114 s in the one run made), so it
+stays on one thread, where two matches of 300 s ran clean. macOS was not run.
 Do not marshal a view, an object or a delegate to JavaScript on the frame path again. The soak is the check:
 `node tools/browser/soak.mjs` against a `--threads` publish served with `--isolate` and `?threads=8`. This was probably
 also what stopped WebKit's threaded runtime below, which has not been tried again.
