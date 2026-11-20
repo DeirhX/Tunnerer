@@ -362,7 +362,8 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
   recalling, and lowers the floor by 5 degrees (5 s at the base rate; a 40-unit hold is 200 s). The tank's heat is
   not touched: the unit stops warming it, and with the floor lower it sheds into the ground as usual, so the burn
   makes and destroys no heat and books nothing. A burn waits until the floor has climbed a unit's worth, so holding
-  X just outside the network wastes nothing. With the hold empty and the clock out, X recalls as before. The stages
+  X just outside the network wastes nothing, and in heat death a burn starts from the safe maximum, so the time spent
+  past it is no debt and every unit buys its full 5 s. With the hold empty and the clock out, X recalls as before. The stages
   go by the seconds left on the clock: warning at 30, degraded at 15 (half the dig, 60% of the sight, half the rate
   of fire), stranded at 5 (the slower gun's cooldown, a crawl at 35% speed that slows the dig with it, 40% of the sight, no
   gun, torch or new machine, though a carried one can still be planted, so a relay in hand can still save it), then

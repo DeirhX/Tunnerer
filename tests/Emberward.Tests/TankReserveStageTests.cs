@@ -200,6 +200,26 @@ public class TankReserveStageTests
     }
 
     [Fact]
+    public void ABurnAfterHeatDeath_BuysItsFullWorth()
+    {
+        // In heat death the floor keeps climbing past the safe maximum; a burn does not spend itself on that excess.
+        var (world, tank) = OpenWorld();
+        AdvanceTo(world, tank, TankReserveStage.HeatDeath);
+        Advance(world, Tweaks.Perf.TargetFps / 2);
+        Assert.False(tank.IsDead);
+        Assert.True(tank.OffNetworkFloor > Tweaks.Tank.HeatSafeMax + 1f,
+            "half a second at four times the rate puts the floor past the safe maximum");
+
+        tank.Hold.Ore = 1;
+        world.Advance(_ => Burn);
+
+        var view = world.ReserveOf(tank);
+        Assert.Equal(1, Count(world, StepEventKind.ReserveBurned));
+        float tick = (float)Speedup / Tweaks.Perf.TargetFps;
+        Assert.InRange(view.SecondsLeft, view.SecondsPerBurn - tick - 0.01f, view.SecondsPerBurn + 0.01f);
+    }
+
+    [Fact]
     public void Death_ClearsTheReserve()
     {
         var (world, tank) = OpenWorld();

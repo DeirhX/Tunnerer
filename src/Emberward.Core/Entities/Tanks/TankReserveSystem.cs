@@ -109,7 +109,10 @@ public sealed class TankReserveSystem
         {
             if (state.BurnHeldTicks % Tweaks.Reserve.BurnRepeatTicks == 0 && tank.Hold.Pay(1))
             {
-                tank.LowerOffNetworkFloor(Tweaks.Reserve.FloorDropPerOre);
+                // Past heat death the floor keeps climbing; that excess buys nothing back, so a burn starts from the
+                // safe maximum and every unit gives the SecondsPerBurn the HUD promises.
+                float excess = Math.Max(0f, tank.OffNetworkFloor - Tweaks.Tank.HeatSafeMax);
+                tank.LowerOffNetworkFloor(excess + Tweaks.Reserve.FloorDropPerOre);
                 events?.Record(new StepEvent(StepEventKind.ReserveBurned, tank.Position, tank.Color, Count: 1));
             }
             state.BurnHeldTicks++;
