@@ -30,7 +30,7 @@ internal sealed class TankDigger
     /// Moves one step by <paramref name="speed"/>. Blocked by terrain, the tank digs instead; with the torch firing
     /// along the move it may get through in the same tick. Another tank or another side's machine stops it
     /// (<see cref="CollisionSolver.BlocksTank"/>). <paramref name="speedFactor"/> slows it further (a stranded tank
-    /// crawls), and a reserve stage may slow the dig (<see cref="TankReserveSystem.TryDig"/>).
+    /// crawls), and a reserve stage may slow the dig (<see cref="TankReserveSystem.ReadyToDig"/>).
     /// </summary>
     public void Move(in SimulationContext ctx, Offset speed, DirectionF torchHeading, bool torchUse, float speedFactor = 1f)
     {
@@ -52,9 +52,11 @@ internal sealed class TankDigger
 
         if (CollisionSolver.TestTankTerrain(ctx.Terrain, newPos, dir) != StepObstacle.None)
         {
-            if (ctx.Reserve?.TryDig(_tank) == false)
+            var reserve = ctx.Reserve;
+            if (reserve?.ReadyToDig(_tank) == false)
                 return;
-            DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse, ctx.Events);
+            if (DigTunnel(ctx.Terrain, ctx.Heat, newPos, torchUse, ctx.Events) > 0)
+                reserve?.SpendDig(_tank);
 
             int torchDir = TankSpriteShape.DirectionOf(new Offset(
                 (int)MathF.Round(torchHeading.X),
@@ -84,7 +86,7 @@ internal sealed class TankDigger
         return dir >= 4 ? dir + 1 : dir;
     }
 
-    private void DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse,
+    private int DigTunnel(ITerrainPixelAccessor terrain, ITerrainHeatSource heat, Position center, bool torchUse,
         StepEventLog? events)
     {
         int cleared = 0;
@@ -126,6 +128,7 @@ internal sealed class TankDigger
             }
         if (cleared > 0)
             events?.Record(new StepEvent(StepEventKind.TankDug, center, _tank.Color, Count: cleared, Torch: torchUse));
+        return cleared;
     }
 
     /// <summary>

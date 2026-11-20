@@ -139,21 +139,38 @@ public sealed class TankReserveSystem
 
     /// <summary>
     /// Whether <paramref name="tank"/>, blocked by the ground, digs this tick: always, unless its stage slows the dig,
-    /// when the ticks it digs on add up to the stage's share.
+    /// when the ticks it is blocked add up to the stage's share. The credit stops at one dig's worth, so a tank held at
+    /// ground it cannot clear banks no more than that; <see cref="SpendDig"/> takes it once a dig clears something.
     /// </summary>
-    internal bool TryDig(Tank tank)
+    internal bool ReadyToDig(Tank tank)
     {
         float factor = TankReserveEffects.For(StageOf(tank)).DigFactor;
         if (factor >= 1f)
             return true;
         int slot = SlotOf(tank);
         TankState state = _tanks[slot];
-        state.DigCredit += factor;
-        bool digs = state.DigCredit >= 1f;
-        if (digs)
-            state.DigCredit -= 1f;
+        state.DigCredit = Math.Min(1f, state.DigCredit + factor);
         _tanks[slot] = state;
-        return digs;
+        return state.DigCredit >= 1f;
+    }
+
+    /// <summary>Spends the dig <see cref="ReadyToDig"/> allowed, once it has cleared ground.</summary>
+    internal void SpendDig(Tank tank)
+    {
+        int slot = SlotOf(tank);
+        TankState state = _tanks[slot];
+        state.DigCredit = Math.Max(0f, state.DigCredit - 1f);
+        _tanks[slot] = state;
+    }
+
+    /// <summary>
+    /// Forgets <paramref name="tank"/>'s reserve while it is dead (stage, counters, held burn key, dig credit, held
+    /// clock), so the tank it respawns as starts from nothing.
+    /// </summary>
+    internal void Clear(Tank tank)
+    {
+        if (tank.Color >= 0 && tank.Color < _tanks.Count)
+            _tanks[tank.Color] = default;
     }
 
     /// <summary>The percentage of its sight radius <paramref name="tank"/> sees in its stage.</summary>

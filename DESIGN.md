@@ -346,9 +346,10 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
   makes and destroys no heat and books nothing. A burn waits until the floor has climbed a unit's worth, so holding
   X just outside the network wastes nothing. With the hold empty and the clock out, X recalls as before. The stages
   go by the seconds left on the clock: warning at 30, degraded at 15 (half the dig, 60% of the sight, half the rate
-  of fire), stranded at 5 (as degraded, plus a crawl at 35% speed, 40% of the sight, no gun, torch or building), then
+  of fire), stranded at 5 (the slower gun's cooldown, a crawl at 35% speed that slows the dig with it, 40% of the sight, no
+  gun, torch or new machine, though a carried one can still be planted, so a relay in hand can still save it), then
   heat death at 0, where the floor passes the safe maximum and overheating burns the shield as it always did. Each
-  stage counts its ticks, and the HUD's tag beside OFF NETWORK shows the seconds to the next stage
+  stage counts its ticks (a tank that dies starts its next life with a fresh reserve), and the HUD's tag beside OFF NETWORK shows the seconds to the next stage
   (`RESERVE LOW 12s`, `DEGRADED 7s`, `STRANDED 4s`, `HEAT DEATH`). Relays push the safe zone out through coverage;
   a standing generator of the tank's side holds the clock within 20 cells in line of sight (the floor stops rising
   but does not fall, `CLOCK HELD`). A bot that is degraded or worse with ore aboard burns it. "Weaker shots" is built

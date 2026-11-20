@@ -21,14 +21,15 @@ public static partial class Tweaks
         public const float DegradedSeconds = 15f;
         public const float StrandedSeconds = 5f;
 
-        // Degraded (and worse): the dig takes this share of the ticks it would, the tank sees this percentage of its
-        // sight radius, and its gun takes this many times as long between shots.
+        // Degraded: the dig clears on this share of the ticks it would, the tank sees this percentage of its sight
+        // radius, and its gun takes this many times as long between shots (stranded keeps the slower gun's cooldown).
         public const float DegradedDigFactor = 0.5f;
         public const int DegradedSightPercent = 60;
         public const int DegradedFireDelayFactor = 2;
 
         // Stranded (and heat death): the tank crawls at this share of its speed and can only move and dig: no gun, no
-        // torch, no building.
+        // torch, no new machine (one it carries can still be planted). The crawl slows the dig too, since a blocked
+        // tank digs on the ticks it would move, so no dig factor is laid on top of it.
         public const float StrandedMoveFactor = 0.35f;
         public const int StrandedSightPercent = 40;
 

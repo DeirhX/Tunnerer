@@ -251,6 +251,7 @@ public class Tank
 
         if (IsDead)
         {
+            ctx.Reserve?.Clear(this);
             _lifecycle.AdvanceDeath(in ctx, recall);
             return;
         }
@@ -261,15 +262,13 @@ public class Tank
         var reserve = ctx.Reserve?.Advance(this, input.Recall, ctx.Events) ?? TankReserveEffects.Normal;
         if (!reserve.CanShoot)
             input.ShootPrimary = false;
-        if (!reserve.CanBuild)
-            (input.BuildPrimary, input.BuildSecondary, input.BuildTertiary, input.BuildQuaternary) = (false, false, false, false);
         AdvanceNetworkUnload(in ctx);
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
         _digger.Move(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary, reserve.MoveFactor);
         _lifecycle.UpdateSpawnProtection(ctx.CheckBaseCollision(Position) == Base, input.ShootPrimary);
         AdvanceShooting(input, in ctx, reserve.FireDelayFactor);
-        _build.Advance(in ctx, input);
+        _build.Advance(in ctx, input, reserve.CanBuild);
         AdvanceUpgrades(input);
         ctx.MachineUpgrades?.Advance(this, in input);
         _thermals.Advance(ctx.Heat);

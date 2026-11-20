@@ -206,8 +206,11 @@ Built behind `MatchRules.TankReserve` (off by default, also in `Standard`; local
 - **The burn lowers `TankThermals.OffNetworkFloor` and nothing else.** The tank sheds down to the lower floor through
   the ground, so no energy is made or destroyed and the ledger is untouched (`Burns_LeaveTheLedgerBalanced`).
 - **Stages** go by `Tank.OffNetworkSecondsToOverheat` (warning 30 s, degraded 15, stranded 5, heat death 0) and are
-  settled once a tick in `Tank.Advance`, right after coverage; `TankReserveEffects` masks the gun and build keys and
-  feeds the move factor, the dig credit (`TryDig`), the gun delay and vision (`SideSensing`).
+  settled once a tick in `Tank.Advance`, right after coverage; `TankReserveEffects` masks the gun, tells
+  `TankBuildController` whether a press may build a new machine (a carried one plants either way, and the keys stay
+  tracked so a held key is no press when the stage lifts), and feeds the move factor, the dig credit (`ReadyToDig`,
+  capped at one dig and spent only by a dig that clears ground; stranded has no dig factor, the crawl slows the dig),
+  the gun delay and vision (`SideSensing`). A dead tank's reserve is cleared (`TankReserveSystem.Clear`).
 - **Generators hold the clock** within 20 cells in line of sight (`HoldsClock`, a `CollectNear` per off-network tank).
   It reads only `Machine.Behavior.IsGenerator`, not `EnergyNetwork`. Item 7 changes nothing here.
 - **Deviation:** "weaker shots" is a slower gun (twice the delay), not less damage, to keep out of the projectile code
