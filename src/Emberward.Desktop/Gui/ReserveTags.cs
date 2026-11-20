@@ -39,12 +39,14 @@ public static class ReserveTags
 
     /// <summary>
     /// What the recall key does now if it burns (without the key, which each platform shows its own way), or null
-    /// when it does not burn. Offered from the warning on, while there is emberite to burn.
+    /// when it does not burn. Shown whenever a burn is possible, so the key never spends cargo unannounced; before the
+    /// warning it is a quiet hint (<see cref="BurnIsUrgent"/>).
     /// </summary>
     public static string? BurnPrompt(in TankReserveView view) =>
-        view.CanBurn && view.Stage >= TankReserveStage.Warning
-            ? "Burn emberite  +" + Seconds(view.SecondsPerBurn) + " each"
-            : null;
+        view.CanBurn ? "Burn emberite  +" + Seconds(view.SecondsPerBurn) + " each" : null;
+
+    /// <summary>Whether the burn prompt calls for attention: from the warning on. Before it, a hint is enough.</summary>
+    public static bool BurnIsUrgent(in TankReserveView view) => view.Stage >= TankReserveStage.Warning;
 
     private static string Seconds(float seconds) =>
         ((int)MathF.Ceiling(Math.Max(0f, seconds))).ToString(CultureInfo.InvariantCulture) + "s";

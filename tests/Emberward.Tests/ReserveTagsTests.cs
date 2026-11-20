@@ -31,10 +31,15 @@ public class ReserveTagsTests
     }
 
     [Fact]
-    public void TheBurnPrompt_ShowsFromTheWarning_WhileThereIsSomethingToBurn()
+    public void TheBurnPrompt_ShowsWheneverABurnIsPossible_UrgentFromTheWarning()
     {
-        Assert.Null(ReserveTags.BurnPrompt(View(TankReserveStage.None, canBurn: true)));
+        // X never burns unannounced: the prompt is there as soon as a burn is, a quiet hint until the warning.
+        var early = View(TankReserveStage.None, canBurn: true);
+        Assert.Equal("Burn emberite  +5s each", ReserveTags.BurnPrompt(early));
+        Assert.False(ReserveTags.BurnIsUrgent(early));
         Assert.Null(ReserveTags.BurnPrompt(View(TankReserveStage.Degraded, canBurn: false)));
-        Assert.Equal("Burn emberite  +5s each", ReserveTags.BurnPrompt(View(TankReserveStage.Warning, canBurn: true)));
+        var warning = View(TankReserveStage.Warning, canBurn: true);
+        Assert.Equal("Burn emberite  +5s each", ReserveTags.BurnPrompt(warning));
+        Assert.True(ReserveTags.BurnIsUrgent(warning));
     }
 }

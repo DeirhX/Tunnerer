@@ -238,7 +238,8 @@ Built behind `MatchRules.TankReserve` (off by default, also in `Standard`; local
   It reads only `Machine.Behavior.IsGenerator`, not `EnergyNetwork`. Item 7 changes nothing here.
 - **Deviation:** "weaker shots" is a slower gun (twice the delay), not less damage, to keep out of the projectile code
   item 6 changes. Damage a shot could follow once turrets have landed.
-- **HUD:** `ReserveTags` (shared view-model) gives the stage tag beside OFF NETWORK and the burn prompt; desktop draws
+- **HUD:** `ReserveTags` (shared view-model) gives the stage tag beside OFF NETWORK and the burn prompt (shown whenever X would burn, a quiet hint before the
+  warning, so X never spends cargo unannounced); desktop draws
   it in `HeatGauge` and `MatchOverlay`, the browser in `strip.js` and the recall button (`BrowserFrame.Reserve`).
 - **Not done:** no tutorial or toast for the stages, no browser check in a real WebGL browser, and network matches
   keep `Standard`, so no protocol bump was needed.
