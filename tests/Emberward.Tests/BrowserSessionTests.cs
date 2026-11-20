@@ -291,6 +291,24 @@ public class BrowserMachineUpgradeInputTests
         var noKey = session.WithMachineUpgradePanel(default, togglePanel: false, forMachine: true);
         Assert.False(noKey.UpgradeMachine);
     }
+
+    /// <summary>
+    /// The build buttons write the key that builds each machine, the desktop's label: the generator and the turret
+    /// kept Y and U when the pylon's third key went, so the page must not number the keys itself.
+    /// </summary>
+    [Fact]
+    public void BuildButtons_WriteTheDesktopsKeyLabels()
+    {
+        var session = new BrowserSession(1234, energyNetwork: true);
+
+        var labels = BrowserFrameBuilder.Capture(session, includeEvents: false).Builds
+            .ToDictionary(b => b.Name, b => b.KeyLabel);
+
+        Assert.Equal("E", labels["Relay"]);
+        Assert.Equal("R", labels["Harvester"]);
+        Assert.Equal("Y", labels["Generator"]);
+        Assert.Equal("U", labels["Turret"]);
+    }
 }
 
 public class BrowserSessionThreadsTests

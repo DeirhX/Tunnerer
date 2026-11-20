@@ -28,7 +28,7 @@ public static class BrowserFrameBuilder
         {
             BuildQuote quote = player.QuoteBuild(machine.Type);
             var slot = BuildSlotView.Of(machine, quote, player.CarriedMachineType);
-            return new BuildOption((int)machine.BuildKey + 1, machine.Type.ToString(), quote.Cost, quote.CanAfford, quote.Payer.ToString(),
+            return new BuildOption((int)machine.BuildKey + 1, machine.KeyLabel, machine.Type.ToString(), quote.Cost, quote.CanAfford, quote.Payer.ToString(),
                 slot.Machine.BuildSlot, slot.State.ToString(), slot.Progress, slot.Label, slot.Caption,
                 slot.CaptionKind.ToString());
         }).OrderBy(b => b.Key).ToArray();

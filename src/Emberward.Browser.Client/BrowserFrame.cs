@@ -63,10 +63,11 @@ public sealed record PlayerStatus(
     int Health, float Frozen, float Boil, bool Burning, bool ShieldLow, bool HitFresh, int OrePileFrame,
     bool Unloading, bool HoldFull, bool OffNetworkUrgent, string OreLine);
 
+/// <param name="KeyLabel">The key that builds it, as the desktop writes it (<c>MachinePresentation.KeyLabel</c>).</param>
 /// <param name="Slot">The machine's column in the desktop's BUILD STRUCTURES panel.</param>
 /// <param name="State">A <c>BuildSlotState</c> name; <paramref name="Progress"/>, <paramref name="Label"/>,
 /// <paramref name="Caption"/> and <paramref name="CaptionKind"/> are the rest of its <c>BuildSlotView</c>.</param>
-public sealed record BuildOption(int Key, string Name, int Cost, bool Affordable, string Payer,
+public sealed record BuildOption(int Key, string KeyLabel, string Name, int Cost, bool Affordable, string Payer,
     int Slot, string State, float Progress, string Label, string? Caption, string CaptionKind);
 /// <param name="Track">Whose upgrade it is: <c>Base</c> (keys 1-5) or <c>Tank</c> (6-7).</param>
 public sealed record UpgradeOption(

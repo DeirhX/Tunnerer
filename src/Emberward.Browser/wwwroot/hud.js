@@ -31,8 +31,6 @@ function setMeter(meter, value) {
     if (meter.value !== v) meter.value = v;
 }
 
-const BUILD_KEYS = ["E", "R", "T", "Y", "U"];
-
 export class StatusView {
     constructor(input) {
         this.input = input;
@@ -111,7 +109,7 @@ export class StatusView {
                 const button = document.createElement("button");
                 button.onclick = () => this.input.queue("build", b.key);
                 const key = document.createElement("kbd");
-                key.textContent = BUILD_KEYS[b.key - 1];
+                key.textContent = b.keyLabel;
                 const name = document.createElement("span");
                 name.textContent = b.name;
                 const cost = document.createElement("small");
