@@ -208,7 +208,7 @@ public sealed class BrowserNetMatch
     {
         bool recallPressed = input.Recall && !_recallDown;
         _recallDown = input.Recall;
-        if ((input.BuildPrimary || input.BuildSecondary || input.BuildTertiary || input.BuildQuaternary || input.BuildQuinary || recallPressed || input.Upgrade != 0) &&
+        if ((input.BuildPrimary || input.BuildSecondary || input.BuildTertiary || input.BuildQuaternary || recallPressed || input.Upgrade != 0) &&
             _actions.Count < MaxQueuedActions)
             _actions.Enqueue(input with { Recall = recallPressed });
     }
@@ -221,7 +221,7 @@ public sealed class BrowserNetMatch
     private ControllerOutput NextInput(ControllerOutput held)
     {
         var next = held;
-        next.BuildPrimary = next.BuildSecondary = next.BuildTertiary = next.BuildQuaternary = next.BuildQuinary = false;
+        next.BuildPrimary = next.BuildSecondary = next.BuildTertiary = next.BuildQuaternary = false;
         next.Upgrade = 0;
         next.UpgradeMachine = false;
         if (_lastSentAction)
@@ -236,7 +236,6 @@ public sealed class BrowserNetMatch
             next.BuildSecondary = press.BuildSecondary;
             next.BuildTertiary = press.BuildTertiary;
             next.BuildQuaternary = press.BuildQuaternary;
-            next.BuildQuinary = press.BuildQuinary;
             next.Upgrade = press.Upgrade;
             next.UpgradeMachine = press.UpgradeMachine;
             next.Recall = press.Recall || held.Recall;

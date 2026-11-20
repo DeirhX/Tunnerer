@@ -91,13 +91,12 @@ public sealed class EntityLayerBuilder
         if (radar != null && vision != null)
             RadarQuads.Emit(_quads, radar, vision);
 
-        // Beams (links, charge, the tether) under machines, machines under tanks (a tank carrying one draws on top).
+        // Beams (links, the tether) under machines, machines under tanks (a tank carrying one draws on top).
         _coverage.Emit(_quads);
         _beams.Begin(visualSeconds);
         if (tankPositions.Length > 0)
             _coverage.SubmitTether(_beams, tankPositions[0]);
         _links.Submit(_beams, vision);
-        MachineQuads.SubmitChargeBeams(_beams, _interpolator, alpha, vision);
         _beams.Emit(_quads);
         if (tankPositions.Length > 0)
             _preview.Emit(_quads, tankPositions[0]);

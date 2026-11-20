@@ -81,7 +81,6 @@ public static class StepEventSounds
     private static readonly SoundEffect[] BuildSounds = BuildSoundTable(
         (MachineType.Relay, SoundEffect.BuildRelay),
         (MachineType.Harvester, SoundEffect.BuildHarvester),
-        (MachineType.Pylon, SoundEffect.BuildPylon),
         (MachineType.Generator, SoundEffect.BuildGenerator),
         (MachineType.Turret, SoundEffect.BuildTurret));
 

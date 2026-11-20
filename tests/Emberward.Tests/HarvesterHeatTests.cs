@@ -253,21 +253,23 @@ public class HarvesterHeatTests
     }
 
     /// <summary>
-    /// Runs a networked harvester among plenty of ore for a minute of game time, its node a relay (which pumps heat
-    /// away) or a pylon (which does not), and returns (ore mined, heat left in the ground).
+    /// Runs a networked harvester among plenty of ore for a minute of game time and returns (ore mined, heat left in the
+    /// ground). It works close enough to the base for the base's own coverage to reach it, so it needs no node; with
+    /// <paramref name="relay"/> a linked relay beside it pumps its heat away, and without one nothing does.
     /// </summary>
-    private static (int Mined, double HeatLeft) RunHarvester(MachineType node)
+    private static (int Mined, double HeatLeft) RunHarvester(bool relay)
     {
-        var s = RelayHeatTests.CreateScenario();
-        SeedOre(s, depth: 8, length: 21);
-        var nodeMachine = new Machine(s.RelayPos + new Offset(0, s.DirY * 3), node, s.Tank.Color);
-        s.World.Machines.Add(nodeMachine);
-        s.World.PlantMachine(nodeMachine, s.Base);
-        PlantHarvester(s);
+        var start = RelayHeatTests.CreateScenario();
+        var s = start with { RelayPos = start.Base.Position + new Offset(0, start.DirY * (Tweaks.Base.BaseSize / 2 + 13)) };
+        SeedOre(s, depth: 8, length: 13);
+        if (relay)
+            RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
+        var harvester = PlantHarvester(s);
 
         int storeBefore = s.Base.Store.Ore;
         double heatBefore = s.World.SumSystemThermalEnergy();
         Advance(s, Tweaks.Perf.TargetFps * 60);
+        Assert.NotEqual(HarvesterState.OffNetwork, MachineBehaviors.HarvesterStateOf(harvester));
         return (s.Base.Store.Ore - storeBefore, s.World.SumSystemThermalEnergy() - heatBefore);
     }
 
@@ -275,7 +277,7 @@ public class HarvesterHeatTests
     [Fact]
     public void Harvester_WithoutACoolingPath_StallsAndKeepsItsHeatBounded()
     {
-        var (mined, heatLeft) = RunHarvester(MachineType.Pylon);
+        var (mined, heatLeft) = RunHarvester(relay: false);
 
         double unthrottled = 60.0 * 1000.0 / Tweaks.Machine.HarvesterIntervalMs / Tweaks.Ore.HarvesterPlainWork;
         Assert.True(mined > 0, "it should still mine until the ground gets hot");
@@ -288,8 +290,8 @@ public class HarvesterHeatTests
     [Fact]
     public void Harvester_WithALinkedRelay_KeepsWorkingBecauseTheHeatLeaves()
     {
-        var alone = RunHarvester(MachineType.Pylon);
-        var piped = RunHarvester(MachineType.Relay);
+        var alone = RunHarvester(relay: false);
+        var piped = RunHarvester(relay: true);
 
         Assert.True(piped.Mined > alone.Mined, $"a relay should let the harvester work faster. piped={piped.Mined}, alone={alone.Mined}");
         double pipedPerUnit = piped.HeatLeft / piped.Mined, alonePerUnit = alone.HeatLeft / Math.Max(1, alone.Mined);

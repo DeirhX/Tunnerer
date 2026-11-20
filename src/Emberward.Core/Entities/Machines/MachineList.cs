@@ -20,7 +20,6 @@ public class MachineList : ISnapshotLoaded
     private static readonly Comparison<Machine> BySequence = static (a, b) => a.Sequence.CompareTo(b.Sequence);
 
     private readonly List<Machine> _machines = new();
-    private readonly List<Machine> _chargers = new();
     // Looked up by key only, never enumerated, so its order cannot reach the simulation.
     [NotSaved("rebuilt on load from the machine list (OnSnapshotLoaded); looked up by key only")]
     private readonly Dictionary<long, List<Machine>> _buckets = new();
@@ -29,16 +28,11 @@ public class MachineList : ISnapshotLoaded
     public IReadOnlyList<Machine> Machines => _machines;
     public int Count => _machines.Count;
 
-    /// <summary>The machines that charge batteries (<see cref="MachineBehavior.IsCharger"/>), in list order.</summary>
-    public IReadOnlyList<Machine> Chargers => _chargers;
-
     public Machine Add(Machine machine)
     {
         machine.Sequence = _nextSequence++;
         machine.List = this;
         _machines.Add(machine);
-        if (machine.Behavior.IsCharger)
-            _chargers.Add(machine);
         BucketAt(machine.Position, create: true)!.Add(machine);
         return machine;
     }
@@ -81,8 +75,6 @@ public class MachineList : ISnapshotLoaded
     {
         Machine machine = _machines[index];
         _machines.RemoveAt(index);
-        if (machine.Behavior.IsCharger)
-            _chargers.Remove(machine);
         BucketAt(machine.Position, create: false)?.Remove(machine);
         machine.List = null;
     }
@@ -171,11 +163,7 @@ public class MachineList : ISnapshotLoaded
                 Heading: m.Heading,
                 SenseHeat: m.SenseHeat,
                 Charge: m.ChargeFraction,
-                IsReturning: m.IsReturning,
-                IsCharging: m.ChargingFrom is { IsAlive: true },
-                ChargingFrom: m.ChargingFrom?.Position ?? default,
-                IsGivingCharge: m.LastChargeGiven > 0.0,
-                Anchor: m.Anchor,
+                HasCapacitor: m.ChargeCapacity > 0.0,
                 GenerationFraction: m.Behavior.IsGenerator ? (float)(m.LastChargeMade / generatorMaxChargePerTick) : 0f);
         }
         return count;

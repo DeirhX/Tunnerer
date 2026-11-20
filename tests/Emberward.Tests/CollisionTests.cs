@@ -337,7 +337,7 @@ public class CollisionTests
 
         var tankList = new TankList();
         var machines = new MachineList();
-        var machine = new Machine(new Position(50, 50), MachineType.Pylon, 0);
+        var machine = new Machine(new Position(50, 50), MachineType.Relay, 0);
         machine.State = MachineState.Transporting;
         machines.Add(machine);
         solver.Update(tankList, machines);

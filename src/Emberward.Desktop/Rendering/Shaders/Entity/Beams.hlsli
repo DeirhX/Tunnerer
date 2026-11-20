@@ -1,9 +1,9 @@
 // ============================================================================
-// Entity/Beams.hlsli — Link, charge, preview and tether beams
+// Entity/Beams.hlsli — Link, ore, preview and tether beams
 // ============================================================================
 //
 // Beams along +x from x = 0 to params.x (their length in cells). Each flows
-// toward +x. The shader owns the beams' colours. Link, charge and tether beams
+// toward +x. The shader owns the beams' colours. Link, ore and tether beams
 // carry their connect/dissolve transition in params.w (BeamFader.Transition).
 // ============================================================================
 
@@ -111,40 +111,9 @@ float4 LinkBeam(float2 p, float4 params, float aa)
     return result;
 }
 
-// A charge beam: a thin electric-blue arc that jitters, with crisp sparks racing toward +x. It is drawn beside heat
-// beams on the same links, so it is deliberately narrower and cooler-coloured.
-float4 ChargeBeam(float2 p, float4 params, float aa)
-{
-    float len = params.x;
-    float flow = saturate(params.y);
-    float phase = params.z;
-    float endFade = smoothstep(-0.2, 1.0, p.x) * smoothstep(len + 0.2, len - 1.0, p.x);
-    float strength = 0.45 + 0.55 * sqrt(flow);
-    float2 fade = BeamTransition(p, len, params.w, phase);
-
-    // Electric jitter: fast, small, piecewise so it reads as an arc rather than a wave.
-    float t = floor(phase * 14.0);
-    float n = frac(sin(floor(p.x * 1.5) * 17.13 + t * 3.7) * 43758.5);
-    float n2 = frac(sin(floor(p.x * 1.5 + 1.0) * 17.13 + t * 3.7) * 43758.5);
-    float jitter = (lerp(n, n2, frac(p.x * 1.5)) - 0.5) * 0.35 * strength;
-    float d = sdSegment(float2(p.x, p.y - jitter), float2(0.0, 0.0), float2(len, 0.0));
-
-    float travel = p.x * 0.45 - phase * 2.4;
-    float spark = pow(saturate(1.0 - abs(frac(travel) - 0.5) * 2.0), 10.0);
-    float3 color = lerp(kChargeBlue, float3(0.85, 0.92, 1.0), spark);
-
-    float4 result = float4(0.0, 0.0, 0.0, 0.0);
-    Over(result, color, FillAlpha(d - (0.06 + 0.12 * spark), aa) * endFade * strength);
-    float glow = exp(-d * 2.2) * (0.18 + 0.6 * spark) * strength;
-    result.rgb += lerp(kChargeBlue, kChargeViolet, 0.35) * glow * endFade;
-    result *= fade.x;
-    result.rgb += float3(0.75, 0.85, 1.0) * fade.y * exp(-d * 2.0) * endFade;
-    return result;
-}
-
 // An ore beam: emberite unloaded into the network on its way home. Faceted gold crystals tumble along a faint gold
-// thread toward +x (the base), with a pale glint, one every few cells. It shares links with the heat and charge
-// beams, so it is drawn as discrete crystals rather than a line.
+// thread toward +x (the base), with a pale glint, one every few cells. It shares links with the heat beams, so
+// it is drawn as discrete crystals rather than a line.
 float4 OreBeam(float2 p, float4 params, float aa)
 {
     float len = params.x;

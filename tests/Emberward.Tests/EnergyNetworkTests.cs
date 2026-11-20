@@ -19,7 +19,7 @@ public class EnergyNetworkTests
     private static RelayHeatTests.Scenario Scenario(bool blockLineOfSight = false) =>
         RelayHeatTests.CreateScenario(blockLineOfSight: blockLineOfSight, energyNetwork: true);
 
-    private static Position PylonSpot(RelayHeatTests.Scenario s) =>
+    private static Position NodeSpot(RelayHeatTests.Scenario s) =>
         s.Base.Position + new Offset(0, s.DirY * (Tweaks.Base.BaseSize / 2 + 4));
 
     private static Machine Plant(RelayHeatTests.Scenario s, MachineType type, Position at)
@@ -236,26 +236,25 @@ public class EnergyNetworkTests
     }
 
     [Fact]
-    public void ACoveredHarvester_IsToppedUpWhileItWorks_WithNoTripsToAPylon()
+    public void ACoveredHarvester_IsToppedUpWhileItWorks()
     {
         var s = Scenario();
         HarvesterHeatTests.SeedOre(s);
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
         var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
-        harvester.Charge = Tweaks.Machine.HarvesterBatteryCapacity * 0.1;
+        harvester.Charge = Tweaks.Machine.HarvesterCapacitor * 0.1;
         int storeBefore = s.Base.Store.Ore;
 
         bool flowsSeen = false;
         for (int i = 0; i < Tweaks.Perf.TargetFps * 10; i++)
         {
             s.World.Advance(_ => default);
-            Assert.False(harvester.IsReturning);
             var power = s.World.MachinePowerOf(harvester)!.Value;
             flowsSeen |= power.InPerSecond > IdleRate(MachineType.Harvester) && power.OutPerSecond > IdleRate(MachineType.Harvester);
         }
 
         Assert.True(s.Base.Store.Ore > storeBefore, "the harvester should have mined");
-        Assert.True(harvester.Charge > Tweaks.Machine.HarvesterBatteryCapacity * 0.5, $"charge={harvester.Charge:0}");
+        Assert.True(harvester.Charge > Tweaks.Machine.HarvesterCapacitor * 0.5, $"charge={harvester.Charge:0}");
         Assert.True(s.World.MachinePowerOf(harvester)!.Value.IsFed);
         Assert.True(flowsSeen, "the overlay should show charge coming in and going out while it works");
     }
@@ -267,7 +266,7 @@ public class EnergyNetworkTests
         HarvesterHeatTests.SeedOre(s);
         var relay = RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
         var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
-        harvester.Charge = Tweaks.Machine.HarvesterBatteryCapacity * 0.1;
+        harvester.Charge = Tweaks.Machine.HarvesterCapacitor * 0.1;
         var energy = s.World.Energy!;
         for (int i = 0; i < Tweaks.Perf.TargetFps && energy.FillingCount == 0; i++)
             s.World.Advance(_ => default);
@@ -315,7 +314,7 @@ public class EnergyNetworkTests
         var s = Scenario();
         s.World.Terrain.AddHeatRadius(s.RelayPos, 150, 8);
         HarvesterHeatTests.SeedOre(s);
-        Plant(s, MachineType.Pylon, PylonSpot(s));
+        RelayHeatTests.PlantRelay(s, NodeSpot(s));
         var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
         harvester.Charge *= 0.3;
         var doomed = RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
@@ -353,7 +352,7 @@ public class EnergyNetworkTests
         HarvesterHeatTests.SeedOre(s);
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, -s.DirY * 3));
-        Plant(s, MachineType.Pylon, PylonSpot(s));
+        RelayHeatTests.PlantRelay(s, NodeSpot(s));
         Plant(s, MachineType.Harvester, s.RelayPos);
         int storeBefore = s.Base.Store.Ore;
 

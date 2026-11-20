@@ -129,7 +129,7 @@ public class LinkMap : ISnapshotLoaded
 
         // A link that is not live carries nothing, and one that carried nothing starts over: as if made anew.
         foreach (var link in _links)
-            if (link.Type != LinkType.Live || !(link.HeatFlow > 0.0 || link.ChargeFlow > 0.0 || link.OreFlowTicks > 0))
+            if (link.Type != LinkType.Live || !(link.HeatFlow > 0.0 || link.OreFlowTicks > 0))
                 link.ForgetFlows();
 
         if (pointsChanged || sightChanged || !_hasSpreadPower)
@@ -360,28 +360,6 @@ public class LinkMap : ISnapshotLoaded
             link.HeatFlow = 0.0;
     }
 
-    /// <summary>Forgets the charge flows; the world re-books every pylon's last hand-out after machines act.</summary>
-    public void ClearChargeFlow()
-    {
-        foreach (var link in _links)
-            link.ChargeFlow = 0.0;
-    }
-
-    /// <summary>Records <paramref name="charge"/> travelling from the base out to the pylon at <paramref name="pylon"/>.</summary>
-    public static void CarryCharge(LinkPoint? pylon, double charge)
-    {
-        if (pylon == null || charge <= 0.0)
-            return;
-        var point = pylon;
-        for (int hops = 0; point.UpstreamLink is { } link && hops < 64; hops++)
-        {
-            // Charge flows toward the pylon, so into `point` from the link's other end.
-            link.ChargeFlowsFromTo = !ReferenceEquals(link.From, point);
-            link.ChargeFlow += charge;
-            point = link.ChargeFlowsFromTo ? link.From : link.To;
-        }
-    }
-
     /// <summary>Counts down the ore flows (<see cref="Link.OreFlowTicks"/>); called once a tick before tanks act.</summary>
     public void AgeOreFlow()
     {
@@ -463,8 +441,6 @@ public class LinkMap : ISnapshotLoaded
                 IsAlive: link.IsAlive,
                 HeatFlow: (float)(link.HeatFlow / Tweaks.Machine.RelayHeatPumpPerTick),
                 FlowsFromTo: link.FlowsFromTo,
-                ChargeFlow: (float)(link.ChargeFlow / Tweaks.Machine.PylonChargePerAction),
-                ChargeFlowsFromTo: link.ChargeFlowsFromTo,
                 OreFlow: link.OreFlowTicks / (float)Tweaks.Ore.LinkFlowShowTicks,
                 OreFlowsFromTo: link.OreFlowsFromTo);
         }

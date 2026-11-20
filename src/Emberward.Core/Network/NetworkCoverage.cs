@@ -7,7 +7,7 @@ using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 using Emberward.Core.Entities.Bases;
 
-/// <summary>A node that cools tanks around it: the base, or a powered relay or pylon of that base.</summary>
+/// <summary>A node that cools tanks around it: the base, or a powered relay of that base.</summary>
 /// <param name="Strength">Cooling strength, 1 at the base, falling by <c>Coverage.HopFalloff</c> per link hop.</param>
 /// <param name="Point">The node's point in the link network (null only for a base without one).</param>
 public readonly record struct CoverageNode(Position Position, int Radius, float Strength, LinkPoint? Point = null);

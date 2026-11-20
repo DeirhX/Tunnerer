@@ -198,7 +198,7 @@ Bandwidth: 4 players x 4 bytes x 24 Hz is under 0.5 kB/s down per client.
   it, so a client far behind, replaying to catch up, is checked too. A report for a tick the relay has not closed
   yet is ignored. The digest (`WorldStateHash.ComputeSync`) is the state hash the determinism tests use, plus
   what that hash does not read, in five parts: every cell's heat and air temperature, in cell order, and each
-  base reactor's exact heat (where heat is, not only how much); every base's and battery's charge; every base's
+  base reactor's exact heat (where heat is, not only how much); every base's and capacitor's charge; every base's
   ore, upgrades and whether a bot plays it; the race to the core and the result (which decide the winner without
   passing through anything else); and latent state that shows elsewhere only later or on a rare event (random
   generators, timers, held keys, harvester memory, pending projectiles, which heat tiles are awake, the regrowth
@@ -385,6 +385,10 @@ Each step is testable without the next.
     energy matches; it is in the input key mask. It is the last free bit: the next input needs a wider encoding
     or a reused bit. The energy rules' version in the rules hash changed with it. The relay must be updated before
     clients of this build can join a public match.
+13. **Pylon removed** (protocol 11). The generator and the turret moved to the third and fourth build keys (bits 7
+    and 28; their keys stay Y and U), so bit 31 is free again and out of the input key mask. Standard simulation
+    results changed too (a harvester pays its work from its base's store). The relay must be updated before clients
+    of this build can join a public match.
 
 ## 11. Open questions
 

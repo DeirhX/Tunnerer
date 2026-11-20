@@ -7,8 +7,7 @@ using Emberward.Core.Types;
 using Emberward.Core.Network;
 
 /// <summary>
-/// Network links as beams: heat flowing to the base, charge flowing out to pylons and batteries, and ore a tank
-/// unloaded into the network flowing home.
+/// Network links as beams: heat flowing to the base, and ore a tank unloaded into the network flowing home.
 /// </summary>
 public sealed class LinkQuads
 {
@@ -47,14 +46,6 @@ public sealed class LinkQuads
             beams.Submit(new BeamKey(EntityShape.KindLink, link.From, link.To),
                 from.X, from.Y, to.X, to.Y, heat, halfWidth, blocked: !live);
 
-            // Charge going out to pylons: a second, blue beam whose pulses run the other way, toward the pylon.
-            if (live && link.ChargeFlow > 0.01f)
-            {
-                Position chargeFrom = link.ChargeFlowsFromTo ? link.From : link.To;
-                Position chargeTo = link.ChargeFlowsFromTo ? link.To : link.From;
-                SubmitChargeBeam(beams, link.From, link.To, chargeFrom.X, chargeFrom.Y, chargeTo.X, chargeTo.Y, link.ChargeFlow);
-            }
-
             // Ore on its way home: gold crystals running toward the base.
             if (live && link.OreFlow > 0.01f)
             {
@@ -65,12 +56,4 @@ public sealed class LinkQuads
             }
         }
     }
-
-    /// <summary>
-    /// A charge beam from cell (<paramref name="x0"/>, <paramref name="y0"/>) to (<paramref name="x1"/>,
-    /// <paramref name="y1"/>), its pulses flowing toward the end; <paramref name="a"/> and <paramref name="b"/>
-    /// name it across frames.
-    /// </summary>
-    public static void SubmitChargeBeam(BeamFader beams, Position a, Position b, float x0, float y0, float x1, float y1, float flow) =>
-        beams.Submit(new BeamKey(EntityShape.KindChargeBeam, a, b), x0, y0, x1, y1, flow, 3.5f);
 }

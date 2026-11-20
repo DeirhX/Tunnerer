@@ -39,7 +39,7 @@ Regrowth/                    (only in a world whose MatchRules.TerrainRegrowth i
   TerrainRegrowth.cs         Dirt regrowth: the rules, applied to each cell when its appointment comes
   RegrowthSchedule.cs        The appointments: at most one per cell, filed by tick
   RegrowthWrites.cs          The pixel writes regrowth has yet to hear of (TerrainGrid lists them)
-  RegrowthBlockers.cs        Where no dirt grows (relay and pylon range), filed by map area
+  RegrowthBlockers.cs        Where no dirt grows (link node range), filed by map area
 Thermal/
   TerrainHeatEngine.cs       The exchange stencil, capacity, conductance and loss tables, ResolveCell
   ThermalScheduler.cs        Per tick: step or not (nothing active, or throttled when nearly everything is)
@@ -157,8 +157,8 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
 
 1. **coll**: `CollisionSolver.Update` rebuilds the tank sector index.
 2. **heat**: `TerrainGrid.CoolDown` (see below), and the solver's own parts for the profile.
-3. **regrow**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted relay or
-   pylon (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open. Nothing scans the
+3. **regrow**: `TerrainRegrowth.Advance`. No new dirt grows within the coverage radius of a planted link node
+   (`RegrowthBlocker`), linked or not, so the ground a network runs through stays open. Nothing scans the
    map: each cell that can change (open ground with more than two dirt neighbours, scorch, dirt still growing) has
    an appointment in `RegrowthSchedule` at the tick it is next looked at, with the wait drawn so that the odds are
    those of rolling on every pass. Pixel writes (`RegrowthWrites`) start new appointments, and so does a blocker
@@ -186,16 +186,16 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    (`LinkPoint.IsPoweredBy`, the same rule harvester coverage uses in `NetworkCoverage`). The first generator in machine order roots
    each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.CoverageOf`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
-   idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
-   (`LinkMap.CarryCharge`). A machine that needs the machines near a place (a pylon its batteries, a harvester the
-   nodes that cover it, anything asking whether a spot is taken) asks `MachineList.CollectNear`, which returns them
+   idling as `HarvesterState.CoreOnly` when nothing else is left; without the energy rule it pays each action straight
+   from its base's charge store, with no capacitor and no trips to recharge). A machine that needs the machines near a
+   place (a harvester the nodes that cover it, a turret the tanks near it, anything asking whether a spot is taken) asks `MachineList.CollectNear`, which returns them
    in list order, and never walks the whole list. A relay that found no heat to pump keeps the ground's
    `QuietHeatStamp` and skips its sweep until that number changes, which it does when heat is written or stepped
    in its reach. A generator reads its local exhaust temperature, extracts heat from hotter ground past its exhaust
    area, and returns the unconverted heat there. Both writes wake the affected tiles. It uses the same quiet stamp
    to skip sampling when the ground has not changed since it found nothing to convert. A turret (`TurretAction`,
    energy matches only) counts down between looks; a look joins it to its island as a harvester joins
-   (`EnergyNetwork.SetCovered` from `MachineContext.IsOnNetwork`), reads its ground's temperature, and, while it is on
+   (`EnergyNetwork.SetCovered` from `MachineContext.CoverageOf`), reads its ground's temperature, and, while it is on
    an island, its base is not dark and its capacitor can pay, shoots the nearest enemy tank in range and line of sight
    (`MachineContext.Tanks`, few, in spawn order; a raycast only for those in range) with a bullet carrying its
    damage (`MachineContext.Projectiles`, `Projectile.Damage`). The shot's charge is spent through
@@ -221,8 +221,8 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    line, and a capacitor is brought up to date (settled: its idle draw's heat put in the ground) only when it is used,
    changes island or tier, or once in `Energy.SettlePeriodTicks`. Islands are looked at again only when
    `LinkMap.PowerVersion` changes or a harvester's coverage does. Idle charge paid and not yet heat is
-   counted by `EnergyNetwork.StoredCharge` alongside the generator reserves. With the flag on, pylons hand out nothing and harvesters
-   make no refuel trips. `World.MachinePowerOf` and `World.BasePowerOf` give an overlay its numbers (charge, capacity,
+   counted by `EnergyNetwork.StoredCharge` alongside the generator reserves. Without the flag no machine has a
+   capacitor. `World.MachinePowerOf` and `World.BasePowerOf` give an overlay its numbers (charge, capacity,
    flows a second over the last whole second, what a node passed on, its limit and heat); output only. The desktop and browser charge labels
    (`Gui/PowerLabels.cs` in Desktop, shared through `Emberward.Rendering`) read nothing else.
 8. **bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then the bot's stand-in ore income for
@@ -306,10 +306,10 @@ material; `SetPixelRaw` is unmetered and only for level generation.
 
 `ThermalLedger` keeps `Injected`, the `Sunk*` totals and `ConvertedToCharge` (heat the base engine turned into
 charge, or charge spent back as heat). `World.SumSystemThermalEnergy` (grid, tanks, base reactors) plus
-`World.SumSystemCharge` (base stores, batteries and capacitors, and the energy network's reserves and pending charge) changes by exactly `Injected - TotalSunk` each tick.
+`World.SumSystemCharge` (base stores and capacitors, and the energy network's reserves and pending charge) changes by exactly `Injected - TotalSunk` each tick.
 
 The mechanics built on this (base reservoir and radiator, relays pumping heat home, the base engine and charge,
-pylons and batteries, network coverage, the tank's temperature band, hot and frost rock pockets, the sector goal and
+harvesters paying their work in charge, network coverage, the tank's temperature band, hot and frost rock pockets, the sector goal and
 upgrades) are specified in `DESIGN.md` §4, the ore economy in §6.4; the code is in `TankBase`, `BaseUpgrades`,
 `TankBuildController`, `MachineBehaviors`,
 `TankThermals`, `TankHeatModel`, `NetworkCoverage`, `HotRockPockets`, `FrostRockPockets` and `SectorGoal`.
@@ -329,7 +329,7 @@ A side sees through `VisionSource`s (numbers in `Tweaks.Vision`):
 - its tank, along open lines of sight to `TankRadius`, and everything within `TankNearRadius`, through solid ground
   too, so digging is not blind;
 - its base, along open lines of sight over its coverage circle (the radius of `NetworkCoverage`);
-- its link nodes (relays, pylons), over their whole coverage circles, through solid ground too, linked or not;
+- its link nodes (relays, generators), over their whole coverage circles, through solid ground too, linked or not;
 - every other planted machine of its base, `MachineNearRadius` around itself.
 
 A source casts a Bresenham ray to each cell on the edge of its square, cut to a circle. A ray stops at the first
@@ -427,15 +427,15 @@ between pulses only age contacts. Neither depends on the size of the map.
 
 ## Links
 
-Planted machines whose behavior has `IsLinkNode` (relays, pylons, generators) and every base are `LinkPoint`s.
+Planted machines whose behavior has `IsLinkNode` (relays, generators) and every base are `LinkPoint`s.
 `LinkMap` pairs points within `MaximumTheoreticalLinkDistance`, marks a link live when it is short enough and
 `Raycaster.HasOpenLine` finds no blocking pixel (`Pixel.BlocksLink`), and powers points breadth first from the
 bases, recording each point's `UpstreamLink` and `Hops`. It keeps its links between refreshes and does only what
 changed: a new point gets its links, a point switched off loses them, and a link's line of sight is cast again
 only when a cell in a tile its line crosses started or stopped blocking (the terrain lists those cells in
 `SightlineChanges`, from every pixel write). Power is searched again only when one of those changed something.
-The result is the one a rebuild from nothing gives, in the same order (`LinkMapTests`). Relays book pumped heat and pylons book charge along that
-route (`LinkMap.CarryHeat`, `LinkMap.CarryCharge`), which the renderer draws as flow. `LinkMap.PreviewLink` answers
+The result is the one a rebuild from nothing gives, in the same order (`LinkMapTests`). Relays book pumped heat along that
+route (`LinkMap.CarryHeat`), which the renderer draws as flow. `LinkMap.PreviewLink` answers
 "would a node here link?" for planting and for `World.PreviewPlacement`.
 
 ## Level generation and the bot
@@ -489,8 +489,8 @@ Core:
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), added to the
    `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, ore cost
    and `BuildKey`, its `Capacitor` (capacity, transfer rate, `PowerTier`, idle draw; DESIGN.md §4.9), plus the traits
-   Core reads instead of the type: `RunsOnCharge` (which also gives it its §4.5 battery), `IsLinkNode`,
-   `RequiresLinkToPlant`, `IsCharger`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, and `NeedsEnergyNetwork` (only
+   Core reads instead of the type: `RunsOnCharge` (its action pays in charge and stops when it cannot), `IsLinkNode`,
+   `RequiresLinkToPlant`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, and `NeedsEnergyNetwork` (only
    energy matches can build it), and its `UpgradePaths`. The action is a static method taking `(Machine,
    MachineContext)`, in `MachineBehaviors` or, when it is long, a class of its own (`TurretAction`).
 3. Constants (interval, capacitor) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
@@ -505,7 +505,7 @@ Desktop:
    browser): names, key label (the desktop's keyboard reads the SDL key of that name), build-panel slot and plant
    hint. Its `MachineSprite` in `MachineSprites` (`Rendering/Entities/MachineSprite.cs`,
    shared with the browser): shader shape kind, body size, whether it turns to its heading or stands upright with a
-   gauge, its sense ring, battery gauge and preview reach. `MachineQuads` and `PreviewQuads` draw from it; neither
+   gauge, its sense ring, capacitor gauge and preview reach. `MachineQuads` and `PreviewQuads` draw from it; neither
    switches on the type. Its build sound in `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`, also shared).
    `MachinePresentationTests` checks keys and slots are distinct and fit the panel, and that every sprite is complete.
 8. For a new `BuildKey`: `KeyboardController`, `GameSimulationStepper` (merges keyboard and scripted input) and

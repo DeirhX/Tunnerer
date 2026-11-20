@@ -8,7 +8,7 @@ Open work, written so an agent can pick up one item without the conversation tha
 
 - **Done, in PR #75** (`claude/upgradables-review-8a3ab6`, not yet merged):
   - **Sensors upgrade** (base-track key 5; Cargo hold and Radar moved to keys 6 and 7): +8 cells of sight per level for
-    relays, pylons and the base. A relay sees 10 cells past its coverage circle before any upgrade
+    relays (and generators) and the base. A relay sees 10 cells past its coverage circle before any upgrade
     (`Tweaks.Vision.NodeSightBonus`). Presentation only.
   - **Tranche 1, capacitors and island balance**, `src/Emberward.Core/Network/EnergyNetwork.cs`, behind
     `MatchRules.EnergyNetwork` (**off by default, including in `MatchRules.Standard`**, so fingerprints and the rules
@@ -16,9 +16,9 @@ Open work, written so an agent can pick up one item without the conversation tha
   - **Tranche 1b, charge and flow labels** (key G, `PowerLabels`, `HudPalette`), shared by desktop and browser.
     `--energy-network` (desktop) and `?energy` (browser) turn the network on for local matches only.
 - **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
-- **Items 1 to 4 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it).
-  Item 6 (turrets) is on `codex/tranche-6-turrets`, cut from item 4's branch. Continue at item 5. **Item 8 is
-  implemented** on `codex/tranche-8-reserve`, cut from item 4's branch.
+- **Items 1 to 8 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it, with
+  items 5, 6 and 8 merged into it; item 7 on `codex/tranche-7-remove-pylon`, against item 4's branch). Item 9 is
+  deferred.
 
 ## Rules for every item
 
@@ -47,9 +47,10 @@ Open work, written so an agent can pick up one item without the conversation tha
 
 - **Capacitor traits** are on `MachineBehavior` (`Capacitor`: capacity, transfer rate per tick, `PowerTier` of
   BaseDefence / Turrets / Economy, idle draw per tick). The old `BatteryCapacity` is derived from it; a machine marked
-  `RunsOnCharge` (only the harvester) keeps its capacitor as the battery when the flag is off.
-- **Numbers (in `Tweaks.Machine` and `Tweaks.Energy`):** relay 3600 capacity, 60/tick in, 1.5/tick idle; pylon 6000, 100,
-  2.5; harvester 120k, 400 in, 4 idle. A cut-off relay or pylon lasts about 100 s.
+  `RunsOnCharge` (only the harvester) kept its capacitor as the battery when the flag was off, until item 7 removed the
+  battery: off the network no machine has a capacitor now.
+- **Numbers (in `Tweaks.Machine` and `Tweaks.Energy`):** relay 3600 capacity, 60/tick in, 1.5/tick idle; harvester
+  120k, 400 in, 4 idle. A cut-off relay lasts about 100 s. (The pylon, 6000, 100, 2.5, went with item 7.)
 - **Islands.** The energy network regroups when `LinkMap.PowerVersion` changes. A node whose power route ends at a
   base (`LinkPoint.IsPoweredBy`) uses that base's island, the same rule harvester coverage uses. A disconnected component pools charge if it has a generator. The first generator
   names that island and each producer carries its own reserve across splits. A disconnected group without a base
@@ -204,7 +205,30 @@ energy-rule simulation fingerprints are unchanged (no fingerprint scenario build
 is `TurretTests.AStoreThatCannotPayEveryTier_FeedsTurretsBeforeTheEconomy`. **Not tuned in play:** cost, range,
 heat per shot and the overheat curve; a turret beside a relay may still stop raiding. Not yet seen in a browser.
 
-## 7. Remove the pylon and the harvester battery
+## 7. Remove the pylon and the harvester battery (implemented)
+
+Done on `codex/tranche-7-remove-pylon`, following "Removing a system" in `AGENTS.md`. Gone: `MachineType.Pylon`, its
+behavior (`ChargeBatteries`, `CanCharge`, `IsCharger`, `MachineList.Chargers`), presentation, sprite and shader
+branch (`KindPylon`), the charge beams (`KindChargeBeam`, `Link.ChargeFlow`, `LinkMap.CarryCharge`, the battery
+gauge's charging and returning states), the build sound, the tutorial's pylon step and HUD hints, every `Pylon*`
+constant and its colour, the harvester's return trips (`IsReturning`, `HarvesterState.Returning`,
+`HarvesterReturnBelow`, `HarvesterResumeAbove`, `HarvesterPathing.ChooseStep`) and the battery
+(`BatteryCapacity`, `HasBattery`; `HarvesterBatteryCapacity` is now `HarvesterCapacitor`).
+- **Without the energy rule** no machine has a capacitor: a harvester pays each action straight from its base's charge
+  store (`PayForWork`, `Machine.ReleaseChargeAsHeat`) and is out of charge when the store is
+  (`MachineBehaviors.ChargeAvailableTo`). The capacitor gauge shows only on the network (`MachineRenderState.HasCapacitor`).
+  The tutorial's "Power the harvester" step explains this and finishes once a harvester has charge; with the energy
+  rule it still asks for a generator.
+- **Build keys:** the generator moved to the third build key (bit 7) and the turret to the fourth (bit 28); their keys
+  stay Y and U, and T is free. Bit 31 is free again and out of `KeyMask`. **Protocol 11**: deploy that relay
+  version before network clients use this build.
+- **Fingerprints changed** (`RelayHarvesterNetwork`, renamed from `RelayPylonHarvesterNetwork`, with a second relay
+  where the pylon stood; `EnemyMachinesShotToPieces`, whose harvester no longer carries a battery). The browser stress
+  world plants a second relay where it planted a pylon.
+- **Not done, on purpose: one circle.** The relay still pumps over its 25-cell square (`RelayCoolingRadius` 12), not
+  its coverage circle (20 cells, 38 with three reach levels). Pumping over the whole circle, strongest at the centre,
+  makes each relay's heat sweep 2 to 7 times larger and changes tuning (relays would reach hot rock they cannot reach
+  today), so it waits for a decision. The relay is not renamed.
 
 **Why (`DESIGN.md` §4.9).** The pylon shares everything with a relay except charging harvester batteries, and a harvester
 only works inside linked coverage anyway. Every camp ends up as "relay plus pylon". After this the relay is the only

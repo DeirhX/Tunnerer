@@ -9,13 +9,10 @@ namespace Emberward.Tests;
 
 /// <summary>
 /// The power loop (DESIGN.md §4.5): relay heat runs through the base engine, which turns a share of it into charge;
-/// pylons hand that charge to harvester batteries, and the work they do turns it back into heat in the ground.
+/// harvesters pay their work from it, which turns it back into heat in the ground.
 /// </summary>
 public class PowerLoopTests
 {
-    private static Position PylonSpot(RelayHeatTests.Scenario s) =>
-        s.Base.Position + new Offset(0, s.DirY * (Tweaks.Base.BaseSize / 2 + 4));
-
     private static Machine Plant(RelayHeatTests.Scenario s, MachineType type, Position at)
     {
         var machine = new Machine(at, type, s.Tank.Color);
@@ -195,106 +192,53 @@ public class PowerLoopTests
     }
 
     [Fact]
-    public void PlantingAHarvester_FillsItsBatteryFromTheBaseStore()
+    public void PlantingAHarvester_WithoutTheEnergyNetwork_TakesNoChargeAndHasNoCapacitor()
     {
         var s = RelayHeatTests.CreateScenario();
         double before = s.Base.Charge;
         var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
 
-        Assert.Equal(Tweaks.Machine.HarvesterBatteryCapacity, harvester.Charge, precision: 6);
-        Assert.Equal(before - harvester.Charge, s.Base.Charge, precision: 6);
+        Assert.Equal(0.0, harvester.ChargeCapacity);
+        Assert.Equal(0.0, harvester.Charge);
+        Assert.Equal(before, s.Base.Charge);
     }
 
     [Fact]
-    public void Harvester_SpendsItsBatteryAsItWorks_AndStopsWhenFlat()
+    public void Harvester_PaysForItsWorkFromTheBaseStore_AndStopsWhenTheStoreIsEmpty()
     {
         var s = RelayHeatTests.CreateScenario();
         HarvesterHeatTests.SeedOre(s);
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
         var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
-        harvester.Charge = Tweaks.Machine.HarvesterHeatPerHarvest * 3.5;   // three actions' worth, no pylon to go to
+        // Leave the base three actions' worth of charge: there is no battery to fall back on.
+        s.Base.DrawCharge(s.Base.Charge - Tweaks.Machine.HarvesterHeatPerHarvest * 3.5);
 
         Advance(s, Tweaks.Perf.TargetFps * 10);
 
-        Assert.True(harvester.Charge < Tweaks.Machine.HarvesterHeatPerHarvest, $"charge left={harvester.Charge:0}");
-        double flat = harvester.Charge;
+        Assert.True(s.Base.Charge < Tweaks.Machine.HarvesterHeatPerHarvest, $"charge left={s.Base.Charge:0}");
+        Assert.Equal(HarvesterState.OutOfCharge, MachineBehaviors.HarvesterStateOf(harvester));
         int storeBefore = s.Base.Store.Ore;
         Advance(s, Tweaks.Perf.TargetFps * 5);
         Assert.Equal(storeBefore, s.Base.Store.Ore);
-        Assert.Equal(flat, harvester.Charge, precision: 6);
     }
 
     [Fact]
-    public void Pylon_ChargesABatteryInItsLineOfSight_FromTheBaseStore()
+    public void Harvester_WorkingInCoverage_TurnsBaseChargeIntoHeatBesideIt()
     {
         var s = RelayHeatTests.CreateScenario();
-        var pylon = Plant(s, MachineType.Pylon, PylonSpot(s));
-        var harvester = Plant(s, MachineType.Harvester, PylonSpot(s) + new Offset(0, s.DirY * 8));
-        Advance(s, 12);   // let the link map power the pylon
-        harvester.Charge = Tweaks.Machine.HarvesterBatteryCapacity * 0.5;
-        double total = s.Base.Charge + harvester.Charge;
-
-        Advance(s, Tweaks.Perf.TargetFps);
-
-        Assert.True(pylon.LinkPoint!.IsPowered, "the pylon should be on the base's network");
-        Assert.True(harvester.Charge > Tweaks.Machine.HarvesterBatteryCapacity * 0.5,
-            $"the pylon should have charged the harvester. charge={harvester.Charge:0}");
-        // Charge only moves from the base to the battery; the harvester also spent some digging.
-        Assert.True(s.Base.Charge + harvester.Charge <= total + 1e-6);
-    }
-
-    [Fact]
-    public void Harvester_LowOnCharge_GoesBackToAPylon_AndResumesWhenCharged()
-    {
-        var s = RelayHeatTests.CreateScenario();
-        var pylon = Plant(s, MachineType.Pylon, PylonSpot(s));
+        HarvesterHeatTests.SeedOre(s);
         var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
-        Advance(s, 12);
-        harvester.Charge = Tweaks.Machine.HarvesterBatteryCapacity * 0.1;
-        int range2 = Tweaks.Machine.PylonRange * Tweaks.Machine.PylonRange;
-        Assert.True(Position.DistanceSquared(harvester.Position, pylon.Position) > range2, "the harvester starts out of the pylon's reach");
+        double before = s.Base.Charge;
+        int oreBefore = s.Base.Store.Ore;
 
-        bool returned = false, resumed = false;
-        for (int i = 0; i < Tweaks.Perf.TargetFps * 60 && !resumed; i++)
-        {
-            s.World.Advance(_ => default);
-            if (harvester.IsReturning && Position.DistanceSquared(harvester.Position, pylon.Position) <= range2)
-                returned = true;
-            if (returned && !harvester.IsReturning)
-                resumed = true;
-        }
+        Advance(s, Tweaks.Perf.TargetFps * 5);
 
-        Assert.True(returned, "a low harvester should crawl back into a pylon's reach");
-        Assert.True(resumed, "once charged it should go back to work");
-        Assert.True(harvester.ChargeFraction >= Tweaks.Machine.HarvesterResumeAbove - 0.05f, $"charge={harvester.ChargeFraction:0.00}");
-    }
-
-    [Fact]
-    public void Harvester_ReturningThroughDirtOutsideItsWorkArea_CarvesItsWayIntoTheBeam()
-    {
-        var s = RelayHeatTests.CreateScenario();
-        var pylon = Plant(s, MachineType.Pylon, PylonSpot(s));
-        var harvester = Plant(s, MachineType.Harvester, s.RelayPos);
-        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
-        Advance(s, 12);
-        // A dirt plug across the tunnel just past the pylon, outside the harvester's work area (it is anchored 26
-        // cells further out with a 20-cell range), so the pylon cannot see it until it digs through.
-        var plug = PylonSpot(s) + new Offset(0, s.DirY * 3);
-        for (int dx = -3; dx <= 3; dx++)
-            for (int dy = 0; dy <= 1; dy++)
-                s.World.Terrain.SetPixel(plug + new Offset(dx, s.DirY * dy), Emberward.Core.Terrain.TerrainPixel.Dirt);
-        harvester.Charge = Tweaks.Machine.HarvesterBatteryCapacity * 0.1;
-
-        bool charged = false;
-        for (int i = 0; i < Tweaks.Perf.TargetFps * 60 && !charged; i++)
-        {
-            s.World.Advance(_ => default);
-            charged = ReferenceEquals(harvester.ChargingFrom, pylon);
-        }
-
-        Assert.True(pylon.LinkPoint!.IsPowered, "the plug is beyond the pylon, so the pylon stays linked");
-        Assert.True(charged, $"the harvester should carve through the plug into the pylon's beam. at {harvester.Position}");
+        Assert.True(s.Base.Store.Ore > oreBefore, "the harvester should have mined");
+        Assert.False(harvester.IsOffNetwork);
+        // The relay pumps some of that heat home, but the engine turns less than half of it back into charge.
+        Assert.True(s.Base.Charge < before - Tweaks.Machine.HarvesterHeatPerHarvest,
+            $"the work is paid from the base's store. before={before:0}, after={s.Base.Charge:0}");
     }
 
     [Fact]
@@ -326,7 +270,6 @@ public class PowerLoopTests
     {
         var s = RelayHeatTests.CreateScenario();
         s.World.Terrain.AddHeatRadius(s.RelayPos, 150, 8);
-        Plant(s, MachineType.Pylon, PylonSpot(s));
         Plant(s, MachineType.Harvester, s.RelayPos);
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * 3));
         var ledger = s.World.Terrain.Ledger;

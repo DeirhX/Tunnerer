@@ -21,8 +21,9 @@ public class RelayThroughputTests
 
     /// <summary>
     /// A base at the left end of a row of open ground, <paramref name="relays"/> relays in a line from it, and
-    /// <paramref name="harvesters"/> empty harvesters taking their charge through the last relay, six cells off it. The
-    /// relays hold no capacitor here (one is sized only when a world plants it), so they only pass charge on.
+    /// <paramref name="harvesters"/> empty harvesters taking their charge through the last relay, six cells off it. A
+    /// capacitor is sized only when a world plants its machine, so the harvesters are given theirs here and the relays
+    /// hold none: they only pass charge on.
     /// </summary>
     private sealed class Chain
     {
@@ -63,6 +64,8 @@ public class RelayThroughputTests
                 harvester.State = MachineState.Planted;
                 harvester.OwnerBase = Home;
                 Network.Register(harvester);
+                var capacitor = harvester.Behavior.Capacitor;
+                Network.Resize(harvester, capacitor.Capacity, capacitor.IdleDrawPerTick, Terrain);
                 Network.SetCovered(harvester, new TankCoverage(true, 1f, last.Position, last.LinkPoint), Machines, Terrain, _near);
                 Harvesters.Add(harvester);
             }

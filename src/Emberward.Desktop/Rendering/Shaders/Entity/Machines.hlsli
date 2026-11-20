@@ -1,5 +1,5 @@
 // ============================================================================
-// Entity/Machines.hlsli — Relay, harvester, pylon, turret, generator and battery gauge
+// Entity/Machines.hlsli — Relay, harvester, turret, generator and capacitor gauge
 // ============================================================================
 //
 // Machine bodies. A carried machine is drawn as a see-through ghost. The shader
@@ -172,71 +172,10 @@ float4 Harvester(float2 p, float4 params, float aa)
     return Ghost(result, flags);
 }
 
-// Pylon: a mast on a three-legged base with a charge crystal on top. The crystal glows blue once the pylon is on a
-// powered network, and arcs crackle around it while it hands out charge.
-float4 Pylon(float2 p, float4 params, float aa)
-{
-    float powered = params.x;
-    float giving = params.y;
-    float phase = params.z;
-    float flags = params.w;
-    float4 result = float4(0.0, 0.0, 0.0, 0.0);
-
-    // Three legs at 120 degrees, plus a hub; shadowed together.
-    float legs = 1e5, legsShadow = 1e5;
-    float2 sp = p + kLightDir * 0.6;
-    [unroll] for (int i = 0; i < 3; i++)
-    {
-        float a = 1.5708 + i * 2.0944;
-        float2 tip = float2(cos(a), sin(a)) * 3.0;
-        legs = min(legs, sdSegment(p, float2(0.0, 0.0), tip) - 0.38);
-        legsShadow = min(legsShadow, sdSegment(sp, float2(0.0, 0.0), tip) - 0.38);
-    }
-    float hub = length(p) - 1.55;
-    Over(result, float3(0.0, 0.0, 0.0), 0.40 * smoothstep(0.5, -0.3, min(legsShadow, length(sp) - 1.55)));
-
-    Over(result, kOutlineColor, FillAlpha(legs - 0.14, aa));
-    Over(result, float3(0.26, 0.28, 0.32), FillAlpha(legs, aa));
-    float2 nrm = p / max(length(p), 1e-4);
-    float3 hubColor = float3(0.30, 0.33, 0.38) * (0.85 + 0.3 * dot(nrm, kLightDir) * smoothstep(0.4, 1.5, length(p)));
-    Over(result, kOutlineColor, FillAlpha(hub - 0.14, aa));
-    Over(result, hubColor, FillAlpha(hub, aa));
-
-    // Crystal: a diamond seen from above.
-    float crystal = (abs(p.x) + abs(p.y)) * 0.7071 - 0.75;
-    float facet = step(0.0, p.x * kLightDir.x + p.y * kLightDir.y);
-    float pulse = 0.7 + 0.3 * sin(phase * (giving > 0.5 ? 9.0 : 2.5));
-    float3 crystalColor = powered > 0.5
-        ? lerp(kChargeBlue * 0.75, float3(0.80, 0.90, 1.0), facet * 0.5 + 0.4 * giving * pulse)
-        : float3(0.12, 0.14, 0.20);
-    Over(result, kOutlineColor, FillAlpha(crystal - 0.12, aa));
-    Over(result, crystalColor, FillAlpha(crystal, aa));
-
-    if (powered > 0.5)
-    {
-        float halo = exp(-max(length(p) - 0.6, 0.0) * 1.8) * (0.25 + 0.45 * giving * pulse);
-        result.rgb += kChargeBlue * halo;
-        if (giving > 0.5)
-        {
-            // Arcs flickering around the hub rim.
-            float angle = atan2(p.y, p.x) / 6.2831853;
-            float t = floor(phase * 12.0);
-            float arcs = step(0.72, frac(sin(floor(angle * 9.0) * 12.7 + t * 5.3) * 43758.5));
-            float rim = exp(-abs(length(p) - 2.0) * 6.0);
-            result.rgb += float3(0.75, 0.85, 1.0) * rim * arcs * 0.8;
-        }
-    }
-    return Ghost(result, flags);
-}
-
-// Battery gauge: a pill with a fill bar; blue when healthy, amber below half, blinking red when low and heading home.
-// A bright running edge shows it is being charged.
+// Capacitor gauge: a pill with a fill bar; blue when healthy, amber below half, red when nearly empty.
 float4 Battery(float2 p, float4 params, float aa)
 {
     float fill = saturate(params.x);
-    bool returning = params.y > 0.5;
-    float phase = params.z;
-    bool charging = params.w > 0.5;
     float4 result = float4(0.0, 0.0, 0.0, 0.0);
 
     static const float2 kHalf = float2(2.0, 0.5);
@@ -247,13 +186,7 @@ float4 Battery(float2 p, float4 params, float aa)
     float right = -kHalf.x + 0.18 + (kHalf.x - 0.18) * 2.0 * fill;
     float bar = max(sdRoundBox(p, float2(0.0, 0.0), kHalf - 0.18, 0.3), p.x - right);
     float3 color = fill > 0.5 ? kChargeBlue : lerp(float3(1.0, 0.25, 0.15), float3(1.0, 0.72, 0.18), saturate(fill * 2.0 - 0.3));
-    float blink = returning && !charging ? 0.55 + 0.45 * step(0.5, frac(phase * 2.0)) : 1.0;
-    Over(result, color * blink, FillAlpha(bar, aa));
-    if (charging)
-    {
-        float run = pow(saturate(1.0 - abs(frac(p.x * 0.35 - phase * 1.5) - 0.5) * 2.0), 8.0);
-        result.rgb += float3(0.8, 0.9, 1.0) * run * FillAlpha(bar, aa) * 0.7;
-    }
+    Over(result, color, FillAlpha(bar, aa));
     return result;
 }
 

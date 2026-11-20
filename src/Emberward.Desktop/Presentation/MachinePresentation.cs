@@ -41,20 +41,16 @@ public static class MachinePresentations
         MachineType.Harvester, "harvester", "HARVEST", "R", BuildSlot: 1,
         "plant harvester here - in your network it mines nearby ore into your base store");
 
-    public static readonly MachinePresentation Pylon = new(
-        MachineType.Pylon, "pylon", "PYLON", "T", BuildSlot: 2,
-        "plant pylon here - it charges harvesters it can see");
-
     public static readonly MachinePresentation Generator = new(
-        MachineType.Generator, "generator", "GEN", "Y", BuildSlot: 3,
+        MachineType.Generator, "generator", "GEN", "Y", BuildSlot: 2,
         "plant generator here - use nearby heat to supply the local network");
 
     public static readonly MachinePresentation Turret = new(
-        MachineType.Turret, "turret", "TURRET", "U", BuildSlot: 4,
+        MachineType.Turret, "turret", "TURRET", "U", BuildSlot: 3,
         "plant turret here - in your network it fires at enemy tanks in range");
 
     /// <summary>Every machine's presentation, indexed by <see cref="MachineType"/>.</summary>
-    public static readonly IReadOnlyList<MachinePresentation> All = BuildTable(Relay, Harvester, Pylon, Generator, Turret);
+    public static readonly IReadOnlyList<MachinePresentation> All = BuildTable(Relay, Harvester, Generator, Turret);
 
     /// <summary>Every machine's presentation in build-panel row order.</summary>
     public static readonly IReadOnlyList<MachinePresentation> InSlotOrder = All.OrderBy(p => p.BuildSlot).ToArray();

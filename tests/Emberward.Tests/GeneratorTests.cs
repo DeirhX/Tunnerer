@@ -46,11 +46,11 @@ public class GeneratorTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FourthKey_BuildsAndPlantsOnlyInEnergyMatches(bool energyNetwork)
+    public void ThirdKey_BuildsAndPlantsOnlyInEnergyMatches(bool energyNetwork)
     {
         var s = RelayHeatTests.CreateScenario(blockLineOfSight: true, energyNetwork: energyNetwork);
         s.Tank.Hold.Ore = Tweaks.Ore.GeneratorCost;
-        var press = new ControllerOutput { BuildQuaternary = true };
+        var press = new ControllerOutput { BuildTertiary = true };
         s.Tank.Position = s.RelayPos;
         s.World.Advance(i => i == 0 ? press : default);
         Assert.Equal(energyNetwork ? MachineType.Generator : (MachineType?)null, s.Tank.CarriedMachineType);

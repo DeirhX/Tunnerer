@@ -25,7 +25,7 @@ public class SnapshotRoundTripTests
 {
     public static TheoryData<string> FingerprintScenarios => new()
     {
-        "PlayerDrivesAndShoots", "RelayPylonHarvesterNetwork", "BotVsBot", "EnemyMachinesShotToPieces",
+        "PlayerDrivesAndShoots", "RelayHarvesterNetwork", "BotVsBot", "EnemyMachinesShotToPieces",
     };
 
     [Theory]
@@ -105,7 +105,7 @@ public class SnapshotRoundTripTests
     private static SimulationFingerprintTests.Scenario FingerprintScenario(string name) => name switch
     {
         "PlayerDrivesAndShoots" => SimulationFingerprintTests.PlayerDrivesAndShoots(),
-        "RelayPylonHarvesterNetwork" => SimulationFingerprintTests.RelayPylonHarvesterNetwork(),
+        "RelayHarvesterNetwork" => SimulationFingerprintTests.RelayHarvesterNetwork(),
         "BotVsBot" => SimulationFingerprintTests.BotVsBot(),
         "EnemyMachinesShotToPieces" => SimulationFingerprintTests.EnemyMachinesShotToPieces(),
         _ => throw new ArgumentException(name, nameof(name)),

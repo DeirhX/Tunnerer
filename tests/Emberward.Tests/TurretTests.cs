@@ -85,12 +85,12 @@ public class TurretTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FifthKey_BuildsATurret_OnlyInEnergyMatches(bool energyNetwork)
+    public void FourthKey_BuildsATurret_OnlyInEnergyMatches(bool energyNetwork)
     {
         var s = RelayHeatTests.CreateScenario(energyNetwork: energyNetwork);
         s.Tank.Hold.Ore = Tweaks.Turret.OreCost;
         s.Tank.Position = Outside(s, 8);
-        var press = new ControllerOutput { BuildQuinary = true };
+        var press = new ControllerOutput { BuildQuaternary = true };
         s.World.Advance(i => i == 0 ? press : default);
         Assert.Equal(energyNetwork ? MachineType.Turret : (MachineType?)null, s.Tank.CarriedMachineType);
 

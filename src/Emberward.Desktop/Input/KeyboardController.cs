@@ -44,7 +44,7 @@ public class KeyboardController
         if (IsHeld(_keys.Up)) dy -= 1;
         if (IsHeld(_keys.Down)) dy += 1;
 
-        bool primary = false, secondary = false, tertiary = false, quaternary = false, quinary = false;
+        bool primary = false, secondary = false, tertiary = false, quaternary = false;
         foreach (var machine in MachinePresentations.All)
         {
             if (!IsHeld(BuildKeys[(int)machine.Type]))
@@ -55,7 +55,6 @@ public class KeyboardController
                 case BuildKey.Secondary: secondary = true; break;
                 case BuildKey.Tertiary: tertiary = true; break;
                 case BuildKey.Quaternary: quaternary = true; break;
-                case BuildKey.Quinary: quinary = true; break;
             }
         }
 
@@ -69,7 +68,6 @@ public class KeyboardController
             BuildSecondary = secondary,
             BuildTertiary = tertiary,
             BuildQuaternary = quaternary,
-            BuildQuinary = quinary,
             Upgrade = upgrade,
             UpgradeMachine = MachineUpgradeMode && upgrade != 0,
         };

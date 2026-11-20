@@ -106,11 +106,12 @@ public class MachineDamageTests
     }
 
     [Fact]
-    public void WreckedBattery_DumpsItsChargeAsBookedHeat()
+    public void WreckedCapacitor_DumpsItsChargeAsBookedHeat()
     {
-        var s = RelayHeatTests.CreateScenario();
+        // Only the energy network gives a machine a capacitor to dump.
+        var s = RelayHeatTests.CreateScenario(energyNetwork: true);
         var harvester = Plant(s, MachineType.Harvester, EnemyColor(s));
-        Assert.True(harvester.Charge > 0.0, "planting fills the battery from the owner base");
+        Assert.True(harvester.Charge > 0.0, "planting fills the capacitor from the owner base");
         harvester.Reactor.Exhaust(new ReactorState(0, Tweaks.Machine.ReactorHealthCapacity - Tweaks.Weapon.BulletDamage));
         var ledger = s.World.Terrain.Ledger;
 

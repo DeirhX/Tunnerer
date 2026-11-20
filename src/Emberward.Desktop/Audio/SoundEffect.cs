@@ -12,7 +12,6 @@ public enum SoundEffect
     Dock,
     BuildRelay,
     BuildHarvester,
-    BuildPylon,
     Plant,
     PlantRefused,
     Pickup,
