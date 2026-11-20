@@ -485,7 +485,9 @@ public class World
         MachineBehaviors.Get(type).RequiresLinkToPlant
             ? new MachinePlacementPreview(PreviewMachineLink(at, owner), 0f)
             : MachineBehaviors.Get(type).IsMiner ? new MachinePlacementPreview(default,
-                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at))) : default;
+                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)))
+            : MachineBehaviors.Get(type).IsTurret ? new MachinePlacementPreview(default,
+                TurretAction.SenseTemperature(_terrain, at) / Tweaks.Turret.MaxSlowTemperature) : default;
 
     private LinkPreview PreviewMachineLink(Position at, TankBase? owner)
     {

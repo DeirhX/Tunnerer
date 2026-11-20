@@ -32,6 +32,11 @@ public static class TurretAction
         if (turret.TurretCooldown > 0)
         {
             turret.TurretCooldown--;
+            // While it waits out a shot it still follows its coverage at the look rate, so its capacitor neither keeps
+            // filling from an island it has left nor waits long to join one.
+            if (turret.TurretCooldown > 0 && turret.TurretCooldown % Tweaks.Turret.ScanIntervalTicks == 0 &&
+                ctx.Energy is EnergyNetwork waiting && turret.OwnerBase is { IsDestroyed: false })
+                Cover(turret, ctx, waiting);
             return;
         }
         // Looked at again after a short wait unless it fires, which waits its interval instead.
@@ -40,7 +45,7 @@ public static class TurretAction
             return;
 
         var terrain = ctx.Terrain;
-        energy.SetCovered(turret, ctx.IsOnNetwork(turret), ctx.Machines, terrain, t_near ??= new List<Machine>());
+        Cover(turret, ctx, energy);
         float temperature = SenseTemperature(terrain, turret.Position);
         turret.SenseHeat = temperature / Tweaks.Turret.MaxSlowTemperature;
         turret.IsStalled = temperature > Tweaks.Turret.SlowTemperature;
@@ -62,10 +67,14 @@ public static class TurretAction
         turret.TurretCooldown = IntervalAt(stats.IntervalTicks, temperature) - 1;
     }
 
+    /// <summary>Joins the island whose coverage it stands in (its base's, or a local generator's), as a harvester does.</summary>
+    private static void Cover(Machine turret, MachineContext ctx, EnergyNetwork energy) =>
+        energy.SetCovered(turret, ctx.IsOnNetwork(turret), ctx.Machines, ctx.Terrain, t_near ??= new List<Machine>());
+
     /// <summary>
     /// The enemy tank <paramref name="turret"/> shoots at: of the live tanks of other sides without a respawn shield,
-    /// within <paramref name="range"/> cells and in direct line of sight through open ground, the nearest; on a tie the
-    /// first in spawn order. Null when there is none.
+    /// within <paramref name="range"/> cells and with a clear shot (open ground, no base wall between), the nearest; on a
+    /// tie the first in spawn order. Null when there is none.
     /// </summary>
     public static Tank? TargetOf(Machine turret, int range, TankList tanks, ITerrainPixelReadOnly terrain)
     {
@@ -80,7 +89,7 @@ public static class TurretAction
             // Strictly nearer only once one is found: the list is in spawn order, so the earliest keeps a tie.
             if (distance > bestDistance || (best != null && distance == bestDistance))
                 continue;
-            if (!Raycaster.HasOpenLine(terrain, turret.Position, tank.Position))
+            if (!Raycaster.HasClearShot(terrain, turret.Position, tank.Position))
                 continue;
             best = tank;
             bestDistance = distance;
@@ -106,15 +115,18 @@ public static class TurretAction
         // SampleAverageHeat is normalised (temperature / 255).
         heat.SampleAverageHeat(at, Tweaks.Turret.HeatSenseRadius) * 255f;
 
-    /// <summary>A bullet from the barrel's tip toward <paramref name="target"/>; the turret turns to face it.</summary>
+    /// <summary>A bullet from the barrel toward <paramref name="target"/>; the turret turns to face it.</summary>
     private static void Fire(Machine turret, Tank target, TurretStats stats, ProjectileList projectiles)
     {
         int dx = target.Position.X - turret.Position.X, dy = target.Position.Y - turret.Position.Y;
         float length = MathF.Sqrt(dx * dx + dy * dy);
         var direction = length > 0f ? new DirectionF(dx / length, dy / length) : new DirectionF(0f, -1f);
+        // From the barrel's tip, or from halfway to a tank closer than that: a bullet is tested from its first step on,
+        // so a muzzle past a point-blank tank would miss it.
+        float reach = MathF.Min(Tweaks.Turret.BarrelLength, length / 2f);
         var muzzle = (Position)new PositionF(
-            turret.Position.X + direction.X * Tweaks.Turret.BarrelLength,
-            turret.Position.Y + direction.Y * Tweaks.Turret.BarrelLength);
+            turret.Position.X + direction.X * reach,
+            turret.Position.Y + direction.Y * reach);
         projectiles.Add(Projectile.CreateBullet(muzzle, direction.ToVector(Tweaks.Weapon.CannonBulletSpeed),
             turret.OwnerColor, stats.Damage));
         if (dx != 0 || dy != 0)

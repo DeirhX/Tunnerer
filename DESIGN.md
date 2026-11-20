@@ -362,7 +362,7 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
   topped up at 40 a tick in the turrets tier, idle draw 1 a tick) holds a shot. It looks for a target four times a
   second: the nearest live enemy tank without a respawn shield within 24 cells and in direct line of sight through
   open ground, the first in spawn order on a tie. Vision (fog of war) is output only, so the turret casts its own
-  line, as links and coverage do. It fires a bullet (80 damage against a tank shell's 160) every 12 ticks (0.5 s);
+  line, as links and coverage do, except that a base wall blocks it: a bullet stops there, though links pass. It fires a bullet (80 damage against a tank shell's 160) every 12 ticks (0.5 s);
   each shot spends 150 charge, which the network turns into heat in the ground beside it, so a lone turret firing
   warms its ground by about 4 degrees a shot. Above 60 degrees it fires more slowly, up to 4 times its interval at
   140 degrees; a relay nearby pumps the heat away. Its upgrades: **Rapid** (interval x0.7, then x0.5; each shot

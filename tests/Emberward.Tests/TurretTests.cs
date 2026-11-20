@@ -1,4 +1,5 @@
 using Emberward.Core;
+using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
@@ -163,6 +164,15 @@ public class TurretTests
                 world.Terrain.SetPixel(at + new Offset(x, y), TerrainPixel.Rock);
         Assert.Same(first, TurretAction.TargetOf(turret, range, tanks, world.Terrain));
 
+        // Nor behind a base wall, which links see through but a bullet stops on.
+        for (int y = -1; y <= 1; y++)
+            world.Terrain.SetPixel(at + new Offset(5, y), TerrainPixel.BaseMin);
+        Assert.True(Raycaster.HasOpenLine(world.Terrain, turret.Position, first.Position));
+        Assert.Null(TurretAction.TargetOf(turret, range, tanks, world.Terrain));
+        for (int y = -1; y <= 1; y++)
+            world.Terrain.SetPixel(at + new Offset(5, y), TerrainPixel.Blank);
+        Assert.Same(first, TurretAction.TargetOf(turret, range, tanks, world.Terrain));
+
         // Out of range, nothing; its own side's tank never.
         first.Position = at + new Offset(range + 1, 0);
         Assert.Null(TurretAction.TargetOf(turret, range, tanks, world.Terrain));
@@ -170,6 +180,19 @@ public class TurretTests
         Assert.Same(first, TurretAction.TargetOf(turret, range, tanks, world.Terrain));
         tanks.Tanks[0].Position = at + new Offset(-3, 0);
         Assert.Same(first, TurretAction.TargetOf(turret, range, tanks, world.Terrain));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void ATurret_HitsATankRightBesideIt(int gap)
+    {
+        var (s, _, enemy) = Duel(gap);
+        int health = enemy.Reactor.Health;
+
+        Assert.NotEmpty(FiringTicks(s.World, 2 * Tweaks.Turret.FireIntervalTicks));
+        Assert.True(enemy.Reactor.Health < health, "a bullet from beyond a point-blank tank would fly past it");
     }
 
     [Fact]
