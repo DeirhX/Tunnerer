@@ -29,7 +29,8 @@ public sealed class TutorialDirector
         Func<World, Tank, (string Text, float Fraction)?>? Progress = null,
         Func<World, Tank, Position?>? Target = null,
         float ReadSeconds = 0f,
-        string? EnergyBody = null);
+        string? EnergyBody = null,
+        float? EnergyReadSeconds = null);
 
     private readonly Step[] _steps;
     private int _index;
@@ -99,11 +100,13 @@ public sealed class TutorialDirector
 
             new("Power the harvester",
                 "Harvesters run on your base's charge (the Charge bar in the base panel) wherever your network covers them. Relays make that charge from warm ground: keep one by hot rock so the store never runs dry.",
-                static (_, w, p) => w.Rules.EnergyNetwork
-                    ? OwnsAny(w, p, MachineType.Generator)
-                    : Owned(w, p, MachineType.Harvester).Any(h => !MachineBehaviors.IsOutOfCharge(h)),
+                // Without the energy network there is nothing to do: a harvester already runs on the base's store, so
+                // the step only explains that and finishes once read. With it the player builds a generator.
+                static (_, w, p) => w.Rules.EnergyNetwork && OwnsAny(w, p, MachineType.Generator),
                 Target: static (w, p) => w.Rules.EnergyNetwork
                     ? Nearest(w.HotRockPockets, p.Position) : FirstHarvester(w, p),
+                ReadSeconds: 12f,
+                EnergyReadSeconds: 0f,
                 EnergyBody: $"Harvesters draw charge through the network. Press {Key(MachineType.Generator)} to build a generator ({Cost(MachineType.Generator)} ore) and plant it beside hot ground. A generator can power nearby machines through their links even when cut off from the base."),
 
             new("Upgrade",
@@ -157,8 +160,8 @@ public sealed class TutorialDirector
             if (float.IsNaN(_shownSince))
                 _shownSince = now;
             var step = _steps[_index];
-            bool done = step.IsDone(this, world, player) ||
-                        (step.ReadSeconds > 0f && ShownFor(now) >= step.ReadSeconds);
+            float read = world.Rules.EnergyNetwork ? step.EnergyReadSeconds ?? step.ReadSeconds : step.ReadSeconds;
+            bool done = step.IsDone(this, world, player) || (read > 0f && ShownFor(now) >= read);
             if (!done)
                 break;
             _index++;
