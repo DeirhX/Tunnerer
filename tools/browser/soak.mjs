@@ -29,6 +29,8 @@ page.on("console", (m) => {
     if (["error", "warning"].includes(m.type()) || /\[load\]|\[trace\]|runtime|Assert/i.test(m.text()))
         log.push(`[${m.type()}] ${m.text().slice(0, 3000)}`);
 });
+page.on("crash", () => log.push("[crash] the page crashed (browser process for the page died)"));
+page.on("close", () => log.push("[close] page closed"));
 page.on("pageerror", (e) => log.push(`[pageerror] ${String(e).slice(0, 400)}`));
 await page.addInitScript(() => {
     window.testSteps = 0;
@@ -136,5 +138,6 @@ console.log(`matches played: ${matches}`);
 console.log(`longest gap between steps: ${Math.round(await within(page.evaluate(() => window.testMaxGap), "gap", 5000).catch(() => -1))} ms`);
 console.log(failure ? `FAILED after ${Math.round((Date.now() - began) / 1000)} s: ${failure}` : `ok: played ${seconds} s`);
 for (const line of log.slice(-(Number(process.env.SOAK_LOG_TAIL) || 30))) console.log(line);
+if (failure && process.env.SOAK_HOLD) await new Promise((r) => setTimeout(r, Number(process.env.SOAK_HOLD) * 1000));
 await within(context.close(), "close", 15000).catch(() => {});
 process.exit(failure ? 1 : 0);

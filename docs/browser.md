@@ -75,8 +75,11 @@ ran three matches of 300 s in Edge and two of 300 s in Firefox with `?threads=4`
 Firefox ones). WebKit with `?threads=4` still froze in a network match, in all five tried (after 60 to 139 s),
 though it ran six solo matches and a network match on one thread without trouble. Tracing every call, and the page's handling of each answer,
 showed .NET answering, the page's handler running to its end, and then the next request never being made, with the
-page not answering input: the freeze is in the page after .NET is done, not in a call. (Playwright's WebKit on
-Windows is the WinCairo port, not Safari, so this may not be what Safari does; it was not tried.) A base64 string in place of the byte
+page not answering input: the freeze is in the page after .NET is done, not in a call. The page's frame loop stops
+altogether (no more animation frames), the page does not crash (no `crash` event), and while it stands frozen its
+processes use almost no processor (0.05 s in 5 s across 43 threads of the page's process): the runtime's threads
+have deadlocked on one another, in WebKit's threaded WebAssembly, where nothing of ours is waiting. (Playwright's
+WebKit on Windows is the WinCairo port, not Safari, so this may not be what Safari does; it was not tried.) A base64 string in place of the byte
 array that `Receive` takes made no difference, and was not kept. Both WebKit and Firefox stay on one thread, and
 nothing was played on macOS.
 
