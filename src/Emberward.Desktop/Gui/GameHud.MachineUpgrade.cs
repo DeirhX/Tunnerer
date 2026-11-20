@@ -36,7 +36,7 @@ public partial class GameHud
         float ring = ToUi(MachineUpgradeView.RingCells * Camera.Scale);
         if (view.HighlightColor >> 24 != 0)
             dl.AddCircle(center, ring, view.HighlightColor, 32, MachineUpgrades.IsOpen ? 3f : 2f);
-        DrawMachinePips(dl, view, CellToScreen(machine.X + 0.5f, machine.Y + 0.5f - MachineUpgradeView.PipLiftCells));
+        DrawMachinePips(dl, view, CellToScreen(machine.X + 0.5f, machine.Y + 0.5f + MachineUpgradeView.PipDropCells));
 
         if (!MachineUpgrades.IsOpen)
         {

@@ -23,6 +23,12 @@ function versionLine() {
             show();
         },
         async refresh() {
+            // Offline there is nothing to ask, and the browser would log the failed request as an error.
+            if (!navigator.onLine) {
+                latest = null;
+                show();
+                return;
+            }
             try {
                 const text = await (await fetch("./assets-manifest.js", { cache: "no-store" })).text();
                 latest = /"version": "(\w+)"/.exec(text)?.[1] ?? null;

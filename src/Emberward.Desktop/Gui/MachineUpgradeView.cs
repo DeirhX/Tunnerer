@@ -66,8 +66,11 @@ public sealed record MachineUpgradeView(
     /// <summary>Cells around the machine's centre the highlight ring is drawn at, and a tap on it counts within.</summary>
     public const float RingCells = 4.5f;
 
-    /// <summary>Cells above the machine's centre where the pips sit, clear of its sprite and ring.</summary>
-    public const float PipLiftCells = 6f;
+    /// <summary>
+    /// Cells below the machine's centre where the pips sit, under its ring. Not above it: the charge label
+    /// (<see cref="PowerLabels.LiftCells"/>) is there, and pips over it hid its flow line.
+    /// </summary>
+    public const float PipDropCells = 6f;
 
     /// <summary>The ring's colour; zero alpha when it is not lit.</summary>
     public uint HighlightColor => Highlight switch

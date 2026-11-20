@@ -1196,6 +1196,9 @@ meter::-moz-meter-bar {
 #machine-upgrade {
     position: absolute;
     width: 290px;
+    /* renderer.js keeps it inside the view; a view shorter than the panel scrolls it. */
+    max-height: calc(100% - 8px);
+    overflow-y: auto;
     transform: translateY(-50%);
     pointer-events: auto;
 }
