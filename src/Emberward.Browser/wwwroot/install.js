@@ -164,6 +164,8 @@ export async function setupInstallation(notify, idle) {
     try {
         const versions = versionLine();
         versions.refresh();
+        // Asked again when the connection comes back, since an offline start skipped it.
+        window.addEventListener("online", () => versions.refresh());
         const updates = updater(idle, versions);
         const registration = await navigator.serviceWorker.register("./sw.js", {
             updateViaCache: "none",

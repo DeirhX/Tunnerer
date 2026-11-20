@@ -16,6 +16,9 @@ public partial class GameHud
 {
     private const float MachinePanelWidth = 320f, MachinePanelGap = 14f;
 
+    // The machine upgrade panel's height when it was last drawn, to keep it inside the view.
+    private float _machinePanelHeight;
+
     /// <summary>The key that opens and closes the machine upgrade panel, as written on screen.</summary>
     public const string MachineUpgradeKey = "F";
 
@@ -52,8 +55,11 @@ public partial class GameHud
         bool left = anchor.X + MachinePanelWidth > vp.x + vp.w;
         if (left)
             anchor.X = center.X - ring - MachinePanelGap;
+        // Kept inside the view by the height it had last frame (ImGui sizes the window as it fills it).
+        anchor.Y = MachineUpgradeView.PanelCentreY(center.Y, _machinePanelHeight, vp.y, vp.y + vp.h);
         if (HudTheme.BeginWindow("##MachineUpgrade", anchor, new Vector2(left ? 1f : 0f, 0.5f), MachinePanelWidth))
         {
+            _machinePanelHeight = ImGui.GetWindowHeight();
             HudTheme.TitleRow(string.Create(CultureInfo.InvariantCulture,
                 $"{view.Title}    level {view.Level}/{view.MaxLevel}"), 18f);
             var rowDl = ImGui.GetWindowDrawList();

@@ -72,6 +72,21 @@ public sealed record MachineUpgradeView(
     /// </summary>
     public const float PipDropCells = 6f;
 
+    /// <summary>Screen space kept between the panel and the edge of the view.</summary>
+    public const float PanelMargin = 4f;
+
+    /// <summary>
+    /// Where the panel's centre goes on screen, in the units of the arguments: level with the machine, but moved so the
+    /// whole panel stays between <paramref name="viewTop"/> and <paramref name="viewBottom"/> (a short view, such as a
+    /// phone held sideways, would otherwise push its lower rows off the bottom). A panel taller than the view keeps its
+    /// top in view. The browser does the same in <c>renderer.js</c>.
+    /// </summary>
+    public static float PanelCentreY(float machineY, float panelHeight, float viewTop, float viewBottom)
+    {
+        float half = panelHeight * 0.5f;
+        return MathF.Max(viewTop + half + PanelMargin, MathF.Min(viewBottom - half - PanelMargin, machineY));
+    }
+
     /// <summary>The ring's colour; zero alpha when it is not lit.</summary>
     public uint HighlightColor => Highlight switch
     {

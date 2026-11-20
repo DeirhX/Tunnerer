@@ -169,8 +169,9 @@ export class GameRenderer {
         if (this.machinePanel && m?.open && onScreen) {
             const left = x + r + 14 + this.machinePanel.offsetWidth > this.width;
             const panelX = left ? x - r - 14 - this.machinePanel.offsetWidth : x + r + 14;
-            // Level with the machine, but kept inside the view: on a short screen (a phone held sideways) a machine
-            // below the tank would otherwise push the panel's lower rows off the bottom.
+            // Level with the machine, but kept inside the view (MachineUpgradeView.PanelCentreY, as on the desktop):
+            // on a short screen (a phone held sideways) a machine below the tank would otherwise push the panel's
+            // lower rows off the bottom.
             const half = this.machinePanel.offsetHeight / 2;
             const panelY = Math.max(half + 4, Math.min(this.height - half - 4, y));
             const panelLeft = `${Math.round(Math.max(4, panelX))}px`,

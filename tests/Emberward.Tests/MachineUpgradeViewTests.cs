@@ -118,4 +118,24 @@ public class MachineUpgradeViewTests
         Assert.False(maxed.CatchesTaps(panelOpen: false), "a maxed machine is not lit: a tap near it fires");
         Assert.True(maxed.CatchesTaps(panelOpen: true), "a tap closes an open panel");
     }
+
+    [Fact]
+    public void ThePips_SitUnderTheRing_AwayFromTheChargeLabelAbove()
+    {
+        // Positive is down. The charge label grows up from PowerLabels.LiftCells above the machine; pips there hid
+        // its flow line (seen in the browser). Under the ring they cover neither.
+        float pips = MachineUpgradeView.PipDropCells, ring = MachineUpgradeView.RingCells;
+        Assert.True(pips > ring, $"pips at {pips} cells down must clear the ring ({ring})");
+    }
+
+    [Theory]
+    [InlineData(400f, 300f, 400f)] // room above and below: level with the machine
+    [InlineData(780f, 300f, 646f)] // near the bottom: lifted until its bottom is in view
+    [InlineData(80f, 300f, 254f)] // near the top: lowered until its top is in view
+    [InlineData(400f, 900f, 554f)] // taller than the view: its top stays in view
+    public void ThePanel_StaysInsideTheView(float machineY, float panelHeight, float expected)
+    {
+        const float top = 100f, bottom = 800f;
+        Assert.Equal(expected, MachineUpgradeView.PanelCentreY(machineY, panelHeight, top, bottom));
+    }
 }
