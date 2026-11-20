@@ -148,8 +148,8 @@ public class Machine
     internal void DischargeAsHeat(ITerrainAccess terrain, double amount) => Charge -= ReleaseChargeAsHeat(terrain, amount);
 
     /// <summary>
-    /// Puts <paramref name="charge"/> already taken from a store (the machine's own or its base's) into the ground
-    /// around the machine as heat, booked in the ledger as charge turned back into heat. Returns the heat put there.
+    /// Puts <paramref name="charge"/> into the ground around the machine as heat, booked in the ledger as charge turned
+    /// back into heat. Returns the heat put there; the caller takes exactly that from the store it came from.
     /// </summary>
     internal double ReleaseChargeAsHeat(ITerrainAccess terrain, double charge)
     {

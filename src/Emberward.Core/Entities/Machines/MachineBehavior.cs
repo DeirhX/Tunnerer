@@ -425,8 +425,10 @@ public static class MachineBehaviors
             ctx.Energy.Spend(machine, cost, ctx.Terrain);
             return;
         }
-        double drawn = machine.OwnerBase?.DrawCharge(cost) ?? 0.0;
-        if (drawn > 0.0)
-            machine.ReleaseChargeAsHeat(ctx.Terrain, drawn);
+        // Put the heat in first and take from the store only what went into the ground, so no charge is lost unbooked.
+        if (machine.OwnerBase is not { } home || cost <= 0.0)
+            return;
+        double heat = machine.ReleaseChargeAsHeat(ctx.Terrain, Math.Min(cost, home.Charge));
+        home.DrawCharge(heat);
     }
 }

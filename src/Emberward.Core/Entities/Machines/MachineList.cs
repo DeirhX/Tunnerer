@@ -164,7 +164,6 @@ public class MachineList : ISnapshotLoaded
                 SenseHeat: m.SenseHeat,
                 Charge: m.ChargeFraction,
                 HasCapacitor: m.ChargeCapacity > 0.0,
-                Anchor: m.Anchor,
                 GenerationFraction: m.Behavior.IsGenerator ? (float)(m.LastChargeMade / generatorMaxChargePerTick) : 0f);
         }
         return count;

@@ -23,7 +23,6 @@ public readonly record struct ProjectileRenderState(
 
 /// <param name="Charge">Capacitor fill, 0..1.</param>
 /// <param name="HasCapacitor">It has a capacitor: every planted machine on the energy network, none without it.</param>
-/// <param name="Anchor">Where the machine was planted. Unlike <paramref name="Position"/>, it does not change while a harvester crawls.</param>
 public readonly record struct MachineRenderState(
     Position Position,
     MachineType Type,
@@ -38,7 +37,6 @@ public readonly record struct MachineRenderState(
     float SenseHeat = 0f,
     float Charge = 0f,
     bool HasCapacitor = false,
-    Position Anchor = default,
     float GenerationFraction = 0f);
 
 /// <param name="HeatFlow">Heat carried in the last tick, in full relay pump rates (2 = two relays' worth).</param>

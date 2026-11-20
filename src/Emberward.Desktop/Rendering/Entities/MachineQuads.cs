@@ -64,7 +64,7 @@ public static class MachineQuads
             {
                 // Capacitor gauge above the machine, upright whichever way it faces.
                 quads.Add(cx, cy - 4.6f * scale, 1f, 0f, -2.4f, 2.4f, -0.9f, 0.9f,
-                    EntityShape.KindBattery, machine.Charge, 0f, phase, 0f);
+                    EntityShape.KindBattery, machine.Charge, 0f, 0f, 0f);
             }
         }
     }
