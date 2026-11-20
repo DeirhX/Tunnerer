@@ -14,7 +14,7 @@ export class GameRenderer {
         this.frame = null;
         this.target = null;
         // The charge labels over machines (G), drawn while the frame carries them (a match with the energy network).
-        this.labelsShown = true;
+        this.showPower = true;
         this.governor = new ResolutionGovernor();
         this.resize();
         window.addEventListener("resize", () => this.resize());
@@ -38,15 +38,6 @@ export class GameRenderer {
         );
         this.canvas.width = Math.round(r.width * this.dpr);
         this.canvas.height = Math.round(r.height * this.dpr);
-        this.overlayCleared = true;
-    }
-
-    get showPower() {
-        return this.labelsShown;
-    }
-
-    set showPower(on) {
-        this.labelsShown = on;
         this.overlayCleared = true;
     }
 
@@ -77,7 +68,8 @@ export class GameRenderer {
             Math.ceil(width / 620),
             Math.ceil(height / 380),
         );
-        return { width, height, scale };
+        const powerLabelCellSize = this.showPower ? (scale * this.width) / width : 0;
+        return { width, height, scale, powerLabelCellSize };
     }
 
     // CSS pixels per terrain cell in the frame on screen.
@@ -121,8 +113,6 @@ export class GameRenderer {
             c.clearRect(0, 0, this.width, this.height);
         this.overlayCleared = false;
         let drawn = false;
-        if (this.labelsShown && this.frame.power)
-            drawn = this.powerLabels(c, this.frame.power) || drawn;
         if (this.frame.goal)
             drawn =
                 this.bearing(c, this.frame.goal.position, "CORE", "#e9a367") ||
@@ -160,48 +150,6 @@ export class GameRenderer {
         c.stroke();
         c.restore();
         return true;
-    }
-
-    // The charge labels, as the desktop draws them (GameHud.Power): charge over capacity, the flow in the label's fed or
-    // starved colour and a thin fill bar, above each machine. The frame says what they read and how strongly each
-    // shows by its distance from the tank (PowerLabels); here they fade with zoom too.
-    powerLabels(c, power) {
-        const cell = this.cellSize;
-        const zoom = Math.min(
-            1,
-            Math.max(0, (cell - power.zoomGone) / (power.zoomFull - power.zoomGone)),
-        );
-        if (!(zoom > 0) || power.machines.length === 0) return false;
-        const barW = 40,
-            barH = 3;
-        let drawn = false;
-        c.save();
-        c.textAlign = "center";
-        c.textBaseline = "bottom";
-        c.shadowColor = "rgba(0, 0, 0, 0.85)";
-        c.shadowOffsetY = 1;
-        for (const m of power.machines) {
-            const { dx, dy } = this.fromCentre({
-                x: m.position.x,
-                y: m.position.y - power.liftCells,
-            });
-            const x = Math.round(this.width / 2 + dx),
-                y = Math.round(this.height / 2 + dy);
-            if (x < 0 || x > this.width || y < 30 || y > this.height) continue;
-            c.globalAlpha = m.opacity * zoom;
-            c.fillStyle = power.track;
-            c.fillRect(x - barW / 2, y - barH, barW, barH);
-            c.fillStyle = m.color;
-            c.fillRect(x - barW / 2, y - barH, barW * m.fill, barH);
-            c.font = "10px monospace";
-            c.fillText(m.flow, x, y - barH - 2);
-            c.fillStyle = power.text;
-            c.font = "11px monospace";
-            c.fillText(m.charge, x, y - barH - 14);
-            drawn = true;
-        }
-        c.restore();
-        return drawn;
     }
 
     // Where a cell is on screen, from the centre of the view, in CSS pixels.

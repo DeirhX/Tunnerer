@@ -2,6 +2,9 @@ namespace Emberward.Core.Bots;
 
 using Emberward.Core.Collision;
 using Emberward.Core.Config;
+using Emberward.Core.Terrain;
+using Emberward.Core.Match;
+using Emberward.Core.Entities.Bases;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Types;
 using Emberward.Core.Input;
@@ -120,7 +123,7 @@ public class BotTankAI
         long bestRank = long.MaxValue;
         for (int i = 0; i < tanks.Count; i++)
         {
-            if (i == self)
+            if (i == self || MatchReferee.IsEliminated(tanks[i]))
                 continue;
             // A dead tank ranks behind every live one, whatever the distance.
             long rank = Position.DistanceSquared(tanks[i].Position, tanks[self].Position)
@@ -141,12 +144,20 @@ public class BotTankAI
             SetMode(TwitchMode.Return); // After a kill the bot goes home instead of waiting at the enemy's base exit.
         _gunner.UpdateLineOfSight(tank, enemy, world.Terrain);
 
-        if (tank.IsDead)
+        if (tank.IsDead || MatchReferee.IsEliminated(tank))
         {
             // It respawns in its base, whole and cold: it starts over from there.
             SetMode(TwitchMode.Start);
             _returnCooldownFrames = 0;
             return default;
+        }
+
+        if (tank.Base is { } home && world.IsBaseDark(home))
+        {
+            if (tank.OreHeld > 0 && !tank.IsDockedAtOwnBase && _mode == TwitchMode.Twitch)
+                SetMode(TwitchMode.Return);
+            else if (_mode == TwitchMode.Recharge && tank.IsDockedAtOwnBase && tank.OreHeld == 0 && IsRecharged(tank))
+                SetMode(TwitchMode.Start);
         }
 
         if (_returnCooldownFrames > 0)
@@ -267,10 +278,19 @@ public class BotTankAI
     {
         var profile = _profiles.Active;
         bool hurtOrHot = _returnCooldownFrames <= 0 && (tank.Reactor.Health < ReturnBelowHealth || NeedsToCool(tank));
+        if (hurtOrHot && tank.CanRecall && tank.OreHeld == 0)
+            return new ControllerOutput { Recall = true };
         if (hurtOrHot || IsInsideOwnBase(tank))
         {
             SetMode(TwitchMode.Return);
             return default;
+        }
+
+        if (!_gunner.EnemyInSight && enemy?.Base is { IsDestroyed: false } enemyBase &&
+            FindBaseWall(tank, enemyBase, world) is Position wall)
+        {
+            _timeToChange = 0;
+            return new ControllerOutput { ShootPrimary = true, AimDirection = BotGunner.AimTowardsOffset(wall - tank.Position) };
         }
 
         bool hasTarget = enemy != null && !enemy.IsDead;
@@ -338,6 +358,8 @@ public class BotTankAI
     /// </summary>
     private ControllerOutput DoReturn(Tank tank, World world, int relX, int relY)
     {
+        if (tank.CanRecall && tank.OreHeld == 0)
+            return new ControllerOutput { Recall = true };
         int cellsFromBase = Math.Max(Math.Abs(relX), Math.Abs(relY));
         if (cellsFromBase < _returnNearestCells - ReturnHeadwayCells)
         {
@@ -411,6 +433,54 @@ public class BotTankAI
         int sx = relX != 0 ? (relX < 0 ? 1 : -1) : 0;
         int sy = relY != 0 ? (relY < 0 ? 1 : -1) : 0;
         return new ControllerOutput { MoveSpeed = new Offset(sx, sy) };
+    }
+
+    /// <summary>
+    /// The base wall a straight shot from the tank hits first, or null. The centre is aimed at first; a line through
+    /// it on a north-south approach runs through both doors and meets no wall, so then the walls round the edge are
+    /// aimed at (a wall beside a door is in reach from outside the door).
+    /// </summary>
+    private static Position? FindBaseWall(Tank tank, TankBase home, World world)
+    {
+        var from = tank.Position;
+        int range = Tweaks.Weapon.BotBaseAttackRange;
+        if (Position.DistanceSquared(from, home.Position) > range * range)
+            return null;
+        if (FirstBaseHit(from, home.Position, home, world) is Position centre)
+            return centre;
+        int half = Tweaks.Base.BaseSize / 2;
+        for (int i = -half; i <= half; i++)
+        {
+            if (FirstBaseHit(from, home.Position + new Offset(i, -half), home, world) is Position top) return top;
+            if (FirstBaseHit(from, home.Position + new Offset(i, half), home, world) is Position bottom) return bottom;
+            if (FirstBaseHit(from, home.Position + new Offset(-half, i), home, world) is Position left) return left;
+            if (FirstBaseHit(from, home.Position + new Offset(half, i), home, world) is Position right) return right;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// What a shot from <paramref name="from"/> aimed at <paramref name="aim"/> hits first, if that is one of the
+    /// base's cells: it walks the cells a bullet fired that way crosses, which passes open ground, open doors and the
+    /// core, and stops at the first cell that collides (a bullet does the same and goes on past the aim).
+    /// </summary>
+    private static Position? FirstBaseHit(Position from, Position aim, TankBase home, World world)
+    {
+        // A base's far wall is within its width of the centre, so this walk reaches it from anywhere in range.
+        int reach = Tweaks.Weapon.BotBaseAttackRange + Tweaks.Base.BaseSize;
+        var step = BotGunner.AimTowardsOffset(aim - from).ToVector(1f);
+        foreach (var pos in Raycaster.CastRay((PositionF)from, step, reach))
+        {
+            if (pos == from)
+                continue;
+            if (!world.Terrain.IsInside(pos))
+                return null;
+            var pixel = world.Terrain.GetPixelRaw(pos);
+            if (!Pixel.IsAnyCollision(pixel))
+                continue;
+            return Pixel.IsAnyBaseCell(pixel) && home.OccupiesCell(pos) ? pos : null;
+        }
+        return null;
     }
 
     /// <summary>Room left before the tank overheats, as a share of a fully cooled tank's room.</summary>

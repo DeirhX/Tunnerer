@@ -40,6 +40,7 @@ public static class HudPalette
     public static readonly uint Teal = Rgba(96, 214, 255);
     public static readonly uint Text = Rgba(234, 228, 216);
     public static readonly uint TextDim = Rgba(158, 150, 138);
+    public static readonly uint DarkBase = Rgba(233, 132, 139);
     public static readonly uint Producer = Rgba(194, 156, 255);
     public static readonly uint Good = Rgba(118, 230, 128);
     public static readonly uint Warn = Rgba(255, 198, 64);

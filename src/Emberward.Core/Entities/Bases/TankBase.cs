@@ -41,6 +41,24 @@ public class TankBase
         _ambientTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalAmbientTemperature;
     }
 
+    public bool IsDestroyed => Reactor.Health <= 0;
+    public double ArmorFill => (int)Reactor.Health / (double)(int)Reactor.HealthCapacity;
+
+    /// <summary>Removes armor and disconnects a destroyed base from its links; true when armor was removed.</summary>
+    public bool TakeDamage(int damage)
+    {
+        if (IsDestroyed || damage <= 0)
+            return false;
+        Reactor.Exhaust(new ReactorState(0, damage));
+        if (IsDestroyed && LinkPoint is { } point)
+            point.IsEnabled = false;
+        return true;
+    }
+
+    /// <summary>True for any cell of the base, its outer wall and door included (<see cref="IsInside"/> stops short of the wall).</summary>
+    public bool OccupiesCell(Position tested) =>
+        Math.Abs(tested.X - Position.X) <= Half && Math.Abs(tested.Y - Position.Y) <= Half;
+
     public bool IsInside(Position tested) => BoundingBox.IsInside(tested, Position);
 
     // Energy absorbed from the grid that does not yet add up to a whole reactor heat unit.
@@ -102,7 +120,7 @@ public class TankBase
     /// <summary>The bot's stand-in income: <see cref="Tweaks.Ore.BotOrePerSecond"/>, in whole units, while bot-controlled.</summary>
     internal void AdvanceBotTrickle(double dtSeconds)
     {
-        if (!IsBotControlled)
+        if (!IsBotControlled || IsDestroyed)
             return;
         _botOreCredit += Tweaks.Ore.BotOrePerSecond * dtSeconds;
         int whole = (int)_botOreCredit;
@@ -253,7 +271,7 @@ public class TankBase
     }
 
     /// <summary>Stores up to the available charge room and returns the amount stored.</summary>
-    internal double StoreCharge(double amount)
+    public double StoreCharge(double amount)
     {
         double stored = Math.Min(amount, Math.Max(0.0, ChargeCapacity - Charge));
         Charge += stored;
@@ -296,12 +314,19 @@ public class TankBase
         }
     }
 
-    public void Advance(ITerrainHeatSource terrain)
+    public void Advance(ITerrainHeatSource terrain, bool canRepair = true)
     {
         // Bases advance after machines, so this tick's relay deliveries are complete.
         EngineInputPerTick = _engineInputThisTick;
         EngineOutputPerTick = _engineOutputThisTick;
         _engineInputThisTick = _engineOutputThisTick = 0.0;
+
+        if (IsDestroyed)
+        {
+            if (LinkPoint is { IsEnabled: true } point)
+                point.IsEnabled = false;
+            return;
+        }
 
         int outerRadius = Half;
         int midRadius = Math.Max(1, (outerRadius * 2) / 3);
@@ -330,11 +355,14 @@ public class TankBase
         }
         terrain.Ledger.RecordSunkBase(vented);
 
-        Reactor.Add(new ReactorState(0, Tweaks.Base.HealthRegen));
+        if (canRepair)
+            Reactor.Add(new ReactorState(0, Tweaks.Base.HealthRegen));
     }
 
     public void RechargeTank(Reactor tankReactor, int tankColor)
     {
+        if (IsDestroyed)
+            return;
         if (tankColor == Color)
             GiveReactorResources(tankReactor, Tweaks.Base.HomeRechargeHealth);
         else

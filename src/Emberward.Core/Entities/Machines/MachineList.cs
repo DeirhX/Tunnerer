@@ -116,7 +116,8 @@ public class MachineList : ISnapshotLoaded
                 Remove(i);
                 continue;
             }
-            _machines[i].Advance(ctx, dt);
+            if (machine.OwnerBase?.IsDestroyed != true)
+                machine.Advance(ctx, dt);
         }
     }
 

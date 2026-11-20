@@ -25,6 +25,7 @@ public static class EntityShape
     public const float KindRadarBlip = 15f;
     public const float KindRadarPulse = 16f;
     public const float KindGenerator = 17f;
+    public const float KindPowerLabel = 18f;
 
     public const float MachineFlagStalled = 1f;
     public const float MachineFlagCarried = 2f;

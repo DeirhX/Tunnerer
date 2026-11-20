@@ -61,7 +61,7 @@ public readonly record struct NetworkStatus(
     /// <summary>A relay counts as pumping once its last action moved more than this much heat.</summary>
     public const double PumpingThreshold = 1.0;
 
-    internal static NetworkStatus Collect(TankBase tankBase, IReadOnlyList<Machine> machines)
+    internal static NetworkStatus Collect(TankBase tankBase, IReadOnlyList<Machine> machines, bool baseDark = false)
     {
         int harvesters = 0, returning = 0, outOfCharge = 0, offNetwork = 0, tooHot = 0, noOre = 0, coreOnly = 0, storeFull = 0;
         int relays = 0, powered = 0, pumping = 0, poweredChargers = 0;
@@ -73,7 +73,7 @@ public readonly record struct NetworkStatus(
             if (machine.Behavior.IsMiner)
             {
                 harvesters++;
-                switch (MachineBehaviors.HarvesterStateOf(machine))
+                switch (MachineBehaviors.HarvesterStateOf(machine, baseDark))
                 {
                     case HarvesterState.Returning: returning++; break;
                     case HarvesterState.OutOfCharge: outOfCharge++; break;

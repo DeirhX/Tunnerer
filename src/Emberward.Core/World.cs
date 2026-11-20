@@ -34,6 +34,7 @@ public class World
     private readonly MatchResult _matchResult;
     private SectorGoal? _sectorGoal;
     private readonly EnergyNetwork? _energy;
+    private readonly BasePowerSystem? _basePower;
     // What tanks and machines see of the world each step; the same every step, so built once.
     [NotSaved("fixed for the match: closures over this world")]
     private readonly SimulationContext _tankContext;
@@ -152,7 +153,7 @@ public class World
         // On the energy network every machine has its whole capacitor (without it, only a battery if it runs on charge).
         if (_energy != null)
             machine.ChargeCapacity = machine.Behavior.Capacitor.Capacity;
-        if (owner != null)
+        if (owner is { IsDestroyed: false } && _basePower?.IsDark(owner) != true)
             machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
         if (machine.Behavior.IsLinkNode)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
@@ -172,14 +173,17 @@ public class World
         _simulationSettings = simulationSettings ?? SimulationSettings.FromTweaks();
         _terrain = new TerrainGrid(terrainSize, _simulationSettings);
         _tankBases = new TankBases(_simulationSettings);
-        _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents);
+        if (Rules.EnergyNetwork)
+        {
+            _energy = new EnergyNetwork(_simulationSettings);
+            _basePower = new BasePowerSystem();
+        }
+        _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
-        _collisionSolver = new CollisionSolver(_terrain);
+        _collisionSolver = new CollisionSolver(_terrain, _tankBases);
         if (Rules.TerrainRegrowth)
             _terrainRegrowth = new TerrainRegrowth(_simulationSeed);
         _matchResult = new MatchResult(_tankList.Tanks);
-        if (Rules.EnergyNetwork)
-            _energy = new EnergyNetwork(_simulationSettings);
         _tankContext = new SimulationContext
         {
             Terrain = _terrain,
@@ -188,6 +192,7 @@ public class World
             CheckBaseCollision = _tankBases.CheckBaseCollision,
             Settings = _simulationSettings,
             Rules = Rules,
+            BasePower = _basePower,
             Machines = _machines,
             PlantMachine = PlantMachine,
             CanPlantRelayAt = (pos, owner) => PreviewMachineLink(pos, owner).Status == LinkPreviewStatus.Live,
@@ -196,8 +201,8 @@ public class World
             IsTankBlocked = _collisionSolver.BlocksTank,
             Events = _stepEvents,
         };
-        _sensing = new SideSensing(_terrain, _machines, _tankList);
-        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy);
+        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower);
+        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy, _basePower);
         _systems = BuildSystems();
     }
 
@@ -217,7 +222,10 @@ public class World
         _terrain.DecorateTerrain(seed + 100);
 
         for (int i = 0; i < spawns.Length; i++)
-            _tankBases.AddBase(spawns[i], i);
+        {
+            TankBase tankBase = _tankBases.AddBase(spawns[i], i);
+            _basePower?.Register(tankBase);
+        }
 
         _tankBases.CreateBasesInTerrain(_terrain);
         foreach (var tankBase in _tankBases.Bases)
@@ -313,25 +321,29 @@ public class World
         };
         if (_terrainRegrowth is TerrainRegrowth regrowth)
             systems.Add(new("regrow", _ => AdvanceRegrowth(regrowth)));
+        if (_basePower is { } basePower)
+            systems.Add(new("blackout", _ => basePower.LatchBlackouts()));
         systems.Add(new("proj", _ => _projectiles.Advance(_collisionSolver)));
         systems.Add(new("tanks", getInput =>
         {
             _linkMap.AgeOreFlow();
             _tankList.Advance(in _tankContext, getInput);
+            _basePower?.LatchBlackouts();
         }));
         if (_energy is EnergyNetwork network)
             systems.Add(new("islands", _ => network.Refresh(_linkMap, _tankBases.Bases)));
         systems.Add(new("machines", _ => AdvanceMachines()));
         if (_energy is EnergyNetwork energy)
-            systems.Add(new("power", _ => energy.Advance(_terrain)));
+            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower)));
         systems.Add(new("bases", _ =>
         {
-            _tankBases.Advance(_terrain);
+            _tankBases.Advance(_terrain, _basePower);
+            _basePower?.Advance();
             foreach (var tankBase in _tankBases.Bases)
                 tankBase.AdvanceBotTrickle(seconds);
         }));
         if (_sectorGoal is SectorGoal goal)
-            systems.Add(new("goal", _ => goal.Advance(_machines, _tankList.Tanks, seconds)));
+            systems.Add(new("goal", _ => goal.Advance(_machines, seconds)));
         systems.Add(new("match", _ => _matchResult.Latch(RaceWinner)));
         systems.Add(new("links", _ => _linkMap.Advance(_terrain, _simulationSettings.AdvanceStep)));
         systems.Add(new("dock", _ =>
@@ -430,12 +442,12 @@ public class World
     private readonly List<Machine> _nearMachines = new();
 
     /// <summary>The network coverage of <paramref name="tank"/>'s own base where the tank stands (DESIGN.md §4.6).</summary>
-    public TankCoverage CoverageFor(Tank tank) => tank.Base == null
+    public TankCoverage CoverageFor(Tank tank) => tank.Base is not { IsDestroyed: false }
         ? TankCoverage.None
         : NetworkCoverage.At(tank.Position, tank.Base, _machines, _terrain, _nearMachines);
 
     /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
-    private bool IsMachineOnNetwork(Machine machine) => machine.OwnerBase is TankBase owner &&
+    private bool IsMachineOnNetwork(Machine machine) => machine.OwnerBase is TankBase { IsDestroyed: false } owner &&
         NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines,
             requireOwnPowerSource: _energy != null).Covered;
 
@@ -494,7 +506,7 @@ public class World
             : LinkPreviewStatus.NoNetwork;
 
     /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
-    public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines);
+    public NetworkStatus GetNetworkStatus(TankBase tankBase) => NetworkStatus.Collect(tankBase, _machines.Machines, IsBaseDark(tankBase));
 
     /// <summary>Fills <paramref name="into"/> with the coverage nodes of <paramref name="owner"/>'s network.</summary>
     public void CollectCoverageNodes(TankBase owner, List<CoverageNode> into) =>
@@ -526,7 +538,18 @@ public class World
     /// A base's charge store as an overlay shows it: level, capacity, and what its engine and linked generators made and its island drew a
     /// second over the last second. Null when the rules run no energy network. Output only.
     /// </summary>
-    public BasePower? BasePowerOf(TankBase tankBase) => _energy?.PowerOf(tankBase);
+    public BasePower? BasePowerOf(TankBase tankBase) => _energy is { } energy
+        ? energy.PowerOf(tankBase) with
+        {
+            IsDark = IsBaseDark(tankBase),
+            ShieldFraction = _basePower?.ShieldFraction(tankBase) ?? 0.0,
+            ShieldWarmupSeconds = _basePower?.ShieldWarmupRemaining(tankBase) ?? 0.0,
+        }
+        : null;
+
+    public bool IsBaseDark(TankBase tankBase) => _basePower?.IsDark(tankBase) == true;
+
+    internal ulong MixBasePower(ulong hash) => _basePower?.MixState(hash) ?? hash;
 
     /// <summary>Dirt regrowth, for the sync digest; null when the match rules leave it out.</summary>
     internal TerrainRegrowth? RegrowthSystem => _terrainRegrowth;
@@ -535,12 +558,12 @@ public class World
 
     /// <summary>
     /// The tank that has won, and how: the first to tap the core when <see cref="MatchRules.CoreTapWins"/>, or the
-    /// only tank with lives left. Null while the match is undecided, and after a match that ended with no tank left.
+    /// only side with an intact base. Null while undecided or after simultaneous elimination.
     /// Once the step that decided the match has run, it never changes.
     /// </summary>
     public (Tank Tank, MatchWinReason Reason)? MatchWinner => _matchResult.Winner(RaceWinner);
 
-    /// <summary>A match is over once a tank has won, or no tank has a life left. It stays over.</summary>
+    /// <summary>A match is over once a side has won or every base has been destroyed. It stays over.</summary>
     public bool IsMatchOver => _matchResult.IsOver(RaceWinner);
 
     /// <summary>How the match stands for <paramref name="player"/>.</summary>

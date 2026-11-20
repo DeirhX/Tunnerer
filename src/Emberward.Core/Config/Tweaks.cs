@@ -245,6 +245,12 @@ public static class Tweaks
         // and pumping stops: the shared exit is the real bottleneck. Starting value for the first-prototype spike.
         public const int HeatCooldown = 1;
         public const int HealthRegen = 10;
+        public const double MaxShieldFraction = 0.80;
+        public const double DarkDamageMultiplier = 1.25;
+        public const int ChargePerRestartOre = 7_000;
+        public const int RestartCharge = 15 * ChargePerRestartOre;
+        public const int ShieldWarmupTicks = 30 * Perf.TargetFps;
+        public const int DarkSightDivisor = 2;
         // Energy stored by one unit of base reactor heat. One bullet impact injects ~10^4 energy into the grid,
         // so the reactor (HeatCapacity units) is a reservoir worth a few hotspots, and HeatCooldown units per tick
         // is the radiator that vents it out of the system (the base's finite sink rate).
@@ -322,7 +328,7 @@ public static class Tweaks
 
     public static class Tank
     {
-        public const int MaxLives = 3;
+        public static readonly TimeSpan RespawnDarkDelay = TimeSpan.FromSeconds(15);
         public static readonly TimeSpan RespawnDelay = TimeSpan.FromSeconds(3);
         public const int TurretDelay = 3;
         public const int TurretLength = 4;
@@ -474,6 +480,7 @@ public static class Tweaks
     public static class Weapon
     {
         public const int CannonBulletSpeed = 3;
+        public const int BotBaseAttackRange = 48;
         public const int BulletDamage = 160;
     }
 

@@ -56,6 +56,7 @@ public class KeyboardController
         {
             MoveSpeed = new Offset(dx, dy),
             ShootPrimary = IsHeld(_keys.Shoot),
+            Recall = IsHeld(Scancode.X),
             BuildPrimary = primary,
             BuildSecondary = secondary,
             BuildTertiary = tertiary,

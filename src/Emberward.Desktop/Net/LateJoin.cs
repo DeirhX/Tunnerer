@@ -150,7 +150,7 @@ public sealed class LateJoin
         _askedSlot = PickSeat(_world, _seats!, _refused);
         if (_askedSlot < 0)
         {
-            Fail("Every tank a bot drives is out of lives, or taken: there is no seat to take.");
+            Fail("No bot with an intact base has a seat available.");
             return;
         }
         Current = Stage.TakingASeat;
@@ -158,8 +158,7 @@ public sealed class LateJoin
     }
 
     /// <summary>
-    /// The seat to ask for (docs/late-join-design.md §6.1): of the tanks a bot drives, the one with the most lives
-    /// left, and among those the lowest slot. A tank out of lives is never picked. -1 when there is none.
+    /// The seat to ask for (docs/late-join-design.md §6.1): the first bot whose base still stands. -1 when there is none.
     /// </summary>
     public static int PickSeat(World world, Seats seats, IReadOnlyCollection<int> excluded)
     {
@@ -167,15 +166,13 @@ public sealed class LateJoin
         ArgumentNullException.ThrowIfNull(seats);
         ArgumentNullException.ThrowIfNull(excluded);
         var tanks = world.TankList.Tanks;
-        int best = -1;
         for (int slot = 0; slot < tanks.Count; slot++)
         {
-            if (!seats.IsBotSeat(slot) || excluded.Contains(slot) || MatchReferee.IsOutOfLives(tanks[slot]))
+            if (!seats.IsBotSeat(slot) || excluded.Contains(slot) || MatchReferee.IsEliminated(tanks[slot]))
                 continue;
-            if (best < 0 || tanks[slot].LivesLeft > tanks[best].LivesLeft)
-                best = slot;
+            return slot;
         }
-        return best;
+        return -1;
     }
 
     private void Fail(string reason)

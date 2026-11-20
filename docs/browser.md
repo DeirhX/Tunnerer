@@ -419,8 +419,9 @@ window and graphics dependencies out of the shared rendering assembly.
   at the tutorial's target. `hud.js` shows the status panels, the upgrade list (base track above tank track, with
   level pips), the heat orb and bar in the desktop's heat colours (`HeatScale`) and the hit flash with a wedge
   toward the shooter. `strip.js` draws the desktop's art strip (below). With the energy network on, each frame after
-  a step carries the charge labels (`power`: built by the desktop's `PowerLabels`, colours from `HudPalette`) and
-  `renderer.js` draws them over their machines on the overlay canvas, faded with zoom; G hides them.
+  a step carries the base charge row (`basePower`) for the status panel. The render packet carries the machine
+  charge labels as entity quads from `PowerLabelQuads`. The browser supplies the displayed cell size for the
+  shared zoom fade, and G redraws the view with labels hidden or shown.
 - The HUD looks like the desktop's (`HudTheme`): chamfered plates with a bronze frame and amber corner brackets,
   amber titles, segmented bars and the desktop's palette and font (Chakra Petch, which `publish.py` copies from
   `src/Emberward.Desktop/resources/fonts` as it generates the shaders).

@@ -41,13 +41,15 @@ public static class WorldStateHash
             hash = Mix(hash, (uint)t.Position.X);
             hash = Mix(hash, (uint)t.Position.Y);
             hash = Mix(hash, (uint)t.Direction);
-            hash = Mix(hash, (uint)t.LivesLeft);
             hash = Mix(hash, (uint)(int)t.Reactor.Heat);
             hash = Mix(hash, (uint)(int)t.Reactor.Health);
             hash = Mix(hash, (uint)t.OreHeld);
             hash = Mix(hash, (uint)BitConverter.SingleToInt32Bits(t.Heat));
             hash = Mix(hash, t.IsDead ? 1u : 0u);
         }
+
+        foreach (var tankBase in world.TankBases.Bases)
+            hash = Mix(hash, (uint)(int)tankBase.Reactor.Health);
 
         var machines = world.Machines.Machines;
         for (int i = 0; i < machines.Count; i++)
@@ -107,7 +109,7 @@ public static class WorldStateHash
         }
 
         // The energy network's islands and capacitors; a world without one hashes as it always did.
-        return world.Energy?.MixState(hash) ?? hash;
+        return world.MixBasePower(world.Energy?.MixState(hash) ?? hash);
     }
 
     /// <summary>

@@ -21,10 +21,10 @@ public class SimulationFingerprintTests
 
     // The same on every OS: Core uses DeterministicMath instead of the platform math library. A failure on one OS
     // only means something platform-dependent has crept back into the simulation.
-    private const ulong ExpectedPlayerDrivesAndShoots = 0xD845F7E5511746ABUL;
-    private const ulong ExpectedRelayPylonHarvesterNetwork = 0x1DB38DA79251C26EUL;
-    private const ulong ExpectedEnemyMachinesShotToPieces = 0x0738ADA4B72AFA4BUL;
-    private const ulong ExpectedBotVsBot = 0x20E7B2C8C6D3D0E2UL;
+    private const ulong ExpectedPlayerDrivesAndShoots = 0x5EEDF84BBD08C2BBUL;
+    private const ulong ExpectedRelayPylonHarvesterNetwork = 0x725682AD3F3BE63EUL;
+    private const ulong ExpectedEnemyMachinesShotToPieces = 0x92C87E72E805335BUL;
+    private const ulong ExpectedBotVsBot = 0xBEE4FE2ECF35CC2CUL;
 
     /// <summary>
     /// A recorded run: the world as set up, the bots in it (null for a slot the script drives), how many frames it
@@ -194,11 +194,11 @@ public class SimulationFingerprintTests
             h.Add(tank.OffNetworkFloor);
             h.Add(tank.Reactor.Current.Heat.Value);
             h.Add(tank.Reactor.Current.Health.Value);
-            h.Add(tank.LivesLeft);
         }
 
         foreach (var tankBase in world.TankBases.Bases)
         {
+            h.Add(tankBase.Reactor.Health.Value);
             h.Add(tankBase.Charge);
             h.Add(tankBase.ReactorHeatEnergy);
             h.Add(tankBase.Store.Ore);

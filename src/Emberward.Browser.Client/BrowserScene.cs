@@ -62,7 +62,7 @@ public sealed class BrowserScene
         Terrain.ObserveStep(_visualTime);
     }
 
-    public void Render(int width, int height, int scale, float alpha, float delta, float time)
+    public void Render(int width, int height, int scale, float alpha, float delta, float time, float powerLabelCellSize = 0f)
     {
         _visualTime = time;
         width = Math.Clamp(width, 1, 3840);
@@ -75,7 +75,8 @@ public sealed class BrowserScene
             (int)MathF.Round(center.Y * scale) - height / 2);
         View = new RenderView(new Size(width, height), _session.World.Terrain.Size, camera, scale);
         Terrain.Prepare(View.VisibleCells(), time);
-        _entities.Build(View, alpha, Math.Clamp(delta, 0f, 0.1f), snapHeadings: false, time, _session.Vision, _session.Radar);
+        _entities.Build(View, alpha, Math.Clamp(delta, 0f, 0.1f), snapHeadings: false, time,
+            _session.Vision, _session.Radar, powerLabelCellSize);
         int glowCount = _glowBuilder.BuildGpuTankHeatGlowData(_session.World.TankList.Tanks, positions, View, _glows, _session.Vision);
         var upload = new GamePixelsUpload(View,
             new PostProcessUploadOptions(_session.ThermalView, PostProcessPassFlags.All & ~PostProcessPassFlags.ThermalRegions, default, time),

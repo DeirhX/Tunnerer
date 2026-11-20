@@ -29,7 +29,6 @@ public class DockingTests
         var world = TestHelpers.CreateSeededWorld(new Size(320, 200));
         var tank = world.TankList.Tanks[0];
         tank.Position = world.TankBases.GetSpawn(0)!.Position;
-        tank.LivesLeft = 2;
         tank.Die();
 
         Assert.False(tank.IsDockedAtOwnBase);

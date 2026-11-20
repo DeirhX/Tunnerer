@@ -11,7 +11,7 @@ public class ControllerOutputCodecTests
     {
         for (int x = -1; x <= 1; x++)
             for (int y = -1; y <= 1; y++)
-                for (int buttons = 0; buttons < 32; buttons++)
+                for (int buttons = 0; buttons < 64; buttons++)
                     for (int upgrade = 0; upgrade <= BaseUpgrades.Count; upgrade++)
                     {
                         var input = new ControllerOutput
@@ -22,6 +22,7 @@ public class ControllerOutputCodecTests
                             BuildSecondary = (buttons & 4) != 0,
                             BuildTertiary = (buttons & 8) != 0,
                             BuildQuaternary = (buttons & 16) != 0,
+                            Recall = (buttons & 32) != 0,
                             Upgrade = upgrade,
                         };
 
@@ -33,13 +34,14 @@ public class ControllerOutputCodecTests
                         Assert.Equal(input.BuildSecondary, decoded.BuildSecondary);
                         Assert.Equal(input.BuildTertiary, decoded.BuildTertiary);
                         Assert.Equal(input.BuildQuaternary, decoded.BuildQuaternary);
+                        Assert.Equal(input.Recall, decoded.Recall);
                         Assert.Equal(input.Upgrade, decoded.Upgrade);
                         Assert.Equal(default, decoded.AimDirection);
                     }
     }
 
     [Fact]
-    public void EncodedInput_FitsIn29Bits()
+    public void EncodedInput_FitsIn30Bits()
     {
         var input = new ControllerOutput
         {
@@ -49,11 +51,20 @@ public class ControllerOutputCodecTests
             BuildSecondary = true,
             BuildTertiary = true,
             BuildQuaternary = true,
+            Recall = true,
             Upgrade = 4,
             AimDirection = new DirectionF(0.6f, -0.8f),
         };
 
-        Assert.Equal(0u, ControllerOutputCodec.Encode(input) >> 29);
+        Assert.Equal(0u, ControllerOutputCodec.Encode(input) >> 30);
+    }
+
+    [Fact]
+    public void Recall_IsAKeyForInputPrediction()
+    {
+        uint bits = ControllerOutputCodec.Encode(new ControllerOutput { Recall = true });
+        Assert.NotEqual(0u, bits);
+        Assert.Equal(bits, bits & ControllerOutputCodec.KeyMask);
     }
 
     [Fact]

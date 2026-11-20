@@ -38,6 +38,16 @@ public sealed class ThermalLedger
     /// </summary>
     public double ConvertedToCharge { get; private set; }
 
+    /// <summary>Charge released from carried ore to restart a dark base, also counted as injected energy.</summary>
+    public double RestartOreCharge { get; private set; }
+
+    public void RecordFromRestartOre(double charge)
+    {
+        RestartOreCharge += charge;
+        RecordInjected(charge);
+        RecordToCharge(charge);
+    }
+
     public double TotalSunk =>
         SunkFixedTemperature + SunkAmbientLoss + SunkBase + SunkTank;
 
@@ -63,5 +73,6 @@ public sealed class ThermalLedger
         SunkBase = 0;
         SunkTank = 0;
         ConvertedToCharge = 0;
+        RestartOreCharge = 0;
     }
 }

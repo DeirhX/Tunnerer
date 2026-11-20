@@ -137,12 +137,12 @@ public sealed partial class EnergyNetwork
     }
 
     /// <summary>Settles a share of the capacitors, then pays idle draw and tops up the ones still filling.</summary>
-    public void Advance(ITerrainAccess terrain)
+    public void Advance(ITerrainAccess terrain, BasePowerSystem? basePower = null)
     {
         SettleShare(terrain);
         int tick = _paidThrough + 1;
         foreach (var island in _islands)
-            Pay(island, tick);
+            Pay(island, tick, basePower);
         _paidThrough = tick;
     }
 
@@ -395,10 +395,11 @@ public sealed partial class EnergyNetwork
     }
 
     /// <summary>The island pays for tick <paramref name="tick"/>: tier by tier, its members' idle draw, then top-ups.</summary>
-    private void Pay(PowerIsland island, int tick)
+    private void Pay(PowerIsland island, int tick, BasePowerSystem? basePower)
     {
         double drawn = 0.0;
-        double available = island.Available;
+        bool useBaseStore = island.Base is { IsDestroyed: false } home && basePower?.IsDark(home) != true;
+        double available = island.Available(useBaseStore);
         int producerIndex = 0;
         for (int tier = 0; tier < TierCount; tier++)
         {
@@ -414,8 +415,8 @@ public sealed partial class EnergyNetwork
                 SetTierFed(island, tier, false);
                 continue;
             }
-            double tierDraw = island.DrawCharge(idle, ref producerIndex);
-            tierDraw += TopUp(island, tier, tick, ref producerIndex);
+            double tierDraw = island.DrawCharge(idle, useBaseStore, ref producerIndex);
+            tierDraw += TopUp(island, tier, tick, useBaseStore, ref producerIndex);
             drawn += tierDraw;
             available = Math.Max(0.0, available - tierDraw);
         }
@@ -425,7 +426,7 @@ public sealed partial class EnergyNetwork
     }
 
     /// <summary>Tops up the filling capacitors of one tier, in the order they started filling, while the store lasts.</summary>
-    private static double TopUp(PowerIsland island, int tier, int tick, ref int producerIndex)
+    private static double TopUp(PowerIsland island, int tier, int tick, bool useBaseStore, ref int producerIndex)
     {
         var filling = island.Filling;
         double drawn = 0.0;
@@ -437,7 +438,7 @@ public sealed partial class EnergyNetwork
             {
                 var machine = capacitor.Machine;
                 double room = machine.ChargeCapacity - machine.Charge;
-                double given = island.DrawCharge(Math.Min(machine.Behavior.Capacitor.TransferPerTick, room), ref producerIndex);
+                double given = island.DrawCharge(Math.Min(machine.Behavior.Capacitor.TransferPerTick, room), useBaseStore, ref producerIndex);
                 machine.Charge += given;
                 drawn += given;
                 capacitor.Flow.Add(tick, given, 0.0);
@@ -484,19 +485,16 @@ public sealed partial class EnergyNetwork
         public FlowWindow Draw;
         public FlowWindow GeneratorProduction;
 
-        public double Available
+        public double Available(bool useBaseStore)
         {
-            get
-            {
-                double total = Base?.Charge ?? 0.0;
-                foreach (var producer in Producers)
-                    total += producer.Reserve;
-                return total;
-            }
+            double total = useBaseStore ? Base!.Charge : 0.0;
+            foreach (var producer in Producers)
+                total += producer.Reserve;
+            return total;
         }
 
         // A tick never refills a reserve while paying, so the next draw can skip producers that are already empty.
-        public double DrawCharge(double wanted, ref int producerIndex)
+        public double DrawCharge(double wanted, bool useBaseStore, ref int producerIndex)
         {
             if (wanted <= 0.0)
                 return 0.0;
@@ -510,7 +508,7 @@ public sealed partial class EnergyNetwork
                 if (producer.Reserve <= 0.0)
                     producerIndex++;
             }
-            return drawn + (Base?.DrawCharge(wanted - drawn) ?? 0.0);
+            return drawn + (useBaseStore ? Base!.DrawCharge(wanted - drawn) : 0.0);
         }
     }
 
@@ -569,4 +567,5 @@ public readonly record struct MachinePower(double Charge, double Capacity, doubl
 /// <param name="DrawPerSecond">Charge a second its island drew (idle draw and top-ups), over the last whole second.</param>
 /// <param name="GeneratorProductionPerSecond">The part of production that came from linked generators.</param>
 public readonly record struct BasePower(double Charge, double Capacity, double ProductionPerSecond, double DrawPerSecond,
-    double GeneratorProductionPerSecond = 0.0);
+    double GeneratorProductionPerSecond = 0.0, bool IsDark = false, double ShieldFraction = 0.0,
+    double ShieldWarmupSeconds = 0.0);

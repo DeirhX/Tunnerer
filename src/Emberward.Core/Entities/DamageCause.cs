@@ -7,4 +7,6 @@ public enum DamageCause
     EnemyFire,
     Overheat,
     Frostbite,
+    BaseDestroyed,
+    Recalled,
 }

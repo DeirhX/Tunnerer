@@ -7,7 +7,6 @@ using Emberward.Core.Entities.Bases;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Types;
-using Emberward.Desktop.Config;
 using Emberward.Desktop.Gui;
 using Emberward.Desktop.Gui.Guidance;
 using Emberward.Desktop.Presentation;
@@ -54,38 +53,25 @@ public static class BrowserFrameBuilder
         var status = new PlayerStatus(player.Position, home.Position, player.Heat, Tank.HeatBudgetCapacity,
             HeatScale.Fraction(player.Heat), HexColor(HeatScale.ColorRgb(player.Heat)),
             player.IsDead ? 0f : player.HitFlashTicks / (float)Tank.HitFlashDuration, hitFromX, hitFromY,
-            player.ShieldFraction, player.LivesLeft, player.OreHeld, player.OreHoldCapacity, home.Store.Ore,
-            home.ChargeFill, home.HeatStoreFill, player.IsDockedAtOwnBase, player.IsOffNetwork,
-            player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds,
-            world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString(),
+            player.ShieldFraction, player.OreHeld, player.OreHoldCapacity, home.Store.Ore,
+            home.ChargeFill, home.HeatStoreFill, home.ArmorFill, player.IsDockedAtOwnBase, player.IsOffNetwork,
+            player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds, player.CanRecall,
+            world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString(), home.IsDestroyed,
             Math.Max(0, player.Reactor.Health), HeatScale.Frozen(player.Heat), HeatScale.Boil(player.Heat),
             player.IsOverheating || player.IsAboveSafeHeat, player.IsShieldLow(latched: false),
             player.HitFlashTicks > Tank.HitFlashDuration - HitFreshTicks, BuildSlotView.OrePileFrame(player), player.IsUnloadingOre,
             player.IsOreHoldFull, player.IsOffNetworkUrgent, BuildSlotView.OreLine(player));
         return new BrowserFrame(session.Seed, world.AdvanceCount, Tweaks.Perf.TargetFps, status,
             session.Sounds.Frame(takePlays: includeEvents), builds, upgrades, preview, goal, Guidance(session.Guidance),
-            includeDial ? Dial() : null, net?.Status(), Power(session));
+            includeDial ? Dial() : null, net?.Status(), BasePower(world, player));
     }
 
-    /// <summary>
-    /// The charge labels and the base store's row, from <see cref="World.MachinePowerOf"/> and
-    /// <see cref="World.BasePowerOf"/> through the desktop's <see cref="PowerLabels"/>; null while the match runs no
-    /// energy network.
-    /// </summary>
-    public static PowerOverlay? Power(BrowserSession session)
+    private static BaseCharge? BasePower(World world, Tank player)
     {
-        ArgumentNullException.ThrowIfNull(session);
-        var world = session.World;
-        if (world.Energy == null || session.Player.Base is not { } home || world.BasePowerOf(home) is not { } store)
+        if (world.Energy == null || player.Base is not { } home || world.BasePowerOf(home) is not { } store)
             return null;
-        var labels = new List<MachinePowerLabel>();
-        PowerLabels.Collect(world, session.Player, session.Vision, labels, new List<Machine>());
-        var machines = labels.Select(l => new MachineCharge(l.Machine.Position, l.Label.Charge, l.Label.Flow, l.Label.Fill,
-            HudPalette.Hex(l.Label.Color), l.Opacity)).ToArray();
-        var b = PowerLabels.Of(store);
-        return new PowerOverlay(machines, new BaseCharge(b.Store, b.Flow, b.Net, b.Fill, HudPalette.Hex(b.Color)),
-            HudPalette.Hex(HudPalette.Text), HudPalette.Hex(HudPalette.Track),
-            DesktopScreenTweaks.PowerLabelZoomGone, DesktopScreenTweaks.PowerLabelZoomFull, PowerLabels.LiftCells);
+        var row = PowerLabels.Of(store);
+        return new BaseCharge(row.Store, row.Flow, row.Net, row.Fill, HudPalette.Hex(row.Color), row.Shield);
     }
 
     /// <summary>How many steps after a hit the desktop's shield crystal flashes white (<c>LiquidGauges</c>).</summary>

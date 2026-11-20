@@ -167,7 +167,7 @@ public static class Bench
             h.Add(tank.OffNetworkFloor);
             h.Add(tank.Reactor.Current.Heat.Value);
             h.Add(tank.Reactor.Current.Health.Value);
-            h.Add(tank.LivesLeft);
+            h.Add((int)(tank.Base?.Reactor.Health ?? default));
         }
         foreach (var tankBase in world.TankBases.Bases)
         {

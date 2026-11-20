@@ -296,9 +296,13 @@ public class EnergyNetworkTests
         Assert.False(starved.IsFed);
         Assert.True(starved.Charge < Tweaks.Machine.RelayCapacitor, "a starved machine drains its own capacitor");
 
-        // Hot ground by the relay: the engine fills the store, the tier is fed again and the relay tops up.
+        // Generation resumes, but the base keeps what it makes until it reaches the restart threshold.
         s.World.Terrain.AddHeatRadius(s.RelayPos, 150, 8);
         Advance(s.World, Tweaks.Perf.TargetFps * 3);
+        Assert.True(s.World.IsBaseDark(s.Base));
+        Assert.True(s.Base.Charge > 0.0);
+        s.Base.StoreCharge(Tweaks.Base.RestartCharge);
+        Advance(s.World, Tweaks.Perf.TargetFps);
         var fed = s.World.MachinePowerOf(relay)!.Value;
         Assert.True(fed.IsFed);
         Assert.Equal((double)Tweaks.Machine.RelayCapacitor, fed.Charge, precision: 6);

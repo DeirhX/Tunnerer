@@ -30,15 +30,17 @@ public class Tank
 
     /// <summary>The tank's ore hold (DESIGN.md §6.3): what it mines, carries home and may build with.</summary>
     public OreStore Hold { get; }
-    public int LivesLeft { get; set; }
     public bool IsDead => Reactor.Health <= 0;
+
+    /// <summary>At the end of the off-network reserve, a tank can abandon its cargo and return to its base.</summary>
+    public bool CanRecall => !IsDead && Base is { IsDestroyed: false } && IsOffNetwork && OffNetworkSecondsToOverheat <= 0f;
     public TankBase? Base { get; }
 
     /// <summary>
     /// True while the tank is alive and inside its own base: it builds from the base store, is cooled and
     /// unloads its ore there. Bases never overlap, so this is the same as asking which base the tank is in.
     /// </summary>
-    public bool IsDockedAtOwnBase => !IsDead && Base != null && Base.IsInside(Position);
+    public bool IsDockedAtOwnBase => !IsDead && Base is { IsDestroyed: false } && Base.IsInside(Position);
     public TankTurret Turret { get; }
     public float Heat { get; set; }
 
@@ -190,7 +192,7 @@ public class Tank
     /// <summary>Velocity of the last projectile that hit the tank (zero if it was never hit).</summary>
     public VectorF LastHitVelocity => _lifecycle.LastHitVelocity;
 
-    /// <summary>Time left until the tank respawns; zero while alive or when no lives remain.</summary>
+    /// <summary>Time left until the tank respawns; zero while alive or after its base is destroyed.</summary>
     public TimeSpan RespawnRemaining => _lifecycle.RespawnRemaining;
 
     /// <summary>Counts down after a respawn; while positive, enemy fire does no damage.</summary>
@@ -215,7 +217,6 @@ public class Tank
         Color = color;
         Base = tankBase;
         Position = tankBase.Position;
-        LivesLeft = Tweaks.Tank.MaxLives;
         Reactor = new Reactor(
             initial: new ReactorState(Tweaks.Tank.InitialHeat, Tweaks.Tank.InitialHealth),
             capacity: new ReactorState(Tweaks.Tank.HeatCapacity, Tweaks.Tank.HealthCapacity));
@@ -237,9 +238,16 @@ public class Tank
         IsUnloadingOre = false;
         SyncHoldCapacity();
 
+        if (Base?.IsDestroyed == true)
+            TakeDamage(Reactor.HealthCapacity, DamageCause.BaseDestroyed);
+
+        bool recall = input.Recall && CanRecall;
+        if (recall)
+            TakeDamage(Reactor.HealthCapacity, DamageCause.Recalled);
+
         if (IsDead)
         {
-            _lifecycle.AdvanceDeath(ctx.Projectiles, ctx.Terrain, ctx.Heat.Ledger, ctx.Events, ctx.IsOccupied);
+            _lifecycle.AdvanceDeath(in ctx, recall);
             return;
         }
 
@@ -343,16 +351,21 @@ public class Tank
     private void AdvanceBaseInteraction(in SimulationContext ctx)
     {
         var baseColl = ctx.CheckBaseCollision(Position);
-        if (baseColl == null) return;
+        if (baseColl is not { IsDestroyed: false }) return;
 
         (int health, float heat) = (Reactor.Health, Heat);
-        baseColl.RechargeTank(Reactor, Color);
+        bool dark = ctx.BasePower?.IsDark(baseColl) == true;
+        if (!dark)
+            baseColl.RechargeTank(Reactor, Color);
         bool atOwnBase = baseColl.Color == Color;
         _thermals.CoolDockingArea(ctx.Heat, baseColl, atOwnBase);
 
         if (atOwnBase)
         {
-            int banked = Hold.MoveTo(baseColl.Store, Tweaks.Base.HomeAbsorbOre);
+            int burned = ctx.BasePower?.BurnHold(baseColl, Hold, ctx.Heat.Ledger) ?? 0;
+            if (burned > 0)
+                ctx.Events?.Record(new StepEvent(StepEventKind.RestartOreBurned, Position, Color, Count: burned));
+            int banked = dark ? 0 : Hold.MoveTo(baseColl.Store, Tweaks.Base.HomeAbsorbOre);
             IsUnloadingOre = banked > 0;
             _thermals.PumpHeatAtBase(baseColl);
             // A tank that is only shedding the last fraction of a degree near 0 is not being serviced any more.
@@ -372,7 +385,7 @@ public class Tank
     private void AdvanceNetworkUnload(in SimulationContext ctx)
     {
         var store = Base?.Store;
-        if (store == null || !Coverage.Covered || Hold.Ore == 0 || store.IsFull)
+        if (store == null || ctx.BasePower?.IsDark(Base!) == true || !Coverage.Covered || Hold.Ore == 0 || store.IsFull)
         {
             _unloadCredit = 0;
             return;
@@ -415,7 +428,7 @@ public class Tank
     /// <summary>Puts the tank back at its base with full armor, cold, and shielded until it leaves.</summary>
     public void Spawn(ThermalLedger? ledger = null)
     {
-        if (Base == null) return;
+        if (Base is not { IsDestroyed: false }) return;
         Reactor.Add(new ReactorState(0, Reactor.HealthCapacity));
         Position = Base.Position;
         _thermals.ResetForSpawn(ledger);
@@ -423,7 +436,7 @@ public class Tank
     }
 
     /// <summary>
-    /// Destroys the tank: it loses a life, drops what it carries and explodes. The ore in its hold spills into
+    /// Destroys the tank, drops what it carries and starts its respawn timer. The ore in its hold spills into
     /// <paramref name="terrain"/> around it (lost when there is none).
     /// </summary>
     public void Die(ProjectileList? projectiles = null, ITerrainPixelAccessor? terrain = null) =>

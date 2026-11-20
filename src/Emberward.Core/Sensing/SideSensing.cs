@@ -6,6 +6,7 @@ using Emberward.Core.Entities.Bases;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Terrain;
+using Emberward.Core.Network;
 
 /// <summary>
 /// What each side someone asked about sees (fog of war, <see cref="VisionMap"/>) and its tank's radar
@@ -13,7 +14,7 @@ using Emberward.Core.Terrain;
 /// <see cref="World"/> runs it as the last system of a step and answers for it.
 /// </summary>
 [NotSaved("output only: vision and radar, which nothing in the simulation reads")]
-internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks)
+internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks, BasePowerSystem? power)
 {
     private readonly List<(Tank Tank, VisionMap Map)> _visions = new();
     private readonly List<(Tank Tank, Radar Radar)> _radars = new();
@@ -66,7 +67,7 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
 
         foreach (var (tank, radar) in _radars)
         {
-            if (tank.IsDead)
+            if (tank.IsDead || tank.Base?.IsDestroyed == true)
             {
                 radar.Idle();
                 continue;
@@ -94,18 +95,19 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
     private void UpdateVision(Tank tank, VisionMap map)
     {
         _visionSources.Clear();
-        if (!tank.IsDead)
-            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius, Tweaks.Vision.TankNearRadius));
-        if (tank.Base is TankBase owner)
+        int divisor = tank.Base is { } home && power?.IsDark(home) == true ? Tweaks.Base.DarkSightDivisor : 1;
+        if (!tank.IsDead && tank.Base?.IsDestroyed != true)
+            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius / divisor, Tweaks.Vision.TankNearRadius / divisor));
+        if (tank.Base is { IsDestroyed: false } owner)
         {
             const int near = Tweaks.Vision.MachineNearRadius;
-            _visionSources.Add(new VisionSource(owner.Position, owner.Upgrades.BaseSightRadius, near));
+            _visionSources.Add(new VisionSource(owner.Position, owner.Upgrades.BaseSightRadius / divisor, near));
             foreach (var machine in machines.Machines)
             {
                 if (!machine.StandsFor(owner))
                     continue;
                 // A relay or pylon sees past its coverage circle, through the ground, linked or not.
-                int reach = machine.Behavior.IsLinkNode ? owner.Upgrades.NodeSightRadius : near;
+                int reach = machine.Behavior.IsLinkNode ? owner.Upgrades.NodeSightRadius / divisor : near;
                 _visionSources.Add(new VisionSource(machine.Position, reach, reach));
             }
         }

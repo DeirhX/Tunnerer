@@ -25,7 +25,7 @@ using Emberward.Core.Match;
 /// </param>
 public readonly record struct MachineContext(
     ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, MachineList Machines,
-    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null, EnergyNetwork? Energy = null);
+    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null);
 
 /// <summary>
 /// Who an island of the energy network feeds first when it runs short (DESIGN.md §4.9): base defence, then turrets,
@@ -234,8 +234,9 @@ public static class MachineBehaviors
     /// A harvester's state, each harvester in exactly one, in this order: heading to a pylon, out of charge, off the
     /// network, too hot, out of ore (or left only a core), held up by a full store, otherwise working.
     /// </summary>
-    public static HarvesterState HarvesterStateOf(Machine harvester) =>
-        harvester.IsReturning ? HarvesterState.Returning
+    public static HarvesterState HarvesterStateOf(Machine harvester, bool baseDark = false) =>
+        baseDark ? HarvesterState.OffNetwork
+        : harvester.IsReturning ? HarvesterState.Returning
         : IsOutOfCharge(harvester) ? HarvesterState.OutOfCharge
         : harvester.IsOffNetwork ? HarvesterState.OffNetwork
         : harvester.IsStalled ? HarvesterState.TooHot
@@ -297,13 +298,15 @@ public static class MachineBehaviors
         machine.SenseHeat = HarvesterSenseHeat(temperature);
         machine.IsStalled = temperature >= Tweaks.Machine.HarvesterStallTemperature;
 
-        var store = machine.OwnerBase?.Store;
-        if (store == null)
+        if (machine.OwnerBase is not { IsDestroyed: false } home)
             return;
+        var store = home.Store;
 
         // On the energy network the capacitor is brought up to date first, and there are no refuel trips: the island
         // feeds it wherever its base's network covers it.
         ctx.Energy?.Settle(machine, terrain);
+        if (ctx.BasePower?.IsDark(home) == true)
+            return;
         if (ctx.Energy == null && ReturnToPylon(machine, ctx))
             return;
 

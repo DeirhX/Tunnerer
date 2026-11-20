@@ -36,19 +36,18 @@ public class WorldIntegrationTests
     }
 
     [Fact]
-    public void Tank_LastLife_DoesNotGoNegative()
+    public void Tank_CanRespawnMoreThanThreeTimes()
     {
         var (world, _) = SetupWorld();
         var tank = world.TankList.Tanks[0];
-        tank.LivesLeft = 1;
-        tank.Die();
-        Assert.Equal(0, tank.LivesLeft);
-
-        TestSimulation.AdvanceIdle(world, frames: 300);
-        Assert.Equal(0, tank.LivesLeft);
-
-        TestSimulation.AdvanceIdle(world, frames: 300);
-        Assert.Equal(0, tank.LivesLeft);
+        for (int death = 0; death < 4; death++)
+        {
+            tank.Die();
+            Assert.True(tank.IsDead);
+            TestSimulation.AdvanceIdle(world, frames: 75);
+            Assert.False(tank.IsDead);
+            Assert.False(world.IsMatchOver);
+        }
     }
 
     [Fact]
