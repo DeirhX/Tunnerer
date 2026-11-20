@@ -119,12 +119,21 @@ public static partial class BrowserApi
             message.CopyTo(packed, at + 4);
             at += 4 + message.Length;
         }
-        DeliverNet(packed);
+        unsafe
+        {
+            fixed (byte* at0 = packed)
+                DeliverNet((int)at0, packed.Length);
+        }
     }
 
-    /// <summary>Hands messages for the relay to the page's socket (frames.js), which copies them before it returns.</summary>
+    /// <summary>
+    /// Hands messages for the relay to the page's socket (frames.js), which copies them before it returns. Bytes
+    /// cross as an address and a length in the runtime's memory, never as a marshalled view: a view is a proxy that
+    /// .NET frees when the browser collects it, and in the threaded runtime that release now and then fails and ends
+    /// the runtime (docs/browser.md, "Two runtimes").
+    /// </summary>
     [JSImport("deliverNet", "frames.js")]
-    private static partial void DeliverNet([JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> packed);
+    private static partial void DeliverNet(int address, int length);
 
     /// <summary>
     /// One display request: steps the simulation, builds a frame and hands it to <see cref="Deliver"/> before the
@@ -177,8 +186,14 @@ public static partial class BrowserApi
             _hudStale = false;
         }
 
-        Deliver(session.Scene.Packet, hud, steps > 0 ? Stopwatch.GetElapsedTime(began, stepped).TotalMilliseconds : -1,
-            Stopwatch.GetElapsedTime(stepped).TotalMilliseconds, steps);
+        var packet = session.Scene.Packet;
+        double stepMs = steps > 0 ? Stopwatch.GetElapsedTime(began, stepped).TotalMilliseconds : -1;
+        double frameMs = Stopwatch.GetElapsedTime(stepped).TotalMilliseconds;
+        unsafe
+        {
+            fixed (byte* at = packet.AsSpan())
+                Deliver((int)at, packet.Count, hud, stepMs, frameMs, steps);
+        }
         return Task.CompletedTask;
     }
 
@@ -201,10 +216,11 @@ public static partial class BrowserApi
     }
 
     /// <summary>Hands a frame to JavaScript (frames.js), which copies the packet before it returns.</summary>
-    /// <param name="packet">
-    /// The frame's packet (layout: <see cref="BrowserScene"/>): a view of the runtime's own memory, good for the
+    /// <param name="address">
+    /// Where the frame's packet (layout: <see cref="BrowserScene"/>) lies in the runtime's own memory, pinned for the
     /// length of the call.
     /// </param>
+    /// <param name="length">The packet's size in bytes.</param>
     /// <param name="hud">
     /// The HUD's state as JSON, or null when it has not changed since the last frame; it changes only with a step.
     /// </param>
@@ -212,8 +228,7 @@ public static partial class BrowserApi
     /// <param name="frameMs">The milliseconds building the frame took.</param>
     /// <param name="steps">How many simulation steps the request took.</param>
     [JSImport("deliver", "frames.js")]
-    private static partial void Deliver([JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> packet, string? hud,
-        double stepMs, double frameMs, int steps);
+    private static partial void Deliver(int address, int length, string? hud, double stepMs, double frameMs, int steps);
 
     /// <summary>
     /// Synthesises the desktop's sound bank and hands it to <see cref="DeliverSounds"/> before the promise resolves.
@@ -223,15 +238,22 @@ public static partial class BrowserApi
     public static Task SoundBank()
     {
         var bank = new BrowserSoundBank();
-        DeliverSounds(bank.ToBytes(), JsonSerializer.Serialize(bank.Layout, BrowserJsonContext.Default.SoundBankLayout));
+        byte[] samples = bank.ToBytes();
+        string layout = JsonSerializer.Serialize(bank.Layout, BrowserJsonContext.Default.SoundBankLayout);
+        unsafe
+        {
+            fixed (byte* at = samples)
+                DeliverSounds((int)at, samples.Length, layout);
+        }
         return Task.CompletedTask;
     }
 
     /// <summary>Hands the sound bank to JavaScript (frames.js), which copies the samples before it returns.</summary>
-    /// <param name="samples">Every effect's samples (32-bit floats) one after another; a view good for the call.</param>
+    /// <param name="address">Where every effect's samples (32-bit floats, one after another) lie in the runtime's memory, pinned for the call.</param>
+    /// <param name="length">Their size in bytes.</param>
     /// <param name="layout">Where each effect lies (<see cref="SoundBankLayout"/>), as JSON.</param>
     [JSImport("deliverSounds", "frames.js")]
-    private static partial void DeliverSounds([JSMarshalAs<JSType.MemoryView>] ArraySegment<byte> samples, string layout);
+    private static partial void DeliverSounds(int address, int length, string layout);
 
     /// <summary>
     /// Plays <paramref name="ticks"/> steps of a match nobody watches (the player idle, the bot playing) and returns

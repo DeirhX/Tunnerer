@@ -35,14 +35,20 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
     let delivered = null,
         sounds = null,
         outgoing = [];
+    // Bytes cross from .NET as an address and a length in its memory, which is pinned for the call, and not as a
+    // marshalled view: .NET frees a view's proxy when the browser collects it, and in the threaded runtime that
+    // release now and then failed and ended the runtime ("already exited with 1"). The copy is an ordinary buffer of
+    // its own (WebGL takes no view of memory that threads share, and a worker transfers it without another copy).
+    // The heap's view is taken anew each time because the memory may have grown.
+    const copyOut = (address, length) => runtime.localHeapViewU8().slice(address, address + length);
     runtime.setModuleImports("frames.js", {
         // .NET hands over each frame here. `packet` is one buffer with everything the frame draws (layout:
         // BrowserScene.cs), as a view of the runtime's memory that is good for the length of this call. The copy
         // made of it is an ordinary buffer of its own: the worker hands it to the page without another copy, and
         // WebGL takes it, which it would not take of the memory the threaded runtime shares between its threads.
-        deliver: (packet, hud, stepMs, frameMs, steps) => {
+        deliver: (address, length, hud, stepMs, frameMs, steps) => {
             delivered = {
-                packet: packet.slice(),
+                packet: copyOut(address, length),
                 hud,
                 steps,
                 timing: { step: stepMs < 0 ? null : stepMs, render: frameMs },
@@ -50,11 +56,11 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
         },
         // Messages for the relay in a network match, each as its length (int32) and bytes, for the page's socket
         // (net.js) to send.
-        deliverNet: (packed) => outgoing.push(packed.slice()),
+        deliverNet: (address, length) => outgoing.push(copyOut(address, length)),
         // The sound bank (BrowserSoundBank): every effect's samples, copied out of the runtime's memory as above.
-        deliverSounds: (samples, layout) => {
+        deliverSounds: (address, length, layout) => {
             sounds = {
-                samples: new Float32Array(samples.slice().buffer),
+                samples: new Float32Array(copyOut(address, length).buffer),
                 layout: JSON.parse(layout),
             };
         },
