@@ -50,11 +50,13 @@ those proxies was the byte views handed over every frame (`[JSMarshalAs<JSType.M
 the relay's messages, the sound bank). They now cross as an address in .NET's memory, pinned for the call, and a
 length; `frames.js` copies them out of the heap (`copyOut`). The same soak on the same machine, eight heat workers:
 the old code ended in 3 of 12 matches of 45 s; the new code in none of 10 of 45 s, one of 570 s and four of 300 s
-(one of those runs also paused 8 s once, at 293 s, and nothing more is known of it). The published final code, on the
-default address, with nothing else running: six matches of 300 s in Edge and three in Playwright's Chromium, none
-stopped or paused (the soak waits 60 s after a stall to see whether play resumes), and `smoke.mjs` with
-`SMOKE_THREADS=1` passed up to its last check, the one against console errors, which a Windows run fails with
-`ERR_INTERNET_DISCONNECTED` from its offline step, on the earlier single-thread build too.
+(one of those runs also paused 8 s once, at 293 s; the soak then took any stop of the steps for a stall, and it also
+stops when random play loses the match, "BASE DESTROYED", so that was most likely that. The soak now starts another
+match then.) The published final code, on the default address, nothing else running, 300 s each: Edge six matches
+and Playwright's Chromium three on the normal map, then Edge five and Chromium two more, the heavy ones on
+`?map=2000x1000&machines=300`, with losing matches replaced. None crashed or stalled (the soak waits 60 s after a
+stall to see whether play resumes), and `smoke.mjs` with `SMOKE_THREADS=1` passes, as does the full `dotnet test`
+(1258 tests, Slow ones included). macOS, Firefox and WebKit were not run.
 Do not marshal a view, an object or a delegate to JavaScript on the frame path again. The soak is the check:
 `node tools/browser/soak.mjs` against a `--threads` publish served with `--isolate` and `?threads=8`. This was probably
 also what stopped WebKit's threaded runtime below, which has not been tried again.

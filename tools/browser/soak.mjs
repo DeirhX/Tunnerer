@@ -33,17 +33,23 @@ page.on("pageerror", (e) => log.push(`[pageerror] ${String(e).slice(0, 400)}`));
 await page.addInitScript(() => {
     window.testSteps = 0;
     window.testLast = performance.now();
+    window.testMaxGap = 0;
     window.addEventListener("emberward-step", ({ detail }) => {
+        if (window.testSteps) window.testMaxGap = Math.max(window.testMaxGap, performance.now() - window.testLast);
         window.testSteps++;
         window.testLast = performance.now();
         window.testTick = detail.tick;
     });
 });
-await page.goto(origin);
-await page.locator("#seed").fill(process.env.SEED || "1234");
-await page.locator("#start").click();
-await page.waitForFunction(() => !document.getElementById("hud").hidden, null, { timeout: 180000 });
-console.log("match started; threads:", await page.evaluate(() => document.body.innerText.match(/\d+ heat threads|one thread/)?.[0]));
+async function startMatch() {
+    await page.goto(origin);
+    await page.locator("#seed").fill(process.env.SEED || "1234");
+    await page.locator("#start").click();
+    await page.waitForFunction(() => !document.getElementById("hud").hidden, null, { timeout: 180000 });
+}
+await startMatch();
+let matches = 1;
+console.log("match started");
 
 const keys = ["KeyW", "KeyA", "KeyS", "KeyD"];
 const builds = ["KeyE", "KeyR", "KeyT", "KeyY"];
@@ -68,7 +74,22 @@ while (Date.now() - began < seconds * 1000 && !failure) {
         loadingVisible: !document.getElementById("loading")?.hidden,
     })).catch((e) => ({ dead: String(e) }));
     if (state.dead) failure = `page unreachable: ${state.dead}`;
-    else if (state.sinceStep > stallMs) {
+    else if (state.sinceStep > stallMs && (await page.evaluate(() => /BASE DESTROYED|Open the menu to try a new world|VICTORY|YOU WIN/i.test(document.body.innerText)))) {
+        // Random play lost (or won) the match, and the game stops stepping then: not a stall. Play another.
+        matches++;
+        console.log(`match over at tick ${state.tick}; starting match ${matches}`);
+        await startMatch();
+    } else if (state.sinceStep > stallMs) {
+        const info = await page.evaluate(() => new Promise((done) => {
+            let frames = 0;
+            const count = () => frames++;
+            const id = setInterval(() => {}, 1000);
+            const tick = () => { count(); requestAnimationFrame(tick); };
+            requestAnimationFrame(tick);
+            setTimeout(() => { clearInterval(id); done({ rafFramesIn1s: frames, text: document.body.innerText.replace(/\s+/g, " ").slice(0, 600), paused: document.hidden, perf: window.emberwardPerf }); }, 1000);
+        })).catch((e) => ({ evaluateFailed: String(e) }));
+        console.log("at stall:", JSON.stringify(info));
+        await page.screenshot({ path: `soak-stall-${Date.now()}.png` }).catch(() => {});
         // Does it come back? A pause that ends is a hitch; one that does not is a hang.
         const waited = await page
             .waitForFunction((from) => window.testLast > from, await page.evaluate(() => window.testLast), { timeout: 60000 })
@@ -81,6 +102,8 @@ while (Date.now() - began < seconds * 1000 && !failure) {
         console.log(`${Math.round((Date.now() - began) / 1000)} s: tick ${state.tick}, ${state.steps} steps`);
     }
 }
+console.log(`matches played: ${matches}`);
+console.log(`longest gap between steps: ${Math.round(await page.evaluate(() => window.testMaxGap).catch(() => -1))} ms`);
 console.log(failure ? `FAILED after ${Math.round((Date.now() - began) / 1000)} s: ${failure}` : `ok: played ${seconds} s`);
 for (const line of log.slice(-30)) console.log(line);
 await context.close();

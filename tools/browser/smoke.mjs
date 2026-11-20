@@ -59,9 +59,13 @@ async function observe(context) {
     activePage = page;
     page.on("pageerror", (error) => errors.push(String(error)));
     page.on("console", (message) => {
+        const { url } = message.location();
         if (
             message.type() === "error" &&
-            !message.location().url.includes("/offline-probe?")
+            !url.includes("/offline-probe?") &&
+            // The page's look for a newer version (install.js) fails while the test has the network off; Windows
+            // Chromium logs that as a console error where macOS's does not.
+            !(url.endsWith("/assets-manifest.js") && message.text().includes("ERR_INTERNET_DISCONNECTED"))
         )
             errors.push(message.text());
     });
