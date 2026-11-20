@@ -58,11 +58,18 @@ and Playwright's Chromium three on the normal map, then Edge five and Chromium t
 stall to see whether play resumes), and `smoke.mjs` with `SMOKE_THREADS=1` passes, as does the full `dotnet test`
 (1258 tests, Slow ones included). Other engines, Playwright's on Windows, the soak with `?threads=4` (the page keeps
 them on one thread otherwise): Firefox two matches of 240 s without a stop, but too few to turn it on there;
-WebKit's threaded runtime still stopped answering the page (input unanswered at 114 s in the one run made), so it
-stays on one thread, where two matches of 300 s ran clean. macOS was not run.
-Do not marshal a view, an object or a delegate to JavaScript on the frame path again. The soak is the check:
-`node tools/browser/soak.mjs` against a `--threads` publish served with `--isolate` and `?threads=8`. This was probably
-also what stopped WebKit's threaded runtime below, which has not been tried again.
+WebKit's threaded runtime still stopped answering the page (input unanswered after 95 to 164 s, in every one of
+five matches made, also with 16 spare runtime threads instead of 6). Its cause was the one call back into JavaScript
+each frame made (`deliver`): in the threaded runtime that is a synchronous call from .NET's thread to the page's,
+and the page froze in it. `Frame` now answers with the address of the packet (pinned until the next request) and
+the HUD as its promise's result, and the page copies the packet afterwards (`frames.js`); no frame crosses to the
+page by a call from .NET. Since then WebKit with `?threads=4` ran six matches (three of 240 s, three of 300 s)
+without a stop, and Edge five more of 300 s (three on the normal map, two on the heavy one). The relay's messages
+(`deliverNet`) and the sound bank still use a call from .NET, so a network match is not covered by that evidence.
+WebKit and Firefox stay on one thread until more has been played on them, macOS included.
+
+Do not marshal a view, an object or a delegate to JavaScript on the frame path again, nor call into JavaScript from .NET there. The soak is the check:
+`node tools/browser/soak.mjs` against a `--threads` publish served with `--isolate` and `?threads=8`.
 
 The page chooses when a match starts (`wwwroot/threads.js`). It uses the threaded runtime only where all of this
 holds, and the single-thread runtime in its worker everywhere else:

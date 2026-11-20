@@ -2,6 +2,7 @@ namespace Emberward.Browser;
 
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
 using Emberward.Browser.Client;
@@ -20,6 +21,7 @@ public static partial class BrowserApi
     private static BrowserNetMatch? _net;
     private static bool _hudStale;
     private static bool _dialSent;
+    private static System.Runtime.InteropServices.GCHandle _pinnedPacket;
 
     /// <param name="seed">The world's seed.</param>
     /// <param name="heatWorkers">Threads for the heat solver; 1 on the single-thread runtime.</param>
@@ -136,8 +138,12 @@ public static partial class BrowserApi
     private static partial void DeliverNet(int address, int length);
 
     /// <summary>
-    /// One display request: steps the simulation, builds a frame and hands it to <see cref="Deliver"/> before the
-    /// promise resolves. A local match steps once if <paramref name="step"/>, with the input given. A network match
+    /// One display request: steps the simulation, builds a frame and answers with where the frame's packet lies in
+    /// the runtime's memory (pinned until the next request; layout: <see cref="BrowserScene"/>) and the rest of what the
+    /// page needs as JSON: <c>address</c>, <c>length</c>, <c>stepMs</c> (negative when there was no step), <c>frameMs</c>,
+    /// <c>steps</c>, and <c>hud</c>, the HUD's state or null when it has not changed since the last frame (it changes only
+    /// with a step). No call back into JavaScript: in the threaded runtime that is a synchronous call across threads,
+    /// and WebKit's page froze in it now and then. A local match steps once if <paramref name="step"/>, with the input given. A network match
     /// takes the input whenever it is given, and steps as the relay's ticks have arrived (<paramref name="due"/>:
     /// the page's clock says a step is due). <paramref name="thermalView"/> is the player's thermal view (H,
     /// <see cref="BrowserSession.ThermalView"/>). <paramref name="powerLabelCellSize"/> is the displayed CSS size of a
@@ -145,7 +151,7 @@ public static partial class BrowserApi
     /// page's clock in milliseconds, which <see cref="Receive"/> times arrivals by.
     /// </summary>
     [JSExport]
-    public static Task Frame(bool step, int x, int y, bool fire, double aimX, double aimY, int build,
+    public static Task<string> Frame(bool step, int x, int y, bool fire, double aimX, double aimY, int build,
         int upgrade, bool recall, int width, int height, int scale, double alpha, double delta, double time, bool thermalView,
         double powerLabelCellSize, bool due, double now)
     {
@@ -184,12 +190,16 @@ public static partial class BrowserApi
         var packet = session.Scene.Packet;
         double stepMs = steps > 0 ? Stopwatch.GetElapsedTime(began, stepped).TotalMilliseconds : -1;
         double frameMs = Stopwatch.GetElapsedTime(stepped).TotalMilliseconds;
-        unsafe
+        // The packet stays where it is until the next request, and that comes after the page has copied it.
+        if (!_pinnedPacket.IsAllocated || !ReferenceEquals(_pinnedPacket.Target, packet.Array))
         {
-            fixed (byte* at = packet.AsSpan())
-                Deliver((int)at, packet.Count, hud, stepMs, frameMs, steps);
+            if (_pinnedPacket.IsAllocated)
+                _pinnedPacket.Free();
+            _pinnedPacket = GCHandle.Alloc(packet.Array, GCHandleType.Pinned);
         }
-        return Task.CompletedTask;
+        nint address = _pinnedPacket.AddrOfPinnedObject() + packet.Offset;
+        return Task.FromResult(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{{\"address\":{(int)address},\"length\":{packet.Count},\"stepMs\":{stepMs:R},\"frameMs\":{frameMs:R},\"steps\":{steps},\"hud\":{hud ?? "null"}}}"));
     }
 
     private static ControllerOutput Input(int x, int y, bool fire, double aimX, double aimY, int build, int upgrade, bool recall)
@@ -209,21 +219,6 @@ public static partial class BrowserApi
             Upgrade = Math.Clamp(upgrade, 0, 7),
         };
     }
-
-    /// <summary>Hands a frame to JavaScript (frames.js), which copies the packet before it returns.</summary>
-    /// <param name="address">
-    /// Where the frame's packet (layout: <see cref="BrowserScene"/>) lies in the runtime's own memory, pinned for the
-    /// length of the call.
-    /// </param>
-    /// <param name="length">The packet's size in bytes.</param>
-    /// <param name="hud">
-    /// The HUD's state as JSON, or null when it has not changed since the last frame; it changes only with a step.
-    /// </param>
-    /// <param name="stepMs">The milliseconds the simulation step took; negative when there was none.</param>
-    /// <param name="frameMs">The milliseconds building the frame took.</param>
-    /// <param name="steps">How many simulation steps the request took.</param>
-    [JSImport("deliver", "frames.js")]
-    private static partial void Deliver(int address, int length, string? hud, double stepMs, double frameMs, int steps);
 
     /// <summary>
     /// Synthesises the desktop's sound bank and hands it to <see cref="DeliverSounds"/> before the promise resolves.

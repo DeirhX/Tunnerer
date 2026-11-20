@@ -32,8 +32,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
     const runtime = await builder.create();
     // Fewer bytes than the publish counted: a file .NET did not need.
     if (downloading) downloaded();
-    let delivered = null,
-        sounds = null,
+    let sounds = null,
         outgoing = [];
     // Bytes cross from .NET as an address and a length in its memory, which is pinned for the call, and not as a
     // marshalled view: .NET frees a view's proxy when the browser collects it, and in the threaded runtime that
@@ -42,18 +41,6 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
     // The heap's view is taken anew each time because the memory may have grown.
     const copyOut = (address, length) => runtime.localHeapViewU8().slice(address, address + length);
     runtime.setModuleImports("frames.js", {
-        // .NET hands over each frame here. `packet` is one buffer with everything the frame draws (layout:
-        // BrowserScene.cs), as a view of the runtime's memory that is good for the length of this call. The copy
-        // made of it is an ordinary buffer of its own: the worker hands it to the page without another copy, and
-        // WebGL takes it, which it would not take of the memory the threaded runtime shares between its threads.
-        deliver: (address, length, hud, stepMs, frameMs, steps) => {
-            delivered = {
-                packet: copyOut(address, length),
-                hud,
-                steps,
-                timing: { step: stepMs < 0 ? null : stepMs, render: frameMs },
-            };
-        },
         // Messages for the relay in a network match, each as its length (int32) and bytes, for the page's socket
         // (net.js) to send.
         deliverNet: (address, length) => outgoing.push(copyOut(address, length)),
@@ -134,7 +121,8 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
             }
             if (data.command) await api.Command(data.command);
             const i = data.input;
-            await api.Frame(
+            const answer = JSON.parse(
+                await api.Frame(
                 Boolean(i),
                 i?.x || 0,
                 i?.y || 0,
@@ -154,9 +142,12 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                 data.powerLabelCellSize || 0,
                 Boolean(data.due),
                 data.now || 0,
+                ),
             );
-            const { packet, hud, timing, steps } = delivered;
-            delivered = null;
+            // The packet lies in .NET's memory until the next request, which comes after this copy.
+            const packet = copyOut(answer.address, answer.length),
+                { hud, steps } = answer,
+                timing = { step: answer.stepMs < 0 ? null : answer.stepMs, render: answer.frameMs };
             let bank = null;
             if (data.sounds) {
                 await api.SoundBank();
@@ -167,7 +158,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
             // a step.
             return {
                 type: "frame",
-                state: hud ? JSON.parse(hud) : null,
+                state: hud || null,
                 packet,
                 timing,
                 steps,
