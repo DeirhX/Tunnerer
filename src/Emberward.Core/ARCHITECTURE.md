@@ -70,6 +70,9 @@ Entities/
   Machines/MachineUpgrades.cs   MachineUpgradePath, refusals, MachineUpgradeLevel / Offer and what each path and level is worth
   Machines/MachineUpgradeSystem.cs   (only when MatchRules.MachineUpgrades is on) Per-machine upgrades bought next to the
                              machine from the base store (DESIGN.md §4.9); World.MachineUpgradeOfferFor / MachineUpgradeOf answer
+  Tanks/TankReserveSystem.cs, TankReserve.cs   (only when MatchRules.TankReserve is on) The tank's reserve (DESIGN.md
+                             §4.9): the recall key burns carried emberite to lower the off-network floor, the stages of
+                             running out and their effects, a generator holding the clock; World.ReserveOf answers
   Machines/MachineMaterializer.cs   The machine a tank carries before it is planted
   Machines/TurretAction.cs   The turret's action: targeting, firing, overheat slowdown (energy matches only)
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
@@ -164,8 +167,11 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    regrowth is spread over the ticks between passes.
 4. **proj**: `ProjectileList.Advance`.
 5. **tanks**: `LinkMap.AgeOreFlow`, then `TankList.Advance` with the world's `SimulationContext` (built once). Per tank (`Tank.Advance`):
-   idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage, the
-   network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
+   idle heat, base interaction (recharge, heat sink, docking: the hold banks into the store), network coverage (with
+   `MatchRules.TankReserve` on, a generator nearby holds the off-network floor), the reserve (only with that rule:
+   `TankReserveSystem.Advance` burns a unit on the recall key, recorded as `StepEventKind.ReserveBurned`, settles the
+   stage, recorded as `ReserveStageChanged` when it changes, and returns the stage's effects, which mask the gun and
+   build keys and slow the move, dig and gun below), the network unload (inside linked coverage the hold moves `Ore.NetworkUnloadPerSecond` into the base store, booked on
    the links with `LinkMap.CarryOre` and recorded as `StepEventKind.OreUnloaded`), turret aim and fire,
    `TankDigger.Move`, spawn shield, shooting, `TankBuildController.Advance`, the upgrade keys, the machine upgrade
    key (only when `MatchRules.MachineUpgrades` is on: `MachineUpgradeSystem` buys a level for the nearest own machine

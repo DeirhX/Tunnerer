@@ -7,11 +7,19 @@ using Emberward.Core.Types;
 /// <param name="Net">The network match (<see cref="BrowserNetMatch"/>); null in a local one.</param>
 /// <param name="BasePower">The base charge readout, present in an energy-network match.</param>
 /// <param name="MachineUpgrade">The machine next to the tank and its upgrade panel; null when none is in reach.</param>
+/// <param name="Reserve">The reserve's stage tag and burn prompt; null when there is nothing to say.</param>
 public sealed record BrowserFrame(
     int Seed, int Tick, int TickRate, PlayerStatus Player,
     SoundFrame Sounds, BuildOption[] Builds,
     UpgradeOption[] Upgrades, PlantPreview? Preview, GoalStatus? Goal, GuidanceStatus Guidance, HeatDial? Dial,
-    NetStatus? Net = null, BaseCharge? BasePower = null, MachineUpgradeStatus? MachineUpgrade = null);
+    NetStatus? Net = null, BaseCharge? BasePower = null, MachineUpgradeStatus? MachineUpgrade = null,
+    ReserveStatus? Reserve = null);
+
+/// <summary>
+/// The tank's reserve (<c>ReserveTags</c>, shared with the desktop): the stage tag drawn beside OFF NETWORK with its
+/// colour as #rrggbb and whether it blinks (all null when there is no tag), and what the recall key burns now, if it does.
+/// </summary>
+public sealed record ReserveStatus(string? Tag, string? Color, bool Blink, string? Burn);
 
 /// <summary>
 /// The machine upgrade highlight and panel (<c>MachineUpgradeView</c>, shared with the desktop). <c>Ring</c> is the

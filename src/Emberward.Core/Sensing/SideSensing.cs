@@ -15,7 +15,7 @@ using Emberward.Core.Network;
 /// </summary>
 [NotSaved("output only: vision and radar, which nothing in the simulation reads")]
 internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks, BasePowerSystem? power,
-    MachineUpgradeSystem? upgrades = null)
+    MachineUpgradeSystem? upgrades = null, TankReserveSystem? reserve = null)
 {
     private readonly List<(Tank Tank, VisionMap Map)> _visions = new();
     private readonly List<(Tank Tank, Radar Radar)> _radars = new();
@@ -98,7 +98,12 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
         _visionSources.Clear();
         int divisor = tank.Base is { } home && power?.IsDark(home) == true ? Tweaks.Base.DarkSightDivisor : 1;
         if (!tank.IsDead && tank.Base?.IsDestroyed != true)
-            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius / divisor, Tweaks.Vision.TankNearRadius / divisor));
+        {
+            // A tank far into its reserve sees less (a new reach is a new source, so only its eye is cast again).
+            int sight = reserve?.SightPercent(tank) ?? 100;
+            _visionSources.Add(new VisionSource(tank.Position, Tweaks.Vision.TankRadius * sight / 100 / divisor,
+                Tweaks.Vision.TankNearRadius / divisor));
+        }
         if (tank.Base is { IsDestroyed: false } owner)
         {
             const int near = Tweaks.Vision.MachineNearRadius;

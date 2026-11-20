@@ -60,6 +60,13 @@ public sealed record MatchRules
     /// </summary>
     public bool MachineUpgrades { get; init; }
 
+    /// <summary>
+    /// The off-network clock is the tank's reserve (DESIGN.md §4.9, <see cref="Entities.Tanks.TankReserveSystem"/>):
+    /// the recall key burns carried emberite to buy it back, and running out goes through warning, degraded and
+    /// stranded before heat death. Off, the clock runs out straight into overheating.
+    /// </summary>
+    public bool TankReserve { get; init; }
+
     /// <summary>A normal match: hot and frost pockets, ore, regrowth; the core does not end it.</summary>
     public static MatchRules Standard { get; } = new()
     {
@@ -84,6 +91,8 @@ public sealed record MatchRules
             hash = Fnv1a.Mix(hash, 0xE4EAu);
         if (MachineUpgrades)
             hash = Fnv1a.Mix(hash, 0x4D55u);
+        if (TankReserve)
+            hash = Fnv1a.Mix(hash, 0x5253u);
         return hash;
     }
 }

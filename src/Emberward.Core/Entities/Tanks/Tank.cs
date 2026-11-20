@@ -81,6 +81,9 @@ public class Tank
     /// </summary>
     public float OffNetworkFloor => _thermals.OffNetworkFloor;
 
+    /// <summary>A burn of carried emberite lowers the off-network floor (<see cref="TankReserveSystem"/>).</summary>
+    internal void LowerOffNetworkFloor(float degrees) => _thermals.LowerOffNetworkFloor(degrees);
+
     /// <summary>Seconds until the rising off-network heat floor reaches the safe maximum (zero once it has).</summary>
     public float OffNetworkSecondsToOverheat =>
         MathF.Max(0f, (Tweaks.Tank.HeatSafeMax - OffNetworkFloor) / OffNetworkHeatPerSecond);
@@ -241,12 +244,14 @@ public class Tank
         if (Base?.IsDestroyed == true)
             TakeDamage(Reactor.HealthCapacity, DamageCause.BaseDestroyed);
 
-        bool recall = input.Recall && CanRecall;
+        // Under the reserve rule the recall key burns carried emberite while there is any (TankReserveSystem).
+        bool recall = input.Recall && CanRecall && !(ctx.Reserve != null && TankReserveSystem.CanBurn(this));
         if (recall)
             TakeDamage(Reactor.HealthCapacity, DamageCause.Recalled);
 
         if (IsDead)
         {
+            ctx.Reserve?.Clear(this);
             _lifecycle.AdvanceDeath(in ctx, recall);
             return;
         }
@@ -254,13 +259,16 @@ public class Tank
         _thermals.AddIdleHeat(ctx.Heat.Ledger);
         AdvanceBaseInteraction(in ctx);
         _thermals.AdvanceNetworkCoverage(in ctx);
+        var reserve = ctx.Reserve?.Advance(this, input.Recall, ctx.Events) ?? TankReserveEffects.Normal;
+        if (!reserve.CanShoot)
+            input.ShootPrimary = false;
         AdvanceNetworkUnload(in ctx);
         AdvanceTurretAim(input);
         Turret.Update(input.ShootPrimary);
-        _digger.Move(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary);
+        _digger.Move(in ctx, input.MoveSpeed, Turret.Direction, input.ShootPrimary, reserve.MoveFactor);
         _lifecycle.UpdateSpawnProtection(ctx.CheckBaseCollision(Position) == Base, input.ShootPrimary);
-        AdvanceShooting(input, in ctx);
-        _build.Advance(in ctx, input);
+        AdvanceShooting(input, in ctx, reserve.FireDelayFactor);
+        _build.Advance(in ctx, input, reserve.CanBuild);
         AdvanceUpgrades(input);
         ctx.MachineUpgrades?.Advance(this, in input);
         _thermals.Advance(ctx.Heat);
@@ -416,10 +424,10 @@ public class Tank
         }
     }
 
-    private void AdvanceShooting(ControllerOutput input, in SimulationContext ctx)
+    private void AdvanceShooting(ControllerOutput input, in SimulationContext ctx, int delayFactor)
     {
         if (!input.ShootPrimary) return;
-        var bullet = Turret.TryShoot(Position, ctx.Projectiles);
+        var bullet = Turret.TryShoot(Position, ctx.Projectiles, delayFactor);
         if (bullet != null)
         {
             _thermals.RecordShot();
