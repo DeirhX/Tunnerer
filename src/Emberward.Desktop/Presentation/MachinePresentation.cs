@@ -1,6 +1,6 @@
 namespace Emberward.Desktop.Presentation;
 
-using Emberward.Core.Config;
+using Emberward.Core.Match;
 using Emberward.Core.Entities.Machines;
 
 /// <summary>
@@ -13,7 +13,7 @@ using Emberward.Core.Entities.Machines;
 /// <param name="Name">Lower-case name used in sentences ("Build a relay").</param>
 /// <param name="SlotLabel">Upper-case label on its build slot.</param>
 /// <param name="KeyLabel">The key bound to the machine's <see cref="BuildKey"/>, as written on screen and as SDL names it.</param>
-/// <param name="BuildSlot">Column of its slot in the build panel, from the left.</param>
+/// <param name="BuildSlot">Slot in the build panel, in row order from the top left.</param>
 /// <param name="PlantHint">What planting it here does, after "key:" in the network panel's hint.</param>
 public sealed record MachinePresentation(
     MachineType Type,
@@ -45,11 +45,18 @@ public static class MachinePresentations
         MachineType.Pylon, "pylon", "PYLON", "T", BuildSlot: 2,
         "plant pylon here - it charges harvesters it can see");
 
-    /// <summary>Every machine's presentation, indexed by <see cref="MachineType"/>.</summary>
-    public static readonly IReadOnlyList<MachinePresentation> All = BuildTable(Relay, Harvester, Pylon);
+    public static readonly MachinePresentation Generator = new(
+        MachineType.Generator, "generator", "GEN", "Y", BuildSlot: 3,
+        "plant generator here - use nearby heat to supply the local network");
 
-    /// <summary>Every machine's presentation in build-panel order, left to right.</summary>
+    /// <summary>Every machine's presentation, indexed by <see cref="MachineType"/>.</summary>
+    public static readonly IReadOnlyList<MachinePresentation> All = BuildTable(Relay, Harvester, Pylon, Generator);
+
+    /// <summary>Every machine's presentation in build-panel row order.</summary>
     public static readonly IReadOnlyList<MachinePresentation> InSlotOrder = All.OrderBy(p => p.BuildSlot).ToArray();
+
+    public static IEnumerable<MachinePresentation> Available(MatchRules rules) =>
+        InSlotOrder.Where(p => p.Behavior.IsAvailable(rules));
 
     public static MachinePresentation Get(MachineType type) =>
         (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));

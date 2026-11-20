@@ -69,8 +69,8 @@ public class World
         return total;
     }
     /// <summary>
-    /// Charge stored in every base and machine battery (capacitor), with what the energy network has paid out and not
-    /// yet turned into heat (<see cref="EnergyNetwork.PendingCharge"/>). Charge is converted heat, so
+    /// Charge stored in bases, capacitors and generator reserves, with what the energy network has paid out and not
+    /// yet turned into heat (<see cref="EnergyNetwork.StoredCharge"/>). Charge is converted heat, so
     /// <c>SumSystemThermalEnergy() + SumSystemCharge()</c> balances against <c>Injected - TotalSunk</c>.
     /// </summary>
     public double SumSystemCharge()
@@ -81,7 +81,7 @@ public class World
         foreach (var machine in _machines.Machines)
             total += machine.Charge;
         if (_energy != null)
-            total += _energy.PendingCharge();
+            total += _energy.StoredCharge();
         return total;
     }
 
@@ -179,7 +179,7 @@ public class World
             _terrainRegrowth = new TerrainRegrowth(_simulationSeed);
         _matchResult = new MatchResult(_tankList.Tanks);
         if (Rules.EnergyNetwork)
-            _energy = new EnergyNetwork();
+            _energy = new EnergyNetwork(_simulationSettings);
         _tankContext = new SimulationContext
         {
             Terrain = _terrain,
@@ -187,9 +187,10 @@ public class World
             Projectiles = _projectiles,
             CheckBaseCollision = _tankBases.CheckBaseCollision,
             Settings = _simulationSettings,
+            Rules = Rules,
             Machines = _machines,
             PlantMachine = PlantMachine,
-            CanPlantRelayAt = pos => _linkMap.PreviewLink(pos, _terrain).Status == LinkPreviewStatus.Live,
+            CanPlantRelayAt = (pos, owner) => PreviewMachineLink(pos, owner).Status == LinkPreviewStatus.Live,
             CoverageFor = CoverageFor,
             IsOccupied = IsCellOccupied,
             IsTankBlocked = _collisionSolver.BlocksTank,
@@ -318,9 +319,11 @@ public class World
             _linkMap.AgeOreFlow();
             _tankList.Advance(in _tankContext, getInput);
         }));
+        if (_energy is EnergyNetwork network)
+            systems.Add(new("islands", _ => network.Refresh(_linkMap, _tankBases.Bases)));
         systems.Add(new("machines", _ => AdvanceMachines()));
         if (_energy is EnergyNetwork energy)
-            systems.Add(new("power", _ => energy.Advance(_terrain, _linkMap, _tankBases.Bases)));
+            systems.Add(new("power", _ => energy.Advance(_terrain)));
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain);
@@ -461,11 +464,20 @@ public class World
         _terrain.SampleAverageHeat(at, _simulationSettings.TankDigRadius) * 255f;
 
     /// <summary>What a machine of <paramref name="type"/> would do if planted at <paramref name="at"/>.</summary>
-    public MachinePlacementPreview PreviewPlacement(MachineType type, Position at) =>
+    public MachinePlacementPreview PreviewPlacement(MachineType type, Position at, TankBase? owner = null) =>
         MachineBehaviors.Get(type).RequiresLinkToPlant
-            ? new MachinePlacementPreview(_linkMap.PreviewLink(at, _terrain), 0f)
-            : new MachinePlacementPreview(default,
-                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at)));
+            ? new MachinePlacementPreview(PreviewMachineLink(at, owner), 0f)
+            : MachineBehaviors.Get(type).IsMiner ? new MachinePlacementPreview(default,
+                MachineBehaviors.HarvesterSenseHeat(MachineBehaviors.HarvesterSenseTemperature(_terrain, at))) : default;
+
+    private LinkPreview PreviewMachineLink(Position at, TankBase? owner)
+    {
+        var preview = _linkMap.PreviewLink(at, _terrain);
+        if (preview.Status != LinkPreviewStatus.Live && owner != null &&
+            _energy?.LocalLinkAt(at, owner, _machines, _terrain, _nearMachines) is LinkPoint local)
+            return new LinkPreview(LinkPreviewStatus.Live, local.Position, default);
+        return preview;
+    }
 
     /// <summary>True when <paramref name="at"/> lies inside any base, the tank's own or another.</summary>
     public bool IsInsideAnyBase(Position at) => _tankBases.CheckBaseCollision(at) != null;
@@ -478,7 +490,7 @@ public class World
     public LinkPreviewStatus CarriedPlantLink(Tank tank) =>
         tank.CarriedMachineType is MachineType type && !IsInsideAnyBase(tank.Position) &&
         MachineBehaviors.Get(type).RequiresLinkToPlant
-            ? PreviewPlacement(type, tank.Position).Link.Status
+            ? PreviewPlacement(type, tank.Position, tank.Base).Link.Status
             : LinkPreviewStatus.NoNetwork;
 
     /// <summary>How <paramref name="tankBase"/>'s network of harvesters and relays stands as of the last tick.</summary>
@@ -511,7 +523,7 @@ public class World
     public MachinePower? MachinePowerOf(Machine machine) => _energy?.PowerOf(machine);
 
     /// <summary>
-    /// A base's charge store as an overlay shows it: level, capacity, and what its engine made and its island drew a
+    /// A base's charge store as an overlay shows it: level, capacity, and what its engine and linked generators made and its island drew a
     /// second over the last second. Null when the rules run no energy network. Output only.
     /// </summary>
     public BasePower? BasePowerOf(TankBase tankBase) => _energy?.PowerOf(tankBase);

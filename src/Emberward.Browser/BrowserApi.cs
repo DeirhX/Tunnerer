@@ -188,6 +188,7 @@ public static partial class BrowserApi
             BuildPrimary = build == 1,
             BuildSecondary = build == 2,
             BuildTertiary = build == 3,
+            BuildQuaternary = build == 4,
             Upgrade = Math.Clamp(upgrade, 0, 7),
         };
     }

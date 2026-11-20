@@ -111,19 +111,21 @@ public class EnergyNetworkTests
         var links = new LinkMap();
         var home = new TankBase(new Position(1, 1), 0);
         home.LinkPoint = links.RegisterPoint(home.Position, LinkPointType.Base);
-        var network = new EnergyNetwork();
+        var network = new EnergyNetwork(SimulationSettings.FromTweaks());
         var machines = new MachineList();
         for (int hop = 1; hop <= hops; hop++)
         {
             var position = new Position(1 + spacing * hop, 1);
             var relay = machines.Add(new Machine(position, MachineType.Relay, home.Color));
+            relay.State = MachineState.Planted;
             relay.OwnerBase = home;
             relay.LinkPoint = links.RegisterPoint(position, LinkPointType.Machine);
             network.Register(relay);
         }
 
         links.Advance(terrain, Tweaks.World.RefreshLinkMapInterval);
-        network.Advance(terrain, links, [home]);
+        network.Refresh(links, [home]);
+        network.Advance(terrain);
 
         var last = machines.Machines[^1];
         Assert.Equal(hops, last.LinkPoint!.Hops);
@@ -154,6 +156,67 @@ public class EnergyNetworkTests
         var power = world.MachinePowerOf(harvester)!.Value;
         Assert.False(power.IsFed);
         Assert.True(power.Charge < plantedCharge);
+    }
+
+    [Fact]
+    public void AContestedFront_NodeFedAndCoveringHarvesterAgree()
+    {
+        // Relays at 140 and 220 hang off our base; the one at 290 has its own chain back, but its shortest route
+        // (one hop) runs through the rival base at 355. Its power, its feed and the harvester's coverage must agree.
+        var size = new Size(430, 140);
+        var generated = new TerrainGrid(size);
+        generated.Fill(TerrainPixel.LevelGenDirt);
+        var world = new World(size, rules: new MatchRules { EnergyNetwork = true });
+        world.Initialize(generated, [new Position(60, 65), new Position(355, 65)]);
+        world.Terrain.Fill(TerrainPixel.Blank);
+        var home = world.TankBases.Bases[0];
+        var near = world.Machines.Add(new Machine(new Position(140, 65), MachineType.Relay, home.Color));
+        world.PlantMachine(near, home);
+        var middle = world.Machines.Add(new Machine(new Position(220, 65), MachineType.Relay, home.Color));
+        world.PlantMachine(middle, home);
+        var contested = world.Machines.Add(new Machine(new Position(290, 65), MachineType.Relay, home.Color));
+        world.PlantMachine(contested, home);
+        var harvester = world.Machines.Add(new Machine(new Position(295, 75), MachineType.Harvester, home.Color));
+        world.PlantMachine(harvester, home);
+        double plantedCharge = harvester.Charge;
+
+        Advance(world, Tweaks.Perf.TargetFps * 3);
+
+        Assert.True(world.MachinePowerOf(near)!.Value.IsFed, "a relay powered by its own base is fed");
+        Assert.True(contested.LinkPoint!.IsPowered);
+        Assert.False(world.MachinePowerOf(contested)!.Value.IsFed, "a relay whose route runs through the rival base is not fed by ours");
+        Assert.True(harvester.IsOffNetwork, "the harvester's only cover is the rival-powered relay");
+        Assert.False(world.MachinePowerOf(harvester)!.Value.IsFed);
+        Assert.True(world.MachinePowerOf(harvester)!.Value.Charge < plantedCharge);
+    }
+
+    [Fact]
+    public void ARelayRoutedThroughARivalsRelay_IsFedAndCoversItsHarvester()
+    {
+        // Links are shared across owners: our base's power reaches our relay through a rival relay. The route ends at
+        // our base, so the relay is fed, and it covers a harvester through the same route.
+        var size = new Size(430, 140);
+        var generated = new TerrainGrid(size);
+        generated.Fill(TerrainPixel.LevelGenDirt);
+        var world = new World(size, rules: new MatchRules { EnergyNetwork = true });
+        world.Initialize(generated, [new Position(60, 65), new Position(355, 65)]);
+        world.Terrain.Fill(TerrainPixel.Blank);
+        var home = world.TankBases.Bases[0];
+        var rival = world.TankBases.Bases[1];
+        var rivalRelay = world.Machines.Add(new Machine(new Position(150, 65), MachineType.Relay, rival.Color));
+        world.PlantMachine(rivalRelay, rival);
+        var relay = world.Machines.Add(new Machine(new Position(240, 65), MachineType.Relay, home.Color));
+        world.PlantMachine(relay, home);
+        var harvester = world.Machines.Add(new Machine(new Position(245, 75), MachineType.Harvester, home.Color));
+        world.PlantMachine(harvester, home);
+        double plantedCharge = harvester.Charge;
+
+        Advance(world, Tweaks.Perf.TargetFps * 3);
+
+        Assert.Equal(2, relay.LinkPoint!.Hops);
+        Assert.True(world.MachinePowerOf(relay)!.Value.IsFed, "a relay whose route ends at our base is fed");
+        Assert.False(harvester.IsOffNetwork, "the harvester is covered through the fed relay");
+        Assert.True(world.MachinePowerOf(harvester)!.Value.IsFed);
     }
 
     [Fact]

@@ -61,6 +61,7 @@ full suite.
 | E | Build a relay (4 ore); press again to plant it |
 | R | Build a harvester (30 ore); press again to plant it |
 | T | Build a pylon (10 ore); press again to plant it |
+| Y | Build a local generator (18 ore) in energy matches; plant it next to hot ground |
 | 1-7 | Docked at your base: buy an upgrade (1-5 base track, 6-7 tank track) |
 | M | Mute / unmute the sound |
 | - / = | Volume down / up |
@@ -86,7 +87,7 @@ Run `Emberward.Desktop --help` for the full list. The common ones:
 | `--size=WxH`, `--large` | Terrain size |
 | `--no-ai` | No enemy tank |
 | `--no-fog` | No fog of war: the whole map is shown live |
-| `--energy-network` | Local matches run the energy network (DESIGN.md §4.9, off by default): every machine holds charge, and labels over machines show it (G hides them). A network match keeps the rules its room agreed on. In the browser, add `?energy` to the address |
+| `--energy-network` | Local matches run the energy network (DESIGN.md §4.9, off by default): machines hold charge, local generators supply their islands, and labels show charge and production (G hides them). A network match keeps the rules its room agreed on. In the browser, add `?energy` to the address |
 | `--net[=ROOM]` | Join ROOM (default `lobby`) on the shared relay; the first player in opens it and their settings apply |
 | `--relay=URL` | Use the relay at URL instead (`ws://` or `wss://`, ending in `/play`) |
 | `--room=NAME` | The room to join, when `--relay` is given without `--net` |

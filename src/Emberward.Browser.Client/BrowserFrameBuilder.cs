@@ -25,11 +25,11 @@ public static class BrowserFrameBuilder
         var world = session.World;
         var player = session.Player;
         var home = player.Base!;
-        var builds = MachineBehaviors.All.Select(b =>
+        var builds = MachinePresentations.Available(world.Rules).Select(machine =>
         {
-            BuildQuote quote = player.QuoteBuild(b.Type);
-            var slot = BuildSlotView.Of(MachinePresentations.Get(b.Type), quote, player.CarriedMachineType);
-            return new BuildOption((int)b.Key + 1, b.Type.ToString(), quote.Cost, quote.CanAfford, quote.Payer.ToString(),
+            BuildQuote quote = player.QuoteBuild(machine.Type);
+            var slot = BuildSlotView.Of(machine, quote, player.CarriedMachineType);
+            return new BuildOption((int)machine.BuildKey + 1, machine.Type.ToString(), quote.Cost, quote.CanAfford, quote.Payer.ToString(),
                 slot.Machine.BuildSlot, slot.State.ToString(), slot.Progress, slot.Label, slot.Caption,
                 slot.CaptionKind.ToString());
         }).OrderBy(b => b.Key).ToArray();
@@ -42,7 +42,7 @@ public static class BrowserFrameBuilder
         PlantPreview? preview = null;
         if (player.CarriedMachineType is MachineType carried)
         {
-            var placement = world.PreviewPlacement(carried, player.Position);
+            var placement = world.PreviewPlacement(carried, player.Position, player.Base);
             preview = new PlantPreview(world.IsInsideAnyBase(player.Position) ? "InsideBase" :
                 MachineBehaviors.Get(carried).RequiresLinkToPlant ? placement.Link.Status.ToString() : "Ready",
                 placement.Link.Target, placement.SenseHeat);

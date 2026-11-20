@@ -66,7 +66,9 @@ float4 main(PSIn input) : SV_Target
         result = Tether(p, input.params, aa);
     else if (kind < kKindRadarBlip + 0.5)
         result = RadarBlip(p, input.color.rgb, input.params, aa);
-    else // kKindRadarPulse
+    else if (kind < kKindRadarPulse + 0.5)
         result = RadarPulse(p, input.params, aa);
+    else // kKindGenerator
+        result = Generator(p, input.params, aa);
     return result;
 }

@@ -258,3 +258,25 @@ float4 Battery(float2 p, float4 params, float aa)
 }
 
 #endif // EMBERWARD_ENTITY_MACHINES_HLSLI
+
+// A generator's rectangular casing houses paired heat exchangers and an output gauge.
+float4 Generator(float2 p, float4 params, float aa)
+{
+    float output = saturate(params.y);
+    float4 result = float4(0.0, 0.0, 0.0, 0.0);
+    float body = sdRoundBox(p, float2(0.0, 0.0), float2(2.9, 2.3), 0.5);
+    Over(result, kOutlineColor, FillAlpha(body - 0.26, aa));
+    Over(result, float3(0.24, 0.19, 0.31), FillAlpha(body, aa));
+    float2 side = float2(abs(p.x) - 1.8, p.y);
+    float block = sdRoundBox(side, float2(0.0, 0.0), float2(0.58, 1.7), 0.13);
+    float fin = smoothstep(0.14, 0.26, abs(frac(p.y * 1.45) - 0.5));
+    float3 metal = lerp(float3(0.37, 0.28, 0.48), float3(0.66, 0.53, 0.78), fin);
+    Over(result, metal, FillAlpha(block, aa));
+    float gauge = sdRoundBox(p, float2(0.0, 0.0), float2(0.67, 1.55), 0.30);
+    Over(result, kOutlineColor, FillAlpha(gauge, aa));
+    float glow = smoothstep(0.0, 0.4, output);
+    float3 light = lerp(float3(0.36, 0.25, 0.45), float3(0.83, 0.64, 1.0), glow);
+    float fill = FillAlpha(gauge + 0.18, aa) * smoothstep(-aa, aa, p.y - (1.35 - 2.70 * output));
+    Over(result, light, fill);
+    return Ghost(result, params.w);
+}

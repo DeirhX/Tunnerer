@@ -31,7 +31,7 @@ function setMeter(meter, value) {
     if (meter.value !== v) meter.value = v;
 }
 
-const BUILD_KEYS = ["E", "R", "T"];
+const BUILD_KEYS = ["E", "R", "T", "Y"];
 
 export class StatusView {
     constructor(input) {
@@ -73,7 +73,7 @@ export class StatusView {
             $("power"),
             `BASE CHARGE ${Math.round(p.charge * 100)}% / HEAT STORE ${Math.round(p.baseHeat * 100)}%`,
         );
-        // With the energy network: the base store, what its engine makes against what its island draws, and the net.
+        // With the energy network: the base store, what its engine and generators make against what its island draws, and the net.
         const store = f.power?.base;
         setHidden($("network-power"), !store);
         if (store) {
@@ -96,8 +96,9 @@ export class StatusView {
     }
 
     updateBuilds(builds, p) {
-        if (!this.builds) {
+        if (!this.builds || this.builds.size !== builds.length) {
             this.builds = new Map();
+            $("builds").replaceChildren();
             for (const b of builds) {
                 const button = document.createElement("button");
                 button.onclick = () => this.input.queue("build", b.key);

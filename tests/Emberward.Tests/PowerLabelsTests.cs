@@ -66,6 +66,17 @@ public class PowerLabelsTests
     }
 
     [Fact]
+    public void Production_GivesTheGeneratorItsOwnLabel_AndAddsItToTheBaseRow()
+    {
+        var generator = PowerLabels.Of(new MachinePower(2400.0, 4800.0, 120.0, 40.0, IsFed: true, ProductionPerSecond: 375.0));
+        Assert.Equal(HudPalette.Producer, generator.Color);
+        Assert.Equal("gen +375/s", generator.Flow);
+
+        var home = PowerLabels.Of(new BasePower(12_000.0, 40_000.0, 1200.0, 300.0, GeneratorProductionPerSecond: 375.0));
+        Assert.Equal("net +900/s · gen +375/s", home.Net);
+    }
+
+    [Fact]
     public void TheBaseRow_IsStoreProductionAgainstDraw_AndTheNet()
     {
         var gaining = PowerLabels.Of(new BasePower(12_000.0, 40_000.0, 1200.0, 300.0));

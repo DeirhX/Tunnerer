@@ -11,7 +11,7 @@ public class ControllerOutputCodecTests
     {
         for (int x = -1; x <= 1; x++)
             for (int y = -1; y <= 1; y++)
-                for (int buttons = 0; buttons < 16; buttons++)
+                for (int buttons = 0; buttons < 32; buttons++)
                     for (int upgrade = 0; upgrade <= BaseUpgrades.Count; upgrade++)
                     {
                         var input = new ControllerOutput
@@ -21,6 +21,7 @@ public class ControllerOutputCodecTests
                             BuildPrimary = (buttons & 2) != 0,
                             BuildSecondary = (buttons & 4) != 0,
                             BuildTertiary = (buttons & 8) != 0,
+                            BuildQuaternary = (buttons & 16) != 0,
                             Upgrade = upgrade,
                         };
 
@@ -31,13 +32,14 @@ public class ControllerOutputCodecTests
                         Assert.Equal(input.BuildPrimary, decoded.BuildPrimary);
                         Assert.Equal(input.BuildSecondary, decoded.BuildSecondary);
                         Assert.Equal(input.BuildTertiary, decoded.BuildTertiary);
+                        Assert.Equal(input.BuildQuaternary, decoded.BuildQuaternary);
                         Assert.Equal(input.Upgrade, decoded.Upgrade);
                         Assert.Equal(default, decoded.AimDirection);
                     }
     }
 
     [Fact]
-    public void EncodedInput_FitsIn28Bits()
+    public void EncodedInput_FitsIn29Bits()
     {
         var input = new ControllerOutput
         {
@@ -46,11 +48,20 @@ public class ControllerOutputCodecTests
             BuildPrimary = true,
             BuildSecondary = true,
             BuildTertiary = true,
+            BuildQuaternary = true,
             Upgrade = 4,
             AimDirection = new DirectionF(0.6f, -0.8f),
         };
 
-        Assert.Equal(0u, ControllerOutputCodec.Encode(input) >> 28);
+        Assert.Equal(0u, ControllerOutputCodec.Encode(input) >> 29);
+    }
+
+    [Fact]
+    public void TheFourthBuildKey_IsAKeyForInputPrediction()
+    {
+        uint bits = ControllerOutputCodec.Encode(new ControllerOutput { BuildQuaternary = true });
+        Assert.NotEqual(0u, bits);
+        Assert.Equal(bits, bits & ControllerOutputCodec.KeyMask);
     }
 
     /// <summary>A decoded aim must encode to the same bits, or two machines could disagree after a re-send.</summary>

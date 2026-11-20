@@ -225,8 +225,7 @@ public class TankBase
         double taken = terrain.ExtractEnergyInRadiusArea(center, radius, budget, field);
         // The core tap measures potential output even when the charge store is full.
         output = eta * taken;
-        double stored = Math.Min(output, Math.Max(0.0, ChargeCapacity - Charge));
-        Charge += stored;
+        double stored = StoreCharge(output);
         terrain.Ledger.RecordToCharge(stored);
         _engineOutputThisTick += stored;
         CreditReactor(taken - stored);
@@ -251,6 +250,14 @@ public class TankBase
         if (eta < 1.0)
             budget = Math.Min(budget, reactorRoom / (1.0 - eta));
         return budget;
+    }
+
+    /// <summary>Stores up to the available charge room and returns the amount stored.</summary>
+    internal double StoreCharge(double amount)
+    {
+        double stored = Math.Min(amount, Math.Max(0.0, ChargeCapacity - Charge));
+        Charge += stored;
+        return stored;
     }
 
     /// <summary>Takes up to <paramref name="amount"/> out of the charge store and returns what was taken.</summary>

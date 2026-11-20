@@ -5,6 +5,7 @@ using ImGuiNET;
 using Emberward.Core.Entities;
 using Emberward.Desktop.Rendering;
 using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Match;
 using static Emberward.Desktop.Gui.HudLayout;
 
 /// <summary>
@@ -72,7 +73,7 @@ public sealed class HudStrip
         _buildPanelTex = buildPanel;
     }
 
-    public void Draw(Tank player, float time)
+    public void Draw(Tank player, float time, MatchRules rules)
     {
         var displaySize = ImGui.GetIO().DisplaySize;
         var dl = ImGui.GetForegroundDrawList();
@@ -127,7 +128,7 @@ public sealed class HudStrip
             }
         }
 
-        _build.Draw(dl, player, BuildX, time);
+        _build.Draw(dl, player, BuildX, time, rules);
 
         // The COMMAND button stands for the base upgrades: lit while docked (keys 1-7 buy), dimmed elsewhere.
         if (!player.IsDockedAtOwnBase)

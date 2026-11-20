@@ -6,6 +6,7 @@ using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 using Emberward.Core.Network;
 using Emberward.Core.Entities.Bases;
+using Emberward.Core.Match;
 
 /// <summary>
 /// Narrow view of the world passed to <see cref="Tank.Advance"/>,
@@ -19,6 +20,7 @@ public readonly record struct SimulationContext
     public required ProjectileList Projectiles { get; init; }
     public required Func<Position, TankBase?> CheckBaseCollision { get; init; }
     public required SimulationSettings Settings { get; init; }
+    public MatchRules? Rules { get; init; }
 
     /// <summary>Machine list a tank builds relays into. Null in contexts that do not support building.</summary>
     public Machines.MachineList? Machines { get; init; }
@@ -30,7 +32,7 @@ public readonly record struct SimulationContext
     /// Optional: whether a relay planted at a position would link to a powered network. When set, a tank refuses to
     /// plant a relay that would not link, so the dirt it cost is not wasted.
     /// </summary>
-    public Func<Types.Position, bool>? CanPlantRelayAt { get; init; }
+    public Func<Position, TankBase?, bool>? CanPlantRelayAt { get; init; }
 
     /// <summary>
     /// Optional: the network coverage of a tank's own base at a position (DESIGN.md §4.6). When set, a tank outside

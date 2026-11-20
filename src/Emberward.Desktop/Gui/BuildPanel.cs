@@ -3,6 +3,7 @@ namespace Emberward.Desktop.Gui;
 using System.Numerics;
 using ImGuiNET;
 using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Match;
 using Emberward.Desktop.Presentation;
 using static Emberward.Desktop.Gui.HudDraw;
 
@@ -20,9 +21,9 @@ public sealed class BuildPanel(HudLayout layout)
     private Vector2 At(float x, float y) => layout.At(x, y);
     private float S(float v) => layout.S(v);
 
-    public void Draw(ImDrawListPtr dl, Tank player, float panelX, float time)
+    public void Draw(ImDrawListPtr dl, Tank player, float panelX, float time, MatchRules rules)
     {
-        // Each machine has a slot in the top row (MachinePresentation.BuildSlot). While a machine is in hand only its
+        // Each available machine has a slot (MachinePresentation.BuildSlot). While a machine is in hand only its
         // own slot is lit: pressing the key again plants it.
         var carried = player.CarriedMachineType;
 
@@ -37,15 +38,16 @@ public sealed class BuildPanel(HudLayout layout)
             }
         }
 
-        foreach (var machine in MachinePresentations.InSlotOrder)
+        foreach (var machine in MachinePresentations.Available(rules))
             DrawSlot(dl, panelX, BuildSlotView.Of(machine, player.QuoteBuild(machine.Type), carried), time);
     }
 
     private void DrawSlot(ImDrawListPtr dl, float panelX, BuildSlotView slot, float time)
     {
-        int col = slot.Machine.BuildSlot;
-        var sMin = At(panelX + SlotX[col], SlotY[0]);
-        var sMax = At(panelX + SlotX[col] + SlotW, SlotY[0] + SlotH);
+        int col = slot.Machine.BuildSlot % SlotX.Length;
+        int row = slot.Machine.BuildSlot / SlotX.Length;
+        var sMin = At(panelX + SlotX[col], SlotY[row]);
+        var sMax = At(panelX + SlotX[col] + SlotW, SlotY[row] + SlotH);
         if (slot.State == BuildSlotState.Blocked)
             dl.AddRectFilled(sMin, sMax, 0xA8000000u, S(6f));
         else if (slot.State == BuildSlotState.Filling)

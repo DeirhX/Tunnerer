@@ -42,7 +42,8 @@ public readonly record struct MachineRenderState(
     bool IsCharging = false,
     Position ChargingFrom = default,
     bool IsGivingCharge = false,
-    Position Anchor = default);
+    Position Anchor = default,
+    float GenerationFraction = 0f);
 
 /// <param name="HeatFlow">Heat carried in the last tick, in full relay pump rates (2 = two relays' worth).</param>
 /// <param name="ChargeFlow">Charge carried out to pylons, in full pylon hand-outs (1 = one pylon at full rate).</param>

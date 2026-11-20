@@ -34,6 +34,16 @@ public readonly record struct SimulationSettings
     public float HotRockStartTemperature { get; init; }
     public float FrostRockStartTemperature { get; init; }
 
+    // --- Local heat generators ---
+    public int GeneratorIntakeRadius { get; init; }
+    public int GeneratorExhaustRadius { get; init; }
+    public float GeneratorMinTemperatureDifference { get; init; }
+    public double GeneratorMaxEfficiency { get; init; }
+    public double GeneratorTemperatureScale { get; init; }
+    public double GeneratorMaxHeatPerTick { get; init; }
+    public double GeneratorMaxChargePerTick { get; init; }
+    public double GeneratorReserveCapacity { get; init; }
+
     // --- Thermal materials: one row per ThermalMaterial, pair conductances derived from the rows ---
     public ThermalMaterialTable ThermalMaterials { get; init; }
 
@@ -87,6 +97,14 @@ public readonly record struct SimulationSettings
         HotRockStartTemperature = Tweaks.World.HotRockStartTemperature,
         FrostRockStartTemperature = Tweaks.World.FrostRockStartTemperature,
         ThermalMaterials = Tweaks.World.ThermalMaterials,
+        GeneratorIntakeRadius = Tweaks.Machine.GeneratorIntakeRadius,
+        GeneratorExhaustRadius = Tweaks.Machine.GeneratorExhaustRadius,
+        GeneratorMinTemperatureDifference = Tweaks.Machine.GeneratorMinTemperatureDifference,
+        GeneratorMaxEfficiency = Tweaks.Machine.GeneratorMaxEfficiency,
+        GeneratorTemperatureScale = Tweaks.Machine.GeneratorTemperatureScale,
+        GeneratorMaxHeatPerTick = Tweaks.Machine.GeneratorMaxHeatPerTick,
+        GeneratorMaxChargePerTick = Tweaks.Machine.GeneratorMaxChargePerTick,
+        GeneratorReserveCapacity = Tweaks.Machine.GeneratorReserveCapacity,
         ThermalAirCellCoupling = Tweaks.World.ThermalAirCellCoupling,
         ThermalAirNeighborCoupling = Tweaks.World.ThermalAirNeighborCoupling,
         TankHeatDigPerPixel = Tweaks.Tank.HeatDigPerPixel,

@@ -159,7 +159,7 @@ public static class WorldStateHash
             hash = Fnv1a.Mix(hash, tankBase.Charge);
         foreach (var machine in world.Machines.Machines)
             hash = Fnv1a.Mix(hash, machine.Charge);
-        return world.Energy is { } energy ? Fnv1a.Mix(hash, energy.PendingCharge()) : hash;
+        return world.Energy is { } energy ? Fnv1a.Mix(hash, energy.StoredCharge()) : hash;
     }
 
     /// <summary>

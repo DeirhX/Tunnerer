@@ -23,6 +23,7 @@ public class MachineBehaviorTableTests
         Assert.Equal(MachineType.Relay, MachineBehaviors.ForKey(BuildKey.Primary).Type);
         Assert.Equal(MachineType.Harvester, MachineBehaviors.ForKey(BuildKey.Secondary).Type);
         Assert.Equal(MachineType.Pylon, MachineBehaviors.ForKey(BuildKey.Tertiary).Type);
+        Assert.Equal(MachineType.Generator, MachineBehaviors.ForKey(BuildKey.Quaternary).Type);
     }
 
     [Fact]
@@ -43,6 +44,10 @@ public class MachineBehaviorTableTests
         Assert.True(MachineBehaviors.Pylon.IsCharger);
         Assert.Single(MachineBehaviors.All, b => b.IsMiner);
         Assert.True(MachineBehaviors.Harvester.IsMiner);
+        var generator = Assert.Single(MachineBehaviors.All, b => b.IsGenerator);
+        Assert.True(generator.IsLinkNode);
+        Assert.False(generator.RequiresLinkToPlant);
+
         Assert.Single(MachineBehaviors.All, b => b.IsHeatPump);
         Assert.True(MachineBehaviors.Relay.IsHeatPump);
     }

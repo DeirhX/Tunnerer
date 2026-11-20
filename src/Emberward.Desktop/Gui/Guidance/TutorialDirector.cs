@@ -28,7 +28,8 @@ public sealed class TutorialDirector
         Func<TutorialDirector, World, Tank, bool> IsDone,
         Func<World, Tank, (string Text, float Fraction)?>? Progress = null,
         Func<World, Tank, Position?>? Target = null,
-        float ReadSeconds = 0f);
+        float ReadSeconds = 0f,
+        string? EnergyBody = null);
 
     private readonly Step[] _steps;
     private int _index;
@@ -98,8 +99,11 @@ public sealed class TutorialDirector
 
             new("Power the harvester",
                 $"Harvesters run on a battery (the bar above them). Press {Key(MachineType.Pylon)} to build a pylon ({Cost(MachineType.Pylon)} ore) where it can see the harvester: it recharges batteries from your base's charge.",
-                static (_, w, p) => OwnsPowered(w, p, MachineType.Pylon),
-                Target: static (w, p) => FirstHarvester(w, p)),
+                static (_, w, p) => w.Rules.EnergyNetwork
+                    ? OwnsAny(w, p, MachineType.Generator) : OwnsPowered(w, p, MachineType.Pylon),
+                Target: static (w, p) => w.Rules.EnergyNetwork
+                    ? Nearest(w.HotRockPockets, p.Position) : FirstHarvester(w, p),
+                EnergyBody: $"Harvesters draw charge through the network. Press {Key(MachineType.Generator)} to build a generator ({Cost(MachineType.Generator)} ore) and plant it beside hot ground. A generator can power nearby machines through their links even when cut off from the base."),
 
             new("Upgrade",
                 "Dock and press 1-7 to spend the base ore store: radiator, network reach, engine, insulation and sensors for the base, a bigger cargo hold and a longer radar for your tank.",
@@ -147,7 +151,8 @@ public sealed class TutorialDirector
             return null;
         var current = _steps[_index];
         var progress = current.Progress?.Invoke(world, player);
-        return new TutorialPrompt(_index + 1, _steps.Length, current.Title, current.Body,
+        string body = world.Rules.EnergyNetwork ? current.EnergyBody ?? current.Body : current.Body;
+        return new TutorialPrompt(_index + 1, _steps.Length, current.Title, body,
             progress?.Text, progress?.Fraction ?? 0f, current.Target?.Invoke(world, player));
     }
 

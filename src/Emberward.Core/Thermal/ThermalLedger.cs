@@ -32,7 +32,7 @@ public sealed class ThermalLedger
     public double SunkTank { get; private set; }
 
     /// <summary>
-    /// Net heat turned into charge: positive when a base engine converts relay heat to charge, reduced when a machine
+    /// Net heat turned into charge: positive when a base engine or local generator converts heat to charge, reduced when a machine
     /// spends charge as work heat. Charge is not thermal energy, so the thermal balance treats it as leaving the
     /// system; thermal energy plus all stored charge balances against <c>Injected - TotalSunk</c>.
     /// </summary>

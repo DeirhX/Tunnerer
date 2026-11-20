@@ -244,7 +244,7 @@ Building has to pay off, and exploring has to lead somewhere.
 
 One sentence to hold: **relays are your network; everything else plugs into it and runs on the charge the network
 makes.** This section is the direction for §4.5, §4.6 and §4.8; none of it is built except the Sensors upgrade and,
-behind a match rule, the capacitors and island balance.
+behind a match rule, the capacitors, island balance and local generators.
 
 **Three things to track, not four**
 
@@ -279,17 +279,19 @@ relay server, so renaming it is open but can wait. Sight stays wider than covera
   recomputed only when links or demand change.
 - **Ledger.** Stored charge in every capacitor counts toward the balance, and spent charge becomes heat where it was
   spent. A guard test: a closed loop of powered machines on ambient ground never gains charge.
-- *Built behind a match rule (`MatchRules.EnergyNetwork`, off by default), with these choices:* an island is the
-  machines one base feeds (a node whose power comes home to its own base, a harvester its network covers); a group
-  cut off from every base does not pool, each machine drains on its own. Relays, pylons and harvesters are all in the
-  economy tier until defence and turrets exist. One transfer rate, into the capacitor. With the rule on, pylons hand
-  out nothing and harvesters make no refuel trips, and a relay still pumps with an empty capacitor (§4.5, failing
-  gently). Idle draw reaches the ground as heat when a capacitor is settled, at most every 5 s.
+- *Built behind a match rule (`MatchRules.EnergyNetwork`, off by default).* Same-side live links join relays, pylons
+  and generators to their base or to a local generator island. A group without a producer or a base drains from
+  its own capacitors. Harvesters can recharge in sight of a local island but deliver ore only through base coverage.
+  Relays can be planted with a link to a local island. Relays, pylons, harvesters and generators use the economy
+  tier until defence and turrets exist. Pylons hand out nothing and harvesters make no refuel trips. A relay still
+  pumps while its capacitor is empty if it has a route home (§4.5). Idle draw reaches the ground as heat when a
+  capacitor is settled, at most every 5 s.
 - **Seeing it.** With the rule on, every machine in sight near the tank carries a small label: charge over capacity
   (`2.4k/3.6k`), charge a second in and out (`+120 -40/s`) and a thin fill bar, green while its island feeds it,
   amber while it runs on its own charge, red once it is empty and cut off. Labels fade out between 48 and 112 cells
   from the tank and when the view is zoomed far out, and G hides or shows them (on by default). The base panel adds
-  a row: what the engine makes against what the island draws a second, and the net. The overlay only reads the
+  a row: what the engine and linked generators make against what the island draws a second, and the net.
+  A producing generator's violet label shows charge made per second. The overlay only reads the
   network (`World.MachinePowerOf`, `World.BasePowerOf`). Local matches turn the rule on with `--energy-network` on
   the desktop or `?energy` in the browser; network matches keep the rules their room agreed on.
 - **Throughput.** Each relay has a transfer limit and a chain is as fast as its slowest node. Charge passing through
@@ -304,6 +306,14 @@ heat into the ground around it, so output falls as the ground warms and generato
 The tank's torch and shots create heat from outside the system, so the cap and the gradient rule keep that from
 being free power. Emberite fuel (fed from the tank's hold) comes after the heat numbers are tuned. A forward
 radiator (later, expensive) could serve as a generator's cold sink and restart the hop falloff.
+
+*Built with the energy rule:* Y builds the generator for 18 ore. Plant it near hot ground. Its intake is outside
+its 3-cell exhaust radius and within 6 cells. Each tick it draws up to 220 heat and produces up to 65 charge
+(1,560/s), returning the rest to the exhaust. It deposits charge in the base store when linked, and otherwise
+keeps it in a 4,800-charge reserve that its island can draw. The reserve also catches output when the base store
+is full. It travels with the generator if a link is cut and becomes heat if the generator is destroyed. The
+generator's own capacitor is separate and follows the same idle and top-up rules as other machines. A local
+island supplies charge. Cooling tanks and delivering ore still require base coverage.
 
 **Dark base and shield**
 
@@ -336,12 +346,10 @@ radiator (later, expensive) could serve as a generator's cold sink and restart t
   charge, hotter), Sensor (more sight) or Conduit (throughput and a bigger capacitor).
 - **Turrets** need power, make heat when firing, and fire only at enemy tanks in range and line of sight, with a
   stable tie-break. Mobs (§6.2) hunt heat, which makes the pumping relays what a defence is built around.
-- **Build keys.** Today: relay, harvester, pylon. Without the pylon: relay, harvester, generator. A turret needs a
-  fourth key.
+- **Build keys.** E relay, R harvester, T pylon and Y generator. Turrets need their own key while the pylon remains.
 
-**Build order** (each step stands alone; the first three change the simulation fingerprints and the network rules
-hash, so they need a protocol bump before network play): capacitors and island balance; generator; dark state,
-shield and no lives; per-machine upgrades; throughput limits; turrets; remove the pylon.
+**Build order.** Capacitors, island balance and the local generator are implemented behind the energy rule.
+Next come dark state, shield and no lives, then per-machine upgrades, throughput limits, turrets and pylon removal.
 
 ### 4.10 Challenges of a finite world *(Proposed; open)*
 
