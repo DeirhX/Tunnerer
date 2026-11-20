@@ -254,17 +254,62 @@ public class TankReserveStageTests
         world.PlantMachine(generator, tank.Base);
         world.Advance(_ => default);
         float floor = tank.OffNetworkFloor;
+        double charge = world.MachinePowerOf(generator)!.Value.Charge;
 
-        Advance(world, Tweaks.Perf.TargetFps * 2);
+        int ticks = Tweaks.Perf.TargetFps * 2;
+        Advance(world, ticks);
 
         Assert.True(tank.IsOffNetwork, "a generator holds the clock but does not cool the tank");
         Assert.Equal(floor, tank.OffNetworkFloor, precision: 4);
         Assert.True(world.ReserveOf(tank).ClockHeld);
+        // The hold is paid for, from the generator's capacitor.
+        double paid = charge - world.MachinePowerOf(generator)!.Value.Charge;
+        Assert.True(paid >= ticks * Tweaks.Reserve.GeneratorHoldChargePerTick,
+            $"the generator pays for every tick it holds: paid {paid:0} over {ticks} ticks");
 
         tank.Position += new Offset(Tweaks.Reserve.GeneratorHoldRadius + 5, 0);
         Advance(world, Tweaks.Perf.TargetFps);
         Assert.True(tank.OffNetworkFloor > floor + 0.9f, "out of the generator's reach the clock runs again");
         Assert.False(world.ReserveOf(tank).ClockHeld);
+    }
+
+    [Fact]
+    public void AGeneratorThatCannotPay_HoldsNothing()
+    {
+        // A generator that makes nothing holds the clock only while its capacitor lasts: no permanent safe zone.
+        var (world, tank) = OpenWorld(energyNetwork: true);
+        var generator = new Machine(tank.Position + new Offset(0, 10), MachineType.Generator, tank.Color);
+        world.Machines.Add(generator);
+        world.PlantMachine(generator, tank.Base);
+        world.Advance(_ => default);
+        generator.Charge = Tweaks.Reserve.GeneratorHoldChargePerTick * 5;
+        float floor = tank.OffNetworkFloor;
+
+        Advance(world, Tweaks.Perf.TargetFps);
+
+        Assert.False(world.ReserveOf(tank).ClockHeld, "spent, the generator holds nothing");
+        Assert.True(tank.OffNetworkFloor > floor + 0.5f, "and the clock runs");
+    }
+
+    [Fact]
+    public void HoldingTheClock_LeavesTheLedgerBalanced()
+    {
+        var (world, tank) = OpenWorld(energyNetwork: true);
+        var generator = new Machine(tank.Position + new Offset(0, 10), MachineType.Generator, tank.Color);
+        world.Machines.Add(generator);
+        world.PlantMachine(generator, tank.Base);
+        double startEnergy = world.SumSystemThermalEnergy();
+        double startNet = world.Terrain.Ledger.NetExternal;
+        double worst = 0.0;
+        for (int i = 0; i < Tweaks.Perf.TargetFps * 10; i++)
+        {
+            world.Advance(_ => default);
+            double residual = world.SumSystemThermalEnergy() - startEnergy - (world.Terrain.Ledger.NetExternal - startNet);
+            worst = Math.Max(worst, Math.Abs(residual));
+        }
+
+        Assert.True(world.ReserveOf(tank).ClockHeld, "the scenario should hold the clock");
+        Assert.True(worst < 0.5, $"energy created or destroyed outside the ledger: {worst:0.0000}");
     }
 
     // A block of ground ahead of a tank at (150, y), its front edge at x.

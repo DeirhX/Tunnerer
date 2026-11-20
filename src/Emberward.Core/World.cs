@@ -183,7 +183,7 @@ public partial class World
         if (Rules.MachineUpgrades)
             _machineUpgrades = new MachineUpgradeSystem(_machines, _energy, _terrain, _stepEvents, Rules);
         if (Rules.TankReserve)
-            _reserve = new TankReserveSystem(_machines, _terrain);
+            _reserve = new TankReserveSystem(_machines, _terrain, _energy);
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain, _tankBases);

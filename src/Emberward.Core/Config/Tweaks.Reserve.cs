@@ -36,5 +36,12 @@ public static partial class Tweaks
         // Generators push the safe zone out: within this many cells of a standing generator of its side, in line of
         // sight, the floor of a tank off its network stops rising (it does not fall: only the network cools).
         public const int GeneratorHoldRadius = Coverage.NodeRadius;
+
+        // What holding a tank's clock costs the generator, in charge a tick, paid from its capacitor and turned into
+        // heat in the ground beside it as any spent charge is. An eighth of what a generator makes at most
+        // (Machine.GeneratorMaxChargePerTick), so a working one keeps it up with ease; a generator that makes nothing
+        // holds a lone tank only until its capacitor is spent (4,800 at 8 plus its idle draw of 2: 20 s), so a dead one
+        // is no permanent safe zone.
+        public const double GeneratorHoldChargePerTick = 8.0;
     }
 }

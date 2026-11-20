@@ -4,6 +4,7 @@ using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Match;
+using Emberward.Core.Network;
 using Emberward.Core.Snapshots;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
@@ -21,14 +22,16 @@ using Emberward.Core.Types;
 /// <item>Stages. As the clock runs down the tank goes through warning, degraded and stranded before heat death
 /// (<see cref="TankReserveStage"/>, <see cref="TankReserveEffects"/>); each stage counts its ticks.</item>
 /// <item>A held clock. Within <see cref="Tweaks.Reserve.GeneratorHoldRadius"/> of a standing generator of its own side,
-/// in line of sight, the floor of a tank off its network stops rising.</item>
+/// in line of sight, the floor of a tank off its network stops rising, for as long as the generator pays
+/// <see cref="Tweaks.Reserve.GeneratorHoldChargePerTick"/> a tick from its capacitor.</item>
 /// </list>
 /// Cost follows change: nothing runs but each live tank's step, and a generator is looked for near an off-network tank only.
 /// </summary>
 public sealed class TankReserveSystem
 {
     private readonly MachineList _machines;
-    private readonly ITerrainPixelReadOnly _terrain;
+    private readonly ITerrainAccess _terrain;
+    private readonly EnergyNetwork? _energy;
 
     // Each tank's reserve, by its colour (its spawn index); grown as tanks first act.
     private readonly List<TankState> _tanks = new();
@@ -36,10 +39,11 @@ public sealed class TankReserveSystem
     [NotSaved("scratch: filled and read within one question")]
     private readonly List<Machine> _near = new();
 
-    public TankReserveSystem(MachineList machines, ITerrainPixelReadOnly terrain)
+    public TankReserveSystem(MachineList machines, ITerrainAccess terrain, EnergyNetwork? energy)
     {
         _machines = machines;
         _terrain = terrain;
+        _energy = energy;
     }
 
     /// <summary>
@@ -64,9 +68,10 @@ public sealed class TankReserveSystem
     }
 
     /// <summary>
-    /// Whether a generator holds <paramref name="tank"/>'s clock: a standing generator of its side within
-    /// <see cref="Tweaks.Reserve.GeneratorHoldRadius"/>, with open ground between them. Asked by
-    /// <see cref="TankThermals.AdvanceNetworkCoverage"/> for a tank off its network.
+    /// Whether a generator holds <paramref name="tank"/>'s clock this tick: a standing generator of its side within
+    /// <see cref="Tweaks.Reserve.GeneratorHoldRadius"/>, with open ground between them, that pays
+    /// <see cref="Tweaks.Reserve.GeneratorHoldChargePerTick"/> for it (the first in list order that can). Asked once a
+    /// tick by <see cref="TankThermals.AdvanceNetworkCoverage"/> for a tank off its network.
     /// </summary>
     internal bool HoldsClock(Tank tank)
     {
@@ -80,7 +85,10 @@ public sealed class TankReserveSystem
     private bool IsNearGenerator(Tank tank, Entities.Bases.TankBase home)
     {
         int radius = Tweaks.Reserve.GeneratorHoldRadius;
-        _machines.CollectNear(tank.Position, radius, _near, inListOrder: false);
+        if (_energy is not { } energy)
+            return false;
+        // In list order, so which generator pays is the same on every client.
+        _machines.CollectNear(tank.Position, radius, _near, inListOrder: true);
         bool held = false;
         foreach (var machine in _near)
         {
@@ -88,6 +96,11 @@ public sealed class TankReserveSystem
                 Position.DistanceSquared(machine.Position, tank.Position) > radius * radius ||
                 !Raycaster.HasOpenLine(_terrain, machine.Position, tank.Position))
                 continue;
+            // The hold is paid for: a generator that makes nothing holds the clock only until its capacitor is spent.
+            energy.Settle(machine, _terrain);
+            if (machine.Charge < Tweaks.Reserve.GeneratorHoldChargePerTick)
+                continue;
+            energy.Spend(machine, Tweaks.Reserve.GeneratorHoldChargePerTick, _terrain);
             held = true;
             break;
         }

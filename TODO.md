@@ -235,8 +235,12 @@ Built behind `MatchRules.TankReserve` (off by default, also in `Standard`; local
   capped at one dig and spent only by a dig that clears ground; stranded has no dig factor, the crawl slows the dig),
   the gun delay and vision (`SideSensing`). A dead tank's reserve is cleared (`TankReserveSystem.Clear`). The
   dig, sight and HUD read the stage `Advance` stored, not the clock, so all agree with that tick's effects.
-- **Generators hold the clock** within 20 cells in line of sight (`HoldsClock`, a `CollectNear` per off-network tank).
-  It reads only `Machine.Behavior.IsGenerator`, not `EnergyNetwork`. Item 7 changes nothing here.
+- **Generators hold the clock** within 20 cells in line of sight (`HoldsClock`, a `CollectNear` per off-network tank),
+  and pay for it: 8 charge a tick from the generator's capacitor (`Tweaks.Reserve.GeneratorHoldChargePerTick`), through
+  `EnergyNetwork.Settle` and `Spend`, so it becomes heat in the ground and the ledger balances
+  (`HoldingTheClock_LeavesTheLedgerBalanced`). The first generator in list order that can pay holds; one that makes
+  nothing holds a lone tank only until its capacitor is spent (about 20 s), so a dead generator is no permanent safe
+  zone. `EnergyNetwork` itself is unchanged.
 - **Deviation:** "weaker shots" is a slower gun (twice the delay), not less damage, to keep out of the projectile code
   item 6 changes. Damage a shot could follow once turrets have landed.
 - **HUD:** `ReserveTags` (shared view-model) gives the stage tag beside OFF NETWORK and the burn prompt (shown whenever X would burn, a quiet hint before the

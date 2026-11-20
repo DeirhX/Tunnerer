@@ -373,7 +373,9 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
   Whenever X would burn the HUD says so, a quiet hint until the warning, so a press never spends cargo unannounced.
   Relays push the safe zone out through coverage;
   a standing generator of the tank's side holds the clock within 20 cells in line of sight (the floor stops rising
-  but does not fall, `CLOCK HELD`). A bot that is degraded or worse with ore aboard burns it. "Weaker shots" is built
+  but does not fall, `CLOCK HELD`) and pays 8 charge a tick for it, which becomes heat beside it as spent charge
+  does. A working generator keeps that up easily (it makes up to 65); one that makes nothing holds a lone tank only
+  until its capacitor is spent, about 20 s, so a generator is powered ground, not a flag. A bot that is degraded or worse with ore aboard burns it. "Weaker shots" is built
   as a slower gun, not less damage a shot, to stay out of the projectile code the turrets are changing.
 
 **Machines and upgrades**
