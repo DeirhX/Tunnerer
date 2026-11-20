@@ -50,8 +50,8 @@ public sealed class TankReserveSystem
     public static bool CanBurn(Tank tank) =>
         !tank.IsDead && tank.IsOffNetwork && tank.OreHeld > 0 && tank.OffNetworkFloor >= Tweaks.Reserve.FloorDropPerOre;
 
-    /// <summary>The stage <paramref name="tank"/>'s clock puts it in now.</summary>
-    public static TankReserveStage StageOf(Tank tank)
+    /// <summary>The stage <paramref name="tank"/>'s clock puts it in now; settled once a tick by <see cref="Advance"/>.</summary>
+    private static TankReserveStage StageOf(Tank tank)
     {
         if (tank.IsDead || !tank.IsOffNetwork)
             return TankReserveStage.None;
@@ -147,7 +147,7 @@ public sealed class TankReserveSystem
     /// </summary>
     internal bool ReadyToDig(Tank tank)
     {
-        float factor = TankReserveEffects.For(StageOf(tank)).DigFactor;
+        float factor = TankReserveEffects.For(StoredStage(tank)).DigFactor;
         if (factor >= 1f)
             return true;
         int slot = SlotOf(tank);
@@ -177,7 +177,7 @@ public sealed class TankReserveSystem
     }
 
     /// <summary>The percentage of its sight radius <paramref name="tank"/> sees in its stage.</summary>
-    public int SightPercent(Tank tank) => TankReserveEffects.For(StageOf(tank)).SightPercent;
+    public int SightPercent(Tank tank) => TankReserveEffects.For(StoredStage(tank)).SightPercent;
 
     /// <summary>What the HUD and the bot read of <paramref name="tank"/>'s reserve (<see cref="TankReserveView"/>).</summary>
     public TankReserveView ViewOf(Tank tank)
@@ -185,7 +185,7 @@ public sealed class TankReserveSystem
         if (tank.IsDead || !tank.IsOffNetwork)
             return default;
         TankState state = tank.Color >= 0 && tank.Color < _tanks.Count ? _tanks[tank.Color] : default;
-        var stage = StageOf(tank);
+        var stage = state.Stage;
         float left = tank.OffNetworkSecondsToOverheat;
         float next = stage switch
         {
@@ -195,7 +195,7 @@ public sealed class TankReserveSystem
             TankReserveStage.Stranded => left,
             _ => 0f,
         };
-        float inStage = state.Stage == stage ? state.StageTicks / (float)Tweaks.Perf.TargetFps : 0f;
+        float inStage = state.StageTicks / (float)Tweaks.Perf.TargetFps;
         return new TankReserveView(true, stage, left, Math.Max(0f, next), inStage, CanBurn(tank),
             Tweaks.Reserve.FloorDropPerOre / tank.OffNetworkHeatPerSecond, state.ClockHeld);
     }
@@ -214,6 +214,15 @@ public sealed class TankReserveSystem
         }
         return hash;
     }
+
+    /// <summary>
+    /// The stage <see cref="Advance"/> settled for <paramref name="tank"/> this tick. Everything after it in the tick
+    /// (the dig, sight, the HUD) reads this rather than the clock, which moves again before the tick ends, so all of
+    /// them agree with the effects the tank had.
+    /// </summary>
+    private TankReserveStage StoredStage(Tank tank) =>
+        !tank.IsDead && tank.IsOffNetwork && tank.Color >= 0 && tank.Color < _tanks.Count ? _tanks[tank.Color].Stage
+            : TankReserveStage.None;
 
     private int SlotOf(Tank tank)
     {

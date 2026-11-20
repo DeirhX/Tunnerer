@@ -233,7 +233,8 @@ Built behind `MatchRules.TankReserve` (off by default, also in `Standard`; local
   `TankBuildController` whether a press may build a new machine (a carried one plants either way, and the keys stay
   tracked so a held key is no press when the stage lifts), and feeds the move factor, the dig credit (`ReadyToDig`,
   capped at one dig and spent only by a dig that clears ground; stranded has no dig factor, the crawl slows the dig),
-  the gun delay and vision (`SideSensing`). A dead tank's reserve is cleared (`TankReserveSystem.Clear`).
+  the gun delay and vision (`SideSensing`). A dead tank's reserve is cleared (`TankReserveSystem.Clear`). The
+  dig, sight and HUD read the stage `Advance` stored, not the clock, so all agree with that tick's effects.
 - **Generators hold the clock** within 20 cells in line of sight (`HoldsClock`, a `CollectNear` per off-network tank).
   It reads only `Machine.Behavior.IsGenerator`, not `EnergyNetwork`. Item 7 changes nothing here.
 - **Deviation:** "weaker shots" is a slower gun (twice the delay), not less damage, to keep out of the projectile code
