@@ -18,8 +18,8 @@ using Emberward.Core.Types;
 /// first purchase fixes its path.
 /// <para>
 /// The effects go through the paths that already carry them: Tap's pump rate is asked by the relay's action
-/// (<see cref="PumpPerTick"/>), Tap's idle draw and Conduit's capacitor are set on the energy network
-/// (<see cref="EnergyNetwork.Resize"/>), which turns idle draw into heat at the machine, and Sensor's sight is asked by
+/// (<see cref="PumpPerTick"/>), Tap's idle draw and Conduit's capacitor and throughput are set on the energy network
+/// (<see cref="EnergyNetwork.Resize"/>, <see cref="EnergyNetwork.SetThroughputScale"/>), which turns idle draw into heat at the machine, and Sensor's sight is asked by
 /// vision (<see cref="SightBonus"/>). Cost follows change: nothing runs per tick but a tank's key, and a question about
 /// a machine looks it up by halving.
 /// </para>
@@ -205,13 +205,17 @@ public sealed class MachineUpgradeSystem
         return home.Store.Pay(MachineUpgrades.CostOfLevel(upgrade.Level)) ? MachineUpgradeRefusal.None : MachineUpgradeRefusal.NotEnoughOre;
     }
 
-    /// <summary>Puts a new level into effect where the network holds it: the capacitor's size and idle draw.</summary>
+    /// <summary>
+    /// Puts a new level into effect where the network holds it: the capacitor's size and idle draw, and what the
+    /// machine passes on.
+    /// </summary>
     private void Apply(Machine machine, MachineUpgradeLevel upgrade)
     {
         if (_energy == null || upgrade.Path is not (MachineUpgradePath.Tap or MachineUpgradePath.Conduit))
             return;
         var (capacity, idle) = MachineUpgrades.CapacitorOf(machine.Behavior, upgrade);
         _energy.Resize(machine, capacity, idle, _terrain);
+        _energy.SetThroughputScale(machine, MachineUpgrades.ThroughputScaleOf(upgrade));
     }
 
     private int SlotOf(Tank tank)

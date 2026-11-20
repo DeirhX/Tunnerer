@@ -206,7 +206,7 @@ public class World
             MachineUpgrades = _machineUpgrades,
         };
         _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades);
-        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy,
+        _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, MachineCoverage, _stepEvents, _energy,
             _basePower, _machineUpgrades, _tankList, _projectiles);
         _systems = BuildSystems();
     }
@@ -339,7 +339,7 @@ public class World
             systems.Add(new("islands", _ => network.Refresh(_linkMap, _tankBases.Bases)));
         systems.Add(new("machines", _ => AdvanceMachines()));
         if (_energy is EnergyNetwork energy)
-            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower)));
+            systems.Add(new("power", _ => energy.Advance(_terrain, _basePower, _stepEvents)));
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain, _basePower);
@@ -451,10 +451,10 @@ public class World
         ? TankCoverage.None
         : NetworkCoverage.At(tank.Position, tank.Base, _machines, _terrain, _nearMachines);
 
-    /// <summary>Whether <paramref name="machine"/> stands in the coverage of its own base's linked network.</summary>
-    private bool IsMachineOnNetwork(Machine machine) => machine.OwnerBase is TankBase { IsDestroyed: false } owner &&
-        NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines,
-            requireOwnPowerSource: _energy != null).Covered;
+    /// <summary>The coverage of <paramref name="machine"/>'s own base's linked network where it stands.</summary>
+    private TankCoverage MachineCoverage(Machine machine) => machine.OwnerBase is TankBase { IsDestroyed: false } owner
+        ? NetworkCoverage.At(machine.Position, owner, _machines, _terrain, _nearMachines, requireOwnPowerSource: _energy != null)
+        : TankCoverage.None;
 
     /// <summary>
     /// Marks the side of spawn <paramref name="spawnIndex"/> as played by the computer, or by a player again: the bot

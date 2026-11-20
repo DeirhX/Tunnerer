@@ -81,6 +81,7 @@ Network/                     The link network (not network matches: those are De
   NetworkStatus.cs           One base's harvesters, relays and heat store, for the HUD (World.GetNetworkStatus)
   EnergyNetwork.cs           (only when MatchRules.EnergyNetwork is on) Capacitors, generator reserves and islands rooted at bases or generators
                              (DESIGN.md §4.9); MachinePower / BasePower, what World.MachinePowerOf / BasePowerOf answer
+  EnergyNetwork.Throughput.cs   Each island as a tree: node limits (Conduit), losses as heat at the node, ThroughputHeat
 Sensing/
   SideSensing.cs             The vision system: which sides are tracked, what each sees through, and each tank's radar
   VisionMap.cs               Fog of war for one side: visibility levels, explored cells, the terrain as last seen
@@ -172,11 +173,12 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    or `MachineUpgradeRefused`), then `TankThermals.Advance` (heat from ore still in the hold and from tank actions,
    then exchange with the grid). Machine upgrades take effect where the rest of the game reads them: a relay asks its
    pump rate (`MachineContext.Upgrades`), the energy network holds a resized capacitor and idle draw
-   (`EnergyNetwork.Resize`), and vision asks a machine's sight bonus.
+   (`EnergyNetwork.Resize`) and a Conduit's throughput (`EnergyNetwork.SetThroughputScale`), and vision asks a
+   machine's sight bonus.
 6. **machines**: With the energy rule on, `EnergyNetwork.Refresh` first regroups the link nodes when
    `LinkMap.PowerVersion` changes. Each base's island takes the nodes whose power route ends at that base
    (`LinkPoint.IsPoweredBy`, the same rule harvester coverage uses in `NetworkCoverage`). The first generator in machine order roots
-   each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
+   each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.CoverageOf`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route
    (`LinkMap.CarryCharge`). A machine that needs the machines near a place (a pylon its batteries, a harvester the
@@ -198,7 +200,16 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    deposits output into the base's store if reachable and into its own shared reserve otherwise or when the base
    store is full. Reserves follow their producers on splits and become heat on wrecking. Each tick the island pays
    from these stores, tier by tier (`PowerTier`), its members' idle draw and then tops up the
-   capacitors that are not full (each by at most its transfer rate). A tier the store cannot pay is starved and drains
+   capacitors that are not full (each by at most its transfer rate and what the island's throughput tree allows it).
+   Each island is a tree: a link node's parent is the next node of the island up its power route
+   (`LinkPoint.UpstreamLink`), or the node a local island reached it from, and a harvester hangs off the node that
+   covers it (`MachineContext.CoverageOf`). A node passes on at most `Throughput.NodeLimitPerTick` (times its Conduit
+   scale, capped, and less while hot), so a chain is as fast as its slowest node. The tree is worked out
+   (`RebuildTree`) only when the island's filling set or shape changes, and only over the filling capacitors and the
+   nodes on their way: demand up from the leaves, each node's cap by tier, the share handed back down. Each node on
+   the way loses `Throughput.LossFraction` of what it passes on into its pending charge, which settling turns into
+   heat at the node; at its settling a node that carried charge reads its ground temperature and is throttled, or
+   overheated and damaged (`ThroughputHeat`). A tier the store cannot pay is starved and drains
    like a cut-off machine; it is fed again once the store holds `Energy.RefeedIdleTicks` of its draw. Cost follows
    what changes: a full member's idle draw comes out of a per-tier sum, a cut-off machine's level falls on a straight
    line, and a capacitor is brought up to date (settled: its idle draw's heat put in the ground) only when it is used,
@@ -206,7 +217,7 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    `LinkMap.PowerVersion` changes or a harvester's coverage does. Idle charge paid and not yet heat is
    counted by `EnergyNetwork.StoredCharge` alongside the generator reserves. With the flag on, pylons hand out nothing and harvesters
    make no refuel trips. `World.MachinePowerOf` and `World.BasePowerOf` give an overlay its numbers (charge, capacity,
-   flows a second over the last whole second); output only. The desktop and browser charge labels
+   flows a second over the last whole second, what a node passed on, its limit and heat); output only. The desktop and browser charge labels
    (`Gui/PowerLabels.cs` in Desktop, shared through `Emberward.Rendering`) read nothing else.
 8. **bases**: `TankBases.Advance` (reactor sink, radiator, engine counters), then the bot's stand-in ore income for
    bases marked with `World.SetBotControlled`.

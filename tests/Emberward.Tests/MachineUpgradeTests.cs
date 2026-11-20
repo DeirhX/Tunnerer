@@ -219,13 +219,16 @@ public class MachineUpgradeTests
     }
 
     [Fact]
-    public void Conduit_GrowsTheCapacitor_WhichFillsFromTheIsland()
+    public void Conduit_GrowsTheCapacitor_WhichFillsFromTheIsland_AndRaisesWhatTheRelayPassesOn()
     {
         var (s, relay) = Setup(energyNetwork: true);
         Advance(s.World, Tweaks.Perf.TargetFps);
+        double limit = Tweaks.Throughput.NodeLimitPerTick * Tweaks.Perf.TargetFps;
+        Assert.Equal(limit, s.World.MachinePowerOf(relay)!.Value.LimitPerSecond, precision: 6);
 
         Press(s.World, 3);
         Assert.Equal(Tweaks.Machine.RelayCapacitor * 1.5, relay.ChargeCapacity, precision: 6);
+        Assert.Equal(limit * 1.5, s.World.MachinePowerOf(relay)!.Value.LimitPerSecond, precision: 6);
         Advance(s.World, Tweaks.Perf.TargetFps * 2);
         Assert.Equal(Tweaks.Machine.RelayCapacitor * 1.5, s.World.MachinePowerOf(relay)!.Value.Charge, precision: 6);
 
@@ -234,6 +237,7 @@ public class MachineUpgradeTests
         var power = s.World.MachinePowerOf(relay)!.Value;
         Assert.Equal(Tweaks.Machine.RelayCapacitor * 2.0, power.Capacity, precision: 6);
         Assert.Equal(Tweaks.Machine.RelayCapacitor * 2.0, power.Charge, precision: 6);
+        Assert.Equal(limit * 2.0, power.LimitPerSecond, precision: 6);
     }
 
     [Fact]

@@ -34,6 +34,8 @@ public sealed partial class EnergyNetwork
         }
 
         var frontier = new List<LinkPoint>();
+        // A local island's tree: the node each of its nodes was reached from (the generator is the root).
+        var reachedFrom = new Dictionary<Capacitor, Capacitor>();
 
         // The first generator in machine order names an island that has no route to the base.
         foreach (var generator in _capacitors)
@@ -64,6 +66,7 @@ public sealed partial class EnergyNetwork
                         neighbor.Machine.OwnerBase != owner || neighbor.Machine.OwnerColor != color ||
                         !targets.TryAdd(neighbor, island))
                         continue;
+                    reachedFrom.Add(neighbor, nodes[point]);
                     frontier.Add(other);
                 }
             }
@@ -76,7 +79,12 @@ public sealed partial class EnergyNetwork
             targets.TryGetValue(capacitor, out var to);
             if (!ReferenceEquals(capacitor.Island, to))
                 Move(capacitor, to);
+            capacitor.Parent = to == null ? null
+                : to.Base != null ? UpstreamNode(capacitor.Machine.LinkPoint!, nodes, targets, to)
+                : reachedFrom.GetValueOrDefault(capacitor);
         }
+        foreach (var island in _islands)
+            island.TreeDirty = true;
 
         // A moving consumer will pick a new covering node at its next action. A vanished source has no balance
         // to share in the meantime. Reserves belong to the generating machines, so a topology change never loses charge.

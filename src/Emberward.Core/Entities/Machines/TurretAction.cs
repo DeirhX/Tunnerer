@@ -69,7 +69,7 @@ public static class TurretAction
 
     /// <summary>Joins the island whose coverage it stands in (its base's, or a local generator's), as a harvester does.</summary>
     private static void Cover(Machine turret, MachineContext ctx, EnergyNetwork energy) =>
-        energy.SetCovered(turret, ctx.IsOnNetwork(turret), ctx.Machines, ctx.Terrain, t_near ??= new List<Machine>());
+        energy.SetCovered(turret, ctx.CoverageOf(turret), ctx.Machines, ctx.Terrain, t_near ??= new List<Machine>());
 
     /// <summary>
     /// The enemy tank <paramref name="turret"/> shoots at: of the live tanks of other sides without a respawn shield,
