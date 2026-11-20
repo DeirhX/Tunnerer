@@ -132,7 +132,7 @@ input, so the protocol is 9: deploy that relay version before network clients us
 energy-rule fingerprints are unchanged; the opt-in rules hash changes only with the new flag on. The highlight and
 panel are one view-model (`Gui/MachineUpgradeView.cs`, shared through `Emberward.Rendering`) drawn with ImGui and in
 the DOM. **For item 5:** Conduit only grows the capacitor so far; its throughput multiplier belongs with the
-throughput limits (read the Conduit level with `World.MachineUpgradeOf`). Not yet seen in a browser.
+throughput limits (read the Conduit level with `World.MachineUpgradeOf`). Checked in a browser (item 9).
 
 **Design.** Two levels per machine, bought next to the machine with a key; the cost comes from the base store ore (so
 harvesters still feed everything). The nearest machine in reach is highlighted (amber when affordable, dim when not,
@@ -203,7 +203,7 @@ player-only; they shoot bot tanks. The fifth build key is bit 31, the last free 
 (protocol 10; deploy that relay version first). The energy rules' version in the rules hash changed; Standard and
 energy-rule simulation fingerprints are unchanged (no fingerprint scenario builds a turret). The tier-ordering test
 is `TurretTests.AStoreThatCannotPayEveryTier_FeedsTurretsBeforeTheEconomy`. **Not tuned in play:** cost, range,
-heat per shot and the overheat curve; a turret beside a relay may still stop raiding. Not yet seen in a browser.
+heat per shot and the overheat curve; a turret beside a relay may still stop raiding. Checked in a browser (item 9).
 
 ## 7. Remove the pylon and the harvester battery (implemented)
 
@@ -282,8 +282,15 @@ Built behind `MatchRules.TankReserve` (off by default, also in `Standard`; local
 - **What a cut costs the defender.** Relays cost 4 ore, so a cut is easily rebuilt; decide a relink and warm-up time and
   dearer links (`DESIGN.md` §4.11).
 - **Priority tiers player-set:** only if fixed tiers prove too rigid.
-- **Browser check:** the power labels were never seen in the browser (the pane had no WebGL 2, and `smoke.mjs` was not
-  run). Check them in a real browser with `?energy`.
+- **Browser check (done 2026-11-20).** Played with `?energy` in headless Chromium on Metal (Playwright, as
+  `smoke.mjs` does; the app's browser pane throttles a hidden page to one frame a second). Seen working: the charge
+  labels and G, `>passed/s` on a relay feeding a Conduit relay behind it, the upgrade panel (F beside the lit relay, a
+  tap on touch, keys 1 to 3 and the choice buttons, two quick clicks both buying for the machine, closing by F, its
+  button or driving away), and the turret (U for 24 ore, shots at a bot tank with the `TurretFire` sound). Fixed: the
+  level pips sat on the charge label's flow line (now under the ring, desktop too), the panel ran off the bottom of a
+  phone held sideways, and the footer's version check logged an error offline, which failed `smoke.mjs` (it passes
+  now). Not seen: the throttled and overheated label colours (no relay got that hot in play). Left as they are: labels
+  of machines side by side overlap, and on touch the panel covers the FIRE button while it is open.
 
 ## HUD: share more between desktop and browser
 

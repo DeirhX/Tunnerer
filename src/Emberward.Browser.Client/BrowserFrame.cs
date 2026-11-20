@@ -28,7 +28,7 @@ public sealed record ReserveStatus(string? Tag, string? Color, bool Blink, strin
 /// </summary>
 public sealed record MachineUpgradeStatus(
     Position Position, string Title, string? Ring, bool Bright, int Level, int MaxLevel, bool Open,
-    MachineUpgradeLine[] Choices, int Store, string? Refusal, float RingCells, float PipLiftCells, bool Tappable);
+    MachineUpgradeLine[] Choices, int Store, string? Refusal, float RingCells, float PipDropCells, bool Tappable);
 
 /// <summary>One path in the machine upgrade panel; <c>State</c> is a <c>MachineUpgradeChoiceState</c> name.</summary>
 public sealed record MachineUpgradeLine(

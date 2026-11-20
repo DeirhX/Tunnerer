@@ -86,7 +86,7 @@ public static class BrowserFrameBuilder
         return new MachineUpgradeStatus(view.Machine.Position, view.Title,
             view.HighlightColor >> 24 != 0 ? HudPalette.Hex(view.HighlightColor) : null,
             view.Highlight == MachineUpgradeHighlight.Affordable, view.Level, view.MaxLevel, session.MachineUpgrades.IsOpen,
-            choices, view.StoreOre, view.Refusal, MachineUpgradeView.RingCells, MachineUpgradeView.PipLiftCells,
+            choices, view.StoreOre, view.Refusal, MachineUpgradeView.RingCells, MachineUpgradeView.PipDropCells,
             view.CatchesTaps(session.MachineUpgrades.IsOpen));
     }
 

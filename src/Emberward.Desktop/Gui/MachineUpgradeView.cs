@@ -66,8 +66,26 @@ public sealed record MachineUpgradeView(
     /// <summary>Cells around the machine's centre the highlight ring is drawn at, and a tap on it counts within.</summary>
     public const float RingCells = 4.5f;
 
-    /// <summary>Cells above the machine's centre where the pips sit, clear of its sprite and ring.</summary>
-    public const float PipLiftCells = 6f;
+    /// <summary>
+    /// Cells below the machine's centre where the pips sit, under its ring. Not above it: the charge label
+    /// (<see cref="PowerLabels.LiftCells"/>) is there, and pips over it hid its flow line.
+    /// </summary>
+    public const float PipDropCells = 6f;
+
+    /// <summary>Screen space kept between the panel and the edge of the view.</summary>
+    public const float PanelMargin = 4f;
+
+    /// <summary>
+    /// Where the panel's centre goes on screen, in the units of the arguments: level with the machine, but moved so the
+    /// whole panel stays between <paramref name="viewTop"/> and <paramref name="viewBottom"/> (a short view, such as a
+    /// phone held sideways, would otherwise push its lower rows off the bottom). A panel taller than the view keeps its
+    /// top in view. The browser does the same in <c>renderer.js</c>.
+    /// </summary>
+    public static float PanelCentreY(float machineY, float panelHeight, float viewTop, float viewBottom)
+    {
+        float half = panelHeight * 0.5f;
+        return MathF.Max(viewTop + half + PanelMargin, MathF.Min(viewBottom - half - PanelMargin, machineY));
+    }
 
     /// <summary>The ring's colour; zero alpha when it is not lit.</summary>
     public uint HighlightColor => Highlight switch
