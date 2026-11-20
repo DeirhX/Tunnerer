@@ -68,6 +68,7 @@ full suite.
 | F9 | Thermal view |
 | G | Charge labels over machines: charge / capacity and flow in and out a second (only with `--energy-network`; on by default) |
 | F, then 1-3 | Beside one of your relays: open its upgrade panel, then buy Tap, Sensor or Conduit from the base ore store (only with `--energy-network`); F again closes it |
+| X | Off the network: burn a unit of emberite from the hold for 5 s more reserve (only with `--energy-network`; hold to burn 4 a second). Once the reserve has run out and the hold is empty: give up and respawn |
 | Esc / P | Pause menu (resume, controls, sound on/off, volume slider, quit) |
 | F1 | Controls screen |
 | F10 | Screenshot (`screenshots/` next to the executable) |
@@ -88,7 +89,7 @@ Run `Emberward.Desktop --help` for the full list. The common ones:
 | `--size=WxH`, `--large` | Terrain size |
 | `--no-ai` | No enemy tank |
 | `--no-fog` | No fog of war: the whole map is shown live |
-| `--energy-network` | Local matches run the energy network (DESIGN.md §4.9, off by default): machines hold charge, local generators supply their islands, labels show charge and production (G hides them), and relays take per-machine upgrades (F beside one). A network match keeps the rules its room agreed on. In the browser, add `?energy` to the address |
+| `--energy-network` | Local matches run the energy network (DESIGN.md §4.9, off by default): machines hold charge, local generators supply their islands, labels show charge and production (G hides them), relays take per-machine upgrades (F beside one), and the off-network clock becomes the tank's reserve (X burns carried emberite; running out goes through warning, degraded and stranded before heat death). A network match keeps the rules its room agreed on. In the browser, add `?energy` to the address |
 | `--net[=ROOM]` | Join ROOM (default `lobby`) on the shared relay; the first player in opens it and their settings apply |
 | `--relay=URL` | Use the relay at URL instead (`ws://` or `wss://`, ending in `/play`) |
 | `--room=NAME` | The room to join, when `--relay` is given without `--net` |

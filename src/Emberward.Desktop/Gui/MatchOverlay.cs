@@ -49,8 +49,10 @@ public static class MatchOverlay
 
         if (!player.IsDead)
         {
-            if (player.CanRecall)
+            if (world.RecallOffered(player))
                 DrawCenteredText(dl, 20f, cx, cy, "Stranded. Press X to drop cargo and respawn", 0xFFC0E0FFu);
+            else if (ReserveTags.BurnPrompt(world.ReserveOf(player)) is string burn)
+                DrawCenteredText(dl, 20f, cx, cy, $"X: {burn}", 0xFFC0E0FFu);
             return;
         }
 

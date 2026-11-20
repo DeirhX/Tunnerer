@@ -57,7 +57,7 @@ public static class StepEventSounds
         StepEventKind.MachineUpgraded => new(SoundEffect.Plant, AudioTweaks.PlantGain, CueHeard.Player),
         StepEventKind.PlantRefused or StepEventKind.BuildRefused or StepEventKind.MachineUpgradeRefused =>
             new(SoundEffect.PlantRefused, AudioTweaks.RefusedGain, CueHeard.Player),
-        StepEventKind.OreUnloaded => new(SoundEffect.Pickup, AudioTweaks.UnloadGain, CueHeard.Player),
+        StepEventKind.OreUnloaded or StepEventKind.ReserveBurned => new(SoundEffect.Pickup, AudioTweaks.UnloadGain, CueHeard.Player),
         StepEventKind.Docked => new(SoundEffect.Dock, AudioTweaks.DockGain, CueHeard.Player),
         _ => null,
     };

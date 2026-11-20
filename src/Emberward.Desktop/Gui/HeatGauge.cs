@@ -129,9 +129,10 @@ public sealed class HeatGauge(HudLayout layout)
 
     /// <summary>
     /// Above the TEMP panel while the tank is outside its network's coverage (DESIGN.md §4.6): how long until its
-    /// rising heat floor reaches the safe maximum. Digging spikes show on the gauge itself and shed back down.
+    /// rising heat floor reaches the safe maximum. Digging spikes show on the gauge itself and shed back down. Under the
+    /// reserve rule the stage's tag (<see cref="ReserveTags"/>) sits beside it, to the right.
     /// </summary>
-    public void DrawOffNetworkTag(ImDrawListPtr dl, Tank player, float centerX, float time)
+    public void DrawOffNetworkTag(ImDrawListPtr dl, Tank player, float centerX, float time, ReserveTag? reserve = null)
     {
         if (player.IsDead || !player.IsOffNetwork)
             return;
@@ -139,8 +140,17 @@ public sealed class HeatGauge(HudLayout layout)
         float seconds = player.OffNetworkSecondsToOverheat;
         string text = seconds > 0f ? $"OFF NETWORK  ~{(int)MathF.Ceiling(seconds)}s" : "OFF NETWORK  OVERHEATING";
         bool urgent = player.IsOffNetworkUrgent;
+        bool blinkOn = (int)(time * 4f) % 2 == 0;
         float size = S(20f);
         var pos = At(centerX, -24f);
-        HudTheme.DrawTag(dl, pos, text, urgent && (int)(time * 4f) % 2 == 0 ? HudTheme.Danger : HudTheme.Warn, size);
+        HudTheme.DrawTag(dl, pos, text, urgent && blinkOn ? HudTheme.Danger : HudTheme.Warn, size);
+        if (reserve is not { } tag)
+            return;
+
+        // Plates are the text plus 9 pixels a side (HudTheme.DrawTag); leave a small gap between the two.
+        float offHalf = HudTheme.Measure(size, text).X * 0.5f + 9f;
+        float tagHalf = HudTheme.Measure(size, tag.Text).X * 0.5f + 9f;
+        var tagPos = pos + new Vector2(offHalf + S(8f) + tagHalf, 0f);
+        HudTheme.DrawTag(dl, tagPos, tag.Text, tag.Blink && !blinkOn ? HudTheme.Warn : tag.Color, size);
     }
 }

@@ -177,7 +177,7 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
 - **Direction (Proposed, §4.9).** The relay becomes the only node, with pumping and coverage one circle. The off-network
   clock is the tank's reserve: burning a carried unit of emberite extends it and takes its warmth out of the tank,
   and running out is staged (warning, degraded, stranded, then heat death), not a cliff. Relays and generators push
-  the safe zone out; far lumps pay for the risk.
+  the safe zone out; far lumps pay for the risk. The reserve is built behind its own rule (§4.9, Death and exploring).
 - **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
   the way back reads at a glance. While covered, a thin tether carries the tank's heat to its node, and while the
   hold unloads, gold crystals run beside it and along the links home. Off network an
@@ -244,7 +244,7 @@ Building has to pay off, and exploring has to lead somewhere.
 
 One sentence to hold: **relays are your network; everything else plugs into it and runs on the charge the network
 makes.** This section is the direction for §4.5, §4.6 and §4.8; none of it is built except the Sensors upgrade and,
-behind match rules, the capacitors, island balance, local generators and per-machine upgrades.
+behind match rules, the capacitors, island balance, local generators, per-machine upgrades and the tank's reserve.
 
 **Three things to track, not four**
 
@@ -338,6 +338,21 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
 - **Running out is a state, not a cliff:** warning, then degraded (slower dig, shorter vision, weaker shots), then
   stranded (crawl and dig only), then heat death as today. Each has a counter. Relays and generators push the safe
   zone out, and far lumps pay for the risk (§6.3).
+- *Built behind a match rule (`MatchRules.TankReserve`, off by default; local matches turn it on with the energy rule,
+  `--energy-network` or `?energy`).* The burn rides on the recall key (X, bit 29), so it needs no input of its own:
+  off the network with emberite aboard, X burns a unit (one on the press, then 4 a second while held) instead of
+  recalling, and lowers the floor by 5 degrees (5 s at the base rate; a 40-unit hold is 200 s). The tank's heat is
+  not touched: the unit stops warming it, and with the floor lower it sheds into the ground as usual, so the burn
+  makes and destroys no heat and books nothing. A burn waits until the floor has climbed a unit's worth, so holding
+  X just outside the network wastes nothing. With the hold empty and the clock out, X recalls as before. The stages
+  go by the seconds left on the clock: warning at 30, degraded at 15 (half the dig, 60% of the sight, half the rate
+  of fire), stranded at 5 (as degraded, plus a crawl at 35% speed, 40% of the sight, no gun, torch or building), then
+  heat death at 0, where the floor passes the safe maximum and overheating burns the shield as it always did. Each
+  stage counts its ticks, and the HUD's tag beside OFF NETWORK shows the seconds to the next stage
+  (`RESERVE LOW 12s`, `DEGRADED 7s`, `STRANDED 4s`, `HEAT DEATH`). Relays push the safe zone out through coverage;
+  a standing generator of the tank's side holds the clock within 20 cells in line of sight (the floor stops rising
+  but does not fall, `CLOCK HELD`). A bot that is degraded or worse with ore aboard burns it. "Weaker shots" is built
+  as a slower gun, not less damage a shot, to stay out of the projectile code the turrets are changing.
 
 **Machines and upgrades**
 
@@ -357,8 +372,8 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
 - **Build keys.** E relay, R harvester, T pylon and Y generator. Turrets need their own key while the pylon remains.
 
 **Build order.** Capacitors, island balance and the local generator are implemented behind the energy rule.
-Dark state, shield and no lives, and per-machine upgrades, follow behind their rules. Next come throughput limits,
-turrets and pylon removal.
+Dark state, shield and no lives, per-machine upgrades and the tank's reserve follow behind their rules. Next come
+throughput limits, turrets and pylon removal.
 
 ### 4.10 Challenges of a finite world *(Proposed; open)*
 
@@ -808,6 +823,7 @@ upgrades, throughput, turrets, then removing the pylon).
 | No lives: only a destroyed base ends a side; death costs the cargo (§4.9) | Proposed |
 | Relay throughput limits are upgradeable and lose heat; a hot relay throttles (§4.9) | Proposed |
 | Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Proposed (upgrades: Prototype) |
+| The off-network clock is the tank's reserve: X burns carried emberite to buy it back, and running out is staged (§4.9) | Prototype |
 | Sensors upgrade: relays and pylons see 10 cells past coverage, and 8 more per level (the base 8 more per level) | Prototype |
 | Every heat body is finite: no pinned temperatures or permanent sources; the outside is a loss, not a cell | Decided |
 | Stored heat is the match's supply; what keeps it up over a long match is open (§4.10) | Proposed |

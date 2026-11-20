@@ -54,7 +54,7 @@ export class StatusView {
             p.docked
                 ? "DOCKED"
                 : p.offNetwork
-                  ? `OFF GRID / ${Math.ceil(p.safeSeconds)}s`
+                  ? `OFF GRID / ${Math.ceil(p.safeSeconds)}s` + (f.reserve?.tag ? ` · ${f.reserve.tag}` : "")
                   : "ON NETWORK",
         );
         setClass($("network"), p.offNetwork ? "tone-Warn" : "tone-Info");
@@ -85,7 +85,11 @@ export class StatusView {
         this.updateUpgrades(f.upgrades, p);
         this.updateMachineUpgrade(f.machineUpgrade);
         this.updateHit(p);
-        setHidden($("recall"), !p.canRecall || p.outcome !== "InProgress");
+        // The recall key gives up and respawns, or, under the reserve rule with emberite aboard, burns a unit
+        // (ReserveTags.BurnPrompt).
+        const burn = f.reserve?.burn;
+        setText($("recall-text"), burn ?? "Drop cargo and respawn");
+        setHidden($("recall"), !(p.canRecall || burn) || p.outcome !== "InProgress");
         setHidden($("death"), !p.dead && p.outcome === "InProgress");
         setText(
             $("death"),

@@ -146,9 +146,18 @@ internal sealed class TankThermals
         else
         {
             IsOffNetwork = true;
-            OffNetworkFloor = Math.Min(OffNetworkFloor, _tank.Heat) + OffNetworkHeatPerTick(ctx.Settings);
+            // Under the reserve rule a generator of the tank's side nearby holds the clock: the floor stops rising.
+            float rise = ctx.Reserve?.HoldsClock(_tank) == true ? 0f : OffNetworkHeatPerTick(ctx.Settings);
+            OffNetworkFloor = Math.Min(OffNetworkFloor, _tank.Heat) + rise;
         }
     }
+
+    /// <summary>
+    /// A burn of carried emberite (<see cref="TankReserveSystem"/>): the off-network floor falls by
+    /// <paramref name="degrees"/>, never below zero. The tank's heat is left alone; above the lower floor it sheds into
+    /// the ground as usual, so no heat is made or destroyed here.
+    /// </summary>
+    public void LowerOffNetworkFloor(float degrees) => OffNetworkFloor = Math.Max(0f, OffNetworkFloor - degrees);
 
     /// <summary>
     /// The end-of-tick heat step: heat from carried ore, digging and shooting, exchange with the terrain and air under the

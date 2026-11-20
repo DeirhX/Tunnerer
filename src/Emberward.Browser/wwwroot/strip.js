@@ -262,7 +262,7 @@ export class StripView {
                 triangle(left, cx - 4, top, cx + 4, top, cx, top + 5);
             }
         }
-        this.drawOffNetwork(left, p, time);
+        this.drawOffNetwork(left, p, time, f.reserve);
 
         this.drawBuild(right, f.builds, p, time);
         // The COMMAND button stands for the base upgrades: lit while docked (keys 1-7 buy), dimmed elsewhere.
@@ -465,19 +465,29 @@ export class StripView {
     }
 
     // HeatGauge.DrawOffNetworkTag: above TEMP while outside the network, how long until the heat floor reaches the
-    // safe maximum.
-    drawOffNetwork(ctx, p, time) {
+    // safe maximum. Under the reserve rule the stage's tag (ReserveTags) sits beside it, to the right.
+    drawOffNetwork(ctx, p, time, reserve) {
         if (p.dead || !p.offNetwork) return;
         const text =
             p.safeSeconds > 0
                 ? `OFF NETWORK  ~${Math.ceil(p.safeSeconds)}s`
                 : "OFF NETWORK  OVERHEATING";
-        const urgentBlink = p.offNetworkUrgent && Math.floor(time * 4) % 2 === 0;
-        const color = urgentBlink ? "#ff5642" : "#ffc640";
-        ctx.font = font(20);
-        const w = ctx.measureText(text).width;
+        const blinkOn = Math.floor(time * 4) % 2 === 0;
+        const color = p.offNetworkUrgent && blinkOn ? "#ff5642" : "#ffc640";
         const cx = HEAT_X + HEAT_W * 0.5,
             cy = -24;
+        const w = this.drawTag(ctx, text, cx, cy, color);
+        if (!reserve?.tag) return;
+        ctx.font = font(20);
+        const tagW = ctx.measureText(reserve.tag).width;
+        const tagColor = reserve.blink && !blinkOn ? "#ffc640" : reserve.color;
+        this.drawTag(ctx, reserve.tag, cx + w / 2 + 9 + 8 + tagW / 2 + 9, cy, tagColor);
+    }
+
+    // HudTheme.DrawTag: text on a dark chamfered plate outlined in its colour. Returns the text's width.
+    drawTag(ctx, text, cx, cy, color) {
+        ctx.font = font(20);
+        const w = ctx.measureText(text).width;
         const x0 = cx - w / 2 - 9,
             y0 = cy - 15,
             x1 = cx + w / 2 + 9,
@@ -492,6 +502,7 @@ export class StripView {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(text, cx, cy + 1);
+        return w;
     }
 
     // LiquidGauges.Draw: the shield crystal, with a softly waving surface. A low shield pulses red and flashes on a hit.

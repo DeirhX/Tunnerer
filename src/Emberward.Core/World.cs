@@ -18,7 +18,7 @@ using Emberward.Core.Network;
 using Emberward.Core.Regrowth;
 using Emberward.Core.Entities.Bases;
 
-public class World
+public partial class World
 {
     private readonly TerrainGrid _terrain;
     private readonly TankBases _tankBases;
@@ -36,6 +36,7 @@ public class World
     private readonly EnergyNetwork? _energy;
     private readonly BasePowerSystem? _basePower;
     private readonly MachineUpgradeSystem? _machineUpgrades;
+    private readonly TankReserveSystem? _reserve;
     // What tanks and machines see of the world each step; the same every step, so built once.
     [NotSaved("fixed for the match: closures over this world")]
     private readonly SimulationContext _tankContext;
@@ -181,6 +182,8 @@ public class World
         }
         if (Rules.MachineUpgrades)
             _machineUpgrades = new MachineUpgradeSystem(_machines, _energy, _terrain, _stepEvents, Rules);
+        if (Rules.TankReserve)
+            _reserve = new TankReserveSystem(_machines, _terrain);
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         _collisionSolver = new CollisionSolver(_terrain, _tankBases);
@@ -204,8 +207,9 @@ public class World
             IsTankBlocked = _collisionSolver.BlocksTank,
             Events = _stepEvents,
             MachineUpgrades = _machineUpgrades,
+            Reserve = _reserve,
         };
-        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades);
+        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades, _reserve);
         _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy,
             _basePower, _machineUpgrades);
         _systems = BuildSystems();

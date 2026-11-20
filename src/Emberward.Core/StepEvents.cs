@@ -110,6 +110,18 @@ public enum StepEventKind
     /// <see cref="Entities.Machines.MachineUpgradeRefusal"/>. <see cref="StepEvent.Color"/> is the tank.
     /// </summary>
     MachineUpgradeRefused,
+
+    /// <summary>
+    /// A tank off its network burned <see cref="StepEvent.Count"/> units of emberite from its hold to buy back its
+    /// reserve (<see cref="Entities.Tanks.TankReserveSystem"/>). <see cref="StepEvent.Color"/> is the tank.
+    /// </summary>
+    ReserveBurned,
+
+    /// <summary>
+    /// A tank's reserve passed into another stage; <see cref="StepEvent.Count"/> is the new
+    /// <see cref="Entities.Tanks.TankReserveStage"/>. <see cref="StepEvent.Color"/> is the tank.
+    /// </summary>
+    ReserveStageChanged,
 }
 
 /// <summary>What a <see cref="StepEventKind.BulletImpact"/> struck.</summary>

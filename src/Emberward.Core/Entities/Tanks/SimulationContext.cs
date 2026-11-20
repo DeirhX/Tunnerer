@@ -61,4 +61,10 @@ public readonly record struct SimulationContext
     /// upgrade key goes here. Null when they are off.
     /// </summary>
     public Machines.MachineUpgradeSystem? MachineUpgrades { get; init; }
+
+    /// <summary>
+    /// The tank's reserve, when the match rules run it (<see cref="MatchRules.TankReserve"/>): the recall key burns
+    /// carried emberite off the network, and running out of the off-network clock goes through stages. Null when it is off.
+    /// </summary>
+    public TankReserveSystem? Reserve { get; init; }
 }

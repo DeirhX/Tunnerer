@@ -73,7 +73,8 @@ public sealed class HudStrip
         _buildPanelTex = buildPanel;
     }
 
-    public void Draw(Tank player, float time, MatchRules rules)
+    /// <param name="reserve">The reserve's stage tag beside OFF NETWORK (<see cref="ReserveTags.Of"/>), if any.</param>
+    public void Draw(Tank player, float time, MatchRules rules, ReserveTag? reserve = null)
     {
         var displaySize = ImGui.GetIO().DisplaySize;
         var dl = ImGui.GetForegroundDrawList();
@@ -94,7 +95,7 @@ public sealed class HudStrip
         int degrees = player.IsDead ? 0 : (int)MathF.Round(player.Heat);
         DrawReadout(dl, TempPlate, degrees.ToString(System.Globalization.CultureInfo.InvariantCulture) + "°");
         _heat.DrawTrend(dl, player, TempPlate.ReadoutRight - 12f, TempPlate.ReadoutY);
-        _heat.DrawOffNetworkTag(dl, player, HeatX + HeatPanelW * 0.5f, time);
+        _heat.DrawOffNetworkTag(dl, player, HeatX + HeatPanelW * 0.5f, time, reserve);
 
         // SHIELD: the tank's armor.
         int health = Math.Max(0, player.Reactor.Health);
