@@ -64,7 +64,7 @@ Open work, written so an agent can pick up one item without the conversation tha
 - **Output-only queries for the HUD:** `World.MachinePowerOf(machine)` (charge, capacity, in and out per second, fed) and
   `World.BasePowerOf(base)` (store, capacity, production, island draw). They return null while the flag is off.
   `PowerLabels.Of` holds all label wording and colour rules; extend it when a new state appears.
-- **Known gaps:** "charge passed on to others" is always 0 until item 5; no test reaches the tier-ordering branch until
+- **Known gaps:** "charge passed on to others" became real with item 5 (`MachinePower.PassedPerSecond`); no test reaches the tier-ordering branch until
   item 6 adds a second tier.
 
 ## 1. Finite heat sources (implemented)
@@ -152,9 +152,30 @@ Global upgrades (`BaseUpgrades`) stay as the baseline.
 - **Tests:** buying, refusal (maxed, not enough ore, out of reach), nearest-machine choice with a stable tie-break,
   snapshot round trip, each relay path's effect.
 
-## 5. Relay throughput limits and the Conduit upgrade
+## 5. Relay throughput limits and the Conduit upgrade (implemented)
 
-**Design.** Each relay has a charge-transfer limit; a chain is as fast as its slowest node. Compute a tree from the
+Built behind `MatchRules.EnergyNetwork`, in `Network/EnergyNetwork.Throughput.cs`; numbers in `Tweaks.Throughput`
+(`Config/Tweaks.Throughput.cs`). Each island is a tree: a node's parent is the next node of its island up
+`LinkPoint.UpstreamLink` (the route `IsPoweredBy` follows), or the node a local island's search reached it from; a
+harvester hangs off the node that covers it (`MachineContext.CoverageOf` now returns the `TankCoverage`, with its
+point). Every link node passes on at most 400 a tick (Conduit 600, 800; ceiling 800), its own top-up not counted. The
+tree is worked out only when the island's filling set, members, links or a node's limit change, and only over the
+filling capacitors and their ancestors. Each node loses 3% of what it passes on into its pending charge, which settling
+puts in the ground at the node (heat writers, ledger `RecordFromCharge`). At its settling a node that ran at its limit
+(saturated: asked for all it can pass on, at its last tree) is throttled from 150 °C (half; recovers under 140 °C) and
+overheated from 250 °C (a quarter, and 100 of its 1000 health each check it ran at its limit, recorded as
+`MachineDamaged` / `MachineWrecked`); a hot node stays throttled until its ground cools, and a cool node below its
+limit is not looked at, so hot ground alone never harms a relay that is not saturated (decided: a lightly loaded relay
+beside a lump core is safe; a saturated one there throttles and can be wrecked).
+`MachinePower` gained `PassedPerSecond`, `LimitPerSecond` and `Heat`; `PowerLabels` shows `>passed/s` and the new
+`HudPalette.Throttled` / `Overheated` colours (a `>` glyph was added to `PowerLabelQuads`). Standard fingerprints are
+unchanged (no recorded fingerprint runs the energy rule); energy-rule play changes (chains now lose 3% a hop and can be
+limited), with no new flag, so the rules hash is the same: **bump the protocol before network play** (item 6 bumps it
+anyway). Not changed: idle draw is still paid at the root, not through the tree; generator output reaches the island's
+store directly; the limits apply to top-ups, not to idle draw. Tune the limit, loss and temperatures in play (a node in
+open air with nothing pumping warms fast: air holds 0.8 a degree a cell).
+
+**Design (as planned).** Each relay has a charge-transfer limit; a chain is as fast as its slowest node. Compute a tree from the
 producers (reuse `LinkMap`'s power search; recompute only when links or demand change): demand is added up from the
 leaves, each node caps what passes through it, supply is handed back down by tier. Charge passing through loses a few
 percent as heat **at the relay**, booked through the heat writers so the ledger balances; a hot relay throttles, and

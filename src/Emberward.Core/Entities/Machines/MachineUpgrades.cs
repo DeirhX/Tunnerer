@@ -16,7 +16,7 @@ public enum MachineUpgradePath
     /// <summary>A relay sees further. Presentation only: it changes no simulation result.</summary>
     Sensor,
 
-    /// <summary>A bigger capacitor on the energy network (its throughput effect is still to come, TODO.md item 5).</summary>
+    /// <summary>On the energy network, a relay passes more charge on to the machines behind it, and holds more.</summary>
     Conduit,
 }
 
@@ -90,6 +90,13 @@ public static class MachineUpgrades
             behavior.Capacitor.IdleDrawPerTick + Tweaks.MachineUpgrades.TapIdleDrawPerLevel * upgrade.LevelOf(MachineUpgradePath.Tap));
     }
 
+    /// <summary>
+    /// The multiple of <c>Throughput.NodeLimitPerTick</c> a machine with <paramref name="upgrade"/> passes on (its Conduit
+    /// level); <c>Throughput.CeilingPerTick</c> caps the result.
+    /// </summary>
+    public static double ThroughputScaleOf(MachineUpgradeLevel upgrade) =>
+        Tweaks.Throughput.ConduitScale[Math.Clamp(upgrade.LevelOf(MachineUpgradePath.Conduit), 0, Tweaks.Throughput.ConduitScale.Length - 1)];
+
     /// <summary>Extra cells of sight at Sensor level <paramref name="sensorLevel"/>.</summary>
     public static int SightBonus(int sensorLevel) => Tweaks.MachineUpgrades.SensorCellsPerLevel * sensorLevel;
 
@@ -100,7 +107,8 @@ public static class MachineUpgrades
             $"+{Tweaks.MachineUpgrades.TapPumpPerLevel * 100:0}% heat pumped (more charge), runs hotter")),
         MachineUpgradePath.Sensor => ("Sensor", string.Create(CultureInfo.InvariantCulture,
             $"+{Tweaks.MachineUpgrades.SensorCellsPerLevel} cells of sight")),
-        MachineUpgradePath.Conduit => ("Conduit", "a bigger capacitor (x1.5, then x2)"),
+        MachineUpgradePath.Conduit => ("Conduit", string.Create(CultureInfo.InvariantCulture,
+            $"passes on x{Tweaks.Throughput.ConduitScale[1]:0.#}, then x{Tweaks.Throughput.ConduitScale[2]:0.#}, and holds more")),
         _ => (path.ToString(), ""),
     };
 }

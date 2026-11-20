@@ -244,7 +244,7 @@ Building has to pay off, and exploring has to lead somewhere.
 
 One sentence to hold: **relays are your network; everything else plugs into it and runs on the charge the network
 makes.** This section is the direction for §4.5, §4.6 and §4.8; none of it is built except the Sensors upgrade and,
-behind match rules, the capacitors, island balance, local generators and per-machine upgrades.
+behind match rules, the capacitors, island balance, local generators, per-machine upgrades and throughput limits.
 
 **Three things to track, not four**
 
@@ -297,6 +297,22 @@ relay server, so renaming it is open but can wait. Sight stays wider than covera
 - **Throughput.** Each relay has a transfer limit and a chain is as fast as its slowest node. Charge passing through
   loses a few percent as heat at the relay; a hot relay throttles and then takes damage. The Conduit upgrade
   raises the limit (about x1.5, then x2) and is capped.
+  *Built with the energy rule:* each island is a tree rooted at its base (or its local generator). A node's parent is
+  the next node of the island on its power route home, and a harvester takes its charge through the node that covers
+  it. Every link node (relay, pylon, generator) passes on at most 400 charge a tick to the machines behind it (one
+  refilling harvester; about three working ones), its own top-up not counted; Conduit makes that 600 then 800, and
+  800 is the ceiling. Where a node cannot pass on all that is asked, the higher tiers go first and a tier's share is
+  split in proportion. Each node on the way loses 3% of what it passes on as heat where it stands (put in the ground
+  when its capacitor settles, at most every 5 s), so the island draws a little more than arrives. At each settling a
+  node that ran at its limit (asked for all it can pass on) reads its ground (the 5-cell square under it): from 150 °C
+  it passes on half (back to normal under 140 °C), and from 250 °C a quarter and it loses a tenth of its health each
+  time it ran at its limit (a damage event, like a hit). A hot node stays throttled until its ground cools; a cool node
+  below its limit is never looked at, so hot ground alone (hot rock, a lump core, the core tap) never harms a relay
+  that is not saturated. The tree is worked out once a tick, before any tier draws. The tree is
+  worked out only when what is filling, the links or a node's limit change, and only over the capacitors filling and
+  the nodes on their way. Idle draw is still paid at the root, not through the tree, and generator output reaches its
+  island's store directly. The charge labels show what a node passes on (`>1.2k/s`) and turn orange while it is
+  throttled and pink while it is overheated.
 - **Conductors sit alongside relays** (this answers the open question in §14): relays are the nodes, a conductor
   line is a trunk that carries heat, and Conduit carries charge.
 
@@ -349,16 +365,16 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
   on the lit machine); while it is open, 1-3 buy a path for the nearest own machine within 12 cells (the earliest
   built on a tie), paid from the base ore store: 8 ore for level 1, 16 for level 2. The first purchase fixes the
   path. Tap pumps 50% more heat a level and spends 1.5 more charge a tick standing, which becomes heat at the relay;
-  Sensor adds 10 cells of sight a level; Conduit makes the capacitor 1.5 then 2 times its size and needs the energy
-  rule (its throughput effect comes with the throughput limits). The panel closes on F, out of reach, or after a
+  Sensor adds 10 cells of sight a level; Conduit makes the capacitor and the throughput limit 1.5 then 2 times their
+  size and needs the energy rule. The panel closes on F, out of reach, or after a
   purchase. Only the relay has paths so far; the input is bit 30 with the upgrade key (protocol 9).
 - **Turrets** need power, make heat when firing, and fire only at enemy tanks in range and line of sight, with a
   stable tie-break. Mobs (§6.2) hunt heat, which makes the pumping relays what a defence is built around.
 - **Build keys.** E relay, R harvester, T pylon and Y generator. Turrets need their own key while the pylon remains.
 
-**Build order.** Capacitors, island balance and the local generator are implemented behind the energy rule.
-Dark state, shield and no lives, and per-machine upgrades, follow behind their rules. Next come throughput limits,
-turrets and pylon removal.
+**Build order.** Capacitors, island balance, the local generator and throughput limits are implemented behind the
+energy rule. Dark state, shield and no lives, and per-machine upgrades, follow behind their rules. Next come turrets
+and pylon removal.
 
 ### 4.10 Challenges of a finite world *(Proposed; open)*
 

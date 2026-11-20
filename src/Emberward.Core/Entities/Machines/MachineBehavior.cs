@@ -14,9 +14,9 @@ using Emberward.Core.Match;
 /// checks it before every step.
 /// </param>
 /// <param name="Machines">Every machine in the world, in a fixed order, and filed by place: pylons look for batteries, harvesters for pylons.</param>
-/// <param name="IsOnNetwork">
-/// True when the machine stands in the coverage of its own base's linked network (DESIGN.md §4.6): a harvester only
-/// delivers ore from there.
+/// <param name="CoverageOf">
+/// The coverage of its own base's linked network where the machine stands (DESIGN.md §4.6), with the node that covers
+/// it: a harvester only delivers ore from there, and on the energy network takes its charge through that node.
 /// </param>
 /// <param name="Events">Where a machine records what it did this step (<see cref="World.StepEvents"/>). Null records nothing.</param>
 /// <param name="Upgrades">
@@ -30,7 +30,7 @@ using Emberward.Core.Match;
 /// </param>
 public readonly record struct MachineContext(
     ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, MachineList Machines,
-    Func<Machine, bool> IsOnNetwork, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null,
+    Func<Machine, TankCoverage> CoverageOf, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null,
     MachineUpgradeSystem? Upgrades = null);
 
 /// <summary>
@@ -324,8 +324,9 @@ public static class MachineBehaviors
         if (ctx.Energy == null && ReturnToPylon(machine, ctx))
             return;
 
-        machine.IsOffNetwork = !ctx.IsOnNetwork(machine);
-        ctx.Energy?.SetCovered(machine, !machine.IsOffNetwork, ctx.Machines, terrain, t_near ??= new List<Machine>());
+        var coverage = ctx.CoverageOf(machine);
+        machine.IsOffNetwork = !coverage.Covered;
+        ctx.Energy?.SetCovered(machine, coverage, ctx.Machines, terrain, t_near ??= new List<Machine>());
         // With a flat battery there is nothing to work with. Off the network its ore could not get home, and on ground
         // that is too hot it waits for the ground to cool (a linked relay nearby speeds that up a lot): either way it
         // does not work, but it still crawls on toward ore it could work, so that a tunnel that bends out of its relay's
