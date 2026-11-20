@@ -150,7 +150,8 @@ public class MachineList : ISnapshotLoaded
             }
     }
 
-    public int CopyRenderStates(Span<MachineRenderState> destination)
+    /// <summary>Copies each machine's render state; a generator's fraction is measured from <paramref name="generatorMaxChargePerTick"/>.</summary>
+    public int CopyRenderStates(Span<MachineRenderState> destination, double generatorMaxChargePerTick)
     {
         int count = Math.Min(destination.Length, _machines.Count);
         for (int i = 0; i < count; i++)
@@ -174,7 +175,7 @@ public class MachineList : ISnapshotLoaded
                 ChargingFrom: m.ChargingFrom?.Position ?? default,
                 IsGivingCharge: m.LastChargeGiven > 0.0,
                 Anchor: m.Anchor,
-                GenerationFraction: m.Behavior.IsGenerator ? (float)(m.LastChargeMade / Tweaks.Machine.GeneratorMaxChargePerTick) : 0f);
+                GenerationFraction: m.Behavior.IsGenerator ? (float)(m.LastChargeMade / generatorMaxChargePerTick) : 0f);
         }
         return count;
     }

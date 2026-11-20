@@ -15,7 +15,7 @@ public sealed partial class EnergyNetwork
 
         var home = island.Base;
         double baseRoom = home == null ? 0.0 : Math.Max(0.0, home.ChargeCapacity - home.Charge);
-        double room = baseRoom + Tweaks.Machine.GeneratorReserveCapacity - producer.Reserve;
+        double room = baseRoom + _settings.GeneratorReserveCapacity - producer.Reserve;
         if (room <= 0.0)
             return;
 

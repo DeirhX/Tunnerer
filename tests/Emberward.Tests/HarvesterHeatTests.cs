@@ -325,7 +325,7 @@ public class HarvesterHeatTests
         Advance(s, HarvestTicks(1));
 
         var states = new Emberward.Core.Rendering.MachineRenderState[8];
-        int count = s.World.Machines.CopyRenderStates(states);
+        int count = s.World.Machines.CopyRenderStates(states, s.World.Settings.GeneratorMaxChargePerTick);
         Assert.True(harvester.IsStalled, "a harvester on very hot ground should be stalled");
         Assert.Contains(states.Take(count), m => m.Type == MachineType.Harvester && m.IsStalled);
     }
