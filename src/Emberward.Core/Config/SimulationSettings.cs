@@ -42,6 +42,7 @@ public readonly record struct SimulationSettings
     public double GeneratorTemperatureScale { get; init; }
     public double GeneratorMaxHeatPerTick { get; init; }
     public double GeneratorMaxChargePerTick { get; init; }
+    public double GeneratorReserveCapacity { get; init; }
 
     // --- Thermal materials: one row per ThermalMaterial, pair conductances derived from the rows ---
     public ThermalMaterialTable ThermalMaterials { get; init; }
@@ -103,6 +104,7 @@ public readonly record struct SimulationSettings
         GeneratorTemperatureScale = Tweaks.Machine.GeneratorTemperatureScale,
         GeneratorMaxHeatPerTick = Tweaks.Machine.GeneratorMaxHeatPerTick,
         GeneratorMaxChargePerTick = Tweaks.Machine.GeneratorMaxChargePerTick,
+        GeneratorReserveCapacity = Tweaks.Machine.GeneratorReserveCapacity,
         ThermalAirCellCoupling = Tweaks.World.ThermalAirCellCoupling,
         ThermalAirNeighborCoupling = Tweaks.World.ThermalAirNeighborCoupling,
         TankHeatDigPerPixel = Tweaks.Tank.HeatDigPerPixel,

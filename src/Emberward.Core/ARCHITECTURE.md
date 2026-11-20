@@ -171,8 +171,9 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    then exchange with the grid). Machine upgrades take effect where the rest of the game reads them: a relay asks its
    pump rate (`MachineContext.Upgrades`), the energy network holds a resized capacitor and idle draw
    (`EnergyNetwork.Resize`), and vision asks a machine's sight bonus.
-6. **machines**: With the energy rule on, `EnergyNetwork.Refresh` first groups each side's connected link nodes
-   when `LinkMap.PowerVersion` changes. The base roots its own island. The first generator in machine order roots
+6. **machines**: With the energy rule on, `EnergyNetwork.Refresh` first regroups the link nodes when
+   `LinkMap.PowerVersion` changes. Each base's island takes the nodes whose power route ends at that base
+   (`LinkPoint.IsPoweredBy`, the same rule harvester coverage uses in `NetworkCoverage`). The first generator in machine order roots
    each remaining component that has a generator. `MachineList.Advance` uses the world's `MachineContext` (a harvester asks `MachineContext.IsOnNetwork`, the coverage of its base's
    network at its position, before it works; it mines plain ore only and leaves lump cores to the tank's torch,
    idling as `HarvesterState.CoreOnly` when nothing else is left), then each pylon's last hand-out is booked on its route

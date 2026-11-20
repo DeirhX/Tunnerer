@@ -55,7 +55,7 @@ public sealed class EntityLayerBuilder
 
         if (_machineScratch.Length < world.Machines.Count)
             _machineScratch = new MachineRenderState[Math.Max(world.Machines.Count, 16)];
-        int machineCount = world.Machines.CopyRenderStates(_machineScratch);
+        int machineCount = world.Machines.CopyRenderStates(_machineScratch, world.Settings.GeneratorMaxChargePerTick);
         _interpolator.CaptureMachines(_machineScratch.AsSpan(0, machineCount));
 
         _preview.Capture(world, localSlot);
