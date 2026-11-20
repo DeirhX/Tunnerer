@@ -46,6 +46,8 @@ async function startMatch() {
     await page.locator("#seed").fill(process.env.SEED || "1234");
     await page.locator("#start").click();
     await page.waitForFunction(() => !document.getElementById("hud").hidden, null, { timeout: 180000 });
+    // SOAK_SOUND=1 turns sound on, which makes .NET synthesise the sound bank and the page play the match's sounds.
+    if (process.env.SOAK_SOUND) await page.locator("#sound").click();
 }
 await startMatch();
 let matches = 1;

@@ -21,7 +21,10 @@ public static partial class BrowserApi
     private static BrowserNetMatch? _net;
     private static bool _hudStale;
     private static bool _dialSent;
-    private static System.Runtime.InteropServices.GCHandle _pinnedPacket;
+    private static GCHandle _pinnedPacket;
+    private static GCHandle _pinnedSend;
+    private static GCHandle _pinnedSounds;
+    private static readonly MemoryStream _staged = new();
 
     /// <param name="seed">The world's seed.</param>
     /// <param name="heatWorkers">Threads for the heat solver; 1 on the single-thread runtime.</param>
@@ -43,7 +46,7 @@ public static partial class BrowserApi
     /// <summary>
     /// Joins <paramref name="room"/> on the relay, or opens it with this browser's proposal if nobody has
     /// (<see cref="BrowserNetMatch"/>). The page owns the socket: the hello comes back through
-    /// <see cref="DeliverNet"/> for it to send, and the world is built when the relay lets this client in.
+    /// <see cref="TakeSend"/> for it to send, and the world is built when the relay lets this client in.
     /// </summary>
     /// <param name="players">The tanks of the match, if this browser opens the room.</param>
     /// <param name="seed">The seed it proposes if it opens the room.</param>
@@ -107,35 +110,44 @@ public static partial class BrowserApi
         return Task.CompletedTask;
     }
 
-    /// <summary>Hands what <paramref name="net"/> has to send to the page, each message as its length (int32) and bytes.</summary>
+    /// <summary>
+    /// Keeps what <paramref name="net"/> has to send until the page takes it (<see cref="TakeSend"/>), each message as
+    /// its length (int32) and bytes. Nothing calls into JavaScript for it: in the threaded runtime that is a
+    /// synchronous call from .NET's thread to the page's, and WebKit's page froze in one (docs/browser.md).
+    /// </summary>
     private static void DeliverOutgoing(BrowserNetMatch net)
     {
-        var outgoing = net.TakeOutgoing();
-        if (outgoing.Count == 0)
-            return;
-        byte[] packed = new byte[outgoing.Sum(m => 4 + m.Length)];
-        int at = 0;
-        foreach (byte[] message in outgoing)
+        Span<byte> length = stackalloc byte[4];
+        foreach (byte[] message in net.TakeOutgoing())
         {
-            BinaryPrimitives.WriteInt32LittleEndian(packed.AsSpan(at), message.Length);
-            message.CopyTo(packed, at + 4);
-            at += 4 + message.Length;
-        }
-        unsafe
-        {
-            fixed (byte* at0 = packed)
-                DeliverNet((int)at0, packed.Length);
+            BinaryPrimitives.WriteInt32LittleEndian(length, message.Length);
+            _staged.Write(length);
+            _staged.Write(message);
         }
     }
 
     /// <summary>
-    /// Hands messages for the relay to the page's socket (frames.js), which copies them before it returns. Bytes
-    /// cross as an address and a length in the runtime's memory, never as a marshalled view: a view is a proxy that
-    /// .NET frees when the browser collects it, and in the threaded runtime that release now and then fails and ends
-    /// the runtime (docs/browser.md, "Two runtimes").
+    /// Answers with where the messages for the relay lie in the runtime's memory, as JSON
+    /// <c>{"address":A,"length":L}</c> (length 0: none), pinned until the next call. The page copies them out
+    /// (frames.js) and sends them on its socket.
     /// </summary>
-    [JSImport("deliverNet", "frames.js")]
-    private static partial void DeliverNet(int address, int length);
+    [JSExport]
+    public static Task<string> TakeSend()
+    {
+        byte[] packed = _staged.ToArray();
+        _staged.SetLength(0);
+        return Task.FromResult(Pin(ref _pinnedSend, packed, "{{\"address\":{0},\"length\":{1}}}"));
+    }
+
+    /// <summary>Pins <paramref name="bytes"/> in place of what <paramref name="pin"/> held, and formats where they lie.</summary>
+    private static string Pin(ref GCHandle pin, byte[] bytes, string format)
+    {
+        if (pin.IsAllocated)
+            pin.Free();
+        pin = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture, format, (int)pin.AddrOfPinnedObject(),
+            bytes.Length);
+    }
 
     /// <summary>
     /// One display request: steps the simulation, builds a frame and answers with where the frame's packet lies in
@@ -221,29 +233,19 @@ public static partial class BrowserApi
     }
 
     /// <summary>
-    /// Synthesises the desktop's sound bank and hands it to <see cref="DeliverSounds"/> before the promise resolves.
-    /// The page asks for it once, when the player first turns sound on.
+    /// Synthesises the desktop's sound bank and answers with where it lies in the runtime's memory, pinned until the
+    /// next call, as JSON <c>{"address":A,"length":L,"layout":{...}}</c>: every effect's samples (32-bit floats) one
+    /// after another, and where each lies (<see cref="SoundBankLayout"/>). The page asks for it once, when the player
+    /// first turns sound on.
     /// </summary>
     [JSExport]
-    public static Task SoundBank()
+    public static Task<string> SoundBank()
     {
         var bank = new BrowserSoundBank();
-        byte[] samples = bank.ToBytes();
         string layout = JsonSerializer.Serialize(bank.Layout, BrowserJsonContext.Default.SoundBankLayout);
-        unsafe
-        {
-            fixed (byte* at = samples)
-                DeliverSounds((int)at, samples.Length, layout);
-        }
-        return Task.CompletedTask;
+        string where = Pin(ref _pinnedSounds, bank.ToBytes(), "{{\"address\":{0},\"length\":{1},\"layout\":");
+        return Task.FromResult(where + layout + "}");
     }
-
-    /// <summary>Hands the sound bank to JavaScript (frames.js), which copies the samples before it returns.</summary>
-    /// <param name="address">Where every effect's samples (32-bit floats, one after another) lie in the runtime's memory, pinned for the call.</param>
-    /// <param name="length">Their size in bytes.</param>
-    /// <param name="layout">Where each effect lies (<see cref="SoundBankLayout"/>), as JSON.</param>
-    [JSImport("deliverSounds", "frames.js")]
-    private static partial void DeliverSounds(int address, int length, string layout);
 
     /// <summary>
     /// Plays <paramref name="ticks"/> steps of a match nobody watches (the player idle, the bot playing) and returns

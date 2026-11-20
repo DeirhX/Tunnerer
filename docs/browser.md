@@ -65,8 +65,13 @@ and the page froze in it. `Frame` now answers with the address of the packet (pi
 the HUD as its promise's result, and the page copies the packet afterwards (`frames.js`); no frame crosses to the
 page by a call from .NET. Since then WebKit with `?threads=4` ran six matches (three of 240 s, three of 300 s)
 without a stop, and Edge five more of 300 s (three on the normal map, two on the heavy one). The relay's messages
-(`deliverNet`) and the sound bank still use a call from .NET, so a network match is not covered by that evidence.
-WebKit and Firefox stay on one thread until more has been played on them, macOS included.
+and the sound bank no longer use one either: the page asks (`TakeSend`, `SoundBank`) and copies from the address
+that comes back. The final code: Edge eight matches of 300 s (three with sound on, two on the heavy map) and WebKit
+with `?threads=4` three more with sound on, none stopped. A network match has only a partial check: `net-smoke.mjs`
+did not pass here, on the original single-thread build either, because two software-rendered pages fall 15 to 20 s
+behind the match on this machine (it did join, start and trade bundles on the new code), and
+`BrowserNetMatchTests` cover the logic. WebKit and Firefox stay on one thread until more has been played on them,
+macOS included.
 
 Do not marshal a view, an object or a delegate to JavaScript on the frame path again, nor call into JavaScript from .NET there. The soak is the check:
 `node tools/browser/soak.mjs` against a `--threads` publish served with `--isolate` and `?threads=8`.

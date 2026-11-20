@@ -32,26 +32,16 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
     const runtime = await builder.create();
     // Fewer bytes than the publish counted: a file .NET did not need.
     if (downloading) downloaded();
-    let sounds = null,
-        outgoing = [];
-    // Bytes cross from .NET as an address and a length in its memory, which is pinned for the call, and not as a
-    // marshalled view: .NET frees a view's proxy when the browser collects it, and in the threaded runtime that
-    // release now and then failed and ended the runtime ("already exited with 1"). The copy is an ordinary buffer of
-    // its own (WebGL takes no view of memory that threads share, and a worker transfers it without another copy).
-    // The heap's view is taken anew each time because the memory may have grown.
+    // Bytes cross from .NET as an address and a length in its memory, which it keeps pinned until its next call of
+    // that kind, and are copied out here once its promise has resolved. Nothing is handed over by a call from .NET
+    // into the page, and nothing is marshalled as a view or an object: in the threaded runtime a call from .NET's
+    // thread into the page's is synchronous across threads, and WebKit's page froze in one; and .NET frees the proxy
+    // of a marshalled value when the browser collects it, which now and then failed and ended the runtime ("already
+    // exited with 1"). The copy is an ordinary buffer of its own (WebGL takes no view of memory that threads share,
+    // and a worker transfers it without another copy). The heap's view is taken anew each time because the memory
+    // may have grown.
     const copyOut = (address, length) => runtime.localHeapViewU8().slice(address, address + length);
-    runtime.setModuleImports("frames.js", {
-        // Messages for the relay in a network match, each as its length (int32) and bytes, for the page's socket
-        // (net.js) to send.
-        deliverNet: (address, length) => outgoing.push(copyOut(address, length)),
-        // The sound bank (BrowserSoundBank): every effect's samples, copied out of the runtime's memory as above.
-        deliverSounds: (address, length, layout) => {
-            sounds = {
-                samples: new Float32Array(copyOut(address, length).buffer),
-                layout: JSON.parse(layout),
-            };
-        },
-    });
+    let netMatch = false;
     await runtime.runMain();
     const exports = await runtime.getAssemblyExports(
         runtime.getConfig().mainAssemblyName,
@@ -59,18 +49,10 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
     const api = exports.Emberward.Browser.BrowserApi;
     report({ stage: "runtime", state: "end", detail: threads });
     // What the request made for the relay: one buffer, which the worker hands to the page without a copy.
-    const takeOutgoing = () => {
-        if (!outgoing.length) return null;
-        const packed = new Uint8Array(
-            outgoing.reduce((sum, part) => sum + part.length, 0),
-        );
-        let at = 0;
-        for (const part of outgoing) {
-            packed.set(part, at);
-            at += part.length;
-        }
-        outgoing = [];
-        return packed;
+    const takeOutgoing = async () => {
+        if (!netMatch) return null;
+        const { address, length } = JSON.parse(await api.TakeSend());
+        return length ? copyOut(address, length) : null;
     };
     return {
         // Answers one request of the page, { type: "start" }, { type: "join" } or { type: "render" }, with the
@@ -86,6 +68,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
         // `report` hears of the slow stages of a start, as { stage, label, state: "begin" | "end" } (progress.js).
         async answer(data, report = () => {}) {
             if (data.type === "start") {
+                netMatch = false;
                 report({ stage: "world", label: "Generating the world", state: "begin" });
                 await api.Start(
                     data.seed,
@@ -97,7 +80,8 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                 );
                 report({ stage: "world", state: "end" });
             }
-            if (data.type === "join")
+            if (data.type === "join") {
+                netMatch = true;
                 await api.Join(
                     data.room,
                     data.name,
@@ -107,6 +91,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                     data.mapHeight || 0,
                     data.heatWorkers,
                 );
+            }
             if (data.type === "join" || data.received || data.lost) {
                 const waiting = await api.Receive(
                     data.received || new Uint8Array(0),
@@ -116,7 +101,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                     return {
                         type: "net",
                         failure: waiting || null,
-                        send: takeOutgoing(),
+                        send: await takeOutgoing(),
                     };
             }
             if (data.command) await api.Command(data.command);
@@ -150,9 +135,8 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                 timing = { step: answer.stepMs < 0 ? null : answer.stepMs, render: answer.frameMs };
             let bank = null;
             if (data.sounds) {
-                await api.SoundBank();
-                bank = sounds;
-                sounds = null;
+                const { address, length, layout } = JSON.parse(await api.SoundBank());
+                bank = { samples: new Float32Array(copyOut(address, length).buffer), layout };
             }
             // The HUD's state comes only with frames after which it may differ: the first, and those that follow
             // a step.
@@ -163,7 +147,7 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                 timing,
                 steps,
                 sounds: bank,
-                send: takeOutgoing(),
+                send: await takeOutgoing(),
             };
         },
         // The world a short match nobody watches ends with (BrowserApi.Fingerprint), for comparing runtimes.
