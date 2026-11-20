@@ -103,11 +103,19 @@ public class MachineUpgradeViewTests
     }
 
     [Fact]
-    public void ATapOnTheRing_HitsTheMachine()
+    public void OnlyALitMachineOrAnOpenPanel_CatchesATap()
     {
-        var (s, relay) = Setup(ore: 100);
-        var view = MachineUpgradeViews.For(s.World, s.Tank)!;
-        Assert.True(view.Hits(relay.Position.X + 2, relay.Position.Y - 2));
-        Assert.False(view.Hits(relay.Position.X + MachineUpgradeView.RingCells + 1, relay.Position.Y));
+        var (s, _) = Setup(ore: 100);
+        Assert.True(MachineUpgradeViews.For(s.World, s.Tank)!.CatchesTaps(panelOpen: false));
+
+        s.Base.Store.Ore = 0;
+        Assert.True(MachineUpgradeViews.For(s.World, s.Tank)!.CatchesTaps(panelOpen: false), "dim is still lit");
+
+        s.Base.Store.Ore = 100;
+        Press(s.World, 1);
+        Press(s.World, 1);
+        var maxed = MachineUpgradeViews.For(s.World, s.Tank)!;
+        Assert.False(maxed.CatchesTaps(panelOpen: false), "a maxed machine is not lit: a tap near it fires");
+        Assert.True(maxed.CatchesTaps(panelOpen: true), "a tap closes an open panel");
     }
 }

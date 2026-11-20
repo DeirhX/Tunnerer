@@ -205,10 +205,11 @@ export class GameRenderer {
         return true;
     }
 
-    // Whether `p`, a point from the centre of the view in CSS pixels (input.js), lies on the lit machine.
+    // Whether `p`, a point from the centre of the view in CSS pixels (input.js), lies on a machine that takes the tap:
+    // a lit one, or any while its panel is open (MachineUpgradeView.CatchesTaps). A tap near a maxed machine fires.
     machineAt(p) {
         const m = this.frame?.machineUpgrade;
-        if (!m || !p) return false;
+        if (!m?.tappable || !p) return false;
         const { dx, dy } = this.fromCentre(m.position);
         return Math.hypot(p.x - dx, p.y - dy) <= m.ringCells * this.cellSize + 8;
     }

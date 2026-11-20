@@ -15,11 +15,12 @@ public sealed record BrowserFrame(
 
 /// <summary>
 /// The machine upgrade highlight and panel (<c>MachineUpgradeView</c>, shared with the desktop). <c>Ring</c> is the
-/// highlight colour as #rrggbb, or null when the machine is not lit; <c>Open</c> says whether the panel shows.
+/// highlight colour as #rrggbb, or null when the machine is not lit; <c>Open</c> says whether the panel shows;
+/// <c>Tappable</c> whether a touch on the ring goes to the panel instead of firing (<c>MachineUpgradeView.CatchesTaps</c>).
 /// </summary>
 public sealed record MachineUpgradeStatus(
     Position Position, string Title, string? Ring, bool Bright, int Level, int MaxLevel, bool Open,
-    MachineUpgradeLine[] Choices, int Store, string? Refusal, float RingCells, float PipLiftCells);
+    MachineUpgradeLine[] Choices, int Store, string? Refusal, float RingCells, float PipLiftCells, bool Tappable);
 
 /// <summary>One path in the machine upgrade panel; <c>State</c> is a <c>MachineUpgradeChoiceState</c> name.</summary>
 public sealed record MachineUpgradeLine(

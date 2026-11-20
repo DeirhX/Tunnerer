@@ -77,12 +77,11 @@ public sealed record MachineUpgradeView(
         _ => 0u,
     };
 
-    /// <summary>Whether a point at (<paramref name="cellX"/>, <paramref name="cellY"/>) in cells lies on the lit machine.</summary>
-    public bool Hits(float cellX, float cellY)
-    {
-        float dx = cellX - Machine.Position.X, dy = cellY - Machine.Position.Y;
-        return dx * dx + dy * dy <= RingCells * RingCells;
-    }
+    /// <summary>
+    /// Whether a tap within <see cref="RingCells"/> of the machine goes to the panel (on touch) instead of firing: only
+    /// while the machine is lit, or to close an open panel. A maxed machine is not lit, so a tap near it fires.
+    /// </summary>
+    public bool CatchesTaps(bool panelOpen) => panelOpen || Highlight != MachineUpgradeHighlight.None;
 }
 
 /// <summary>Builds <see cref="MachineUpgradeView"/>s from what Core answers.</summary>
