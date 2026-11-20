@@ -161,12 +161,12 @@ harvester hangs off the node that covers it (`MachineContext.CoverageOf` now ret
 point). Every link node passes on at most 400 a tick (Conduit 600, 800; ceiling 800), its own top-up not counted. The
 tree is worked out only when the island's filling set, members, links or a node's limit change, and only over the
 filling capacitors and their ancestors. Each node loses 3% of what it passes on into its pending charge, which settling
-puts in the ground at the node (heat writers, ledger `RecordFromCharge`). At its settling a node that carried charge is
-throttled from 150 °C (half; recovers under 140 °C) and overheated from 250 °C (a quarter, and 100 of its 1000 health
-each check it carried charge, recorded as `MachineDamaged` / `MachineWrecked`); a hot node stays throttled until its
-ground cools, and a cool node that carried nothing is not looked at, so hot rock or the core tap do not harm a leaf
-relay. Open question: a trunk relay on very hot ground (beside a lump core) is still wrecked once it carries charge,
-since the check reads the ground, not the node's own loss heat; decide in play.
+puts in the ground at the node (heat writers, ledger `RecordFromCharge`). At its settling a node that ran at its limit
+(saturated: asked for all it can pass on, at its last tree) is throttled from 150 °C (half; recovers under 140 °C) and
+overheated from 250 °C (a quarter, and 100 of its 1000 health each check it ran at its limit, recorded as
+`MachineDamaged` / `MachineWrecked`); a hot node stays throttled until its ground cools, and a cool node below its
+limit is not looked at, so hot ground alone never harms a relay that is not saturated (decided: a lightly loaded relay
+beside a lump core is safe; a saturated one there throttles and can be wrecked).
 `MachinePower` gained `PassedPerSecond`, `LimitPerSecond` and `Heat`; `PowerLabels` shows `>passed/s` and the new
 `HudPalette.Throttled` / `Overheated` colours (a `>` glyph was added to `PowerLabelQuads`). Standard fingerprints are
 unchanged (no recorded fingerprint runs the energy rule); energy-rule play changes (chains now lose 3% a hop and can be

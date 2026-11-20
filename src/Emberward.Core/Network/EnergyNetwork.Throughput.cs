@@ -34,8 +34,9 @@ public enum ThroughputHeat
 /// <para>
 /// Energy: each node on the way loses <c>Throughput.LossFraction</c> of what it passes on. The island draws that with
 /// the top-up, and the loss joins the node's pending charge, which settling turns into heat at the node through the heat
-/// writers (waking its tile) and books as charge turned back into heat. A node that carried charge is checked at its
-/// settling: on hot ground it is throttled, and hotter still it is slowed further and damaged.
+/// writers (waking its tile) and books as charge turned back into heat. A node that ran at its limit is checked at its
+/// settling: on hot ground it is throttled, and hotter still it is slowed further and damaged. One that carries less
+/// than its limit is never harmed by the ground under it, so a lightly loaded relay beside a lump core is safe.
 /// </para>
 /// </summary>
 public sealed partial class EnergyNetwork
@@ -169,6 +170,8 @@ public sealed partial class EnergyNetwork
                 node.TreeRatio[tier] = asked > 0.0 ? passed / asked : 1.0;
                 node.TreeAsk[tier] = passed;
             }
+            // Asked for all it can pass on, or more: what it carries now heats it (CheckHeat).
+            node.IsSaturated = left <= 0.0;
             if (node.IsFilling)
                 node.TreeAsk[TierOf(node)] += node.Machine.Behavior.Capacitor.TransferPerTick;
             if (UpstreamIn(node, island) is Capacitor up)
@@ -219,23 +222,24 @@ public sealed partial class EnergyNetwork
             double loss = up == null ? drawn - carried : carried * Tweaks.Throughput.LossFraction;
             node.Pending += loss;
             node.Passed.Add(tick, 0.0, carried);
-            node.HasCarried = true;
+            node.RanAtLimit |= node.IsSaturated;
             carried += loss;
             node = up;
         }
     }
 
     /// <summary>
-    /// At its settling (before the heat of its last period lands), a node that carried charge since the last one, or
+    /// At its settling (before the heat of its last period lands), a node that ran at its limit since the last one, or
     /// that is still hot, is throttled or overheated by the temperature of its ground (with a hysteresis on the way
-    /// back). An overheated one that carried charge loses health, recorded as <see cref="StepEventKind.MachineDamaged"/>
-    /// (or <see cref="StepEventKind.MachineWrecked"/>) like a hit. A cool node that carried nothing is not looked at.
+    /// back). An overheated one that ran at its limit loses health, recorded as <see cref="StepEventKind.MachineDamaged"/>
+    /// (or <see cref="StepEventKind.MachineWrecked"/>) like a hit. A cool node that ran below its limit is not looked
+    /// at, so hot ground alone never harms a node that is not saturated.
     /// </summary>
     private static void CheckHeat(Capacitor node, ITerrainAccess terrain, StepEventLog? events)
     {
-        bool carried = node.HasCarried;
-        node.HasCarried = false;
-        if (!carried && node.Heat == ThroughputHeat.Normal)
+        bool loaded = node.RanAtLimit;
+        node.RanAtLimit = false;
+        if (!loaded && node.Heat == ThroughputHeat.Normal)
             return;
         // SampleAverageHeat is normalised (temperature / 255).
         float temperature = terrain.SampleAverageHeat(node.Machine.Position, Tweaks.Energy.IdleHeatRadius) * 255f;
@@ -246,7 +250,7 @@ public sealed partial class EnergyNetwork
                 ? ThroughputHeat.Throttled
             : ThroughputHeat.Normal;
         var machine = node.Machine;
-        if (heat == ThroughputHeat.Overheated && carried && machine.IsStanding)
+        if (heat == ThroughputHeat.Overheated && loaded && machine.IsStanding)
         {
             bool wrecked = machine.TakeDamage(Tweaks.Throughput.OverheatDamage);
             events?.Record(new StepEvent(wrecked ? StepEventKind.MachineWrecked : StepEventKind.MachineDamaged,
@@ -263,7 +267,8 @@ public sealed partial class EnergyNetwork
         hash = Fnv1a.Mix(hash, capacitor.Parent?.Machine.Sequence ?? -1);
         hash = Fnv1a.Mix(hash, capacitor.ThroughputScale);
         hash = Fnv1a.Mix(hash, (int)capacitor.Heat);
-        hash = Fnv1a.Mix(hash, capacitor.HasCarried);
+        hash = Fnv1a.Mix(hash, capacitor.IsSaturated);
+        hash = Fnv1a.Mix(hash, capacitor.RanAtLimit);
         hash = Fnv1a.Mix(hash, capacitor.Allowance);
         hash = Fnv1a.Mix(hash, capacitor.LossMultiplier);
         return hash;
@@ -276,8 +281,9 @@ public sealed partial class EnergyNetwork
         // Its Conduit multiple of the node limit.
         public double ThroughputScale = 1.0;
         public ThroughputHeat Heat;
-        // It passed charge on since its last heat check.
-        public bool HasCarried;
+        // Asked, at its last tree, for at least all it can pass on; and it passed charge on so since its last heat check.
+        public bool IsSaturated;
+        public bool RanAtLimit;
         // While filling: the most it takes a tick, and the charge drawn for each unit that reaches it (losses on the way).
         public double Allowance;
         public double LossMultiplier = 1.0;

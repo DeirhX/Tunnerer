@@ -259,6 +259,29 @@ public class RelayThroughputTests
     }
 
     [Fact]
+    public void AHotRelayBelowItsLimit_IsNeitherThrottledNorDamaged_UntilItIsSaturated()
+    {
+        // One harvester asks 400 a tick through a relay that passes on 800 (Conduit level 2): not saturated.
+        var chain = new Chain(relays: 1, harvesters: 1);
+        var relay = chain.Relays[0];
+        chain.Network.SetThroughputScale(relay, 2.0);
+        int period = Tweaks.Energy.SettlePeriodTicks;
+        int health = relay.Reactor.Health;
+        chain.SetGround(relay, Tweaks.Throughput.OverheatTemperature + 50);
+        chain.Advance(period);
+        Assert.True(chain.Network.PowerOf(relay)!.Value.PassedPerSecond > 0.0, "it carries charge");
+        Assert.Equal(ThroughputHeat.Normal, chain.Network.PowerOf(relay)!.Value.Heat);
+        Assert.Equal(health, relay.Reactor.Health);
+
+        // Back to its plain limit, the same demand saturates it, and the same ground overheats it.
+        chain.Network.SetThroughputScale(relay, 1.0);
+        chain.SetGround(relay, Tweaks.Throughput.OverheatTemperature + 50);
+        chain.Advance(period);
+        Assert.Equal(ThroughputHeat.Overheated, chain.Network.PowerOf(relay)!.Value.Heat);
+        Assert.Equal(health - Tweaks.Throughput.OverheatDamage, relay.Reactor.Health);
+    }
+
+    [Fact]
     public void AHotRelayThatCarriesNothing_IsNeitherThrottledNorDamaged()
     {
         var chain = new Chain(relays: 2, harvesters: 0);

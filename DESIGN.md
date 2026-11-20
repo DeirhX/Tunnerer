@@ -304,11 +304,11 @@ relay server, so renaming it is open but can wait. Sight stays wider than covera
   800 is the ceiling. Where a node cannot pass on all that is asked, the higher tiers go first and a tier's share is
   split in proportion. Each node on the way loses 3% of what it passes on as heat where it stands (put in the ground
   when its capacitor settles, at most every 5 s), so the island draws a little more than arrives. At each settling a
-  node that carried charge reads its ground (the 5-cell square under it): from 150 °C it passes on half (back to
-  normal under 140 °C), and from 250 °C a quarter and it loses a tenth of its health each time it carried charge (a
-  damage event, like a hit). A hot node stays throttled until its ground cools, even while it carries nothing; a cool
-  node that carries nothing is never looked at, so relays on hot rock or at the core tap are not harmed by the ground
-  alone unless they pass charge on. The tree is worked out once a tick, before any tier draws. The tree is
+  node that ran at its limit (asked for all it can pass on) reads its ground (the 5-cell square under it): from 150 °C
+  it passes on half (back to normal under 140 °C), and from 250 °C a quarter and it loses a tenth of its health each
+  time it ran at its limit (a damage event, like a hit). A hot node stays throttled until its ground cools; a cool node
+  below its limit is never looked at, so hot ground alone (hot rock, a lump core, the core tap) never harms a relay
+  that is not saturated. The tree is worked out once a tick, before any tier draws. The tree is
   worked out only when what is filling, the links or a node's limit change, and only over the capacitors filling and
   the nodes on their way. Idle draw is still paid at the root, not through the tree, and generator output reaches its
   island's store directly. The charge labels show what a node passes on (`>1.2k/s`) and turn orange while it is
