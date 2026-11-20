@@ -110,6 +110,12 @@ public enum StepEventKind
     /// <see cref="Entities.Machines.MachineUpgradeRefusal"/>. <see cref="StepEvent.Color"/> is the tank.
     /// </summary>
     MachineUpgradeRefused,
+
+    /// <summary>
+    /// A turret at <see cref="StepEvent.Position"/> fired at an enemy tank; <see cref="StepEvent.Count"/> is the target's
+    /// colour. <see cref="StepEvent.Color"/> is the turret's owner.
+    /// </summary>
+    TurretFired,
 }
 
 /// <summary>What a <see cref="StepEventKind.BulletImpact"/> struck.</summary>

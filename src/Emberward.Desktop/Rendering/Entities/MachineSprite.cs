@@ -62,9 +62,15 @@ public static class MachineSprites
         Gauge: static (in MachineRenderState m) => m.GenerationFraction,
         Reach: new MachineReach(Tweaks.Machine.GeneratorIntakeRadius, Tweaks.Colors.Generator, Circle: false));
 
+    // A turret turns to where it last aimed; its ring is the ground whose heat slows its fire.
+    public static MachineSprite Turret { get; } = new(EntityShape.KindTurret, HalfLength: 3.6f, HalfWidth: 3.6f,
+        FacesHeading: true, SenseRadius: Tweaks.Turret.HeatSenseRadius + 1.5f,
+        Reach: new MachineReach(Tweaks.Turret.Range, Tweaks.Turret.Color, Circle: true));
+
     /// <summary>Every machine's sprite, indexed by <see cref="MachineType"/>.</summary>
     public static IReadOnlyList<MachineSprite> All { get; } = BuildTable(
-        (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Pylon, Pylon), (MachineType.Generator, Generator));
+        (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Pylon, Pylon), (MachineType.Generator, Generator),
+        (MachineType.Turret, Turret));
 
     public static MachineSprite Get(MachineType type) =>
         (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));

@@ -244,7 +244,7 @@ Building has to pay off, and exploring has to lead somewhere.
 
 One sentence to hold: **relays are your network; everything else plugs into it and runs on the charge the network
 makes.** This section is the direction for §4.5, §4.6 and §4.8; none of it is built except the Sensors upgrade and,
-behind match rules, the capacitors, island balance, local generators and per-machine upgrades.
+behind match rules, the capacitors, island balance, local generators, per-machine upgrades and turrets.
 
 **Three things to track, not four**
 
@@ -274,7 +274,8 @@ relay server, so renaming it is open but can wait. Sight stays wider than covera
   from it by tier, capped by their rates. Tiers are fixed by machine type: base defence, then turrets, then economy.
   A shortage starves the lowest tier first.
 - **Cut off.** A machine that loses the network keeps its charge and drains it by its idle draw and use, so a remote
-  harvester or turret runs for a while and then stops, unless its island has a producer.
+  harvester runs for a while and then stops, unless its island has a producer. A turret is stricter: it holds fire
+  as soon as it is cut off from every island (see Turrets below).
 - **Cost.** A machine at rest costs nothing per tick: levels move linearly between changes, and an island is
   recomputed only when links or demand change.
 - **Ledger.** Stored charge in every capacitor counts toward the balance, and spent charge becomes heat where it was
@@ -283,7 +284,7 @@ relay server, so renaming it is open but can wait. Sight stays wider than covera
   and generators to their base or to a local generator island. A group without a producer or a base drains from
   its own capacitors. Harvesters can recharge in sight of a local island but deliver ore only through base coverage.
   Relays can be planted with a link to a local island. Relays, pylons, harvesters and generators use the economy
-  tier until defence and turrets exist. Pylons hand out nothing and harvesters make no refuel trips. A relay still
+  tier and turrets the turrets tier; nothing is in the base defence tier yet. Pylons hand out nothing and harvesters make no refuel trips. A relay still
   pumps while its capacitor is empty if it has a route home (§4.5). Idle draw reaches the ground as heat when a
   capacitor is settled, at most every 5 s.
 - **Seeing it.** With the rule on, every machine in sight near the tank carries a small label: charge over capacity
@@ -351,14 +352,30 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
   path. Tap pumps 50% more heat a level and spends 1.5 more charge a tick standing, which becomes heat at the relay;
   Sensor adds 10 cells of sight a level; Conduit makes the capacitor 1.5 then 2 times its size and needs the energy
   rule (its throughput effect comes with the throughput limits). The panel closes on F, out of reach, or after a
-  purchase. Only the relay has paths so far; the input is bit 30 with the upgrade key (protocol 9).
+  purchase. The relay and the turret have paths (the turret's below); the input is bit 30 with the upgrade key
+  (protocol 9).
 - **Turrets** need power, make heat when firing, and fire only at enemy tanks in range and line of sight, with a
   stable tie-break. Mobs (§6.2) hunt heat, which makes the pumping relays what a defence is built around.
-- **Build keys.** E relay, R harvester, T pylon and Y generator. Turrets need their own key while the pylon remains.
+  *Built with the energy rule:* U builds a turret for 24 ore. It is no link node (it does not extend the network,
+  cool tanks or keep tunnels open): like a harvester it joins the island whose coverage it stands in, its base's or
+  a local generator's, and it fires only while it is on an island, its base is not dark and its capacitor (2,400,
+  topped up at 40 a tick in the turrets tier, idle draw 1 a tick) holds a shot. It looks for a target four times a
+  second: the nearest live enemy tank without a respawn shield within 24 cells and in direct line of sight through
+  open ground, the first in spawn order on a tie. Vision (fog of war) is output only, so the turret casts its own
+  line, as links and coverage do. It fires a bullet (80 damage against a tank shell's 160) every 12 ticks (0.5 s);
+  each shot spends 150 charge, which the network turns into heat in the ground beside it, so a lone turret firing
+  warms its ground by about 4 degrees a shot. Above 60 degrees it fires more slowly, up to 4 times its interval at
+  140 degrees; a relay nearby pumps the heat away. Its upgrades: **Rapid** (interval x0.7, then x0.5; each shot
+  spends x1.2, then x1.4) and **Long** (+8 cells of range a level, damage x1.5, then x2; interval x1.25, then
+  x1.5). Shots are `StepEventKind.TurretFired`. **Bots do not build turrets** (they build no machines at all), so
+  turrets are a player's tool for now; a turret fires at bot tanks like any other enemy. The fifth build key is
+  bit 31 of the encoded input, the last free bit (protocol 10). Balance is untuned: a turret beside a relay may
+  still make raiding too hard; its cost, range and the link it needs are the levers.
+- **Build keys.** E relay, R harvester, T pylon, Y generator and U turret (the last two in energy matches).
 
 **Build order.** Capacitors, island balance and the local generator are implemented behind the energy rule.
-Dark state, shield and no lives, and per-machine upgrades, follow behind their rules. Next come throughput limits,
-turrets and pylon removal.
+Dark state, shield and no lives, per-machine upgrades and turrets follow behind their rules. Next come throughput
+limits and pylon removal.
 
 ### 4.10 Challenges of a finite world *(Proposed; open)*
 
@@ -807,7 +824,8 @@ upgrades, throughput, turrets, then removing the pylon).
 | A base's shield scales with charge and never blocks a hit entirely; a dark base restarts by itself or by hand (§4.9) | Proposed |
 | No lives: only a destroyed base ends a side; death costs the cargo (§4.9) | Proposed |
 | Relay throughput limits are upgradeable and lose heat; a hot relay throttles (§4.9) | Proposed |
-| Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Proposed (upgrades: Prototype) |
+| Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Prototype |
+| Turrets are player-only for now: bots build no machines; turrets shoot bot tanks like any enemy (§4.9) | Prototype |
 | Sensors upgrade: relays and pylons see 10 cells past coverage, and 8 more per level (the base 8 more per level) | Prototype |
 | Every heat body is finite: no pinned temperatures or permanent sources; the outside is a loss, not a cell | Decided |
 | Stored heat is the match's supply; what keeps it up over a long match is open (§4.10) | Proposed |

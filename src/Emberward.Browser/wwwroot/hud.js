@@ -31,7 +31,7 @@ function setMeter(meter, value) {
     if (meter.value !== v) meter.value = v;
 }
 
-const BUILD_KEYS = ["E", "R", "T", "Y"];
+const BUILD_KEYS = ["E", "R", "T", "Y", "U"];
 
 export class StatusView {
     constructor(input) {

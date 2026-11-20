@@ -207,7 +207,7 @@ public class World
         };
         _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades);
         _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, IsMachineOnNetwork, _stepEvents, _energy,
-            _basePower, _machineUpgrades);
+            _basePower, _machineUpgrades, _tankList, _projectiles);
         _systems = BuildSystems();
     }
 

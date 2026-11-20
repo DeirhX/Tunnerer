@@ -10,7 +10,7 @@ using Emberward.Core.Entities.Bases;
 
 public readonly record struct ExplosionParams(int ShrapnelCount, float Speed, int Frames);
 
-public static class Tweaks
+public static partial class Tweaks
 {
     public static class System
     {

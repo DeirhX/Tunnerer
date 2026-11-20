@@ -71,7 +71,9 @@ float4 main(PSIn input) : SV_Target
         result = RadarPulse(p, input.params, aa);
     else if (kind < kKindGenerator + 0.5)
         result = Generator(p, input.params, aa);
-    else // kKindPowerLabel
+    else if (kind < kKindPowerLabel + 0.5)
         result = PowerLabel(p, input.color.rgb, input.params);
+    else // kKindTurret
+        result = Turret(p, input.params, aa);
     return result;
 }

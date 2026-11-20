@@ -17,7 +17,7 @@ Open work, written so an agent can pick up one item without the conversation tha
     `--energy-network` (desktop) and `?energy` (browser) turn the network on for local matches only.
 - **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
 - **Items 1 to 4 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it).
-  Continue at item 5.
+  Item 6 (turrets) is on `codex/tranche-6-turrets`, cut from item 4's branch. Continue at item 5.
 
 ## Rules for every item
 
@@ -64,8 +64,8 @@ Open work, written so an agent can pick up one item without the conversation tha
 - **Output-only queries for the HUD:** `World.MachinePowerOf(machine)` (charge, capacity, in and out per second, fed) and
   `World.BasePowerOf(base)` (store, capacity, production, island draw). They return null while the flag is off.
   `PowerLabels.Of` holds all label wording and colour rules; extend it when a new state appears.
-- **Known gaps:** "charge passed on to others" is always 0 until item 5; no test reaches the tier-ordering branch until
-  item 6 adds a second tier.
+- **Known gaps:** "charge passed on to others" is always 0 until item 5. Item 6's turrets are the second tier, and
+  `TurretTests` reaches the tier-ordering branch.
 
 ## 1. Finite heat sources (implemented)
 
@@ -166,20 +166,21 @@ Conductors (`DESIGN.md` §4.2) sit alongside relays: a conductor is a heat trunk
 upgrade on one relay changes nothing until the whole trunk is upgraded; the loss heats the relay and the ledger
 balances; throttling above the temperature.
 
-## 6. Turrets
+## 6. Turrets (implemented)
 
-**Design.** A powered machine: it works only while powered and linked, draws charge to fire (the Turrets tier, between
-base defence and economy), and makes heat in its own cell when it fires (heat writers; overheating slows its fire). It
-fires at enemy tanks in range and line of sight; the range is short, so it defends a zone. Targeting must be
-deterministic: a stable tie-break and no unordered iteration; use `MachineList.CollectNear` and vision. Bots must be able
-to build and use them, or turrets are player-only; decide and say so.
-
-**Needs.** The full machine checklist (as in item 2), a separate build key (change `BuildKey`, codec, README, F1
-screen, tutorial and `KeyboardController`/`BrowserApi`/`input.js`), a sprite and shader branch, build and shot
-sounds (shots through `StepEventKind`), the tier-ordering test that item 3 and tranche 1 lacked. Upgrades with item 4:
-**Rapid** (faster fire, more heat) and **Long** (more range and damage, slower fire); a Hardened option later.
-Balance risk: a turret beside a relay makes raiding impossible. The power link and a short range and a high cost help;
-tune in play.
+In energy matches U builds a turret for 24 ore (`TurretAction`, `Tweaks.Turret` in `Config/Tweaks.Turrets.cs`). It is
+no link node: it joins the island whose coverage it stands in, as a harvester does, and fires only while it is on an
+island, its base is not dark and its capacitor (2,400, the Turrets tier) holds a shot. Four times a second it looks
+for the nearest live, unshielded enemy tank within 24 cells in line of sight (its own raycast: `VisionMap` is output
+only), the first in spawn order on a tie, and fires a bullet of 80 damage every 12 ticks. A shot spends 150 charge
+through `EnergyNetwork.Spend`, which puts it as heat beside the turret; above 60 degrees it slows, up to 4 times its
+interval at 140. Shots are `StepEventKind.TurretFired` (sound `TurretFire`). Upgrades: Rapid (faster, dearer shots)
+and Long (`MachineUpgradePath.LongRange`: range, damage, slower). Bots build no machines, so turrets are
+player-only; they shoot bot tanks. The fifth build key is bit 31, the last free bit of the encoded input
+(protocol 10; deploy that relay version first). The energy rules' version in the rules hash changed; Standard and
+energy-rule simulation fingerprints are unchanged (no fingerprint scenario builds a turret). The tier-ordering test
+is `TurretTests.AStoreThatCannotPayEveryTier_FeedsTurretsBeforeTheEconomy`. **Not tuned in play:** cost, range,
+heat per shot and the overheat curve; a turret beside a relay may still stop raiding. Not yet seen in a browser.
 
 ## 7. Remove the pylon and the harvester battery
 
