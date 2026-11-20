@@ -6,19 +6,13 @@ using Emberward.Core.Types;
 
 /// <summary>
 /// Where a roaming harvester may stand and how it gets to ore: the ground its footprint can cross, the flood over its
-/// work area that finds the ore nearest by path (<see cref="FindReachableOre"/>), and the single greedy step it takes
-/// toward a pylon (<see cref="ChooseStep"/>).
+/// work area that finds the ore nearest by path (<see cref="FindReachableOre"/>).
 /// </summary>
 internal static class HarvesterPathing
 {
-    // The eight crawl directions, in a fixed order so ties resolve the same way every run.
-    private static readonly Offset[] Steps =
-    [
-        new(1, 0), new(1, 1), new(0, 1), new(-1, 1), new(-1, 0), new(-1, -1), new(0, -1), new(1, -1),
-    ];
-
-    // The same steps as the flood takes them, straight ones first, so that among equally short paths it finds one that
-    // keeps to a row or column where it can (a harvester stays on the network only in sight of a node).
+    // The eight crawl directions, in a fixed order so ties resolve the same way every run. Straight ones come first, so
+    // that among equally short paths the flood finds one that keeps to a row or column where it can (a harvester stays
+    // on the network only in sight of a node).
     private static readonly Offset[] FloodSteps =
     [
         new(1, 0), new(0, 1), new(-1, 0), new(0, -1), new(1, 1), new(-1, 1), new(-1, -1), new(1, -1),
@@ -63,9 +57,8 @@ internal static class HarvesterPathing
     /// which harvesters leave to the tank.
     /// </summary>
     /// <remarks>
-    /// The flood crosses what <see cref="ChooseStep"/> may step on: ground the footprint can stand on, not on a tank
-    /// or another machine, inside the work area (from outside it, a harvester back from a pylon may only step closer
-    /// to its anchor). It stops at the first centre with ore in reach, so its cost follows the distance to the ore;
+    /// The flood crosses ground the footprint can stand on (<see cref="IsCrawlable"/>), not on a tank or another
+    /// machine, inside the work area (from outside it, a harvester may only step closer to its anchor). It stops at the first centre with ore in reach, so its cost follows the distance to the ore;
     /// only ore that is in the area but out of reach makes it cover the whole area.
     /// </remarks>
     public static Position? FindReachableOre(Machine machine, MachineContext ctx, out Offset firstStep, out bool coreLeft)
@@ -156,34 +149,6 @@ internal static class HarvesterPathing
                 bestDist = d;
                 best = pos;
             }
-        return best;
-    }
-
-    /// <summary>
-    /// The step that brings the harvester closest to <paramref name="target"/>, preferring its current heading on
-    /// ties and never straight back, through ground its footprint can cross (<see cref="IsCrawlable"/>: not rock,
-    /// concrete or base) and not onto a tank or another machine. Zero when it is boxed in.
-    /// </summary>
-    public static Offset ChooseStep(Machine machine, MachineContext ctx, Position target)
-    {
-        Offset best = default;
-        int bestScore = int.MaxValue;
-        var back = new Offset(-machine.Heading.X, -machine.Heading.Y);
-        // Planted right beside a relay or tank it already overlaps: let it crawl out rather than freeze.
-        bool alreadyCrowded = ctx.IsOccupied(machine, machine.Position);
-        foreach (var step in Steps)
-        {
-            if (machine.Heading != default && step == back) continue;
-            var next = machine.Position + step;
-            if (!CanStand(machine, ctx.Terrain, next) || (!alreadyCrowded && ctx.IsOccupied(machine, next)))
-                continue;
-            int score = Position.DistanceSquared(next, target) * 2 + (step == machine.Heading ? 0 : 1);
-            if (score < bestScore)
-            {
-                bestScore = score;
-                best = step;
-            }
-        }
         return best;
     }
 

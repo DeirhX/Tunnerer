@@ -35,7 +35,6 @@ public readonly record struct HintInputs(
     MachineType? Carried,
     LinkPreviewStatus CarriedLink,
     bool HeatStoreFull,
-    int Harvesters,
     int SpendableOre,
     bool RelayFromBaseStore,
     bool NotEnoughOre,
@@ -66,7 +65,6 @@ public static class HintSelector
             Carried: player.CarriedMachineType,
             CarriedLink: world.CarriedPlantLink(player),
             HeatStoreFull: status.IsHeatStoreFullWithRelays,
-            Harvesters: status.Harvesters,
             SpendableOre: relayQuote.Stock,
             RelayFromBaseStore: relayQuote.Payer == OrePayer.BaseStore,
             NotEnoughOre: player.BuildRefusedTicks > 0 && player.LastBuildRefusal == BuildRefusal.NotEnoughOre,
@@ -77,7 +75,6 @@ public static class HintSelector
     {
         var relay = MachinePresentations.Relay;
         var harvester = MachinePresentations.Harvester;
-        var pylon = MachinePresentations.Pylon;
         int relayCost = relay.OreCost;
         int ore = s.SpendableOre;
 
@@ -118,9 +115,6 @@ public static class HintSelector
                 : $"{relay.KeyLabel}: build relay ({relayCost} ore)";
             if (ore >= harvester.OreCost)
                 hint += $"   {harvester.KeyLabel}: build harvester ({harvester.OreCost} ore)";
-            // A pylon only helps once there is a harvester to charge.
-            if (ore >= pylon.OreCost && s.Harvesters > 0)
-                hint += $"   {pylon.KeyLabel}: pylon ({pylon.OreCost})";
             return (hint, HintTone.Good);
         }
         if (s.Docked && s.HasLeftBase && s.CoolingDown)

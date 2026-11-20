@@ -3,7 +3,7 @@ namespace Emberward.Core.Regrowth;
 using Emberward.Core.Snapshots;
 using Emberward.Core.Types;
 
-/// <summary>A circle in which no new dirt grows: the range of a planted relay or pylon.</summary>
+/// <summary>A circle in which no new dirt grows: the range of a planted link node.</summary>
 public readonly record struct RegrowthBlocker(Position Center, int Radius);
 
 /// <summary>

@@ -23,11 +23,10 @@ public class PlacementPreviewTests
         Assert.Equal(expected, preview.SenseHeat);
     }
 
-    [Theory]
-    [InlineData(MachineType.Relay)]
-    [InlineData(MachineType.Pylon)]
-    public void LinkedMachines_PreviewTheirLink(MachineType type)
+    [Fact]
+    public void ARelay_PreviewsItsLink()
     {
+        const MachineType type = MachineType.Relay;
         var world = TestHelpers.CreateSeededWorld(new Size(320, 200));
         var spot = world.TankBases.GetSpawn(0)!.Position + new Offset(0, 40);
 

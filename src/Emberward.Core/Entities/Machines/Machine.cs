@@ -7,7 +7,7 @@ using Emberward.Core.Terrain;
 using Emberward.Core.Network;
 using Emberward.Core.Entities.Bases;
 
-public enum MachineType { Harvester, Pylon, Relay, Generator, Turret }
+public enum MachineType { Harvester, Relay, Generator, Turret }
 public enum MachineState { Template, Transporting, Planted }
 
 public class Machine
@@ -95,22 +95,18 @@ public class Machine
     public Offset Heading { get; set; }
 
     /// <summary>
-    /// Charge in the machine's battery (its capacitor); harvesters spend it as they work (DESIGN.md §4.5). On the energy
-    /// network it is the level as of the capacitor's last settling (<see cref="EnergyNetwork"/>); ask
-    /// <see cref="World.MachinePowerOf"/> for the level now.
+    /// Charge in the machine's capacitor on the energy network (DESIGN.md §4.9), as of its last settling
+    /// (<see cref="EnergyNetwork"/>); ask <see cref="World.MachinePowerOf"/> for the level now. Zero without the network.
     /// </summary>
     public double Charge { get; set; }
 
     /// <summary>
-    /// Capacitor size. Without the energy network only a machine that runs on charge has one (its battery; zero for
-    /// relays and pylons); on the network every planted machine has its full capacitor (<see cref="World.PlantMachine"/>).
+    /// Capacitor size: on the energy network every planted machine has its full capacitor (<see cref="World.PlantMachine"/>);
+    /// without it no machine has one.
     /// </summary>
     public double ChargeCapacity { get; internal set; }
 
     public float ChargeFraction => ChargeCapacity > 0.0 ? (float)(Charge / ChargeCapacity) : 0f;
-
-    /// <summary>True while a low harvester is heading back to a pylon to recharge.</summary>
-    public bool IsReturning { get; set; }
 
     /// <summary>A harvester: out of its base's network coverage at its last action, so it held its ore work.</summary>
     public bool IsOffNetwork { get; set; }
@@ -130,15 +126,6 @@ public class Machine
     /// <summary>A harvester: the ore cell its <see cref="OreWork"/> belongs to. Work never carries to another cell.</summary>
     public Position? OreWorkCell { get; set; }
 
-    /// <summary>The pylon that charged this battery at its last action, or null; drawn as a charge beam.</summary>
-    public Machine? ChargingFrom { get; set; }
-
-    /// <summary>Charge a pylon handed out at its last action (zero when it charged nothing).</summary>
-    public double LastChargeGiven { get; set; }
-
-    /// <summary>A pylon: the batteries it charged at its last action, whose <see cref="ChargingFrom"/> names it.</summary>
-    internal List<Machine> ChargedAtLastAction { get; } = new();
-
     private TimeSpan _actionAccumulator;
 
     public Machine(Position position, MachineType type, int ownerColor)
@@ -147,8 +134,6 @@ public class Machine
         Type = type;
         Behavior = MachineBehaviors.Get(type);
         OwnerColor = ownerColor;
-        // Built empty: planting fills it from the owner base's store (World.PlantMachine), so no charge appears from nothing.
-        ChargeCapacity = Behavior.BatteryCapacity;
         Reactor = new Reactor(
             initial: new ReactorState(0, Tweaks.Machine.ReactorHealthCapacity),
             capacity: new ReactorState(Tweaks.Machine.ReactorHeatCapacity, Tweaks.Machine.ReactorHealthCapacity));
@@ -157,15 +142,21 @@ public class Machine
     public bool IsBlockingCollision => State == MachineState.Planted;
 
     /// <summary>
-    /// Turns up to <paramref name="amount"/> of the battery's charge into heat in the ground around the machine, booked
-    /// in the ledger as charge turned back into heat.
+    /// Turns up to <paramref name="amount"/> of the capacitor's charge into heat in the ground around the machine,
+    /// booked in the ledger as charge turned back into heat.
     /// </summary>
-    internal void DischargeAsHeat(ITerrainAccess terrain, double amount)
+    internal void DischargeAsHeat(ITerrainAccess terrain, double amount) => Charge -= ReleaseChargeAsHeat(terrain, amount);
+
+    /// <summary>
+    /// Puts <paramref name="charge"/> already taken from a store (the machine's own or its base's) into the ground
+    /// around the machine as heat, booked in the ledger as charge turned back into heat. Returns the heat put there.
+    /// </summary>
+    internal double ReleaseChargeAsHeat(ITerrainAccess terrain, double charge)
     {
-        double heat = terrain.AddEnergyInRadiusArea(Position, Tweaks.Machine.HarvesterHeatRadius, amount,
+        double heat = terrain.AddEnergyInRadiusArea(Position, Tweaks.Machine.HarvesterHeatRadius, charge,
             TerrainGrid.ThermalField.Terrain);
-        Charge -= heat;
         terrain.Ledger.RecordFromCharge(heat);
+        return heat;
     }
     public bool TestCollide(Position pos) => BoundingBox.IsInside(pos, Position);
 
@@ -201,19 +192,17 @@ public class Machine
 
     /// <summary>
     /// Mixes the machine's state that <see cref="WorldStateHash.Compute"/> does not read and that changes later
-    /// results: when it next acts, a harvester's memory, a pylon's last hand-out, a relay's cold-ground stamp.
+    /// results: when it next acts, a harvester's memory, a relay's cold-ground stamp.
     /// </summary>
     internal ulong MixLatent(ulong hash)
     {
         hash = Fnv1a.Mix(hash, _actionAccumulator);
         hash = Fnv1a.Mix(Fnv1a.Mix(hash, Anchor.X), Anchor.Y);
         hash = Fnv1a.Mix(Fnv1a.Mix(hash, Heading.X), Heading.Y);
-        hash = Fnv1a.Mix(hash, IsReturning);
         hash = Fnv1a.Mix(hash, OreWork);
         hash = OreWorkCell is Position cell
             ? Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, 1), cell.X), cell.Y)
             : Fnv1a.Mix(hash, 0);
-        hash = Fnv1a.Mix(hash, LastChargeGiven);
         // Mixed only when set, so the digest of a world without turrets is what it always was.
         if (TurretCooldown != 0)
             hash = Fnv1a.Mix(hash, TurretCooldown);

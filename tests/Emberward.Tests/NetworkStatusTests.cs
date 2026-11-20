@@ -9,9 +9,9 @@ namespace Emberward.Tests;
 
 public class NetworkStatusTests
 {
-    private static (World World, TankBase Own, TankBase Other) CreateWorld()
+    private static (World World, TankBase Own, TankBase Other) CreateWorld(bool energyNetwork = false)
     {
-        var world = TestHelpers.CreateSeededWorld(new Size(320, 200));
+        var world = TestHelpers.CreateSeededWorld(new Size(320, 200), energyNetwork: energyNetwork);
         return (world, world.TankBases.GetSpawn(0)!, world.TankBases.GetSpawn(1)!);
     }
 
@@ -40,27 +40,40 @@ public class NetworkStatusTests
     [Fact]
     public void Harvesters_AreCountedInExactlyOneState()
     {
-        var (world, own, _) = CreateWorld();
+        // On the energy network each harvester pays from its own capacitor, so one can be flat while the others work.
+        var (world, own, _) = CreateWorld(energyNetwork: true);
         var working = Plant(world, MachineType.Harvester, own);
-        var returning = Plant(world, MachineType.Harvester, own);
-        returning.IsReturning = true;
-        returning.Charge = 0.0; // also flat, but returning comes first
         var flat = Plant(world, MachineType.Harvester, own);
         flat.Charge = Tweaks.Machine.HarvesterHeatPerHarvest - 1.0;
         flat.IsStalled = true; // also hot, but out of charge comes first
         var hot = Plant(world, MachineType.Harvester, own);
         hot.IsStalled = true;
-        // Planting fills batteries from the base store, which may not cover all four.
+        // Planting fills capacitors from the base store, which may not cover all three; an empty store would make the
+        // base dark, which puts every harvester off the network.
         working.Charge = hot.Charge = working.ChargeCapacity;
+        own.StoreCharge(Tweaks.Base.InitialCharge);
 
         var status = world.GetNetworkStatus(own);
 
         Assert.Equal(HarvesterState.Working, MachineBehaviors.HarvesterStateOf(working));
-        Assert.Equal(4, status.Harvesters);
-        Assert.Equal(1, status.HarvestersReturning);
+        Assert.Equal(3, status.Harvesters);
         Assert.Equal(1, status.HarvestersOutOfCharge);
         Assert.Equal(1, status.HarvestersTooHot);
         Assert.Equal(1, status.HarvestersWorking);
+    }
+
+    [Fact]
+    public void WithoutTheEnergyNetwork_AHarvesterIsOutOfChargeOnlyWhenItsBaseStoreIs()
+    {
+        var (world, own, _) = CreateWorld();
+        var harvester = Plant(world, MachineType.Harvester, own);
+        Assert.Equal(0.0, harvester.ChargeCapacity);
+        Assert.NotEqual(HarvesterState.OutOfCharge, MachineBehaviors.HarvesterStateOf(harvester));
+
+        own.DrawCharge(own.Charge - (Tweaks.Machine.HarvesterHeatPerHarvest - 1.0));
+
+        Assert.Equal(HarvesterState.OutOfCharge, MachineBehaviors.HarvesterStateOf(harvester));
+        Assert.Equal(1, world.GetNetworkStatus(own).HarvestersOutOfCharge);
     }
 
     [Fact]
@@ -89,7 +102,7 @@ public class NetworkStatusTests
         Plant(world, MachineType.Relay, own);
         Plant(world, MachineType.Relay, other);
         Plant(world, MachineType.Harvester, own).IsAlive = false;
-        Plant(world, MachineType.Pylon, own);
+        Plant(world, MachineType.Generator, own); // neither a harvester nor a relay
         world.Machines.Add(new Machine(own.Position, MachineType.Relay, own.Color) { OwnerBase = own });
 
         var status = world.GetNetworkStatus(own);

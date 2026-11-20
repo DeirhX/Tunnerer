@@ -180,7 +180,7 @@ public class BrowserSessionArtStripTests
         Assert.Equal(-1, p.OrePileFrame);
         Assert.StartsWith("BASE ORE ", p.OreLine, StringComparison.Ordinal);
         // Each machine in its desktop slot, as the desktop's BuildPanel draws it.
-        Assert.Equal([0, 1, 2], first.Builds.Select(b => b.Slot).Order());
+        Assert.Equal([0, 1], first.Builds.Select(b => b.Slot).Order());
         foreach (var b in first.Builds)
         {
             var machine = MachinePresentations.All.Single(m => m.Type.ToString() == b.Name);
@@ -253,7 +253,7 @@ public class BrowserStressTests
     /// <summary>The busy world the browser build is measured in (?machines=N) is networks a player could have built.</summary>
     [Fact]
     [Trait("Category", "Slow")]
-    public void Stress_GrowsPoweredNetworksFromEveryBase_WithHarvestersAndPylons()
+    public void Stress_GrowsPoweredNetworksFromEveryBase_WithHarvesters()
     {
         var session = new BrowserSession(1234, machines: 40);
         var machines = session.World.Machines.Machines;
@@ -262,12 +262,10 @@ public class BrowserStressTests
         Assert.Equal(40, machines.Count);
         foreach (var tank in session.World.TankList.Tanks)
             Assert.Contains(machines, m => m.StandsFor(tank.Base!) && m.Type == MachineType.Relay && m.LinkPoint?.IsPowered == true);
-        // A harvester and a pylon beside every third relay, at most: the rest of the machines extend the networks.
+        // A harvester and a second relay beside every third frontier relay, at most: the rest extend the networks.
         int relays = machines.Count(m => m.Type == MachineType.Relay);
         int harvesters = machines.Count(m => m.Type == MachineType.Harvester);
-        int pylons = machines.Count(m => m.Type == MachineType.Pylon);
         Assert.InRange(harvesters, 1, relays / 3);
-        Assert.InRange(pylons, 1, relays / 3);
     }
 }
 

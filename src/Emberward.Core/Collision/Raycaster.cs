@@ -31,7 +31,7 @@ public static class Raycaster
     /// <summary>
     /// Line of sight through open ground: true when no cell on the Bresenham line from <paramref name="from"/> to
     /// <paramref name="to"/> (both ends included) blocks a link (<see cref="Pixel.BlocksLink"/>). Links, the link
-    /// preview, network coverage and pylon charging all use this test.
+    /// preview and network coverage use this test.
     /// </summary>
     public static bool HasOpenLine(ITerrainPixelReadOnly terrain, Position from, Position to) =>
         !TryFindLineBlock(terrain, from, to, out _);

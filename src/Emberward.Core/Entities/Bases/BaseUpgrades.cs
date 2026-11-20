@@ -17,7 +17,7 @@ public enum BaseUpgrade
     Engine,
     /// <summary>Slows the off-network heat floor: longer dives beyond the network.</summary>
     Insulation,
-    /// <summary>Relays, pylons and the base see further than they cool. Presentation only: it changes no simulation result.</summary>
+    /// <summary>Link nodes and the base see further than they cool. Presentation only: it changes no simulation result.</summary>
     Sensors,
     /// <summary>A bigger ore hold on the tank.</summary>
     CargoHold,
@@ -58,7 +58,7 @@ public sealed class BaseUpgrades
     /// <summary>How far the base itself covers (and sees), with the reach upgrade.</summary>
     public int BaseCoverageRadius => Tweaks.Coverage.BaseRadius + CoverageBonusCells;
 
-    /// <summary>How far each of the base's link nodes (relays, pylons) covers (and sees), with the reach upgrade.</summary>
+    /// <summary>How far each of the base's link nodes (relays, generators) covers (and sees), with the reach upgrade.</summary>
     public int NodeCoverageRadius => Tweaks.Coverage.NodeRadius + CoverageBonusCells;
 
     private int SensorBonusCells => Level(BaseUpgrade.Sensors) * Tweaks.Upgrades.SensorCellsPerLevel;
@@ -67,7 +67,7 @@ public sealed class BaseUpgrades
     public int BaseSightRadius => BaseCoverageRadius + SensorBonusCells;
 
     /// <summary>
-    /// How far each relay or pylon sees, through the ground too: its coverage circle, <see cref="Tweaks.Vision.NodeSightBonus"/>
+    /// How far each link node sees, through the ground too: its coverage circle, <see cref="Tweaks.Vision.NodeSightBonus"/>
     /// more, and the sensors. Presentation only.
     /// </summary>
     public int NodeSightRadius => NodeCoverageRadius + Tweaks.Vision.NodeSightBonus + SensorBonusCells;

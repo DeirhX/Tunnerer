@@ -19,7 +19,6 @@ internal sealed class TankBuildController
     private bool _secondaryHeld;
     private bool _tertiaryHeld;
     private bool _quaternaryHeld;
-    private bool _quinaryHeld;
 
     public TankBuildController(Tank tank, int color)
     {
@@ -48,28 +47,26 @@ internal sealed class TankBuildController
 
     /// <summary>
     /// Build keys (edge triggered): with no machine in hand the primary key builds a relay, the secondary key a
-    /// harvester, the tertiary key a pylon, the fourth a local generator and the fifth a turret (the last two only where
-    /// the match runs the energy network), paid as <see cref="Quote"/> says, and carries it; any build key pressed again
+    /// harvester, the tertiary key a local generator and the fourth a turret (the last two only where the match runs
+    /// the energy network), paid as <see cref="Quote"/> says, and carries it; any build key pressed again
     /// outside a base plants it where the tank stands.
     /// </summary>
     public void Advance(in SimulationContext ctx, ControllerOutput input)
     {
         bool primaryPressed = input.BuildPrimary && !_primaryHeld;
         bool secondaryPressed = input.BuildSecondary && !_secondaryHeld;
-        bool tertiaryPressed = input.BuildTertiary && !_tertiaryHeld;
+        bool thirdAvailable = MachineBehaviors.ForKey(BuildKey.Tertiary).IsAvailable(ctx.Rules);
+        bool tertiaryPressed = thirdAvailable && input.BuildTertiary && !_tertiaryHeld;
+        _tertiaryHeld = thirdAvailable && input.BuildTertiary;
         bool fourthAvailable = MachineBehaviors.ForKey(BuildKey.Quaternary).IsAvailable(ctx.Rules);
         bool quaternaryPressed = fourthAvailable && input.BuildQuaternary && !_quaternaryHeld;
         _quaternaryHeld = fourthAvailable && input.BuildQuaternary;
-        bool fifthAvailable = MachineBehaviors.ForKey(BuildKey.Quinary).IsAvailable(ctx.Rules);
-        bool quinaryPressed = fifthAvailable && input.BuildQuinary && !_quinaryHeld;
-        _quinaryHeld = fifthAvailable && input.BuildQuinary;
         _primaryHeld = input.BuildPrimary;
         _secondaryHeld = input.BuildSecondary;
-        _tertiaryHeld = input.BuildTertiary;
-        bool pressed = primaryPressed || secondaryPressed || tertiaryPressed || quaternaryPressed || quinaryPressed;
+        bool pressed = primaryPressed || secondaryPressed || tertiaryPressed || quaternaryPressed;
         var buildType = MachineBehaviors.ForKey(
             primaryPressed ? BuildKey.Primary : secondaryPressed ? BuildKey.Secondary :
-            tertiaryPressed ? BuildKey.Tertiary : quaternaryPressed ? BuildKey.Quaternary : BuildKey.Quinary).Type;
+            tertiaryPressed ? BuildKey.Tertiary : BuildKey.Quaternary).Type;
 
         var position = _tank.Position;
         if (pressed && ctx.Machines != null && ctx.PlantMachine != null)
@@ -141,8 +138,6 @@ internal sealed class TankBuildController
         hash = Fnv1a.Mix(hash, _tertiaryHeld);
         if (_quaternaryHeld)
             hash = Fnv1a.Mix(hash, 0xB4u);
-        if (_quinaryHeld)
-            hash = Fnv1a.Mix(hash, 0xB5u);
         return _materializer.MixLatent(hash);
     }
 }

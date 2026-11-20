@@ -11,7 +11,7 @@ public static partial class Tweaks
     /// </summary>
     public static class Throughput
     {
-        // The most charge a link node (relay, pylon, generator) passes on to the machines behind it in one tick. Its own
+        // The most charge a link node (relay, generator) passes on to the machines behind it in one tick. Its own
         // top-up does not count. One harvester refills at its full Machine.HarvesterTransferPerTick (400) behind a node;
         // a working harvester spends about 140 a tick, so about three of them fill a trunk without Conduit.
         public const double NodeLimitPerTick = 400.0;

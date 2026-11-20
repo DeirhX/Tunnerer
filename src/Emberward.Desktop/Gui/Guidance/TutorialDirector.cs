@@ -98,9 +98,10 @@ public sealed class TutorialDirector
                 Target: static (w, p) => FirstHarvester(w, p)),
 
             new("Power the harvester",
-                $"Harvesters run on a battery (the bar above them). Press {Key(MachineType.Pylon)} to build a pylon ({Cost(MachineType.Pylon)} ore) where it can see the harvester: it recharges batteries from your base's charge.",
+                "Harvesters run on your base's charge (the Charge bar in the base panel) wherever your network covers them. Relays make that charge from warm ground: keep one by hot rock so the store never runs dry.",
                 static (_, w, p) => w.Rules.EnergyNetwork
-                    ? OwnsAny(w, p, MachineType.Generator) : OwnsPowered(w, p, MachineType.Pylon),
+                    ? OwnsAny(w, p, MachineType.Generator)
+                    : Owned(w, p, MachineType.Harvester).Any(h => !MachineBehaviors.IsOutOfCharge(h)),
                 Target: static (w, p) => w.Rules.EnergyNetwork
                     ? Nearest(w.HotRockPockets, p.Position) : FirstHarvester(w, p),
                 EnergyBody: $"Harvesters draw charge through the network. Press {Key(MachineType.Generator)} to build a generator ({Cost(MachineType.Generator)} ore) and plant it beside hot ground. A generator can power nearby machines through their links even when cut off from the base."),

@@ -106,14 +106,11 @@ public class LumpHarvestTests
         public void AHarvester_LeavesAHotLumpAlone_ClearsTheShellOnceItCools_ButNeverTheCore()
         {
             var (s, _, cells) = WarmLump();
-            // The tank's way in: an open bay from the tunnel to the lump, with a linked relay and a pylon to recharge at.
+            // The tank's way in: an open bay from the tunnel to the lump, with a linked relay.
             for (int dy = -4; dy <= 4; dy++)
                 for (int dx = -2; dx <= 4; dx++)
                     s.World.Terrain.SetPixel(s.RelayPos + new Offset(dx, dy), TerrainPixel.Blank);
             RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(-1, 0));
-            var pylon = new Machine(s.RelayPos + new Offset(0, s.DirY * -8), MachineType.Pylon, s.Tank.Color);
-            s.World.Machines.Add(pylon);
-            s.World.PlantMachine(pylon, s.Base);
             var harvester = new Machine(s.RelayPos + new Offset(3, 0), MachineType.Harvester, s.Tank.Color);
             s.World.Machines.Add(harvester);
             s.World.PlantMachine(harvester, s.Base);

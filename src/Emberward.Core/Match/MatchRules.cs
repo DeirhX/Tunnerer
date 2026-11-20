@@ -49,8 +49,8 @@ public sealed record MatchRules
 
     /// <summary>
     /// Every machine has a capacitor and islands with a base or generator feed their machines by priority tier (the energy network,
-    /// DESIGN.md §4.9, <see cref="Network.EnergyNetwork"/>). Off, the battery rules of §4.5 hold: pylons charge
-    /// harvester batteries and a low harvester goes back to a pylon.
+    /// DESIGN.md §4.9, <see cref="Network.EnergyNetwork"/>). Off, no machine has a capacitor and a harvester pays for
+    /// its work straight from its base's store (§4.5).
     /// </summary>
     public bool EnergyNetwork { get; init; }
 

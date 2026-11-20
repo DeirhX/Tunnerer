@@ -20,12 +20,6 @@ public class Link
     /// <summary>True when that heat flows from <see cref="From"/> to <see cref="To"/>; false for To to From.</summary>
     public bool FlowsFromTo { get; set; }
 
-    /// <summary>Charge carried out to pylons along this link during the last pylon actions (drawn as flowing charge).</summary>
-    public double ChargeFlow { get; set; }
-
-    /// <summary>True when that charge flows from <see cref="From"/> to <see cref="To"/>.</summary>
-    public bool ChargeFlowsFromTo { get; set; }
-
     /// <summary>
     /// Ticks left of the ore flow last seen on this link (ore a tank unloaded into the network, on its way home): set
     /// to <c>Ore.LinkFlowShowTicks</c> when a unit passes and counted down every tick, so the drawn flow is steady
@@ -47,8 +41,6 @@ public class Link
     {
         HeatFlow = 0.0;
         FlowsFromTo = false;
-        ChargeFlow = 0.0;
-        ChargeFlowsFromTo = false;
         OreFlowTicks = 0;
         OreFlowsFromTo = false;
     }

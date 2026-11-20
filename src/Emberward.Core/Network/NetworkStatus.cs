@@ -8,8 +8,7 @@ using Emberward.Core.Entities.Bases;
 /// state, its planted relays and the heat they bring in, and how the base's heat store and radiator stand.
 /// </summary>
 /// <param name="Harvesters">Planted, live harvesters of the base.</param>
-/// <param name="HarvestersReturning">Harvesters heading to a pylon to recharge.</param>
-/// <param name="HarvestersOutOfCharge">Harvesters whose battery cannot pay for another harvest.</param>
+/// <param name="HarvestersOutOfCharge">Harvesters that cannot pay for another harvest.</param>
 /// <param name="HarvestersOffNetwork">Harvesters outside the network's coverage, which do not mine.</param>
 /// <param name="HarvestersTooHot">Harvesters stalled because the ground around them is too hot.</param>
 /// <param name="HarvestersNoOre">Harvesters with no ore in their work area that they can reach.</param>
@@ -24,7 +23,6 @@ using Emberward.Core.Entities.Bases;
 /// <param name="HeatStoreFill">How full the base reactor (heat store) is, 0 to 1.</param>
 public readonly record struct NetworkStatus(
     int Harvesters,
-    int HarvestersReturning,
     int HarvestersOutOfCharge,
     int HarvestersOffNetwork,
     int HarvestersTooHot,
@@ -40,11 +38,11 @@ public readonly record struct NetworkStatus(
     double HeatStoreFill)
 {
     /// <summary>
-    /// Harvesters that are none of returning, out of charge, off the network, too hot, out of ore, left a core or
+    /// Harvesters that are none of out of charge, off the network, too hot, out of ore, left a core or
     /// held up by a full store.
     /// </summary>
     public int HarvestersWorking =>
-        Harvesters - HarvestersTooHot - HarvestersReturning - HarvestersOutOfCharge - HarvestersOffNetwork -
+        Harvesters - HarvestersTooHot - HarvestersOutOfCharge - HarvestersOffNetwork -
         HarvestersNoOre - HarvestersCoreOnly - HarvestersStoreFull;
 
     /// <summary>The heat-store gauge: Warn while it fills, Bad once it is (nearly) full.</summary>
@@ -55,16 +53,13 @@ public readonly record struct NetworkStatus(
     /// </summary>
     public bool IsHeatStoreFullWithRelays => HeatStoreLevel == StatusLevel.Bad && PoweredRelays > 0;
 
-    /// <summary>Chargers (pylons) the base's link network reaches.</summary>
-    public int PoweredChargers { get; init; }
-
     /// <summary>A relay counts as pumping once its last action moved more than this much heat.</summary>
     public const double PumpingThreshold = 1.0;
 
     internal static NetworkStatus Collect(TankBase tankBase, IReadOnlyList<Machine> machines, bool baseDark = false)
     {
-        int harvesters = 0, returning = 0, outOfCharge = 0, offNetwork = 0, tooHot = 0, noOre = 0, coreOnly = 0, storeFull = 0;
-        int relays = 0, powered = 0, pumping = 0, poweredChargers = 0;
+        int harvesters = 0, outOfCharge = 0, offNetwork = 0, tooHot = 0, noOre = 0, coreOnly = 0, storeFull = 0;
+        int relays = 0, powered = 0, pumping = 0;
         double inflow = 0.0;
         foreach (var machine in machines)
         {
@@ -75,7 +70,6 @@ public readonly record struct NetworkStatus(
                 harvesters++;
                 switch (MachineBehaviors.HarvesterStateOf(machine, baseDark))
                 {
-                    case HarvesterState.Returning: returning++; break;
                     case HarvesterState.OutOfCharge: outOfCharge++; break;
                     case HarvesterState.OffNetwork: offNetwork++; break;
                     case HarvesterState.TooHot: tooHot++; break;
@@ -93,21 +87,14 @@ public readonly record struct NetworkStatus(
                     pumping++;
                 inflow += machine.LastPumpedEnergy;
             }
-            else if (machine.Behavior.IsCharger && machine.LinkPoint?.IsPowered == true)
-            {
-                poweredChargers++;
-            }
         }
 
         return new NetworkStatus(
-            harvesters, returning, outOfCharge, offNetwork, tooHot, noOre, coreOnly, storeFull,
+            harvesters, outOfCharge, offNetwork, tooHot, noOre, coreOnly, storeFull,
             relays, powered, pumping,
             RelayInflow: inflow,
             RadiatorInflow: inflow - tankBase.EngineOutputPerTick,
             VentCapacity: tankBase.VentCapacityPerTick,
-            HeatStoreFill: tankBase.HeatStoreFill)
-        {
-            PoweredChargers = poweredChargers,
-        };
+            HeatStoreFill: tankBase.HeatStoreFill);
     }
 }

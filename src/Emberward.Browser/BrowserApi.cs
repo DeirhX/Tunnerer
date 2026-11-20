@@ -195,7 +195,6 @@ public static partial class BrowserApi
             BuildSecondary = build == 2,
             BuildTertiary = build == 3,
             BuildQuaternary = build == 4,
-            BuildQuinary = build == 5,
             Recall = recall,
             Upgrade = Math.Clamp(upgrade, 0, 7),
         };

@@ -60,7 +60,6 @@ full suite.
 | Left click / Space | Fire |
 | E | Build a relay (4 ore); press again to plant it |
 | R | Build a harvester (30 ore); press again to plant it |
-| T | Build a pylon (10 ore); press again to plant it |
 | Y | Build a local generator (18 ore) in energy matches; plant it next to hot ground |
 | U | Build a turret (24 ore) in energy matches; plant it in your network's coverage, where it fires at enemy tanks within 24 cells |
 | 1-7 | Docked at your base: buy an upgrade (1-5 base track, 6-7 tank track) |

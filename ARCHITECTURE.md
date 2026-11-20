@@ -124,7 +124,7 @@ and Escape quits at once.
 3. **Regrowth** - dirt grows back into open and scorched ground (only the cells that can change are looked at)
 4. **Projectiles** - movement, impacts, explosions
 5. **Tanks** - input, turret, movement, digging, shooting, building, heat exchange with terrain and base
-6. **Machines** - relays pump heat to their base, harvesters mine and roam, pylons charge batteries
+6. **Machines** - relays pump heat to their base, harvesters mine and roam on the base's charge, generators and turrets work on the energy network
 7. **Sprites** - lifetime
 8. **Bases** - reactor heat sink and radiator
 9. **LinkMap** - which machines are connected to a powered base (line of sight, range); brought up to date every 200 ms, only where points or the ground between them changed
@@ -160,7 +160,7 @@ pixels, aux and coverage data are built from `VisionMap.Known` through a `Terrai
 for cells in sight. The fog pass then only tones the frame, and the entity layer leaves out what is out of sight
 and draws the radar's blips on the ground the player cannot see.
 
-Nothing is drawn into the world pixels but terrain: links, relays, pylons, harvesters, tanks and projectiles are drawn
+Nothing is drawn into the world pixels but terrain: links, machines, tanks and projectiles are drawn
 procedurally at screen resolution by the entity layer. Shader passes and backend detail are in
 `src/Emberward.Desktop/ARCHITECTURE.md`.
 
@@ -174,11 +174,11 @@ hold: they call `AfterStep` after every step and `Update` with their HUD clock, 
 updates it after each step on the match's time (`BrowserSession.HudSeconds`) and sends it with the frame.
 
 - `TutorialDirector` is an ordered list of next logical steps (leave the base, mine ore, unload, build and link a relay,
-  stay on the network, power from hot rock, harvester, relay beside it, pylon, frost). Each step knows from the world
+  stay on the network, power from hot rock, harvester, relay beside it, power for it, frost). Each step knows from the world
   when it is done, so a player who acts early skips ahead; explainer steps also finish after a few seconds on screen.
   A step can name a world cell to point at.
 - `GameEventWatcher` compares the player's side of the world with the previous frame and posts toasts to a
-  `NotificationFeed` (relay linked or lost, harvester started, stalled, out of charge or heading to a pylon, ore
+  `NotificationFeed` (relay linked or lost, harvester started, stalled or out of charge, ore
   store full, charge low, off network, radar scattered by heat, engine running, harvester ore deliveries). The
   deliveries are counted from `StepEventKind.OreHarvested` after every step (`AfterStep`), not from the store, so a
   tank unloading in the same frame is not mistaken for them. The feed de-duplicates by key with a cooldown.

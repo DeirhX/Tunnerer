@@ -151,11 +151,14 @@ public class World
         machine.State = MachineState.Planted;
         machine.OwnerBase = owner;
         machine.Anchor = machine.Position;
-        // On the energy network every machine has its whole capacitor (without it, only a battery if it runs on charge).
+        // On the energy network every machine has its whole capacitor, filled from its base's store so no charge
+        // appears from nothing. Without it no machine has a capacitor.
         if (_energy != null)
+        {
             machine.ChargeCapacity = machine.Behavior.Capacitor.Capacity;
-        if (owner is { IsDestroyed: false } && _basePower?.IsDark(owner) != true)
-            machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
+            if (owner is { IsDestroyed: false } && _basePower?.IsDark(owner) != true)
+                machine.Charge += owner.DrawCharge(machine.ChargeCapacity - machine.Charge);
+        }
         if (machine.Behavior.IsLinkNode)
             machine.LinkPoint = _linkMap.RegisterPoint(machine.Position, LinkPointType.Machine);
         _energy?.Register(machine);
@@ -378,17 +381,11 @@ public class World
         if (heat.UsedParallel) Profile.CooldownParallelFrames++;
     }
 
-    /// <summary>Machines act, then each pylon's last hand-out is booked on its route.</summary>
+    /// <summary>Machines act; relays book the heat they pump on their routes.</summary>
     private void AdvanceMachines()
     {
         _linkMap.ClearHeatFlow();
         _machines.Advance(_machineContext, _simulationSettings.AdvanceStep);
-        // Pylons act every few ticks; keep each one's last hand-out on its route so the drawn charge flow is steady.
-        _linkMap.ClearChargeFlow();
-        // Only chargers hand out charge; every other machine's LastChargeGiven stays zero, which carries nothing.
-        foreach (var machine in _machines.Machines)
-            if (machine.IsAlive)
-                LinkMap.CarryCharge(machine.LinkPoint, machine.LastChargeGiven);
     }
 
     /// <summary>
@@ -417,7 +414,7 @@ public class World
 
     private readonly List<RegrowthBlocker> _regrowthBlockers = new();
 
-    /// <summary>Regrows dirt, except within the range of a planted relay or pylon, which keeps its ground open.</summary>
+    /// <summary>Regrows dirt, except within the range of a planted link node, which keeps its ground open.</summary>
     private void AdvanceRegrowth(TerrainRegrowth regrowth)
     {
         _regrowthBlockers.Clear();

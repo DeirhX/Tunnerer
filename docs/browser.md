@@ -140,7 +140,7 @@ executable bit set (for example `chmod +x emberward-macos-arm64`); the builds ar
 ## Controls and installation
 
 Drive with WASD or arrows; dirt is dug by moving into it. Aim with the mouse, and fire with a click or Space.
-Firing while moving torches rock. E builds a relay, R a harvester, T a pylon, and in an energy match (`?energy`) Y a local
+Firing while moving torches rock. E builds a relay, R a harvester, and in an energy match (`?energy`) Y a local
 generator and U a turret. Press a build key again outside a
 base to plant the carried machine. Keys 1–7 buy upgrades while docked. H turns the heat view on and off, as on
 the desktop: the ground tinted by its heat, so that enemy tunnels glow (it changes only what is drawn). Mouse wheel
@@ -355,7 +355,7 @@ all every step, with the titles' glow as a blur, cost 0.16 ms of the page's time
   every third refresh does. Steps that do not make frames come faster are undone, and it never steps back up.
 - `?map=3000x1500` plays on a larger map (up to 4096 each way) and `?machines=400` grows networks of that many
   machines from every base before play (`BrowserStress`: tunnels dug through dirt, relays where the placement
-  preview shows a live link, a harvester and a pylon beside every third), for measuring a busy late game. Setting
+  preview shows a live link, a harvester and a second relay beside every third), for measuring a busy late game. Setting
   that up steps the world for a while, so the match takes longer to start.
   Measured 2026-11-18 in headless Chromium on an Apple M5 Max, AOT build, seed 1234, display at 60 Hz, device pixel
   ratio 1:
@@ -370,7 +370,8 @@ all every step, with the titles' glow as a blur, cost 0.16 ms of the page's time
   | 4000x2000, 800 machines | 8 | 10.7 ms | 3.1 ms | 24 | 19.1 s |
   | 4000x2000, 800 machines | 1 | 36.4 ms | 3.3 ms | 20 | 37.5 s |
 
-  The 800 machines are 558 relays, 125 harvesters and 117 pylons. On one thread the largest falls behind: a step
+  The 800 machines were 558 relays, 125 harvesters and 117 pylons (measured before the pylon was removed; a
+  second relay now stands where the pylon did). On one thread the largest falls behind: a step
   and a frame take nearly all of the 41.7 ms a step has, and the worker does both. Most of a step's cost comes with
   the map's size: the same map without machines takes 7.3 ms with eight threads and 28.2 ms on one. The machines
   add the rest (natively, mostly their own actions, then vision and links), and about 3 ms a frame to draw. With

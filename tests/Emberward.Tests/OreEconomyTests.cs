@@ -156,13 +156,13 @@ public class OreEconomyTests
         s.Base.Store.Ore = 0;
         Advance(s.World, 1);
 
-        var quote = s.Tank.QuoteBuild(MachineType.Pylon);
+        var quote = s.Tank.QuoteBuild(MachineType.Relay);
         Assert.Equal(OrePayer.Hold, quote.Payer);
 
         int hold = s.Tank.OreHeld;
-        Advance(s.World, 1, new ControllerOutput { BuildTertiary = true });
-        Assert.Equal(MachineType.Pylon, s.Tank.CarriedMachineType);
-        Assert.True(s.Tank.OreHeld <= hold - Tweaks.Ore.PylonCost);
+        Advance(s.World, 1, new ControllerOutput { BuildPrimary = true });
+        Assert.Equal(MachineType.Relay, s.Tank.CarriedMachineType);
+        Assert.True(s.Tank.OreHeld <= hold - Tweaks.Ore.RelayCost);
     }
 
     [Fact]
