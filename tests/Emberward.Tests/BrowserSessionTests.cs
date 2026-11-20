@@ -271,6 +271,30 @@ public class BrowserStressTests
     }
 }
 
+public class BrowserMachineUpgradeInputTests
+{
+    /// <summary>
+    /// The page queues clicks and keys and sends one a step. A purchase closes the machine upgrade panel, so a second
+    /// choice already queued arrives with the panel shut: the mark it was queued with keeps it a machine purchase,
+    /// never a base upgrade. A key queued with the panel shut is a base upgrade, as before.
+    /// </summary>
+    [Fact]
+    public void AKeyQueuedForTheMachine_StaysAMachinePurchase_AfterThePanelCloses()
+    {
+        var session = new BrowserSession(1234, energyNetwork: true);
+        Assert.False(session.MachineUpgrades.IsOpen);
+
+        var queued = session.WithMachineUpgradePanel(new ControllerOutput { Upgrade = 1 }, togglePanel: false, forMachine: true);
+        Assert.True(queued.UpgradeMachine);
+
+        var baseKey = session.WithMachineUpgradePanel(new ControllerOutput { Upgrade = 1 }, togglePanel: false);
+        Assert.False(baseKey.UpgradeMachine);
+
+        var noKey = session.WithMachineUpgradePanel(default, togglePanel: false, forMachine: true);
+        Assert.False(noKey.UpgradeMachine);
+    }
+}
+
 public class BrowserSessionThreadsTests
 {
     /// <summary>

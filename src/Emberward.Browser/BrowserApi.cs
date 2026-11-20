@@ -133,12 +133,13 @@ public static partial class BrowserApi
     /// the page's clock says a step is due). <paramref name="thermalView"/> is the player's thermal view (H,
     /// <see cref="BrowserSession.ThermalView"/>). <paramref name="powerLabelCellSize"/> is the displayed CSS size of a
     /// cell, or zero to hide the charge labels (G). <paramref name="machineUpgrade"/> is the machine upgrade panel's
-    /// key (F, or a tap on the lit machine), which opens or closes it (<see cref="BrowserSession.MachineUpgrades"/>).
+    /// key (F, or a tap on the lit machine), which opens or closes it (<see cref="BrowserSession.MachineUpgrades"/>);
+    /// <paramref name="upgradeMachine"/> marks <paramref name="upgrade"/> as queued for the machine while the panel was open.
     /// <paramref name="now"/> is the page's clock in milliseconds, which <see cref="Receive"/> times arrivals by.
     /// </summary>
     [JSExport]
     public static Task Frame(bool step, int x, int y, bool fire, double aimX, double aimY, int build,
-        int upgrade, bool recall, bool machineUpgrade, int width, int height, int scale, double alpha, double delta,
+        int upgrade, bool recall, bool machineUpgrade, bool upgradeMachine, int width, int height, int scale, double alpha, double delta,
         double time, bool thermalView, double powerLabelCellSize, bool due, double now)
     {
         BrowserSession session = _net?.Session ?? _session ?? throw new InvalidOperationException("Start a match first.");
@@ -146,7 +147,7 @@ public static partial class BrowserApi
         long began = Stopwatch.GetTimestamp();
         var input = step ? Input(x, y, fire, aimX, aimY, build, upgrade, recall) : default;
         if (step || machineUpgrade)
-            input = session.WithMachineUpgradePanel(input, machineUpgrade);
+            input = session.WithMachineUpgradePanel(input, machineUpgrade, upgradeMachine);
         _hudStale |= machineUpgrade;
         int steps = 0;
         if (_net is { } net)
