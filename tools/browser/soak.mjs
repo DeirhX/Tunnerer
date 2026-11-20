@@ -17,6 +17,8 @@ const seconds = Number(process.env.SOAK_SECONDS || 180);
 const stallMs = Number(process.env.STALL_MS || 8000);
 const context = await playwright.chromium.launchPersistentContext(await mkdtemp(join(tmpdir(), "soak-")), {
     headless: !process.env.HEADED,
+    // Headless Chromium on macOS needs Metal for the game's shaders.
+    args: process.platform === "darwin" ? ["--use-angle=metal"] : [],
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
     ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}),
