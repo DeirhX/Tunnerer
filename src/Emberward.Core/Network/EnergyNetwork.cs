@@ -99,16 +99,33 @@ public sealed partial class EnergyNetwork
             Settle(capacitor, terrain);
     }
 
-    /// <summary>Connects a harvester to its base's grid when covered, or to a nearby local grid when cut off.</summary>
-    public void SetCovered(Machine machine, bool covered, MachineList machines, ITerrainPixelReadOnly terrain, List<Machine> near)
+    /// <summary>
+    /// Connects a harvester to its base's grid when <paramref name="coverage"/> covers it, or to a nearby local grid when
+    /// cut off. It takes its charge through the node that covers it (<see cref="TankCoverage.Point"/>), so that node's
+    /// throughput limit applies to it.
+    /// </summary>
+    public void SetCovered(Machine machine, TankCoverage coverage, MachineList machines, ITerrainPixelReadOnly terrain, List<Machine> near)
     {
         if (Find(machine) is not Capacitor capacitor)
             return;
         PowerIsland? island = null;
+        Capacitor? via = null;
         if (machine.OwnerBase is TankBase owner)
-            island = covered ? IslandOf(owner) : LocalIslandAt(machine.Position, owner, owner.Upgrades.NodeCoverageRadius, machines, terrain, near)?.Island;
+        {
+            if (coverage.Covered)
+            {
+                island = IslandOf(owner);
+                via = CoveringNode(capacitor, coverage, machines, near);
+            }
+            else if (LocalIslandAt(machine.Position, owner, owner.Upgrades.NodeCoverageRadius, machines, terrain, near) is Capacitor local)
+            {
+                island = local.Island;
+                via = local;
+            }
+        }
         if (!ReferenceEquals(island, capacitor.Island))
             Move(capacitor, island);
+        SetParent(capacitor, via);
     }
 
     /// <summary>
@@ -180,10 +197,16 @@ public sealed partial class EnergyNetwork
         var (inflow, outflow) = capacitor.Flow.Last(_paidThrough);
         double idleRate = idle * Tweaks.Perf.TargetFps;
         var (production, _) = capacitor.Production.Last(_paidThrough);
+        var (_, passed) = capacitor.Passed.Last(_paidThrough);
         return new MachinePower(charge, machine.ChargeCapacity,
             inflow * WindowToSecond + (fed ? idleRate : 0.0),
             outflow * WindowToSecond + (fed || charge > 0.0 ? idleRate : 0.0),
-            fed, production * WindowToSecond);
+            fed, production * WindowToSecond)
+        {
+            PassedPerSecond = passed * WindowToSecond,
+            LimitPerSecond = machine.Behavior.IsLinkNode ? LimitOf(capacitor) * Tweaks.Perf.TargetFps : 0.0,
+            Heat = capacitor.Heat,
+        };
     }
 
     /// <summary>
@@ -216,6 +239,7 @@ public sealed partial class EnergyNetwork
             hash = Fnv1a.Mix(hash, capacitor.Island?.Generator?.Sequence ?? -1);
             hash = Fnv1a.Mix(hash, capacitor.Reserve);
             hash = Fnv1a.Mix(hash, (ulong)capacitor.QuietGeneratorStamp);
+            hash = MixThroughput(hash, capacitor);
         }
         foreach (var island in _islands)
         {
@@ -226,6 +250,7 @@ public sealed partial class EnergyNetwork
             hash = MixOrder(hash, island.Members);
             hash = MixOrder(hash, island.Producers);
             hash = MixOrder(hash, island.Filling);
+            hash = Fnv1a.Mix(hash, island.TreeDirty);
         }
         return hash;
     }
@@ -329,7 +354,12 @@ public sealed partial class EnergyNetwork
     {
         int period = Tweaks.Energy.SettlePeriodTicks;
         for (int i = (_paidThrough + 1) % period; i < _capacitors.Count; i += period)
-            Settle(_capacitors[i], terrain);
+        {
+            var capacitor = _capacitors[i];
+            if (capacitor.Machine.Behavior.IsLinkNode)
+                CheckHeat(capacitor, terrain);
+            Settle(capacitor, terrain);
+        }
     }
 
     private void Move(Capacitor capacitor, PowerIsland? to)
@@ -338,6 +368,7 @@ public sealed partial class EnergyNetwork
         StopFilling(capacitor);
         if (capacitor.Island is PowerIsland from)
         {
+            from.TreeDirty = true;
             from.Members.Remove(capacitor);
             if (capacitor.Machine.Behavior.IsGenerator)
                 from.Producers.Remove(capacitor);
@@ -347,6 +378,7 @@ public sealed partial class EnergyNetwork
         if (to == null)
             return;
         to.Members.Add(capacitor);
+        to.TreeDirty = true;
         if (capacitor.Machine.Behavior.IsGenerator)
             to.Producers.Add(capacitor);
         SumIdle(to, TierOf(capacitor));
@@ -371,6 +403,7 @@ public sealed partial class EnergyNetwork
             return;
         capacitor.IsFilling = true;
         island.Filling.Add(capacitor);
+        island.TreeDirty = true;
     }
 
     private static void StopFilling(Capacitor capacitor)
@@ -378,7 +411,11 @@ public sealed partial class EnergyNetwork
         if (!capacitor.IsFilling)
             return;
         capacitor.IsFilling = false;
-        capacitor.Island?.Filling.Remove(capacitor);
+        if (capacitor.Island is PowerIsland island)
+        {
+            island.Filling.Remove(capacitor);
+            island.TreeDirty = true;
+        }
     }
 
     /// <summary>Feeds or starves a tier of the island: its members are settled up to now under the old rule first.</summary>
@@ -430,9 +467,15 @@ public sealed partial class EnergyNetwork
             island.Production.Add(tick, tankBase.EngineOutputPerTick, 0.0);
     }
 
-    /// <summary>Tops up the filling capacitors of one tier, in the order they started filling, while the store lasts.</summary>
-    private static double TopUp(PowerIsland island, int tier, int tick, bool useBaseStore, ref int producerIndex)
+    /// <summary>
+    /// Tops up the filling capacitors of one tier, in the order they started filling, while the store lasts: each by at
+    /// most what the throughput tree allows it (<see cref="RebuildTree"/>), and what the nodes on its way lose as heat is
+    /// drawn with it (<see cref="PassThrough"/>).
+    /// </summary>
+    private double TopUp(PowerIsland island, int tier, int tick, bool useBaseStore, ref int producerIndex)
     {
+        if (island.TreeDirty)
+            RebuildTree(island);
         var filling = island.Filling;
         double drawn = 0.0;
         int kept = 0;
@@ -443,13 +486,19 @@ public sealed partial class EnergyNetwork
             {
                 var machine = capacitor.Machine;
                 double room = machine.ChargeCapacity - machine.Charge;
-                double given = island.DrawCharge(Math.Min(machine.Behavior.Capacitor.TransferPerTick, room), useBaseStore, ref producerIndex);
+                double want = Math.Min(capacitor.Allowance, room);
+                double asked = want * capacitor.LossMultiplier;
+                double taken = island.DrawCharge(asked, useBaseStore, ref producerIndex);
+                double given = taken >= asked ? want : taken / capacitor.LossMultiplier;
                 machine.Charge += given;
-                drawn += given;
+                drawn += taken;
                 capacitor.Flow.Add(tick, given, 0.0);
+                if (taken > given)
+                    PassThrough(capacitor, island, given, taken, tick);
                 if (room - given <= 0.0)
                 {
                     capacitor.IsFilling = false;
+                    island.TreeDirty = true;
                     continue;
                 }
             }
@@ -460,7 +509,7 @@ public sealed partial class EnergyNetwork
     }
 
     /// <summary>One machine's capacitor bookkeeping (its level is <see cref="Machine.Charge"/>).</summary>
-    private sealed class Capacitor
+    private sealed partial class Capacitor
     {
         public Machine Machine = null!;
         public PowerIsland? Island;
@@ -479,7 +528,7 @@ public sealed partial class EnergyNetwork
     }
 
     /// <summary>A connected group with producers, consumers and a shared charge balance.</summary>
-    private sealed class PowerIsland
+    private sealed partial class PowerIsland
     {
         public TankBase? Base;
         public Machine? Generator;
@@ -561,11 +610,21 @@ public sealed partial class EnergyNetwork
 /// <param name="Charge">Its level now.</param>
 /// <param name="Capacity">The most it holds.</param>
 /// <param name="InPerSecond">Charge a second it took from its island, over the last whole second.</param>
-/// <param name="OutPerSecond">Charge a second it spent (idle draw and use) or passed on, over the last whole second.</param>
+/// <param name="OutPerSecond">Charge a second it spent (idle draw and use), over the last whole second.</param>
 /// <param name="IsFed">A member of an island, in a tier the island feeds.</param>
 /// <param name="ProductionPerSecond">Charge produced a second, over the last whole second.</param>
 public readonly record struct MachinePower(double Charge, double Capacity, double InPerSecond, double OutPerSecond, bool IsFed,
-    double ProductionPerSecond = 0.0);
+    double ProductionPerSecond = 0.0)
+{
+    /// <summary>Charge a second it passed on to the machines behind it, over the last whole second.</summary>
+    public double PassedPerSecond { get; init; }
+
+    /// <summary>The most it passes on a second now (its Conduit level and heat included); 0 for a machine that is not a node.</summary>
+    public double LimitPerSecond { get; init; }
+
+    /// <summary>Whether it runs hot from what it carries: throttled, or overheated and losing health.</summary>
+    public ThroughputHeat Heat { get; init; }
+}
 
 /// <summary>A base's charge store as an overlay shows it (<see cref="World.BasePowerOf"/>).</summary>
 /// <param name="Charge">The store's level.</param>

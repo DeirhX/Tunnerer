@@ -42,6 +42,9 @@ public static class HudPalette
     public static readonly uint TextDim = Rgba(158, 150, 138);
     public static readonly uint DarkBase = Rgba(233, 132, 139);
     public static readonly uint Producer = Rgba(194, 156, 255);
+    // A relay that runs hot from the charge it carries: throttled, then overheated and losing health.
+    public static readonly uint Throttled = Rgba(255, 140, 48);
+    public static readonly uint Overheated = Rgba(255, 72, 168);
     public static readonly uint Good = Rgba(118, 230, 128);
     public static readonly uint Warn = Rgba(255, 198, 64);
     public static readonly uint Danger = Rgba(255, 86, 66);
