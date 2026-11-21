@@ -636,6 +636,7 @@ public readonly record struct MachinePower(double Charge, double Capacity, doubl
 /// <param name="ProductionPerSecond">Charge a second its engine and linked generators made, over the last whole second.</param>
 /// <param name="DrawPerSecond">Charge a second its island drew (idle draw and top-ups), over the last whole second.</param>
 /// <param name="GeneratorProductionPerSecond">The part of production that came from linked generators.</param>
+/// <param name="ShieldFill">How full the gate shield is, 0 to 1.</param>
+/// <param name="GatesShut">Whether the gates are shut to the enemy (<see cref="BasePowerSystem.GatesShut"/>).</param>
 public readonly record struct BasePower(double Charge, double Capacity, double ProductionPerSecond, double DrawPerSecond,
-    double GeneratorProductionPerSecond = 0.0, bool IsDark = false, double ShieldFraction = 0.0,
-    double ShieldWarmupSeconds = 0.0);
+    double GeneratorProductionPerSecond = 0.0, bool IsDark = false, double ShieldFill = 0.0, bool GatesShut = false);

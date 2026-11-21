@@ -37,7 +37,7 @@ public static class BrowserStress
     {
         ArgumentNullException.ThrowIfNull(world);
         var owners = world.TankList.Tanks.Where(t => t.Base != null).ToArray();
-        // A base's walls block a link's line of sight; its doors, at the middle of its top and bottom walls, do not.
+        // A base's walls block a link's line of sight; its gates, at the middle of each wall, do not.
         int doorReach = Tweaks.Base.BaseSize / 2;
         var frontiers = owners.Select(t => new Queue<(Position From, Position Link)>(
         [

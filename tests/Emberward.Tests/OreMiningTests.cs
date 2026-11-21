@@ -50,6 +50,24 @@ public class OreMiningTests
         return collected;
     }
 
+    // How far (squared) a full hold spills from a wreck on the same ground with no machine or tank beside it.
+    private static int FarthestSpillWithNothingInTheWay()
+    {
+        var s = FacingWall(TerrainPixel.Dirt);
+        var at = s.Tank.Position;
+        int radius = Tweaks.Ore.DeathDropRadius;
+        s.Tank.Hold.Ore = Tweaks.Ore.TankHold;
+        s.Tank.Reactor.Exhaust(new ReactorState(0, s.Tank.Reactor.Health));
+        s.World.Advance(_ => default);
+
+        int farthest = 0;
+        for (int dy = -radius; dy <= radius; dy++)
+            for (int dx = -radius; dx <= radius; dx++)
+                if (Pixel.IsOre(s.World.Terrain.GetPixelRaw(at + new Offset(dx, dy))))
+                    farthest = Math.Max(farthest, dx * dx + dy * dy);
+        return farthest;
+    }
+
     private static int CountOre(TerrainGrid terrain, Position center, int half)
     {
         int units = 0;
@@ -121,7 +139,7 @@ public class OreMiningTests
     public void DockingAtHome_BanksTheHold()
     {
         var s = RelayHeatTests.CreateScenario();
-        s.Tank.Position = s.Base.Position;
+        s.Tank.Position = s.Base.SpawnPosition;
         s.Tank.Hold.Ore = Tweaks.Ore.TankHold;
         int stored = s.Base.Store.Ore;
 
@@ -188,7 +206,8 @@ public class OreMiningTests
                     farthestOre = Math.Max(farthestOre, dx * dx + dy * dy);
             }
         Assert.True(covered >= 25, "the relay and the enemy stand inside the drop radius");
-        Assert.True(farthestOre > 16, "the spill went past the relay, so it had to skip the cells under it");
+        Assert.True(farthestOre > FarthestSpillWithNothingInTheWay(),
+            "the spill reached farther than one with nothing in the way, so it had to skip the covered cells");
         Assert.Equal(before + Tweaks.Ore.TankHold, CountOre(s.World.Terrain, at, radius + 1));
 
         for (int i = 0; i < 12; i++)

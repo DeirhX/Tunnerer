@@ -155,16 +155,16 @@ executable bit set (for example `chmod +x emberward-macos-arm64`); the builds ar
 ## Controls and installation
 
 Drive with WASD or arrows; dirt is dug by moving into it. Aim with the mouse, and fire with a click or Space.
-Firing while moving torches rock. E builds a relay, R a harvester, and in an energy match (`?energy`) Y a local
+Firing while moving torches rock. E builds a relay, R a harvester, Y a local
 generator and U a turret. Press a build key again outside a
 base to plant the carried machine. Keys 1–7 buy upgrades while docked. H turns the heat view on and off, as on
 the desktop: the ground tinted by its heat, so that enemy tunnels glow (it changes only what is drawn). Mouse wheel
-or +/− changes zoom. `?energy` in the address starts a local match with the energy network (DESIGN.md §4.9, off by
-default): every machine in sight near the tank carries the desktop's charge label (charge over capacity, flow in and
-out a second, fed or starved colour), the materials plate adds the base store's production, draw and net, and G hides
-or shows the labels. The off-network clock is the tank's reserve there: the stage's tag sits beside OFF NETWORK, and
-from the warning on X (or the button over the HUD) burns a unit of emberite from the hold. A network match keeps the
-rules its room agreed on.
+or +/− changes zoom. Every match runs the energy network (DESIGN.md §4.9): every machine in sight near the tank
+carries the desktop's charge label (charge over capacity, flow in and
+out a second, fed or starved colour), the materials plate adds the base store's production, draw and net and the
+gate shield, and G hides
+or shows the labels. The off-network clock is the tank's reserve: the stage's tag sits beside OFF NETWORK, and
+from the warning on X (or the button over the HUD) burns a unit of emberite from the hold.
 The on-screen controls support touch devices; tap the game to aim and fire, or hold FIRE while driving.
 Escape opens the pause menu. Switching away from the page pauses the local match.
 

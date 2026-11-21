@@ -109,13 +109,18 @@ public class ProjectileList
                 onMob: solver.CanHitMobs ? KillsMob(solver, self, ipos, p) : null,
                 onTerrain: pix =>
                 {
+                    // A gate is open ground to its owner's shells. An enemy's stop on it while the gate shield
+                    // holds, and wear the shield down.
+                    if (Pixel.IsBaseGate(pix))
+                        return self.HitsGate(solver, ipos, p);
                     if (!Pixel.IsAnyCollision(pix)) return false;
-                    if (Pixel.IsAnyBaseCell(pix) && solver.EnemyBaseAt(ipos, p.OwnerColor) is { } target)
+                    // Walls and baffles take no damage; only a shell that reaches the core wears a base down.
+                    if (Pixel.IsBaseCore(pix) && solver.EnemyBaseAt(ipos, p.OwnerColor) is { } target)
                     {
                         int raw = p.Damage;
-                        target.TakeDamage(self._basePower?.Damage(target, raw) ?? raw);
+                        target.TakeDamage(self._basePower?.CoreDamage(target, raw) ?? raw);
                         self._events?.Record(new StepEvent(target.IsDestroyed ? StepEventKind.BaseDestroyed : StepEventKind.BaseDamaged,
-                            target.Position, target.Color));
+                            ipos, target.Color));
                         self.RecordImpact(ipos, p, ImpactTarget.Base);
                     }
                     else
@@ -147,6 +152,23 @@ public class ProjectileList
         solver.KillMob(mob);
         return true;
     };
+
+    /// <summary>
+    /// Whether <paramref name="bullet"/> stops on the gate cell at <paramref name="at"/>: an enemy's does while the
+    /// gate shield holds, and the shield takes its damage (<see cref="BasePowerSystem.AbsorbGateHit"/>).
+    /// </summary>
+    private bool HitsGate(CollisionSolver solver, Position at, Projectile bullet)
+    {
+        if (_basePower == null || solver.EnemyBaseAt(at, bullet.OwnerColor) is not { } target)
+            return false;
+        GateHit hit = _basePower.AbsorbGateHit(target, bullet.Damage, solver.Terrain);
+        if (hit == GateHit.Open)
+            return false;
+        _events?.Record(new StepEvent(hit == GateHit.Broken ? StepEventKind.BaseShieldBroken : StepEventKind.BaseShieldHit,
+            at, target.Color));
+        RecordImpact(at, bullet, ImpactTarget.Base);
+        return true;
+    }
 
     private void RecordImpact(Position at, Projectile bullet, ImpactTarget target) =>
         _events?.Record(new StepEvent(StepEventKind.BulletImpact, at, bullet.OwnerColor, Target: target));
@@ -198,6 +220,9 @@ public class ProjectileList
             return;
         }
 
+        // Shrapnel flies over a base's floor and gates and leaves them as they are: a keep does not wear away.
+        if (Pixel.IsAnyBaseCell(pix))
+            return;
         terrain.SetPixel(ipos, TerrainPixel.Decal);
         int digHeat = Math.Max(0, (int)MathF.Round(Tweaks.Explosion.ShrapnelDigHeatAmount * p.HeatScale));
         terrain.AddHeatRadius(ipos, digHeat, Tweaks.Explosion.ShrapnelDigHeatRadius);

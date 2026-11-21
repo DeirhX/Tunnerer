@@ -211,8 +211,8 @@ display's own resolution instead of being stretched by the OS.
   carries no text: `HudStrip` draws titles and numbers with the UI font, placed from each panel's plates as
   measured on the art (`HudStrip.Plate`), and centres text on the height of the '0' glyph, not on the font's line
   box.
-- **Charge labels** (`PowerLabelQuads`, only while the match runs `MatchRules.EnergyNetwork`: `--energy-network` for a
-  local match). Each standing machine in sight within `DesktopScreenTweaks.PowerLabelGoneCells` of the player's tank
+- **Charge labels** (`PowerLabelQuads`, only while the match runs `MatchRules.EnergyNetwork`, as every standard
+  match does). Each standing machine in sight within `DesktopScreenTweaks.PowerLabelGoneCells` of the player's tank
   gets a label with charge over capacity, flow in and out a second (and `>` what a node passed on) and a fill bar,
   orange while the node is throttled and pink while it is overheated (`HudPalette.Throttled`, `Overheated`). `PowerLabels` picks the machines
   with `MachineList.CollectNear` and the fog rule of the sprites (`Sight`), formats the numbers of
@@ -257,11 +257,12 @@ writes either.
 
 | File | Role |
 |------|------|
+| `SoundSpace.cs` | Where a sound is heard from: gain from distance, pan from direction, muffle (and its low-pass cutoff) from the ground in between, and the pitch of a tank coming closer. Shared with the browser. |
 | `SoundDirector.cs` | Decides what to play, into an `ISoundSink`. Called after every simulation step. Shared with the browser (`Emberward.Rendering`), whose sink records the sounds into the frame. |
 | `GameAudio.cs` | The desktop's sound: the bank, the mixer (the director's sink), the device, volume, mute, pause and capture. |
 | `StepEventSounds.cs` | The one table of event sounds: for each simulation event, the one-shot effect, its gain, whose events it is heard for (anyone's, a tracked tank's, the player's) and how it varies (plain, a capped burst, a cycling shot pitch, a rising pickup streak). `SoundDirector` plays what it says; tested without a device. A new event sound is one row. |
 | `SoundBank.cs` | Synthesises every effect at start-up (in the browser, when sound is first turned on) (filtered noise, sine partials, envelopes) as mono 48 kHz samples. No sound files; the noise is seeded per effect, so the bank is the same on every run. |
-| `SoundMixer.cs` | Mixes one-shot voices and continuous loops to stereo, applies master volume, pause and a soft limiter. |
+| `SoundMixer.cs` | Mixes one-shot voices and continuous loops to stereo, low-passes muffled ones, applies master volume, pause and a soft limiter. |
 | `SdlAudioOutput.cs` | The SDL audio device. SDL calls back on its own thread for samples and the mixer fills the buffer (512 samples, about 11 ms). |
 | `WavFile.cs` | WAV writer for captures and `--dump-sounds`. |
 
@@ -289,6 +290,7 @@ from repeating on the frames drawn between steps.
 | Engine loop | Per tank, while alive: idle, or louder and higher on steps with `TankMoved` |
 | Dig loop | Per tank: `TankDug` |
 | Torch loop | Per tank: `TankDug` with `Torch` set |
+| Tread loop | Every tank but the player's, on steps with `TankMoved`: a clank that tells where an enemy is driving |
 | Recharge loop | Player, docked, and `BaseServiced` (the base is repairing, cooling or banking its ore) |
 
 Loops are held for a few steps after their last trigger, because a digging tank only clears cells on some steps,
@@ -296,9 +298,16 @@ and the mixer glides loop volume, pan and pitch so nothing clicks.
 
 ### Position and loudness
 
-The listener is the player's tank. Loudness falls with the square of distance (about half at 80 cells, silent
-beyond about 320) and effects pan by horizontal offset. One effect has at most 4 voices at once; a further one
-fades out the oldest. The mixer's limiter bends peaks above 0.75 towards full scale instead of clipping.
+The listener is the player's tank, and `SoundSpace` is the one model of how things sound from it. Loudness falls
+with the square of distance (about half at 80 cells, silent beyond about 320). Pan follows the direction: a sound
+off to one side is panned fully once it is 28 cells or more away, and narrows towards the centre closer in. Rock,
+dirt and base walls on the line between the two (`Raycaster.CountSolidCells`, cast only for what is in earshot)
+muffle it: quieter by up to 60% and low-passed down to about 380 Hz, so a tank digging behind a wall is a dull
+rumble. Another tank's engine and treads rise in pitch (up to 7%) while it comes closer and fall while it goes
+away, from its smoothed change of distance. Both clients roll off at 12 dB per octave: the desktop mixer with two
+one-pole low-pass stages, the browser with a Butterworth `BiquadFilterNode` at the cutoff the frame carries. One
+effect has at most 4 voices at once; a further one fades out the oldest. The mixer's limiter bends peaks above
+0.75 towards full scale instead of clipping.
 
 ### Settings
 

@@ -193,7 +193,7 @@ public partial class World
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         if (Rules.Mobs)
             _mobs = new MobSwarm(_terrain, _tankList, _tankBases, _stepEvents, _simulationSettings, _simulationSeed ^ 0x4D0B5);
-        _collisionSolver = new CollisionSolver(_terrain, _tankBases, _mobs);
+        _collisionSolver = new CollisionSolver(_terrain, _tankBases, _basePower, _mobs);
         if (Rules.TerrainRegrowth)
             _terrainRegrowth = new TerrainRegrowth(_simulationSeed);
         _matchResult = new MatchResult(_tankList.Tanks);
@@ -239,11 +239,12 @@ public partial class World
 
         for (int i = 0; i < spawns.Length; i++)
         {
-            TankBase tankBase = _tankBases.AddBase(spawns[i], i);
+            // The tank spawns inside the gate that faces into the map.
+            TankBase tankBase = _tankBases.AddBase(spawns[i], i, BaseLayout.FrontOf(_terrain.Size, spawns[i]));
             _basePower?.Register(tankBase);
         }
 
-        _tankBases.CreateBasesInTerrain(_terrain);
+        _tankBases.CreateBasesInTerrain(_terrain, gatesShut: _basePower != null);
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
@@ -357,7 +358,7 @@ public partial class World
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain, _basePower);
-            _basePower?.Advance();
+            _basePower?.Advance(_terrain, _stepEvents);
             foreach (var tankBase in _tankBases.Bases)
                 tankBase.AdvanceBotTrickle(seconds);
         }));
@@ -557,12 +558,18 @@ public partial class World
         ? energy.PowerOf(tankBase) with
         {
             IsDark = IsBaseDark(tankBase),
-            ShieldFraction = _basePower?.ShieldFraction(tankBase) ?? 0.0,
-            ShieldWarmupSeconds = _basePower?.ShieldWarmupRemaining(tankBase) ?? 0.0,
+            ShieldFill = _basePower?.ShieldFill(tankBase) ?? 0.0,
+            GatesShut = AreGatesShut(tankBase),
         }
         : null;
 
     public bool IsBaseDark(TankBase tankBase) => _basePower?.IsDark(tankBase) == true;
+
+    /// <summary>
+    /// Whether <paramref name="tankBase"/>'s gates are shut to the enemy: its gate shield holds (DESIGN.md §4.9).
+    /// Always false when the rules run no energy network, where a gate stops nothing.
+    /// </summary>
+    public bool AreGatesShut(TankBase tankBase) => _basePower?.GatesShut(tankBase) == true;
 
     /// <summary>
     /// What <paramref name="tank"/> could buy for the nearest of its machines in reach (DESIGN.md §4.9): the machine, its

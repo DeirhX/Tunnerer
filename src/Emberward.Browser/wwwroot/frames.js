@@ -106,7 +106,6 @@ export async function startRuntime(dotnet, { config = {}, report = () => {}, byt
                     data.mapWidth || 0,
                     data.mapHeight || 0,
                     data.machines || 0,
-                    Boolean(data.energyNetwork),
                 );
                 report({ stage: "world", state: "end" });
             }

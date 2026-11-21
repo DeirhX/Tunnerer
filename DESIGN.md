@@ -339,19 +339,45 @@ is full. It travels with the generator if a link is cut and becomes heat if the 
 generator's own capacitor is separate and follows the same idle and top-up rules as other machines. A local
 island supplies charge. Cooling tanks and delivering ore still require base coverage.
 
-**Dark base and shield**
+**The keep, the dark base and the gate shield** *(Prototype)*
 
+A base must not fall to a tank that drives up and shoots it. It is a keep (`BaseLayout`, numbers in `Tweaks.Keep`):
+
+- **Walls nothing gets through.** The same 35-cell square as before. Its walls stop tanks and shells and take no
+  damage, with or without power.
+- **A gate in each side, 11 cells wide.** A tank is 7 wide, so the owner drives in from any direction without lining
+  up. To its owner a gate is open ground, for the tank and for its shells.
+- **The core** is a disc 5 cells across at the centre (21 cells) and the only part of a base that takes damage. Its armor is
+  6000 and it repairs 48 a second while the base has power, so damage done stays done for a while.
+- **Baffle plates** stand between each gate and the core. No straight line from outside the walls reaches the core
+  through a gate (`BaseLayoutTests` casts every one). A shot reaches the core only through the gap two plates leave
+  at a corner, so only from a corner of the courtyard, inside the walls.
+- **The courtyard** between the plates and the wall is the dock: the tank spawns there, just inside the gate that
+  faces into the map (a base backs onto the border, §6.7), and unloading, cooling and upgrades work anywhere inside
+  the walls.
+- **The gate shield** is a pool of 60,000 points of shell damage. An enemy shell that hits a gate stops there and
+  takes its damage off the pool; while the pool holds, the gates are also shut to enemy tanks. At nothing the gates
+  open to the enemy, and they shut again once the pool is back to a quarter. A tank the gates shut on can always
+  drive out. Gates are drawn shut (a cyan beam) or open, so both sides see which.
+- **The shield recharges from the base's charge store**, 480 points a second for 2400 charge, down to the restart
+  reserve and never below it (defending cannot black a base out). The charge spent becomes heat in the reactor, so a
+  base under fire loads its radiator, and a full reactor holds the recharge back. One tank fires 1280 damage a second,
+  so a full shield holds a lone attacker for about 75 seconds.
+- **A base serves only its own tank.** A raider inside another side's walls is not repaired or cooled by that base,
+  and its off-network clock keeps running there.
 - **Dark** is an empty base store. It ends by itself once income beats drain (with a threshold, so it does not flicker).
-  While dark: no shield, no regen or tank heal, turrets off, harvesters strand, vision shrinks, respawn is slowest
-  (about 15 s, against 3 s), and the base takes extra damage.
-- **Shield.** It blocks a share of every hit, about 80% at a full store, falling smoothly with charge to 0. It never
-  blocks a hit entirely.
+  While dark: the gate shield does not recharge, no regen or tank heal, turrets off, harvesters strand, vision
+  shrinks, respawn is slowest (about 15 s, against 3 s), and the core takes a quarter more damage.
 - **Restart by hand.** Docking while dark empties the tank's hold (never the base ore store) into the engine until the
-  store passes the threshold (about 15 ore, a pocket). The shield then rebuilds over about 30 s, which is the window
-  in which the base is still very exposed.
-- **The fall of a base.** Cut the supply (relays, generators, links), the store drains, the shield thins, then break
-  the base. Only a destroyed base ends a side; there are no lives. Relays cost 4 ore, so a cut has to cost the
-  defender time (relink and warm-up, dearer links), or rebuilding makes attacks pointless. Tune in play.
+  store passes the threshold (about 15 ore, a pocket).
+- **Without the energy rule** there is no gate shield and the gates stop nothing; the walls, the plates and the core
+  are the same.
+- **The fall of a base.** Wear the gate shield down (or cut the supply so that it cannot recharge), get into the
+  courtyard, and shoot the core from a corner. Only a destroyed base ends a side; there are no lives. Relays cost 4
+  ore, so a cut has to cost the defender time (relink, dearer links), or rebuilding makes attacks pointless.
+- **The bot** (`BotSiege`) shoots a shut gate, drives in when the gates open, and fires at the core from a corner.
+- *Still open:* the numbers are untested in play; a turret covers a gate from inside its 24 cells, which may make a
+  defended gate too strong; the attacker has no reading of the enemy's shield beyond shut or open.
 
 **Death and exploring**
 
@@ -419,7 +445,8 @@ island supplies charge. Cooling tanks and delivering ore still require base cove
 
 **Build order.** Capacitors, island balance, the local generator and throughput limits are implemented behind the
 energy rule. Dark state, shield and no lives, per-machine upgrades, turrets and the tank's reserve follow behind their
-rules. The pylon is removed.
+rules. The pylon is removed. A standard match (`MatchRules.Standard`) runs all of them: the energy network, machine
+upgrades and the tank's reserve are on in every local and network match (protocol 12).
 
 ### 4.10 Challenges of a finite world *(Proposed; open)*
 
@@ -486,8 +513,8 @@ A sector only completes when it runs without the player, so nothing may depend o
   not close the way home. Bodies that already overlap (a respawn onto an intruder) can part, and cannot pass through
   one another on the way.
 - **The bot plays by the same rules.** It sees the whole of its hull, so it does not wedge in tunnels a little
-  narrower than itself. It leaves its base through a door, goes home when it is hurt, hot or after a kill, by the
-  way it came, and fires only aimed shots in an enemy's sight, and out of it only to dig itself through. A way home that stays shut (a door
+  narrower than itself. It leaves its base through a gate, goes home when it is hurt, hot or after a kill, by the
+  way it came, and fires only aimed shots in an enemy's sight, and out of it only to dig itself through. A way home that stays shut (a gate
   sealed by hot rock) is given up after a while, and the bot goes back to roaming.
 
 ### 5.3 What the tank needs
@@ -694,6 +721,30 @@ active regions but still does bookkeeping over the grid, and that is the first t
 activity. Simulating unseen ground more coarsely is the option after that; it would have to keep energy conserved
 and results deterministic, and the freeze rule (§7.3) already covers whole sectors the player has left.
 
+### 6.7 Where the bases stand *(Prototype)*
+
+A base in the middle of the map can be attacked from every side, and one against the border from three. So that no
+side starts with the harder defence, level generation (`LevelGen.EdgeSpawns`, numbers in `Tweaks.Spawns`) puts every
+base against the border under the same conditions:
+
+- **Every base backs onto the border,** its centre 21 cells in: 4 cells of rock lie between its back wall and the map
+  edge, too narrow for a tank, so no one drives behind it and its back gate opens onto rock. It is never in a corner
+  (at least a base's width of ground lies between its side wall and the next border), so each is approached from the
+  front and from both sides.
+- **The same ground round every base.** Rock behind it, and dirt for 12 cells round its other three sides, so no rock
+  blocks a gate. A tunnel is carved to any base the caves cut off.
+- **Far apart, and not where one would guess.** The places a base may take form a loop round the border. The first
+  base takes a random place on it. The others follow at even shares of the loop, each moved by up to 30% of that
+  spacing either way, and (three or more bases) the sides are dealt to those places in a random order. Two bases are
+  therefore roughly across the map from each other but not at the mirror point, and not always on the opposite
+  border. Bases are at least 150 cells apart, or 60% of the even spacing where a small map cannot fit that.
+- **Balanced.** A draw is kept when the base nearest the map's centre (where the hot core is, §4.8) is at least 80% as
+  far from it as the farthest, and (three or more) the closest pair of neighbours at least 75% as far apart as the
+  widest. After 256 draws the most balanced one is kept.
+- The tank spawns inside the gate that faces into the map (`BaseLayout.FrontOf`).
+- *Still open:* the centre-distance rule allows a base on a long border nearer the core than one on a short border
+  by up to a fifth; a base on a long side keeps hot-rock pockets out of the middle of a small map's narrow axis.
+
 ## 7. World structure: sectors
 
 ### 7.1 Separate maps in one persistent world *(Proposed; the freeze rule in 7.3 builds on it)*
@@ -892,7 +943,10 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 | The relay is the only network node; the pylon and the harvester battery are dropped (§4.9) | Prototype |
 | Every machine has a capacitor, a rate, a priority tier and an idle draw; cut-off machines drain (§4.9) | Proposed |
 | Local generators convert a temperature difference and dump waste heat locally (§4.9) | Proposed |
-| A base's shield scales with charge and never blocks a hit entirely; a dark base restarts by itself or by hand (§4.9) | Proposed |
+| Every base backs onto the map's border under the same conditions, far from the others, at a place that cannot be read off one's own (§6.7) | Prototype |
+| A base is a keep: walls nothing gets through, gates held by a shield that recharges from charge, and a core that is the only part to take damage; a dark base restarts by itself or by hand (§4.9) | Prototype |
+| The energy network, machine upgrades and the tank's reserve run in every standard match (§4.9) | Prototype |
+| A base serves only its own tank: a raider gets no repair or cooling inside another side's walls (§4.9) | Prototype |
 | No lives: only a destroyed base ends a side; death costs the cargo (§4.9) | Proposed |
 | Relay throughput limits are upgradeable and lose heat; a hot relay throttles (§4.9) | Proposed |
 | Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Prototype |

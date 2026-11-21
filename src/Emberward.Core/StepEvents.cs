@@ -92,9 +92,24 @@ public enum StepEventKind
     /// <summary>A machine was shot to pieces. <see cref="StepEvent.Color"/> is its owner.</summary>
     MachineWrecked,
 
-    /// <summary>An enemy bullet damaged a base, or destroyed it with the last hit.</summary>
+    /// <summary>
+    /// An enemy bullet damaged a base's core. <see cref="StepEvent.Position"/> is the core cell it struck and
+    /// <see cref="StepEvent.Color"/> the base's side.
+    /// </summary>
     BaseDamaged,
+
+    /// <summary>The hit that destroyed a base; its fields are those of <see cref="BaseDamaged"/>.</summary>
     BaseDestroyed,
+
+    /// <summary>
+    /// A base's gate shield took an enemy bullet (DESIGN.md §4.9), or took one and is spent, which opens the gates to
+    /// the enemy. <see cref="StepEvent.Position"/> is the gate cell, <see cref="StepEvent.Color"/> the base's side.
+    /// </summary>
+    BaseShieldHit,
+    BaseShieldBroken,
+
+    /// <summary>A base's gate shield is back and its gates are shut to the enemy again. At the base's centre.</summary>
+    BaseShieldRestored,
 
     /// <summary>A docked tank burned <see cref="StepEvent.Count"/> units from its hold to restart its base.</summary>
     RestartOreBurned,

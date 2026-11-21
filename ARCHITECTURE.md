@@ -208,7 +208,8 @@ cover it.
 after every simulation step, never per displayed frame, so an effect cannot repeat on the frames shown between
 steps. It does not compare the world between steps: Core lists what happened during the step in `World.StepEvents`
 (a shot, an impact, a death, a planting, a docking...) and `SoundDirector` starts the matching effect, placed in
-stereo and attenuated by distance from the player's tank, into an `ISoundSink`. All effects are synthesised
+stereo by direction, attenuated by distance from the player's tank and muffled by the ground between
+(`SoundSpace`), into an `ISoundSink`. All effects are synthesised
 (`SoundBank`). On the desktop `GameAudio` gives the director its mixer (`SoundMixer`), played through an SDL audio
 device; automated runs open no device. The browser shares `SoundDirector` and `SoundBank`: its sink records each
 step's sounds into the frame, and the page plays them with the bank's samples (`docs/browser.md`). Detail is in `src/Emberward.Desktop/ARCHITECTURE.md`.

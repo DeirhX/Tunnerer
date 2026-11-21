@@ -41,11 +41,14 @@ public class WorldFactoryTests
     }
 
     [Fact]
-    public void ALocalMatch_RunsTheEnergyNetworkOnlyWhenAsked()
+    public void AMatch_RunsTheEnergyRules()
     {
-        Assert.Null(WorldFactory.Build(new WorldLaunchOptions(false, SmallSize, LevelGenMode.Deterministic, Seed: 5)).World.Energy);
-        Assert.NotNull(WorldFactory.Build(new WorldLaunchOptions(false, SmallSize, LevelGenMode.Deterministic, Seed: 5,
-            EnergyNetwork: true)).World.Energy);
+        var world = WorldFactory.Build(new WorldLaunchOptions(false, SmallSize, LevelGenMode.Deterministic, Seed: 5)).World;
+
+        Assert.NotNull(world.Energy);
+        Assert.True(world.Rules.MachineUpgrades);
+        Assert.True(world.Rules.TankReserve);
+        Assert.True(world.AreGatesShut(world.TankBases.Bases[0]));
     }
 
     [Theory]

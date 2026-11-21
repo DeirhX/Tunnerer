@@ -11,10 +11,13 @@ Open work, written so an agent can pick up one item without the conversation tha
     relays (and generators) and the base. A relay sees 10 cells past its coverage circle before any upgrade
     (`Tweaks.Vision.NodeSightBonus`). Presentation only.
   - **Tranche 1, capacitors and island balance**, `src/Emberward.Core/Network/EnergyNetwork.cs`, behind
-    `MatchRules.EnergyNetwork` (**off by default, including in `MatchRules.Standard`**, so fingerprints and the rules
-    hash are unchanged).
+    `MatchRules.EnergyNetwork`.
   - **Tranche 1b, charge and flow labels** (key G, `PowerLabels`, `HudPalette`), shared by desktop and browser.
-    `--energy-network` (desktop) and `?energy` (browser) turn the network on for local matches only.
+- **The energy rules run in every match** since the keep (`DESIGN.md` §4.9, protocol 12): `MatchRules.Standard` turns
+  on `EnergyNetwork`, `MachineUpgrades` and `TankReserve`, and the `--energy-network` and `?energy` switches are gone.
+  A base is a keep (impervious walls, four gates held by a gate shield that recharges from charge, a round core that
+  is the only part to take damage), and every base backs onto the map's border (`DESIGN.md` §6.7). Where an item
+  below describes the shield as a share of each hit blocked, or a rule as off by default, this replaces it.
 - **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
 - **Items 1 to 8 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it, with
   items 5, 6 and 8 merged into it; item 7 on `codex/tranche-7-remove-pylon`, against item 4's branch). Item 9 is
@@ -125,8 +128,7 @@ destruction, a snapshot taken while dark.
 
 ## 4. Per-machine upgrades (implemented)
 
-Built behind `MatchRules.MachineUpgrades` (off by default; local matches turn it on with `--energy-network` or
-`?energy`), in `MachineUpgradeSystem`. F (or a tap on the lit machine) opens the panel of the nearest own relay within
+Built behind `MatchRules.MachineUpgrades` (on in `MatchRules.Standard`), in `MachineUpgradeSystem`. F (or a tap on the lit machine) opens the panel of the nearest own relay within
 12 cells; 1-3 then buy Tap, Sensor or Conduit for 8 and 16 ore from the base store. The input is bit 30 of the encoded
 input, so the protocol is 9: deploy that relay version before network clients use this build. Standard and
 energy-rule fingerprints are unchanged; the opt-in rules hash changes only with the new flag on. The highlight and
@@ -243,8 +245,8 @@ say so. Rename the relay (for example "tap") is optional: it collides with the m
 
 ## 8. The tank's reserve and exploring (implemented)
 
-Built behind `MatchRules.TankReserve` (off by default, also in `Standard`; local matches turn it on with
-`--energy-network` or `?energy`), in `TankReserveSystem` (`Entities/Tanks`), constants in `Config/Tweaks.Reserve.cs`.
+Built behind `MatchRules.TankReserve` (on in `MatchRules.Standard`), in `TankReserveSystem` (`Entities/Tanks`),
+constants in `Config/Tweaks.Reserve.cs`.
 `DESIGN.md` §4.9 (Death and exploring) has the rules and numbers. What the next items need to know:
 
 - **The burn is the recall key (X, bit 29); no input bit was added.** There is no hold-dump input in the code. Off the

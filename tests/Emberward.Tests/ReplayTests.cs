@@ -1,5 +1,6 @@
 using Emberward.Core;
 using Emberward.Core.Config;
+using Emberward.Core.Entities.Bases;
 using Emberward.Core.Input;
 using Emberward.Core.LevelGen;
 using Emberward.Core.Terrain;
@@ -116,20 +117,20 @@ public class ReplayTests
         var tank = world.TankList.Tanks[0];
         var startPos = tank.Position;
 
-        // Move up out of the base (base has blank space), then count dirt ahead
-        TestSimulation.Advance(world, frames: 60, TestSimulation.Move(0, -1));
+        // Move out of the base through the gate in front of the tank (the courtyard is open), then count dirt ahead
+        Offset front = tank.Base!.Front;
+        TestSimulation.Advance(world, frames: 60, TestSimulation.Move(front.X, front.Y));
 
         // The tank should have dug through some dirt
         bool anyBlank = false;
-        int scanY = startPos.Y - 1;
-        for (int dy = 0; dy < 30; dy++)
+        for (int step = BaseLayout.Half + 1; step <= BaseLayout.Half + 30; step++)
         {
-            var pos = new Position(startPos.X, scanY - dy);
+            var pos = tank.Base.Position + new Offset(front.X * step, front.Y * step);
             if (!world.Terrain.IsInside(pos)) break;
             if (world.Terrain.GetPixelRaw(pos) == TerrainPixel.Blank)
             { anyBlank = true; break; }
         }
-        Assert.True(anyBlank, "Tank should have dug some blank pixels above its starting base");
+        Assert.True(anyBlank, "Tank should have dug some blank pixels outside the gate it left by");
     }
 
     [Fact]

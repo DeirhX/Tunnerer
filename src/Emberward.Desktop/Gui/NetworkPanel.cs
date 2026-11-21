@@ -70,7 +70,9 @@ public sealed class NetworkPanel
             {
                 var power = PowerLabels.Of(basePower);
                 ColoredText(power.Color, $"Network {power.Flow}   {power.Net}");
-                ColoredText(power.Color, power.Shield);
+                // The gate shield (DESIGN.md §4.9): what stands between the enemy and the courtyard.
+                ColoredText(power.ShieldColor, power.Shield);
+                HudTheme.BarRow(power.ShieldFill, power.ShieldColor, null, 10f);
             }
 
             if (harvesters > 0)

@@ -4,6 +4,7 @@ using Emberward.Core.Input;
 using Emberward.Core.Terrain;
 using Emberward.Core.Thermal;
 using Emberward.Core.Types;
+using Emberward.Core.Entities.Bases;
 using Emberward.Core.Entities.Tanks;
 using static Emberward.Tests.TankHeatTestHelpers;
 
@@ -74,7 +75,7 @@ public class TankTemperatureTests
         {
             var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
             var visited = own ? tank.Base! : world.TankBases.Bases.First(b => b != tank.Base);
-            tank.Position = visited.Position;
+            tank.Position = visited.SpawnPosition;
             CoolAreaToZero(world.Terrain, tank.Position, Tweaks.Tank.DigRadius);
             SetTankHeat(tank, 60f);
             double before = visited.ReactorHeatEnergy;
@@ -94,7 +95,7 @@ public class TankTemperatureTests
     {
         var (world, tank) = TestHelpers.CreateSeededWorldWithTank();
         var home = tank.Base!;
-        home.AcceptTankHeat(home.ReactorRoomEnergy - room);
+        home.AcceptHeat(home.ReactorRoomEnergy - room);
         SetTankHeat(tank, 0f);
         world.Terrain.AddHeat(tank.Position, 50);
         world.Terrain.AddAirHeatTotalInRadiusArea(tank.Position, 0, 50);
@@ -104,7 +105,9 @@ public class TankTemperatureTests
 
         AdvanceTank(tank, world, frames: 1); // The radiator vents only on a base step.
 
-        double request = MathF.Round(Tweaks.Base.HomeCooldownHeat * (1f + Tweaks.Tank.HeatBaseCoolBonus));
+        // The tank stands in the courtyard lane; the centre bonus falls off toward the wall.
+        float centreWeight = 1f - BaseLayout.Lane / (float)BaseLayout.Half;
+        double request = MathF.Round(Tweaks.Base.HomeCooldownHeat * (1f + Tweaks.Tank.HeatBaseCoolBonus * centreWeight));
         Assert.Equal(Math.Min(request, room), home.ReactorHeatEnergy - stored, precision: 6);
         Assert.Equal(total, world.SumSystemThermalEnergy(), precision: 3);
         Assert.Equal(sunk, world.Terrain.Ledger.SunkBase);
@@ -127,7 +130,7 @@ public class TankTemperatureTests
     }
 
     [Fact]
-    public void AcceptTankHeat_IsLimitedByTheReservoirRoom()
+    public void AcceptHeat_IsLimitedByTheReservoirRoom()
     {
         var (_, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 5151);
         var tankBase = tank.Base!;
@@ -137,9 +140,9 @@ public class TankTemperatureTests
         double room = tankBase.ReactorRoomEnergy;
         Assert.Equal(perUnit, room, precision: 3);
 
-        double accepted = tankBase.AcceptTankHeat(10 * perUnit);
+        double accepted = tankBase.AcceptHeat(10 * perUnit);
         Assert.Equal(room, accepted, precision: 3);
-        Assert.Equal(0.0, tankBase.AcceptTankHeat(1000.0), precision: 3);
+        Assert.Equal(0.0, tankBase.AcceptHeat(1000.0), precision: 3);
     }
 
     [Fact]

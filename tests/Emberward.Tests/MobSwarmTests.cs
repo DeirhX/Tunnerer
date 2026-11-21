@@ -19,8 +19,8 @@ namespace Emberward.Tests;
 /// </summary>
 public class MobSwarmTests
 {
-    // Clear of both bases of the 320 x 200 test map, which stand at (203, 49) and (62, 103).
-    private static readonly Position Centre = new(170, 150);
+    // Clear of both bases of the 320 x 200 test map, which stand at (130, 21) and (185, 178).
+    private static readonly Position Centre = new(60, 100);
 
     /// <summary>A world with the swarm on and no ore, and a square of <paramref name="ground"/> around the map's centre.</summary>
     private static (World World, Tank Tank) Arena(TerrainPixel ground, int halfWidth = 60, int halfHeight = 30)

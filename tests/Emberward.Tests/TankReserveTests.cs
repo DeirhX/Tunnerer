@@ -182,7 +182,7 @@ public class TankReserveTests
         Assert.True(world.RecallOffered(tank));
         world.Advance(_ => Burn);
         Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.TankRespawned);
-        Assert.Equal(tank.Base!.Position, tank.Position);
+        Assert.Equal(tank.Base!.SpawnPosition, tank.Position);
     }
 
     [Fact]

@@ -188,13 +188,9 @@ public class PowerLabelsFrameTests
 {
     [Fact]
     [Trait("Category", "Slow")]
-    public void TheBrowserFrame_CarriesChargeQuadsAndABaseReadout_InEnergyMatches()
+    public void TheBrowserFrame_CarriesChargeQuadsAndABaseReadout()
     {
-        var standard = new BrowserSession(1234);
-        Assert.Null(BrowserFrameBuilder.Capture(standard, includeEvents: false).BasePower);
-        Assert.Empty(RenderLabels(standard, cellSize: 6f));
-
-        var session = new BrowserSession(1234, energyNetwork: true);
+        var session = new BrowserSession(1234);
         var world = session.World;
         var home = session.Player.Base!;
         var spot = home.Position + new Offset(0, home.Position.Y < world.Terrain.Height / 2 ? 14 : -14);

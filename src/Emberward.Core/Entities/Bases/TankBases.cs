@@ -17,9 +17,10 @@ public class TankBases
 
     public IReadOnlyList<TankBase> Bases => _bases;
 
-    public TankBase AddBase(Position position, int color)
+    /// <param name="front">The side the base's tank spawns on (<see cref="TankBase.Front"/>).</param>
+    public TankBase AddBase(Position position, int color, Offset? front = null)
     {
-        var tankBase = new TankBase(position, color, _settings);
+        var tankBase = new TankBase(position, color, _settings, front);
         _bases.Add(tankBase);
         return tankBase;
     }
@@ -46,10 +47,11 @@ public class TankBases
         return null;
     }
 
-    public void CreateBasesInTerrain(ITerrainPixelAccessor terrain)
+    /// <param name="gatesShut">Whether the gates start shut to the enemy (<see cref="TankBase.CreateInTerrain"/>).</param>
+    public void CreateBasesInTerrain(ITerrainPixelAccessor terrain, bool gatesShut = false)
     {
         for (int i = 0; i < _bases.Count; i++)
-            _bases[i].CreateInTerrain(terrain, i);
+            _bases[i].CreateInTerrain(terrain, i, gatesShut);
     }
 
     public void Advance(ITerrainHeatSource terrain, BasePowerSystem? power = null)

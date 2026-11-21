@@ -36,9 +36,17 @@ internal static class TankHeatTestHelpers
         tank.Reactor.Current.Heat = new Core.Resources.Heat((int)MathF.Round(heat));
     }
 
+    /// <summary>
+    /// Up (-1) or down (+1), whichever leaves <paramref name="basePos"/> toward the farther top or bottom edge of the map:
+    /// a base backs onto a border, so a tunnel out through a door must run away from it.
+    /// </summary>
+    internal static int DirYIntoMap(TerrainGrid terrain, Position basePos) =>
+        (terrain.Height - basePos.Y) >= basePos.Y ? 1 : -1;
+
+    /// <summary>Clears the cells from <paramref name="startDy"/> to <paramref name="endDyInclusive"/> below <paramref name="anchor"/>, either way up.</summary>
     internal static void CarveVerticalLine(TerrainGrid terrain, Position anchor, int startDy, int endDyInclusive)
     {
-        for (int i = startDy; i <= endDyInclusive; i++)
+        for (int i = Math.Min(startDy, endDyInclusive); i <= Math.Max(startDy, endDyInclusive); i++)
         {
             var pos = anchor + new Offset(0, i);
             if (terrain.IsInside(pos))

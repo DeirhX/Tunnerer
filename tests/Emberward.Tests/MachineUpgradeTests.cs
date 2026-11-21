@@ -64,7 +64,7 @@ public class MachineUpgradeTests
     public void TheMachineKey_BuysNoBaseUpgrade_EvenDocked()
     {
         var s = RelayHeatTests.CreateScenario();
-        s.Tank.Position = s.Base.Position;
+        s.Tank.Position = s.Base.SpawnPosition;
         s.Base.Store.Ore = 500;
         Assert.True(s.Tank.IsDockedAtOwnBase);
 
@@ -246,7 +246,9 @@ public class MachineUpgradeTests
         var (s, relay) = Setup();
         var vision = s.World.TrackVision(s.Tank);
         int sight = s.Base.Upgrades.NodeSightRadius;
-        var beyond = relay.Position + new Offset(-(sight + 4), 0);
+        // Sideways toward the farther side of the map: the base backs onto a border, which may be beside it.
+        int dirX = s.World.Terrain.Width - relay.Position.X >= relay.Position.X ? 1 : -1;
+        var beyond = relay.Position + new Offset(dirX * (sight + 4), 0);
         Advance(s.World, 2);
         Assert.False(vision.IsVisible(beyond), "the cell must lie beyond the relay's sight before the upgrade");
 
