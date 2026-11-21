@@ -361,14 +361,14 @@ public sealed class Radar
         // A reflector too hot to read returns nothing but the heat mark its cell already has (or gets now).
         bool scrambled = temperature >= Tweaks.Radar.HeatScrambleTemperature;
         TerrainPixel pixel = pixels[offset];
-        bool target = HitsTarget(cell, _onRay, out bool alive);
+        bool target = HitsTarget(cell, _onRay, out bool alive, out float signature);
         bool ore = !target && Pixel.IsOre(pixel);
         if (target || (Pixel.IsBlockingCollision(pixel) && !IsOwnBase(pixel, ownWall, cell)))
         {
             // Whatever it is stops the ray, but each kind of thing only returns from within its own range.
             RadarEcho echo = alive ? RadarEcho.Life : target ? RadarEcho.Metal
                 : ore ? RadarEcho.Ore : RadarEcho.Solid;
-            float range = alive ? _reach.LifeRange
+            float range = alive ? _reach.LifeRange * signature
                 : target ? _reach.MachineRange
                 : ore ? FormationRange(ray, x, y, width, pixels, heat, ore: true)
                 : FormationRange(ray, x, y, width, pixels, heat, ore: false);
@@ -468,11 +468,15 @@ public sealed class Radar
         }
     }
 
-    /// <summary>Whether a target covers <paramref name="cell"/>, and if so whether a living one does.</summary>
-    private static bool HitsTarget(Position cell, IReadOnlyList<RadarTarget> targets, out bool alive)
+    /// <summary>
+    /// Whether a target covers <paramref name="cell"/>, and if so whether a living one does and how strong the
+    /// strongest living one's signature is.
+    /// </summary>
+    private static bool HitsTarget(Position cell, IReadOnlyList<RadarTarget> targets, out bool alive, out float signature)
     {
         bool hit = false;
         alive = false;
+        signature = 0f;
         for (int i = 0; i < targets.Count; i++)
         {
             RadarTarget target = targets[i];
@@ -480,7 +484,11 @@ public sealed class Radar
                 Math.Abs(cell.Y - target.Position.Y) <= target.HalfSize)
             {
                 hit = true;
-                alive |= target.Alive;
+                if (target.Alive)
+                {
+                    alive = true;
+                    signature = Math.Max(signature, target.Signature);
+                }
             }
         }
         return hit;
@@ -599,8 +607,8 @@ public sealed class Radar
         {
             RadarEcho.Solid => IsRock(pixel) && !IsOwnBase(pixel, ownWall, contact.Position),
             RadarEcho.Ore => Pixel.IsOre(pixel),
-            RadarEcho.Metal => HitsTarget(contact.Position, targets, out bool living) && !living,
-            RadarEcho.Life => HitsTarget(contact.Position, targets, out bool alive) && alive,
+            RadarEcho.Metal => HitsTarget(contact.Position, targets, out bool living, out _) && !living,
+            RadarEcho.Life => HitsTarget(contact.Position, targets, out bool alive, out float signature) && alive && signature > 0f,
             RadarEcho.Cavity => !Pixel.IsSoftCollision(pixel) && !Pixel.IsBlockingCollision(pixel),
             _ => heat.GetHeatTemperature(offset) > Tweaks.Radar.HeatThreshold,
         };

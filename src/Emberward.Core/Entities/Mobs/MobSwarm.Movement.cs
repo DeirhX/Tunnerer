@@ -1,5 +1,6 @@
 namespace Emberward.Core.Entities.Mobs;
 
+using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Terrain;
@@ -40,18 +41,41 @@ public sealed partial class MobSwarm
             return;
         }
         mob.Position = next;
+        WearTrail(ref mob, next);
     }
+
+    /// <summary>A creature that has moved into a soil block wears its trail, once for each time it enters the block.</summary>
+    private void WearTrail(ref Mob mob, PositionF at)
+    {
+        var cell = (Position)at;
+        int block = _trails.BlockOf(cell);
+        if (block < 0 || Classify(_terrain.GetPixelRaw(cell), cell, _nests[mob.Nest].Centre, _nests[mob.Nest].Radius) != MobGround.Soil)
+        {
+            mob.WornBlock = 0;
+            return;
+        }
+        if (mob.WornBlock != block + 1)
+        {
+            mob.WornBlock = block + 1;
+            _trails.Wear(block, _tick);
+        }
+    }
+
+    /// <summary>Whether the soil at <paramref name="cell"/> is a lane, worn so that creatures run through it as through open ground.</summary>
+    private bool IsLane(Position cell, int tick) => _trails.IsLane(_trails.BlockOf(cell), tick);
 
     private void Hunt(ref Mob mob)
     {
         Nest nest = _nests[mob.Nest];
-        Tank? tank = ValidTarget(mob.Target) is { } t && TargetStillWanted(nest, mob.Target, t) ? t : null;
+        Tank? tank = ValidTarget(mob.Target) is { } t && TargetStillWanted(ref mob, nest, t) ? t : null;
         if (tank is null)
         {
             // The nest's own pick, if it has one; else home.
             if (nest.Target >= 0 && ValidTarget(nest.Target) is { } other)
             {
                 mob.Target = nest.Target;
+                mob.SightTick = 0;
+                mob.Sees = false;
                 tank = other;
             }
             else
@@ -88,9 +112,33 @@ public sealed partial class MobSwarm
         return index >= 0 && index < tanks.Count && !tanks[index].IsDead ? tanks[index] : null;
     }
 
-    /// <summary>A creature keeps its target while the tank is warm enough, or is the nest's thief.</summary>
-    private static bool TargetStillWanted(Nest nest, int index, Tank tank) =>
-        tank.Heat >= Tweaks.Mobs.LoseScentHeat || (nest.Thief == index && nest.ThiefTicks > 0);
+    /// <summary>
+    /// A creature keeps its target while the tank is the nest's thief, or warm enough and within its heat leash of the
+    /// nest, or in sight: a line clear of rock from the creature, within <see cref="Tweaks.Mobs.HuntLeashCells"/>,
+    /// looked for once in <see cref="Tweaks.Mobs.SightCheckTicks"/> ticks.
+    /// </summary>
+    private bool TargetStillWanted(ref Mob mob, Nest nest, Tank tank)
+    {
+        if (nest.Thief == mob.Target && nest.ThiefTicks > 0)
+            return true;
+        float leash = HeatLeash(tank.Heat);
+        if (leash > 0f && Position.DistanceSquared(tank.Position, nest.Centre) <= leash * leash)
+            return true;
+
+        long reach = (long)Tweaks.Mobs.HuntLeashCells * Tweaks.Mobs.HuntLeashCells;
+        var here = (Position)mob.Position;
+        if (Position.DistanceSquared(tank.Position, here) > reach)
+        {
+            mob.Sees = false;
+            return false;
+        }
+        if (mob.SightTick == 0 || _tick - mob.SightTick >= Tweaks.Mobs.SightCheckTicks)
+        {
+            mob.Sees = Raycaster.HasCreatureLine(_terrain, here, tank.Position);
+            mob.SightTick = _tick;
+        }
+        return mob.Sees;
+    }
 
     private void GoHome(ref Mob mob)
     {
@@ -174,10 +222,17 @@ public sealed partial class MobSwarm
     private float SpeedAlong(PositionF at, float ux, float uy, Nest nest)
     {
         float open = Tweaks.Mobs.OpenSpeed, soil = Tweaks.Mobs.SoilSpeed;
-        if (GroundAt(new PositionF(at.X + ux * open * 0.5f, at.Y + uy * open * 0.5f), nest) == MobGround.Open &&
-            GroundAt(new PositionF(at.X + ux * open, at.Y + uy * open), nest) == MobGround.Open)
+        if (RunsAt(new PositionF(at.X + ux * open * 0.5f, at.Y + uy * open * 0.5f), nest) &&
+            RunsAt(new PositionF(at.X + ux * open, at.Y + uy * open), nest))
             return open;
         return GroundAt(new PositionF(at.X + ux * soil, at.Y + uy * soil), nest) != MobGround.Blocked ? soil : 0f;
+    }
+
+    /// <summary>Whether a creature of <paramref name="nest"/> can run at <paramref name="at"/>: open ground, or a lane worn into soil.</summary>
+    private bool RunsAt(PositionF at, Nest nest)
+    {
+        MobGround ground = GroundAt(at, nest);
+        return ground == MobGround.Open || (ground == MobGround.Soil && IsLane((Position)at, _tick));
     }
 
     /// <summary>The ground a creature of <paramref name="nest"/> finds at <paramref name="at"/>.</summary>
@@ -208,9 +263,9 @@ public sealed partial class MobSwarm
         if (field.NeedsBuild(goal))
         {
             if (kind == 1)
-                field.Build(_terrain, goal, _queue, nest.Centre, nest.Radius);
+                field.Build(_terrain, goal, _queue, _trails, _tick, nest.Centre, nest.Radius);
             else
-                field.Build(_terrain, goal, _queue);
+                field.Build(_terrain, goal, _queue, _trails, _tick);
         }
         return field;
     }

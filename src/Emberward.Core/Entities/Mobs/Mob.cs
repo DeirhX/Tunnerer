@@ -33,6 +33,15 @@ public struct Mob
     /// <summary>The heat it carries, in energy (what a tank's heat times its heat capacity is).</summary>
     public double Charge { get; set; }
 
+    /// <summary>The trail block (<see cref="MobTrails.BlockOf"/> plus one) it last wore, so that it wears each block once per entry; 0 when none.</summary>
+    public int WornBlock { get; set; }
+
+    /// <summary>The tick a creature last looked for a clear line to its target; 0 when it has not.</summary>
+    public int SightTick { get; set; }
+
+    /// <summary>Whether that look found a line clear of rock (kept until the next look).</summary>
+    public bool Sees { get; set; }
+
     /// <summary>Killed or back in its nest this step; removed before the next one.</summary>
     public bool Gone { get; set; }
 }

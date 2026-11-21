@@ -6,6 +6,7 @@ using Emberward.Core.Entities.Machines;
 using Emberward.Core.Match;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Bases;
+using Emberward.Core.Types;
 using Emberward.Desktop.Presentation;
 
 /// <summary>
@@ -35,7 +36,8 @@ public sealed class GameEventWatcher
     private bool _meetingGoal;
     private bool _tappedCore;
     private int _harvestedSinceReport;
-    private bool _nestWoke;
+    private bool _nestExplained;
+    private readonly List<Position> _nestsWoke = new();
     private float _lastHarvestReport;
 
     /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
@@ -45,7 +47,8 @@ public sealed class GameEventWatcher
     {
         _primed = false;
         _harvestedSinceReport = 0;
-        _nestWoke = false;
+        _nestExplained = false;
+        _nestsWoke.Clear();
     }
 
     /// <summary>
@@ -58,8 +61,8 @@ public sealed class GameEventWatcher
         {
             if (e.Kind == StepEventKind.OreHarvested && e.Color == player.Color)
                 _harvestedSinceReport += e.Count;
-            else if (e.Kind == StepEventKind.NestWoke)
-                _nestWoke = true;
+            else if (e.Kind == StepEventKind.NestWoke && NestAlert.Covers(world, player, e.Position))
+                _nestsWoke.Add(e.Position);
         }
     }
 
@@ -183,14 +186,24 @@ public sealed class GameEventWatcher
             }
         }
 
-        // Once per match, the first time a nest wakes.
-        if (_nestWoke)
+        // A nest the player's side can see or read on its radar woke: no tank or side is named. The first time says what
+        // emberlings are; after that, a short alert for each nest, not repeated for the same one for a while.
+        foreach (Position nest in _nestsWoke)
         {
-            feed.Post(now, "nest-woke", "A nest woke: emberlings",
-                "They hunt hot tanks and bite their heat into you. Run cool, fight in a narrow tunnel, and clear a nest to free its ore.",
-                NotificationKind.Danger, cooldown: 1e9f);
-            _nestWoke = false;
+            if (!_nestExplained)
+            {
+                _nestExplained = true;
+                feed.Post(now, "nest-woke", "A nest woke: emberlings",
+                    "They hunt hot tanks and bite their heat into you. Run cool, fight in a narrow tunnel, and clear a nest to free its ore.",
+                    NotificationKind.Danger, cooldown: 1e9f);
+            }
+            else
+            {
+                feed.Post(now, $"nest-woke-{nest.X}-{nest.Y}", "A nest woke nearby", "Emberlings are out. Cool down or find cover.",
+                    NotificationKind.Danger, cooldown: 20f);
+            }
         }
+        _nestsWoke.Clear();
 
         _poweredRelays = poweredRelays;
         _harvesters = harvesters;

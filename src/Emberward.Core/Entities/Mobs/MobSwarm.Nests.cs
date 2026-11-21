@@ -1,5 +1,6 @@
 namespace Emberward.Core.Entities.Mobs;
 
+using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Terrain;
@@ -46,7 +47,7 @@ public sealed partial class MobSwarm
             return;
         nest.Awake = true;
         nest.ReleaseTimer = 0;
-        nest.Target = PickTarget(nest);
+        nest.Target = PickTarget(nest, -1);
         _events.Record(new StepEvent(StepEventKind.NestWoke, nest.Centre, Count: nest.Inside));
     }
 
@@ -73,7 +74,7 @@ public sealed partial class MobSwarm
         }
 
         if ((_tick + index) % Tweaks.Mobs.WakeCheckTicks == 0)
-            nest.Target = PickTarget(nest);
+            nest.Target = PickTarget(nest, index);
         bool hunting = nest.Target >= 0;
         // Nothing to hunt and nothing out: back to sleep, and the resting recharge on. A nest that still hunts stays
         // awake even with nothing left to let out, so that it keeps its target and wakes at once when heat returns.
@@ -105,34 +106,53 @@ public sealed partial class MobSwarm
             if (tank.IsDead)
                 continue;
             float range = SenseRange(tank.Heat);
-            if (range > 0f && Position.DistanceSquared(tank.Position, nest.Centre) <= range * range)
+            if (range > 0f && Position.DistanceSquared(tank.Position, nest.Centre) <= range * range &&
+                Raycaster.HasCreatureLine(_terrain, tank.Position, nest.Centre))
                 return true;
         }
         return false;
     }
 
-    /// <summary>The nearest tank an awake nest hunts: one still warm enough within the leash, or the thief.</summary>
-    private int PickTarget(Nest nest)
+    /// <summary>
+    /// The nearest tank an awake nest hunts: one still warm enough within its heat leash (<see cref="HeatLeash"/>),
+    /// one a creature of the nest has a clear line to, or the thief. <paramref name="index"/> is the nest's own index
+    /// (-1 to leave sight out, as at the moment of waking, when no creature is out to look).
+    /// </summary>
+    private int PickTarget(Nest nest, int index)
     {
         var tanks = _tanks.Tanks;
         int best = -1;
         long bestDistance = long.MaxValue;
-        long leash = (long)Tweaks.Mobs.HuntLeashCells * Tweaks.Mobs.HuntLeashCells;
         for (int i = 0; i < tanks.Count; i++)
         {
             Tank tank = tanks[i];
             if (tank.IsDead)
                 continue;
             long distance = Position.DistanceSquared(tank.Position, nest.Centre);
+            if (distance >= bestDistance)
+                continue;
             bool thief = nest.Thief == i && nest.ThiefTicks > 0;
-            bool scented = tank.Heat >= Tweaks.Mobs.LoseScentHeat && distance <= leash;
-            if ((thief || scented) && distance < bestDistance)
+            float leash = HeatLeash(tank.Heat);
+            if (thief || (leash > 0f && distance <= leash * leash) || (index >= 0 && SeenByCreature(index, i)))
             {
                 best = i;
                 bestDistance = distance;
             }
         }
         return best;
+    }
+
+    /// <summary>Whether a creature of nest <paramref name="nest"/> has lately had a clear line to the tank <paramref name="tank"/>.</summary>
+    private bool SeenByCreature(int nest, int tank)
+    {
+        var span = MobSpan;
+        for (int i = 0; i < span.Length; i++)
+        {
+            ref readonly Mob mob = ref span[i];
+            if (mob.Nest == nest && mob.Target == tank && mob.Sees && !mob.Gone && _tick - mob.SightTick <= Tweaks.Mobs.SightCheckTicks)
+                return true;
+        }
+        return false;
     }
 
     /// <summary>Lets one creature out: a fresh one makes its charge (booked as injected), a resting one takes its share of the nest's.</summary>

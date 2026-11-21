@@ -42,4 +42,8 @@ public readonly record struct RadarContact(Position Position, RadarEcho Echo, in
 
 /// <summary>Something that is not terrain and reflects radar: a machine or a tank, as a square of cells.</summary>
 /// <param name="Alive">A tank or other living thing, which returns <see cref="RadarEcho.Life"/> instead of metal.</param>
-public readonly record struct RadarTarget(Position Position, int HalfSize, bool Alive = false);
+/// <param name="Signature">
+/// How much of <see cref="RadarReach.LifeRange"/> a living target returns from, 0..1 (<see cref="TankSignature"/> for a
+/// tank, so a cool one gives no echo). Ignored for what is not alive.
+/// </param>
+public readonly record struct RadarTarget(Position Position, int HalfSize, bool Alive = false, float Signature = 1f);

@@ -37,6 +37,30 @@ public static class Raycaster
         !TryFindLineBlock(terrain, from, to, out _);
 
     /// <summary>
+    /// A creature's line of sight: true when no cell on the Bresenham line from <paramref name="from"/> to
+    /// <paramref name="to"/> (both ends included) stops sight (<see cref="Pixel.BlocksCreatureSight"/>: rock,
+    /// hot and frost rock, concrete). Dirt and open ground do not. Integer only, so it is deterministic.
+    /// </summary>
+    public static bool HasCreatureLine(ITerrainPixelReadOnly terrain, Position from, Position to)
+    {
+        ArgumentNullException.ThrowIfNull(terrain);
+        int x0 = from.X, y0 = from.Y, x1 = to.X, y1 = to.Y;
+        int dx = Math.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        int dy = -Math.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+        int err = dx + dy;
+        while (true)
+        {
+            if (Pixel.BlocksCreatureSight(terrain.GetPixel(new Position(x0, y0))))
+                return false;
+            if (x0 == x1 && y0 == y1)
+                return true;
+            int e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+    }
+
+    /// <summary>
     /// Like <see cref="HasOpenLine"/>, walking from <paramref name="from"/>, but also gives the first blocking cell.
     /// Returns true when the line is blocked.
     /// </summary>

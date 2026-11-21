@@ -22,14 +22,19 @@ public static partial class Tweaks
 
         // ---- Sensing -----------------------------------------------------------------------------------------
         // A cool tank is not sensed. A tank at WakeHeat is sensed from WakeRange cells, one at FullHeat from FullRange,
-        // linearly between. A woken nest hunts any tank at LoseScentHeat or above within HuntLeashCells of it; a tank
-        // that cools below that is lost. A thief (the tank that dug the nest's ore) is hunted for ThiefHuntTicks whatever its heat.
+        // linearly between. A woken nest hunts a tank at LoseScentHeat or above within its heat leash (below), or one a
+        // creature sees; a tank that cools below LoseScentHeat and is out of sight is lost. Rock stops sight and waking. A thief (the tank that dug the nest's ore) is hunted for ThiefHuntTicks whatever its heat.
         public const float WakeHeat = 45f;
         public const float WakeRange = 40f;
         public const float FullHeat = 100f;
         public const float FullRange = 110f;
         public const float LoseScentHeat = 35f;
         public const int HuntLeashCells = 220;
+        // A hunt keeps a tank by heat while it is within a leash that grows from HuntLeashMinCells at LoseScentHeat to
+        // HuntLeashCells at FullHeat (a cooler tank is lost nearer), or by sight: while a creature has a line to the tank
+        // clear of rock within HuntLeashCells, whatever its heat. Creatures look again once in SightCheckTicks.
+        public const int HuntLeashMinCells = 60;
+        public const int SightCheckTicks = 6;
         public const int ThiefHuntTicks = 6 * Perf.TargetFps;
         // A dormant nest looks at the tanks once in this many ticks (nests are staggered).
         public const int WakeCheckTicks = 6;
@@ -62,5 +67,16 @@ public static partial class Tweaks
         // A block's cost to cross, in 1/12 ticks: open ground at OpenSpeed, soil at SoilSpeed.
         public const int OpenBlockCost = 32;
         public const int SoilBlockCost = 137;
+
+        // ---- Trails ------------------------------------------------------------------------------------------
+        // A creature entering a block of soil wears it by TrailWearPerCrossing (up to TrailWearMax); the wear fades to
+        // nothing over TrailLifetimeTicks. A block worn to TrailLaneThreshold is a lane: they run through it as through
+        // open ground, and the flow field counts it as open. Nothing is written to the terrain.
+        public const float TrailWearPerCrossing = 1f;
+        public const float TrailWearMax = 8f;
+        // Wear fades from the tick it is stored, so a threshold of exactly 3 would lose a lane one tick after three
+        // crossings. 2.5 keeps a lane from three crossings for about ten seconds after the last one.
+        public const float TrailLaneThreshold = 2.5f;
+        public const int TrailLifetimeTicks = 24 * 60;
     }
 }

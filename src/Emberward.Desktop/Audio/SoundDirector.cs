@@ -6,6 +6,7 @@ using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 using Emberward.Desktop.Config;
+using Emberward.Desktop.Gui.Guidance;
 
 /// <summary>Where <see cref="SoundDirector"/> sends what to play: the desktop's mixer, or the browser's frame.</summary>
 public interface ISoundSink
@@ -127,6 +128,11 @@ public sealed class SoundDirector
                         shrapnelX += e.Position.X;
                         shrapnelY += e.Position.Y;
                     }
+                    break;
+                case StepEventKind.NestWoke:
+                    // An alarm only for a side whose sight or radar covers the nest; the event names no one.
+                    if (NestAlert.Covers(world, player, e.Position) && StepEventSounds.CueFor(e.Kind, e.Machine) is { } wake)
+                        PlayCue(wake, e.Position, index, ref impacts);
                     break;
                 default:
                     if (StepEventSounds.CueFor(e.Kind, e.Machine) is { } cue &&
