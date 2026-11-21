@@ -253,15 +253,17 @@ public static class MachineBehaviors
 
     /// <summary>
     /// A harvester's state, each harvester in exactly one, in this order: out of charge, off the network, too hot, out
-    /// of ore (or left only a core), held up by a full store, otherwise working.
+    /// of ore (guarded by a nest, or left only a core, or none), held up by a full store, otherwise working. A nest's
+    /// guard comes before the core: a harvester blocked by a nest is held by the nest, even when a core is left too.
     /// </summary>
     public static HarvesterState HarvesterStateOf(Machine harvester, bool baseDark = false) =>
         baseDark ? HarvesterState.OffNetwork
         : IsOutOfCharge(harvester) ? HarvesterState.OutOfCharge
         : harvester.IsOffNetwork ? HarvesterState.OffNetwork
         : harvester.IsStalled ? HarvesterState.TooHot
+        : harvester.HasNoOre && harvester.OreGuarded ? HarvesterState.Guarded
         : harvester.HasOnlyCoreOre ? HarvesterState.CoreOnly
-        : harvester.HasNoOre ? (harvester.OreGuarded ? HarvesterState.Guarded : HarvesterState.NoOre)
+        : harvester.HasNoOre ? HarvesterState.NoOre
         : harvester.OwnerBase is { Store.IsFull: true } ? HarvesterState.StoreFull
         : HarvesterState.Working;
 

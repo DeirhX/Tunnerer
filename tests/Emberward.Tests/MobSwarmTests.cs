@@ -387,6 +387,37 @@ public class MobSwarmTests
     }
 
     [Fact]
+    public void AGuardedHarvester_ReportsTheNest_EvenWithACoreLeftInReach()
+    {
+        var s = RelayHeatTests.CreateScenario(mobs: true);
+        HarvesterHeatTests.SeedOre(s);
+        HarvesterHeatTests.SeedOre(s, along: 2, depth: 4, length: 2, core: true);
+        RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * -15));
+        var harvester = new Machine(s.RelayPos, MachineType.Harvester, s.Tank.Color);
+        s.World.Machines.Add(harvester);
+        s.World.PlantMachine(harvester, s.Base);
+        s.World.Mobs!.AddNest(s.RelayPos + new Offset(5, 0), radius: 12, creatures: 3);
+
+        for (int i = 0; i < 160; i++)
+            s.World.Advance(_ => default);
+        Assert.Equal(HarvesterState.Guarded, MachineBehaviors.HarvesterStateOf(harvester));
+    }
+
+    [Fact]
+    public void ASpentCreature_GoesHome_InsteadOfWaitingOnAWarmTank()
+    {
+        var (world, tank) = Arena(TerrainPixel.Blank);
+        var nest = world.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 0);
+        nest.Resting = 1; // a pocket that cannot recharge: its one resting creature comes out with no charge
+        tank.Position = Centre + new Offset(38, 0);
+
+        Tick(world, tank, 200, heat: 80f);
+        float range = Tweaks.Mobs.BiteRange;
+        Assert.DoesNotContain(Creatures(world), c =>
+            c.Speed == 0f && (c.X - tank.Position.X) * (c.X - tank.Position.X) + (c.Y - tank.Position.Y) * (c.Y - tank.Position.Y) <= range * range);
+    }
+
+    [Fact]
     public void WithCreaturesOut_ASnapshotRoundTripsAndPlaysOnAlike()
     {
         var world = HuntWorld(45);

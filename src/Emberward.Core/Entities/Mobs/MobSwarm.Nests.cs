@@ -60,6 +60,10 @@ public sealed partial class MobSwarm
             return;
         }
 
+        // Resting creatures drink heat whether the nest is awake or asleep.
+        if (nest.Resting > 0 && (_tick + index) % Tweaks.Mobs.RechargeIntervalTicks == 0)
+            Recharge(nest);
+
         if (!nest.Awake)
         {
             // Dormant: one distance test per tank, once in a while.
@@ -83,8 +87,6 @@ public sealed partial class MobSwarm
             Release(index, nest);
             nest.ReleaseTimer = Tweaks.Mobs.ReleaseIntervalTicks;
         }
-        if (nest.Resting > 0 && (_tick + index) % Tweaks.Mobs.RechargeIntervalTicks == 0)
-            Recharge(nest);
     }
 
     private bool SensesAnyone(Nest nest)

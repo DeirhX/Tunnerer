@@ -74,7 +74,7 @@ public sealed record MatchRules
     /// </summary>
     public bool Mobs { get; init; }
 
-    /// A normal match: hot and frost pockets, ore, regrowth, and the energy rules (the energy network with its gate
+    /// <summary>A normal match: hot and frost pockets, ore, regrowth, and the energy rules (the energy network with its gate
     /// shields, machine upgrades and the tank's reserve); the core does not end it.
     /// </summary>
     public static MatchRules Standard { get; } = new()

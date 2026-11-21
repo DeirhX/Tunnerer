@@ -680,7 +680,9 @@ function animate(now) {
         lastRenderTime = now;
     }
     try {
-        if (playing && !holding()) renderer.gpu.setAlpha(stepAlpha(now));
+        // A local step is taken as its request is sent, so while that request is in flight the packet on screen is
+        // the previous step, which has just ended: hold it there rather than applying the new step's alpha to it.
+        if (playing && !holding()) renderer.gpu.setAlpha(busy && !net ? 1 : stepAlpha(now));
         renderer.draw(now, input.pointer);
         perf?.displayed(elapsed);
     } catch (error) {
