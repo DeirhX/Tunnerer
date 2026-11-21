@@ -98,9 +98,15 @@ public sealed record LaunchArguments
         if (arg.StartsWith("--size=", StringComparison.Ordinal))
         {
             var parts = arg[7..].Split('x');
-            return parts.Length == 2 && int.TryParse(parts[0], out int w) && int.TryParse(parts[1], out int h)
-                ? this with { TerrainSize = new Size(w, h) }
-                : this;
+            if (parts.Length != 2 || !int.TryParse(parts[0], out int w) || !int.TryParse(parts[1], out int h))
+                return this;
+            var min = Emberward.Core.Config.Tweaks.Spawns.MinMapSize;
+            if (w < min.X || h < min.Y)
+            {
+                Warn($"Map size {w}x{h} is too small for the bases, expected at least {min.X}x{min.Y}. Using the default size.");
+                return this;
+            }
+            return this with { TerrainSize = new Size(w, h) };
         }
         if (arg == "--windowed" || arg.StartsWith("--windowed=", StringComparison.Ordinal))
         {

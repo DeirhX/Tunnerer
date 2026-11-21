@@ -112,7 +112,8 @@ public sealed class BrowserSession
     }
 
     private static Size ClampMap(Size size) =>
-        new(Math.Clamp(size.X, 320, LargestMapSize.X), Math.Clamp(size.Y, 200, LargestMapSize.Y));
+        new(Math.Clamp(size.X, Tweaks.Spawns.MinMapSize.X, LargestMapSize.X),
+            Math.Clamp(size.Y, Tweaks.Spawns.MinMapSize.Y, LargestMapSize.Y));
 
     public int Seed { get; }
 

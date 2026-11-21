@@ -39,6 +39,9 @@ public class LaunchArgumentsTests
         Assert.Equal(new Size(1500, 750), Parse("--large").TerrainSize);
         Assert.Equal(new Size(640, 480), Parse("--size=640x480").TerrainSize);
         Assert.Null(Parse("--size=640").TerrainSize);
+        Assert.Equal(new Size(320, 200), Parse("--size=320x200").TerrainSize);
+        Assert.Null(Parse("--size=100x100").TerrainSize);
+        Assert.Null(Parse("--size=320x199").TerrainSize);
         Assert.True(Parse("--fast").FastGen);
         Assert.False(Parse("--no-ai").EnableAiTanks);
         Assert.False(Parse("--disable-ai").EnableAiTanks);

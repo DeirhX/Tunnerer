@@ -1,5 +1,7 @@
 namespace Emberward.Core.Config;
 
+using Emberward.Core.Types;
+
 public static partial class Tweaks
 {
     /// <summary>
@@ -40,5 +42,9 @@ public static partial class Tweaks
 
         // Draws tried before the most balanced one is kept.
         public const int LayoutAttempts = 256;
+
+        // The smallest map a match may use. Smaller maps cannot hold the bases of more than two players without
+        // overlap, so the desktop's --size and the browser's clamp both refuse them; the browser's floor is this size.
+        public static readonly Size MinMapSize = new(320, 200);
     }
 }
