@@ -49,8 +49,21 @@ public struct Emberite
     public bool Gone { get; set; }
 }
 
+/// <summary>What a woken nest is doing between its pulses of creatures.</summary>
+public enum NestPhase : byte
+{
+    /// <summary>Nothing is coming: asleep, or in the lull after a pulse.</summary>
+    Quiet,
+
+    /// <summary>About to let a pulse out: the warning before it.</summary>
+    Stirring,
+
+    /// <summary>Letting a pulse out, one creature at a time.</summary>
+    Releasing,
+}
+
 /// <summary>
-/// A nest in an pyrite deposit. A nest holds creatures it never released (<see cref="NeverReleased"/>) and ones
+/// A nest in a pyrite deposit. A nest holds creatures it never released (<see cref="NeverReleased"/>) and ones
 /// resting (<see cref="Resting"/>, with their stored charge); the rest are out, in <see cref="EmberiteSwarm"/>'s list.
 /// </summary>
 public sealed class Nest
@@ -78,8 +91,20 @@ public sealed class Nest
     /// <summary>The nest is hunting: it releases creatures and recharges those that come home.</summary>
     public bool Awake { get; set; }
 
-    /// <summary>Ticks to the next release.</summary>
+    /// <summary>Where the nest is in its pulse: quiet, stirring before one, or letting one out.</summary>
+    public NestPhase Phase { get; set; }
+
+    /// <summary>Ticks left of the lull or the stir, or to the next creature of the pulse.</summary>
     public int ReleaseTimer { get; set; }
+
+    /// <summary>Ticks in a row the awake nest has had no tank to hunt (<see cref="Config.Tweaks.Emberites.TargetGraceTicks"/>).</summary>
+    public int LostTicks { get; set; }
+
+    /// <summary>Creatures the pulse being let out still has to come.</summary>
+    public int PulseLeft { get; set; }
+
+    /// <summary>Ticks a resting creature has gone short of a full charge with the nest filling none (<see cref="Config.Tweaks.Emberites.StarveTicks"/>).</summary>
+    public int HungerTicks { get; set; }
 
     /// <summary>The tank its creatures are sent after, an index into the tank list; -1 when none is sensed.</summary>
     public int Target { get; set; } = -1;

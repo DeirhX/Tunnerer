@@ -569,10 +569,16 @@ Pyrite pockets and lumps at least 60 cells from every base hold a nest (a pocket
   the nest's ore wakes it whatever the tank's heat, and the thief is hunted for six seconds. A tank that cools below 35
   degrees loses the scent and the creatures go home.
 - *Greed dial.* Carried pyrite already warms the tank, so each unit taken brings it closer to the hunt threshold.
-- *Waves.* A woken nest releases a creature every 4 ticks (6 a second), each carrying one bite of heat: a bite adds 2
+- *Waves.* A woken nest sends its creatures in pulses. It stirs for a second (its embers flare, and it is heard), lets
+  a group out twelve a second, then is quiet for four seconds before it stirs again: the lull is the time to push in,
+  dig or cool off, and it runs on if the nest sleeps, so waking it again is no way round it. A nest keeps hunting a tank
+  that slips out of its reach for a second, rather than restarting its stir. The group's size follows the hunted tank's heat as the stir ends: three at 45 degrees or cooler,
+  every creature ready to leave at 100, linearly between. A bite adds heat, so a tank that lets itself be bitten meets
+  a bigger wave next. Each creature carries one bite of heat: a bite adds 2
   degrees to the tank, the overheat rule does its damage, and the bite itself takes 40 of the tank's 1000 health. A bite
   also takes one unit of pyrite from the tank's hold, if it has any; the creature carries it home to its nest's store,
-  or drops it where it is killed (a cleared nest frees what it stored). A spent creature goes home to drink heat out of the deposit.
+  or drops it where it is killed (a cleared nest frees what it stored). A spent creature goes home to drink heat out of
+  the deposit, and leaves again only with a full charge.
   A tank in its base, or just respawned, is not bitten.
 - *Kills heat the ground.* A killed creature spills the charge it carries where it dies, so holding one choke point
   cooks it. One bullet or fragment kills. Creatures do not block tanks.
@@ -582,11 +588,16 @@ Pyrite pockets and lumps at least 60 cells from every base hold a nest (a pocket
   ore and bases stop them, so a base is a refuge.
 - *Two kinds of fight.* A pocket is barely warm, so its creatures cannot recharge: one wave. A lump's hot core recharges
   them until it is cooled or mined out: a siege, so a relay that pumps the lump cold starves the nest.
-- *Ways out.* Cool down, or kill them all: a cleared nest frees its ore for harvesters, which pass over a guarded
-  deposit's ore until then (the base panel says so).
+- *Starving.* A nest with a resting creature short of a full charge that fills none for 20 seconds loses a hungry
+  creature, and another every second until heat comes back. So the creatures that have bitten die off in a cold
+  deposit, and a nest whose every creature has bitten or been killed clears itself. Creatures that have never left
+  carry their own charge and do not starve: they have to be drawn out. Heat near the nest feeds it, kills and shell
+  bursts included, so the place to fight is away from the deposit.
+- *Ways out.* Cool down, kill them all, or starve them: a cleared nest frees its ore for harvesters, which pass over a
+  guarded deposit's ore until then (the base panel says so).
 
 Not built: attacks on relays and other hot machines, turrets targeting creatures, bot awareness of creatures, threat
-scaling with the total heat rejected, other creature types.
+scaling with the total heat rejected, other creature types, stolen pyrite hatching new creatures.
 
 ### 6.3 Minerals and metals *(Decided in principle)*
 
@@ -912,6 +923,7 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 | Take physical heat simulation seriously and build the loop on heat management | Decided |
 | The ore formerly called emberite is renamed pyrite; the creatures formerly called emberlings (and "mobs" in code) are now emberites | Decided |
 | First emberite: heat-hunting emberites nest in pyrite pockets and lumps; they burrow slower than the tank and run faster in tunnels; they bite heat into tanks, and a cleared nest frees its ore (§6.2) | Decided |
+| A nest sends its emberites in pulses after a stir that warns of each, sized by the hunted tank's heat; a creature leaves only with a full charge, and one its deposit cannot feed starves, so a cold nest clears itself (§6.2) | Decided |
 | Moving things are drawn by extrapolation in the entity vertex shader, so motion is smooth above the step rate with no added lag | Decided |
 | Bases are the main heat sinks; heat returns by tank or by relay | Decided |
 | Add environmental hazards, emberites from nests, and dangerous terrain that must be mined out or disassembled | Decided |

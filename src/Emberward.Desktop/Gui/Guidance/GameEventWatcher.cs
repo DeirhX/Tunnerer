@@ -38,6 +38,7 @@ public sealed class GameEventWatcher
     private int _harvestedSinceReport;
     private bool _nestExplained;
     private readonly List<Position> _nestsWoke = new();
+    private readonly List<Position> _nestsStarved = new();
     private float _lastHarvestReport;
 
     /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
@@ -49,6 +50,7 @@ public sealed class GameEventWatcher
         _harvestedSinceReport = 0;
         _nestExplained = false;
         _nestsWoke.Clear();
+        _nestsStarved.Clear();
     }
 
     /// <summary>
@@ -63,6 +65,9 @@ public sealed class GameEventWatcher
                 _harvestedSinceReport += e.Count;
             else if (e.Kind == StepEventKind.NestWoke && NestAlert.Covers(world, player, e.Position))
                 _nestsWoke.Add(e.Position);
+            // The last creature of a nest starved (a count of 0): told to whoever has the nest in sight.
+            else if (e.Kind == StepEventKind.EmberiteStarved && e.Count == 0 && world.TrackVision(player).IsVisible(e.Position))
+                _nestsStarved.Add(e.Position);
         }
     }
 
@@ -194,7 +199,7 @@ public sealed class GameEventWatcher
             {
                 _nestExplained = true;
                 feed.Post(now, "nest-woke", "A nest woke: emberites",
-                    "They hunt hot tanks and bite their heat into you. Run cool, fight in a narrow tunnel, and clear a nest to free its ore.",
+                    "They hunt hot tanks and come in waves: the nest flares before each, and the hotter you run the bigger it is. Clear a nest to free its ore.",
                     NotificationKind.Danger, cooldown: 1e9f);
             }
             else
@@ -204,6 +209,11 @@ public sealed class GameEventWatcher
             }
         }
         _nestsWoke.Clear();
+
+        foreach (Position nest in _nestsStarved)
+            feed.Post(now, $"nest-starved-{nest.X}-{nest.Y}", "A nest starved", "No heat was left for its emberites. Its ore is free.",
+                NotificationKind.Good, cooldown: 0f);
+        _nestsStarved.Clear();
 
         _poweredRelays = poweredRelays;
         _harvesters = harvesters;

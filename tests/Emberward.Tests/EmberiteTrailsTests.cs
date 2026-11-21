@@ -17,6 +17,9 @@ public class EmberiteTrailsTests
 {
     private static readonly Position Centre = new(60, 100);
 
+    // A woken nest stirs this long before its first creature leaves.
+    private const int Stir = Tweaks.Emberites.StirTicks;
+
     private static (World World, Tank Tank) Arena(TerrainPixel ground)
     {
         var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, emberites: true);
@@ -66,7 +69,7 @@ public class EmberiteTrailsTests
     [Fact]
     public void ACreatureCrossingSoil_WearsItsTrail()
     {
-        var world = DirtHunt(40);
+        var world = DirtHunt(Stir + 40);
 
         Assert.True(world.Emberites!.OutCount > 0);
         Assert.True(WornBlocks(world, world.Emberites.Tick) > 0, "creatures burrowing through dirt should wear blocks");
@@ -78,7 +81,7 @@ public class EmberiteTrailsTests
         var (world, tank) = Arena(TerrainPixel.Blank);
         world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 1, creatures: 3);
         tank.Position = Centre;
-        Tick(world, tank, 20);
+        Tick(world, tank, Stir + 20);
 
         // Only the nest's own ground (radius 1, a few cells) is soil to them, and it is out of the arena's far side.
         Assert.True(WornBlocks(world, world.Emberites.Tick) <= 2);
@@ -108,7 +111,7 @@ public class EmberiteTrailsTests
             for (int k = 0; k < 4; k++)
                 trails.Wear(trails.BlockOf(Centre + new Offset(x, 0)), now);
         Assert.True(nest.Out == 0);
-        Tick(world, tank, 14);
+        Tick(world, tank, Stir + 14);
 
         Assert.Contains(Speeds(world), v => Math.Abs(v - Tweaks.Emberites.OpenSpeed) < 0.01f);
     }
@@ -117,7 +120,7 @@ public class EmberiteTrailsTests
     public void WithoutALane_CreaturesInDirtBurrowSlowly()
     {
         // One creature: a crowd wears the same blocks and makes a lane within a few ticks.
-        var world = DirtHunt(30, creatures: 1);
+        var world = DirtHunt(Stir + 30, creatures: 1);
         var speeds = Speeds(world);
         Assert.NotEmpty(speeds);
         Assert.All(speeds, v => Assert.True(v <= Tweaks.Emberites.SoilSpeed + 0.01f));
@@ -174,7 +177,7 @@ public class EmberiteTrailsTests
     [Fact]
     public void TheTrailIsPartOfTheHash_AndOfTheSnapshot()
     {
-        var world = DirtHunt(40);
+        var world = DirtHunt(Stir + 40);
         var trails = world.Emberites!.Trails;
         int block = trails.BlockOf(Centre + new Offset(-50, 25));
         ulong hash = WorldStateHash.Compute(world);

@@ -20,6 +20,9 @@ public class EmberiteSensingTests
     // Clear of both bases of the 320 x 200 test map, which stand at (130, 21) and (185, 178).
     private static readonly Position Centre = new(60, 100);
 
+    // A woken nest stirs this long before its first creature leaves.
+    private const int Stir = Tweaks.Emberites.StirTicks;
+
     private static (World World, Tank Tank) Arena(TerrainPixel ground)
     {
         var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, emberites: true);
@@ -90,7 +93,7 @@ public class EmberiteSensingTests
         var (world, tank) = Arena(TerrainPixel.Blank);
         world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
         tank.Position = Centre;
-        Tick(world, tank, 20, heat: 80f);
+        Tick(world, tank, Stir + 20, heat: 80f);
         Assert.True(world.Emberites.OutCount > 0);
 
         // Cooler than the heat leash allows at any range: only sight keeps it.
@@ -206,7 +209,7 @@ public class EmberiteSensingTests
         var (world, tank) = Arena(TerrainPixel.Blank);
         world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
         tank.Position = Centre;
-        Tick(world, tank, 20, heat: 80f);
+        Tick(world, tank, Stir + 20, heat: 80f);
         // Cool: creatures now keep the tank by sight, so each has looked (SightTick, Sees) when the snapshot is taken.
         Tick(world, tank, 12, heat: 20f);
         Assert.True(world.Emberites.OutCount > 0);
