@@ -83,10 +83,15 @@ while running:
 
 The simulation always advances in fixed steps. Display frames are not tied to them: the loop draws as often as
 the display allows (vsync, capped by `DesktopScreenTweaks.MaxRenderFps`) and passes each frame its *step
-progress*, the fraction of a step elapsed since the last one. `EntityLayerBuilder` draws tanks, projectiles, machines and links
-at that point between the previous and the latest step (`Rendering/Entities/EntityInterpolator`), and the camera follows the interpolated player, so
-motion is smooth at the display rate while the terrain only changes on steps. The cost is that what is shown
-trails the simulation by up to one step. Beams (links, charge, tethers) fade in and out over a fraction of a
+progress*, the fraction of a step elapsed since the last one. Every moving thing is drawn at `start + motion * alpha`
+(alpha is the step progress), and the entity vertex shader does the sum: a quad's vertices carry where it starts and
+how far it moves in a step. `Rendering/Entities/EntityMotion` supplies both for tanks (the start is where the tank
+was last drawn, so it never jumps; the end is a prediction one step ahead, `1.25 * now + 0.5 * before - 0.75 * before
+that`, which is exact in steady motion) and machines (they slide to their new cell); shots and emberlings go on
+along their velocity. The camera is extrapolated the same way (`CameraFollow`, `PostParams.StepAlpha` and
+`CameraMotion`, `CameraPixelsNow()` in the shaders), so motion is smooth at the display rate, with no added lag,
+while the terrain only changes on steps. The cost is that an abrupt stop overshoots by up to a cell and eases back
+over two steps, and a shot can be drawn up to a step into a wall before its impact shows. Beams (links, charge, tethers) fade in and out over a fraction of a
 second in display time (`Rendering/Entities/BeamFader`), so they do not pop with the simulation.
 
 The game renders at the display's own pixel density (Retina included): the game view and camera are in device
@@ -219,7 +224,7 @@ step's sounds into the frame, and the page plays them with the bank's samples (`
 - **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, the HUD's scale,
   gap and covered area), the tutorial and
   event notifications (`GuidanceTests`), entity
-  interpolation (`EntityInterpolatorTests`), beam fading (`BeamFaderTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
+  motion (`EntityMotionTests`), beam fading (`BeamFaderTests`), machine presentation (`MachinePresentationTests`), terrain aux upload
   planning (`TerrainAuxUploaderTests`), fog rendering (`FogRenderingTests`), world construction (`WorldFactoryTests`), and the solid field and material
   coverage the terrain shader samples.
 - **Network matches**: the input codec and messages (`MessageCodecTests`), the relay's rooms and tick rule

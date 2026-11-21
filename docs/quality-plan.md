@@ -72,7 +72,7 @@ banner, match overlay, network panel with a pure `HintSelector` (unit-tested). U
 A `MachinePresentation` table (name, key, slot, sound, shader kind) keyed by `MachineType`; costs from
 `MachineBehaviors`. Controls screen lists all build keys.
 
-**3B Entity layer** (`EntityLayerBuilder`, `EntityPs.hlsl`): `EntityInterpolator` plus per-family emitters; shader split
+**3B Entity layer** (`EntityLayerBuilder`, `EntityPs.hlsl`): `EntityMotion` plus per-family emitters; shader split
 into `Entity/*.hlsli`; drop colours the shader ignores; one `Coverage` name.
 
 **3C Game shell** (`Game*.cs`): `WorldFactory` (match vs terrain test), `TerrainAuxUploader`, fewer
