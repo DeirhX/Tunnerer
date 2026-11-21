@@ -46,6 +46,7 @@ public sealed class BaseShieldQuads
         public bool Shielded;
         public bool Dark;
         public long LastHitStep;
+        public long LastShieldHitStep;
     }
 
     private readonly Impact[] _impacts = new Impact[MaxImpacts];
@@ -53,6 +54,7 @@ public sealed class BaseShieldQuads
     private int _impactNext;
     private readonly List<BaseView> _bases = new();
     private readonly Dictionary<int, long> _lastHit = new();
+    private readonly Dictionary<int, long> _lastShieldHit = new();
     private long _step;
 
     /// <summary>Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events.</summary>
@@ -72,6 +74,7 @@ public sealed class BaseShieldQuads
                 Shielded = power != null && !tankBase.IsDestroyed,
                 Dark = power?.IsDark == true && !tankBase.IsDestroyed,
                 LastHitStep = _lastHit.TryGetValue(tankBase.Color, out long step) ? step : long.MinValue,
+                LastShieldHitStep = _lastShieldHit.TryGetValue(tankBase.Color, out long shieldStep) ? shieldStep : long.MinValue,
             });
         }
 
@@ -94,6 +97,7 @@ public sealed class BaseShieldQuads
                 };
                 _impactNext = (_impactNext + 1) % MaxImpacts;
                 _impactCount = Math.Min(MaxImpacts, _impactCount + 1);
+                _lastShieldHit[e.Color] = _step;
             }
             _lastHit[e.Color] = _step;
             for (int i = 0; i < _bases.Count; i++)
@@ -102,6 +106,8 @@ public sealed class BaseShieldQuads
                 {
                     var view = _bases[i];
                     view.LastHitStep = _step;
+                    if (e.Kind is StepEventKind.BaseShieldHit or StepEventKind.BaseShieldBroken)
+                        view.LastShieldHitStep = _step;
                     _bases[i] = view;
                 }
             }
@@ -143,7 +149,9 @@ public sealed class BaseShieldQuads
             float flags = (b.Shielded ? FlagShell : 0f) + (b.Dark ? FlagDark : 0f) + (hurt && b.Armor > 0f ? FlagBars : 0f);
             if (flags < 1f)
                 continue;
-            float glow = Math.Clamp(1f - sinceHit / ImpactSteps, 0f, 1f);
+            // The whole-shell flash and veins answer to gate hits only; a core hit lights the bars, not the shield.
+            float sinceShieldHit = b.LastShieldHitStep == long.MinValue ? float.MaxValue : stepNow - b.LastShieldHitStep;
+            float glow = Math.Clamp(1f - sinceShieldHit / ImpactSteps, 0f, 1f);
             quads.Add(cx, cy, 1f, 0f, -reach, reach, -reach, reach, TeamColour(b.Color), EntityShape.KindBaseShield,
                 b.Strength, b.Armor, glow, flags + phase);
         }

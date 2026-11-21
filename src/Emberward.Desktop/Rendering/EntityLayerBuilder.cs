@@ -38,6 +38,7 @@ public sealed class EntityLayerBuilder
     private readonly EntityQuads _quads = new();
     private readonly CoverageQuads _coverage = new();
     private readonly BaseShieldQuads _baseShields = new();
+    private readonly TankShieldQuads _tankShields = new();
     private readonly LinkQuads _links = new();
     private readonly BeamFader _beams = new();
     private readonly PreviewQuads _preview = new();
@@ -67,6 +68,7 @@ public sealed class EntityLayerBuilder
         _coverage.Capture(world, localSlot);
         _links.Capture(world);
         _baseShields.CaptureStep(world);
+        _tankShields.CaptureStep(world);
         _projectiles.Capture(world);
         _emberites.Capture(world);
         _powerLabels.CaptureStep(world, localSlot);
@@ -129,6 +131,7 @@ public sealed class EntityLayerBuilder
         TankQuads.Emit(_quads, _motion, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn, vision);
         _projectiles.Emit(_quads, vision);
         _emberites.Emit(_quads, vision);
+        _tankShields.Emit(_quads, _motion, vision);
         _baseShields.Emit(_quads, vision);
         _powerLabels.Emit(_quads, vision, powerLabelCellSize);
     }

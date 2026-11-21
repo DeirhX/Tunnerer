@@ -81,7 +81,7 @@ public sealed class ScreenEffects
             return;
         foreach (ref readonly StepEvent e in stepEvents)
         {
-            if (e.Kind != StepEventKind.TankHit || e.Color != player.Color)
+            if (e.Kind is not (StepEventKind.TankHit or StepEventKind.TankShieldHit) || e.Color != player.Color)
                 continue;
             _hitPending = true;
             var v = player.LastHitVelocity;

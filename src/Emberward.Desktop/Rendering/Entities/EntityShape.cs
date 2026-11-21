@@ -29,6 +29,7 @@ public static class EntityShape
     public const float KindGatling = 19f;
     public const float KindBaseShield = 20f;
     public const float KindShieldHit = 21f;
+    public const float KindTankShield = 22f;
 
     public const float MachineFlagStalled = 1f;
     public const float MachineFlagCarried = 2f;

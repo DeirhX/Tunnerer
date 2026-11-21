@@ -66,6 +66,9 @@ public static class AudioTweaks
     public const float ImpactGain = 0.60f;
     public const float DebrisGain = 0.30f;
     public const float TankHitGain = 0.70f;
+    // A shield taking a hit: a gatling can land many a second, so each is quiet; its breaking is not.
+    public const float ShieldHitGain = 0.45f;
+    public const float ShieldBreakGain = 0.75f;
 
     /// <summary>Enemy fire on the player's own base: quieter than a hit on the tank, since it comes seven times a second.</summary>
     public const float BaseHitGain = 0.45f;

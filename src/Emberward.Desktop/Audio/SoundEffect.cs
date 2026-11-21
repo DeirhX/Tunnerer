@@ -28,4 +28,6 @@ public enum SoundEffect
     TreadLoop,
     BuildGatling,
     GatlingFire,
+    ShieldHit,
+    ShieldBreak,
 }

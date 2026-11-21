@@ -218,7 +218,7 @@ public class TankShieldTests
 
         tank.TakeDamage(100, DamageCause.EnemyFire);
         TankDamageEvents.Record(log, tank, at, hullEvent: true);
-        Assert.Equal([StepEventKind.TankShieldHit, StepEventKind.TankHit], log.Events.ToArray().Select(e => e.Kind));
+        Assert.Equal([StepEventKind.TankShieldHit], log.Events.ToArray().Select(e => e.Kind));
         Assert.Equal(at, log.Events[0].Position);
         Assert.Equal(100, log.Events[0].Count);
 
