@@ -59,6 +59,7 @@ public static class WorldFactory
                     EnergyNetwork = options.EnergyNetwork,
                     MachineUpgrades = options.EnergyNetwork,
                     TankReserve = options.EnergyNetwork,
+                    Mobs = true,
                 });
         return new BuiltWorld(world, parallel, seed);
     }

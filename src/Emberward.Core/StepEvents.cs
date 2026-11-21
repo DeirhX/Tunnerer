@@ -128,6 +128,15 @@ public enum StepEventKind
     /// <see cref="Entities.Tanks.TankReserveStage"/>. <see cref="StepEvent.Color"/> is the tank.
     /// </summary>
     ReserveStageChanged,
+
+    /// <summary>A nest of emberlings woke; <see cref="StepEvent.Position"/> is the nest, <see cref="StepEvent.Count"/> the creatures in it.</summary>
+    NestWoke,
+
+    /// <summary>An emberling bit a tank, dumping its heat into it. <see cref="StepEvent.Color"/> is the tank.</summary>
+    MobBit,
+
+    /// <summary>An emberling was killed at <see cref="StepEvent.Position"/>; what it carried spilled into the ground there.</summary>
+    MobKilled,
 }
 
 /// <summary>What a <see cref="StepEventKind.BulletImpact"/> struck.</summary>

@@ -27,6 +27,10 @@ using Emberward.Core.Entities.Projectiles;
 /// Per-machine upgrades when the match rules run them (<see cref="Match.MatchRules.MachineUpgrades"/>): a relay asks it
 /// its pump rate. Null leaves every machine at its base numbers.
 /// </param>
+/// <param name="IsOreGuarded">
+/// Whether ore at a cell belongs to a nest that still has creatures (<see cref="Match.MatchRules.Mobs"/>): a harvester
+/// passes it over, like ore sealed in rock. Null guards nothing.
+/// </param>
 /// <param name="Energy">
 /// The energy network (DESIGN.md §4.9) when the match rules run it (<see cref="Match.MatchRules.EnergyNetwork"/>):
 /// machines then spend charge through it. Null leaves the base's charge store as the only one: a harvester pays for
@@ -35,7 +39,8 @@ using Emberward.Core.Entities.Projectiles;
 public readonly record struct MachineContext(
     ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, MachineList Machines,
     Func<Machine, TankCoverage> CoverageOf, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null,
-    MachineUpgradeSystem? Upgrades = null, TankList? Tanks = null, ProjectileList? Projectiles = null);
+    MachineUpgradeSystem? Upgrades = null, TankList? Tanks = null, ProjectileList? Projectiles = null,
+    Func<Position, bool>? IsOreGuarded = null);
 
 /// <summary>
 /// Who an island of the energy network feeds first when it runs short (DESIGN.md §4.9): base defence, then turrets,
@@ -139,6 +144,9 @@ public enum HarvesterState
 
     /// <summary>It has ore to work but its base's store is full: idle until ore is spent.</summary>
     StoreFull,
+
+    /// <summary>The ore in its work area is guarded by a nest with creatures left: it passes over it until the nest is cleared.</summary>
+    Guarded,
 }
 
 public static class MachineBehaviors
@@ -253,7 +261,7 @@ public static class MachineBehaviors
         : harvester.IsOffNetwork ? HarvesterState.OffNetwork
         : harvester.IsStalled ? HarvesterState.TooHot
         : harvester.HasOnlyCoreOre ? HarvesterState.CoreOnly
-        : harvester.HasNoOre ? HarvesterState.NoOre
+        : harvester.HasNoOre ? (harvester.OreGuarded ? HarvesterState.Guarded : HarvesterState.NoOre)
         : harvester.OwnerBase is { Store.IsFull: true } ? HarvesterState.StoreFull
         : HarvesterState.Working;
 

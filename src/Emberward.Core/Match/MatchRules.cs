@@ -67,6 +67,13 @@ public sealed record MatchRules
     /// </summary>
     public bool TankReserve { get; init; }
 
+    /// <summary>
+    /// Emberlings nest in emberite pockets and lumps, guard the ore and hunt tanks that run hot (DESIGN.md §6.2,
+    /// <see cref="Entities.Mobs.MobSwarm"/>). Needs <see cref="SeedOre"/>: without deposits there are no nests. Off, the
+    /// world has no swarm and no harvester refuses ore.
+    /// </summary>
+    public bool Mobs { get; init; }
+
     /// <summary>A normal match: hot and frost pockets, ore, regrowth; the core does not end it.</summary>
     public static MatchRules Standard { get; } = new()
     {
@@ -93,6 +100,8 @@ public sealed record MatchRules
             hash = Fnv1a.Mix(hash, 0x4D55u);
         if (TankReserve)
             hash = Fnv1a.Mix(hash, 0x5253u);
+        if (Mobs)
+            hash = Fnv1a.Mix(hash, 0x4D4Fu);
         return hash;
     }
 }

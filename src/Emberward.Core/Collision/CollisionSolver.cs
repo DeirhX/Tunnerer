@@ -6,6 +6,7 @@ using Emberward.Core.Entities;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Bases;
+using Emberward.Core.Entities.Mobs;
 
 /// <summary>
 /// What stops a tank's step, in the order the move meets them. <see cref="Dirt"/> yields to one dig; <see cref="Hard"/>
@@ -36,6 +37,7 @@ public class CollisionSolver
     private readonly TerrainGrid _terrain;
     private readonly WorldSectors _tankSectors;
     private readonly TankBases? _bases;
+    private readonly MobSwarm? _mobs;
     private TankList? _tanks;
     private MachineList? _machines;
     private readonly List<List<Machine>> _nearMachines = new();
@@ -49,10 +51,12 @@ public class CollisionSolver
         _bases?.BaseOccupying(pos) is { IsDestroyed: false } tankBase && tankBase.Color != ownerColor
             ? tankBase : null;
 
-    public CollisionSolver(TerrainGrid terrain, TankBases? bases = null)
+    /// <param name="mobs">The creatures shots can hit (<see cref="Emberward.Core.Match.MatchRules.Mobs"/>); null where the world has none.</param>
+    public CollisionSolver(TerrainGrid terrain, TankBases? bases = null, MobSwarm? mobs = null)
     {
         _terrain = terrain;
         _bases = bases;
+        _mobs = mobs;
         _tankSectors = new WorldSectors(terrain.Size);
     }
 
@@ -65,6 +69,7 @@ public class CollisionSolver
         _tanks = tanks;
         _machines = machines;
 
+        _mobs?.IndexCreatures();
         _tankSectors.Clear();
         for (int i = 0; i < tanks.Tanks.Count; i++)
         {
@@ -83,8 +88,12 @@ public class CollisionSolver
     public bool TestPoint(Position pos,
         Func<Tank, bool>? onTank = null,
         Func<Machine, bool>? onMachine = null,
-        Func<TerrainPixel, bool>? onTerrain = null)
+        Func<TerrainPixel, bool>? onTerrain = null,
+        Func<int, bool>? onMob = null)
     {
+        if (onMob != null && _mobs != null && _mobs.TestPoint(pos, onMob))
+            return true;
+
         if (onTank != null && _tanks != null)
         {
             bool tankHit = _tankSectors.ForEachNearbyEntity(pos, idx =>
@@ -127,6 +136,12 @@ public class CollisionSolver
 
         return false;
     }
+
+    /// <summary>Whether any creature is out to be hit: shots ask before they build a callback for one.</summary>
+    public bool CanHitMobs => _mobs?.HasCreatures == true;
+
+    /// <summary>Kills creature <paramref name="index"/>, an index <c>TestPoint</c>'s <c>onMob</c> was given.</summary>
+    public void KillMob(int index) => _mobs?.Kill(index);
 
     /// <summary>
     /// The worst ground under the hull of a tank at <paramref name="pos"/> facing sprite direction

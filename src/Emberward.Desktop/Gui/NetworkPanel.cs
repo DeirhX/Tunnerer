@@ -85,6 +85,8 @@ public sealed class NetworkPanel
                         (status.HarvestersNoOre > 0 ? $"{status.HarvestersNoOre} out of ore" : ""));
                 if (status.HarvestersCoreOnly > 0)
                     ColoredText(HudTheme.Warn, $"{status.HarvestersCoreOnly} at a warm core: torch it out with the tank");
+                if (status.HarvestersGuarded > 0)
+                    ColoredText(HudTheme.Warn, $"{status.HarvestersGuarded} idle: a nest guards the ore, clear it out");
                 if (status.HarvestersStoreFull > 0)
                     ColoredText(HudTheme.Warn, $"{status.HarvestersStoreFull} waiting: the base ore store is full");
                 if (flat > 0)

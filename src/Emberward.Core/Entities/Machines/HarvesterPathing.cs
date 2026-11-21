@@ -65,9 +65,10 @@ internal static class HarvesterPathing
     {
         firstStep = default;
         var terrain = ctx.Terrain;
+        machine.OreGuarded = false;
         if (!HasPlainOre(machine, terrain, out coreLeft))
             return null;
-        if (OreInReach(machine, terrain, machine.Position) is Position here)
+        if (OreInReach(machine, ctx, machine.Position) is Position here)
             return here;
 
         var anchor = machine.Anchor;
@@ -108,7 +109,7 @@ internal static class HarvesterPathing
                 if (!CanStand(machine, terrain, next) || (!alreadyCrowded && ctx.IsOccupied(machine, next)))
                     continue;
                 byte first = index == startIndex ? (byte)i : scratch.FirstStep[index];
-                if (OreInReach(machine, terrain, next) is Position ore)
+                if (OreInReach(machine, ctx, next) is Position ore)
                 {
                     firstStep = FloodSteps[first];
                     return ore;
@@ -131,8 +132,9 @@ internal static class HarvesterPathing
     /// The plain ore cell of the work area closest to <paramref name="center"/> and within the harvester's reach of
     /// it (first in scan order on ties), or null. Ore too hot to work (<c>HarvesterHotOreTemperature</c>) does not count.
     /// </summary>
-    private static Position? OreInReach(Machine machine, ITerrainAccess terrain, Position center)
+    private static Position? OreInReach(Machine machine, MachineContext ctx, Position center)
     {
+        var terrain = ctx.Terrain;
         int reach = Tweaks.Ore.HarvesterReach;
         Position? best = null;
         int bestDist = int.MaxValue;
@@ -146,6 +148,12 @@ internal static class HarvesterPathing
                 var pixel = terrain.GetPixelRaw(pos);
                 if (!Pixel.IsOre(pixel) || Pixel.IsOreCore(pixel)) continue;
                 if (terrain.GetHeatTemperature(pos) >= Tweaks.Machine.HarvesterHotOreTemperature) continue;
+                // Ore a nest still guards is passed over, like ore sealed in rock.
+                if (ctx.IsOreGuarded?.Invoke(pos) == true)
+                {
+                    machine.OreGuarded = true;
+                    continue;
+                }
                 bestDist = d;
                 best = pos;
             }

@@ -89,6 +89,7 @@ public sealed class BrowserSession
                 EnergyNetwork = energyNetwork,
                 MachineUpgrades = energyNetwork,
                 TankReserve = energyNetwork,
+                Mobs = true,
             }, players, genMode,
             settings: settings);
         LocalSlot = localSlot;
