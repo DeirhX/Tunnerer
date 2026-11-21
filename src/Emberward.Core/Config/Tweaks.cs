@@ -434,6 +434,10 @@ public static partial class Tweaks
         public const int FormationDepth = 10;
         public const int MachineRange = 75;
         public const int LifeRange = 60;
+        // A tank's echo depends on its heat: none below SignatureFloorHeat, then LifeRange growing linearly to its full
+        // value at SignatureFullHeat (Sensing/TankSignature).
+        public const float SignatureFloorHeat = 45f;
+        public const float SignatureFullHeat = 100f;
         // The weak return of a tunnel or cave behind dirt.
         public const int CavityRange = 50;
         // Emberite ore: a speck returns only from OreRangeMin, growing to OreRangeMax for a deposit FormationDepth
