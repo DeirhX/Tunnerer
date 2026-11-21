@@ -46,7 +46,7 @@ public class TankShieldFeedbackTests
         var (world, _) = Shot(Tweaks.TankShield.Capacity + 50);
 
         var kinds = world.StepEvents.ToArray().Select(e => e.Kind).ToArray();
-        Assert.Contains(StepEventKind.TankShieldHit, kinds);
+        Assert.DoesNotContain(StepEventKind.TankShieldHit, kinds);
         Assert.Contains(StepEventKind.TankShieldBroken, kinds);
         Assert.Contains(StepEventKind.TankHit, kinds);
     }
@@ -79,5 +79,19 @@ public class TankShieldFeedbackTests
         var levels = effects.Update(victim, 0.016f);
 
         Assert.True(levels.Hit > 0f);
+    }
+
+    [Fact]
+    public void ABiteOnTheShield_DoesNotShakeTheScreen()
+    {
+        var (_, victim) = Shot(Tweaks.Weapon.BulletDamage);
+        victim.TakeDamage(10, DamageCause.Emberite);
+        var effects = new ScreenEffects();
+        effects.Update(victim, 0.016f);
+
+        effects.AfterStep([new StepEvent(StepEventKind.TankShieldHit, victim.Position, victim.Color, Count: 10)], victim);
+        var levels = effects.Update(victim, 0.016f);
+
+        Assert.Equal(0f, levels.Hit);
     }
 }
