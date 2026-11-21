@@ -571,7 +571,8 @@ Pyrite pockets and lumps at least 60 cells from every base hold a nest (a pocket
 - *Greed dial.* Carried pyrite already warms the tank, so each unit taken brings it closer to the hunt threshold.
 - *Waves.* A woken nest sends its creatures in pulses. It stirs for a second (its embers flare, and it is heard), lets
   a group out twelve a second, then is quiet for four seconds before it stirs again: the lull is the time to push in,
-  dig or cool off. The group's size follows the hunted tank's heat as the stir ends: three at 45 degrees or cooler,
+  dig or cool off, and it runs on if the nest sleeps, so waking it again is no way round it. A nest keeps hunting a tank
+  that slips out of its reach for a second, rather than restarting its stir. The group's size follows the hunted tank's heat as the stir ends: three at 45 degrees or cooler,
   every creature ready to leave at 100, linearly between. A bite adds heat, so a tank that lets itself be bitten meets
   a bigger wave next. Each creature carries one bite of heat: a bite adds 2
   degrees to the tank, the overheat rule does its damage, and the bite itself takes 40 of the tank's 1000 health. A bite

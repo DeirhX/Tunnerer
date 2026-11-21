@@ -47,8 +47,15 @@ public sealed partial class EmberiteSwarm
         if (nest.Awake)
             return;
         nest.Awake = true;
-        Settle(nest, lull: 0);
+        nest.LostTicks = 0;
         nest.Target = PickTarget(nest, -1);
+        // A nest woken out of a lull waits out what is left of it. Otherwise its first stir begins now, and the wake
+        // alarm is its warning: no second alarm a tick later.
+        if (nest.ReleaseTimer == 0 && Ready(nest) > 0)
+        {
+            nest.Phase = NestPhase.Stirring;
+            nest.ReleaseTimer = Tweaks.Emberites.StirTicks;
+        }
         _events.Record(new StepEvent(StepEventKind.NestWoke, nest.Centre, Count: nest.Inside));
     }
 
@@ -66,11 +73,22 @@ public sealed partial class EmberiteSwarm
         }
 
         // Resting creatures drink heat whether the nest is awake or asleep, and starve where there is none.
-        if (nest.Resting > 0 && (_tick + index) % Tweaks.Emberites.RechargeIntervalTicks == 0)
-            Recharge(nest);
+        if (nest.Resting > 0)
+        {
+            if ((_tick + index) % Tweaks.Emberites.RechargeIntervalTicks == 0)
+                Recharge(nest);
+        }
+        else
+        {
+            // No hunger outlasts the creatures that felt it: the next one to come home starts fresh.
+            nest.HungerTicks = 0;
+        }
 
         if (!nest.Awake)
         {
+            // A lull runs on while the nest sleeps, so that waking it is no way round it.
+            if (nest.ReleaseTimer > 0)
+                nest.ReleaseTimer--;
             // Dormant: one distance test per tank, once in a while.
             if (Ready(nest) > 0 && (_tick + index) % Tweaks.Emberites.WakeCheckTicks == 0 && SensesAnyone(nest))
                 Wake(nest);
@@ -80,12 +98,20 @@ public sealed partial class EmberiteSwarm
         if ((_tick + index) % Tweaks.Emberites.WakeCheckTicks == 0)
             nest.Target = PickTarget(nest, index);
         Tank? hunted = ValidTarget(nest.Target);
-        // Nothing to hunt and nothing out: back to sleep, and the resting recharge on. A nest that still hunts stays
-        // awake even with nothing left to let out, so that it keeps its target and wakes at once when heat returns.
-        if (hunted is null && nest.Out == 0)
+        nest.LostTicks = hunted is null ? nest.LostTicks + 1 : 0;
+        // Nothing to hunt (for a moment: a tank at the edge of its reach comes and goes) and nothing out: back to
+        // sleep, and the resting recharge on. A nest that still hunts stays awake even with nothing left to let out,
+        // so that it keeps its target and wakes at once when heat returns.
+        if (nest.LostTicks >= Tweaks.Emberites.TargetGraceTicks && nest.Out == 0)
         {
             nest.Awake = false;
-            Settle(nest, lull: 0);
+            // A stir comes to nothing, a group half out is as good as a whole one, and a lull left runs on asleep.
+            Settle(nest, nest.Phase switch
+            {
+                NestPhase.Releasing => Tweaks.Emberites.LullTicks,
+                NestPhase.Quiet => nest.ReleaseTimer,
+                _ => 0,
+            });
             return;
         }
         AdvancePulse(index, nest, hunted);
@@ -93,8 +119,8 @@ public sealed partial class EmberiteSwarm
 
     /// <summary>
     /// A woken nest's pulse: quiet through the lull, then a stir (the warning), then the group, one creature every
-    /// <see cref="Tweaks.Emberites.PulseSpacingTicks"/>. The lull runs on while the nest has lost its tank; a stir or
-    /// a group in hand is dropped.
+    /// <see cref="Tweaks.Emberites.PulseSpacingTicks"/>. The lull runs on while the nest has lost its tank. A stir or a
+    /// group in hand waits, for <see cref="Tweaks.Emberites.TargetGraceTicks"/>, for the tank to come back, and is then dropped.
     /// </summary>
     private void AdvancePulse(int index, Nest nest, Tank? hunted)
     {
@@ -112,8 +138,10 @@ public sealed partial class EmberiteSwarm
         }
         if (hunted is null)
         {
-            // Lost its tank: a stir comes to nothing, a group half out waits out a lull like a whole one.
-            Settle(nest, nest.Phase == NestPhase.Releasing ? Tweaks.Emberites.LullTicks : 0);
+            // Lost its tank: held while it may come back; past that a stir comes to nothing and a group half out
+            // waits out a lull like a whole one.
+            if (nest.LostTicks >= Tweaks.Emberites.TargetGraceTicks)
+                Settle(nest, nest.Phase == NestPhase.Releasing ? Tweaks.Emberites.LullTicks : 0);
             return;
         }
         if (nest.Phase == NestPhase.Stirring)
@@ -275,8 +303,8 @@ public sealed partial class EmberiteSwarm
         if (nest.HungerTicks < Tweaks.Emberites.StarveTicks)
             return;
 
-        nest.HungerTicks = Tweaks.Emberites.StarveTicks - Tweaks.Emberites.StarveStepTicks;
         nest.Resting--;
+        nest.HungerTicks = nest.Resting == 0 ? 0 : Tweaks.Emberites.StarveTicks - Tweaks.Emberites.StarveStepTicks;
         double spare = nest.Stored - nest.Resting * _fullCharge;
         if (spare > 0.0)
         {

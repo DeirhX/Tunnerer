@@ -48,6 +48,9 @@ public static partial class Tweaks
         public const int PulseSpacingTicks = 2;
         public const int LullTicks = 4 * Perf.TargetFps;
         public const int PulseMinCreatures = 3;
+        // A nest that finds no tank to hunt waits this long for one (a tank at the edge of its reach comes and goes)
+        // before it drops a stir or a group it has begun, or goes back to sleep with none out.
+        public const int TargetGraceTicks = Perf.TargetFps;
         // Each creature carries one bite of heat: a bite adds BiteDegrees to the tank (the overheat rule does the
         // damage), a bite lands within BiteRange cells of the tank's centre.
         public const float BiteDegrees = 2f;

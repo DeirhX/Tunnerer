@@ -44,29 +44,32 @@ public class EmberitePulseTests
     }
 
     [Fact]
-    public void AWokenNest_StirsForAWhile_BeforeItLetsAnyOut()
+    public void AWokenNest_StirsForAWhile_BeforeItLetsAnyOut_AndItsWakeAlarmIsTheWarning()
     {
         var (world, tank, nest) = Arena(creatures: 6);
 
-        int stirred = -1, firstOut = -1;
+        int woke = -1, firstOut = -1;
         for (int tick = 0; tick < 3 * Tweaks.Emberites.StirTicks && firstOut < 0; tick++)
         {
             foreach (StepEvent e in Step(world, tank, heat: 80f))
-                if (e.Kind == StepEventKind.NestStirred)
+            {
+                // The first stir begins at the wake, which is its alarm: no second one a tick later.
+                Assert.NotEqual(StepEventKind.NestStirred, e.Kind);
+                if (e.Kind == StepEventKind.NestWoke)
                 {
-                    Assert.Equal(-1, stirred);
+                    Assert.Equal(-1, woke);
                     Assert.Equal(6, e.Count);
                     Assert.Equal(nest.Centre, e.Position);
-                    stirred = tick;
+                    woke = tick;
+                    Assert.Equal(NestPhase.Stirring, nest.Phase);
                 }
-            if (stirred == tick)
-                Assert.Equal(NestPhase.Stirring, nest.Phase);
+            }
             if (world.Emberites!.OutCount > 0)
                 firstOut = tick;
         }
 
-        Assert.True(stirred >= 0, "the nest never stirred");
-        Assert.Equal(stirred + Tweaks.Emberites.StirTicks, firstOut);
+        Assert.True(woke >= 0, "the nest never woke");
+        Assert.Equal(woke + Tweaks.Emberites.StirTicks, firstOut);
     }
 
     [Fact]
@@ -212,6 +215,97 @@ public class EmberitePulseTests
         Assert.Equal(3 * FullCharge, nest.Stored, tolerance: 1e-3);
         Assert.Equal(0, nest.HungerTicks);
         Assert.DoesNotContain(events, e => e.Kind == StepEventKind.EmberiteStarved);
+    }
+
+    [Fact]
+    public void HungerFromAnEarlierCreature_DoesNotShortenTheNextOnesWait()
+    {
+        var (world, tank, nest) = Arena(creatures: 0);
+        nest.Resting = 1;
+        for (int tick = 0; tick < Tweaks.Emberites.StarveTicks + 4 * Tweaks.Emberites.RechargeIntervalTicks; tick++)
+            Step(world, tank, heat: null);
+        Assert.True(nest.IsCleared, "the lone hungry creature should have starved");
+        Assert.Equal(0, nest.HungerTicks);
+
+        // Another comes home later, to a deposit that still gives nothing: it gets the whole wait, not one second.
+        nest.Resting = 1;
+        nest.NeverReleased = 0;
+        int starvedAfter = -1;
+        for (int tick = 0; tick < 2 * Tweaks.Emberites.StarveTicks && starvedAfter < 0; tick++)
+        {
+            Step(world, tank, heat: null);
+            if (nest.IsCleared)
+                starvedAfter = tick;
+        }
+        Assert.InRange(starvedAfter, Tweaks.Emberites.StarveTicks - 2 * Tweaks.Emberites.RechargeIntervalTicks, Tweaks.Emberites.StarveTicks + 2 * Tweaks.Emberites.RechargeIntervalTicks);
+    }
+
+    [Fact]
+    public void ANestWokenAgainDuringItsLull_WaitsOutTheLull()
+    {
+        var (world, tank, nest) = Arena(creatures: 8);
+        int lull = 3 * Tweaks.Emberites.StirTicks;
+        nest.ReleaseTimer = lull; // asleep, a pulse not long gone
+
+        int stirred = -1, woke = -1;
+        for (int tick = 0; tick < 2 * lull && stirred < 0; tick++)
+        {
+            foreach (StepEvent e in Step(world, tank, heat: 80f))
+            {
+                if (e.Kind == StepEventKind.NestWoke && woke < 0)
+                    woke = tick;
+            }
+            if (nest.Phase == NestPhase.Stirring)
+                stirred = tick;
+        }
+
+        Assert.True(woke >= 0 && woke < lull, "the nest should wake to the hot tank during the lull");
+        Assert.InRange(stirred, lull - 2, lull + 2);
+        Assert.Equal(0, world.Emberites!.OutCount);
+    }
+
+    [Fact]
+    public void ATankThatSlipsOutOfReachForAMoment_DoesNotRestartTheStir()
+    {
+        var (world, tank, nest) = Arena(creatures: 6);
+        var events = new List<StepEvent>();
+        int woke = -1;
+        for (int tick = 0; woke < 0 && tick < 60; tick++)
+        {
+            events.AddRange(Step(world, tank, heat: 80f));
+            if (events.Any(e => e.Kind == StepEventKind.NestWoke))
+                woke = tick;
+        }
+        Assert.True(woke >= 0);
+
+        // Cool for less than the grace, through at least one look for a target, in the middle of the stir.
+        for (int tick = 0; tick < Tweaks.Emberites.TargetGraceTicks / 2; tick++)
+            events.AddRange(Step(world, tank, heat: 10f));
+        Assert.Equal(NestPhase.Stirring, nest.Phase);
+        Assert.True(nest.Awake);
+
+        for (int tick = 0; tick < 2 * Tweaks.Emberites.StirTicks && world.Emberites!.OutCount == 0; tick++)
+            events.AddRange(Step(world, tank, heat: 80f));
+
+        Assert.Equal(1, events.Count(e => e.Kind == StepEventKind.NestWoke));
+        Assert.DoesNotContain(events, e => e.Kind == StepEventKind.NestStirred);
+        Assert.True(world.Emberites!.OutCount > 0, "the stir should have gone on to its pulse");
+    }
+
+    [Fact]
+    public void ATankGoneForGood_DropsTheStir_AndTheNestSleeps()
+    {
+        var (world, tank, nest) = Arena(creatures: 6);
+        for (int tick = 0; tick < Tweaks.Emberites.WakeCheckTicks + 4; tick++)
+            Step(world, tank, heat: 80f);
+        Assert.Equal(NestPhase.Stirring, nest.Phase);
+
+        for (int tick = 0; tick < Tweaks.Emberites.TargetGraceTicks + 3 * Tweaks.Emberites.WakeCheckTicks; tick++)
+            Step(world, tank, heat: 10f);
+
+        Assert.False(nest.Awake);
+        Assert.Equal(NestPhase.Quiet, nest.Phase);
+        Assert.Equal(0, world.Emberites!.OutCount);
     }
 
     [Fact]

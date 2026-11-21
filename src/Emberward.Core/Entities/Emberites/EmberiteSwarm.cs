@@ -246,6 +246,7 @@ public sealed partial class EmberiteSwarm
         {
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.ReleaseTimer), nest.Target);
             hash = Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, (int)nest.Phase), nest.PulseLeft), nest.HungerTicks);
+            hash = Fnv1a.Mix(hash, nest.LostTicks);
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.Thief), nest.ThiefTicks);
         }
         foreach (Emberite emberite in _emberites)

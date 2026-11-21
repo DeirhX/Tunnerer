@@ -97,6 +97,9 @@ public sealed class Nest
     /// <summary>Ticks left of the lull or the stir, or to the next creature of the pulse.</summary>
     public int ReleaseTimer { get; set; }
 
+    /// <summary>Ticks in a row the awake nest has had no tank to hunt (<see cref="Config.Tweaks.Emberites.TargetGraceTicks"/>).</summary>
+    public int LostTicks { get; set; }
+
     /// <summary>Creatures the pulse being let out still has to come.</summary>
     public int PulseLeft { get; set; }
 
