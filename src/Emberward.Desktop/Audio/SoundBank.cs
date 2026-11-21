@@ -26,7 +26,8 @@ public sealed class SoundBank
 
     public float[] this[SoundEffect effect] => _samples[(int)effect];
 
-    public static bool IsLoop(SoundEffect effect) => effect is >= SoundEffect.EngineLoop and <= SoundEffect.RechargeLoop;
+    public static bool IsLoop(SoundEffect effect) => effect is SoundEffect.EngineLoop or SoundEffect.DigLoop or
+        SoundEffect.TorchLoop or SoundEffect.RechargeLoop or SoundEffect.TreadLoop;
 
     private static float[] Synthesize(SoundEffect effect)
     {
@@ -55,6 +56,7 @@ public sealed class SoundBank
             SoundEffect.DigLoop => DigLoop(ref noise),
             SoundEffect.TorchLoop => TorchLoop(ref noise),
             SoundEffect.RechargeLoop => RechargeLoop(),
+            SoundEffect.TreadLoop => TreadLoop(ref noise),
             _ => throw new ArgumentOutOfRangeException(nameof(effect)),
         };
     }
@@ -384,6 +386,34 @@ public sealed class SoundBank
             float t = i / (float)Rate;
             samples[i] = hiss[i] * (0.8f + 0.2f * MathF.Sin(Tau * 17f * t))
                 + roar[i] * (0.7f + 0.3f * MathF.Sin(Tau * 9f * t)) * 1.5f;
+        }
+        return samples;
+    }
+
+    /// <summary>
+    /// Another tank's treads: a dry clank of links meeting the sprocket, eight to the second, over a gritty squeal.
+    /// It sits above the engine's drone so it stays clear when muffled to a thud, and tells a moving tank from an idle one.
+    /// </summary>
+    private static float[] TreadLoop(ref Noise noise)
+    {
+        var samples = Buffer(1f);
+        float[] grit = SeamlessNoise(ref noise, samples.Length, 400f, 2400f);
+        float[] body = SeamlessNoise(ref noise, samples.Length, 80f, 260f);
+        const int Clanks = 8;
+        Span<float> accents = stackalloc float[Clanks];
+        for (int k = 0; k < Clanks; k++)
+            accents[k] = 0.7f + 0.3f * noise.Next01();
+
+        int period = samples.Length / Clanks;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)Rate;
+            int clank = i / period % Clanks;
+            float since = (i % period) / (float)Rate;
+            float hit = Decay(since, 0.012f) * accents[clank];
+            float ring = MathF.Sin(Tau * 320f * t) * Decay(since, 0.03f) * 0.4f;
+            float squeal = 0.25f + 0.1f * MathF.Sin(Tau * 3f * t);
+            samples[i] = grit[i] * (hit * 2.2f + squeal) + body[i] * hit * 2.5f + ring * accents[clank];
         }
         return samples;
     }

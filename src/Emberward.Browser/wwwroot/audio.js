@@ -1,7 +1,8 @@
 // The game's sound, as on the desktop. What plays after each step, how loud, where and at what pitch is decided
 // in C# by the desktop's SoundDirector, and the samples are the desktop's SoundBank, synthesised in .NET when sound
 // is first turned on (BrowserSoundBank). This file plays them: each frame after a step lists the one-shots to
-// start and where every loop should be (`sounds`: { play, loops }).
+// start and where every loop should be (`sounds`: { play, loops }). Each carries its gain, pan, rate and the cutoff of
+// the low-pass that muffles what is heard through the ground (SoundSpace.CutoffHz).
 
 // The desktop's default master volume (AudioOptions.DefaultVolume). Its mixer gives a centred sound gain 1 in both
 // speakers; a Web Audio stereo panner gives it 1/√2, which √2 makes up.
@@ -12,6 +13,8 @@ const MAX_VOICES = 32,
     MAX_VOICES_PER_EFFECT = 4;
 // Loops glide to new values over about 25 ms, as the desktop's mixer does, so nothing clicks.
 const GLIDE_SECONDS = 0.008;
+// SoundSpace.ClearCutoffHz: an unmuffled sound's filter passes everything audible.
+const CLEAR_CUTOFF_HZ = 20000;
 
 export class GameAudio {
     enabled = false;
@@ -97,12 +100,13 @@ export class GameAudio {
         const same = this.voices.filter((v) => v.effect === s.effect);
         if (same.length >= MAX_VOICES_PER_EFFECT) this.release(same[0], now);
         if (this.voices.length >= MAX_VOICES) return;
-        const voice = this.chain(buffer, s.gain, s.pan, s.rate, now);
+        const voice = this.chain(buffer, s.gain, s.pan, s.rate, s.cutoff, now);
         voice.effect = s.effect;
         voice.source.onended = () => {
             voice.ended = true;
             voice.source.disconnect();
             voice.gain.disconnect();
+            voice.filter.disconnect();
             voice.panner.disconnect();
         };
         voice.source.start(now);
@@ -122,7 +126,7 @@ export class GameAudio {
             if (loop) this.release(loop, now);
             const buffer = this.buffers.get(l.effect);
             if (!buffer) return;
-            loop = this.chain(buffer, 0, l.pan, l.rate, now);
+            loop = this.chain(buffer, 0, l.pan, l.rate, l.cutoff, now);
             loop.effect = l.effect;
             loop.source.loop = true;
             loop.source.start(now);
@@ -131,6 +135,11 @@ export class GameAudio {
         loop.gain.gain.setTargetAtTime(l.gain, now, GLIDE_SECONDS);
         loop.panner.pan.setTargetAtTime(l.pan, now, GLIDE_SECONDS);
         loop.source.playbackRate.setTargetAtTime(l.rate, now, GLIDE_SECONDS);
+        loop.filter.frequency.setTargetAtTime(
+            this.cutoff(l.cutoff),
+            now,
+            GLIDE_SECONDS,
+        );
     }
 
     // Silences every loop: the match is over and no more steps will steer them.
@@ -141,18 +150,29 @@ export class GameAudio {
             loop?.gain.gain.setTargetAtTime(0, now, GLIDE_SECONDS);
     }
 
-    chain(buffer, gain, pan, rate, now) {
+    // A cutoff within what the context can filter (an older .NET build sends none: clear).
+    cutoff(hz) {
+        return Math.min(hz ?? CLEAR_CUTOFF_HZ, this.context.sampleRate / 2);
+    }
+
+    chain(buffer, gain, pan, rate, cutoff, now) {
         const ctx = this.context;
         const source = ctx.createBufferSource(),
+            filter = ctx.createBiquadFilter(),
             gainNode = ctx.createGain(),
             panner = ctx.createStereoPanner();
         source.buffer = buffer;
         source.playbackRate.setValueAtTime(rate, now);
+        filter.type = "lowpass";
+        // No resonant bump at the cutoff: muffling only takes away.
+        filter.Q.setValueAtTime(0, now);
+        filter.frequency.setValueAtTime(this.cutoff(cutoff), now);
         gainNode.gain.setValueAtTime(gain, now);
         panner.pan.setValueAtTime(pan, now);
-        source.connect(gainNode);
+        source.connect(filter);
+        filter.connect(gainNode);
         gainNode.connect(panner);
         panner.connect(this.master);
-        return { source, gain: gainNode, panner, ended: false };
+        return { source, filter, gain: gainNode, panner, ended: false };
     }
 }

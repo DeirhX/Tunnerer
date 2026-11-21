@@ -4,11 +4,14 @@ using System.Runtime.InteropServices;
 using Emberward.Desktop.Audio;
 using Emberward.Desktop.Config;
 
-/// <summary>A one-shot to start: a <see cref="SoundEffect"/> name, its gain, stereo position and playback rate.</summary>
-public sealed record SoundPlay(string Effect, float Gain, float Pan, float Rate);
+/// <summary>
+/// A one-shot to start: a <see cref="SoundEffect"/> name, its gain, stereo position, playback rate and the cutoff of
+/// the low-pass that muffles it (<see cref="SoundSpace.CutoffHz"/>; <see cref="SoundSpace.ClearCutoffHz"/> when clear).
+/// </summary>
+public sealed record SoundPlay(string Effect, float Gain, float Pan, float Rate, float Cutoff = SoundSpace.ClearCutoffHz);
 
 /// <summary>Where a loop should be now; the page glides it there. Gain 0 is silent.</summary>
-public sealed record SoundLoop(string Effect, float Gain, float Pan, float Rate);
+public sealed record SoundLoop(string Effect, float Gain, float Pan, float Rate, float Cutoff = SoundSpace.ClearCutoffHz);
 
 /// <summary>What a frame plays: the one-shots its step started and every loop's state (by handle).</summary>
 public sealed record SoundFrame(SoundPlay[] Play, SoundLoop[] Loops);
@@ -23,10 +26,10 @@ public sealed class SoundRecorder : ISoundSink
     private readonly List<SoundPlay> _plays = new();
     private readonly List<SoundLoop> _loops = new();
 
-    public void Play(SoundEffect effect, float gain, float pan, float rate)
+    public void Play(SoundEffect effect, float gain, float pan, float rate, float muffle = 0f)
     {
         if (gain > 0f)
-            _plays.Add(new SoundPlay(effect.ToString(), gain, pan, rate));
+            _plays.Add(new SoundPlay(effect.ToString(), gain, pan, rate, SoundSpace.CutoffHz(muffle)));
     }
 
     public int AddLoop(SoundEffect effect)
@@ -35,12 +38,13 @@ public sealed class SoundRecorder : ISoundSink
         return _loops.Count - 1;
     }
 
-    public void SetLoop(int handle, float gain, float pan = 0f, float rate = 1f) =>
+    public void SetLoop(int handle, float gain, float pan = 0f, float rate = 1f, float muffle = 0f) =>
         _loops[handle] = _loops[handle] with
         {
             Gain = Math.Max(0f, gain),
             Pan = Math.Clamp(pan, -1f, 1f),
             Rate = Math.Clamp(rate, 0.25f, 4f),
+            Cutoff = SoundSpace.CutoffHz(muffle),
         };
 
     /// <summary>

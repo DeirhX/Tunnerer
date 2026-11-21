@@ -60,13 +60,13 @@ public sealed class GameAudio : IDisposable
     /// <summary>Plays what <see cref="SoundDirector"/> decides into the mixer, with the bank's samples.</summary>
     private sealed class MixerSink(SoundMixer mixer, SoundBank bank) : ISoundSink
     {
-        public void Play(SoundEffect effect, float gain, float pan, float rate) =>
-            mixer.Play(effect, bank[effect], gain, pan, rate);
+        public void Play(SoundEffect effect, float gain, float pan, float rate, float muffle = 0f) =>
+            mixer.Play(effect, bank[effect], gain, pan, rate, muffle: muffle);
 
         public int AddLoop(SoundEffect effect) => mixer.AddLoop(bank[effect]);
 
-        public void SetLoop(int handle, float gain, float pan = 0f, float rate = 1f) =>
-            mixer.SetLoop(handle, gain, pan, rate);
+        public void SetLoop(int handle, float gain, float pan = 0f, float rate = 1f, float muffle = 0f) =>
+            mixer.SetLoop(handle, gain, pan, rate, muffle);
     }
 
     public static GameAudio Create(bool automatedRun) => new(automatedRun);

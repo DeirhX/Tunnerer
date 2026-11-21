@@ -50,6 +50,33 @@ public static class Raycaster
     public static bool HasClearShot(ITerrainPixelReadOnly terrain, Position from, Position to) =>
         !TryFindBlock(terrain, from, to, shot: true, out _);
 
+    /// <summary>
+    /// How many cells on the Bresenham line between <paramref name="from"/> and <paramref name="to"/> (both ends left
+    /// out) are solid ground, dirt included (<see cref="Pixel.IsAnyCollision"/>), counting at most
+    /// <paramref name="limit"/>. Sound uses it to muffle what it hears through rock and dirt.
+    /// </summary>
+    public static int CountSolidCells(ITerrainPixelReadOnly terrain, Position from, Position to, int limit)
+    {
+        ArgumentNullException.ThrowIfNull(terrain);
+        int x0 = from.X, y0 = from.Y, x1 = to.X, y1 = to.Y;
+        int dx = Math.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        int dy = -Math.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+        int err = dx + dy;
+        int count = 0;
+        while (count < limit && (x0 != x1 || y0 != y1))
+        {
+            int e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+            if (x0 == x1 && y0 == y1)
+                break;
+            var pos = new Position(x0, y0);
+            if (terrain.IsInside(pos) && Pixel.IsAnyCollision(terrain.GetPixelRaw(pos)))
+                count++;
+        }
+        return count;
+    }
+
     private static bool TryFindBlock(ITerrainPixelReadOnly terrain, Position from, Position to, bool shot, out Position firstBlock)
     {
         // The walk of WalkBresenham, written out: this runs for every link, coverage and charging test.

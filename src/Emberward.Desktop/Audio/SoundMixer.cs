@@ -25,6 +25,7 @@ public sealed class SoundMixer
         public double Position;
         public double Rate;
         public float GainLeft, GainRight;
+        public float Filter, LowLeft, LowRight;
         public int FadeOutLeft;
         public long Started;
         public bool IsMenuSound;
@@ -37,6 +38,8 @@ public sealed class SoundMixer
         public float Gain, TargetGain;
         public float Pan, TargetPan;
         public float Rate = 1f, TargetRate = 1f;
+        public float Filter = 1f, TargetFilter = 1f;
+        public float Low1, Low2;
     }
 
     private readonly object _lock = new();
@@ -72,9 +75,11 @@ public sealed class SoundMixer
 
     /// <summary>
     /// Starts a one-shot. <paramref name="pan"/> runs from -1 (left) to 1 (right); <paramref name="rate"/> is the
-    /// playback speed, which also shifts the pitch. A <paramref name="menuSound"/> is not silenced by pausing.
+    /// playback speed, which also shifts the pitch; <paramref name="muffle"/> (0 to 1) dulls it as if heard through
+    /// the ground (<see cref="SoundSpace.CutoffHz"/>). A <paramref name="menuSound"/> is not silenced by pausing.
     /// </summary>
-    public void Play(SoundEffect effect, float[] data, float gain, float pan = 0f, float rate = 1f, bool menuSound = false)
+    public void Play(SoundEffect effect, float[] data, float gain, float pan = 0f, float rate = 1f, bool menuSound = false,
+        float muffle = 0f)
     {
         if (gain <= 0f || data.Length == 0)
             return;
@@ -111,6 +116,7 @@ public sealed class SoundMixer
                 Rate = Math.Clamp(rate, 0.25f, 4f),
                 GainLeft = gain * left,
                 GainRight = gain * right,
+                Filter = FilterCoefficient(muffle),
                 Started = _startCounter++,
                 IsMenuSound = menuSound,
             };
@@ -128,7 +134,7 @@ public sealed class SoundMixer
     }
 
     /// <summary>Steers a loop; it glides to the new values. A loop at gain 0 costs nothing.</summary>
-    public void SetLoop(int handle, float gain, float pan = 0f, float rate = 1f)
+    public void SetLoop(int handle, float gain, float pan = 0f, float rate = 1f, float muffle = 0f)
     {
         lock (_lock)
         {
@@ -136,6 +142,7 @@ public sealed class SoundMixer
             loop.TargetGain = Math.Max(0f, gain);
             loop.TargetPan = Math.Clamp(pan, -1f, 1f);
             loop.TargetRate = Math.Clamp(rate, 0.25f, 4f);
+            loop.TargetFilter = FilterCoefficient(muffle);
         }
     }
 
@@ -225,8 +232,12 @@ public sealed class SoundMixer
                 }
             }
 
-            output[2 * i] += sample * voice.GainLeft;
-            output[2 * i + 1] += sample * voice.GainRight;
+            // A muffled voice runs through a gentle low-pass on each side; a clear one (coefficient 1) passes unchanged.
+            float left = sample * voice.GainLeft, right = sample * voice.GainRight;
+            voice.LowLeft += (left - voice.LowLeft) * voice.Filter;
+            voice.LowRight += (right - voice.LowRight) * voice.Filter;
+            output[2 * i] += voice.LowLeft;
+            output[2 * i + 1] += voice.LowRight;
             voice.Position += voice.Rate;
         }
     }
@@ -238,6 +249,8 @@ public sealed class SoundMixer
             loop.Gain = 0f;
             loop.Pan = loop.TargetPan;
             loop.Rate = loop.TargetRate;
+            loop.Filter = loop.TargetFilter;
+            loop.Low1 = loop.Low2 = 0f;
             return;
         }
 
@@ -248,11 +261,16 @@ public sealed class SoundMixer
             loop.Gain += (loop.TargetGain - loop.Gain) * Smoothing;
             loop.Pan += (loop.TargetPan - loop.Pan) * Smoothing;
             loop.Rate += (loop.TargetRate - loop.Rate) * Smoothing;
+            loop.Filter += (loop.TargetFilter - loop.Filter) * Smoothing;
 
             int index = (int)loop.Position;
             float fraction = (float)(loop.Position - index);
             float next = data[index + 1 < length ? index + 1 : 0];
             float sample = (data[index] + (next - data[index]) * fraction) * loop.Gain;
+            // Two low-pass stages, so ground in the way leaves a dull rumble rather than a thinner hiss.
+            loop.Low1 += (sample - loop.Low1) * loop.Filter;
+            loop.Low2 += (loop.Low1 - loop.Low2) * loop.Filter;
+            sample = loop.Low2;
 
             // Linear pan is enough for a gliding loop and avoids two square roots per sample.
             output[2 * i] += sample * (1f - Math.Max(0f, loop.Pan));
@@ -263,6 +281,10 @@ public sealed class SoundMixer
                 loop.Position -= length;
         }
     }
+
+    /// <summary>One-pole low-pass coefficient for <paramref name="muffle"/>: 1 (no filtering) when nothing muffles it.</summary>
+    private static float FilterCoefficient(float muffle) =>
+        muffle <= 0.001f ? 1f : 1f - MathF.Exp(-2f * MathF.PI * SoundSpace.CutoffHz(muffle) / AudioTweaks.SampleRate);
 
     /// <summary>Constant-power pan: the sum of the squared gains is 1 at every position.</summary>
     private static (float Left, float Right) PanGains(float pan)

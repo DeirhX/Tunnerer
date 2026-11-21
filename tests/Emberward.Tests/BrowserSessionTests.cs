@@ -31,11 +31,11 @@ public class BrowserSessionTests
 
         // The player's own build, heard where it happens: at full gain, centred, as the desktop plays it.
         Assert.Contains(new SoundPlay(nameof(SoundEffect.BuildRelay), AudioTweaks.BuildGain, 0f, 1f), sounds.Play);
-        Assert.Equal(SoundDirector.MaxTrackedTanks * 3 + 1, sounds.Loops.Length);
+        Assert.Equal(SoundDirector.MaxTrackedTanks * 4 + 1, sounds.Loops.Length);
         Assert.Equal(nameof(SoundEffect.EngineLoop), sounds.Loops[0].Effect);
         Assert.Equal(nameof(SoundEffect.RechargeLoop), sounds.Loops[^1].Effect);
         Assert.True(sounds.Loops[0].Gain > 0f, "The player's engine runs.");
-        Assert.Equal(0f, sounds.Loops[3 * 3].Gain);   // a fourth tank that is not there
+        Assert.Equal(0f, sounds.Loops[3 * 4].Gain);   // a fourth tank that is not there
         // A frame without a step starts nothing again; the loops stay where they are.
         var again = BrowserFrameBuilder.Capture(session, includeEvents: false).Sounds;
         Assert.Empty(again.Play);

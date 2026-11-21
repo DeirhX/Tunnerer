@@ -1,7 +1,9 @@
 namespace Emberward.Desktop.Audio;
 
 using Emberward.Core;
+using Emberward.Core.Collision;
 using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 using Emberward.Desktop.Config;
 
@@ -10,23 +12,26 @@ public interface ISoundSink
 {
     /// <summary>
     /// Starts a one-shot. <paramref name="pan"/> runs from -1 (left) to 1 (right); <paramref name="rate"/> is the
-    /// playback speed, which also shifts the pitch.
+    /// playback speed, which also shifts the pitch; <paramref name="muffle"/> runs from 0 (clear) to 1 (heard through
+    /// thick ground), and the sink dulls it with a low-pass at <see cref="SoundSpace.CutoffHz"/>.
     /// </summary>
-    void Play(SoundEffect effect, float gain, float pan, float rate);
+    void Play(SoundEffect effect, float gain, float pan, float rate, float muffle = 0f);
 
     /// <summary>Adds a silent loop of <paramref name="effect"/> and returns its handle for <see cref="SetLoop"/>.</summary>
     int AddLoop(SoundEffect effect);
 
     /// <summary>Steers a loop; the sink glides it to the new values. A loop at gain 0 is silent.</summary>
-    void SetLoop(int handle, float gain, float pan = 0f, float rate = 1f);
+    void SetLoop(int handle, float gain, float pan = 0f, float rate = 1f, float muffle = 0f);
 }
 
 /// <summary>
 /// Turns what happens in the simulation into sound, for the desktop and the browser alike. It is called once after
 /// every simulation step (never per displayed frame) and plays the events that step recorded
-/// (<see cref="World.StepEvents"/>): one-shots for shots, impacts, deaths and the like, the engine, digging, torch and
-/// recharge loops from the tanks' activity, and the player's warning tones. Loudness and stereo position follow the
-/// distance from the player's tank. It only reads simulation output; nothing here feeds back into the simulation.
+/// (<see cref="World.StepEvents"/>): one-shots for shots, impacts, deaths and the like, the engine, digging, torch,
+/// tread and recharge loops from the tanks' activity, and the player's warning tones. Everything is heard from the
+/// player's tank (<see cref="SoundSpace"/>): loudness follows distance, stereo position follows direction, rock and
+/// dirt in between muffle it, and another tank's engine and treads rise a little in pitch while it comes closer. It
+/// only reads simulation output; nothing here feeds back into the simulation.
 /// </summary>
 public sealed class SoundDirector
 {
@@ -39,8 +44,11 @@ public sealed class SoundDirector
         public bool Moved, Dug, Torched;
         public int MoveHold, DigHold, TorchHold;
         public int LastPickupStep, PickupStreak;
-        public int EngineLoop, DigLoop, TorchLoop;
-        public bool EngineOn, DigOn, TorchOn;
+        public int EngineLoop, DigLoop, TorchLoop, TreadLoop;
+        public bool EngineOn, DigOn, TorchOn, TreadOn;
+
+        /// <summary>Distance from the listener at the last step (negative before the first), and how fast it changes.</summary>
+        public float Distance, Approach;
     }
 
     private readonly ISoundSink _sink;
@@ -50,6 +58,8 @@ public sealed class SoundDirector
     private bool _rechargeOn;
     private int _serviceHold;
     private Position _listener;
+    private ITerrainPixelReadOnly? _terrain;
+    private int _localSlot;
     private int _step;
     private int _lastDebrisStep = -1000;
     private bool _runningHot, _lowShield;
@@ -66,6 +76,8 @@ public sealed class SoundDirector
             _tanks[i].EngineLoop = sink.AddLoop(SoundEffect.EngineLoop);
             _tanks[i].DigLoop = sink.AddLoop(SoundEffect.DigLoop);
             _tanks[i].TorchLoop = sink.AddLoop(SoundEffect.TorchLoop);
+            _tanks[i].TreadLoop = sink.AddLoop(SoundEffect.TreadLoop);
+            _tanks[i].Distance = -1f;
         }
         _rechargeLoop = sink.AddLoop(SoundEffect.RechargeLoop);
     }
@@ -79,6 +91,8 @@ public sealed class SoundDirector
     {
         ArgumentNullException.ThrowIfNull(world);
         _step++;
+        _terrain = world.Terrain;
+        _localSlot = localSlot;
         var tanks = world.TankList.Tanks;
         Tank? player = localSlot < tanks.Count ? tanks[localSlot] : null;
         if (player != null)
@@ -107,7 +121,7 @@ public sealed class SoundDirector
                     serviced |= e.Color == playerColor;
                     break;
                 case StepEventKind.ShrapnelSpent:
-                    if (Locate(e.Position, out _, out _))
+                    if (InEarshot(e.Position))
                     {
                         shrapnel++;
                         shrapnelX += e.Position.X;
@@ -176,11 +190,15 @@ public sealed class SoundDirector
         return -1;
     }
 
-    /// <summary>The engine, digging, torch and (for the player) recharge loops, held a few steps past their last cause.</summary>
+    /// <summary>
+    /// The engine, digging, torch, tread and (for the player) recharge loops, held a few steps past their last cause.
+    /// Another tank's treads clatter while it moves, so where it is and where it is going can be heard.
+    /// </summary>
     private void UpdateLoops(int index, Tank tank)
     {
         ref TankTrack track = ref _tanks[index];
         bool dead = tank.IsDead;
+        bool isPlayer = index == _localSlot;
 
         track.MoveHold = track.Moved ? 2 : Math.Max(0, track.MoveHold - 1);
         track.DigHold = track.Dug ? AudioTweaks.LoopHoldSteps : Math.Max(0, track.DigHold - 1);
@@ -188,23 +206,31 @@ public sealed class SoundDirector
         if (dead)
             track.MoveHold = track.DigHold = track.TorchHold = 0;
 
-        bool audible = Locate(tank.Position, out float gain, out float pan);
+        Heard heard = Locate(tank.Position);
+        float approachRate = isPlayer ? 1f : SoundSpace.ApproachRate(TrackApproach(ref track, tank, dead));
+        float gain = heard.Gain, pan = heard.Pan, muffle = heard.Muffle;
+        bool audible = heard.IsAudible;
         bool moving = track.MoveHold > 0;
         // Each tank's engine sits at a slightly different pitch so two tanks do not sound like one.
-        float enginePitch = (moving ? 1.2f : 0.8f) * (1f - 0.07f * index);
+        float enginePitch = (moving ? 1.2f : 0.8f) * (1f - 0.07f * index) * approachRate;
         bool engineOn = !dead && audible;
         bool digOn = track.DigHold > 0 && audible;
         bool torchOn = track.TorchHold > 0 && audible;
+        bool treadOn = !isPlayer && moving && audible;
         _sink.SetLoop(track.EngineLoop,
-            engineOn ? gain * (moving ? AudioTweaks.EngineMovingGain : AudioTweaks.EngineIdleGain) : 0f, pan, enginePitch);
+            engineOn ? gain * (moving ? AudioTweaks.EngineMovingGain : AudioTweaks.EngineIdleGain) : 0f, pan, enginePitch,
+            muffle);
         // Under the torch the grinding steps back so the two do not pile up.
-        _sink.SetLoop(track.DigLoop, digOn ? gain * AudioTweaks.DigGain * (torchOn ? 0.6f : 1f) : 0f, pan);
-        _sink.SetLoop(track.TorchLoop, torchOn ? gain * AudioTweaks.TorchGain : 0f, pan);
+        _sink.SetLoop(track.DigLoop, digOn ? gain * AudioTweaks.DigGain * (torchOn ? 0.6f : 1f) : 0f, pan, 1f, muffle);
+        _sink.SetLoop(track.TorchLoop, torchOn ? gain * AudioTweaks.TorchGain : 0f, pan, 1f, muffle);
+        _sink.SetLoop(track.TreadLoop, treadOn ? gain * AudioTweaks.TreadGain : 0f, pan,
+            (1f - 0.05f * index) * approachRate, muffle);
         LogLoop(SoundEffect.EngineLoop, index, ref track.EngineOn, engineOn);
         LogLoop(SoundEffect.DigLoop, index, ref track.DigOn, digOn);
         LogLoop(SoundEffect.TorchLoop, index, ref track.TorchOn, torchOn);
+        LogLoop(SoundEffect.TreadLoop, index, ref track.TreadOn, treadOn);
 
-        if (index == 0)
+        if (isPlayer)
         {
             // Recharging is audible only while the base is actually doing something for the tank.
             bool rechargeOn = tank.IsDockedAtOwnBase && _serviceHold > 0;
@@ -264,28 +290,54 @@ public sealed class SoundDirector
     }
 
     /// <summary>
-    /// Loudness and stereo position of something at <paramref name="position"/> as heard from the player's tank.
-    /// Returns false when it is too far away to hear.
+    /// The smoothed rate (cells per step) at which <paramref name="tank"/> comes closer to the listener (negative) or
+    /// goes away (positive). A respawn or the listener's own respawn starts it afresh instead of counting as a leap.
     /// </summary>
-    private bool Locate(Position position, out float gain, out float pan)
+    private float TrackApproach(ref TankTrack track, Tank tank, bool dead)
     {
-        float dx = position.X - _listener.X;
-        float dy = position.Y - _listener.Y;
-        float distance = MathF.Sqrt(dx * dx + dy * dy) / AudioTweaks.HalfLoudnessDistance;
-        float falloff = 1f / (1f + distance * distance);
-        gain = MathF.Max(0f, (falloff - AudioTweaks.InaudibleGain) / (1f - AudioTweaks.InaudibleGain));
-        pan = Math.Clamp(dx / AudioTweaks.FullPanDistance, -1f, 1f) * AudioTweaks.MaxPan;
-        return gain > 0f;
+        if (dead)
+        {
+            track.Distance = -1f;
+            track.Approach = 0f;
+            return 0f;
+        }
+        float dx = tank.Position.X - _listener.X, dy = tank.Position.Y - _listener.Y;
+        float distance = MathF.Sqrt(dx * dx + dy * dy);
+        float change = track.Distance < 0f ? 0f : distance - track.Distance;
+        if (MathF.Abs(change) > 4f)
+            change = 0f;
+        track.Distance = distance;
+        track.Approach += (change - track.Approach) * AudioTweaks.ApproachSmoothing;
+        return track.Approach;
+    }
+
+    /// <summary>Whether something at <paramref name="position"/> is near enough to hear, before anything muffles it.</summary>
+    private bool InEarshot(Position position) =>
+        SoundSpace.Hear(position.X - _listener.X, position.Y - _listener.Y, 0).IsAudible;
+
+    /// <summary>
+    /// How something at <paramref name="position"/> is heard from the player's tank: distance, direction, and the
+    /// ground between the two (cast only for what is near enough to hear).
+    /// </summary>
+    private Heard Locate(Position position)
+    {
+        float dx = position.X - _listener.X, dy = position.Y - _listener.Y;
+        Heard heard = SoundSpace.Hear(dx, dy, 0);
+        if (!heard.IsAudible || _terrain is null || position == _listener)
+            return heard;
+        int solid = Raycaster.CountSolidCells(_terrain, _listener, position, AudioTweaks.MuffleRayLimit);
+        return solid == 0 ? heard : SoundSpace.Hear(dx, dy, solid);
     }
 
     private void Play(SoundEffect effect, Position position, float gain, float rate = 1f, int tank = -1)
     {
-        if (!Locate(position, out float distanceGain, out float pan))
+        Heard heard = Locate(position);
+        if (!heard.IsAudible)
             return;
 
-        _sink.Play(effect, gain * distanceGain, pan, rate);
+        _sink.Play(effect, gain * heard.Gain, heard.Pan, rate, heard.Muffle);
         _log?.Invoke($"[Audio] step {_step} {effect}{(tank >= 0 ? $" tank={tank}" : "")} " +
-            $"gain={gain * distanceGain:F2} pan={pan:+0.00;-0.00} rate={rate:F2}");
+            $"gain={gain * heard.Gain:F2} pan={heard.Pan:+0.00;-0.00} rate={rate:F2} muffle={heard.Muffle:F2}");
     }
 
     private void LogLoop(SoundEffect effect, int tank, ref bool wasOn, bool on)
