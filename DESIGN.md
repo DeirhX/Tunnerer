@@ -592,20 +592,20 @@ Pyrite pockets and lumps at least 60 cells from every base hold a nest (a pocket
   lump's 8 to 15; a deposit with no plain ore left gives none, and a unit with no room to land stays in the
   deposit. Nothing is made: the deposit is its cells, so the world keeps no count of what a nest has left to give.
   Loose ore is ore, so it blocks links, shots and creatures where it lies until it is collected.
-- *Gatlings thin the pulses.* The gatling (T, 16 ore, `MachineBehaviors.Gatling`, numbers in `Tweaks.Gatling`) is the
-  structure that fights creatures, so the tank does not have to. It fires a light round every 4 ticks (6 a second)
+- *Gatlings answer the pulses.* The gatling (T, 16 ore, `MachineBehaviors.Gatling`, numbers in `Tweaks.Gatling`) is the
+  structure that fights creatures, so the tank does not have to. It fires a light round every 3 ticks (8 a second)
   at the nearest creature within 20 cells, aimed ahead of it by the round's
   flight time (rounds fly 4 cells a tick). A round kills a creature, passes through 3 cells of soil (so one
   burrowing just inside a tunnel wall is not safe; rock, ore, concrete and base walls stop it), bursts on nothing
   (no shrapnel, no dirt dug, no heat where it lands) and is spent a little past the gatling's range. With no
-  creature to shoot at it fires at an enemy tank in a clear line, for 6 damage a round: a quarter of a turret's
-  damage a second, a nuisance. Each round spends 20 charge, which becomes heat beside the gatling: firing without a
+  creature to shoot at it fires at an enemy tank in a clear line, for 4 damage a round: a fifth of a turret's
+  damage a second, a nuisance. Each round spends 15 charge, which becomes heat beside the gatling: firing without a
   pause warms a lone one's ground by about 3 degrees a second, and it slows above 60 degrees as a turret does, so a
-  lump's siege wants a relay beside it. Its upgrades: **Spin** (interval 3, then 2 ticks; each round spends x1.1,
+  lump's siege wants a relay beside it. Its upgrades: **Spin** (interval 2, then 1 tick; each round spends x1.1,
   then x1.2) and **Scope** (+6 cells of range and 2 more cells of soil a level). A nest sends its creatures in pulses, one every 2
-  ticks (§6.2), so a gatling fires at half that rate: one on the creatures' way stops a small pulse that runs straight at
-  it and cuts the bites of a bigger one (a full-heat pulse of 40 mostly outruns it); more gatlings, Spin, and covering
-  creatures that cross its field, burrow deep or come from two sides are what the others are for. While nothing is out it looks at nothing (it costs what a turret costs). Untuned.
+  ticks (§6.2): a plain gatling stops a small pulse before it bites and thins a big one (a full-heat pulse of 40 gets
+  bites through), Spin 1 matches the pulse's rate and stops it, and creatures that cross its field, burrow deep or come
+  from two sides are what more gatlings are for. While nothing is out it looks at nothing (it costs what a turret costs). Untuned.
 - *Tunnels are the terrain.* They run 1.5 cells a tick in open ground (the tank walks 1) and burrow through soil at
   0.35 (the tank digs about 0.5), and a coarse flow field (4-cell blocks, a window of 33 by 33 blocks around the goal,
   rebuilt every 8 ticks while read) leads them along tunnels in preference to a shorter line through dirt. Rock, concrete,

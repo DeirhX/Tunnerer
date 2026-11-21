@@ -162,30 +162,40 @@ public class GatlingTests
         Assert.DoesNotContain(tally.Events, e => e.Kind is StepEventKind.Explosion or StepEventKind.BulletImpact);
     }
 
-    [Fact]
-    public void ALoneGatling_TakesAtLeastAThirdOffTheBitesOfASmallWave()
+    /// <summary>A nest of <paramref name="creatures"/> 30 cells beyond a tank held at full heat, with a gatling (of Spin level <paramref name="spin"/>) between them, or none.</summary>
+    private static Tally Wave(bool gatling, int creatures, int spin = 0)
     {
-        // A hot tank makes a nest send every creature that is ready, one every PulseSpacingTicks, and a gatling fires at
-        // twice that spacing: it cannot stop a pulse alone. A big one (40 creatures) outruns it, so the nest here is a
-        // small one; every round that lands is a creature that does not bite.
-        Assert.Equal(Tweaks.Emberites.PulseSpacingTicks * 2, Tweaks.Gatling.FireIntervalTicks);
-        Tally Wave(bool gatling)
-        {
-            var s = Scenario();
-            if (gatling)
-                Plant(s, MachineType.Gatling, Outside(s, 8));
-            s.Tank.Position = Outside(s, 4);
-            s.World.Emberites!.AddNest(Outside(s, 8 + 30), radius: 2, creatures: 12);
-            return Fight(s, 14 * Tweaks.Perf.TargetFps);
-        }
+        var s = Scenario();
+        Machine? gun = gatling ? Plant(s, MachineType.Gatling, Outside(s, 8)) : null;
+        for (int i = 0; i < spin; i++)
+            Buy(s, gun!, 1);
+        s.Tank.Position = Outside(s, 4);
+        s.World.Emberites!.AddNest(Outside(s, 8 + 30), radius: 2, creatures: creatures);
+        return Fight(s, 14 * Tweaks.Perf.TargetFps);
+    }
 
-        Tally defended = Wave(gatling: true), bare = Wave(gatling: false);
+    [Fact]
+    public void ALoneGatling_StopsASmallWaveBeforeItBites()
+    {
+        // A hot tank makes a nest send every creature that is ready, one every PulseSpacingTicks.
+        Tally bare = Wave(gatling: false, creatures: 12), defended = Wave(gatling: true, creatures: 12);
 
         Assert.Equal(0, bare.Fired);
         Assert.True(bare.Bites >= 10, $"a full-heat pulse should reach the tank: {bare.Bites} bites");
-        Assert.True(defended.Bites * 3 <= bare.Bites * 2,
-            $"the gatling should stop at least a third of the bites: {defended.Bites} against {bare.Bites}");
-        Assert.True(defended.Fired >= 6, $"it should shoot a good part of the wave down: {defended.Fired} rounds");
+        Assert.Equal(0, defended.Bites);
+        Assert.Equal(12, defended.Killed);
+    }
+
+    [Fact]
+    public void ABigPulse_OutrunsAPlainGatling_ButNotOneWithSpin()
+    {
+        // It fires every 3 ticks; a pulse of 40 comes one creature every 2. Spin 1 fires every 2 and keeps up.
+        Assert.Equal(Tweaks.Emberites.PulseSpacingTicks, MachineUpgrades.GatlingStatsOf(new MachineUpgradeLevel(MachineUpgradePath.Spin, 1)).IntervalTicks);
+        Tally plain = Wave(gatling: true, creatures: 40), spun = Wave(gatling: true, creatures: 40, spin: 1);
+
+        Assert.True(plain.Bites >= 10, $"a plain gatling should be outrun: {plain.Bites} bites");
+        Assert.Equal(0, spun.Bites);
+        Assert.Equal(40, spun.Killed);
     }
 
     [Fact]
@@ -430,7 +440,7 @@ public class GatlingTests
         var plain = MachineUpgrades.GatlingStatsOf(default);
         var spin1 = MachineUpgrades.GatlingStatsOf(new MachineUpgradeLevel(MachineUpgradePath.Spin, 1));
         var spin2 = MachineUpgrades.GatlingStatsOf(new MachineUpgradeLevel(MachineUpgradePath.Spin, 2));
-        Assert.Equal((4, 3, 2), (plain.IntervalTicks, spin1.IntervalTicks, spin2.IntervalTicks));
+        Assert.Equal((3, 2, 1), (plain.IntervalTicks, spin1.IntervalTicks, spin2.IntervalTicks));
         Assert.True(plain.ShotCharge < spin1.ShotCharge && spin1.ShotCharge < spin2.ShotCharge);
         Assert.Equal((plain.Range, plain.Damage, plain.SoilPierce), (spin2.Range, spin2.Damage, spin2.SoilPierce));
         Assert.Equal(plain, MachineUpgrades.GunStatsOf(MachineBehaviors.Gatling, default));
