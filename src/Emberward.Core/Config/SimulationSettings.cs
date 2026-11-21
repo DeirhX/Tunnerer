@@ -56,6 +56,9 @@ public readonly record struct SimulationSettings
     public float TankHeatShootPerShot { get; init; }
     public float TankHeatPerOrePerTick { get; init; }
     public float TankHeatCapacity { get; init; }
+    public float TankFireHeatPerTickMax { get; init; }
+    public double TankFireAirEnergyPerTickMax { get; init; }
+    public int TankFireAirRadius { get; init; }
     public float TankFrostbiteTemperature { get; init; }
     public float TankFrostbiteDamagePerDegree { get; init; }
     public float TankTerrainConductance { get; init; }
@@ -110,6 +113,9 @@ public readonly record struct SimulationSettings
         TankHeatShootPerShot = Tweaks.Tank.HeatShootPerShot,
         TankHeatPerOrePerTick = Tweaks.Tank.HeatPerOrePerSecond / Tweaks.Perf.TargetFps,
         TankHeatCapacity = Tweaks.Tank.TankHeatCapacity,
+        TankFireHeatPerTickMax = Tweaks.TankShield.FireTankHeatPerTickMax,
+        TankFireAirEnergyPerTickMax = Tweaks.TankShield.FireAirEnergyPerTickMax,
+        TankFireAirRadius = Tweaks.TankShield.FireAirRadius,
         TankFrostbiteTemperature = Tweaks.Tank.FrostbiteTemperature,
         TankFrostbiteDamagePerDegree = Tweaks.Tank.FrostbiteDamagePerDegree,
         TankTerrainConductance = Tweaks.Tank.TankTerrainConductance,

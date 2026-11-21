@@ -27,6 +27,12 @@ public class Tank
     /// <summary>The world's tank shield, when the rules run one (<see cref="Match.MatchRules.TankShield"/>); it keeps this tank's shield.</summary>
     internal TankShieldSystem? Shield => _shield;
 
+    /// <summary>
+    /// How big the fire on a damaged hull is, 0 to 1 (<see cref="TankShieldSystem.FireLevelOf"/>); always 0 when the
+    /// rules run no tank shield. Only repairing the hull at the base puts it out.
+    /// </summary>
+    public float FireLevel => _shield != null ? TankShieldSystem.FireLevelOf(this) : 0f;
+
     [NotSaved("fixed for the match: the world's shield system, handed over at construction; the world saves it once")]
     private readonly TankShieldSystem? _shield;
 

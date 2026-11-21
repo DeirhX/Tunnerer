@@ -37,6 +37,19 @@ public sealed class TankShieldSystem
         return new DamageTaken(toShield, amount - toShield, ShieldBroken: toShield > 0 && state.Missing >= Tweaks.TankShield.Capacity);
     }
 
+    /// <summary>
+    /// How big the fire on <paramref name="tank"/> is, 0 to 1: nothing while the hull is above
+    /// <see cref="Tweaks.TankShield.FireIgniteHullFraction"/>, growing to full size at an empty hull. A pure function
+    /// of the hull, so it needs no state of its own; a dead tank does not burn.
+    /// </summary>
+    public static float FireLevelOf(Tank tank)
+    {
+        if (tank.IsDead)
+            return 0f;
+        float ignite = Tweaks.TankShield.FireIgniteHullFraction;
+        return Math.Clamp((ignite - tank.HullFraction) / ignite, 0f, 1f);
+    }
+
     /// <summary>One tick of <paramref name="tank"/>'s regeneration, from <see cref="Tank.Advance"/> while it lives.</summary>
     internal void Advance(Tank tank)
     {
@@ -66,7 +79,7 @@ public sealed class TankShieldSystem
         int shield = Tweaks.TankShield.Capacity - state.Missing;
         return new TankShieldView(true, shield, Tweaks.TankShield.Capacity,
             shield / (float)Tweaks.TankShield.Capacity, tank.HullFraction,
-            Regenerating: state.Missing > 0 && state.DelayTicks == 0, state.DelayTicks);
+            Regenerating: state.Missing > 0 && state.DelayTicks == 0, state.DelayTicks, FireLevelOf(tank));
     }
 
     /// <summary>Mixes every tank's shield, for <see cref="WorldStateHash.Compute"/>.</summary>
@@ -112,4 +125,4 @@ public readonly record struct DamageTaken(int Shield, int Hull, bool ShieldBroke
 /// when the match rules run no shield.
 /// </summary>
 public readonly record struct TankShieldView(bool Active, int Shield, int ShieldCapacity, float ShieldFill, float HullFill,
-    bool Regenerating, int RegenDelayTicks);
+    bool Regenerating, int RegenDelayTicks, float FireLevel = 0f);

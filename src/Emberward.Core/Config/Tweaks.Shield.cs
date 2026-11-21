@@ -16,5 +16,15 @@ public static partial class Tweaks
         // empty to full in about 5.6 s.
         public const int RegenDelayTicks = 96;
         public const int RegenPerTick = 3;
+
+        // Fire (DESIGN.md §4.7). A hull below FireIgniteHullFraction burns, and the fire grows as the hull falls: nothing
+        // at that fraction, full size at an empty hull. At full size it adds FireTankHeatPerTickMax degrees a tick to
+        // the tank (7.2 a second at 24 ticks, a little above what the network's cooling takes away) and puts
+        // FireAirEnergyPerTickMax energy a tick into the air around it, twice what the tank itself keeps: a burning tank
+        // warms its surroundings more than itself. Only the base puts it out, by repairing the hull.
+        public const float FireIgniteHullFraction = 0.75f;
+        public const float FireTankHeatPerTickMax = 0.3f;
+        public const double FireAirEnergyPerTickMax = 12.0;
+        public const int FireAirRadius = 3;
     }
 }
