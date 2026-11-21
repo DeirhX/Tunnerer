@@ -25,7 +25,7 @@ public sealed class SoundMixer
         public double Position;
         public double Rate;
         public float GainLeft, GainRight;
-        public float Filter, LowLeft, LowRight;
+        public float Filter, Low1Left, Low1Right, Low2Left, Low2Right;
         public int FadeOutLeft;
         public long Started;
         public bool IsMenuSound;
@@ -232,12 +232,15 @@ public sealed class SoundMixer
                 }
             }
 
-            // A muffled voice runs through a gentle low-pass on each side; a clear one (coefficient 1) passes unchanged.
+            // A muffled voice runs through two low-pass stages on each side, as a loop does (and as steep as the
+            // browser's filter); a clear one (coefficient 1) passes unchanged.
             float left = sample * voice.GainLeft, right = sample * voice.GainRight;
-            voice.LowLeft += (left - voice.LowLeft) * voice.Filter;
-            voice.LowRight += (right - voice.LowRight) * voice.Filter;
-            output[2 * i] += voice.LowLeft;
-            output[2 * i + 1] += voice.LowRight;
+            voice.Low1Left += (left - voice.Low1Left) * voice.Filter;
+            voice.Low1Right += (right - voice.Low1Right) * voice.Filter;
+            voice.Low2Left += (voice.Low1Left - voice.Low2Left) * voice.Filter;
+            voice.Low2Right += (voice.Low1Right - voice.Low2Right) * voice.Filter;
+            output[2 * i] += voice.Low2Left;
+            output[2 * i + 1] += voice.Low2Right;
             voice.Position += voice.Rate;
         }
     }

@@ -298,9 +298,10 @@ off to one side is panned fully once it is 28 cells or more away, and narrows to
 dirt and base walls on the line between the two (`Raycaster.CountSolidCells`, cast only for what is in earshot)
 muffle it: quieter by up to 60% and low-passed down to about 380 Hz, so a tank digging behind a wall is a dull
 rumble. Another tank's engine and treads rise in pitch (up to 7%) while it comes closer and fall while it goes
-away, from its smoothed change of distance. The desktop mixer filters with one-pole low-passes; the browser with a
-`BiquadFilterNode` at the cutoff the frame carries. One effect has at most 4 voices at once; a further one
-fades out the oldest. The mixer's limiter bends peaks above 0.75 towards full scale instead of clipping.
+away, from its smoothed change of distance. Both clients roll off at 12 dB per octave: the desktop mixer with two
+one-pole low-pass stages, the browser with a Butterworth `BiquadFilterNode` at the cutoff the frame carries. One
+effect has at most 4 voices at once; a further one fades out the oldest. The mixer's limiter bends peaks above
+0.75 towards full scale instead of clipping.
 
 ### Settings
 

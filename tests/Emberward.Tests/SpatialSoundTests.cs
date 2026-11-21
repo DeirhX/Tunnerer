@@ -1,5 +1,6 @@
 namespace Emberward.Tests;
 
+using Emberward.Browser.Client;
 using Emberward.Core;
 using Emberward.Core.Collision;
 using Emberward.Core.Input;
@@ -156,5 +157,68 @@ public class SpatialSoundTests
             director.AfterStep(world, localSlot: 0);
         }
         Assert.Equal(0f, sink.Loop(1, SoundEffect.TreadLoop).Gain);
+    }
+
+    /// <summary>White noise from a fixed seed: equal energy at every frequency, so what a filter takes is plain.</summary>
+    private static float[] Noise(int length)
+    {
+        var samples = new float[length];
+        uint state = 12345;
+        for (int i = 0; i < length; i++)
+        {
+            state = state * 1664525 + 1013904223;
+            samples[i] = (state >> 8) / (float)(1 << 24) * 0.4f - 0.2f;
+        }
+        return samples;
+    }
+
+    /// <summary>Energy of the change from one left sample to the next: what is left of the high frequencies.</summary>
+    private static double HighEnergy(ReadOnlySpan<float> stereo)
+    {
+        double sum = 0;
+        for (int i = 2; i < stereo.Length; i += 2)
+        {
+            double step = stereo[i] - stereo[i - 2];
+            sum += step * step;
+        }
+        return sum;
+    }
+
+    private static double Render(Action<SoundMixer> start)
+    {
+        var mixer = new SoundMixer(1f, muted: false);
+        start(mixer);
+        var output = new float[2 * AudioTweaks.SampleRate / 4];
+        mixer.Mix(output);
+        return HighEnergy(output);
+    }
+
+    [Fact]
+    public void Mixer_LowPassesMuffledVoicesAndLoops_AndLeavesClearOnesAlone()
+    {
+        float[] noise = Noise(AudioTweaks.SampleRate);
+
+        double clearVoice = Render(m => m.Play(SoundEffect.Impact, noise, 0.5f));
+        double muffledVoice = Render(m => m.Play(SoundEffect.Impact, noise, 0.5f, muffle: 1f));
+        Assert.True(muffledVoice < clearVoice * 0.01, $"voice high energy {clearVoice} -> {muffledVoice}");
+
+        double clearLoop = Render(m => m.SetLoop(m.AddLoop(noise), 0.5f));
+        double muffledLoop = Render(m => m.SetLoop(m.AddLoop(noise), 0.5f, muffle: 1f));
+        Assert.True(muffledLoop < clearLoop * 0.01, $"loop high energy {clearLoop} -> {muffledLoop}");
+    }
+
+    [Fact]
+    public void BrowserFrames_CarryTheCutoff_OfWhatTheGroundMuffles()
+    {
+        var recorder = new SoundRecorder();
+        int loop = recorder.AddLoop(SoundEffect.EngineLoop);
+        recorder.SetLoop(loop, 0.5f, 0f, 1f, muffle: 0.5f);
+        recorder.Play(SoundEffect.Impact, 0.5f, 0f, 1f, muffle: 1f);
+        recorder.Play(SoundEffect.Fire, 0.5f, 0f, 1f);
+
+        SoundFrame frame = recorder.Frame(takePlays: true);
+        Assert.Equal(SoundSpace.CutoffHz(0.5f), frame.Loops[loop].Cutoff);
+        Assert.Equal(SoundSpace.CutoffHz(1f), frame.Play[0].Cutoff);
+        Assert.Equal(SoundSpace.ClearCutoffHz, frame.Play[1].Cutoff);
     }
 }

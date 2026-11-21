@@ -15,6 +15,8 @@ const MAX_VOICES = 32,
 const GLIDE_SECONDS = 0.008;
 // SoundSpace.ClearCutoffHz: an unmuffled sound's filter passes everything audible.
 const CLEAR_CUTOFF_HZ = 20000;
+// A lowpass Q (in dB) with no peak at the cutoff.
+const BUTTERWORTH_Q_DB = -3.0103;
 
 export class GameAudio {
     enabled = false;
@@ -164,8 +166,9 @@ export class GameAudio {
         source.buffer = buffer;
         source.playbackRate.setValueAtTime(rate, now);
         filter.type = "lowpass";
-        // No resonant bump at the cutoff: muffling only takes away.
-        filter.Q.setValueAtTime(0, now);
+        // Butterworth (Q is in dB for a lowpass: -3.01 dB is 1/√2), so nothing is boosted at the cutoff:
+        // muffling only takes away. Two poles, like the desktop mixer's two stages.
+        filter.Q.setValueAtTime(BUTTERWORTH_Q_DB, now);
         filter.frequency.setValueAtTime(this.cutoff(cutoff), now);
         gainNode.gain.setValueAtTime(gain, now);
         panner.pan.setValueAtTime(pan, now);
