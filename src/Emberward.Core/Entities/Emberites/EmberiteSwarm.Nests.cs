@@ -59,7 +59,8 @@ public sealed partial class EmberiteSwarm
         if (nest.Alive == 0)
         {
             nest.Awake = false;
-            if (nest.Pyrite > 0)
+            // Stored pyrite that found no room is tried again on the nest's check cadence, not every tick.
+            if (nest.Pyrite > 0 && (_tick + index) % Tweaks.Emberites.WakeCheckTicks == 0)
                 nest.Pyrite -= OreDrop.Scatter(_terrain, nest.Centre, nest.Pyrite, _isOccupied);
             return;
         }

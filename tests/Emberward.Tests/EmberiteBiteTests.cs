@@ -197,7 +197,9 @@ public class EmberiteBiteTests
 
         // The only creature is resting at home; clearing the nest is a matter of killing it, so use the counters.
         nest.Resting = 0;
-        world.Advance(_ => default);
+        // The stored pyrite is spilled on the nest's check cadence, so give it one full cycle.
+        for (int i = 0; i < Tweaks.Emberites.WakeCheckTicks && nest.Pyrite > 0; i++)
+            world.Advance(_ => default);
 
         Assert.True(nest.IsCleared);
         Assert.Equal(0, nest.Pyrite);
