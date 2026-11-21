@@ -3,7 +3,7 @@ namespace Emberward.Desktop.Gui.Guidance;
 using Emberward.Core.Entities.Tanks;
 
 /// <summary>Which warning the banner shows; the hosts size and place it by kind.</summary>
-public enum WarningKind { Overheating, Frostbite, Chilled, HullLow, RunningHot, RespawnShield, ThermalViewHint }
+public enum WarningKind { Overheating, Frostbite, Chilled, FireAboard, HullLow, RunningHot, RespawnShield, ThermalViewHint }
 
 /// <summary>The one warning shown at the top of the view.</summary>
 /// <param name="Detail">A second line, or null.</param>
@@ -56,6 +56,9 @@ public sealed class PlayerWarnings
         if (player.SpeedFactor < 0.999f)
             return new(WarningKind.Chilled, $"CHILLED - {(int)MathF.Round(player.SpeedFactor * 100f)}% SPEED", null,
                 HintTone.Info, Blinks: false);
+        if (player.FireLevel > 0f)
+            return new(WarningKind.FireAboard, "FIRE ABOARD - HULL BURNING",
+                "The fire heats the tank and the ground around it - return to base to repair the hull", HintTone.Bad, Blinks: true);
         if (_hullLowLatched)
             return new(WarningKind.HullLow, "HULL LOW", "Your base repairs the hull", HintTone.Bad, Blinks: true);
         if (_runningHotLatched)

@@ -200,6 +200,8 @@ The tank lives in a band around 0. Both ends hurt, and the world has places at b
   burning tank warms its surroundings more than itself (the energy is booked as injected in the ledger). The fire
   does no damage of its own; it hurts through the heat (overheating, being seen by emberites). Only the base puts it
   out, by repairing the hull (a dark base repairs nothing, so a fire there stays, held down by the base's cooling).
+  The fire is drawn on the tank (soot, flame tongues that multiply as the hull falls, smoke) and crackles; the HUD's
+  crystal shows the shield, the number under it the hull, and the plate reads FIRE ABOARD while it burns.
   **A hit on a shield** is seen and heard: its own zap (and a shatter when it breaks), a pulse that lights the veins of
   the whole shield, and a red patch where the shot landed; a base's gate shield does the same.
 - **Below 0 the tank is chilled.** It slows down, linearly to about a third of its speed at -40, and below -25 it

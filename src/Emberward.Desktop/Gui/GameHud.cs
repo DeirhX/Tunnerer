@@ -85,7 +85,7 @@ public partial class GameHud
             return;
         DrawCrosshair();
         DrawHitFeedback(player);
-        _strip.Draw(player, _time, world.Rules, ReserveTags.Of(world.ReserveOf(player)));
+        _strip.Draw(player, _time, world.Rules, world.TankShieldOf(player), ReserveTags.Of(world.ReserveOf(player)));
         _network.Draw(ViewportRect, player, world, _guidance.Hint);
         WarningBanner.Draw(ViewportRect, _guidance.Warning, _time);
         DrawGuidance();

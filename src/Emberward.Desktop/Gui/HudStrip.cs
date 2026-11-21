@@ -2,6 +2,7 @@ namespace Emberward.Desktop.Gui;
 
 using System.Numerics;
 using ImGuiNET;
+using Emberward.Core.Config;
 using Emberward.Core.Entities;
 using Emberward.Desktop.Rendering;
 using Emberward.Core.Entities.Tanks;
@@ -74,7 +75,7 @@ public sealed class HudStrip
     }
 
     /// <param name="reserve">The reserve's stage tag beside OFF NETWORK (<see cref="ReserveTags.Of"/>), if any.</param>
-    public void Draw(Tank player, float time, MatchRules rules, ReserveTag? reserve = null)
+    public void Draw(Tank player, float time, MatchRules rules, TankShieldView shield, ReserveTag? reserve = null)
     {
         var displaySize = ImGui.GetIO().DisplaySize;
         var dl = ImGui.GetForegroundDrawList();
@@ -85,10 +86,13 @@ public sealed class HudStrip
         DrawPanelArt(dl, _shieldIconTex, ShieldX, ShieldPanelW);
         DrawPanelArt(dl, _panelFrameTex, MaterialsX, MaterialsPanelW);
         DrawPanelArt(dl, _buildPanelTex, BuildX, BuildPanelW);
-        DrawPanelLabels(dl);
+        DrawPanelLabels(dl, burning: !player.IsDead && player.FireLevel > 0f, shielded: shield.Active);
 
         _heat.DrawOrb(dl, player, time);
-        _liquids.Draw(dl, player, ShieldX, time);
+        // The crystal holds the shield when the match has one, else the hull; the number under it is always the hull.
+        float crystal = shield.Active ? shield.ShieldFill : player.HullFraction;
+        bool crystalLow = shield.Active ? shield.ShieldFill < Tweaks.Tank.HullLowOnFraction : player.IsHullLow(latched: false);
+        _liquids.Draw(dl, player, ShieldX, time, crystal, crystalLow);
 
         // TEMP: the tank's temperature in degrees above ambient. Digging and firing heat it; past the safe maximum
         // the heat burns the shield. A tank docked at its own base is pre-cooled below ambient (negative degrees).
@@ -97,7 +101,7 @@ public sealed class HudStrip
         _heat.DrawTrend(dl, player, TempPlate.ReadoutRight - 12f, TempPlate.ReadoutY);
         _heat.DrawOffNetworkTag(dl, player, HeatX + HeatPanelW * 0.5f, time, reserve);
 
-        // SHIELD: the tank's armor.
+        // HULL: the tank's armor (under the shield, when there is one).
         int health = Math.Max(0, player.Reactor.Health);
         DrawReadout(dl, ShieldPlate, health.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
@@ -151,10 +155,15 @@ public sealed class HudStrip
     /// The panel titles, drawn on the plates of the art (which carries no text of its own). Positions are the plate
     /// centres in art pixels.
     /// </summary>
-    private void DrawPanelLabels(ImDrawListPtr dl)
+    private void DrawPanelLabels(ImDrawListPtr dl, bool burning, bool shielded)
     {
         DrawStripText(dl, "TEMP", TempPlate.CenterX, TempPlate.TitleY, 19f, 0xFF78C8FFu, glow: 0x181880FFu);
-        DrawStripText(dl, "HULL", ShieldPlate.CenterX, ShieldPlate.TitleY, 20f, 0xFFF8E890u, glow: 0x20FFA030u);
+        // A burning hull says so, in fire colours; otherwise the plate names the crystal and the number under it.
+        if (burning)
+            DrawStripText(dl, "FIRE ABOARD", ShieldPlate.CenterX, ShieldPlate.TitleY, 18f, 0xFF50A0FFu, glow: 0x402060FFu);
+        else
+            DrawStripText(dl, shielded ? "SHIELD/HULL" : "HULL", ShieldPlate.CenterX, ShieldPlate.TitleY, shielded ? 17f : 20f,
+                0xFFF8E890u, glow: 0x20FFA030u);
         DrawStripText(dl, "MATERIALS", MaterialsPlate.CenterX, MaterialsPlate.TitleY, 21f, 0xFF68E0FFu, glow: 0x282090FFu);
         DrawStripText(dl, "BUILD STRUCTURES", BuildX + 162f, 23.5f, 17f, 0xFFB0E4F8u, glow: 0x181880FFu);
         DrawStripText(dl, "COMMAND", BuildX + 171f, 191.5f, 21f, 0xFF98E8FFu, glow: 0x202080FFu);

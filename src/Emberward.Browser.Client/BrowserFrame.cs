@@ -51,12 +51,14 @@ public sealed record HeatDial(string[] Bands, float Ambient, float Safe, float M
 /// <param name="Frozen">How frozen the heat orb's liquid is (<c>HeatScale.Frozen</c>), 0 to 1.</param>
 /// <param name="Boil">How hard it boils (<c>HeatScale.Boil</c>), 0 to 1.</param>
 /// <param name="Burning">Overheating or above the safe maximum: the dial's hot end burns.</param>
+/// <param name="ShieldActive">The match gives tanks a shield; <paramref name="ShieldFill"/> is it (0 to 1) and the crystal shows it.</param>
+/// <param name="FireLevel">How big the fire on the damaged hull is, 0 to 1 (0: not burning).</param>
 /// <param name="HitFresh">The first frames after a hit, when the shield crystal flashes white.</param>
 /// <param name="OrePileFrame">The hold's sprite frame, or -1 when empty (<c>BuildSlotView.OrePileFrame</c>).</param>
 /// <param name="OreLine">The line beneath the hold window (<c>BuildSlotView.OreLine</c>).</param>
 public sealed record PlayerStatus(
     Position Position, Position Home, float Heat, float HeatLimit, float HeatGauge, string HeatColor,
-    float HitFlash, float HitFromX, float HitFromY, float Hull,
+    float HitFlash, float HitFromX, float HitFromY, float Hull, bool ShieldActive, float ShieldFill, float FireLevel,
     int Ore, int HoldCapacity, int Store, double Charge, double BaseHeat, double BaseArmor,
     bool Docked, bool OffNetwork, float SafeSeconds, bool Dead, double RespawnSeconds, bool CanRecall,
     string Outcome, string? Carrying, bool BaseDestroyed,

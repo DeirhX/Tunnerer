@@ -22,7 +22,7 @@ public static class WarningBanner
         bool blink = warning.Blinks && (int)(time * 3f) % 2 == 0;
         float titleSize = warning.Kind switch
         {
-            WarningKind.Overheating or WarningKind.Frostbite => 30f,
+            WarningKind.Overheating or WarningKind.Frostbite or WarningKind.FireAboard => 30f,
             WarningKind.HullLow or WarningKind.RunningHot => 26f,
             WarningKind.Chilled => 24f,
             _ => 20f,

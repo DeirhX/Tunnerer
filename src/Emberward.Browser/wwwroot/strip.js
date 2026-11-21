@@ -146,7 +146,7 @@ export class StripView {
 
     // Forgets what the last match showed: the next frame starts the gauges where they stand.
     reset() {
-        this.shown = { heat: NaN, hull: -1 };
+        this.shown = { heat: NaN, crystal: -1 };
         this.lastHeat = NaN;
         this.trend = 0;
     }
@@ -207,10 +207,12 @@ export class StripView {
         this.shown.heat = Number.isNaN(this.shown.heat)
             ? heat
             : this.shown.heat + (heat - this.shown.heat) * EASE_HEAT;
-        this.shown.hull =
-            this.shown.hull < 0
-                ? p.hull
-                : this.shown.hull + (p.hull - this.shown.hull) * EASE_SHIELD;
+        // The crystal holds the shield when the match has one, else the hull.
+        const crystal = p.shieldActive ? p.shieldFill : p.hull;
+        this.shown.crystal =
+            this.shown.crystal < 0
+                ? crystal
+                : this.shown.crystal + (crystal - this.shown.crystal) * EASE_SHIELD;
         // The trend arrow: the desktop smooths the change per display frame and shows it past 0.02 a frame.
         if (!Number.isNaN(this.lastHeat) && !p.dead)
             this.trend = this.trend * 0.9 + ((p.heat - this.lastHeat) * 24) / 60 * 0.1;
@@ -296,7 +298,9 @@ export class StripView {
         ])
             left.drawImage(image, px, 0, w, STRIP_H);
         stripText(left, "TEMP", TEMP.x, TEMP.title, 19, abgr(0xff78c8ff), abgr(0x181880ff));
-        stripText(left, "HULL", SHIELD.x, SHIELD.title, 20, abgr(0xfff8e890), abgr(0x20ffa030));
+        // A burning hull says so, in fire colours; otherwise the plate names the crystal and the number under it.
+        if (p.fireLevel > 0) stripText(left, "FIRE ABOARD", SHIELD.x, SHIELD.title, 18, abgr(0xff50a0ff), abgr(0x402060ff));
+        else stripText(left, p.shieldActive ? "SHIELD/HULL" : "HULL", SHIELD.x, SHIELD.title, p.shieldActive ? 17 : 20, abgr(0xfff8e890), abgr(0x20ffa030));
         stripText(left, "MATERIALS", MATERIALS.x, MATERIALS.title, 21, abgr(0xff68e0ff), abgr(0x282090ff));
         // Dark glass behind the liquid (hides the energy bolt baked into the art), and the dial's dim track.
         left.fillStyle = abgr(0xff0a0c0e);
@@ -509,12 +513,14 @@ export class StripView {
     drawLiquids(ctx, p, time) {
         const pulse = Math.floor(time * 4) % 2 === 0;
         const [sTop, sBottom] = extent(SHIELD_OUTLINE);
-        const sLevel = sBottom - (sBottom - sTop) * this.shown.hull;
+        const sLevel = sBottom - (sBottom - sTop) * this.shown.crystal;
+        const crystalLow = p.shieldActive ? p.shieldFill < 0.25 : p.hullLow;
+        const crystalFill = p.shieldActive ? p.shieldFill : p.hull;
         if (p.hitFresh) fillBand(ctx, SHIELD_OUTLINE, sLevel, sBottom, abgr(0x90ffffff));
-        else if (p.hullLow && p.hull > 0 && pulse)
+        else if (crystalLow && crystalFill > 0 && pulse)
             fillBand(ctx, SHIELD_OUTLINE, sLevel, sBottom, abgr(0x703030ff));
         fillBand(ctx, SHIELD_OUTLINE, sTop, sLevel, abgr(0xc8080808));
-        surface(ctx, SHIELD_OUTLINE, sLevel, p.hull > 0 ? 0xffffe0a0 : 0, time);
+        surface(ctx, SHIELD_OUTLINE, sLevel, crystalFill > 0 ? 0xffffe0a0 : 0, time);
     }
 
     // BuildPanel.Draw: a slot per machine, filling toward its cost from the stock that would pay (BuildSlotView).
