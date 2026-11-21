@@ -11,6 +11,8 @@
 #ifndef EMBERWARD_ENTITY_BASESHIELD_HLSLI
 #define EMBERWARD_ENTITY_BASESHIELD_HLSLI
 
+#include "ShieldVeins.hlsli"
+
 // Half the base's side in cells (Tweaks.Base.BaseSize / 2) and the gap between its wall and the shell.
 static const float kBaseHalf = 17.5;
 static const float kShellMargin = 2.5;
@@ -61,6 +63,9 @@ float4 BaseShield(float2 p, float3 team, float4 params, float aa)
     float3 shellColor = lerp(tint, float3(1.0, 1.0, 1.0), glow * 0.6);
     // Additive: a hit lights the whole shell for a moment.
     result.rgb += shellColor * (shellAlpha + live * glow * 0.45 * rim);
+    // A gate hit lights the veins of the whole shell for a moment, not only its rim.
+    float veinBand = step(d, 0.0) * saturate(1.0 + (d + 2.5) * 0.8);
+    result.rgb += tint * live * glow * veinBand * VeinLines(p * 0.3, 0.09) * 1.4;
 
     // A dark base has no shell: sparks crawl along its wall instead.
     float wall = abs(sdRoundBox(p, float2(0.0, 0.0), float2(kBaseHalf, kBaseHalf), 0.0));
@@ -95,6 +100,9 @@ float4 ShieldHit(float2 p, float3 team, float4 params, float aa)
     color = lerp(color, float3(1.0, 0.9, 0.7), destroyed);
     float power = 1.0 + destroyed;
     float3 add = color * (ring * 0.9 + core * 1.3) * power + float3(1.0, 1.0, 1.0) * core * 0.4;
+    // The patch that took the shot is red, whatever the shield's strength.
+    float redRadius = lerp(2.2, 5.0, age);
+    add += float3(1.0, 0.10, 0.06) * exp(-r * r / (redRadius * redRadius)) * sqrt(fade) * 1.2;
     return float4(add, 0.0);
 }
 

@@ -53,10 +53,12 @@ public static class StepEventSounds
         StepEventKind.BulletImpact => new(SoundEffect.Impact, AudioTweaks.ImpactGain, CueHeard.Anywhere, CueVoice.Burst),
         StepEventKind.OreCollected => new(SoundEffect.Pickup, AudioTweaks.PickupGain, CueHeard.Anywhere, CueVoice.PickupStreak),
         StepEventKind.TankHit => new(SoundEffect.TankHit, AudioTweaks.TankHitGain, CueHeard.TrackedTank),
+        StepEventKind.TankShieldHit => new(SoundEffect.ShieldHit, AudioTweaks.ShieldHitGain, CueHeard.TrackedTank, CueVoice.Burst),
+        StepEventKind.TankShieldBroken => new(SoundEffect.ShieldBreak, AudioTweaks.ShieldBreakGain, CueHeard.TrackedTank),
         StepEventKind.BaseDamaged => new(SoundEffect.TankHit, AudioTweaks.BaseHitGain, CueHeard.Player, CueVoice.Burst),
-        // A gate hit sounds like a core hit for now: the same cue, so the player hears the base being shot at.
-        StepEventKind.BaseShieldHit or StepEventKind.BaseShieldBroken =>
-            new(SoundEffect.TankHit, AudioTweaks.BaseHitGain, CueHeard.Player, CueVoice.Burst),
+        // A gate hit is the base's shield taking a hit: the shield's own sound, its breaking the shatter.
+        StepEventKind.BaseShieldHit => new(SoundEffect.ShieldHit, AudioTweaks.ShieldHitGain, CueHeard.Player, CueVoice.Burst),
+        StepEventKind.BaseShieldBroken => new(SoundEffect.ShieldBreak, AudioTweaks.ShieldBreakGain, CueHeard.Player),
         StepEventKind.BaseDestroyed => new(SoundEffect.TankDeath, AudioTweaks.TankDeathGain, CueHeard.Player),
         StepEventKind.TankDied => new(SoundEffect.TankDeath, AudioTweaks.TankDeathGain, CueHeard.TrackedTank),
         StepEventKind.TankRespawned => new(SoundEffect.Respawn, AudioTweaks.RespawnGain, CueHeard.TrackedTank),

@@ -48,6 +48,8 @@ public sealed class SoundBank
             SoundEffect.TurretFire => TurretFire(ref noise),
             SoundEffect.BuildGatling => Build(ref noise, 0.40f, 250f, 620f, 40f, 1900f),
             SoundEffect.GatlingFire => GatlingFire(ref noise),
+            SoundEffect.ShieldHit => ShieldHit(ref noise),
+            SoundEffect.ShieldBreak => ShieldBreak(ref noise),
             SoundEffect.Plant => Plant(ref noise),
             SoundEffect.PlantRefused => PlantRefused(),
             SoundEffect.Pickup => Pickup(),
@@ -97,6 +99,41 @@ public sealed class SoundBank
             float hiss = snap.Process(noise.Next(), 2400f + 6000f * Decay(t, 0.008f));
             phase += Tau * (260f + 240f * Decay(t, 0.012f)) / Rate;
             samples[i] = hiss * Decay(t, 0.016f) * 3.0f + MathF.Sin(phase) * Decay(t, 0.02f) * 0.45f;
+        }
+        return samples;
+    }
+
+    /// <summary>A shield taking a hit: a bright zap, a falling sine sweep over a short burst of hiss.</summary>
+    private static float[] ShieldHit(ref Noise noise)
+    {
+        var samples = Buffer(0.2f);
+        var fizz = new LowPass();
+        float phase = 0f;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)Rate;
+            phase += Tau * (600f + 1200f * Decay(t, 0.03f)) / Rate;
+            float hiss = fizz.Process(noise.Next(), 5000f);
+            samples[i] = MathF.Sin(phase) * Decay(t, 0.06f) * 0.7f + hiss * Decay(t, 0.012f) * 1.6f;
+        }
+        return samples;
+    }
+
+    /// <summary>A shield giving way: the zap, then a glassy shatter of high inharmonic tones.</summary>
+    private static float[] ShieldBreak(ref Noise noise)
+    {
+        ReadOnlySpan<float> frequencies = [1320f, 1970f, 2610f, 3480f, 4310f];
+        var samples = Buffer(0.55f);
+        var fizz = new LowPass();
+        float phase = 0f;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)Rate;
+            phase += Tau * (500f + 1500f * Decay(t, 0.05f)) / Rate;
+            float glass = 0f;
+            for (int k = 0; k < frequencies.Length; k++)
+                glass += MathF.Sin(Tau * frequencies[k] * t) * Decay(t, 0.05f + 0.03f * k);
+            samples[i] = MathF.Sin(phase) * Decay(t, 0.09f) * 0.6f + glass * 0.14f + fizz.Process(noise.Next(), 6000f) * Decay(t, 0.02f) * 1.8f;
         }
         return samples;
     }

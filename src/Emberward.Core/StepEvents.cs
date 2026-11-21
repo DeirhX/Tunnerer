@@ -175,7 +175,7 @@ public enum StepEventKind
     /// </summary>
     TankShieldHit,
 
-    /// <summary>A hit emptied a tank's shield. Same fields as <see cref="TankShieldHit"/>.</summary>
+    /// <summary>A hit emptied a tank's shield (recorded instead of <see cref="TankShieldHit"/> for that hit). Same fields.</summary>
     TankShieldBroken,
 }
 

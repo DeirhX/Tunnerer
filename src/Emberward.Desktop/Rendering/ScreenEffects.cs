@@ -2,6 +2,7 @@ namespace Emberward.Desktop.Rendering;
 
 using Emberward.Core;
 using Emberward.Core.Config;
+using Emberward.Core.Entities;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Desktop.Config;
 
@@ -81,7 +82,11 @@ public sealed class ScreenEffects
             return;
         foreach (ref readonly StepEvent e in stepEvents)
         {
-            if (e.Kind != StepEventKind.TankHit || e.Color != player.Color)
+            if (e.Kind is not (StepEventKind.TankHit or StepEventKind.TankShieldHit or StepEventKind.TankShieldBroken)
+                || e.Color != player.Color)
+                continue;
+            // A shield takes bites and shells alike, but only a shell has a direction to shake along.
+            if (e.Kind != StepEventKind.TankHit && player.LastDamageCause != DamageCause.EnemyFire)
                 continue;
             _hitPending = true;
             var v = player.LastHitVelocity;
