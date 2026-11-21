@@ -12,20 +12,20 @@ public enum LevelGenMode
 
 public class ToastGenerator
 {
-    /// <param name="playerCount">How many bases to place.</param>
+    /// <param name="playerCount">How many bases to place (<see cref="EdgeSpawns"/>).</param>
     public (TerrainGrid terrain, Position[] spawns) Generate(Size size, int seed,
         LevelGenMode mode = LevelGenMode.Deterministic, int playerCount = Tweaks.LevelGen.DefaultPlayers)
     {
         var terrain = new TerrainGrid(size);
         terrain.Fill(TerrainPixel.LevelGenRock);
 
-        int effectiveSeed = seed;
-        var rng = new Random(effectiveSeed);
-        var spawns = GenerateTree(terrain, rng, playerCount);
+        var rng = new Random(seed);
+        var spawns = EdgeSpawns.Place(size, playerCount, rng);
+        GenerateTree(terrain, rng, spawns);
 
         if (mode == LevelGenMode.Optimized)
         {
-            GenerateOptimized(terrain, spawns, effectiveSeed);
+            GenerateOptimized(terrain, seed);
         }
         else
         {
@@ -33,95 +33,27 @@ public class ToastGenerator
             SmoothCavern(terrain);
         }
 
+        // The same ground round every base, then a tunnel to any base the caves left cut off.
+        EdgeSpawns.PrepareGround(terrain, spawns);
+        EnsureConnectivity(terrain, spawns);
+
         return (terrain, spawns);
     }
 
     /// <summary>
-    /// Picks <paramref name="playerCount"/> base positions among the candidate points.
-    /// <para>
-    /// Two bases: the first point is one, and the other is the first point at least
-    /// <see cref="Tweaks.LevelGen.MinSpawnDistanceSq"/> away. The playable area is only a bit larger than that
-    /// distance, so when the first point lies near the middle no other point can qualify; the two most distant
-    /// points are used instead, so a map never has fewer than two spawns.
-    /// </para>
-    /// <para>
-    /// More than two: the two most distant points, then one at a time the point farthest from every base chosen so
-    /// far, which spreads the bases as evenly as the points allow.
-    /// </para>
+    /// Scatters <see cref="Tweaks.LevelGen.TreeSize"/> random points and joins them and the spawns with a minimum
+    /// spanning tree (Kruskal's algorithm with naive union-find) drawn as dirt lines, so every spawn starts on the
+    /// tunnel network.
     /// </summary>
-    public static Position[] SelectSpawns(IReadOnlyList<Position> points, int playerCount = Tweaks.LevelGen.DefaultPlayers)
+    private static void GenerateTree(TerrainGrid terrain, Random rng, Position[] spawns)
     {
-        if (playerCount > 2)
-            return SelectSpreadSpawns(points, Math.Min(playerCount, points.Count));
-
-        var spawns = new List<Position> { points[0] };
-        for (int i = 1; i < points.Count && spawns.Count < playerCount; i++)
-        {
-            bool tooClose = false;
-            foreach (var s in spawns)
-            {
-                if (Position.DistanceSquared(points[i], s) < Tweaks.LevelGen.MinSpawnDistanceSq)
-                { tooClose = true; break; }
-            }
-            if (!tooClose) spawns.Add(points[i]);
-        }
-
-        if (spawns.Count < 2 && points.Count >= 2 && playerCount >= 2)
-        {
-            var (a, b) = MostDistantPair(points);
-            return new[] { points[a], points[b] };
-        }
-
-        return spawns.ToArray();
-    }
-
-    private static (int A, int B) MostDistantPair(IReadOnlyList<Position> points)
-    {
-        int bestA = 0, bestB = 1, bestDistance = -1;
-        for (int i = 0; i < points.Count; i++)
-            for (int j = i + 1; j < points.Count; j++)
-            {
-                int d = Position.DistanceSquared(points[i], points[j]);
-                if (d > bestDistance)
-                { bestDistance = d; bestA = i; bestB = j; }
-            }
-        return (bestA, bestB);
-    }
-
-    private static Position[] SelectSpreadSpawns(IReadOnlyList<Position> points, int count)
-    {
-        var (a, b) = MostDistantPair(points);
-        var spawns = new List<Position>(count) { points[a], points[b] };
-        while (spawns.Count < count)
-        {
-            // Ties go to the earlier point, so the choice does not depend on anything but the points.
-            int best = -1, bestDistance = -1;
-            for (int i = 0; i < points.Count; i++)
-            {
-                int nearest = int.MaxValue;
-                foreach (var s in spawns)
-                    nearest = Math.Min(nearest, Position.DistanceSquared(points[i], s));
-                if (nearest > bestDistance)
-                { bestDistance = nearest; best = i; }
-            }
-            spawns.Add(points[best]);
-        }
-        return spawns.ToArray();
-    }
-
-    /// <summary>
-    /// Generates random points, selects spawn positions, then builds a minimum spanning
-    /// tree (Kruskal's algorithm with naive union-find) connecting them via dirt tunnels.
-    /// </summary>
-    private static Position[] GenerateTree(TerrainGrid terrain, Random rng, int playerCount)
-    {
-        int treeSize = Tweaks.LevelGen.TreeSize;
+        int randomPoints = Tweaks.LevelGen.TreeSize;
+        int treeSize = randomPoints + spawns.Length;
 
         var points = new Position[treeSize];
-        for (int i = 0; i < treeSize; i++)
+        for (int i = 0; i < randomPoints; i++)
             points[i] = GeneratorUtils.GenerateInside(terrain.Size, Tweaks.LevelGen.BorderWidth, rng);
-
-        var spawns = SelectSpawns(points, playerCount);
+        spawns.CopyTo(points, randomPoints);
 
         // Kruskal's MST: each node starts in its own component
         int[] componentId = new int[treeSize];
@@ -144,8 +76,6 @@ public class ToastGenerator
                 if (componentId[k] == bComp) componentId[k] = aComp;
             GeneratorUtils.DrawLine(terrain, points[a], points[b], TerrainPixel.LevelGenDirt);
         }
-
-        return spawns;
     }
 
     #region Deterministic (single-threaded)
@@ -253,7 +183,7 @@ public class ToastGenerator
 
     #region Optimized (parallel; deterministic per seed, but a different map from Deterministic)
 
-    private static void GenerateOptimized(TerrainGrid terrain, Position[] spawns, int seed)
+    private static void GenerateOptimized(TerrainGrid terrain, int seed)
     {
         int w = terrain.Width, h = terrain.Height;
 
@@ -309,9 +239,6 @@ public class ToastGenerator
 
         // 5. Fixed-count parallel CA smoothing (7 passes)
         SmoothParallel(terrain, passes: 7);
-
-        // 6. Guarantee spawn connectivity (carve tunnels if CA closed any)
-        EnsureConnectivity(terrain, spawns);
 
         ExpandCleanup(terrain);
     }
@@ -375,6 +302,7 @@ public class ToastGenerator
         return dist;
     }
 
+    /// <summary>Carves a thick tunnel to the first spawn from any spawn the dirt does not connect to it.</summary>
     private static void EnsureConnectivity(TerrainGrid terrain, Position[] spawns)
     {
         if (spawns.Length < 2) return;

@@ -85,7 +85,7 @@ public class SimulationTableGuardTests
         // those values (hot and frost rock conduct like stone). Finite base cells now use the same series rule.
         const ThermalMaterial D = ThermalMaterial.Dirt, S = ThermalMaterial.Stone, B = ThermalMaterial.Base,
             E = ThermalMaterial.ConstantEnergy, H = ThermalMaterial.HotRock, F = ThermalMaterial.FrostRock,
-            A = ThermalMaterial.Air, O = ThermalMaterial.EmberiteCore;
+            A = ThermalMaterial.Air, O = ThermalMaterial.PyriteCore;
         (ThermalMaterial, ThermalMaterial, float)[] tuned =
         [
             (A, A, 0.240f), (D, D, 0.010f),
@@ -140,8 +140,8 @@ public class SimulationTableGuardTests
         string[] reviewed =
         {
             "LevelGenDirt", "LevelGenRock", "LevelGenMark", "Blank", "Dirt", "DirtGrow", "Rock", "Decal",
-            "BaseMin", "BaseMax", "BaseBarrier", "BaseCore", "HotRock", "FrostRock", "Concrete",
-            "Emberite", "EmberiteCore",
+            "BaseMin", "BaseMax", "BaseBarrier", "BaseFloor", "BaseCore", "BaseGateOpen", "HotRock", "FrostRock", "Concrete",
+            "Pyrite", "PyriteCore",
         };
         string[] actual = Enum.GetNames<TerrainPixel>();
         Assert.Equal(reviewed.Order(), actual.Order());

@@ -61,8 +61,8 @@ public class TerrainBehaviorTests
         TerrainPixel[] defined = [
             TerrainPixel.Blank, TerrainPixel.Dirt,
             TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.Decal,
-            TerrainPixel.Concrete, TerrainPixel.Emberite, TerrainPixel.EmberiteCore,
-            TerrainPixel.BaseBarrier, TerrainPixel.BaseCore, TerrainPixel.BaseMin, TerrainPixel.BaseMax,
+            TerrainPixel.Concrete, TerrainPixel.Pyrite, TerrainPixel.PyriteCore,
+            TerrainPixel.BaseBarrier, TerrainPixel.BaseFloor, TerrainPixel.BaseMin, TerrainPixel.BaseMax,
         ];
 
         foreach (var pix in defined)
@@ -128,7 +128,7 @@ public class TerrainBehaviorTests
         Assert.False(Pixel.IsSoil(TerrainPixel.Rock));
         Assert.True(Pixel.IsSolidGround(TerrainPixel.Rock));
         Assert.False(Pixel.IsSolidGround(TerrainPixel.Blank));
-        Assert.True(Pixel.IsAnyBaseCell(TerrainPixel.BaseCore));
+        Assert.True(Pixel.IsAnyBaseCell(TerrainPixel.BaseFloor));
         Assert.True(Pixel.IsAnyBaseCell(TerrainPixel.BaseBarrier));
         Assert.False(Pixel.IsAnyBaseCell(TerrainPixel.Dirt));
     }

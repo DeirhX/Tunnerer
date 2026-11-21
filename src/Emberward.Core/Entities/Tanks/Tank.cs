@@ -81,7 +81,7 @@ public class Tank
     /// </summary>
     public float OffNetworkFloor => _thermals.OffNetworkFloor;
 
-    /// <summary>A burn of carried emberite lowers the off-network floor (<see cref="TankReserveSystem"/>).</summary>
+    /// <summary>A burn of carried pyrite lowers the off-network floor (<see cref="TankReserveSystem"/>).</summary>
     internal void LowerOffNetworkFloor(float degrees) => _thermals.LowerOffNetworkFloor(degrees);
 
     /// <summary>Seconds until the rising off-network heat floor reaches the safe maximum (zero once it has).</summary>
@@ -150,10 +150,10 @@ public class Tank
     /// <summary>How full the tank's ore hold is, 0 to 1.</summary>
     public float HoldFill => Math.Clamp(Hold.Ore / (float)Math.Max(1, Hold.Capacity), 0f, 1f);
 
-    /// <summary>Emberite in the tank's hold, in units (DESIGN.md §6.3).</summary>
+    /// <summary>Pyrite in the tank's hold, in units (DESIGN.md §6.3).</summary>
     public int OreHeld => Hold.Ore;
 
-    /// <summary>How much emberite the hold takes (<see cref="Tweaks.Ore.TankHold"/> plus the base's cargo hold upgrades).</summary>
+    /// <summary>How much pyrite the hold takes (<see cref="Tweaks.Ore.TankHold"/> plus the base's cargo hold upgrades).</summary>
     public int OreHoldCapacity => Hold.Capacity;
 
     /// <summary>True when the hold has no room for another unit: the tank's dig leaves ore in the ground.</summary>
@@ -219,7 +219,7 @@ public class Tank
         _thermals = new TankThermals(this, settings ?? SimulationSettings.FromTweaks());
         Color = color;
         Base = tankBase;
-        Position = tankBase.Position;
+        Position = tankBase.SpawnPosition;
         Reactor = new Reactor(
             initial: new ReactorState(Tweaks.Tank.InitialHeat, Tweaks.Tank.InitialHealth),
             capacity: new ReactorState(Tweaks.Tank.HeatCapacity, Tweaks.Tank.HealthCapacity));
@@ -244,7 +244,7 @@ public class Tank
         if (Base?.IsDestroyed == true)
             TakeDamage(Reactor.HealthCapacity, DamageCause.BaseDestroyed);
 
-        // Under the reserve rule the recall key burns carried emberite while there is any (TankReserveSystem).
+        // Under the reserve rule the recall key burns carried pyrite while there is any (TankReserveSystem).
         bool recall = input.Recall && CanRecall && !(ctx.Reserve != null && TankReserveSystem.CanBurn(this));
         if (recall)
             TakeDamage(Reactor.HealthCapacity, DamageCause.Recalled);
@@ -356,32 +356,31 @@ public class Tank
 
     private const float BaseServicedHeatDrop = 0.05f;
 
-    /// <summary>Any visited base recharges the tank and stores heat from the docking area. Its own base also banks
-    /// the ore and pumps heat directly from the tank into its reservoir.</summary>
+    /// <summary>
+    /// Its own base repairs the tank, stores heat from the docking area, banks the ore and pumps heat directly from
+    /// the tank into its reservoir. Another side's base does nothing for a tank: a raider inside the walls gets no
+    /// service from the base it is attacking.
+    /// </summary>
     private void AdvanceBaseInteraction(in SimulationContext ctx)
     {
         var baseColl = ctx.CheckBaseCollision(Position);
-        if (baseColl is not { IsDestroyed: false }) return;
+        if (baseColl is not { IsDestroyed: false } || baseColl.Color != Color) return;
 
         (int health, float heat) = (Reactor.Health, Heat);
         bool dark = ctx.BasePower?.IsDark(baseColl) == true;
         if (!dark)
-            baseColl.RechargeTank(Reactor, Color);
-        bool atOwnBase = baseColl.Color == Color;
-        _thermals.CoolDockingArea(ctx.Heat, baseColl, atOwnBase);
+            baseColl.RechargeTank(Reactor);
+        _thermals.CoolDockingArea(ctx.Heat, baseColl);
 
-        if (atOwnBase)
-        {
-            int burned = ctx.BasePower?.BurnHold(baseColl, Hold, ctx.Heat.Ledger) ?? 0;
-            if (burned > 0)
-                ctx.Events?.Record(new StepEvent(StepEventKind.RestartOreBurned, Position, Color, Count: burned));
-            int banked = dark ? 0 : Hold.MoveTo(baseColl.Store, Tweaks.Base.HomeAbsorbOre);
-            IsUnloadingOre = banked > 0;
-            _thermals.PumpHeatAtBase(baseColl);
-            // A tank that is only shedding the last fraction of a degree near 0 is not being serviced any more.
-            if (Reactor.Health > health || Heat < heat - BaseServicedHeatDrop || banked > 0)
-                ctx.Events?.Record(new StepEvent(StepEventKind.BaseServiced, Position, Color));
-        }
+        int burned = ctx.BasePower?.BurnHold(baseColl, Hold, ctx.Heat.Ledger) ?? 0;
+        if (burned > 0)
+            ctx.Events?.Record(new StepEvent(StepEventKind.RestartOreBurned, Position, Color, Count: burned));
+        int banked = dark ? 0 : Hold.MoveTo(baseColl.Store, Tweaks.Base.HomeAbsorbOre);
+        IsUnloadingOre = banked > 0;
+        _thermals.PumpHeatAtBase(baseColl);
+        // A tank that is only shedding the last fraction of a degree near 0 is not being serviced any more.
+        if (Reactor.Health > health || Heat < heat - BaseServicedHeatDrop || banked > 0)
+            ctx.Events?.Record(new StepEvent(StepEventKind.BaseServiced, Position, Color));
     }
 
     // Unload rate credit, in units times ticks per second: a unit moves each time it reaches TargetFps.
@@ -440,7 +439,7 @@ public class Tank
     {
         if (Base is not { IsDestroyed: false }) return;
         Reactor.Add(new ReactorState(0, Reactor.HealthCapacity));
-        Position = Base.Position;
+        Position = Base.SpawnPosition;
         _thermals.ResetForSpawn(ledger);
         _lifecycle.OnSpawned();
     }

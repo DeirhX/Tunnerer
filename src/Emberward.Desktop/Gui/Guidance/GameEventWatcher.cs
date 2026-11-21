@@ -2,11 +2,11 @@ namespace Emberward.Desktop.Gui.Guidance;
 
 using Emberward.Core;
 using Emberward.Core.Config;
-using Emberward.Core.Types;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Match;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Bases;
+using Emberward.Core.Types;
 using Emberward.Desktop.Presentation;
 
 /// <summary>
@@ -36,9 +36,12 @@ public sealed class GameEventWatcher
     private bool _meetingGoal;
     private bool _tappedCore;
     private int _harvestedSinceReport;
+    private bool _nestExplained;
+    private readonly List<Position> _nestsWoke = new();
     private float _lastHarvestReport;
     private int _baseHits;
-    private int _baseShieldPermille;
+    private bool _baseShieldBroken;
+    private bool _baseCoreHit;
     private bool _baseDestroyed;
 
     /// <summary>When the player's base last took enemy fire, in HUD seconds; negative before the first hit.</summary>
@@ -61,7 +64,11 @@ public sealed class GameEventWatcher
         _harvestedSinceReport = 0;
         _baseHits = 0;
         _baseDestroyed = false;
+        _baseShieldBroken = false;
+        _baseCoreHit = false;
         LastBaseHitTime = -1e9f;
+        _nestExplained = false;
+        _nestsWoke.Clear();
     }
 
     /// <summary>
@@ -74,13 +81,17 @@ public sealed class GameEventWatcher
         {
             if (e.Kind == StepEventKind.OreHarvested && e.Color == player.Color)
                 _harvestedSinceReport += e.Count;
-            else if (e.Kind is StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed && e.Color == player.Color)
+            else if (e.Color == player.Color && e.Kind is StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed or StepEventKind.BaseShieldHit
+                or StepEventKind.BaseShieldBroken)
             {
                 _baseHits++;
-                _baseShieldPermille = e.Count;
+                _baseShieldBroken |= e.Kind == StepEventKind.BaseShieldBroken;
+                _baseCoreHit |= e.Kind is StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed;
                 LastBaseHitAt = e.Position;
                 _baseDestroyed |= e.Kind == StepEventKind.BaseDestroyed;
             }
+            else if (e.Kind == StepEventKind.NestWoke && NestAlert.Covers(world, player, e.Position))
+                _nestsWoke.Add(e.Position);
         }
     }
 
@@ -116,11 +127,15 @@ public sealed class GameEventWatcher
                     "Without a base your tank cannot respawn.", NotificationKind.Danger, cooldown: 1e9f);
             else
                 feed.Post(now, "base-attacked", "Your base is under attack",
-                    _baseShieldPermille > 0
-                        ? $"Its shield blocks {_baseShieldPermille / 10}% of each hit and weakens as the base charge falls. Defend it, and keep it charged."
-                        : "Nothing shields it: every hit takes full armor, and it mends at a steady rate. Drive off the attacker.",
+                    _baseShieldBroken
+                        ? "Its gate shield is spent and the gates stand open. Drive off the attacker and keep the base charged."
+                        : _baseCoreHit
+                            ? "Shells are reaching its core. Drive off the attacker."
+                            : "Its gate shield is taking the hits and drains as it does. Defend it, and keep it charged.",
                     NotificationKind.Danger, cooldown: 12f);
             _baseHits = 0;
+            _baseShieldBroken = false;
+            _baseCoreHit = false;
         }
 
         if (!_primed)
@@ -199,7 +214,7 @@ public sealed class GameEventWatcher
                     NotificationKind.Warning, cooldown: 60f);
             // Once each per match: the first ore in the hold, and the first time the hold fills.
             if (holdingOre && !_holdingOre)
-                feed.Post(now, "ore-collected", "Emberite collected",
+                feed.Post(now, "ore-collected", "Pyrite collected",
                     "Ore rides in your hold (MATERIALS). Dock, or stay inside your network, to bank it; if you die, it spills where you fall.",
                     NotificationKind.Good, cooldown: 1e9f);
             if (oreHoldFull && !_oreHoldFull)
@@ -218,6 +233,25 @@ public sealed class GameEventWatcher
                 _lastHarvestReport = now;
             }
         }
+
+        // A nest the player's side can see or read on its radar woke: no tank or side is named. The first time says what
+        // emberites are; after that, a short alert for each nest, not repeated for the same one for a while.
+        foreach (Position nest in _nestsWoke)
+        {
+            if (!_nestExplained)
+            {
+                _nestExplained = true;
+                feed.Post(now, "nest-woke", "A nest woke: emberites",
+                    "They hunt hot tanks and bite their heat into you. Run cool, fight in a narrow tunnel, and clear a nest to free its ore.",
+                    NotificationKind.Danger, cooldown: 1e9f);
+            }
+            else
+            {
+                feed.Post(now, $"nest-woke-{nest.X}-{nest.Y}", "A nest woke nearby", "Emberites are out. Cool down or find cover.",
+                    NotificationKind.Danger, cooldown: 20f);
+            }
+        }
+        _nestsWoke.Clear();
 
         _poweredRelays = poweredRelays;
         _harvesters = harvesters;

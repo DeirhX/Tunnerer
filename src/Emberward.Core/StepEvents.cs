@@ -43,7 +43,7 @@ public enum StepEventKind
 
 
     /// <summary>
-    /// A tank dug a cell of emberite into its hold: <see cref="StepEvent.Count"/> units (a core cell is worth more).
+    /// A tank dug a cell of pyrite into its hold: <see cref="StepEvent.Count"/> units (a core cell is worth more).
     /// </summary>
     OreCollected,
 
@@ -93,14 +93,23 @@ public enum StepEventKind
     MachineWrecked,
 
     /// <summary>
-    /// An enemy bullet damaged a base. <see cref="StepEvent.Position"/> is the cell it struck, <see cref="StepEvent.Color"/>
-    /// the base's owner and <see cref="StepEvent.Count"/> the base's shield in permille when it was hit (0 when the
-    /// rules run no energy network).
+    /// An enemy bullet damaged a base's core. <see cref="StepEvent.Position"/> is the core cell it struck and
+    /// <see cref="StepEvent.Color"/> the base's side.
     /// </summary>
     BaseDamaged,
 
     /// <summary>The hit that destroyed a base; its fields are those of <see cref="BaseDamaged"/>.</summary>
     BaseDestroyed,
+
+    /// <summary>
+    /// A base's gate shield took an enemy bullet (DESIGN.md §4.9), or took one and is spent, which opens the gates to
+    /// the enemy. <see cref="StepEvent.Position"/> is the gate cell, <see cref="StepEvent.Color"/> the base's side.
+    /// </summary>
+    BaseShieldHit,
+    BaseShieldBroken,
+
+    /// <summary>A base's gate shield is back and its gates are shut to the enemy again. At the base's centre.</summary>
+    BaseShieldRestored,
 
     /// <summary>A docked tank burned <see cref="StepEvent.Count"/> units from its hold to restart its base.</summary>
     RestartOreBurned,
@@ -124,7 +133,7 @@ public enum StepEventKind
     TurretFired,
 
     /// <summary>
-    /// A tank off its network burned <see cref="StepEvent.Count"/> units of emberite from its hold to buy back its
+    /// A tank off its network burned <see cref="StepEvent.Count"/> units of pyrite from its hold to buy back its
     /// reserve (<see cref="Entities.Tanks.TankReserveSystem"/>). <see cref="StepEvent.Color"/> is the tank.
     /// </summary>
     ReserveBurned,
@@ -134,6 +143,18 @@ public enum StepEventKind
     /// <see cref="Entities.Tanks.TankReserveStage"/>. <see cref="StepEvent.Color"/> is the tank.
     /// </summary>
     ReserveStageChanged,
+
+    /// <summary>A nest of emberites woke; <see cref="StepEvent.Position"/> is the nest, <see cref="StepEvent.Count"/> the creatures in it.</summary>
+    NestWoke,
+
+    /// <summary>
+    /// An emberite bit a tank, dumping its heat into it and hurting it. <see cref="StepEvent.Color"/> is the tank;
+    /// <see cref="StepEvent.Count"/> is the pyrite the bite took from its hold.
+    /// </summary>
+    EmberiteBit,
+
+    /// <summary>An emberite was killed at <see cref="StepEvent.Position"/>; what it carried spilled into the ground there.</summary>
+    EmberiteKilled,
 }
 
 /// <summary>What a <see cref="StepEventKind.BulletImpact"/> struck.</summary>

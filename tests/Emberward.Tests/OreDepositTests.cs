@@ -8,15 +8,15 @@ using Emberward.Core.Types;
 
 namespace Emberward.Tests;
 
-/// <summary>Emberite ore as terrain: the pixels, the warm core, and how deposits are seeded (DESIGN.md §6.3).</summary>
+/// <summary>Pyrite ore as terrain: the pixels, the warm core, and how deposits are seeded (DESIGN.md §6.3).</summary>
 public class OreDepositTests
 {
     private static readonly float CoreStart = Tweaks.Ore.CoreStartTemperature;
     private static readonly Size MediumMap = new(800, 400);
 
     [Theory]
-    [InlineData(TerrainPixel.Emberite, false, ThermalMaterial.Stone)]
-    [InlineData(TerrainPixel.EmberiteCore, true, ThermalMaterial.EmberiteCore)]
+    [InlineData(TerrainPixel.Pyrite, false, ThermalMaterial.Stone)]
+    [InlineData(TerrainPixel.PyriteCore, true, ThermalMaterial.PyriteCore)]
     public void Ore_BlocksMovement_AndIsNoOtherKindOfGround(TerrainPixel pixel, bool core, ThermalMaterial material)
     {
         Assert.True(Pixel.IsOre(pixel));
@@ -37,8 +37,8 @@ public class OreDepositTests
     public void Ore_IsFinite_SeededWithHeat_AndNothingIsPinned()
     {
         var engine = new TerrainHeatEngine();
-        Assert.False(engine.IsFixedTemperatureMaterial(Pixel.GetThermalMaterial(TerrainPixel.EmberiteCore)));
-        Assert.False(engine.IsFixedTemperatureMaterial(Pixel.GetThermalMaterial(TerrainPixel.Emberite)));
+        Assert.False(engine.IsFixedTemperatureMaterial(Pixel.GetThermalMaterial(TerrainPixel.PyriteCore)));
+        Assert.False(engine.IsFixedTemperatureMaterial(Pixel.GetThermalMaterial(TerrainPixel.Pyrite)));
         Assert.True(CoreStart > Tweaks.Tank.HeatSafeMax * 2f, "a core starts far above what a tank can bear");
         Assert.True(Tweaks.Ore.PlainStartTemperature > Tweaks.World.ThermalAmbientTemperature);
         Assert.True(Tweaks.Ore.PlainStartTemperature <= Tweaks.Radar.HeatThreshold, "the radar must still read fresh plain ore");
@@ -73,8 +73,8 @@ public class OreDepositTests
         Assert.True(t.PlaceOre(new Position(6, 5), core: true, dirtOnly: false));
         Assert.False(t.PlaceOre(new Position(7, 5), core: false, dirtOnly: false));
         Assert.False(t.PlaceOre(new Position(8, 5), core: false, dirtOnly: false));
-        Assert.Equal(TerrainPixel.Emberite, t.GetPixelRaw(new Position(5, 5)));
-        Assert.Equal(TerrainPixel.EmberiteCore, t.GetPixelRaw(new Position(6, 5)));
+        Assert.Equal(TerrainPixel.Pyrite, t.GetPixelRaw(new Position(5, 5)));
+        Assert.Equal(TerrainPixel.PyriteCore, t.GetPixelRaw(new Position(6, 5)));
         Assert.Equal(CoreStart, t.GetHeatTemperature(new Position(6, 5)));
     }
 
@@ -326,7 +326,7 @@ public class OreDepositTests
         foreach (var lump in byKind[OreDepositKind.Lump])
         {
             Assert.True(lump.Cells >= Tweaks.Ore.LumpMinCells / 2, $"lump at {lump.Center} has only {lump.Cells} cells");
-            Assert.Equal(TerrainPixel.EmberiteCore, world.Terrain.GetPixelRaw(lump.Center));
+            Assert.Equal(TerrainPixel.PyriteCore, world.Terrain.GetPixelRaw(lump.Center));
             // The level's prewarm (World) has already let the core's heat spread through the shell.
             Assert.True(world.Terrain.GetHeatTemperature(lump.Center) > Tweaks.Ore.PlainStartTemperature * 2f, $"a lump is still hot at the start of play. {world.Terrain.GetHeatTemperature(lump.Center):0.0}");
         }
@@ -394,7 +394,7 @@ public class OreDepositTests
                     int dx = p.X - center.X, dy = p.Y - center.Y;
                     if (dx * dx + dy * dy > radius * radius)
                         continue;
-                    if (terrain.GetPixelRaw(p) == TerrainPixel.EmberiteCore)
+                    if (terrain.GetPixelRaw(p) == TerrainPixel.PyriteCore)
                         core = true;
                     else
                         plain = true;
@@ -415,8 +415,8 @@ public class OreDepositTests
             switch (i % 3)
             {
                 case 0: terrain.PlaceOre(p, core: i % 2 == 0, dirtOnly: false); break;
-                case 1: terrain.SetPixel(p, TerrainPixel.Emberite); break;
-                default: terrain[p.X + p.Y * terrain.Width] = TerrainPixel.EmberiteCore; break;
+                case 1: terrain.SetPixel(p, TerrainPixel.Pyrite); break;
+                default: terrain[p.X + p.Y * terrain.Width] = TerrainPixel.PyriteCore; break;
             }
             Check();
         }
@@ -427,7 +427,7 @@ public class OreDepositTests
             Check();
         }
 
-        terrain.Fill(TerrainPixel.Emberite);
+        terrain.Fill(TerrainPixel.Pyrite);
         terrain.FindOre(new Position(150, 100), 5, out bool afterFill, out _);
         Assert.True(afterFill, "a bulk write is counted too");
     }

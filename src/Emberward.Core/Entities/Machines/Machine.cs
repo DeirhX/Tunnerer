@@ -120,6 +120,9 @@ public class Machine
     /// </summary>
     public bool HasOnlyCoreOre { get; set; }
 
+    /// <summary>Ore in its work area is guarded by a nest with creatures left, which it passes over (<see cref="MachineContext.IsOreGuarded"/>).</summary>
+    public bool OreGuarded { get; set; }
+
     /// <summary>A harvester: actions of work done on <see cref="OreWorkCell"/> (a cell takes a few).</summary>
     public int OreWork { get; set; }
 

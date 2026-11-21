@@ -26,13 +26,12 @@ public static partial class BrowserApi
     /// <param name="width">The map's width in cells (<c>?map=WxH</c>); 0 for the normal map.</param>
     /// <param name="height">The map's height in cells; 0 for the normal map.</param>
     /// <param name="machines">For measuring (<c>?machines=N</c>): machines planted before play; 0 in a normal match.</param>
-    /// <param name="energyNetwork">The match runs the energy network and shows its charge labels (<c>?energy</c>).</param>
     [JSExport]
-    public static Task Start(int seed, int heatWorkers, int width, int height, int machines, bool energyNetwork)
+    public static Task Start(int seed, int heatWorkers, int width, int height, int machines)
     {
         _net = null;
         _session = new BrowserSession(seed, heatWorkers,
-            width > 0 && height > 0 ? new Size(width, height) : null, Math.Max(0, machines), energyNetwork);
+            width > 0 && height > 0 ? new Size(width, height) : null, Math.Max(0, machines));
         _hudStale = true;
         _dialSent = false;
         return Task.CompletedTask;
@@ -176,7 +175,9 @@ public static partial class BrowserApi
         }
 
         long stepped = Stopwatch.GetTimestamp();
-        session.Scene.Render(width, height, scale, (float)alpha, (float)delta, (float)time, (float)powerLabelCellSize);
+        // A clock tick that took no world step (the relay's next tick has not arrived) leaves the world where it is drawn.
+        bool hold = _net != null && due && steps == 0;
+        session.Scene.Render(width, height, scale, (float)alpha, (float)delta, (float)time, (float)powerLabelCellSize, hold);
         string? hud = null;
         if (_hudStale)
         {

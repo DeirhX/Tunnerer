@@ -39,11 +39,11 @@ public sealed class CoverageQuads
         float emphasis = _playerOffNetwork ? 1f : 0f;
         foreach (var node in _coverageNodes)
         {
-            float nx = quads.ScreenX(node.Position.X);
-            float ny = quads.ScreenY(node.Position.Y);
             float r = node.Radius;
-            if (quads.IsOffScreen(nx, ny, (r + 4f) * scale))
+            if (quads.IsOffScreen(quads.ScreenX(node.Position.X), quads.ScreenY(node.Position.Y), (r + 4f) * scale))
                 continue;
+            float nx = EntityQuads.Centre(node.Position.X);
+            float ny = EntityQuads.Centre(node.Position.Y);
             quads.Add(nx, ny, 1f, 0f, -r - 4f, r + 4f, -r - 4f, r + 4f, Tweaks.Colors.Relay, EntityShape.KindCoverage,
                 r, node.Strength, phase, emphasis);
         }

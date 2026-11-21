@@ -99,10 +99,11 @@ public sealed class BeamFader
             float length = MathF.Sqrt(dx * dx + dy * dy);
             if (length < 0.5f)
                 continue;
-            float fx = quads.ScreenX(s.X0);
-            float fy = quads.ScreenY(s.Y0);
-            if (quads.IsOffScreen(fx + dx * 0.5f * scale, fy + dy * 0.5f * scale, (length * 0.5f + 3f) * scale))
+            if (quads.IsOffScreen(quads.ScreenX(s.X0) + dx * 0.5f * scale, quads.ScreenY(s.Y0) + dy * 0.5f * scale,
+                    (length * 0.5f + 3f) * scale))
                 continue;
+            float fx = EntityQuads.Centre(s.X0);
+            float fy = EntityQuads.Centre(s.Y0);
             float transition = Transition(track.Connect, track.Dissolve) + (s.Blocked ? 4f : 0f);
             quads.Add(fx, fy, dx / length, dy / length, -1.5f, length + 1.5f, -s.HalfWidth, s.HalfWidth,
                 track.Key.Kind, length, s.Flow, quads.Phase, transition);

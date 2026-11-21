@@ -155,16 +155,16 @@ executable bit set (for example `chmod +x emberward-macos-arm64`); the builds ar
 ## Controls and installation
 
 Drive with WASD or arrows; dirt is dug by moving into it. Aim with the mouse, and fire with a click or Space.
-Firing while moving torches rock. E builds a relay, R a harvester, and in an energy match (`?energy`) Y a local
+Firing while moving torches rock. E builds a relay, R a harvester, Y a local
 generator and U a turret. Press a build key again outside a
 base to plant the carried machine. Keys 1–7 buy upgrades while docked. H turns the heat view on and off, as on
 the desktop: the ground tinted by its heat, so that enemy tunnels glow (it changes only what is drawn). Mouse wheel
-or +/− changes zoom. `?energy` in the address starts a local match with the energy network (DESIGN.md §4.9, off by
-default): every machine in sight near the tank carries the desktop's charge label (charge over capacity, flow in and
-out a second, fed or starved colour), the materials plate adds the base store's production, draw and net, and G hides
-or shows the labels. The off-network clock is the tank's reserve there: the stage's tag sits beside OFF NETWORK, and
-from the warning on X (or the button over the HUD) burns a unit of emberite from the hold. A network match keeps the
-rules its room agreed on.
+or +/− changes zoom. Every match runs the energy network (DESIGN.md §4.9): every machine in sight near the tank
+carries the desktop's charge label (charge over capacity, flow in and
+out a second, fed or starved colour), the materials plate adds the base store's production, draw and net and the
+gate shield, and G hides
+or shows the labels. The off-network clock is the tank's reserve: the stage's tag sits beside OFF NETWORK, and
+from the warning on X (or the button over the HUD) burns a unit of pyrite from the hold.
 The on-screen controls support touch devices; tap the game to aim and fire, or hold FIRE while driving.
 Escape opens the pause menu. Switching away from the page pauses the local match.
 
@@ -408,7 +408,7 @@ window and graphics dependencies out of the shared rendering assembly.
 ## Client structure and current scope
 
 - `Emberward.Rendering`: the terrain fields, material coverage, the uploader that decides what a frame repacks of
-  them, the fog layer, entity emitters, interpolation, machine sprite descriptors, shader constant layout and
+  them, the fog layer, entity emitters, entity motion (extrapolation), machine sprite descriptors, shader constant layout and
   lighting settings used by both hosts, and what the HUD tells the player (`PlayerGuidance`: the tutorial, the
   game-event toasts, the build-key hint and the warning banner), and a client's part in a network match
   (`NetSession`, `SlotStepper`, `NetMatch`). The source files retain their existing Desktop paths and namespaces;
@@ -421,12 +421,19 @@ window and graphics dependencies out of the shared rendering assembly.
   runtime behind the same messages: .NET can only start that one from the page itself, where it then runs on
   threads of its own and answers the page's calls later. `threads.js` decides which.
 - `frames.js`: the one way into .NET for both. Each display request optionally advances one fixed simulation
-  tick, then builds the shared renderer's interpolated frame; .NET hands the packet over as a view of its memory
+  tick, then builds the shared renderer's frame; .NET hands the packet over as a view of its memory
   and it is copied once, into an ordinary buffer (WebGL takes no view of memory that threads share), which the
   worker passes to the page without copying it again. HUD state is sent only with frames that follow a tick.
   The UI keeps at most one request in flight and caps catch-up. After each tick the page announces the HUD state
   as a `emberward-step` event on `window`, which is how the smoke test follows a match in either runtime.
 - `webgl.js`: uploads the shared buffers and draws the translated terrain, post-processing and entity shaders.
+  An entity vertex is 14 floats (56 bytes): its corner in world cells, the local position, the colour and kind, four
+  parameters, and its motion in cells per simulation step (`ENTITY_ATTRIBUTE_FLOATS`, `ENTITY_VERTEX_BYTES`;
+  `EntityLayoutGuardTests` compares both with the C# struct). `EntityVs` draws it at `corner + motion * StepAlpha`
+  and the camera moves the same way, so the page can draw the last packet again as it is `alpha` of the way through
+  its step on a frame that brought no new packet: `setAlpha` patches the one `StepAlpha` float of the uniform buffer
+  (`STEP_ALPHA`, checked against `PostParamsBlock` by `PostParamsLayoutGuardTests`). `main.js` computes the alpha
+  (`stepAlpha`). Quads that are rebuilt on every frame (beams, the tether and the radar) stand still on such a frame.
 - `progress.js`: the stages of a load, for the loading line, the loading bar, the console and the `emberward-load`
   event.
   Its first pass flips the render-target Y axis for WebGL's framebuffer texture convention; the final pass and
@@ -451,7 +458,7 @@ window and graphics dependencies out of the shared rendering assembly.
   the desktop's art strip in the bottom corners on two canvases, TEMP, SHIELD and MATERIALS on the left and BUILD
   STRUCTURES and COMMAND on the right, at the desktop's art coordinates and scale. It ports `HudStrip`,
   `HeatGauge`, `LiquidGauges` and `BuildPanel`: the heat orb with its dial, needle and trend arrow, the shield
-  crystal, the cargo hold filling with pieces of Emberite, the OFF NETWORK tag, the build slots and the COMMAND button (a click
+  crystal, the cargo hold filling with pieces of Pyrite, the OFF NETWORK tag, the build slots and the COMMAND button (a click
   on a slot builds, on COMMAND opens the upgrades). What the slots say comes from the shared `BuildSlotView`, which
   the desktop's `BuildPanel` draws too, and the orb's frozen and boiling states from `HeatScale`. The desktop
   draws the orb's liquid with a shader (`HeatOrbPs`); the canvas draws ice, bubbles and a burning glow instead.

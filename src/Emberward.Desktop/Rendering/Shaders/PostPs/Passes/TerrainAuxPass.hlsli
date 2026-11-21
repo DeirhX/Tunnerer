@@ -247,7 +247,7 @@ float3 NaturalMaterialMasks(float3 coverage)
     return total > 1e-4 ? m / total : float3(0.0, 0.0, 0.0);
 }
 
-// Emberite deposits are drawn from their exact cells: x = the field of
+// Pyrite deposits are drawn from their exact cells: x = the field of
 // all ore cells (its kOreIso isoline is the deposit's edge), y = the field of the
 // core cells alone (where the lump glows warm), z = the temperature (degrees) of the ore round
 // here, weighted like x, so the glow dims as the ore cools.
@@ -318,7 +318,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
 
         // ---- Coordinate setup & 3x3 aux neighborhood -------------------------
         float2 screenPx = uv * ViewSize;
-        float2 worldCell = (CameraPixels + screenPx) / PixelScale;
+        float2 worldCell = (CameraPixelsNow() + screenPx) / PixelScale;
         float2 auxUv = worldCell / WorldSize;
         float2 mTexel = float2(1.0 / WorldSize.x, 1.0 / WorldSize.y);
 

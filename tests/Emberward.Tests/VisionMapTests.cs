@@ -1,4 +1,5 @@
 using Emberward.Core.Config;
+using Emberward.Core.Entities.Bases;
 using Emberward.Core.Sensing;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
@@ -367,7 +368,7 @@ public class VisionMapTests
         var s = RelayHeatTests.CreateScenario();
         var relay = RelayHeatTests.PlantRelay(s);
         var far = s.RelayPos + new Offset(0, s.DirY * 15);
-        s.Tank.Position = s.Base.Position;
+        s.Tank.Position = s.Base.SpawnPosition;
 
         VisionMap map = s.World.TrackVision(s.Tank);
         Assert.True(map.IsVisible(s.Base.Position), "the base sees itself");
@@ -385,10 +386,11 @@ public class VisionMapTests
     {
         var s = RelayHeatTests.CreateScenario();
         RelayHeatTests.PlantRelay(s);
-        s.Tank.Position = s.Base.Position;
+        // The tank waits in the rear courtyard, out of reach of the ground that is about to change.
+        s.Tank.Position = s.Base.Position + new Offset(0, -s.DirY * BaseLayout.Lane);
         VisionMap map = s.World.TrackVision(s.Tank);
         var terrain = s.World.Terrain;
-        var dug = s.RelayPos + new Offset(10, 3);
+        var dug = s.RelayPos + new Offset(10, s.DirY * 3);
         Assert.Equal(TerrainPixel.Dirt, terrain.GetPixelRaw(dug));
         Assert.True(map.IsVisible(dug), "the relay sees its whole circle");
 

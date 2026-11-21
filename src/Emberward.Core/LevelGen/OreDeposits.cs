@@ -4,7 +4,7 @@ using Emberward.Core.Config;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 
-/// <summary>The three sizes of emberite deposit (DESIGN.md §6.3).</summary>
+/// <summary>The three sizes of pyrite deposit (DESIGN.md §6.3).</summary>
 public enum OreDepositKind
 {
     /// <summary>One to three cells in dirt, anywhere outside the bases.</summary>
@@ -23,7 +23,7 @@ public readonly record struct OreDeposit(Position Center, OreDepositKind Kind, i
 }
 
 /// <summary>
-/// Seeds emberite over a generated level: lumps first (far from the bases, biased toward the centre), then pockets,
+/// Seeds pyrite over a generated level: lumps first (far from the bases, biased toward the centre), then pockets,
 /// then specks scattered through the dirt. Counts scale with map area (<see cref="Tweaks.Ore"/>); on a small map the
 /// distance rules shrink with it and a floor of pockets and lumps is kept (<see cref="DistanceScale"/>). Each deposit grows
 /// from a start cell by random accretion over its own neighbourhood, so generation touches only the cells it

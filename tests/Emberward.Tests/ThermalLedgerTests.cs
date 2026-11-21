@@ -197,7 +197,7 @@ public class ThermalLedgerTests(ITestOutputHelper output)
         var t = MakeMixedGrid(48, 48);
         for (int y = 20; y < 30; y++)
             for (int x = 30; x < 40; x++)
-                t.SetPixelRaw(new Position(x, y), TerrainPixel.BaseCore);
+                t.SetPixelRaw(new Position(x, y), TerrainPixel.BaseFloor);
         for (int x = 30; x < 40; x++)
             t.SetPixelRaw(new Position(x, 19), TerrainPixel.BaseBarrier);
 

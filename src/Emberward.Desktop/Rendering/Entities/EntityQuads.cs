@@ -32,11 +32,14 @@ public sealed class EntityQuads
         Alpha = alpha;
     }
 
-    /// <summary>Screen pixel of the centre of world cell coordinate <paramref name="cellX"/>.</summary>
+    /// <summary>Screen pixel of the centre of world cell coordinate <paramref name="cellX"/>, as drawn now.</summary>
     public float ScreenX(float cellX) => (cellX + 0.5f) * View.PixelScale - View.CameraPixels.X;
 
-    /// <summary>Screen pixel of the centre of world cell coordinate <paramref name="cellY"/>.</summary>
+    /// <summary>Screen pixel of the centre of world cell coordinate <paramref name="cellY"/>, as drawn now.</summary>
     public float ScreenY(float cellY) => (cellY + 0.5f) * View.PixelScale - View.CameraPixels.Y;
+
+    /// <summary>The world coordinate of the centre of cell <paramref name="cell"/>: what a quad's anchor is given in.</summary>
+    public static float Centre(float cell) => cell + 0.5f;
 
     public bool IsOffScreen(float x, float y, float margin) =>
         x < -margin || y < -margin || x > View.ViewSize.X + margin || y > View.ViewSize.Y + margin;
@@ -48,45 +51,40 @@ public sealed class EntityQuads
     public void Add(
         float cx, float cy, float axisX, float axisY,
         float minX, float maxX, float minY, float maxY,
-        float kind, float p0, float p1, float p2, float p3) =>
-        Add(cx, cy, axisX, axisY, minX, maxX, minY, maxY, default, kind, p0, p1, p2, p3);
+        float kind, float p0, float p1, float p2, float p3, PositionF motion = default) =>
+        Add(cx, cy, axisX, axisY, minX, maxX, minY, maxY, default, kind, p0, p1, p2, p3, motion);
 
     /// <summary>
-    /// Adds a quad centred on screen pixel (<paramref name="cx"/>, <paramref name="cy"/>), whose local +x axis points
-    /// along (<paramref name="axisX"/>, <paramref name="axisY"/>) and which spans the given local rectangle in cells.
+    /// Adds a quad anchored at world coordinate (<paramref name="cx"/>, <paramref name="cy"/>) (cells; a cell's centre
+    /// is <see cref="Centre"/>), whose local +x axis points along (<paramref name="axisX"/>, <paramref name="axisY"/>)
+    /// and which spans the given local rectangle in cells. The shader draws it at the anchor plus
+    /// <paramref name="motion"/> (cells per simulation step) times the step's progress.
     /// </summary>
     public void Add(
         float cx, float cy, float axisX, float axisY,
         float minX, float maxX, float minY, float maxY,
-        Color color, float kind, float p0, float p1, float p2, float p3)
+        Color color, float kind, float p0, float p1, float p2, float p3, PositionF motion = default)
     {
         if (_vertexCount + VerticesPerQuad > _vertices.Length)
             Array.Resize(ref _vertices, _vertices.Length * 2);
 
-        float scale = View.PixelScale;
-        float toClipX = 2f / View.ViewSize.X;
-        float toClipY = 2f / View.ViewSize.Y;
-
-        EntityVertex Corner(float lx, float ly)
+        EntityVertex Corner(float lx, float ly) => new()
         {
-            float sx = cx + (lx * axisX - ly * axisY) * scale;
-            float sy = cy + (lx * axisY + ly * axisX) * scale;
-            return new EntityVertex
-            {
-                ClipX = sx * toClipX - 1f,
-                ClipY = 1f - sy * toClipY,
-                LocalX = lx,
-                LocalY = ly,
-                R = color.R / 255f,
-                G = color.G / 255f,
-                B = color.B / 255f,
-                Kind = kind,
-                P0 = p0,
-                P1 = p1,
-                P2 = p2,
-                P3 = p3,
-            };
-        }
+            CellX = cx + (lx * axisX - ly * axisY),
+            CellY = cy + (lx * axisY + ly * axisX),
+            LocalX = lx,
+            LocalY = ly,
+            R = color.R / 255f,
+            G = color.G / 255f,
+            B = color.B / 255f,
+            Kind = kind,
+            P0 = p0,
+            P1 = p1,
+            P2 = p2,
+            P3 = p3,
+            MotionX = motion.X,
+            MotionY = motion.Y,
+        };
 
         EntityVertex a = Corner(minX, minY), b = Corner(maxX, minY), c = Corner(maxX, maxY), d = Corner(minX, maxY);
         _vertices[_vertexCount++] = a;

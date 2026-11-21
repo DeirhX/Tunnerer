@@ -7,7 +7,7 @@ using Emberward.Core.Sensing;
 using Emberward.Core.Types;
 
 /// <summary>
-/// What a base shows of the fire it takes (DESIGN.md §4.9): a shell around it whose strength follows its shield (in
+/// What a base shows of the fire it takes (DESIGN.md §4.9): a shell around it whose strength follows its gate shield (in
 /// matches with an energy network), a flash where each enemy bullet lands, and armor and shield bars while it is hurt.
 /// Impacts are read from <see cref="World.StepEvents"/> after each step; everything else is read from the bases. Output only.
 /// </summary>
@@ -60,23 +60,6 @@ public sealed class BaseShieldQuads
     public void CaptureStep(World world)
     {
         _step++;
-        foreach (ref readonly StepEvent e in world.StepEvents)
-        {
-            if (e.Kind is not (StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed))
-                continue;
-            _impacts[_impactNext] = new Impact
-            {
-                Cell = e.Position,
-                Color = e.Color,
-                Strength = Math.Clamp(e.Count / (1000f * (float)Tweaks.Base.MaxShieldFraction), 0f, 1f),
-                Destroyed = e.Kind == StepEventKind.BaseDestroyed,
-                Step = _step,
-            };
-            _impactNext = (_impactNext + 1) % MaxImpacts;
-            _impactCount = Math.Min(MaxImpacts, _impactCount + 1);
-            _lastHit[e.Color] = _step;
-        }
-
         _bases.Clear();
         foreach (var tankBase in world.TankBases.Bases)
         {
@@ -85,14 +68,51 @@ public sealed class BaseShieldQuads
             {
                 Position = tankBase.Position,
                 Color = tankBase.Color,
-                Strength = tankBase.IsDestroyed ? 0f
-                    : Math.Clamp((float)(power?.ShieldFraction ?? 0.0) / (float)Tweaks.Base.MaxShieldFraction, 0f, 1f),
+                Strength = tankBase.IsDestroyed ? 0f : Math.Clamp((float)(power?.ShieldFill ?? 0.0), 0f, 1f),
                 Armor = tankBase.IsDestroyed ? 0f : (float)tankBase.ArmorFill,
                 Shielded = power != null && !tankBase.IsDestroyed,
                 Dark = power?.IsDark == true && !tankBase.IsDestroyed,
                 LastHitStep = _lastHit.TryGetValue(tankBase.Color, out long step) ? step : long.MinValue,
             });
         }
+
+        foreach (ref readonly StepEvent e in world.StepEvents)
+        {
+            if (e.Kind is not (StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed
+                or StepEventKind.BaseShieldHit or StepEventKind.BaseShieldBroken))
+                continue;
+            _impacts[_impactNext] = new Impact
+            {
+                Cell = e.Position,
+                Color = e.Color,
+                // The gate shield as it stands after the hit (0 for a spent shield or a fallen base).
+                Strength = StrengthOf(e.Color),
+                Destroyed = e.Kind == StepEventKind.BaseDestroyed,
+                Step = _step,
+            };
+            _impactNext = (_impactNext + 1) % MaxImpacts;
+            _impactCount = Math.Min(MaxImpacts, _impactCount + 1);
+            _lastHit[e.Color] = _step;
+            for (int i = 0; i < _bases.Count; i++)
+            {
+                if (_bases[i].Color == e.Color)
+                {
+                    var view = _bases[i];
+                    view.LastHitStep = _step;
+                    _bases[i] = view;
+                }
+            }
+        }
+    }
+
+    private float StrengthOf(int color)
+    {
+        foreach (var view in _bases)
+        {
+            if (view.Color == color)
+                return view.Strength;
+        }
+        return 0f;
     }
 
     public void Emit(EntityQuads quads, VisionMap? vision)

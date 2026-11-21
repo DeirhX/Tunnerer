@@ -31,11 +31,11 @@ public class BrowserSessionTests
 
         // The player's own build, heard where it happens: at full gain, centred, as the desktop plays it.
         Assert.Contains(new SoundPlay(nameof(SoundEffect.BuildRelay), AudioTweaks.BuildGain, 0f, 1f), sounds.Play);
-        Assert.Equal(SoundDirector.MaxTrackedTanks * 3 + 1, sounds.Loops.Length);
+        Assert.Equal(SoundDirector.MaxTrackedTanks * 4 + 1, sounds.Loops.Length);
         Assert.Equal(nameof(SoundEffect.EngineLoop), sounds.Loops[0].Effect);
         Assert.Equal(nameof(SoundEffect.RechargeLoop), sounds.Loops[^1].Effect);
         Assert.True(sounds.Loops[0].Gain > 0f, "The player's engine runs.");
-        Assert.Equal(0f, sounds.Loops[3 * 3].Gain);   // a fourth tank that is not there
+        Assert.Equal(0f, sounds.Loops[3 * 4].Gain);   // a fourth tank that is not there
         // A frame without a step starts nothing again; the loops stay where they are.
         var again = BrowserFrameBuilder.Capture(session, includeEvents: false).Sounds;
         Assert.Empty(again.Play);
@@ -147,7 +147,7 @@ public class BrowserPresentationTests
         Assert.True(visible.Width <= 640);
         Assert.True(visible.Height <= 400);
         // A live projectile in visible open ground must become the same hot-shot quad used by desktop.
-        session.World.Projectiles.Add(Projectile.CreateBullet(home.Position, new VectorF(1, 0), player.Color));
+        session.World.Projectiles.Add(Projectile.CreateBullet(home.SpawnPosition, new VectorF(1, 0), player.Color));
         session.Advance(default);
         session.Scene.Render(1280, 720, 6, 1, 0, 2);
         Assert.Contains(MemoryMarshal.Cast<byte, EntityVertex>(session.Scene.Vertices).ToArray(),
@@ -180,7 +180,7 @@ public class BrowserSessionArtStripTests
         Assert.Equal(-1, p.OrePileFrame);
         Assert.StartsWith("BASE ORE ", p.OreLine, StringComparison.Ordinal);
         // Each machine in its desktop slot, as the desktop's BuildPanel draws it.
-        Assert.Equal([0, 1], first.Builds.Select(b => b.Slot).Order());
+        Assert.Equal([0, 1, 2, 3], first.Builds.Select(b => b.Slot).Order());
         foreach (var b in first.Builds)
         {
             var machine = MachinePresentations.All.Single(m => m.Type.ToString() == b.Name);
@@ -242,7 +242,7 @@ public class BrowserSessionGuidanceTests
         session.Player.Position = home.Position + new Offset(0, Tweaks.Base.BaseSize / 2 + 8);
         session.Advance(default);
         var outside = BrowserFrameBuilder.Capture(session, includeEvents: false);
-        Assert.Equal("Mine emberite", outside.Guidance.Tutorial?.Title);
+        Assert.Equal("Mine pyrite", outside.Guidance.Tutorial?.Title);
         Assert.Contains("\"guidance\":{\"tutorial\":", JsonSerializer.Serialize(outside, BrowserJsonContext.Default.BrowserFrame),
             StringComparison.Ordinal);
     }
@@ -279,7 +279,7 @@ public class BrowserMachineUpgradeInputTests
     [Fact]
     public void AKeyQueuedForTheMachine_StaysAMachinePurchase_AfterThePanelCloses()
     {
-        var session = new BrowserSession(1234, energyNetwork: true);
+        var session = new BrowserSession(1234);
         Assert.False(session.MachineUpgrades.IsOpen);
 
         var queued = session.WithMachineUpgradePanel(new ControllerOutput { Upgrade = 1 }, togglePanel: false, forMachine: true);
@@ -299,7 +299,7 @@ public class BrowserMachineUpgradeInputTests
     [Fact]
     public void BuildButtons_WriteTheDesktopsKeyLabels()
     {
-        var session = new BrowserSession(1234, energyNetwork: true);
+        var session = new BrowserSession(1234);
 
         var labels = BrowserFrameBuilder.Capture(session, includeEvents: false).Builds
             .ToDictionary(b => b.Name, b => b.KeyLabel);

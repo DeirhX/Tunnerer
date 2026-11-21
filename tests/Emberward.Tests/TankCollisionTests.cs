@@ -150,7 +150,7 @@ public class TankCollisionTests
     [InlineData(TerrainPixel.Blank, StepObstacle.None)]
     [InlineData(TerrainPixel.Dirt, StepObstacle.Dirt)]
     [InlineData(TerrainPixel.Rock, StepObstacle.Hard)]
-    [InlineData(TerrainPixel.Emberite, StepObstacle.Hard)]
+    [InlineData(TerrainPixel.Pyrite, StepObstacle.Hard)]
     [InlineData(TerrainPixel.HotRock, StepObstacle.Solid)]
     public void ProbeTankStep_NamesTheGroundTheHullMeets_NotJustTheCellAhead(TerrainPixel pixel, StepObstacle expected)
     {

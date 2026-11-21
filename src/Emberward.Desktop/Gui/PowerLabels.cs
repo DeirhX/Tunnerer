@@ -2,6 +2,7 @@ namespace Emberward.Desktop.Gui;
 
 using System.Globalization;
 using Emberward.Core;
+using Emberward.Core.Config;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Network;
@@ -34,10 +35,16 @@ public readonly record struct PowerLabel(string Charge, string Flow, float Fill,
 /// <param name="Net">Production less draw a second: <c>net +900/s</c>.</param>
 /// <param name="Fill">How full the store is, 0 to 1.</param>
 /// <param name="Level">Gaining (Ok), losing with charge in hand (Warn), losing and low, or empty (Bad).</param>
+/// <param name="Shield">The gate shield in words: how full, and whether the gates are open to the enemy.</param>
+/// <param name="ShieldFill">How full the gate shield is, 0 to 1.</param>
+/// <param name="ShieldLevel">Holding (Ok), under half (Warn), or spent with the gates open (Bad).</param>
 public readonly record struct BasePowerLabel(string Store, string Flow, string Net, float Fill, StatusLevel Level,
-    bool IsDark = false, string Shield = "")
+    bool IsDark = false, string Shield = "", float ShieldFill = 0f, StatusLevel ShieldLevel = StatusLevel.Ok)
 {
     public uint Color => IsDark ? HudPalette.DarkBase : HudPalette.LevelColor(Level, HudPalette.Good);
+
+    /// <summary>The shield row's colour: the HUD's good green while it holds, its warning and danger colours when not.</summary>
+    public uint ShieldColor => HudPalette.LevelColor(ShieldLevel, HudPalette.Good);
 }
 
 /// <summary>A machine the overlay labels, with its label and how strongly it shows (0 to 1, by distance).</summary>
@@ -52,6 +59,9 @@ public static class PowerLabels
 {
     /// <summary>A share of capacity under which a losing base store counts as low.</summary>
     public const double LowStoreShare = 0.25;
+
+    /// <summary>A share of the gate shield under which its row warns.</summary>
+    public const double LowShieldShare = 0.5;
 
     /// <summary>Cells above a machine's cell where its label's bottom sits, clear of its sprite.</summary>
     public const float LiftCells = 4.5f;
@@ -116,13 +126,18 @@ public static class PowerLabels
             : net >= 0.0 ? StatusLevel.Ok
             : fill > LowStoreShare ? StatusLevel.Warn
             : StatusLevel.Bad;
-        string shield = power.IsDark ? "BASE DARK · dock with emberite"
-            : power.ShieldWarmupSeconds > 0.0
-                ? $"Shield {power.ShieldFraction:P0} · restoring in {Math.Ceiling(power.ShieldWarmupSeconds):0}s"
-                : $"Shield {power.ShieldFraction:P0}";
+        // The gates are shut to the enemy while the shield holds; spent, they stay open until it is partly back.
+        string gates = power.GatesShut
+            ? $"Gate shield {power.ShieldFill:P0}"
+            : $"GATES OPEN · shield {power.ShieldFill:P0}, shuts at {Tweaks.Keep.ShieldRestoreFill:P0}";
+        string shield = power.IsDark ? "BASE DARK · dock with pyrite · " + gates : gates;
+        StatusLevel shieldLevel = !power.GatesShut ? StatusLevel.Bad
+            : power.ShieldFill < LowShieldShare ? StatusLevel.Warn
+            : StatusLevel.Ok;
         return new BasePowerLabel(Compact(power.Charge) + "/" + Compact(power.Capacity),
             Flow(power.ProductionPerSecond, power.DrawPerSecond), "net " + SignedRate(net) +
-            (power.GeneratorProductionPerSecond > 0.0 ? " · gen " + SignedRate(power.GeneratorProductionPerSecond) : ""), fill, level, power.IsDark, shield);
+            (power.GeneratorProductionPerSecond > 0.0 ? " · gen " + SignedRate(power.GeneratorProductionPerSecond) : ""), fill, level, power.IsDark, shield,
+            (float)power.ShieldFill, shieldLevel);
     }
 
     private static float Fill(double charge, double capacity) =>

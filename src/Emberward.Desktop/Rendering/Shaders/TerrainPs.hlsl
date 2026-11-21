@@ -36,7 +36,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target
 {
     // ---- Screen → World coordinate mapping --------------------------------
     float2 screenPx = uv * ViewSize;
-    float2 worldCell = (CameraPixels + screenPx) / max(1.0, PixelScale);
+    float2 worldCell = (CameraPixelsNow() + screenPx) / max(1.0, PixelScale);
 
     int2 maxCell = int2(max(1.0, WorldSize.x), max(1.0, WorldSize.y)) - int2(1, 1);
     int2 cell = clamp(int2(floor(worldCell)), int2(0, 0), maxCell);

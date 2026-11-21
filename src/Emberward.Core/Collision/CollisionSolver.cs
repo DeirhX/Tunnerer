@@ -6,11 +6,14 @@ using Emberward.Core.Entities;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Bases;
+using Emberward.Core.Entities.Emberites;
+using Emberward.Core.Network;
 
 /// <summary>
 /// What stops a tank's step, in the order the move meets them. <see cref="Dirt"/> yields to one dig; <see cref="Hard"/>
 /// (rock, concrete, ore) blocks until the torch or the dig wears it away; <see cref="Solid"/> (hot and frost rock,
-/// base walls, the map edge) never yields; <see cref="Entity"/> is another tank or another side's machine.
+/// base walls and cores, the map edge) never yields; <see cref="Entity"/> is another tank, another side's machine,
+/// or another side's gate while its shield holds.
 /// </summary>
 public enum StepObstacle { None, Dirt, Hard, Solid, Entity }
 
@@ -36,6 +39,8 @@ public class CollisionSolver
     private readonly TerrainGrid _terrain;
     private readonly WorldSectors _tankSectors;
     private readonly TankBases? _bases;
+    private readonly EmberiteSwarm? _emberites;
+    private readonly BasePowerSystem? _basePower;
     private TankList? _tanks;
     private MachineList? _machines;
     private readonly List<List<Machine>> _nearMachines = new();
@@ -49,10 +54,14 @@ public class CollisionSolver
         _bases?.BaseOccupying(pos) is { IsDestroyed: false } tankBase && tankBase.Color != ownerColor
             ? tankBase : null;
 
-    public CollisionSolver(TerrainGrid terrain, TankBases? bases = null)
+    /// <param name="basePower">The gate shields (DESIGN.md §4.9); null when the rules run none, and gates stop nothing.</param>
+    /// <param name="emberites">The creatures shots can hit (<see cref="Emberward.Core.Match.MatchRules.Emberites"/>); null where the world has none.</param>
+    public CollisionSolver(TerrainGrid terrain, TankBases? bases = null, BasePowerSystem? basePower = null, EmberiteSwarm? emberites = null)
     {
         _terrain = terrain;
         _bases = bases;
+        _basePower = basePower;
+        _emberites = emberites;
         _tankSectors = new WorldSectors(terrain.Size);
     }
 
@@ -65,6 +74,7 @@ public class CollisionSolver
         _tanks = tanks;
         _machines = machines;
 
+        _emberites?.IndexCreatures();
         _tankSectors.Clear();
         for (int i = 0; i < tanks.Tanks.Count; i++)
         {
@@ -83,8 +93,12 @@ public class CollisionSolver
     public bool TestPoint(Position pos,
         Func<Tank, bool>? onTank = null,
         Func<Machine, bool>? onMachine = null,
-        Func<TerrainPixel, bool>? onTerrain = null)
+        Func<TerrainPixel, bool>? onTerrain = null,
+        Func<int, bool>? onEmberite = null)
     {
+        if (onEmberite != null && _emberites != null && _emberites.TestPoint(pos, onEmberite))
+            return true;
+
         if (onTank != null && _tanks != null)
         {
             bool tankHit = _tankSectors.ForEachNearbyEntity(pos, idx =>
@@ -127,6 +141,12 @@ public class CollisionSolver
 
         return false;
     }
+
+    /// <summary>Whether any creature is out to be hit: shots ask before they build a callback for one.</summary>
+    public bool CanHitEmberites => _emberites?.HasCreatures == true;
+
+    /// <summary>Kills creature <paramref name="index"/>, an index <c>TestPoint</c>'s <c>onEmberite</c> was given.</summary>
+    public void KillEmberite(int index) => _emberites?.Kill(index);
 
     /// <summary>
     /// The worst ground under the hull of a tank at <paramref name="pos"/> facing sprite direction
@@ -202,6 +222,36 @@ public class CollisionSolver
             }
         }
 
+        return GateStops(tank, pos, dir);
+    }
+
+    /// <summary>
+    /// Whether another side's shut gate stops <paramref name="tank"/> from standing at <paramref name="pos"/>: a
+    /// base's gates are shut to enemy tanks while its gate shield holds (<see cref="BasePowerSystem.GatesShut"/>).
+    /// A step that takes the tank no nearer to that base's centre is free, so a tank the gates shut on can always
+    /// drive out.
+    /// </summary>
+    private bool GateStops(Tank tank, Position pos, int dir)
+    {
+        if (_basePower == null || _bases == null)
+            return false;
+        int reach = BaseLayout.Half + TankSpriteShape.Size;
+        foreach (var tankBase in _bases.Bases)
+        {
+            if (tankBase.Color == tank.Color || !_basePower.GatesShut(tankBase))
+                continue;
+            var centre = tankBase.Position;
+            if (Math.Abs(pos.X - centre.X) > reach || Math.Abs(pos.Y - centre.Y) > reach || Parts(tank.Position, pos, centre))
+                continue;
+            bool onGate = false;
+            TankSpriteShape.ForEachPixel(dir, pos, (_, worldPos) =>
+            {
+                onGate = tankBase.PartAt(worldPos) == BasePart.Gate;
+                return !onGate;
+            });
+            if (onGate)
+                return true;
+        }
         return false;
     }
 

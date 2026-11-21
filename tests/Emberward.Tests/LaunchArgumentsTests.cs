@@ -39,14 +39,15 @@ public class LaunchArgumentsTests
         Assert.Equal(new Size(1500, 750), Parse("--large").TerrainSize);
         Assert.Equal(new Size(640, 480), Parse("--size=640x480").TerrainSize);
         Assert.Null(Parse("--size=640").TerrainSize);
+        Assert.Equal(new Size(320, 200), Parse("--size=320x200").TerrainSize);
+        Assert.Null(Parse("--size=100x100").TerrainSize);
+        Assert.Null(Parse("--size=320x199").TerrainSize);
         Assert.True(Parse("--fast").FastGen);
         Assert.False(Parse("--no-ai").EnableAiTanks);
         Assert.False(Parse("--disable-ai").EnableAiTanks);
         Assert.False(Parse("--no-fog").FogOfWar);
         Assert.Equal(7, Parse("--seed=7").Seed);
         Assert.True(Parse("--energy-audit").EnergyAudit);
-        Assert.True(Parse("--energy-network").EnergyNetwork);
-        Assert.False(Parse().EnergyNetwork);
         Assert.True(Parse("--terrain-test").TerrainTest);
     }
 
@@ -191,7 +192,7 @@ public class LaunchArgumentsTests
     {
         var launch = Parse(
             "--windowed=1024x600", "--display=1", "--volume=35", "--mute", "--no-ai", "--no-fog",
-            "--seed=99", "--large", "--net=old-room", "--name=Old", "--fast", "--perf", "--energy-network");
+            "--seed=99", "--large", "--net=old-room", "--name=Old", "--fast", "--perf");
 
         var local = Parse([.. launch.Relaunch(null)], out var warnings);
 
@@ -207,10 +208,6 @@ public class LaunchArgumentsTests
         Assert.Null(local.TerrainSize);
         Assert.False(local.FastGen);
         Assert.False(local.Perf);
-        // A local match keeps the energy network it was started with; a network match plays its room's rules.
-        Assert.True(local.EnergyNetwork);
-        Assert.False(Parse([.. launch.Relaunch(new NetLaunchOptions(new Uri("wss://r.example/play"), "r", "Ann", 3))]).EnergyNetwork);
-
         var chosen = new NetLaunchOptions(new Uri("wss://r.example/play"), "new-room", "Ann", 3, MapSize: new Size(480, 300));
         Assert.Equal(chosen, Parse([.. launch.Relaunch(chosen)]).Net);
     }

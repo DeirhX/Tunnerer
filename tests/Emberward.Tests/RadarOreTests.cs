@@ -6,7 +6,7 @@ using Emberward.Core.Types;
 namespace Emberward.Tests;
 
 /// <summary>
-/// The radar and emberite (DESIGN.md §6.6): cool ore returns its own echo, a speck only from near and a deep deposit
+/// The radar and pyrite (DESIGN.md §6.6): cool ore returns its own echo, a speck only from near and a deep deposit
 /// from further; hot ore, and so a lump's warm heart, reads only as heat. Also the pulse's cadence under the radar
 /// upgrade.
 /// </summary>
@@ -58,7 +58,7 @@ public class RadarOreTests
     {
         var terrain = Dirt();
         int face = Origin.X + away;
-        Box(terrain, face, Origin.Y - 2, face + thickness - 1, Origin.Y + 2, TerrainPixel.Emberite);
+        Box(terrain, face, Origin.Y - 2, face + thickness - 1, Origin.Y + 2, TerrainPixel.Pyrite);
         if (temperature != 0)
             Warm(terrain, face, Origin.Y - 2, face + thickness - 1, Origin.Y + 2, temperature);
         var radar = Blind(terrain);
@@ -94,7 +94,7 @@ public class RadarOreTests
     {
         var terrain = Dirt();
         // Ore in front of a rock formation answers as ore, and the rock is in its shadow.
-        Box(terrain, Origin.X + 20, Origin.Y - 10, Origin.X + 20, Origin.Y + 10, TerrainPixel.Emberite);
+        Box(terrain, Origin.X + 20, Origin.Y - 10, Origin.X + 20, Origin.Y + 10, TerrainPixel.Pyrite);
         Box(terrain, Origin.X + 21, Origin.Y - 10, Origin.X + 40, Origin.Y + 10, TerrainPixel.Rock);
         var radar = Blind(terrain);
 
@@ -122,8 +122,8 @@ public class RadarOreTests
         // the radar reports heat at most, never ore.
         var terrain = Dirt();
         int face = Origin.X + Tweaks.Radar.OreRangeMin + 20;
-        Box(terrain, face, Origin.Y - 6, face + 14, Origin.Y + 6, TerrainPixel.Emberite);
-        Box(terrain, face + 5, Origin.Y - 2, face + 9, Origin.Y + 2, TerrainPixel.EmberiteCore);
+        Box(terrain, face, Origin.Y - 6, face + 14, Origin.Y + 6, TerrainPixel.Pyrite);
+        Box(terrain, face + 5, Origin.Y - 2, face + 9, Origin.Y + 2, TerrainPixel.PyriteCore);
         Warm(terrain, face + 1, Origin.Y - 6, face + 14, Origin.Y + 6, 30);
         var radar = Blind(terrain);
 
@@ -137,7 +137,7 @@ public class RadarOreTests
     {
         var terrain = Dirt();
         var speck = new Position(Origin.X + 25, Origin.Y);
-        terrain.SetPixelRaw(speck, TerrainPixel.Emberite);
+        terrain.SetPixelRaw(speck, TerrainPixel.Pyrite);
         var radar = Blind(terrain);
         Pulse(radar, terrain);
         Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Ore && c.Position == speck);
@@ -150,7 +150,7 @@ public class RadarOreTests
         Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Cavity && c.Position == speck);
 
         // Ore that is gone without a hole (dirt has fallen in) is checked by the next pulse and dropped.
-        terrain.SetPixelRaw(speck, TerrainPixel.Emberite);
+        terrain.SetPixelRaw(speck, TerrainPixel.Pyrite);
         Pulse(radar, terrain);
         Assert.Contains(Contacts(radar), c => c.Echo == RadarEcho.Ore && c.Position == speck);
         terrain.SetPixelRaw(speck, TerrainPixel.Dirt);
@@ -163,7 +163,7 @@ public class RadarOreTests
     {
         var terrain = Dirt();
         var speck = new Position(Origin.X + 25, Origin.Y);
-        terrain.SetPixelRaw(speck, TerrainPixel.Emberite);
+        terrain.SetPixelRaw(speck, TerrainPixel.Pyrite);
         var vision = new VisionMap(terrain);
         var radar = new Radar(vision);
         Pulse(radar, terrain);

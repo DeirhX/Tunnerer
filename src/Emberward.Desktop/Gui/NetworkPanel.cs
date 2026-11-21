@@ -70,7 +70,9 @@ public sealed class NetworkPanel
             {
                 var power = PowerLabels.Of(basePower);
                 ColoredText(power.Color, $"Network {power.Flow}   {power.Net}");
-                ColoredText(power.Color, power.Shield);
+                // The gate shield (DESIGN.md §4.9): what stands between the enemy and the courtyard.
+                ColoredText(power.ShieldColor, power.Shield);
+                HudTheme.BarRow(power.ShieldFill, power.ShieldColor, null, 10f);
             }
 
             if (harvesters > 0)
@@ -85,6 +87,8 @@ public sealed class NetworkPanel
                         (status.HarvestersNoOre > 0 ? $"{status.HarvestersNoOre} out of ore" : ""));
                 if (status.HarvestersCoreOnly > 0)
                     ColoredText(HudTheme.Warn, $"{status.HarvestersCoreOnly} at a warm core: torch it out with the tank");
+                if (status.HarvestersGuarded > 0)
+                    ColoredText(HudTheme.Warn, $"{status.HarvestersGuarded} idle: a nest guards the ore, clear it out");
                 if (status.HarvestersStoreFull > 0)
                     ColoredText(HudTheme.Warn, $"{status.HarvestersStoreFull} waiting: the base ore store is full");
                 if (flat > 0)

@@ -29,22 +29,41 @@ public class TankBase
 
     private double _botOreCredit;
 
-    private static int Half => Tweaks.Base.BaseSize / 2;
-    private static int DoorHalf => Tweaks.Base.DoorSize / 2;
+    private static int Half => BaseLayout.Half;
 
     private readonly float _ambientTemperature;
 
-    public TankBase(Position position, int color, SimulationSettings? settings = null)
+    /// <summary>
+    /// The side of the base its tank spawns on, one of <see cref="BaseLayout.GateDirections"/>: the side that faces
+    /// into the map, away from the border the base backs onto (<see cref="BaseLayout.FrontOf"/>).
+    /// </summary>
+    public Offset Front { get; }
+
+    /// <summary>
+    /// Where this base's tank appears: in the courtyard just inside the front gate. The centre is the core, which
+    /// nothing stands on.
+    /// </summary>
+    public Position SpawnPosition => Position + BaseLayout.InsideGate(Front);
+
+    /// <param name="front">The side the tank spawns on (<see cref="Front"/>); down when not given.</param>
+    public TankBase(Position position, int color, SimulationSettings? settings = null, Offset? front = null)
     {
         Position = position;
         Color = color;
+        Front = front ?? new Offset(0, 1);
         _ambientTemperature = (settings ?? SimulationSettings.FromTweaks()).ThermalAmbientTemperature;
     }
 
     public bool IsDestroyed => Reactor.Health <= 0;
     public double ArmorFill => (int)Reactor.Health / (double)(int)Reactor.HealthCapacity;
 
-    /// <summary>Removes armor and disconnects a destroyed base from its links; true when armor was removed.</summary>
+    /// <summary>What part of this base stands at <paramref name="at"/> (<see cref="BaseLayout.PartAt"/>).</summary>
+    public BasePart PartAt(Position at) => BaseLayout.PartAt(at.X - Position.X, at.Y - Position.Y);
+
+    /// <summary>
+    /// Removes armor from the core, the only part of a base that takes damage, and disconnects a destroyed base from
+    /// its links; true when armor was removed.
+    /// </summary>
     public bool TakeDamage(int damage)
     {
         if (IsDestroyed || damage <= 0)
@@ -55,7 +74,7 @@ public class TankBase
         return true;
     }
 
-    /// <summary>True for any cell of the base, its outer wall and door included (<see cref="IsInside"/> stops short of the wall).</summary>
+    /// <summary>True for any cell of the base, its outer wall and gates included (<see cref="IsInside"/> stops short of the wall).</summary>
     public bool OccupiesCell(Position tested) =>
         Math.Abs(tested.X - Position.X) <= Half && Math.Abs(tested.Y - Position.Y) <= Half;
 
@@ -287,10 +306,11 @@ public class TankBase
     }
 
     /// <summary>
-    /// Takes up to <paramref name="energy"/> from a docked tank into the reactor, limited by the reactor's free room.
-    /// Returns the energy accepted; the caller removes exactly that from the tank.
+    /// Takes up to <paramref name="energy"/> into the reactor as heat (from a docked tank, or charge the gate shield
+    /// spent), limited by the reactor's free room. Returns the energy accepted; the caller removes exactly that from
+    /// where it came.
     /// </summary>
-    public double AcceptTankHeat(double energy)
+    public double AcceptHeat(double energy)
     {
         double accepted = Math.Min(energy, ReactorRoomEnergy);
         if (accepted <= 0.0)
@@ -359,14 +379,11 @@ public class TankBase
             Reactor.Add(new ReactorState(0, Tweaks.Base.HealthRegen));
     }
 
-    public void RechargeTank(Reactor tankReactor, int tankColor)
+    /// <summary>Repairs this base's own docked tank a little.</summary>
+    public void RechargeTank(Reactor tankReactor)
     {
-        if (IsDestroyed)
-            return;
-        if (tankColor == Color)
-            GiveReactorResources(tankReactor, Tweaks.Base.HomeRechargeHealth);
-        else
-            GiveReactorResources(tankReactor, Tweaks.Base.ForeignRechargeHealth);
+        if (!IsDestroyed)
+            tankReactor.Add(new ReactorState(0, Tweaks.Base.HomeRechargeHealth));
     }
 
     internal void AbsorbNearbyHeat(ITerrainHeatSource terrain, Position center, int radius, double limit, TerrainGrid.ThermalField field)
@@ -375,12 +392,11 @@ public class TankBase
         CreditReactor(taken);
     }
 
-    private static void GiveReactorResources(Reactor target, int healthRegen)
-    {
-        target.Add(new ReactorState(0, healthRegen));
-    }
-
-    public void CreateInTerrain(ITerrainPixelAccessor terrain, int color)
+    /// <summary>
+    /// Writes the keep into the terrain: walls and baffles, gates, floor and core (<see cref="BaseLayout"/>).
+    /// </summary>
+    /// <param name="gatesShut">Whether the gates start shut to the enemy: only where a gate shield runs.</param>
+    public void CreateInTerrain(ITerrainPixelAccessor terrain, int color, bool gatesShut = false)
     {
         int half = Half;
 
@@ -390,22 +406,33 @@ public class TankBase
                 var pix = Position + new Offset(x, y);
                 if (!terrain.IsInside(pix)) continue;
 
-                if (IsEdge(x, y))
+                terrain.SetPixel(pix, BaseLayout.PartAt(x, y) switch
                 {
-                    if (IsDoor(x))
-                        terrain.SetPixel(pix, TerrainPixel.BaseBarrier);
-                    else
-                        terrain.SetPixel(pix, (TerrainPixel)((byte)TerrainPixel.BaseMin + color));
-                }
-                else
-                {
-                    terrain.SetPixel(pix, TerrainPixel.BaseCore);
-                }
+                    BasePart.Wall => (TerrainPixel)((byte)TerrainPixel.BaseMin + color),
+                    BasePart.Gate => GatePixel(gatesShut),
+                    BasePart.Core => TerrainPixel.BaseCore,
+                    _ => TerrainPixel.BaseFloor,
+                });
             }
     }
 
-    private static bool IsEdge(int dx, int dy) => Math.Abs(dx) == Half || Math.Abs(dy) == Half;
-    private static bool IsDoor(int dx) => dx >= -DoorHalf && dx <= DoorHalf;
+    private static TerrainPixel GatePixel(bool shut) => shut ? TerrainPixel.BaseBarrier : TerrainPixel.BaseGateOpen;
+
+    /// <summary>
+    /// Shows the gates shut or open in the terrain. What a gate stops is the gate shield's to say
+    /// (<see cref="BasePowerSystem.GatesShut"/>); this only repaints the cells, so every side sees the change.
+    /// </summary>
+    internal void PaintGates(ITerrainPixelAccessor terrain, bool shut)
+    {
+        var pixel = GatePixel(shut);
+        foreach (var gate in BaseLayout.GateDirections)
+            for (int i = -BaseLayout.GateHalf; i <= BaseLayout.GateHalf; i++)
+            {
+                var at = Position + new Offset(gate.X * Half + gate.Y * i, gate.Y * Half + gate.X * i);
+                if (terrain.IsInside(at))
+                    terrain.SetPixel(at, pixel);
+            }
+    }
 
     /// <summary>
     /// Hands the side to the computer or back to a player. Handing it back drops the ore credit the bot's income had

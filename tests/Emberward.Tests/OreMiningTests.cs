@@ -8,7 +8,7 @@ using Emberward.Core.Types;
 
 namespace Emberward.Tests;
 
-/// <summary>Mining emberite into the tank's hold, banking it at the base and spilling it on death (DESIGN.md §6.3).</summary>
+/// <summary>Mining pyrite into the tank's hold, banking it at the base and spilling it on death (DESIGN.md §6.3).</summary>
 public class OreMiningTests
 {
     private static readonly ControllerOutput Right = new() { MoveSpeed = new Offset(1, 0) };
@@ -50,6 +50,24 @@ public class OreMiningTests
         return collected;
     }
 
+    // How far (squared) a full hold spills from a wreck on the same ground with no machine or tank beside it.
+    private static int FarthestSpillWithNothingInTheWay()
+    {
+        var s = FacingWall(TerrainPixel.Dirt);
+        var at = s.Tank.Position;
+        int radius = Tweaks.Ore.DeathDropRadius;
+        s.Tank.Hold.Ore = Tweaks.Ore.TankHold;
+        s.Tank.Reactor.Exhaust(new ReactorState(0, s.Tank.Reactor.Health));
+        s.World.Advance(_ => default);
+
+        int farthest = 0;
+        for (int dy = -radius; dy <= radius; dy++)
+            for (int dx = -radius; dx <= radius; dx++)
+                if (Pixel.IsOre(s.World.Terrain.GetPixelRaw(at + new Offset(dx, dy))))
+                    farthest = Math.Max(farthest, dx * dx + dy * dy);
+        return farthest;
+    }
+
     private static int CountOre(TerrainGrid terrain, Position center, int half)
     {
         int units = 0;
@@ -62,7 +80,7 @@ public class OreMiningTests
     [Fact]
     public void PlainOre_YieldsToTheDig_SlowerThanDirt_AndFillsTheHold()
     {
-        var ore = FacingWall(TerrainPixel.Emberite);
+        var ore = FacingWall(TerrainPixel.Pyrite);
         var dirt = FacingWall(TerrainPixel.Dirt);
         int before = CountOre(ore.World.Terrain, ore.RelayPos, 14);
 
@@ -79,7 +97,7 @@ public class OreMiningTests
     [Fact]
     public void CoreCells_NeedTheTorch_AndAreWorthMore()
     {
-        var s = FacingWall(TerrainPixel.EmberiteCore);
+        var s = FacingWall(TerrainPixel.PyriteCore);
         Assert.Equal(0, Drive(s, Right, 60));
         Assert.Equal(0, s.Tank.OreHeld);
 
@@ -94,7 +112,7 @@ public class OreMiningTests
     [Fact]
     public void FullHold_LeavesOreInTheGround()
     {
-        var s = FacingWall(TerrainPixel.Emberite);
+        var s = FacingWall(TerrainPixel.Pyrite);
         s.Tank.Hold.Ore = Tweaks.Ore.TankHold - 2;
         int before = CountOre(s.World.Terrain, s.RelayPos, 14);
 
@@ -108,7 +126,7 @@ public class OreMiningTests
     [Fact]
     public void ACoreCell_IsLeftAlone_UnlessAllItsUnitsFit()
     {
-        var s = FacingWall(TerrainPixel.EmberiteCore);
+        var s = FacingWall(TerrainPixel.PyriteCore);
         s.Tank.Hold.Ore = Tweaks.Ore.TankHold - (Tweaks.Ore.CoreCellUnits - 1);
         int before = CountOre(s.World.Terrain, s.RelayPos, 14);
 
@@ -121,7 +139,7 @@ public class OreMiningTests
     public void DockingAtHome_BanksTheHold()
     {
         var s = RelayHeatTests.CreateScenario();
-        s.Tank.Position = s.Base.Position;
+        s.Tank.Position = s.Base.SpawnPosition;
         s.Tank.Hold.Ore = Tweaks.Ore.TankHold;
         int stored = s.Base.Store.Ore;
 
@@ -188,7 +206,8 @@ public class OreMiningTests
                     farthestOre = Math.Max(farthestOre, dx * dx + dy * dy);
             }
         Assert.True(covered >= 25, "the relay and the enemy stand inside the drop radius");
-        Assert.True(farthestOre > 16, "the spill went past the relay, so it had to skip the cells under it");
+        Assert.True(farthestOre > FarthestSpillWithNothingInTheWay(),
+            "the spill reached farther than one with nothing in the way, so it had to skip the covered cells");
         Assert.Equal(before + Tweaks.Ore.TankHold, CountOre(s.World.Terrain, at, radius + 1));
 
         for (int i = 0; i < 12; i++)
@@ -209,7 +228,7 @@ public class OreMiningTests
         Assert.Equal(TerrainPixel.Blank, t.GetPixelRaw(center));
         Assert.Equal(TerrainPixel.Blank, t.GetPixelRaw(center + new Offset(0, -1)));
         foreach (var o in new Offset[] { new(-1, 0), new(1, 0), new(0, 1), new(-1, 1) })
-            Assert.Equal(TerrainPixel.Emberite, t.GetPixelRaw(center + o));
+            Assert.Equal(TerrainPixel.Pyrite, t.GetPixelRaw(center + o));
     }
 
     [Fact]
@@ -225,7 +244,7 @@ public class OreMiningTests
         t.SetPixelRaw(center + new Offset(Tweaks.Ore.DeathDropRadius + 1, 0), TerrainPixel.Blank);
 
         Assert.Equal(1, OreDrop.Scatter(t, center, 1));
-        Assert.Equal(TerrainPixel.Emberite, t.GetPixelRaw(center));
+        Assert.Equal(TerrainPixel.Pyrite, t.GetPixelRaw(center));
         Assert.Equal(4, OreDrop.Scatter(t, center, 30));
         Assert.Equal(TerrainPixel.Blank, t.GetPixelRaw(center + new Offset(Tweaks.Ore.DeathDropRadius + 1, 0)));
     }

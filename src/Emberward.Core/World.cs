@@ -17,6 +17,7 @@ using Emberward.Core.Match;
 using Emberward.Core.Network;
 using Emberward.Core.Regrowth;
 using Emberward.Core.Entities.Bases;
+using Emberward.Core.Entities.Emberites;
 
 public partial class World
 {
@@ -37,6 +38,7 @@ public partial class World
     private readonly BasePowerSystem? _basePower;
     private readonly MachineUpgradeSystem? _machineUpgrades;
     private readonly TankReserveSystem? _reserve;
+    private readonly EmberiteSwarm? _emberites;
     // What tanks and machines see of the world each step; the same every step, so built once.
     [NotSaved("fixed for the match: closures over this world")]
     private readonly SimulationContext _tankContext;
@@ -69,7 +71,7 @@ public partial class World
             total += tank.Heat * tank.ThermalCapacity;
         foreach (var tankBase in _tankBases.Bases)
             total += tankBase.ReactorHeatEnergy;
-        return total;
+        return total + (_emberites?.TotalCharge() ?? 0.0);
     }
     /// <summary>
     /// Charge stored in bases, capacitors and generator reserves, with what the energy network has paid out and not
@@ -111,7 +113,7 @@ public partial class World
     /// <summary>Centres of the frost pockets placed at initialisation (empty unless the world was created with some).</summary>
     public IReadOnlyList<Position> FrostRockPockets => _frostRockPockets;
 
-    /// <summary>The emberite deposits seeded at initialisation (empty unless the world was created with ore).</summary>
+    /// <summary>The pyrite deposits seeded at initialisation (empty unless the world was created with ore).</summary>
     public IReadOnlyList<LevelGen.OreDeposit> OreDeposits => _oreDeposits;
 
     /// <summary>Whether a live tank's shape or a planted machine's square covers <paramref name="cell"/>.</summary>
@@ -189,7 +191,9 @@ public partial class World
             _reserve = new TankReserveSystem(_machines, _terrain, _energy);
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
-        _collisionSolver = new CollisionSolver(_terrain, _tankBases);
+        if (Rules.Emberites)
+            _emberites = new EmberiteSwarm(_terrain, _tankList, _tankBases, _stepEvents, _simulationSettings, _simulationSeed ^ 0x4D0B5, IsCellOccupied);
+        _collisionSolver = new CollisionSolver(_terrain, _tankBases, _basePower, _emberites);
         if (Rules.TerrainRegrowth)
             _terrainRegrowth = new TerrainRegrowth(_simulationSeed);
         _matchResult = new MatchResult(_tankList.Tanks);
@@ -212,9 +216,9 @@ public partial class World
             MachineUpgrades = _machineUpgrades,
             Reserve = _reserve,
         };
-        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades, _reserve);
+        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades, _reserve, _emberites);
         _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, MachineCoverage, _stepEvents, _energy,
-            _basePower, _machineUpgrades, _tankList, _projectiles);
+            _basePower, _machineUpgrades, _tankList, _projectiles, _emberites is { } swarm ? swarm.IsGuarded : null);
         _systems = BuildSystems();
     }
 
@@ -235,11 +239,12 @@ public partial class World
 
         for (int i = 0; i < spawns.Length; i++)
         {
-            TankBase tankBase = _tankBases.AddBase(spawns[i], i);
+            // The tank spawns inside the gate that faces into the map.
+            TankBase tankBase = _tankBases.AddBase(spawns[i], i, BaseLayout.FrontOf(_terrain.Size, spawns[i]));
             _basePower?.Register(tankBase);
         }
 
-        _tankBases.CreateBasesInTerrain(_terrain);
+        _tankBases.CreateBasesInTerrain(_terrain, gatesShut: _basePower != null);
         foreach (var tankBase in _tankBases.Bases)
             tankBase.LinkPoint = _linkMap.RegisterPoint(tankBase.Position, LinkPointType.Base);
 
@@ -259,6 +264,7 @@ public partial class World
             // Ore last, so it fills the ground the pockets left.
             if (Rules.SeedOre)
                 _oreDeposits.AddRange(LevelGen.OreDeposits.Place(_terrain, spawns, pocketSeed + 2));
+            _emberites?.Seed(_oreDeposits);
 
             // Let the heat (and cold) spread a little before play starts so the pockets and ore cores do not begin as
             // isolated dots.
@@ -342,6 +348,8 @@ public partial class World
             _tankList.Advance(in _tankContext, getInput);
             _basePower?.LatchBlackouts();
         }));
+        if (_emberites is { } swarm)
+            systems.Add(new("emberites", _ => swarm.Advance()));
         if (_energy is EnergyNetwork network)
             systems.Add(new("islands", _ => network.Refresh(_linkMap, _tankBases.Bases)));
         systems.Add(new("machines", _ => AdvanceMachines()));
@@ -350,7 +358,7 @@ public partial class World
         systems.Add(new("bases", _ =>
         {
             _tankBases.Advance(_terrain, _basePower);
-            _basePower?.Advance();
+            _basePower?.Advance(_terrain, _stepEvents);
             foreach (var tankBase in _tankBases.Bases)
                 tankBase.AdvanceBotTrickle(seconds);
         }));
@@ -550,12 +558,18 @@ public partial class World
         ? energy.PowerOf(tankBase) with
         {
             IsDark = IsBaseDark(tankBase),
-            ShieldFraction = _basePower?.ShieldFraction(tankBase) ?? 0.0,
-            ShieldWarmupSeconds = _basePower?.ShieldWarmupRemaining(tankBase) ?? 0.0,
+            ShieldFill = _basePower?.ShieldFill(tankBase) ?? 0.0,
+            GatesShut = AreGatesShut(tankBase),
         }
         : null;
 
     public bool IsBaseDark(TankBase tankBase) => _basePower?.IsDark(tankBase) == true;
+
+    /// <summary>
+    /// Whether <paramref name="tankBase"/>'s gates are shut to the enemy: its gate shield holds (DESIGN.md §4.9).
+    /// Always false when the rules run no energy network, where a gate stops nothing.
+    /// </summary>
+    public bool AreGatesShut(TankBase tankBase) => _basePower?.GatesShut(tankBase) == true;
 
     /// <summary>
     /// What <paramref name="tank"/> could buy for the nearest of its machines in reach (DESIGN.md §4.9): the machine, its

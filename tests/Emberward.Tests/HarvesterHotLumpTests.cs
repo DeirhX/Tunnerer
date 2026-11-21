@@ -56,7 +56,7 @@ public class HarvesterHotLumpTests
                     lump.Add(p);
             }
         Advance(s, 12 * Tweaks.Perf.TargetFps);
-        Assert.Contains(lump, p => s.World.Terrain.GetPixelRaw(p) == TerrainPixel.Emberite &&
+        Assert.Contains(lump, p => s.World.Terrain.GetPixelRaw(p) == TerrainPixel.Pyrite &&
             s.World.Terrain.GetHeatTemperature(p) >= Tweaks.Machine.HarvesterHotOreTemperature);
 
         // A pocket the other way, farther from the harvester than the lump is, and out of reach of the heat a core
@@ -66,13 +66,13 @@ public class HarvesterHotLumpTests
             for (int dx = -1; dx <= 1; dx++)
             {
                 var p = s.RelayPos + new Offset(-14 + dx, dy);
-                s.World.Terrain.SetPixel(p, TerrainPixel.Emberite);
+                s.World.Terrain.SetPixel(p, TerrainPixel.Pyrite);
                 pocket.Add(p);
             }
         // Up the tunnel, out of the lump's way: it keeps the harvester on the network without cooling the shell.
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(0, s.DirY * -12));
         var harvester = PlantHarvester(s, s.RelayPos + new Offset(2, 0));
-        int plainBefore = lump.Count(p => s.World.Terrain.GetPixelRaw(p) == TerrainPixel.Emberite);
+        int plainBefore = lump.Count(p => s.World.Terrain.GetPixelRaw(p) == TerrainPixel.Pyrite);
         int storeBefore = s.Base.Store.Ore;
 
         // The harvester starts three cells from a hot lump and first crawls away from it; the bay's air is warm from the
@@ -85,7 +85,7 @@ public class HarvesterHotLumpTests
         Assert.Equal(storeBefore + pocket.Count, s.Base.Store.Ore);
         Assert.False(harvester.IsStalled, "it went for the pocket and left the hot ground");
         // It left the hot shell for the tank: nothing of the lump was worked.
-        Assert.Equal(plainBefore, lump.Count(p => s.World.Terrain.GetPixelRaw(p) == TerrainPixel.Emberite));
+        Assert.Equal(plainBefore, lump.Count(p => s.World.Terrain.GetPixelRaw(p) == TerrainPixel.Pyrite));
         Assert.Equal(CoreCells(s, lump), lump.Count(p => Pixel.IsOreCore(s.World.Terrain.GetPixelRaw(p))));
     }
 
@@ -99,7 +99,7 @@ public class HarvesterHotLumpTests
         OpenBay(s, -14, 14, 6);
         var harvester = PlantHarvester(s, s.RelayPos);
         var ore = s.RelayPos + new Offset(11, 0);
-        s.World.Terrain.SetPixel(ore, TerrainPixel.Emberite);
+        s.World.Terrain.SetPixel(ore, TerrainPixel.Pyrite);
         int storeBefore = s.Base.Store.Ore;
 
         Advance(s, ActionTicks(30));
@@ -107,7 +107,7 @@ public class HarvesterHotLumpTests
         Assert.True(harvester.IsOffNetwork, "no relay reaches it here");
         Assert.True(Position.DistanceSquared(harvester.Position, ore) <=
             Tweaks.Ore.HarvesterReach * Tweaks.Ore.HarvesterReach, $"it should have crawled to the ore. at {harvester.Position}");
-        Assert.Equal(TerrainPixel.Emberite, s.World.Terrain.GetPixelRaw(ore));
+        Assert.Equal(TerrainPixel.Pyrite, s.World.Terrain.GetPixelRaw(ore));
         Assert.Equal(storeBefore, s.Base.Store.Ore);
         Assert.Equal(HarvesterState.OffNetwork, MachineBehaviors.HarvesterStateOf(harvester));
     }
@@ -119,7 +119,7 @@ public class HarvesterHotLumpTests
         OpenBay(s, -3, 20, 6);
         RelayHeatTests.PlantRelay(s, s.RelayPos + new Offset(-1, 0));
         var harvester = PlantHarvester(s, s.RelayPos + new Offset(2, 0));
-        s.World.Terrain.SetPixel(s.RelayPos + new Offset(19, 0), TerrainPixel.Emberite);
+        s.World.Terrain.SetPixel(s.RelayPos + new Offset(19, 0), TerrainPixel.Pyrite);
 
         Advance(s, Tweaks.Perf.TargetFps * 2);
 

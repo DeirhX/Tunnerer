@@ -83,7 +83,7 @@ export class StatusView {
         this.updateUpgrades(f.upgrades, p);
         this.updateMachineUpgrade(f.machineUpgrade);
         this.updateHit(p);
-        // The recall key gives up and respawns, or, under the reserve rule with emberite aboard, burns a unit
+        // The recall key gives up and respawns, or, under the reserve rule with pyrite aboard, burns a unit
         // (ReserveTags.BurnPrompt); X held keeps burning, as on desktop, while a tap of this button burns one.
         const burn = f.reserve?.burn;
         setText($("recall-text"), burn ?? "Drop cargo and respawn");

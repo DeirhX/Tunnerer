@@ -15,7 +15,7 @@ using Emberward.Core.Network;
 /// </summary>
 [NotSaved("output only: vision and radar, which nothing in the simulation reads")]
 internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, TankList tanks, BasePowerSystem? power,
-    MachineUpgradeSystem? upgrades = null, TankReserveSystem? reserve = null)
+    MachineUpgradeSystem? upgrades = null, TankReserveSystem? reserve = null, Entities.Emberites.EmberiteSwarm? emberites = null)
 {
     private readonly List<(Tank Tank, VisionMap Map)> _visions = new();
     private readonly List<(Tank Tank, Radar Radar)> _radars = new();
@@ -81,10 +81,12 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
                     _radarTargets.Add(new RadarTarget(machine.Position, machine.BoundingBox.HalfWidth));
             foreach (var other in tanks.Tanks)
                 if (other != tank && !other.IsDead)
-                    _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize, Alive: true));
+                    _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize, Alive: true, Signature: TankSignature.Of(other.Heat)));
+            emberites?.CollectRadarTargets(_radarTargets);
             radar.Advance(terrain, terrain, tank.Position, tank.Color, _radarTargets,
                 tank.Base is { } home ? RadarReach.Scaled(home.Upgrades.RadarRangeScale, home.Upgrades.RadarHeatBudgetScale)
-                    : RadarReach.Base);
+                    : RadarReach.Base,
+                tank.Base?.Position);
         }
     }
 

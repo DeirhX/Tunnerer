@@ -67,10 +67,10 @@ public static partial class Tweaks
             (ThermalMaterial.ConstantEnergy, new(HeatCapacity: 2.0f, Conductivity: 1.8f, AirExchange: 0.55f, Loss: 0.0003f)),
             (ThermalMaterial.HotRock, new(HeatCapacity: 128f, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.00005f)),
             (ThermalMaterial.FrostRock, new(HeatCapacity: 16f, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
-            // The core of an emberite lump is an energy-dense store: it conducts like stone but holds Ore.CoreHeatCapacity
+            // The core of an pyrite lump is an energy-dense store: it conducts like stone but holds Ore.CoreHeatCapacity
             // of heat per degree where stone holds 2.6, so seeded hot (Ore.CoreStartTemperature) it keeps a lot of energy
             // and cools slowly. Nothing is pinned: it is finite, and it cools into the ground and the air like any rock.
-            (ThermalMaterial.EmberiteCore, new(HeatCapacity: Ore.CoreHeatCapacity, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
+            (ThermalMaterial.PyriteCore, new(HeatCapacity: Ore.CoreHeatCapacity, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
         ]);
 
         // Air-field coupling knobs for conservative air/terrain exchange.
@@ -144,7 +144,7 @@ public static partial class Tweaks
     }
 
     /// <summary>
-    /// Emberite ore (DESIGN.md §6.3): deposits seeded at generation (LevelGen.OreDeposits) and mined by the tank.
+    /// Pyrite ore (DESIGN.md §6.3): deposits seeded at generation (LevelGen.OreDeposits) and mined by the tank.
     /// Deposit counts scale with map area (one per <c>*EveryCells</c> cells), so the 1500x750 map gets about 2,500
     /// units: about 15% in specks, 35% in pockets and 50% in lumps. Starting values; tune in play.
     /// </summary>
@@ -235,20 +235,21 @@ public static partial class Tweaks
     {
         public const int MinDistance = 150;
         public const int BaseSize = 35;
-        public const int DoorSize = 7;
         public const int InitialHeat = 0;
-        public const int InitialHealth = 2000;
+        // The core's armor: the only part of a base that takes damage (the keep's shape and its gate shield are in
+        // Tweaks.Keep). A tank that has got inside wears it down in about 5 seconds of fire from a courtyard corner.
+        public const int InitialHealth = 6000;
         public const int HeatCapacity = 100;
-        public const int HealthCapacity = 2000;
+        public const int HealthCapacity = 6000;
         // Radiator. At 1 unit per tick (500 energy/tick), two relays (300 each) out-pump it, so the reservoir fills
         // and pumping stops: the shared exit is the real bottleneck. Starting value for the first-prototype spike.
         public const int HeatCooldown = 1;
-        public const int HealthRegen = 10;
-        public const double MaxShieldFraction = 0.80;
+        // Armor the core repairs a tick while the base has power: 48 a second, so damage done stays done for a
+        // while (a full repair takes two minutes) and a second raid finds the core as the first left it.
+        public const int HealthRegen = 2;
         public const double DarkDamageMultiplier = 1.25;
         public const int ChargePerRestartOre = 7_000;
         public const int RestartCharge = 15 * ChargePerRestartOre;
-        public const int ShieldWarmupTicks = 30 * Perf.TargetFps;
         public const int DarkSightDivisor = 2;
         // Energy stored by one unit of base reactor heat. One bullet impact injects ~10^4 energy into the grid,
         // so the reactor (HeatCapacity units) is a reservoir worth a few hotspots, and HeatCooldown units per tick
@@ -264,8 +265,6 @@ public static partial class Tweaks
         public const int AreaCoolingOuterAirTotal = 40;
         public const int HomeCooldownHeat = 6;
         public const int HomeRechargeHealth = 3;
-        public const int ForeignCooldownHeat = 2;
-        public const int ForeignRechargeHealth = 1;
         // Ore banked per tick while docked: a full hold empties in a few ticks.
         public const int HomeAbsorbOre = 10;
 
@@ -435,9 +434,13 @@ public static partial class Tweaks
         public const int FormationDepth = 10;
         public const int MachineRange = 75;
         public const int LifeRange = 60;
+        // A tank's echo depends on its heat: none below SignatureFloorHeat, then LifeRange growing linearly to its full
+        // value at SignatureFullHeat (Sensing/TankSignature).
+        public const float SignatureFloorHeat = 45f;
+        public const float SignatureFullHeat = 100f;
         // The weak return of a tunnel or cave behind dirt.
         public const int CavityRange = 50;
-        // Emberite ore: a speck returns only from OreRangeMin, growing to OreRangeMax for a deposit FormationDepth
+        // Pyrite ore: a speck returns only from OreRangeMin, growing to OreRangeMax for a deposit FormationDepth
         // cells deep along the ray. Only cool plain ore counts toward the depth, so a lump's warm heart adds nothing:
         // a lump shows as heat (below) and what it holds is learned by going there.
         public const int OreRangeMin = 40;
@@ -624,7 +627,6 @@ public static partial class Tweaks
         public const int TreeSize = 150;
         // Bases on a map unless a match asks for another number (up to World.MaxPlayers).
         public const int DefaultPlayers = 2;
-        public const int MinSpawnDistanceSq = 150 * 150;
         public const int SmoothingSteps = -1; // -1 = smooth until convergence (matches C++)
         public static int TargetDirtAmount(Size size) => size.X * size.Y * DirtTargetPercent / 100;
 

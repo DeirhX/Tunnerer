@@ -30,10 +30,13 @@
 //                   color.r = what heat left of the ray (0..1), color.g = a per-cell seed
 //  14 radar pulse — .x = front radius (cells), .y = fade (1 just sent, 0 at full range)
 //                   (machine flags: 1 stalled, 2 carried, 4 held back by a full base)
-//  18 base shield — .x = shield strength (0..1 of its maximum), .y = armor (0..1), .z = hit glow (1 just hit, 0 after
+//  18 emberite  — .x = charge (1 carrying its heat, 0 spent), .y = burrowing (1 in soil: a dim glow under the
+//                   ground), .z = animation phase (the wriggle), .w = 0. With .w = 1 the quad is a nest's
+//                   resting embers instead: .x = 1 while creatures rest in it, .y = the reach of the embers (cells).
+//  19 base shield — .x = shield strength (0..1 of its maximum), .y = armor (0..1), .z = hit glow (1 just hit, 0 after
 //                   ~0.4 s), .w = flags (1 shell, 2 dark, 4 bars) plus the animation phase (0..1 of a 4 s cycle) as a fraction;
 //                   color.rgb = team colour
-//  19 shield hit  — .x = age (0 just hit, 1 gone), .y = shield strength when hit (0..1), .z = 1 for the killing hit;
+//  20 shield hit  — .x = age (0 just hit, 1 gone), .y = shield strength when hit (0..1), .z = 1 for the killing hit;
 //                   color.rgb = team colour
 //  16 power label — .xy = packed 5x7 glyph bitmap (low 20 bits, then high 15), .z = dots per cell
 //                   (0 for a solid bar), .w = opacity
@@ -65,8 +68,9 @@ static const float kKindRadarPulse = 14.0;
 static const float kKindGenerator = 15.0;
 static const float kKindPowerLabel = 16.0;
 static const float kKindTurret = 17.0;
-static const float kKindBaseShield = 18.0;
-static const float kKindShieldHit = 19.0;
+static const float kKindEmberite = 18.0;
+static const float kKindBaseShield = 19.0;
+static const float kKindShieldHit = 20.0;
 
 // Machine flags (params.w); EntityShape's MachineFlag* constants must match.
 static const float kMachineFlagStalled = 1.0;

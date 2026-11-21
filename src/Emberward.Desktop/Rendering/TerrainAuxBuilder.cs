@@ -155,25 +155,30 @@ public sealed class TerrainAuxBuilder
         // Aux channel layout:
         // R = heat (signed: TerrainGrid.HeatToByte), G = solid field (TerrainSolidField, cave edge at 0.5), B = material class, A = scorch damage level.
         // B is read by nearest-cell Load only (never interpolated). Natural materials are told apart by the
-        // material coverage texture; B just marks them solid. Emberite (plain and core) has its own codes
+        // material coverage texture; B just marks them solid. Pyrite (plain and core) has its own codes
         // so the shader can draw it from the exact cells. Base cells keep their exact code:
-        // floor, door, and wall = BaseWallBase + owner colour index (0..7). Keep in sync with Constants.hlsli.
+        // floor, core, gate (shut or open), and wall = BaseWallBase + owner colour index (0..7). Keep in sync with
+        // Constants.hlsli.
         const byte materialNone = 0;
         const byte materialNatural = 100;
         const byte materialOre = 120;
         const byte materialOreCore = 121;
         const byte materialBaseFloor = 20;
+        const byte materialBaseCore = 25;
         const byte materialBaseDoor = 30;
+        const byte materialBaseDoorOpen = 31;
         const byte materialBaseWallBase = 40;
 
         byte material = pixel switch
         {
             TerrainPixel.Dirt or TerrainPixel.DirtGrow or TerrainPixel.Rock
                 or TerrainPixel.HotRock or TerrainPixel.FrostRock or TerrainPixel.Concrete => materialNatural,
-            TerrainPixel.Emberite => materialOre,
-            TerrainPixel.EmberiteCore => materialOreCore,
-            TerrainPixel.BaseCore => materialBaseFloor,
+            TerrainPixel.Pyrite => materialOre,
+            TerrainPixel.PyriteCore => materialOreCore,
+            TerrainPixel.BaseFloor => materialBaseFloor,
+            TerrainPixel.BaseCore => materialBaseCore,
             TerrainPixel.BaseBarrier => materialBaseDoor,
+            TerrainPixel.BaseGateOpen => materialBaseDoorOpen,
             >= TerrainPixel.BaseMin and <= TerrainPixel.BaseMax =>
                 (byte)(materialBaseWallBase + (pixel - TerrainPixel.BaseMin)),
             _ => materialNone,

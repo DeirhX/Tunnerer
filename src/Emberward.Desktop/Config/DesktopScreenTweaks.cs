@@ -11,6 +11,13 @@ public static class DesktopScreenTweaks
     public const float ThermalOverlayWarmTemperature = 2.5f;
     /// <summary>Terrain cell size in points, at a standard (1x) display. <c>RenderViewState.CellPixels</c> scales it to device pixels.</summary>
     public const int PixelScale = 6;
+
+    /// <summary>
+    /// How much of the one-step lead tanks are drawn with (<c>EntityMotion</c>): 1 shows them where the simulation will
+    /// have them a step on, which cancels the step's delay; 0 shows them where the last step left them. Raise or lower
+    /// by eye if motion looks to run ahead of or behind the tank's input.
+    /// </summary>
+    public const float MotionLead = 1f;
     public const int NativeContinuousSampleLow = 1;
     public const int NativeContinuousSampleMedium = 2;
     public const int NativeContinuousSampleHigh = 4;

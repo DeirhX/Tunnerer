@@ -50,7 +50,7 @@ public class HarvesterReachTests
         for (int y = -3; y <= 3; y++)
             for (int x = -3; x <= 3; x++)
                 s.World.Terrain.SetPixel(ore + new Offset(x, y), TerrainPixel.Rock);
-        s.World.Terrain.SetPixel(ore, TerrainPixel.Emberite);
+        s.World.Terrain.SetPixel(ore, TerrainPixel.Pyrite);
         return ore;
     }
 
@@ -67,14 +67,14 @@ public class HarvesterReachTests
         var sealedOre = SealOre(s);
         var open = new[] { At(s, -17, -1), At(s, -17, 0), At(s, -17, 1) };
         foreach (var cell in open)
-            s.World.Terrain.SetPixel(cell, TerrainPixel.Emberite);
+            s.World.Terrain.SetPixel(cell, TerrainPixel.Pyrite);
         int storeBefore = s.Base.Store.Ore;
 
         Advance(s, ActionTicks(12 + open.Length * Tweaks.Ore.HarvesterPlainWork + 4));
 
         Assert.Equal(storeBefore + open.Length, s.Base.Store.Ore);
         Assert.All(open, cell => Assert.Equal(TerrainPixel.Blank, s.World.Terrain.GetPixelRaw(cell)));
-        Assert.Equal(TerrainPixel.Emberite, s.World.Terrain.GetPixelRaw(sealedOre));
+        Assert.Equal(TerrainPixel.Pyrite, s.World.Terrain.GetPixelRaw(sealedOre));
         // Only the sealed cell is left: the harvester is idle and says it is out of ore.
         Assert.Equal(HarvesterState.NoOre, MachineBehaviors.HarvesterStateOf(harvester));
         Assert.Equal(0, s.World.GetNetworkStatus(s.Base).HarvestersWorking);
@@ -103,7 +103,7 @@ public class HarvesterReachTests
             for (int dx = -12; dx <= -10; dx++)
                 s.World.Terrain.SetPixel(At(s, dx, dy), TerrainPixel.Rock);
         var ore = At(s, -17, 0);
-        s.World.Terrain.SetPixel(ore, TerrainPixel.Emberite);
+        s.World.Terrain.SetPixel(ore, TerrainPixel.Pyrite);
         int storeBefore = s.Base.Store.Ore;
 
         Advance(s, ActionTicks(40));

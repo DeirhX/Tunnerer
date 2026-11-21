@@ -3,12 +3,12 @@ namespace Emberward.Core.Config;
 public static partial class Tweaks
 {
     /// <summary>
-    /// The tank's reserve (DESIGN.md §4.9, <c>TankReserveSystem</c>): the off-network clock, which carried emberite can
+    /// The tank's reserve (DESIGN.md §4.9, <c>TankReserveSystem</c>): the off-network clock, which carried pyrite can
     /// buy back, and the stages of running out. Only read while <c>MatchRules.TankReserve</c> is on.
     /// </summary>
     public static class Reserve
     {
-        // A burned unit of emberite lowers the off-network heat floor by this many degrees: 5 s of reserve at the base
+        // A burned unit of pyrite lowers the off-network heat floor by this many degrees: 5 s of reserve at the base
         // rate of Tank.OffNetworkHeatPerSecond. A full 40-unit hold is 200 s, twice an idle trip from 0.
         public const float FloorDropPerOre = 5f;
         // Holding the burn key burns a unit on the first tick and then one every BurnRepeatTicks (4 a second).

@@ -35,7 +35,7 @@ float2 SampleFog(float2 worldCell)
 
 void ApplyFogPass(float2 uv, inout float3 color)
 {
-    float2 worldCell = (CameraPixels + uv * ViewSize) / max(1.0, PixelScale);
+    float2 worldCell = (CameraPixelsNow() + uv * ViewSize) / max(1.0, PixelScale);
     const float d = kFogSoftenCells;
     float2 fog = SampleFog(worldCell) * 4.0
         + (SampleFog(worldCell + float2(d, 0.0)) + SampleFog(worldCell - float2(d, 0.0))

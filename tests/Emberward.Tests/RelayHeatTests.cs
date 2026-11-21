@@ -24,16 +24,20 @@ public class RelayHeatTests
     /// A base with a straight 5-wide tunnel leaving through its door toward the farther map edge. The relay
     /// position is 30 cells beyond the door, well inside the live link range.
     /// </summary>
-    internal static Scenario CreateScenario(int seed = 4242, bool blockLineOfSight = false, bool energyNetwork = false,
-        bool machineUpgrades = false, bool tankReserve = false)
+    internal static Scenario CreateScenario(int seed = 4244, bool blockLineOfSight = false, bool energyNetwork = false,
+        bool machineUpgrades = false, bool tankReserve = false, bool emberites = false,
+        SimulationSettings? simulationSettings = null)
     {
         var world = TestHelpers.CreateSeededWorld(seed: seed, enableTerrainRegrowth: false, energyNetwork: energyNetwork,
-            machineUpgrades: machineUpgrades, tankReserve: tankReserve);
+            machineUpgrades: machineUpgrades, tankReserve: tankReserve, emberites: emberites, simulationSettings: simulationSettings);
         var tank = world.TankList.Tanks[0];
         var tankBase = tank.Base!;
         var basePos = tankBase.Position;
 
-        int dirY = (world.Terrain.Height - basePos.Y) >= basePos.Y ? 1 : -1;
+        // The tunnel runs up or down, out of the gate the tank spawns behind: the seed must put the base against
+        // the top or the bottom border (seed 4244 puts it against the top).
+        Assert.True(tankBase.Front.X == 0, $"seed {seed} puts the base against a side border; the scenario needs the top or the bottom");
+        int dirY = tankBase.Front.Y;
         int firstOutside = Tweaks.Base.BaseSize / 2 + 1;
         for (int dx = -2; dx <= 2; dx++)
             CarveVerticalLine(world.Terrain, basePos + new Offset(dx, 0), dirY * firstOutside, dirY * (firstOutside + 50));
@@ -331,7 +335,7 @@ public class RelayHeatTests
         Press(s.World, false);
         Assert.True(s.Tank.IsCarryingMachine);
 
-        s.Tank.Position = s.Base.Position; // back home
+        s.Tank.Position = s.Base.SpawnPosition; // back home
         Press(s.World, true);
 
         Assert.True(s.Tank.IsCarryingMachine, "planting inside a base must be refused");

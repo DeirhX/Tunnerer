@@ -50,15 +50,15 @@ public static class TerrainTestPatternGenerator
         FillRect(grid, margin, y, w, stripH, TerrainPixel.Rock);
         y += stripH + gutter;
 
-        FillRect(grid, margin, y, w, stripH, TerrainPixel.Emberite);
+        FillRect(grid, margin, y, w, stripH, TerrainPixel.Pyrite);
         y += stripH + gutter;
 
         FillRect(grid, margin, y, w, stripH, TerrainPixel.Concrete);
         y += stripH + gutter;
 
-        // Emberite: a plain ore strip with a band of core cells along its middle.
-        FillRect(grid, margin, y, w, stripH, TerrainPixel.Emberite);
-        FillRect(grid, margin + w / 4, y + stripH / 2 - 3, w / 2, 6, TerrainPixel.EmberiteCore);
+        // Pyrite: a plain ore strip with a band of core cells along its middle.
+        FillRect(grid, margin, y, w, stripH, TerrainPixel.Pyrite);
+        FillRect(grid, margin + w / 4, y + stripH / 2 - 3, w / 2, 6, TerrainPixel.PyriteCore);
         y += stripH + gutter;
 
         // Base strip: use BaseMin for interior, BaseBarrier for edges, BaseCore center
@@ -67,7 +67,7 @@ public static class TerrainTestPatternGenerator
         FillRect(grid, margin, y, baseW, 1, TerrainPixel.BaseBarrier);
         FillRect(grid, margin, y + stripH - 1, baseW, 1, TerrainPixel.BaseBarrier);
         if (stripH > 4)
-            FillRect(grid, margin + baseW / 2 - 2, y + stripH / 2 - 1, 4, 2, TerrainPixel.BaseCore);
+            FillRect(grid, margin + baseW / 2 - 2, y + stripH / 2 - 1, 4, 2, TerrainPixel.BaseFloor);
         y += stripH;
 
         return y;
@@ -154,7 +154,7 @@ public static class TerrainTestPatternGenerator
 
         // Vertical split: stone | ore
         FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Rock);
-        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Emberite);
+        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Pyrite);
         x += blockW + gutter;
 
         // Vertical split: concrete | dirt
@@ -164,8 +164,8 @@ public static class TerrainTestPatternGenerator
 
         // Vertical split: dirt | ore (core in the middle)
         FillRect(grid, x, y, blockW / 2, blockH, TerrainPixel.Dirt);
-        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Emberite);
-        FillRect(grid, x + blockW / 2 + 6, y + blockH / 2 - 3, 6, 6, TerrainPixel.EmberiteCore);
+        FillRect(grid, x + blockW / 2, y, blockW / 2, blockH, TerrainPixel.Pyrite);
+        FillRect(grid, x + blockW / 2 + 6, y + blockH / 2 - 3, 6, 6, TerrainPixel.PyriteCore);
         x += blockW + gutter;
 
         // Diagonal splits (second row)
@@ -177,11 +177,11 @@ public static class TerrainTestPatternGenerator
         x += blockW + gutter;
 
         // Diagonal stone/ore
-        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Rock, TerrainPixel.Emberite);
+        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Rock, TerrainPixel.Pyrite);
         x += blockW + gutter;
 
         // Diagonal dirt/ore
-        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Dirt, TerrainPixel.Emberite);
+        DrawDiagonalSplit(grid, x, y2, blockW, blockH, TerrainPixel.Dirt, TerrainPixel.Pyrite);
         x += blockW + gutter;
 
         // Horizontal split: dirt over stone
@@ -328,8 +328,8 @@ public static class TerrainTestPatternGenerator
         // Isolated single pixels (various materials)
         TerrainPixel[] singles =
         [
-            TerrainPixel.Dirt, TerrainPixel.Rock, TerrainPixel.Concrete, TerrainPixel.Emberite,
-            TerrainPixel.EmberiteCore,
+            TerrainPixel.Dirt, TerrainPixel.Rock, TerrainPixel.Concrete, TerrainPixel.Pyrite,
+            TerrainPixel.PyriteCore,
         ];
         foreach (var mat in singles)
         {

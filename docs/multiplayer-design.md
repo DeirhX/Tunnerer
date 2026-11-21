@@ -310,9 +310,8 @@ Core:
 
 - The input codec (§4).
 - `ComputeWorldStateHash` and the cheap per-second variant (§6).
-- Spawn count from the match config. `Tweaks.LevelGen.MaxPlayers` is 2 today and `ToastGenerator.SelectSpawns`
-  needs to place four bases with sensible spacing; on the default map the spawn-distance rule already struggles
-  to fit two, so four players need a larger default map or a smaller distance.
+- Spawn count from the match config. Done: `LevelGen.EdgeSpawns` places any number of bases round the border
+  (DESIGN.md §6.7), with a smaller minimum distance where a small map cannot fit them 150 cells apart.
 - Match rules for more than two tanks (§9).
 - Bots stay as they are: `BotTankAI` is seeded and runs identically on every client, so empty slots can be bots
   with no network traffic.
@@ -352,7 +351,7 @@ Each step is testable without the next.
    one machine reported the same world hashes through a local relay and through the relay on Starfish.
    Playing from the office network is still to do.
 4. **Four players** (done; the relay on Starfish runs protocol 2 since 2026-11-17). The level generator places any number of bases
-   (`ToastGenerator.SelectSpawns`); `MatchReferee` decides a match of any size, and in a network match the
+   (`LevelGen.EdgeSpawns`); `MatchReferee` decides a match of any size, and in a network match the
    first base to tap the core wins (`MatchRules.CoreTapWins`); a lobby plate, host start, bots in open slots, name
    tags over tanks in sight, and a warning when a machine falls behind. Joining is still by command line
    (`--net=ROOM`); a menu for it is not built. Protocol version 2.
@@ -389,6 +388,12 @@ Each step is testable without the next.
     and 28; their keys stay Y and U), so bit 31 is free again and out of the input key mask. Standard simulation
     results changed too (a harvester pays its work from its base's store). The relay must be updated before clients
     of this build can join a public match.
+14. **The keep, and the energy rules in every match** (protocol 12). No message changed its bytes: the number went
+    up because the simulation did. A standard match now runs the energy network, machine upgrades and the tank's
+    reserve, and a base is a keep (walls nothing gets through, gates held by a gate shield, a core that is the only
+    part to take damage; DESIGN.md §4.9), and level generation puts every base against the map's border (DESIGN.md
+    §6.7), so the same seed gives another map. The rules hash changed with it. The relay must be updated before
+    clients of this build can join a public match.
 
 ## 11. Open questions
 

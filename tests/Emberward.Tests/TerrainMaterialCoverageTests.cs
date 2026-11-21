@@ -64,7 +64,7 @@ public class TerrainMaterialCoverageTests
                 switch (terrain.GetPixelRaw(y * terrain.Width + x))
                 {
                     case TerrainPixel.Rock or TerrainPixel.HotRock or TerrainPixel.FrostRock
-                        or TerrainPixel.Emberite or TerrainPixel.EmberiteCore:
+                        or TerrainPixel.Pyrite or TerrainPixel.PyriteCore:
                         s0 += wgt; break;
                     case TerrainPixel.Concrete: s1 += wgt; break;
                     case TerrainPixel.Dirt or TerrainPixel.DirtGrow: s2 += wgt; break;

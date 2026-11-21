@@ -201,7 +201,7 @@ public sealed class BrowserNetMatch
 
     /// <summary>
     /// Keeps a build, upgrade or recall press until a step carries it: a frame may simulate no tick at all. Recall is
-    /// also a held control (held off the network it keeps burning emberite, TankReserveSystem), so only the frame it
+    /// also a held control (held off the network it keeps burning pyrite, TankReserveSystem), so only the frame it
     /// goes down is a press; the frames it stays down add nothing to the queue.
     /// </summary>
     private void Hold(ControllerOutput input)

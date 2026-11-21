@@ -4,6 +4,15 @@ const SCREEN_FX_ACTIVE = 71;
 // The hit level sits three floats before it and the shake (ScreenShakeX, Y) just after.
 const SCREEN_FX_HIT = SCREEN_FX_ACTIVE - 3,
     SCREEN_SHAKE_X = SCREEN_FX_ACTIVE + 1;
+// Index of PostParamsBlock.StepAlpha among the uniform floats (PostParamsLayoutGuardTests checks it): the progress
+// through the current simulation step, which places every entity and the camera in the vertex shader. The camera's
+// motion (CameraMotionX, Y) follows it. The page patches this one float to draw the last packet again at a later alpha.
+const STEP_ALPHA = 77;
+const CAMERA_MOTION_X = STEP_ALPHA + 1;
+// The floats of one entity vertex (EntityVertex): the corner, the local position, colour and kind, four
+// parameters and the motion. EntityLayoutGuardTests checks the attribute list and the stride against the C# struct.
+const ENTITY_ATTRIBUTE_FLOATS = [2, 2, 4, 4, 2];
+const ENTITY_VERTEX_BYTES = 56;
 // How far a hit zooms in at first (DesktopScreenTweaks.ScreenHitZoom; PostParamsLayoutGuardTests compares them).
 const SCREEN_HIT_ZOOM = 0.03;
 
@@ -102,9 +111,9 @@ export class WebGlRenderer {
         gl.bindVertexArray(this.entityVao);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuffer);
         let offset = 0;
-        for (const [index, count] of [2, 2, 4, 4].entries()) {
+        for (const [index, count] of ENTITY_ATTRIBUTE_FLOATS.entries()) {
             gl.enableVertexAttribArray(index);
-            gl.vertexAttribPointer(index, count, gl.FLOAT, false, 48, offset);
+            gl.vertexAttribPointer(index, count, gl.FLOAT, false, ENTITY_VERTEX_BYTES, offset);
             offset += count * 4;
         }
         gl.bindVertexArray(null);
@@ -272,21 +281,43 @@ export class WebGlRenderer {
         this.width = uniforms[8];
         this.height = uniforms[9];
         this.scale = uniforms[2];
-        this.cameraX = uniforms[6] / this.scale;
-        this.cameraY = uniforms[7] / this.scale;
         gl.bindBuffer(gl.UNIFORM_BUFFER, this.uniforms);
         // The effect pass reads the game image from a framebuffer texture, which WebGL keeps bottom row first.
         if (uniforms[SCREEN_FX_ACTIVE] > 0.5) uniforms[SCREEN_FX_ACTIVE] = 2;
         gl.bufferData(gl.UNIFORM_BUFFER, uniformBytes, gl.DYNAMIC_DRAW);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
-        this.vertexCount = vertices.byteLength / 48;
+        this.vertexCount = vertices.byteLength / ENTITY_VERTEX_BYTES;
+        // Kept (with the effect flag as uploaded) so the same packet can be drawn again at another alpha.
+        this.floats = uniforms.slice();
+        this.placeCamera();
         this.screenEffects = uniforms[SCREEN_FX_ACTIVE] > 0.5;
         this.hit = uniforms[SCREEN_FX_HIT];
         this.shakeX = uniforms[SCREEN_SHAKE_X];
         this.shakeY = uniforms[SCREEN_SHAKE_X + 1];
         this.hasFrame = true;
         this.fresh = true;
+    }
+
+    // Draws the last packet again as it is `alpha` of the way through its step, instead of skipping a frame that
+    // brought no new packet: tanks, machines, shots and the camera move on the GPU. Only the alpha changes.
+    setAlpha(alpha) {
+        if (!this.hasFrame || !this.floats || alpha === this.floats[STEP_ALPHA]) return;
+        const gl = this.gl;
+        this.floats[STEP_ALPHA] = alpha;
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.uniforms);
+        gl.bufferSubData(gl.UNIFORM_BUFFER, STEP_ALPHA * 4, this.floats, STEP_ALPHA, 1);
+        this.placeCamera();
+        this.fresh = true;
+    }
+
+    // The camera's top-left corner in cells, as the shaders place it (CameraPixelsNow): its start plus its motion
+    // through the step, rounded to whole pixels.
+    placeCamera() {
+        const f = this.floats,
+            alpha = f[STEP_ALPHA];
+        this.cameraX = Math.round(f[6] + f[CAMERA_MOTION_X] * alpha) / this.scale;
+        this.cameraY = Math.round(f[7] + f[CAMERA_MOTION_X + 1] * alpha) / this.scale;
     }
 
     bindTextures(program, textures, sceneName) {

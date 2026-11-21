@@ -60,6 +60,7 @@ public sealed unsafe partial class SdlGpuBackend
         new() { Location = 1, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float2, Offset = 8 },
         new() { Location = 2, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float4, Offset = 16 },
         new() { Location = 3, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float4, Offset = 32 },
+        new() { Location = 4, BufferSlot = 0, Format = SDL.GPUVertexElementFormat.Float2, Offset = 48 },
     ];
 
     private void CreateScenePipelines()
@@ -153,7 +154,7 @@ public sealed unsafe partial class SdlGpuBackend
         DrawFullscreen(postPass, _postPipeline, _post.Width, _post.Height,
             [_scene.Handle, AuxTextureOrFallback(_terrainAux), AuxTextureOrFallback(_materialCoverage),
              AuxTextureOrFallback(_fog)]);
-        DrawEntities(postPass, upload.Entities.VertexCount);
+        DrawEntities(cmd, postPass, upload.Entities.VertexCount, postParams);
         SDL.EndGPURenderPass(postPass);
         _displayTexture = _post.Handle;
 
@@ -286,10 +287,12 @@ public sealed unsafe partial class SdlGpuBackend
     }
 
     /// <summary>Draws the entity quads into the post-processed frame.</summary>
-    private void DrawEntities(nint pass, int vertexCount)
+    private void DrawEntities(nint cmd, nint pass, int vertexCount, PostParamsBlock postParams)
     {
         if (vertexCount <= 0 || _pendingEntityBytes == 0)
             return;
+        // The vertex shader reads the same block as the pixel shaders: StepAlpha and the camera place every quad.
+        SDL.PushGPUVertexUniformData(cmd, 0, (nint)(&postParams), (uint)sizeof(PostParamsBlock));
         SDL.BindGPUGraphicsPipeline(pass, _entityPipeline);
         var viewport = new SDL.GPUViewport { W = _post.Width, H = _post.Height, MaxDepth = 1f };
         SDL.SetGPUViewport(pass, in viewport);

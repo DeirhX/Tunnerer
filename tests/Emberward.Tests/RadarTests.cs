@@ -162,6 +162,25 @@ public class RadarTests
     }
 
     [Fact]
+    public void TheTanksOwnCore_DoesNotReflect_AnEnemyCoreDoes()
+    {
+        var terrain = Dirt();
+        Box(terrain, 220, 190, 222, 210, TerrainPixel.BaseCore);
+
+        // The core lies within the square of the tank's own base: no echo.
+        var own = Blind(terrain);
+        for (int i = 0; i < Tweaks.Radar.PulsePeriodTicks; i++)
+            own.Advance(terrain, terrain, Origin, ownColor: 0, NoTargets, RadarReach.Base, home: new Position(215, 200));
+        Assert.Equal(0, own.ContactCount);
+
+        // The same core seen from a tank whose own base is elsewhere is an enemy's: it echoes as solid ground.
+        var enemy = Blind(terrain);
+        for (int i = 0; i < Tweaks.Radar.PulsePeriodTicks; i++)
+            enemy.Advance(terrain, terrain, Origin, ownColor: 0, NoTargets, RadarReach.Base, home: new Position(100, 200));
+        Assert.Contains(Contacts(enemy), c => c.Echo == RadarEcho.Solid && c.Position.X == 220);
+    }
+
+    [Fact]
     public void WhatTheSideAlreadySees_IsNotReported()
     {
         var terrain = Dirt();

@@ -61,12 +61,12 @@ internal sealed class TankThermals
     }
 
     /// <summary>
-    /// Any base the tank visits draws nearby heat into its reservoir, more near its centre and at the tank's own base.
+    /// The tank's own base draws the heat near the tank into its reservoir, more near its centre.
     /// </summary>
-    public void CoolDockingArea(ITerrainHeatSource heat, TankBase baseColl, bool atOwnBase)
+    public void CoolDockingArea(ITerrainHeatSource heat, TankBase baseColl)
     {
         var position = _tank.Position;
-        int baseCooldown = atOwnBase ? _settings.BaseHomeCooldownHeat : _settings.BaseForeignCooldownHeat;
+        int baseCooldown = _settings.BaseHomeCooldownHeat;
         if (baseCooldown <= 0)
             return;
 
@@ -98,7 +98,7 @@ internal sealed class TankThermals
             return;
 
         double wanted = excess * _settings.TankDockHeatPumpRate * ThermalCapacity;
-        double accepted = tankBase.AcceptTankHeat(wanted);
+        double accepted = tankBase.AcceptHeat(wanted);
         _tank.Heat -= (float)(accepted / ThermalCapacity);
     }
 
@@ -122,9 +122,9 @@ internal sealed class TankThermals
         }
 
         Coverage = ctx.CoverageFor(_tank);
-        if (ctx.CheckBaseCollision(_tank.Position) is { IsDestroyed: false })
+        if (ctx.CheckBaseCollision(_tank.Position) is { IsDestroyed: false } docked && ReferenceEquals(docked, tankBase))
         {
-            // Docked or passing through a base: the base itself handles cooling, so the network is not cooling the tank.
+            // Docked at its own base: the base itself handles cooling, so the network is not cooling the tank.
             Coverage = TankCoverage.None;
             OffNetworkFloor = Math.Min(_tank.Heat, 0f);
             return;
@@ -140,7 +140,7 @@ internal sealed class TankThermals
             if (_tank.Heat <= 0f)
                 return;
             double wanted = Math.Min(cooling, _tank.Heat) * (double)capacity;
-            double accepted = tankBase.AcceptTankHeat(wanted);
+            double accepted = tankBase.AcceptHeat(wanted);
             _tank.Heat -= (float)(accepted / capacity);
         }
         else
@@ -153,7 +153,7 @@ internal sealed class TankThermals
     }
 
     /// <summary>
-    /// A burn of carried emberite (<see cref="TankReserveSystem"/>): the off-network floor falls by
+    /// A burn of carried pyrite (<see cref="TankReserveSystem"/>): the off-network floor falls by
     /// <paramref name="degrees"/>, never below zero. The tank's heat is left alone; above the lower floor it sheds into
     /// the ground as usual, so no heat is made or destroyed here.
     /// </summary>
@@ -180,7 +180,7 @@ internal sealed class TankThermals
         float nextHeat = step.NextHeat;
         heat.ApplyTankExchange(position, radius, contact, step.EnergyToTerrain, step.EnergyToAir);
 
-        // Carried emberite and tank actions are external heat sources.
+        // Carried pyrite and tank actions are external heat sources.
         heat.Ledger.RecordInjected((cargoHeat + step.ActionHeat) * ThermalCapacity);
 
         if (step.OverheatDamage > 0)

@@ -73,7 +73,7 @@
                             <path stroke="#8a4a22" d="M0 610H220V630H350V590H590V630H720" />
                             <path stroke="#a84a1e" d="M0 750H260V770H390M550 770H640V750H720" />
                         </g>
-                        <!-- Cold pocket and emberite, as terrain cells. -->
+                        <!-- Cold pocket and pyrite, as terrain cells. -->
                         <g fill="#60d6ff">
                             <path opacity="0.5" d="M580 150h20v20h-20zM620 170h20v20h-20zM600 190h20v20h-20z" />
                             <path opacity="0.28" d="M600 150h20v20h-20zM580 170h40v20h-40zM620 190h20v20h-20zM640 150h20v20h-20zM560 190h20v20h-20z" />
@@ -105,7 +105,7 @@
                             <text x="384" y="82">BASE</text>
                             <text x="506" y="300">RELAY</text>
                             <text x="668" y="184" class="cold">&#8722;38&#176;</text>
-                            <text x="96" y="492" class="cold">EMBERITE</text>
+                            <text x="96" y="492" class="cold">PYRITE</text>
                             <text x="566" y="686" class="hot">CORE</text>
                             <text x="566" y="704" class="hot">1480&#176;</text>
                             <text x="706" y="106" text-anchor="end">000</text>
@@ -272,7 +272,7 @@
                     </div>
                     <h2 id="mission-title">Tap the hot core</h2>
                     <p id="guidance">
-                        Leave your base through the gap in its wall. Drive into
+                        Leave your base through one of its gates. Drive into
                         dirt to dig.
                     </p>
                     <div id="tutorial-progress" hidden>
@@ -421,17 +421,17 @@
                     plant.
                 </dd>
                 <dt><kbd>Y</kbd></dt>
-                <dd>In energy matches, build and plant a local generator near hot ground.</dd>
+                <dd>Build and plant a local generator near hot ground.</dd>
                 <dt><kbd>U</kbd></dt>
                 <dd>
-                    In energy matches, build a turret and plant it in your network's
+                    Build a turret and plant it in your network's
                     coverage: it fires at enemy tanks in range.
                 </dd>
                 <dt><kbd>1</kbd> – <kbd>7</kbd></dt>
                 <dd>Buy upgrades while docked at your base.</dd>
                 <dt><kbd>F</kbd>, then <kbd>1</kbd> – <kbd>3</kbd></dt>
                 <dd>
-                    Beside one of your relays or turrets (<code>?energy</code>):
+                    Beside one of your relays or turrets:
                     open its upgrade panel and buy Tap, Sensor or Conduit (relay)
                     or Rapid or Long (turret) from the base ore store. On touch,
                     tap the lit machine.
@@ -441,8 +441,7 @@
                 <dt><kbd>G</kbd></dt>
                 <dd>
                     Charge labels over machines: charge, capacity and flow a
-                    second. Only in a match with the energy network
-                    (<code>?energy</code>).
+                    second.
                 </dd>
                 <dt><kbd>F2</kbd></dt>
                 <dd>Show or hide the tutorial.</dd>
@@ -454,7 +453,7 @@
                 <dd>Zoom. Return to base to cool, repair, and unload ore.</dd>
             </dl>
             <p class="muted">
-                Mine gold emberite for building materials. Relays cool the
+                Mine gold pyrite for building materials. Relays cool the
                 ground and make power, which runs harvesters in their coverage.
                 Extend linked relays to the core and hold the required power
                 output to win.

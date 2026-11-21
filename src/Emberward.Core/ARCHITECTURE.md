@@ -71,13 +71,17 @@ Entities/
   Machines/MachineUpgradeSystem.cs   (only when MatchRules.MachineUpgrades is on) Per-machine upgrades bought next to the
                              machine from the base store (DESIGN.md §4.9); World.MachineUpgradeOfferFor / MachineUpgradeOf answer
   Tanks/TankReserveSystem.cs, TankReserve.cs   (only when MatchRules.TankReserve is on) The tank's reserve (DESIGN.md
-                             §4.9): the recall key burns carried emberite to lower the off-network floor, the stages of
+                             §4.9): the recall key burns carried pyrite to lower the off-network floor, the stages of
                              running out and their effects, a generator holding the clock; World.ReserveOf answers
   Machines/MachineMaterializer.cs   The machine a tank carries before it is planted
   Machines/TurretAction.cs   The turret's action: targeting, firing, overheat slowdown (energy matches only)
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
+  Emberites/Emberite.cs                Emberite (a creature out of its nest), Nest, EmberiteState
+  Emberites/EmberiteSwarm*.cs          The emberites (MatchRules.Emberites): nests wake, release and recharge (Nests), creatures move, bite and
+                             go home (Movement), shots find and kill them (Combat), hashes and snapshots of the swarm
+  Emberites/EmberiteFlowField.cs       The coarse cost-to-goal field creatures follow, one per hunted tank and per awake nest
 Network/                     The link network (not network matches: those are Desktop/Net and Emberward.Protocol)
   LinkPoint.cs, Link.cs, LinkMap.cs   Nodes, edges, refresh, power and flow
   NetworkCoverage.cs         Coverage nodes and the coverage a tank gets at a position
@@ -119,10 +123,10 @@ LevelGen/
   GeneratorUtils.cs          Shared drawing and placement helpers (lines, TooClose)
   HotRockPockets.cs          Scatters hot rock pockets
   FrostRockPockets.cs        Scatters frost pockets
-  OreDeposits.cs             Seeds emberite: specks, pockets and lumps with a warm core (OreDeposit, OreDepositKind)
+  OreDeposits.cs             Seeds pyrite: specks, pockets and lumps with a warm core (OreDeposit, OreDepositKind)
   TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
 Rendering/
-  RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState
+  RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, EmberiteRenderState, NestRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
 Resources/Reactor.cs         Reactor, ReactorState, Heat, Health: a tank's or base's heat and shield
 Resources/OreStore.cs        OreStore: a tank's hold, a base's store (ore is the only currency)
@@ -139,7 +143,7 @@ runs: regrowth, hot and frost rock pockets, ore, and whether tapping the core wi
 them (a system that can be turned off gets a flag there), and it is mixed into the hash clients compare before a
 network match starts (`WorldStateHash.ComputeReady`). `World.Initialize(terrain, spawns, ...)` copies in a generated
 level, materializes it, builds the bases, places hot and frost rock pockets (if the rules ask; the hot ones also give
-the core, `World.CorePocket`, and with it the `SectorGoal`), seeds emberite ore (if the rules ask, `SeedOre`;
+the core, `World.CorePocket`, and with it the `SectorGoal`), seeds pyrite ore (if the rules ask, `SeedOre`;
 `World.OreDeposits`) and adds one tank per spawn. Ore is placed last and grows each deposit cell by cell from its
 start, so generation never sweeps the grid; deposit counts scale with map area (`Tweaks.Ore`), and on a small map the
 distance rules shrink and a floor of pockets and lumps applies (`OreDeposits.DistanceScale`). Every RNG World owns
@@ -383,7 +387,7 @@ cannot slip between two cells that touch only at a corner. Along a ray:
 - another side's machine (`RadarTarget`) reflects as `Metal` and stops it;
 - another tank (a `RadarTarget` marked `Alive`) reflects as `Life` and stops it;
 - rock, concrete, hot and frost rock and another side's base walls reflect as `Solid` and stop it;
-- emberite (plain or core) reflects as `Ore` and stops it;
+- pyrite (plain or core) reflects as `Ore` and stops it;
 - stepping from dirt into open ground (a tunnel, a cave) gives a `Cavity` return and the ray goes on, at most
   `WeakReturnsPerRay` times.
 
@@ -440,10 +444,12 @@ route (`LinkMap.CarryHeat`), which the renderer draws as flow. `LinkMap.PreviewL
 
 ## Level generation and the bot
 
-`ToastGenerator.Generate(size, seed, mode)` scatters `Tweaks.LevelGen.TreeSize` points, picks spawns
-(`SelectSpawns`), joins the points with a minimum spanning tree (Kruskal) drawn as dirt lines, then either expands
-and smooths single-threaded (`Deterministic`) or dilates, adds noise, smooths in parallel and carves spawn
-connectivity (`Optimized`, used by `--fast`).
+`ToastGenerator.Generate(size, seed, mode)` places the bases against the border (`EdgeSpawns.Place`, DESIGN.md
+§6.7), scatters `Tweaks.LevelGen.TreeSize` points, joins the points and the spawns with a minimum spanning tree
+(Kruskal) drawn as dirt lines, then either expands and smooths single-threaded (`Deterministic`) or dilates, adds
+noise and smooths in parallel (`Optimized`, used by `--fast`). Last, it makes the ground round every base alike
+(`EdgeSpawns.PrepareGround`) and carves a tunnel to any base the caves cut off. `World` asks `BaseLayout.FrontOf`
+which gate of a base faces into the map, and its tank spawns inside that one.
 
 `BotTankAI` is a mode machine (`TwitchMode`: leave base, roam and fight, return, recharge). `BotNavigator` picks
 moves, `BotGunner` decides fire, and `BotProfileCycle` rotates the `BotBehaviorProfile` play styles. All three
@@ -543,12 +549,30 @@ Desktop:
    - `AirExchange`: conductance between the cell's terrain and the air in the same cell.
    - `Loss`: the share of the cell's temperature difference with ambient it exchanges with the outside each tick.
      All standard materials have a loss, so their heat settles. `FixedTemperature` is available for custom settings.
-   - For initial heat or cold, use `SeedHeatedPixel`, as hot rock, frost rock and emberite do. It sets the starting
+   - For initial heat or cold, use `SeedHeatedPixel`, as hot rock, frost rock and pyrite do. It sets the starting
      temperature, books the energy as injected and wakes the tile. From then on the cell exchanges heat normally.
    The table reaches thermal code through `SimulationSettings.ThermalMaterials` (`SourceGuardTests`), so a test can
    swap a row with `ThermalMaterialTable.With`.
 4. Desktop shades pixels, not materials: a new pixel needs a case in `TerrainAuxBuilder` and
    `TerrainMaterialCoverage`.
+
+### The emberites
+
+`EmberiteSwarm` (`Entities/Emberites`) exists only when `MatchRules.Emberites` is on and is stepped as `"emberites"` after `"tanks"`.
+`Initialize` seeds a nest in each pocket and lump of `World.OreDeposits` that is far enough from every base. A nest is
+counters (creatures never released, resting, out, stored charge); only creatures out of the nest are in the swarm's
+`List<Emberite>`, so a world with nothing out does no per-creature work (`EmberiteSwarm.CreatureSteps` stays 0). A dormant nest
+looks at each tank once in six ticks; digging a nest's ore (read from `OreCollected` step events) wakes it at once.
+Creatures move by the velocity they committed, then choose the next from an `EmberiteFlowField` (a Dijkstra over 4-cell
+blocks, rebuilt every 8 ticks while read, saved in the snapshot because it is built from past terrain). Heat is
+conserved: a first release books the charge as injected, a bite moves it into `Tank.Heat`, a kill spills it with
+`AddEnergyInRadiusArea`, recharging takes it with `ExtractEnergyInRadiusArea`, and `World.SumSystemThermalEnergy`
+adds `EmberiteSwarm.TotalCharge`. A bite also does `Tweaks.Emberites.BiteDamage` (`DamageCause.Emberite`) and moves a unit of
+pyrite from the tank's hold to the creature (`Emberite.Pyrite`); it reaches `Nest.Pyrite` when the creature gets home, is
+dropped with `OreDrop.Scatter` when it is killed, and a cleared nest frees its stored pyrite the same way, so the total of
+holds, stores, ground, nests and carriers never changes (`EmberiteBiteTests`). Shots find creatures through a per-step sector index (`IndexCreatures`, called by
+`CollisionSolver.Update`) and `CollisionSolver.TestPoint(onEmberite:)`. `World.IsOreGuarded` makes harvesters pass over the ore
+of a nest that has creatures left (`MachineContext.IsOreGuarded`, `HarvesterState.Guarded`). The bot ignores creatures.
 
 ### Adding a collidable entity
 

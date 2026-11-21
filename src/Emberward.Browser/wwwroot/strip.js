@@ -72,7 +72,7 @@ const ART = {
     heat: "hud/heat_icon.png",
     shield: "hud/shield_icon.png",
     materials: "hud/panel_frame.png",
-    orePile: "hud/hold_emberite.png",
+    orePile: "hud/hold_pyrite.png",
     build: "hud/build_panel.png",
 };
 
@@ -296,7 +296,7 @@ export class StripView {
         ])
             left.drawImage(image, px, 0, w, STRIP_H);
         stripText(left, "TEMP", TEMP.x, TEMP.title, 19, abgr(0xff78c8ff), abgr(0x181880ff));
-        stripText(left, "SHIELD", SHIELD.x, SHIELD.title, 20, abgr(0xfff8e890), abgr(0x20ffa030));
+        stripText(left, "HULL", SHIELD.x, SHIELD.title, 20, abgr(0xfff8e890), abgr(0x20ffa030));
         stripText(left, "MATERIALS", MATERIALS.x, MATERIALS.title, 21, abgr(0xff68e0ff), abgr(0x282090ff));
         // Dark glass behind the liquid (hides the energy bolt baked into the art), and the dial's dim track.
         left.fillStyle = abgr(0xff0a0c0e);

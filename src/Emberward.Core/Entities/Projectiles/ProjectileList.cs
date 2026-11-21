@@ -105,17 +105,22 @@ public class ProjectileList
                     self.RecordImpact(ipos, p, ImpactTarget.Machine);
                     return true;
                 },
+                // One hit kills an emberite; the shot bursts on it as on anything else.
+                onEmberite: solver.CanHitEmberites ? KillsEmberite(solver, self, ipos, p) : null,
                 onTerrain: pix =>
                 {
+                    // A gate is open ground to its owner's shells. An enemy's stop on it while the gate shield
+                    // holds, and wear the shield down.
+                    if (Pixel.IsBaseGate(pix))
+                        return self.HitsGate(solver, ipos, p);
                     if (!Pixel.IsAnyCollision(pix)) return false;
-                    if (Pixel.IsAnyBaseCell(pix) && solver.EnemyBaseAt(ipos, p.OwnerColor) is { } target)
+                    // Walls and baffles take no damage; only a shell that reaches the core wears a base down.
+                    if (Pixel.IsBaseCore(pix) && solver.EnemyBaseAt(ipos, p.OwnerColor) is { } target)
                     {
                         int raw = p.Damage;
-                        // Read the shield before the hit: a hit that empties the store should still show the strength it met.
-                        int shieldPermille = (int)Math.Round(1000.0 * (self._basePower?.ShieldFraction(target) ?? 0.0));
-                        target.TakeDamage(self._basePower?.Damage(target, raw) ?? raw);
+                        target.TakeDamage(self._basePower?.CoreDamage(target, raw) ?? raw);
                         self._events?.Record(new StepEvent(target.IsDestroyed ? StepEventKind.BaseDestroyed : StepEventKind.BaseDamaged,
-                            ipos, target.Color, Count: shieldPermille));
+                            ipos, target.Color));
                         self.RecordImpact(ipos, p, ImpactTarget.Base);
                     }
                     else
@@ -133,6 +138,36 @@ public class ProjectileList
                 return;
             }
         }
+    }
+
+    private static Func<int, bool> KillsEmberite(CollisionSolver solver, ProjectileList self, Position at, Projectile bullet) => emberite =>
+    {
+        solver.KillEmberite(emberite);
+        self.RecordImpact(at, bullet, ImpactTarget.Terrain);
+        return true;
+    };
+
+    private static Func<int, bool> KillsEmberite(CollisionSolver solver) => emberite =>
+    {
+        solver.KillEmberite(emberite);
+        return true;
+    };
+
+    /// <summary>
+    /// Whether <paramref name="bullet"/> stops on the gate cell at <paramref name="at"/>: an enemy's does while the
+    /// gate shield holds, and the shield takes its damage (<see cref="BasePowerSystem.AbsorbGateHit"/>).
+    /// </summary>
+    private bool HitsGate(CollisionSolver solver, Position at, Projectile bullet)
+    {
+        if (_basePower == null || solver.EnemyBaseAt(at, bullet.OwnerColor) is not { } target)
+            return false;
+        GateHit hit = _basePower.AbsorbGateHit(target, bullet.Damage, solver.Terrain);
+        if (hit == GateHit.Open)
+            return false;
+        _events?.Record(new StepEvent(hit == GateHit.Broken ? StepEventKind.BaseShieldBroken : StepEventKind.BaseShieldHit,
+            at, target.Color));
+        RecordImpact(at, bullet, ImpactTarget.Base);
+        return true;
     }
 
     private void RecordImpact(Position at, Projectile bullet, ImpactTarget target) =>
@@ -162,6 +197,14 @@ public class ProjectileList
         if (!TryAdvanceInside(terrain, p, out var ipos))
             return;
 
+        // A fragment that meets an emberite kills it and is spent.
+        if (solver.CanHitEmberites && solver.TestPoint(ipos, onEmberite: KillsEmberite(solver)))
+        {
+            p.IsAlive = false;
+            self.RecordShrapnelSpent(p);
+            return;
+        }
+
         var pix = terrain.GetPixelRaw(ipos);
         if (Pixel.IsBlockingCollision(pix))
         {
@@ -177,6 +220,9 @@ public class ProjectileList
             return;
         }
 
+        // Shrapnel flies over a base's floor and gates and leaves them as they are: a keep does not wear away.
+        if (Pixel.IsAnyBaseCell(pix))
+            return;
         terrain.SetPixel(ipos, TerrainPixel.Decal);
         int digHeat = Math.Max(0, (int)MathF.Round(Tweaks.Explosion.ShrapnelDigHeatAmount * p.HeatScale));
         terrain.AddHeatRadius(ipos, digHeat, Tweaks.Explosion.ShrapnelDigHeatRadius);

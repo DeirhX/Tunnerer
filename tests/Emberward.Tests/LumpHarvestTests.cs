@@ -120,13 +120,13 @@ public class LumpHarvestTests
 
             // Fresh from the ground the whole shell is far too hot to work (the core holds a great deal of heat).
             Advance(s, 3 * Tweaks.Perf.TargetFps);
-            Assert.Equal(plain, cells.Count(c => s.World.Terrain.GetPixelRaw(c) == TerrainPixel.Emberite));
+            Assert.Equal(plain, cells.Count(c => s.World.Terrain.GetPixelRaw(c) == TerrainPixel.Pyrite));
 
             // The heat is finite: the relay and the ground take it, the lump cools, and the harvester works the shell
             // as it becomes workable, but never the core.
             Advance(s, 180 * Tweaks.Perf.TargetFps);
 
-            int plainLeft = cells.Count(c => s.World.Terrain.GetPixelRaw(c) == TerrainPixel.Emberite);
+            int plainLeft = cells.Count(c => s.World.Terrain.GetPixelRaw(c) == TerrainPixel.Pyrite);
             Assert.Equal(cores, cells.Count(c => Pixel.IsOreCore(s.World.Terrain.GetPixelRaw(c))));
             Assert.True(plain - plainLeft >= 40, $"a cooled lump's shell should be cleared in good part. mined={plain - plainLeft}");
         }

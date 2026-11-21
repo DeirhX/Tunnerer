@@ -16,6 +16,7 @@
     <Compile Include="../Emberward.Desktop/Audio/SoundEffect.cs" Link="Audio/SoundEffect.cs" />
     <Compile Include="../Emberward.Desktop/Audio/StepEventSounds.cs" Link="Audio/StepEventSounds.cs" />
     <Compile Include="../Emberward.Desktop/Audio/SoundDirector.cs" Link="Audio/SoundDirector.cs" />
+    <Compile Include="../Emberward.Desktop/Audio/SoundSpace.cs" Link="Audio/SoundSpace.cs" />
     <Compile Include="../Emberward.Desktop/Audio/SoundBank.cs" Link="Audio/SoundBank.cs" />
     <Compile Include="../Emberward.Desktop/Rendering/Entities/*.cs" Link="Entities/%(Filename)%(Extension)" />
     <Compile Include="../Emberward.Desktop/Rendering/EntityLayerBuilder.cs" Link="EntityLayerBuilder.cs" />

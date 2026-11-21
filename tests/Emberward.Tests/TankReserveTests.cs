@@ -12,7 +12,7 @@ namespace Emberward.Tests;
 
 /// <summary>
 /// The tank's reserve (DESIGN.md §4.9, <see cref="TankReserveSystem"/>): the off-network clock, which the recall key
-/// buys back by burning carried emberite. The stages of running out are in <see cref="TankReserveStageTests"/>.
+/// buys back by burning carried pyrite. The stages of running out are in <see cref="TankReserveStageTests"/>.
 /// </summary>
 public class TankReserveTests
 {
@@ -182,7 +182,7 @@ public class TankReserveTests
         Assert.True(world.RecallOffered(tank));
         world.Advance(_ => Burn);
         Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.TankRespawned);
-        Assert.Equal(tank.Base!.Position, tank.Position);
+        Assert.Equal(tank.Base!.SpawnPosition, tank.Position);
     }
 
     [Fact]

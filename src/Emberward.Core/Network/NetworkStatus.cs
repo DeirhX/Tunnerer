@@ -21,6 +21,7 @@ using Emberward.Core.Entities.Bases;
 /// <param name="RadiatorInflow">The part of <paramref name="RelayInflow"/> the engine did not turn into charge.</param>
 /// <param name="VentCapacity">Heat the base radiator vents per tick.</param>
 /// <param name="HeatStoreFill">How full the base reactor (heat store) is, 0 to 1.</param>
+/// <param name="HarvestersGuarded">Harvesters whose reachable ore is guarded by a nest with creatures left.</param>
 public readonly record struct NetworkStatus(
     int Harvesters,
     int HarvestersOutOfCharge,
@@ -35,7 +36,8 @@ public readonly record struct NetworkStatus(
     double RelayInflow,
     double RadiatorInflow,
     double VentCapacity,
-    double HeatStoreFill)
+    double HeatStoreFill,
+    int HarvestersGuarded = 0)
 {
     /// <summary>
     /// Harvesters that are none of out of charge, off the network, too hot, out of ore, left a core or
@@ -43,7 +45,7 @@ public readonly record struct NetworkStatus(
     /// </summary>
     public int HarvestersWorking =>
         Harvesters - HarvestersTooHot - HarvestersOutOfCharge - HarvestersOffNetwork -
-        HarvestersNoOre - HarvestersCoreOnly - HarvestersStoreFull;
+        HarvestersNoOre - HarvestersCoreOnly - HarvestersStoreFull - HarvestersGuarded;
 
     /// <summary>The heat-store gauge: Warn while it fills, Bad once it is (nearly) full.</summary>
     public StatusLevel HeatStoreLevel => TankBase.HeatStoreLevelOf(HeatStoreFill);
@@ -58,7 +60,7 @@ public readonly record struct NetworkStatus(
 
     internal static NetworkStatus Collect(TankBase tankBase, IReadOnlyList<Machine> machines, bool baseDark = false)
     {
-        int harvesters = 0, outOfCharge = 0, offNetwork = 0, tooHot = 0, noOre = 0, coreOnly = 0, storeFull = 0;
+        int harvesters = 0, outOfCharge = 0, offNetwork = 0, tooHot = 0, noOre = 0, coreOnly = 0, storeFull = 0, guarded = 0;
         int relays = 0, powered = 0, pumping = 0;
         double inflow = 0.0;
         foreach (var machine in machines)
@@ -76,6 +78,7 @@ public readonly record struct NetworkStatus(
                     case HarvesterState.NoOre: noOre++; break;
                     case HarvesterState.CoreOnly: coreOnly++; break;
                     case HarvesterState.StoreFull: storeFull++; break;
+                    case HarvesterState.Guarded: guarded++; break;
                 }
             }
             else if (machine.Behavior.IsHeatPump)
@@ -95,6 +98,7 @@ public readonly record struct NetworkStatus(
             RelayInflow: inflow,
             RadiatorInflow: inflow - tankBase.EngineOutputPerTick,
             VentCapacity: tankBase.VentCapacityPerTick,
-            HeatStoreFill: tankBase.HeatStoreFill);
+            HeatStoreFill: tankBase.HeatStoreFill,
+            HarvestersGuarded: guarded);
     }
 }

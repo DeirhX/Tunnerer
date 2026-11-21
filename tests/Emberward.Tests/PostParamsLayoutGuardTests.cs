@@ -67,6 +67,8 @@ public partial class PostParamsLayoutGuardTests
         ["ScreenFx"] = ["ScreenFxHit", "ScreenFxOverheat", "ScreenFxFreeze", "ScreenFxActive"],
         ["ScreenFxMotion"] = ["ScreenShakeX", "ScreenShakeY", "ScreenHitFromX", "ScreenHitFromY"],
         ["TankGlowCount"] = ["TankGlowCount"],
+        ["StepAlpha"] = ["StepAlpha"],
+        ["CameraMotion"] = ["CameraMotionX", "CameraMotionY"],
         ["TankGlow"] = ["TankGlow"],
     };
 
@@ -113,6 +115,41 @@ public partial class PostParamsLayoutGuardTests
         int expected = (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.ScreenFxActive)) / sizeof(float);
         Assert.True(expected.ToString(System.Globalization.CultureInfo.InvariantCulture) == m.Groups["index"].Value,
             $"webgl.js has SCREEN_FX_ACTIVE = {m.Groups["index"].Value}; PostParamsBlock.ScreenFxActive is float {expected}.");
+    }
+
+    /// <summary>
+    /// The browser draws the last packet again at a later alpha by patching one float in the uniform buffer, and moves
+    /// its overlay with the camera it computes from the camera floats: both must be where PostParamsBlock puts them.
+    /// </summary>
+    [Fact]
+    public void WebGlRenderer_PatchesTheStepAlphaAtItsOffset()
+    {
+        string webgl = File.ReadAllText(Path.Combine(EntityLayoutGuardTests.FindRepositoryRoot(),
+            "src", "Emberward.Browser", "wwwroot", "webgl.js"));
+        var m = Regex.Match(webgl, @"const STEP_ALPHA = (?<index>\d+);");
+        Assert.True(m.Success, "webgl.js no longer declares STEP_ALPHA");
+        int alpha = (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.StepAlpha)) / sizeof(float);
+        Assert.True(alpha.ToString(System.Globalization.CultureInfo.InvariantCulture) == m.Groups["index"].Value,
+            $"webgl.js has STEP_ALPHA = {m.Groups["index"].Value}; PostParamsBlock.StepAlpha is float {alpha}.");
+        Assert.Contains("CAMERA_MOTION_X = STEP_ALPHA + 1", webgl, StringComparison.Ordinal);
+        Assert.Equal((alpha + 1) * sizeof(float), (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.CameraMotionX)));
+        Assert.Equal((alpha + 2) * sizeof(float), (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.CameraMotionY)));
+        // placeCamera reads the camera's start from floats 6 and 7.
+        Assert.Equal(6 * sizeof(float), (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.CameraPixelsX)));
+        Assert.Equal(7 * sizeof(float), (int)Marshal.OffsetOf<PostParamsBlock>(nameof(PostParamsBlock.CameraPixelsY)));
+    }
+
+    /// <summary>The vertex shader and the pixel shaders read the same block, so the layout is in one file.</summary>
+    [Fact]
+    public void EntityVs_ReadsThePostParamsBlockThroughTheVertexStage()
+    {
+        string root = EntityLayoutGuardTests.FindRepositoryRoot();
+        string vs = File.ReadAllText(Path.Combine(root, "src", "Emberward.Desktop", "Rendering", "Shaders", "EntityVs.hlsl"));
+        string header = File.ReadAllText(PostParamsPath);
+        Assert.Contains("#define EMBERWARD_POST_PARAMS_VERTEX", vs, StringComparison.Ordinal);
+        Assert.Contains("PostPs/Common/PostParams.hlsli", vs, StringComparison.Ordinal);
+        Assert.Contains("VERTEX_UNIFORMS(0)", header, StringComparison.Ordinal);
+        Assert.Contains("CameraPixelsNow()", vs, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -26,6 +26,8 @@ const canvas = $("game"),
     );
 let worker = null,
     busy = false,
+    // The request in flight took a simulation step: the packet on screen is the one before it, which has just ended.
+    stepInFlight = false,
     playing = false,
     paused = false,
     state = null,
@@ -48,8 +50,6 @@ const [mapWidth, mapHeight] = (query.get("map") || "")
     .split("x")
     .map((n) => Number.parseInt(n, 10) || 0);
 const machines = Number.parseInt(query.get("machines"), 10) || 0;
-// ?energy runs a local match with the energy network (DESIGN.md §4.9), whose charge labels G hides and shows.
-const energyNetwork = query.has("energy");
 const perf = query.has("perf")
     ? new PerfReadout(renderer)
     : null;
@@ -282,7 +282,6 @@ async function start() {
         mapWidth: mapWidth || 0,
         mapHeight: mapHeight || 0,
         machines,
-        energyNetwork,
     });
 }
 
@@ -513,6 +512,8 @@ async function launch(request) {
         if (data.sounds) audio.load(data.sounds);
         // The HUD's state comes only with frames that follow a simulation step.
         renderer.accept(data.state, data.packet);
+        // The packet was made a round trip ago: draw it at the progress through the step the page has reached now.
+        renderer.gpu.setAlpha(stepAlpha(performance.now()));
         perf?.frame(
             data.timing,
             renderer.gpu.uploadedBytes,
@@ -600,6 +601,14 @@ function updateHud(f) {
     perf?.hud(performance.now() - began, stripMs);
 }
 
+// How far through the current simulation step the page is: tanks, machines, shots and the camera are drawn at that
+// point, by the vertex shader, on every displayed frame (a frame that brought no new packet draws the last one again).
+function stepAlpha(now) {
+    const dt = 1000 / (state?.tickRate || 24);
+    if (net) return Math.min(1, Math.max(0, (now - net.stepAt) / dt));
+    return paused ? 1 : Math.min(1, accumulator / dt);
+}
+
 function animate(now) {
     const dt = 1000 / (state?.tickRate || 24);
     const elapsed = Math.max(0, now - lastTime);
@@ -645,6 +654,7 @@ function animate(now) {
                 now,
                 alpha: Math.min(1, (now - net.stepAt) / dt),
             };
+            stepInFlight = false;
             net.command = null;
             net.requestedAt = now;
         } else {
@@ -653,6 +663,7 @@ function animate(now) {
                 state.player.outcome === "InProgress" &&
                 accumulator >= dt;
             if (step) accumulator -= dt;
+            stepInFlight = step;
             request = {
                 input: step ? input.read() : null,
                 alpha: paused ? 1 : Math.min(1, accumulator / dt),
@@ -673,6 +684,9 @@ function animate(now) {
         lastRenderTime = now;
     }
     try {
+        // A local step is taken as its request is sent, so while a request that took one is in flight, the packet on
+        // screen is the step before it, which has just ended: hold it there rather than applying the new step's alpha.
+        if (playing && !holding()) renderer.gpu.setAlpha(busy && stepInFlight ? 1 : stepAlpha(now));
         renderer.draw(now, input.pointer);
         perf?.displayed(elapsed);
     } catch (error) {
