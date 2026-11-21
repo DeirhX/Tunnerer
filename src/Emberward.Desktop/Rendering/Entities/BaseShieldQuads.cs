@@ -133,9 +133,10 @@ public sealed class BaseShieldQuads
         {
             if (!Sight.Sees(vision, b.Position))
                 continue;
-            float cx = quads.ScreenX(b.Position.X), cy = quads.ScreenY(b.Position.Y);
-            if (quads.IsOffScreen(cx, cy, (reach + 2f) * scale))
+            // The anchor is in world cells, as every quad's is; the screen position is only for the off-screen test.
+            if (quads.IsOffScreen(quads.ScreenX(b.Position.X), quads.ScreenY(b.Position.Y), (reach + 2f) * scale))
                 continue;
+            float cx = EntityQuads.Centre(b.Position.X), cy = EntityQuads.Centre(b.Position.Y);
 
             float sinceHit = b.LastHitStep == long.MinValue ? float.MaxValue : stepNow - b.LastHitStep;
             bool hurt = b.Armor < 0.999f || sinceHit < BarSteps || b.Dark;
@@ -153,10 +154,10 @@ public sealed class BaseShieldQuads
             float age = stepNow - hit.Step;
             if (age >= ImpactSteps || !Sight.Sees(vision, hit.Cell))
                 continue;
-            float cx = quads.ScreenX(hit.Cell.X), cy = quads.ScreenY(hit.Cell.Y);
             const float radius = 9f;
-            if (quads.IsOffScreen(cx, cy, (radius + 2f) * scale))
+            if (quads.IsOffScreen(quads.ScreenX(hit.Cell.X), quads.ScreenY(hit.Cell.Y), (radius + 2f) * scale))
                 continue;
+            float cx = EntityQuads.Centre(hit.Cell.X), cy = EntityQuads.Centre(hit.Cell.Y);
             quads.Add(cx, cy, 1f, 0f, -radius, radius, -radius, radius, TeamColour(hit.Color), EntityShape.KindShieldHit,
                 age / ImpactSteps, hit.Strength, 0f, 0f);
         }
