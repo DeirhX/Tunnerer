@@ -69,11 +69,13 @@ public class OffNetworkActionHeatTests
         var input = new ControllerOutput { MoveSpeed = new Offset(0, dirY), ShootPrimary = true, AimDirection = new DirectionF(0, dirY) };
         shots = 0;
         dug = 0;
+        // Only the tank under test is driven, and only its own shots and digs are counted: the scenario has an enemy tank.
         for (int i = 0; i < 90; i++)
         {
-            world.Advance(_ => input);
+            world.Advance(slot => slot == 0 ? input : default);
             foreach (var e in world.StepEvents)
             {
+                if (e.Color != tank.Color) continue;
                 if (e.Kind == StepEventKind.ShotFired) shots++;
                 if (e.Kind == StepEventKind.TankDug && e.Torch) dug += e.Count;
             }
