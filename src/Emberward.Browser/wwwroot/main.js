@@ -48,8 +48,6 @@ const [mapWidth, mapHeight] = (query.get("map") || "")
     .split("x")
     .map((n) => Number.parseInt(n, 10) || 0);
 const machines = Number.parseInt(query.get("machines"), 10) || 0;
-// ?energy runs a local match with the energy network (DESIGN.md §4.9), whose charge labels G hides and shows.
-const energyNetwork = query.has("energy");
 const perf = query.has("perf")
     ? new PerfReadout(renderer)
     : null;
@@ -282,7 +280,6 @@ async function start() {
         mapWidth: mapWidth || 0,
         mapHeight: mapHeight || 0,
         machines,
-        energyNetwork,
     });
 }
 

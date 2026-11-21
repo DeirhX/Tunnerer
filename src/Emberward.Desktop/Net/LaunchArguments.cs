@@ -17,12 +17,6 @@ public sealed record LaunchArguments
     public bool EnableAiTanks { get; init; } = true;
     public bool FogOfWar { get; init; } = true;
 
-    /// <summary>
-    /// <c>--energy-network</c>: a local match runs the energy network (<c>MatchRules.EnergyNetwork</c>, DESIGN.md
-    /// §4.9), so its charge labels can be seen. A network match keeps the rules its room agreed on.
-    /// </summary>
-    public bool EnergyNetwork { get; init; }
-
     /// <summary>The map and simulation seed (<c>--seed</c>); null lets the game choose.</summary>
     public int? Seed { get; init; }
 
@@ -151,8 +145,6 @@ public sealed record LaunchArguments
             return this with { FogOfWar = false };
         if (arg == "--energy-audit")
             return this with { EnergyAudit = true };
-        if (arg == "--energy-network")
-            return this with { EnergyNetwork = true };
         if (arg.StartsWith("--relay=", StringComparison.Ordinal))
         {
             if (Uri.TryCreate(arg[8..], UriKind.Absolute, out Uri? parsed) && parsed.Scheme is "ws" or "wss")
@@ -212,8 +204,6 @@ public sealed record LaunchArguments
             args.Add("--no-ai");
         if (!FogOfWar)
             args.Add("--no-fog");
-        if (EnergyNetwork && net is null)
-            args.Add("--energy-network");
         if (net is not null)
             args.AddRange(net.ToArguments());
         return args;

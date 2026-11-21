@@ -120,9 +120,7 @@ public partial class Game : IDisposable
             : $"--seed={Seed.ToString(CultureInfo.InvariantCulture)}";
         var built = WorldFactory.Build(new WorldLaunchOptions(
             terrainTestMode, terrainSizeOverride, genMode, Seed,
-            Players: relay?.Config.Slots ?? Tweaks.LevelGen.DefaultPlayers, CoreTapWins: relay != null,
-            // Only a local match takes the launch option; a network match plays the rules its room agreed on.
-            EnergyNetwork: relay == null && GameLaunchOptions.EnergyNetwork));
+            Players: relay?.Config.Slots ?? Tweaks.LevelGen.DefaultPlayers, CoreTapWins: relay != null));
         _world = built.World;
         _terrainSize = built.TerrainSize;
         _entityLayer.CaptureStep(_world, _localSlot);

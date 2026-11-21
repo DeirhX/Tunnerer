@@ -205,8 +205,8 @@ display's own resolution instead of being stretched by the OS.
   carries no text: `HudStrip` draws titles and numbers with the UI font, placed from each panel's plates as
   measured on the art (`HudStrip.Plate`), and centres text on the height of the '0' glyph, not on the font's line
   box.
-- **Charge labels** (`PowerLabelQuads`, only while the match runs `MatchRules.EnergyNetwork`: `--energy-network` for a
-  local match). Each standing machine in sight within `DesktopScreenTweaks.PowerLabelGoneCells` of the player's tank
+- **Charge labels** (`PowerLabelQuads`, only while the match runs `MatchRules.EnergyNetwork`, as every standard
+  match does). Each standing machine in sight within `DesktopScreenTweaks.PowerLabelGoneCells` of the player's tank
   gets a label with charge over capacity, flow in and out a second (and `>` what a node passed on) and a fill bar,
   orange while the node is throttled and pink while it is overheated (`HudPalette.Throttled`, `Overheated`). `PowerLabels` picks the machines
   with `MachineList.CollectNear` and the fog rule of the sprites (`Sight`), formats the numbers of

@@ -55,9 +55,9 @@ public sealed class TutorialDirector
         _steps =
         [
             new("Leave the base",
-                "Your goal is to tap the hot core at the centre of the map. First, get out: drive with W A S D through the gap in the bottom wall of your base.",
+                "Your goal is to tap the hot core at the centre of the map. First, get out: drive with W A S D through the gate in front of you. Your base has a gate in each wall.",
                 static (t, _, _) => t._hasLeftBase,
-                Target: static (_, p) => p.Base is { } b ? b.Position + new Offset(0, Tweaks.Base.BaseSize / 2) : null),
+                Target: static (_, p) => p.Base is { } b ? b.Position + new Offset(b.Front.X * (Tweaks.Base.BaseSize / 2), b.Front.Y * (Tweaks.Base.BaseSize / 2)) : null),
 
             new("Mine emberite",
                 "The gold crystal is emberite ore, what everything is paid with. Drive into it to mine it into your hold (MATERIALS). The hold is small: bring it home.",

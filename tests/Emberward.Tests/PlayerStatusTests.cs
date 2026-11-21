@@ -133,7 +133,7 @@ public class PlayerStatusTests
         world.Advance(_ => default);
         Assert.True(tank.HasLeftBase);
 
-        tank.Position = tank.Base.Position;
+        tank.Position = tank.Base.SpawnPosition;
         world.Advance(_ => default);
         Assert.True(tank.HasLeftBase);
     }

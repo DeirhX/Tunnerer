@@ -1,5 +1,5 @@
 // ============================================================================
-// Materials/BaseMaterial.hlsli — Procedural tank-base wall, floor and door
+// Materials/BaseMaterial.hlsli — Procedural tank-base wall, floor, gate and core
 // ============================================================================
 //
 // A base is a built square, so it is drawn from the *nearest* cell's exact
@@ -10,8 +10,11 @@
 //           a stripe in the owner's colour down the middle.
 //   Floor — recessed dark plating: panel grid every 4 cells, light noise, and
 //           an inner drop shadow that fades over ~1.5 cells from any wall.
-//   Door  — energy barrier: cyan beam with a slow pulse and flowing bands,
-//           framed by amber hazard stripes.
+//   Gate  — energy barrier: cyan beam with a slow pulse and flowing bands,
+//           framed by amber hazard stripes. With its shield spent the beam is
+//           gone: a dark sill with a faint red flicker between the stripes.
+//   Core  — the one part that takes damage: a round amber reactor with a slow
+//           heartbeat, turning vanes and a dark steel rim, on the floor plating.
 //
 // Codes are decoded in Constants.hlsli (DecodeMaterialCode / IsBase*Code).
 // ============================================================================
@@ -101,17 +104,17 @@ float3 ShadeBaseFloor(float2 f, float2 worldCell, int2 cell, int2 maxCell, int c
     int cR2 = LoadMaterialCode(cell, int2(2, 0), maxCell);
     int cU2 = LoadMaterialCode(cell, int2(0, -2), maxCell);
     int cD2 = LoadMaterialCode(cell, int2(0, 2), maxCell);
-    float dL = IsBaseWallCode(cL) ? f.x : (IsBaseWallCode(cL2) ? f.x + 1.0 : 9.0);
-    float dR = IsBaseWallCode(cR) ? 1.0 - f.x : (IsBaseWallCode(cR2) ? 2.0 - f.x : 9.0);
-    float dU = IsBaseWallCode(cU) ? f.y : (IsBaseWallCode(cU2) ? f.y + 1.0 : 9.0);
-    float dD = IsBaseWallCode(cD) ? 1.0 - f.y : (IsBaseWallCode(cD2) ? 2.0 - f.y : 9.0);
+    float dL = IsBaseRaisedCode(cL) ? f.x : (IsBaseRaisedCode(cL2) ? f.x + 1.0 : 9.0);
+    float dR = IsBaseRaisedCode(cR) ? 1.0 - f.x : (IsBaseRaisedCode(cR2) ? 2.0 - f.x : 9.0);
+    float dU = IsBaseRaisedCode(cU) ? f.y : (IsBaseRaisedCode(cU2) ? f.y + 1.0 : 9.0);
+    float dD = IsBaseRaisedCode(cD) ? 1.0 - f.y : (IsBaseRaisedCode(cD2) ? 2.0 - f.y : 9.0);
     float aoLit = 1.0 - smoothstep(0.0, kFloorShadowCells, min(dL, dU));
     float aoFar = 1.0 - smoothstep(0.0, kFloorShadowCells, min(dR, dD));
     plate *= 1.0 - max(aoLit * 0.70, aoFar * 0.50);
     return plate;
 }
 
-float3 ShadeBaseDoor(float2 f, float2 worldCell, int cL, int cR, int cU, int cD)
+float3 ShadeBaseDoor(float2 f, float2 worldCell, int code, int cL, int cR, int cU, int cD)
 {
     bool vertical = (IsBaseDoorCode(cU) || IsBaseDoorCode(cD)) && !(IsBaseDoorCode(cL) || IsBaseDoorCode(cR));
     float axisPos = vertical ? worldCell.y : worldCell.x;
@@ -126,12 +129,69 @@ float3 ShadeBaseDoor(float2 f, float2 worldCell, int cL, int cR, int cU, int cD)
     float3 beam = float3(0.15, 0.85, 1.00);
     float3 color = bg + beam * (halo * 0.30 * pulse + core * (0.55 + 0.35 * flow) * pulse);
     color += float3(0.75, 0.95, 1.0) * core * core * 0.25 * pulse;
+    if (code == kMaterialCodeBaseDoorOpen)
+    {
+        // The shield is spent: no beam, only the dead emitter line sputtering red now and then.
+        float sputter = step(0.86, hash21(float2(floor(axisPos), floor(Time * 9.0))));
+        color = float3(0.050, 0.045, 0.045) + float3(0.85, 0.16, 0.06) * core * (0.10 + 0.55 * sputter);
+    }
 
     // Amber hazard rim along both long edges.
     float rim = smoothstep(0.34, 0.40, across);
     float bars = step(0.5, frac((axisPos + acrossPos) * 0.5));
     float3 hazard = lerp(float3(0.10, 0.07, 0.02), float3(0.95, 0.62, 0.08), bars);
     return lerp(color, hazard, rim);
+}
+
+// How many cells of the core follow `cell` in a row toward `dir`, `cell` not counted.
+int BaseCoreRun(int2 cell, int2 dir, int2 maxCell)
+{
+    int run = 0;
+    bool unbroken = true;
+    for (int i = 1; i <= kBaseCoreReach; i++)
+    {
+        unbroken = unbroken && IsBaseCoreCode(LoadMaterialCode(cell, dir * i, maxCell));
+        run += unbroken ? 1 : 0;
+    }
+    return run;
+}
+
+float3 ShadeBaseCore(float2 f, float2 worldCell, int2 cell, int2 maxCell, int cL, int cR, int cU, int cD)
+{
+    // The core's cells form a disc, so the row and the column through any of them are centred on its middle.
+    int runL = BaseCoreRun(cell, int2(-1, 0), maxCell);
+    int runR = BaseCoreRun(cell, int2(1, 0), maxCell);
+    int runU = BaseCoreRun(cell, int2(0, -1), maxCell);
+    int runD = BaseCoreRun(cell, int2(0, 1), maxCell);
+    float2 centre = floor(worldCell) + 0.5 + 0.5 * float2(runR - runL, runD - runU);
+    float2 p = worldCell - centre;
+    float r = length(p);
+    float2 dir = p / max(r, 1e-4);
+    float radius = kBaseCoreRadius;
+
+    // Outside the circle a core cell shows the floor it stands on, darkened where the reactor meets it.
+    float3 ground = ShadeBaseFloor(f, worldCell, cell, maxCell, cL, cR, cU, cD);
+    ground *= 0.45 + 0.55 * smoothstep(radius, radius + 0.30, r);
+
+    // The reactor: hot amber, brightest at the middle, with a slow heartbeat and vanes that turn.
+    float beat = 0.80 + 0.20 * sin(Time * 1.7);
+    float angle = atan2(p.y, p.x);
+    float vanes = 0.5 + 0.5 * sin(angle * 6.0 + Time * 0.9 - r * 1.8);
+    float rings = 0.5 + 0.5 * sin(r * 7.5 - Time * 2.0);
+    float grain = valueNoise(worldCell * 2.5 + float2(41.0, 7.0));
+    float heart = 1.0 - smoothstep(0.0, radius, r);
+    float3 glow = lerp(float3(0.90, 0.36, 0.05), float3(1.00, 0.88, 0.46), heart * 0.60 + vanes * 0.22 + rings * 0.12 + grain * 0.10);
+    glow *= beat * (0.80 + 0.35 * heart);
+
+    // A dark steel rim, lit from the top-left like the walls, with a bright inner lip.
+    float rimWidth = 0.36;
+    float rim = smoothstep(radius - rimWidth, radius - rimWidth + 0.06, r);
+    float lit = saturate(dot(dir, float2(-0.7071, -0.7071)) * 0.5 + 0.5);
+    float3 steel = lerp(float3(0.07, 0.07, 0.08), float3(0.60, 0.64, 0.70), lit);
+    float lip = 1.0 - smoothstep(0.0, 0.08, abs(r - (radius - rimWidth)));
+    float3 reactor = lerp(glow, steel, rim) + float3(1.00, 0.70, 0.25) * lip * 0.35 * beat;
+
+    return lerp(reactor, ground, smoothstep(radius - 0.03, radius + 0.03, r));
 }
 
 // Draws the base cell under this pixel. `code` is the nearest cell's material code.
@@ -149,7 +209,9 @@ void ApplyBaseMaterial(inout float3 color, float2 worldCell, int2 cell, int2 max
         if (IsBaseWallCode(code))
             baseColor = ShadeBaseWall(f, worldCell, code, cL, cR, cU, cD);
         else if (IsBaseDoorCode(code))
-            baseColor = ShadeBaseDoor(f, worldCell, cL, cR, cU, cD);
+            baseColor = ShadeBaseDoor(f, worldCell, code, cL, cR, cU, cD);
+        else if (IsBaseCoreCode(code))
+            baseColor = ShadeBaseCore(f, worldCell, cell, maxCell, cL, cR, cU, cD);
         else
             baseColor = ShadeBaseFloor(f, worldCell, cell, maxCell, cL, cR, cU, cD);
 

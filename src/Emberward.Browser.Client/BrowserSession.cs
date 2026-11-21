@@ -40,13 +40,9 @@ public sealed class BrowserSession
     /// For measuring: this many machines planted in networks grown from every base before play starts
     /// (<see cref="BrowserStress"/>). Zero in a normal match.
     /// </param>
-    /// <param name="energyNetwork">
-    /// The match runs the energy network (<see cref="MatchRules.EnergyNetwork"/>, the page's <c>?energy</c>), off in
-    /// <see cref="MatchRules.Standard"/>. Only a local match can ask for it.
-    /// </param>
-    public BrowserSession(int seed, int heatWorkers = 1, Size? mapSize = null, int machines = 0, bool energyNetwork = false)
+    public BrowserSession(int seed, int heatWorkers = 1, Size? mapSize = null, int machines = 0)
         : this(seed, ClampMap(mapSize ?? DefaultMapSize), Tweaks.LevelGen.DefaultPlayers, LevelGenMode.Deterministic,
-            heatWorkers, localSlot: 0, localBot: true, machines, energyNetwork)
+            heatWorkers, localSlot: 0, localBot: true, machines)
     {
     }
 
@@ -74,7 +70,7 @@ public sealed class BrowserSession
 
     /// <param name="localBot">A local match: the bot drives <see cref="BotSlot"/>.</param>
     private BrowserSession(int seed, Size mapSize, int players, LevelGenMode genMode, int heatWorkers, int localSlot,
-        bool localBot = false, int machines = 0, bool energyNetwork = false)
+        bool localBot = false, int machines = 0)
     {
         Seed = seed;
         MapSize = mapSize;
@@ -82,14 +78,7 @@ public sealed class BrowserSession
         if (heatWorkers <= 1)
             settings = settings with { ThermalParallelTileThreshold = int.MaxValue };
         // A network match is a race, as on the desktop: the first base to tap the core wins.
-        World = MatchSetup.Build(MapSize, seed,
-            MatchRules.Standard with
-            {
-                CoreTapWins = true,
-                EnergyNetwork = energyNetwork,
-                MachineUpgrades = energyNetwork,
-                TankReserve = energyNetwork,
-            }, players, genMode,
+        World = MatchSetup.Build(MapSize, seed, MatchRules.Standard with { CoreTapWins = true }, players, genMode,
             settings: settings);
         LocalSlot = localSlot;
         if (localBot)

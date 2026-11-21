@@ -235,20 +235,21 @@ public static partial class Tweaks
     {
         public const int MinDistance = 150;
         public const int BaseSize = 35;
-        public const int DoorSize = 7;
         public const int InitialHeat = 0;
-        public const int InitialHealth = 2000;
+        // The core's armor: the only part of a base that takes damage (the keep's shape and its gate shield are in
+        // Tweaks.Keep). A tank that has got inside wears it down in about 5 seconds of fire from a courtyard corner.
+        public const int InitialHealth = 6000;
         public const int HeatCapacity = 100;
-        public const int HealthCapacity = 2000;
+        public const int HealthCapacity = 6000;
         // Radiator. At 1 unit per tick (500 energy/tick), two relays (300 each) out-pump it, so the reservoir fills
         // and pumping stops: the shared exit is the real bottleneck. Starting value for the first-prototype spike.
         public const int HeatCooldown = 1;
-        public const int HealthRegen = 10;
-        public const double MaxShieldFraction = 0.80;
+        // Armor the core repairs a tick while the base has power: 48 a second, so damage done stays done for a
+        // while (a full repair takes two minutes) and a second raid finds the core as the first left it.
+        public const int HealthRegen = 2;
         public const double DarkDamageMultiplier = 1.25;
         public const int ChargePerRestartOre = 7_000;
         public const int RestartCharge = 15 * ChargePerRestartOre;
-        public const int ShieldWarmupTicks = 30 * Perf.TargetFps;
         public const int DarkSightDivisor = 2;
         // Energy stored by one unit of base reactor heat. One bullet impact injects ~10^4 energy into the grid,
         // so the reactor (HeatCapacity units) is a reservoir worth a few hotspots, and HeatCooldown units per tick
@@ -264,8 +265,6 @@ public static partial class Tweaks
         public const int AreaCoolingOuterAirTotal = 40;
         public const int HomeCooldownHeat = 6;
         public const int HomeRechargeHealth = 3;
-        public const int ForeignCooldownHeat = 2;
-        public const int ForeignRechargeHealth = 1;
         // Ore banked per tick while docked: a full hold empties in a few ticks.
         public const int HomeAbsorbOre = 10;
 
@@ -624,7 +623,6 @@ public static partial class Tweaks
         public const int TreeSize = 150;
         // Bases on a map unless a match asks for another number (up to World.MaxPlayers).
         public const int DefaultPlayers = 2;
-        public const int MinSpawnDistanceSq = 150 * 150;
         public const int SmoothingSteps = -1; // -1 = smooth until convergence (matches C++)
         public static int TargetDirtAmount(Size size) => size.X * size.Y * DirtTargetPercent / 100;
 

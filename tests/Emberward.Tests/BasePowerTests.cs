@@ -1,11 +1,13 @@
 namespace Emberward.Tests;
 
 using Emberward.Core;
+using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities;
 using Emberward.Core.Entities.Bases;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Projectiles;
+using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Input;
 using Emberward.Core.Match;
 using Emberward.Core.Resources;
@@ -25,12 +27,36 @@ public class BasePowerTests
         return world;
     }
 
-    private static void FireAtWall(World world, TankBase target, int owner)
+    private const int Half = BaseLayout.Half;
+
+    /// <summary>A shell from just outside the west wall, <paramref name="dy"/> cells off its middle: the gate at 0, wall past 5.</summary>
+    private static void FireAtWestSide(World world, TankBase target, int owner, int dy = 0, int damage = Tweaks.Weapon.BulletDamage)
     {
-        int half = Tweaks.Base.BaseSize / 2;
-        world.Projectiles.Add(Projectile.CreateBullet(target.Position + new Offset(-half - 1, 0), new VectorF(1, 0), owner));
+        world.Projectiles.Add(Projectile.CreateBullet(target.Position + new Offset(-Half - 1, dy), new VectorF(1, 0), owner, damage));
         world.Advance(_ => default);
     }
+
+    /// <summary>
+    /// A shell from a corner of the courtyard along the diagonal, the one line that reaches the core. Returns the
+    /// ticks it took to land, or -1 if it never damaged the base.
+    /// </summary>
+    private static int FireAtCore(World world, TankBase target, int owner)
+    {
+        world.Projectiles.Add(Projectile.CreateBullet(
+            target.Position + BaseLayout.NearestCorner(-1, -1), new VectorF(1, 1), owner));
+        // The shell crosses the gap between the baffles and the floor round the core before it lands.
+        for (int tick = 1; tick <= BaseLayout.Lane; tick++)
+        {
+            world.Advance(_ => default);
+            if (world.StepEvents.ToArray().Any(e => e.Kind is StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed))
+                return tick;
+        }
+        return -1;
+    }
+
+    /// <summary>Spends the whole gate shield of <paramref name="target"/> with one shell at its west gate.</summary>
+    private static void BreakShield(World world, TankBase target, int owner) =>
+        FireAtWestSide(world, target, owner, damage: (int)Tweaks.Keep.ShieldCapacity);
 
     [Fact]
     public void DarkBase_StopsRepairsAndHarvesters_UntilTheRestartThreshold()
@@ -63,45 +89,194 @@ public class BasePowerTests
         home.StoreCharge(1);
         world.Advance(_ => default);
         Assert.False(world.IsBaseDark(home));
-        Assert.Equal(30.0, world.BasePowerOf(home)!.Value.ShieldWarmupSeconds);
-        Assert.Equal(0.0, world.BasePowerOf(home)!.Value.ShieldFraction);
         world.Advance(_ => default);
         Assert.True((int)home.Reactor.Health > Tweaks.Base.InitialHealth - 100);
         Assert.True((int)tank.Reactor.Health > Tweaks.Tank.InitialHealth - 100);
-        Assert.True(world.BasePowerOf(home)!.Value.ShieldFraction > 0.0);
     }
 
-    [Theory]
-    [InlineData(1.0, 32)]
-    [InlineData(0.5, 96)]
-    [InlineData(0.25, 128)]
-    [InlineData(0.0, 200)]
-    public void WallImpact_ScalesDamageWithCharge(double fill, int expectedDamage)
+    [Fact]
+    public void AShellAtAWall_DoesNoDamage()
     {
         var world = CreateWorld();
         var target = world.TankBases.Bases[1];
-        target.DrawCharge(target.Charge);
-        target.StoreCharge(target.ChargeCapacity * fill);
 
-        FireAtWall(world, target, owner: 0);
+        FireAtWestSide(world, target, owner: 0, dy: BaseLayout.GateHalf + 2);
 
-        int repaired = fill > 0.0 ? Tweaks.Base.HealthRegen : 0;
-        Assert.Equal(Tweaks.Base.InitialHealth - expectedDamage + repaired, (int)target.Reactor.Health);
-        var hit = Assert.Single(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BaseDamaged);
+        Assert.Equal(Tweaks.Base.InitialHealth, (int)target.Reactor.Health);
+        Assert.Equal(1.0, world.BasePowerOf(target)!.Value.ShieldFill);
+        Assert.DoesNotContain(world.StepEvents.ToArray(), e => e.Kind is StepEventKind.BaseDamaged or StepEventKind.BaseShieldHit);
+        Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BulletImpact && e.Target == ImpactTarget.Terrain);
+    }
+
+    [Fact]
+    public void AnEnemyShellAtAShutGate_StopsThere_AndWearsTheShieldDown()
+    {
+        var world = CreateWorld();
+        var target = world.TankBases.Bases[1];
+        // No charge to spare: the shield does not recharge in the tick it is hit.
+        target.DrawCharge(target.Charge - Tweaks.Keep.ShieldReserveCharge);
+
+        FireAtWestSide(world, target, owner: 0);
+
+        Assert.Equal(Tweaks.Base.InitialHealth, (int)target.Reactor.Health);
+        Assert.Equal(1.0 - Tweaks.Weapon.BulletDamage / Tweaks.Keep.ShieldCapacity, world.BasePowerOf(target)!.Value.ShieldFill, 9);
+        Assert.True(world.AreGatesShut(target));
+        var hit = Assert.Single(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BaseShieldHit);
         Assert.Equal(target.Color, hit.Color);
+        Assert.Equal(target.Position + new Offset(-Half, 0), hit.Position);
         Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BulletImpact && e.Target == ImpactTarget.Base);
     }
 
     [Fact]
-    public void EnemyWallImpact_DestroysTheBaseAndEndsTheSide()
+    public void TheOwnersShell_PassesItsOwnShutGate()
+    {
+        var world = CreateWorld();
+        var target = world.TankBases.Bases[1];
+
+        FireAtWestSide(world, target, owner: target.Color);
+
+        Assert.Equal(1.0, world.BasePowerOf(target)!.Value.ShieldFill);
+        Assert.DoesNotContain(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BulletImpact);
+        Assert.Equal(1, world.Projectiles.Count);
+    }
+
+    [Fact]
+    public void ASpentShield_OpensTheGates_UntilItIsPartlyBack()
+    {
+        var world = CreateWorld();
+        var target = world.TankBases.Bases[1];
+
+        BreakShield(world, target, owner: 0);
+
+        Assert.False(world.AreGatesShut(target));
+        Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BaseShieldBroken);
+
+        // Open, a gate stops no shell: the next one flies in and lands on the baffle behind the gate.
+        FireAtWestSide(world, target, owner: 0);
+        Assert.DoesNotContain(world.StepEvents.ToArray(), e => e.Kind is StepEventKind.BaseShieldHit or StepEventKind.BaseShieldBroken);
+
+        int ticks = (int)Math.Ceiling(Tweaks.Keep.ShieldRestoreFill * Tweaks.Keep.ShieldCapacity / Tweaks.Keep.ShieldRechargePerTick);
+        bool restored = false;
+        for (int i = 0; i < ticks + 1 && !restored; i++)
+        {
+            Assert.False(world.AreGatesShut(target));
+            world.Advance(_ => default);
+            restored = world.StepEvents.ToArray().Any(e => e.Kind == StepEventKind.BaseShieldRestored);
+        }
+        Assert.True(restored);
+        Assert.True(world.AreGatesShut(target));
+        Assert.Equal(Tweaks.Base.InitialHealth, (int)target.Reactor.Health);
+    }
+
+    [Fact]
+    public void TheShield_RechargesFromTheStore_AsReactorHeat_DownToTheReserve()
+    {
+        var world = CreateWorld();
+        var target = world.TankBases.Bases[1];
+        BreakShield(world, target, owner: 0);
+        double charge = target.Charge, shield = world.BasePowerOf(target)!.Value.ShieldFill;
+        double converted = world.Terrain.Ledger.ConvertedToCharge;
+
+        world.Advance(_ => default);
+
+        double spent = Tweaks.Keep.ShieldRechargePerTick * Tweaks.Keep.ChargePerShieldPoint;
+        Assert.Equal(charge - spent, target.Charge, 6);
+        Assert.Equal(shield + Tweaks.Keep.ShieldRechargePerTick / Tweaks.Keep.ShieldCapacity,
+            world.BasePowerOf(target)!.Value.ShieldFill, 9);
+        // The charge became heat in the reactor (which the radiator then vents), and the ledger has it.
+        Assert.Equal(converted - spent, world.Terrain.Ledger.ConvertedToCharge, 6);
+
+        // With nothing above the reserve, the shield stays where it is: defending never blacks the base out.
+        target.DrawCharge(target.Charge - Tweaks.Keep.ShieldReserveCharge);
+        shield = world.BasePowerOf(target)!.Value.ShieldFill;
+        world.Advance(_ => default);
+        Assert.Equal(Tweaks.Keep.ShieldReserveCharge, target.Charge);
+        Assert.Equal(shield, world.BasePowerOf(target)!.Value.ShieldFill);
+        Assert.False(world.IsBaseDark(target));
+    }
+
+    [Fact]
+    public void ADarkBase_DoesNotRechargeItsShield()
+    {
+        var world = CreateWorld();
+        var target = world.TankBases.Bases[1];
+        BreakShield(world, target, owner: 0);
+        target.DrawCharge(target.Charge);
+        world.Advance(_ => default);
+        Assert.True(world.IsBaseDark(target));
+        target.StoreCharge(Tweaks.Base.RestartCharge - 1);
+        double shield = world.BasePowerOf(target)!.Value.ShieldFill;
+
+        TestSimulation.AdvanceIdle(world, frames: 20);
+
+        Assert.Equal(shield, world.BasePowerOf(target)!.Value.ShieldFill);
+        Assert.False(world.AreGatesShut(target));
+    }
+
+    [Theory]
+    [InlineData(false, Tweaks.Weapon.BulletDamage)]
+    [InlineData(true, 200)]
+    public void AShellFromACourtyardCorner_DamagesTheCore_MoreWhileTheBaseIsDark(bool dark, int expectedDamage)
+    {
+        var world = CreateWorld();
+        var target = world.TankBases.Bases[1];
+        if (dark)
+            target.DrawCharge(target.Charge);
+
+        int ticks = FireAtCore(world, target, owner: 0);
+
+        Assert.True(ticks > 0, "The shell never reached the core.");
+        var hit = Assert.Single(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BaseDamaged);
+        Assert.Equal(target.Color, hit.Color);
+        Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BulletImpact && e.Target == ImpactTarget.Base);
+        // A dark base repairs nothing; a lit one has repaired a little in the tick the shell landed.
+        int repaired = dark ? 0 : Tweaks.Base.HealthRegen;
+        Assert.Equal(Tweaks.Base.InitialHealth - expectedDamage + repaired, (int)target.Reactor.Health);
+    }
+
+    [Fact]
+    public void AShutGate_StopsAnEnemyTank_AndLetsItsOwnerThrough()
+    {
+        var world = CreateWorld();
+        var raider = world.TankList.Tanks[0];
+        var target = world.TankBases.Bases[1];
+        var owner = world.TankList.Tanks[1];
+        var outside = target.Position + new Offset(-Half - 6, 0);
+        var drive = new ControllerOutput { MoveSpeed = new Offset(1, 0) };
+
+        raider.Position = outside;
+        for (int i = 0; i < 20; i++)
+            world.Advance(slot => slot == 0 ? drive : default);
+        // Its hull is 7 cells wide: it stops with its nose against the gate.
+        Assert.Equal(target.Position.X - Half - TankSpriteShape.Size / 2 - 1, raider.Position.X);
+        Assert.Equal(StepObstacle.Entity, world.ProbeTankStep(raider, new Offset(1, 0)));
+
+        // The owner drives out through the same gate.
+        raider.Position = new Position(2, 2);
+        owner.Position = target.Position + new Offset(-BaseLayout.Lane, 0);
+        for (int i = 0; i < 12; i++)
+            world.Advance(slot => slot == 1 ? new ControllerOutput { MoveSpeed = new Offset(-1, 0) } : default);
+        Assert.Equal(target.Position.X - BaseLayout.Lane - 12, owner.Position.X);
+
+        // Spent, the shield lets the raider in. The owner waits by the east gate, out of the way.
+        owner.Position = target.Position + new Offset(BaseLayout.Lane, 0);
+        raider.Position = outside;
+        BreakShield(world, target, owner: 0);
+        for (int i = 0; i < 10; i++)
+            world.Advance(slot => slot == 0 ? drive : default);
+        Assert.True(target.IsInside(raider.Position));
+    }
+
+    [Fact]
+    public void AnEnemyCoreImpact_DestroysTheBaseAndEndsTheSide()
     {
         var world = CreateWorld(energyNetwork: false);
         var target = world.TankBases.Bases[1];
         target.TakeDamage(Tweaks.Base.InitialHealth - 50);
-        FireAtWall(world, target, owner: 1);
+        Assert.Equal(-1, FireAtCore(world, target, owner: 1));
         Assert.False(target.IsDestroyed);
 
-        FireAtWall(world, target, owner: 0);
+        Assert.True(FireAtCore(world, target, owner: 0) > 0);
         Assert.True(target.IsDestroyed);
         Assert.False(target.LinkPoint!.IsPowered);
         Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BaseDestroyed);
@@ -129,7 +304,6 @@ public class BasePowerTests
         Assert.True(world.Terrain.Ledger.Injected >= home.Charge);
         Assert.Equal(home.Charge, world.Terrain.Ledger.ConvertedToCharge);
         Assert.False(world.IsBaseDark(home));
-        Assert.Equal(30.0, world.BasePowerOf(home)!.Value.ShieldWarmupSeconds);
         Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.RestartOreBurned && e.Count == 15);
     }
 
@@ -138,6 +312,8 @@ public class BasePowerTests
     {
         var original = CreateWorld();
         var home = original.TankBases.Bases[0];
+        // A shield that is partly spent is part of what a late joiner must get.
+        FireAtWestSide(original, home, owner: 1, damage: 12_345);
         home.DrawCharge(home.Charge);
         original.Advance(_ => default);
         home.StoreCharge(25_000);
@@ -193,7 +369,7 @@ public class BasePowerTests
         world.Advance(_ => new ControllerOutput { Recall = true });
 
         Assert.False(tank.IsDead);
-        Assert.Equal(tank.Base!.Position, tank.Position);
+        Assert.Equal(tank.Base!.SpawnPosition, tank.Position);
         Assert.Equal(0, tank.OreHeld);
         Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.TankRespawned);
     }

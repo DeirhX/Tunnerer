@@ -67,12 +67,18 @@ public sealed record MatchRules
     /// </summary>
     public bool TankReserve { get; init; }
 
-    /// <summary>A normal match: hot and frost pockets, ore, regrowth; the core does not end it.</summary>
+    /// <summary>
+    /// A normal match: hot and frost pockets, ore, regrowth, and the energy rules (the energy network with its gate
+    /// shields, machine upgrades and the tank's reserve); the core does not end it.
+    /// </summary>
     public static MatchRules Standard { get; } = new()
     {
         HotRockPockets = Tweaks.World.HotRockPocketCount,
         FrostRockPockets = Tweaks.World.FrostRockPocketCount,
         SeedOre = true,
+        EnergyNetwork = true,
+        MachineUpgrades = true,
+        TankReserve = true,
     };
 
     /// <summary>The rules as one number, the same on every machine and run (unlike <see cref="GetHashCode"/>).</summary>
@@ -84,11 +90,11 @@ public sealed record MatchRules
         hash = Fnv1a.Mix(hash, (uint)FrostRockPockets);
         hash = Fnv1a.Mix(hash, SeedOre ? 1u : 0u);
         hash = Fnv1a.Mix(hash, CoreTapWins ? 1u : 0u);
-        // Base destruction replaces the stock match's tank elimination rule.
-        hash = Fnv1a.Mix(hash, 8u);
-        // Version of the energy rules: raised with each machine they add (turrets).
+        // Version of the base rules: a base falls when its core does, behind walls and gates (the keep).
+        hash = Fnv1a.Mix(hash, 9u);
+        // Version of the energy rules: raised with each machine they add (turrets) and with the gate shield.
         if (EnergyNetwork)
-            hash = Fnv1a.Mix(hash, 0xE4EAu);
+            hash = Fnv1a.Mix(hash, 0xE4EBu);
         if (MachineUpgrades)
             hash = Fnv1a.Mix(hash, 0x4D55u);
         if (TankReserve)

@@ -358,7 +358,7 @@ public sealed class Radar
         TerrainPixel pixel = pixels[offset];
         bool target = HitsTarget(cell, _onRay, out bool alive);
         bool ore = !target && Pixel.IsOre(pixel);
-        if (target || (Pixel.IsBlockingCollision(pixel) && pixel != ownWall))
+        if (target || (Pixel.IsBlockingCollision(pixel) && !IsOwnBase(pixel, ownWall)))
         {
             // Whatever it is stops the ray, but each kind of thing only returns from within its own range.
             RadarEcho echo = alive ? RadarEcho.Life : target ? RadarEcho.Metal
@@ -378,7 +378,7 @@ public sealed class Radar
 
         // The tank's own base is no discovery: its wall neither reflects nor counts as a cave's edge.
         bool dirt = Pixel.IsSoftCollision(pixel);
-        if (pixel == ownWall)
+        if (IsOwnBase(pixel, ownWall))
             ray.WasDirt = false;
         if (ray.WasDirt && !dirt && ray.WeakLeft > 0 && Within(ray, _reach.CavityRange))
         {
@@ -422,6 +422,13 @@ public sealed class Radar
         }
         return near + (far - near) * depth / (float)full;
     }
+
+    /// <summary>
+    /// The blocking cells of a base a pulse passes without an echo: the walls of the tank's own base, and a core. A
+    /// core cell carries no side, and no ray from outside a base's walls reaches its core (the walls and the plates
+    /// stop it first), so in practice this is the tank's own core, met from its own courtyard.
+    /// </summary>
+    private static bool IsOwnBase(TerrainPixel pixel, TerrainPixel ownWall) => pixel == ownWall || Pixel.IsBaseCore(pixel);
 
     /// <summary>What reflects as <see cref="RadarEcho.Solid"/>: anything that blocks movement but ore.</summary>
     private static bool IsRock(TerrainPixel pixel) =>
@@ -583,7 +590,7 @@ public sealed class Radar
         TerrainPixel pixel = pixels[offset];
         bool holds = contact.Echo switch
         {
-            RadarEcho.Solid => IsRock(pixel) && pixel != ownWall,
+            RadarEcho.Solid => IsRock(pixel) && !IsOwnBase(pixel, ownWall),
             RadarEcho.Ore => Pixel.IsOre(pixel),
             RadarEcho.Metal => HitsTarget(contact.Position, targets, out bool living) && !living,
             RadarEcho.Life => HitsTarget(contact.Position, targets, out bool alive) && alive,

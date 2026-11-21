@@ -51,7 +51,7 @@ python -c "from PIL import Image; Image.open(r'src/Emberward.Desktop/out/bin/Deb
 - Captures are written under `src/Emberward.Desktop/out/bin/.../screenshots/`.
 - Keep runtime bounded with `--perf` so automation exits cleanly.
 - Use `artifacts/debug/` for converted PNGs and comparisons.
-- For base-exit scripts, remember base "doors" are `BaseBarrier` cells: movement-only scripts can get stuck. Use scripted shooting while exiting (see below).
+- For base-exit scripts: the tank spawns in the courtyard just inside the gate that faces into the map (`TankBase.Front`), and a base's gates are open to its own tank, so driving that way leaves the base. The centre is the core, which nothing drives over.
 
 ## Scripted Movement With Shooting
 

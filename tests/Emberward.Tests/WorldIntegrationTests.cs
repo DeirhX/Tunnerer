@@ -61,7 +61,8 @@ public class WorldIntegrationTests
             var tank = world.TankList.Tanks[i];
             var baseObj = world.TankBases.GetSpawn(i);
             Assert.NotNull(baseObj);
-            Assert.Equal(baseObj.Position, tank.Position);
+            Assert.Equal(baseObj.SpawnPosition, tank.Position);
+            Assert.True(tank.IsDockedAtOwnBase);
         }
     }
 
@@ -121,7 +122,7 @@ public class WorldIntegrationTests
         Assert.Equal(150, Tweaks.LevelGen.TreeSize);
         Assert.Equal(150, Tweaks.Base.MinDistance);
         Assert.Equal(35, Tweaks.Base.BaseSize);
-        Assert.Equal(7, Tweaks.Base.DoorSize);
+        Assert.Equal(11, Tweaks.Keep.GateSize);
         Assert.Equal(24, Tweaks.Perf.TargetFps);
         Assert.Equal(64, Tweaks.Perf.SectorSize);
     }

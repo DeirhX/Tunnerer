@@ -95,8 +95,9 @@ public class BotBehaviorTests
     [Fact]
     public void LeavesItsBase_WhenOneDoorFacesRock()
     {
-        // Seed 7 puts the bot's base under the top edge of the map: solid rock above its upper door.
-        var world = TestHelpers.CreateSeededWorld(seed: 7, enableTerrainRegrowth: false);
+        // Seed 2 puts the bot's base against the top edge of the map: the sealed rock behind it is outside its upper
+        // door.
+        var world = TestHelpers.CreateSeededWorld(seed: 2, enableTerrainRegrowth: false);
         var botBase = world.TankList.Tanks[1].Base!;
         var aboveTheDoor = botBase.Position + new Offset(0, -(Tweaks.Base.BaseSize / 2 + 3));
         Assert.True(Pixel.IsBlockingCollision(world.Terrain.GetPixel(aboveTheDoor)),
@@ -125,14 +126,21 @@ public class BotBehaviorTests
         Assert.Equal(0, run.HardPushedWithoutTorch);
     }
 
-    [Fact]
-    public void SiegesTheEnemyBase_ThroughItsDoor()
+    /// <summary>
+    /// The bot's siege of a keep (DESIGN.md §4.9). While the gates are shut it shoots a gate, which wears the gate
+    /// shield down and leaves the core alone. With the gates open (here: rules without the energy network, where
+    /// no gate shuts) it drives in to a corner of the courtyard and shoots the core from there.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SiegesTheEnemyBase_ThroughItsGate(bool gateShield)
     {
         // Blank map, two bases side by side (as in BasePowerTests). Tank 0 is the enemy, tank 1 the bot.
         var size = new Size(100, 72);
         var ground = new TerrainGrid(size);
         ground.Fill(TerrainPixel.Blank);
-        var world = new World(size, rules: new MatchRules { TerrainRegrowth = false });
+        var world = new World(size, rules: new MatchRules { TerrainRegrowth = false, EnergyNetwork = gateShield });
         world.Initialize(ground, [new Position(25, 36), new Position(75, 36)]);
         var enemy = world.TankList.Tanks[0];
         var bot = world.TankList.Tanks[1];
@@ -145,18 +153,20 @@ public class BotBehaviorTests
                 if (Math.Max(Math.Abs(dx), Math.Abs(dy)) >= 2)
                     world.Terrain.SetPixel(enemy.Position + new Offset(dx, dy), TerrainPixel.Rock);
 
-        // Above the enemy base's top door, outside the bot's own base (the bot leaves its base at the start).
+        // Above the enemy base's top gate, outside the bot's own base (the bot leaves its base at the start).
         bot.Position = enemyBase.Position + new Offset(0, -26);
         var ai = new BotTankAI(9);
         for (int tick = 0; tick < 600 && ai.Mode != TwitchMode.Twitch; tick++)
             ai.GetInput(bot, enemy, world);
         Assert.Equal(TwitchMode.Twitch, ai.Mode);
+        Assert.Equal(gateShield, world.AreGatesShut(enemyBase));
 
-        // A straight line through the centre runs through both doors and meets no wall, so the bot must aim at a wall
-        // beside a door. Its shots should hit the base (a bullet that finds a wall takes armour off it).
         double armourBefore = enemyBase.ArmorFill;
-        bool shot = false;
-        for (int tick = 0; tick < 120; tick++)
+        bool shot = false, wentIn = false;
+        int ticks = (gateShield ? 5 : 30) * Tweaks.Perf.TargetFps;
+        var path = new System.Text.StringBuilder();
+        for (int tick = 0; tick < ticks && enemyBase.ArmorFill == armourBefore; tick++)
+        {
             world.Advance(i =>
             {
                 if (i != 1)
@@ -165,8 +175,24 @@ public class BotBehaviorTests
                 shot |= output.ShootPrimary;
                 return output;
             });
-        Assert.True(shot, "the bot should shoot the enemy base from its open door");
-        Assert.True(enemyBase.ArmorFill < armourBefore, $"its shots should hit the enemy base's wall. {armourBefore:0.000} -> {enemyBase.ArmorFill:0.000}");
+            wentIn |= enemyBase.IsInside(bot.Position);
+            if (tick % Tweaks.Perf.TargetFps == 0)
+                path.Append(bot.Position - enemyBase.Position).Append(ai.Mode).Append(' ');
+        }
+
+        Assert.True(shot, "the bot should shoot at the enemy base");
+        if (gateShield)
+        {
+            Assert.True(world.BasePowerOf(enemyBase)!.Value.ShieldFill < 1.0, "its shots should wear the gate shield down");
+            Assert.False(wentIn, "a shut gate keeps the bot out");
+            Assert.Equal(armourBefore, enemyBase.ArmorFill);
+        }
+        else
+        {
+            Assert.True(wentIn, "the bot should drive in through the open gate");
+            Assert.True(enemyBase.ArmorFill < armourBefore,
+                $"its shots should reach the core from a corner of the courtyard. {armourBefore:0.000} -> {enemyBase.ArmorFill:0.000}; each second: {path}");
+        }
     }
 
     [Theory]

@@ -81,7 +81,7 @@ public static class HintSelector
         if (s.IsDead)
             return (string.Empty, HintTone.Dim);
         if (!s.HasLeftBase && s.Docked)
-            return ("WASD to drive - the base exit is at the bottom", HintTone.Info);
+            return ("WASD to drive - leave through any gate of the base", HintTone.Info);
         if (s.RelayJustLinked && s.Carried == null)
             return (s.PumpingRelays > 0
                 ? "Relay linked - pumping heat into your base"
