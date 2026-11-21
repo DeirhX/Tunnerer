@@ -45,6 +45,10 @@ export class StatusView {
         setText($("temperature"), `${Math.round(p.heat)}°`);
         setProperty(this.tankStatus, "--heat-color", p.heatColor);
         setMeter($("heat"), p.heatGauge);
+        setMeter($("shield"), p.shieldFill);
+        setText($("shield-text"), `${Math.round(p.shieldFill * 100)}%`);
+        $("shield-row").hidden = !p.shieldActive;
+        $("fire-text").hidden = !(p.fireLevel > 0);
         setMeter($("hull"), p.hull);
         setText($("hull-text"), `${Math.round(p.hull * 100)}%`);
         setText(

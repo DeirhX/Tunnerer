@@ -50,10 +50,11 @@ public static class BrowserFrameBuilder
             ? new GoalStatus(core, tap.TapPerTick * Tweaks.Perf.TargetFps, Tweaks.Goal.GoalChargePerSecond,
                 tap.HoldSeconds, Tweaks.Goal.GoalHoldSeconds, tap.HasTapped) : null;
         var (hitFromX, hitFromY) = HitFrom(player);
+        var shield = world.TankShieldOf(player);
         var status = new PlayerStatus(player.Position, home.Position, player.Heat, Tank.HeatBudgetCapacity,
             HeatScale.Fraction(player.Heat), HexColor(HeatScale.ColorRgb(player.Heat)),
             player.IsDead ? 0f : player.HitFlashTicks / (float)Tank.HitFlashDuration, hitFromX, hitFromY,
-            player.HullFraction, player.OreHeld, player.OreHoldCapacity, home.Store.Ore,
+            player.HullFraction, shield.Active, shield.ShieldFill, player.IsDead ? 0f : player.FireLevel, player.OreHeld, player.OreHoldCapacity, home.Store.Ore,
             home.ChargeFill, home.HeatStoreFill, home.ArmorFill, player.IsDockedAtOwnBase, player.IsOffNetwork,
             player.OffNetworkSecondsToOverheat, player.IsDead, player.RespawnRemaining.TotalSeconds, world.RecallOffered(player),
             world.MatchOutcomeFor(player).ToString(), player.CarriedMachineType?.ToString(), home.IsDestroyed,

@@ -6,7 +6,7 @@ using Emberward.Core.Entities.Tanks;
 using static Emberward.Desktop.Gui.HudDraw;
 
 /// <summary>
-/// The shield crystal is dark above its liquid surface. A low shield pulses red and flashes when hit.
+/// The shield crystal is dark above its liquid surface. A low level pulses red and the crystal flashes when hit.
 /// </summary>
 public sealed class LiquidGauges(HudLayout layout)
 {
@@ -18,9 +18,11 @@ public sealed class LiquidGauges(HudLayout layout)
 
     private float _shownShieldFill = -1f;
 
-    public void Draw(ImDrawListPtr dl, Tank player, float shieldPanelX, float time)
+    /// <param name="fill">What the crystal shows, 0 to 1: the shield (cyan crystal) when the match runs one, else the hull.</param>
+    /// <param name="low">Whether that level is low enough to pulse red.</param>
+    public void Draw(ImDrawListPtr dl, Tank player, float shieldPanelX, float time, float fill, bool low)
     {
-        float shieldFill = player.HullFraction;
+        float shieldFill = fill;
         // Ease the shown levels toward the real ones so the liquid moves rather than jumps.
         _shownShieldFill = _shownShieldFill < 0f ? shieldFill : _shownShieldFill + (shieldFill - _shownShieldFill) * 0.20f;
 
@@ -39,7 +41,7 @@ public sealed class LiquidGauges(HudLayout layout)
         float sLevel = sBottom - (sBottom - sTop) * _shownShieldFill;
         if (player.HitFlashTicks > Tank.HitFlashDuration - 6)
             FillPolygonBand(dl, poly, sLevel, sBottom, 0x90FFFFFFu);         // hit flash
-        else if (player.IsHullLow(latched: false) && shieldFill > 0f && pulse)
+        else if (low && shieldFill > 0f && pulse)
             FillPolygonBand(dl, poly, sLevel, sBottom, 0x703030FFu);         // low shield (red pulse)
         FillPolygonBand(dl, poly, sTop, sLevel, 0xC8080808u);                // empty part
         var (sx0, sx1) = PolygonSpanAtY(poly, sLevel);

@@ -27,7 +27,7 @@ public sealed class SoundBank
     public float[] this[SoundEffect effect] => _samples[(int)effect];
 
     public static bool IsLoop(SoundEffect effect) => effect is SoundEffect.EngineLoop or SoundEffect.DigLoop or
-        SoundEffect.TorchLoop or SoundEffect.RechargeLoop or SoundEffect.TreadLoop;
+        SoundEffect.TorchLoop or SoundEffect.RechargeLoop or SoundEffect.TreadLoop or SoundEffect.FireLoop;
 
     private static float[] Synthesize(SoundEffect effect)
     {
@@ -59,6 +59,7 @@ public sealed class SoundBank
             SoundEffect.EngineLoop => EngineLoop(ref noise),
             SoundEffect.DigLoop => DigLoop(ref noise),
             SoundEffect.TorchLoop => TorchLoop(ref noise),
+            SoundEffect.FireLoop => FireLoop(ref noise),
             SoundEffect.RechargeLoop => RechargeLoop(),
             SoundEffect.TreadLoop => TreadLoop(ref noise),
             _ => throw new ArgumentOutOfRangeException(nameof(effect)),
@@ -426,6 +427,28 @@ public sealed class SoundBank
             float surge = 0.55f + 0.2f * MathF.Sin(Tau * 7f * t) + 0.15f * MathF.Sin(Tau * 13f * t + 1.3f)
                 + 0.1f * MathF.Sin(Tau * 23f * t + 0.4f);
             samples[i] = grit[i] * MathF.Max(0.15f, surge) + rumble[i] * 2.5f;
+        }
+        return samples;
+    }
+
+    /// <summary>A burning hull: a low roar under a crackle of small pops.</summary>
+    private static float[] FireLoop(ref Noise noise)
+    {
+        var samples = Buffer(1f);
+        float[] roar = SeamlessNoise(ref noise, samples.Length, 80f, 500f);
+        float[] hiss = SeamlessNoise(ref noise, samples.Length, 2000f, 5500f);
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)Rate;
+            // Pops: fixed positions in the second (the loop is seamless), each a quick decaying click.
+            float pops = 0f;
+            for (int k = 0; k < 9; k++)
+            {
+                float since = t - (0.07f + 0.11f * k + 0.013f * (k * k % 5));
+                if (since > 0f)
+                    pops += hiss[i] * Decay(since, 0.006f) * (0.6f + 0.4f * ((k * 7) % 5) / 4f);
+            }
+            samples[i] = roar[i] * (0.8f + 0.2f * MathF.Sin(Tau * 5f * t)) * 1.3f + hiss[i] * 0.18f + pops * 1.4f;
         }
         return samples;
     }

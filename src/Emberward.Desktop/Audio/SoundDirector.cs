@@ -45,8 +45,8 @@ public sealed class SoundDirector
         public bool Moved, Dug, Torched;
         public int MoveHold, DigHold, TorchHold;
         public int LastPickupStep, PickupStreak;
-        public int EngineLoop, DigLoop, TorchLoop, TreadLoop;
-        public bool EngineOn, DigOn, TorchOn, TreadOn;
+        public int EngineLoop, DigLoop, TorchLoop, TreadLoop, FireLoop;
+        public bool EngineOn, DigOn, TorchOn, TreadOn, FireOn;
 
         /// <summary>Distance from the listener at the last step (negative before the first), and how fast it changes.</summary>
         public float Distance, Approach;
@@ -78,6 +78,7 @@ public sealed class SoundDirector
             _tanks[i].DigLoop = sink.AddLoop(SoundEffect.DigLoop);
             _tanks[i].TorchLoop = sink.AddLoop(SoundEffect.TorchLoop);
             _tanks[i].TreadLoop = sink.AddLoop(SoundEffect.TreadLoop);
+            _tanks[i].FireLoop = sink.AddLoop(SoundEffect.FireLoop);
             _tanks[i].Distance = -1f;
         }
         _rechargeLoop = sink.AddLoop(SoundEffect.RechargeLoop);
@@ -232,6 +233,10 @@ public sealed class SoundDirector
         _sink.SetLoop(track.TorchLoop, torchOn ? gain * AudioTweaks.TorchGain : 0f, pan, 1f, muffle);
         _sink.SetLoop(track.TreadLoop, treadOn ? gain * AudioTweaks.TreadGain : 0f, pan,
             (1f - 0.05f * index) * approachRate, muffle);
+        float fire = dead ? 0f : tank.FireLevel;
+        bool fireOn = fire > 0f && audible;
+        _sink.SetLoop(track.FireLoop, fireOn ? gain * AudioTweaks.HullFireGain * (0.35f + 0.65f * fire) : 0f, pan, 1f, muffle);
+        LogLoop(SoundEffect.FireLoop, index, ref track.FireOn, fireOn);
         LogLoop(SoundEffect.EngineLoop, index, ref track.EngineOn, engineOn);
         LogLoop(SoundEffect.DigLoop, index, ref track.DigOn, digOn);
         LogLoop(SoundEffect.TorchLoop, index, ref track.TorchOn, torchOn);
