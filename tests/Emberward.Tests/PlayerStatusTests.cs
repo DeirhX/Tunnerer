@@ -41,7 +41,7 @@ public class PlayerStatusTests
     }
 
     [Fact]
-    public void ShieldLow_LatchesWithHysteresis()
+    public void HullLow_LatchesWithHysteresis()
     {
         var (_, tank) = Create();
 

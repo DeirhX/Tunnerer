@@ -376,7 +376,7 @@ public static partial class Tweaks
         // threshold, off again only past the gentler second one, so they do not flicker around it.
         public const float RunningHotOnFraction = 0.80f;    // of HeatSafeMax
         public const float RunningHotOffFraction = 0.70f;
-        public const float HullLowOnFraction = 0.25f;     // of the shield's capacity
+        public const float HullLowOnFraction = 0.25f;     // of the hull's capacity
         public const float HullLowOffFraction = 0.30f;
         public const float HullWarnFraction = 0.5f;       // HullLevel: Ok above this, Bad at or below HullLowOnFraction
         public const float OffNetworkUrgentSeconds = 20f;   // off network, this close to overheating is urgent

@@ -12,7 +12,7 @@ public static partial class Tweaks
         // 400 points is two and a half tank shells (BulletDamage 160) in front of the 1000-point hull.
         public const int Capacity = 400;
 
-        // It refills only while the tank is on its network; off it the shield holds what it has. After a hit it waits this long (4 s at TargetFps 24), then refills RegenPerTick a tick:
+        // It refills only while the tank is on its network and its base is not dark; elsewhere it holds what it has. After a hit it waits this long (4 s at TargetFps 24), then refills RegenPerTick a tick:
         // empty to full in about 5.6 s.
         public const int RegenDelayTicks = 96;
         public const int RegenPerTick = 3;

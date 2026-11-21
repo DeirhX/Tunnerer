@@ -188,11 +188,11 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
 
 The tank lives in a band around 0. Both ends hurt, and the world has places at both ends.
 
-- **Above 100 the tank burns.** Overheating takes shield damage per degree over the limit, every tick.
+- **Above 100 the tank burns.** Overheating takes hull damage per degree over the limit, every tick.
 - **Shield and hull** *(Prototype, `MatchRules.TankShield`, on in a standard match)*. The tank's life is two layers.
   Damage takes the **shield** first (400 points) and the overflow goes to the **hull** (1000). The shield refills
-  72 points a second, starting 4 seconds after the last hit it took, and only while the tank is on its relay network
-  (or in its base); the hull never regenerates, and a base repairs it only while the tank is docked. Overheating and
+  72 points a second, starting 4 seconds after the last hit it took, (the wait runs wherever the tank is), and only
+  while the tank is on its relay network (or in its base) and the base is not dark; the hull never regenerates, and a base repairs it only while the tank is docked. Overheating and
   frostbite go straight to the hull, as do losing the base and a recall. Without the rule the tank has the hull alone. Fire on a damaged hull and the shield's
   hit feedback follow in later steps.
 - **Below 0 the tank is chilled.** It slows down, linearly to about a third of its speed at -40, and below -25 it
@@ -405,7 +405,7 @@ A base must not fall to a tank that drives up and shoots it. It is a keep (`Base
   go by the seconds left on the clock: warning at 30, degraded at 15 (half the dig, 60% of the sight, half the rate
   of fire), stranded at 5 (the slower gun's cooldown, a crawl at 35% speed that slows the dig with it, 40% of the sight, no
   gun, torch or new machine, though a carried one can still be planted, so a relay in hand can still save it), then
-  heat death at 0, where the floor passes the safe maximum and overheating burns the shield as it always did. Each
+  heat death at 0, where the floor passes the safe maximum and overheating burns the hull as it always did. Each
   stage counts its ticks (a tank that dies starts its next life with a fresh reserve), and the HUD's tag beside OFF
   NETWORK shows the seconds to the next stage (`RESERVE LOW 12s`, `DEGRADED 7s`, `STRANDED 4s`, `HEAT DEATH`).
   Whenever X would burn the HUD says so, a quiet hint until the warning, so a press never spends cargo unannounced.
@@ -994,6 +994,7 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 | Every base backs onto the map's border under the same conditions, far from the others, at a place that cannot be read off one's own (§6.7) | Prototype |
 | A base is a keep: walls nothing gets through, gates held by a shield that recharges from charge, and a core that is the only part to take damage; a dark base restarts by itself or by hand (§4.9) | Prototype |
 | The energy network, machine upgrades and the tank's reserve run in every standard match (§4.9) | Prototype |
+| The tank's life is a shield that regenerates on the network in front of a hull that only the base repairs; a damaged hull burns (§4.7) | Prototype |
 | A base serves only its own tank: a raider gets no repair or cooling inside another side's walls (§4.9) | Prototype |
 | No lives: only a destroyed base ends a side; death costs the cargo (§4.9) | Proposed |
 | Relay throughput limits are upgradeable and lose heat; a hot relay throttles (§4.9) | Proposed |

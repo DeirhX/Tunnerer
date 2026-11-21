@@ -27,6 +27,8 @@ public sealed class TankShieldSystem
     /// </summary>
     internal DamageTaken Absorb(Tank tank, int amount)
     {
+        if (tank.Color < 0)
+            return new DamageTaken(0, amount);
         int slot = SlotOf(tank);
         TankState state = _tanks[slot];
         int shield = Tweaks.TankShield.Capacity - state.Missing;
@@ -37,8 +39,12 @@ public sealed class TankShieldSystem
         return new DamageTaken(toShield, amount - toShield, ShieldBroken: toShield > 0 && state.Missing >= Tweaks.TankShield.Capacity);
     }
 
-    /// <summary>One tick of <paramref name="tank"/>'s regeneration, from <see cref="Tank.Advance"/> while it lives.</summary>
-    internal void Advance(Tank tank)
+    /// <summary>
+    /// One tick of <paramref name="tank"/>'s regeneration, from <see cref="Tank.Advance"/> while it lives. The delay
+    /// after a hit counts down every tick; the shield refills (in the tick the delay ends, and after it) only while
+    /// <paramref name="canRefill"/>: on its network and not in a dark base.
+    /// </summary>
+    internal void Advance(Tank tank, bool canRefill)
     {
         if (tank.Color < 0 || tank.Color >= _tanks.Count)
             return;
@@ -47,7 +53,7 @@ public sealed class TankShieldSystem
             return;
         if (state.DelayTicks > 0)
             state.DelayTicks--;
-        else
+        if (state.DelayTicks == 0 && canRefill)
             state.Missing = Math.Max(0, state.Missing - Tweaks.TankShield.RegenPerTick);
         _tanks[tank.Color] = state;
     }

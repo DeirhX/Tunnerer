@@ -74,7 +74,7 @@ public class TankShieldTests
         Step(world, Tweaks.TankShield.RegenDelayTicks - 1);
         Assert.Equal(Tweaks.TankShield.Capacity - 200, world.TankShieldOf(tank).Shield);
 
-        Step(world, 1);
+        // The delay ends and the first refill comes in the same tick: RegenDelayTicks ticks after the hit.
         Step(world, 1);
         Assert.Equal(Tweaks.TankShield.Capacity - 200 + Tweaks.TankShield.RegenPerTick, world.TankShieldOf(tank).Shield);
 
@@ -92,7 +92,7 @@ public class TankShieldTests
         tank.TakeDamage(1, DamageCause.EnemyFire);
 
         Assert.Equal(Tweaks.TankShield.RegenDelayTicks, world.TankShieldOf(tank).RegenDelayTicks);
-        Step(world, 1);
+        Step(world, Tweaks.TankShield.RegenDelayTicks - 1);
         Assert.Equal(Tweaks.TankShield.Capacity - 101, world.TankShieldOf(tank).Shield);
     }
 
@@ -102,7 +102,7 @@ public class TankShieldTests
         var (world, tank) = Shielded();
         tank.TakeDamage(Tweaks.TankShield.Capacity + 300, DamageCause.EnemyFire);
         int hull = tank.Reactor.Health;
-        tank.Position = world.TankBases.Bases.First(b => b.Color != tank.Color).SpawnPosition;
+        tank.Position = new Position(60, 100);
 
         Step(world, Tweaks.TankShield.RegenDelayTicks + 200);
 
@@ -141,8 +141,11 @@ public class TankShieldTests
     {
         var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, energyNetwork: true, tankShield: true);
         var tank = world.TankList.Tanks[0];
-        // Far from any link: the coverage rule has it off its network.
-        tank.Position = world.TankBases.Bases.First(b => b.Color != tank.Color).SpawnPosition;
+        // Far from any link and from the bases: the coverage rule has it off its network.
+        for (int y = -30; y <= 30; y++)
+            for (int x = -60; x <= 60; x++)
+                world.Terrain.SetPixel(new Position(60, 100) + new Offset(x, y), Core.Terrain.TerrainPixel.Blank);
+        tank.Position = new Position(60, 100);
         Step(world, 2);
         Assert.True(tank.IsOffNetwork);
         tank.TakeDamage(200, DamageCause.EnemyFire);
@@ -178,14 +181,12 @@ public class TankShieldTests
     }
 
     [Fact]
-    public void AHitOnTheShield_FlashesNothing_AHullHitDoes()
+    public void AHitOnTheShield_StillFlashesTheTank()
     {
         var (_, tank) = Shielded();
 
         tank.TakeDamage(50, DamageCause.EnemyFire);
-        Assert.Equal(0, tank.HitFlashTicks);
 
-        tank.TakeDamage(Tweaks.TankShield.Capacity, DamageCause.EnemyFire);
         Assert.Equal(Tank.HitFlashDuration, tank.HitFlashTicks);
     }
 
@@ -217,7 +218,7 @@ public class TankShieldTests
 
         tank.TakeDamage(100, DamageCause.EnemyFire);
         TankDamageEvents.Record(log, tank, at, hullEvent: true);
-        Assert.Equal([StepEventKind.TankShieldHit], log.Events.ToArray().Select(e => e.Kind));
+        Assert.Equal([StepEventKind.TankShieldHit, StepEventKind.TankHit], log.Events.ToArray().Select(e => e.Kind));
         Assert.Equal(at, log.Events[0].Position);
         Assert.Equal(100, log.Events[0].Count);
 
@@ -226,5 +227,29 @@ public class TankShieldTests
         TankDamageEvents.Record(log, tank, at, hullEvent: true);
         Assert.Equal([StepEventKind.TankShieldHit, StepEventKind.TankShieldBroken, StepEventKind.TankHit],
             log.Events.ToArray().Select(e => e.Kind));
+    }
+
+    [Fact]
+    public void ADeadTank_GetsAFullShieldBackAtOnce()
+    {
+        var (world, tank) = Shielded();
+        tank.TakeDamage(Tweaks.TankShield.Capacity + tank.Reactor.Health, DamageCause.EnemyFire);
+        Assert.True(tank.IsDead);
+
+        Step(world, 1);
+
+        Assert.Equal(Tweaks.TankShield.Capacity, world.TankShieldOf(tank).Shield);
+    }
+
+    [Fact]
+    public void TheDelay_RunsOffTheNetwork_SoTheRefillStartsWhenItReturns()
+    {
+        var (world, tank) = Shielded();
+        tank.TakeDamage(100, DamageCause.EnemyFire);
+        Step(world, Tweaks.TankShield.RegenDelayTicks);
+
+        // The tank is at its base, on its network: the refill began the tick the delay ended.
+        Assert.Equal(0, world.TankShieldOf(tank).RegenDelayTicks);
+        Assert.True(world.TankShieldOf(tank).Regenerating);
     }
 }

@@ -8,7 +8,8 @@ public static class TankDamageEvents
     /// <summary>
     /// Records the shield's part of <paramref name="tank"/>'s last hit (<see cref="StepEventKind.TankShieldHit"/>, and
     /// <see cref="StepEventKind.TankShieldBroken"/> when it emptied the shield) at <paramref name="at"/>, where the hit
-    /// landed. With <paramref name="hullEvent"/> also <see cref="StepEventKind.TankHit"/> when the hull took some.
+    /// landed. With <paramref name="hullEvent"/> also <see cref="StepEventKind.TankHit"/> (at the tank) for any hit that took
+    /// something: until the shield's own feedback exists, the hit cue, screen effect and flash answer to a hit on the shield too.
     /// </summary>
     public static void Record(StepEventLog? log, Tank tank, Position at, bool hullEvent)
     {
@@ -19,7 +20,7 @@ public static class TankDamageEvents
             log.Record(new StepEvent(StepEventKind.TankShieldHit, at, tank.Color, Count: taken.Shield));
         if (taken.ShieldBroken)
             log.Record(new StepEvent(StepEventKind.TankShieldBroken, at, tank.Color, Count: taken.Shield));
-        if (hullEvent && taken.Hull > 0)
+        if (hullEvent && taken.Any)
             log.Record(new StepEvent(StepEventKind.TankHit, tank.Position, tank.Color));
     }
 }
