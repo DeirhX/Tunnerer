@@ -14,7 +14,8 @@
     <ProjectReference Include="..\Emberward.Protocol\Emberward.Protocol.csproj" />
     <!-- Built first so CompileSdlGpuShaders can run it; nothing from it is referenced or copied. -->
     <ProjectReference Include="..\..\tools\Emberward.ShaderCompiler\Emberward.ShaderCompiler.csproj"
-                      ReferenceOutputAssembly="false" Private="false" />
+                      ReferenceOutputAssembly="false" Private="false"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishSingleFile;IncludeNativeLibrariesForSelfExtract" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,10 +53,13 @@
     <SdlGpuShader Include="Rendering\Shaders\HeatOrbPs.hlsl" Stage="fragment" />
   </ItemGroup>
 
+  <!-- The compiler runs on the machine that builds, so it must not inherit the game's target runtime: publishing win-arm64 on an x64
+       host would otherwise build a compiler that cannot start there. -->
   <Target Name="ResolveShaderCompiler" AfterTargets="ResolveProjectReferences">
     <MSBuild Projects="..\..\tools\Emberward.ShaderCompiler\Emberward.ShaderCompiler.csproj"
              Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration)">
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishSingleFile;IncludeNativeLibrariesForSelfExtract">
       <Output TaskParameter="TargetOutputs" PropertyName="ShaderCompilerPath" />
     </MSBuild>
   </Target>

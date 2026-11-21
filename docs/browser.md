@@ -148,9 +148,14 @@ points at the latest GitHub release in ordinary browser publishes. On Starfish t
 latest release, checks its SHA-256 sums and exposes its three single-file executables under `/downloads/`. Caddy
 serves precompressed gzip copies when the client accepts gzip, and sends the original executable otherwise. The
 files are excluded from the browser's offline cache. Pushing a `v*` tag runs `desktop-release.yml`, which publishes
-three archives and `SHA256SUMS.txt` on GitHub. Run `publish-starfish` after the release to update Starfish's copies.
-The release and browser build must come from the same commit for cross-play. Downloads on macOS and Linux need their
-executable bit set (for example `chmod +x emberward-macos-arm64`); the builds are unsigned.
+three archives and `SHA256SUMS.txt` on GitHub. The workflow adds GitHub provenance attestations for the archives,
+checksum file, and extracted executables served by the browser site. Verify any one of those files with the GitHub CLI,
+for example `gh attestation verify ./emberward-windows-x64.zip -R DeirhX/Emberward` for an archive or
+`gh attestation verify ./emberward-windows-x64.exe -R DeirhX/Emberward` for direct downloads. Run `publish-starfish`
+after the release to update Starfish's copies. The release and browser build must come from the same commit for cross-play.
+Downloads on macOS and Linux need their executable bit set (for example `chmod +x emberward-macos-arm64`). These
+attestations prove build provenance; native Windows and macOS code signatures are still absent, so SmartScreen and
+Gatekeeper may show warnings.
 
 ## Controls and installation
 
