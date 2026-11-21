@@ -156,7 +156,8 @@ public sealed partial class EmberiteSwarm
         emberite.Charge = 0.0;
         int stolen = tank.Hold.Pay(Tweaks.Emberites.BiteStealUnits) ? Tweaks.Emberites.BiteStealUnits : 0;
         emberite.Pyrite += stolen;
-        tank.TakeDamage(Tweaks.Emberites.BiteDamage, DamageCause.Emberite);
+        if (tank.TakeDamage(Tweaks.Emberites.BiteDamage, DamageCause.Emberite))
+            TankDamageEvents.Record(_events, tank, tank.Position, hullEvent: false);
         _events.Record(new StepEvent(StepEventKind.EmberiteBit, tank.Position, tank.Color, Count: stolen));
     }
 }

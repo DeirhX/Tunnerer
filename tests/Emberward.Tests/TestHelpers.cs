@@ -24,6 +24,7 @@ internal static class TestHelpers
         bool machineUpgrades = false,
         bool tankReserve = false,
         bool emberites = false,
+        bool tankShield = false,
         SimulationSettings? simulationSettings = null)
     {
         var mapSize = size ?? DefaultMapSize;
@@ -43,6 +44,7 @@ internal static class TestHelpers
                 MachineUpgrades = machineUpgrades,
                 TankReserve = tankReserve,
                 Emberites = emberites,
+                TankShield = tankShield,
             });
         world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;

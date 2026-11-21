@@ -13,7 +13,7 @@ public sealed record PlayerWarning(WarningKind Kind, string Title, string? Detai
 /// <summary>
 /// Picks the one warning to show, most urgent first: overheating, frostbite, chilled, low shield, running hot, the
 /// respawn shield, and once after the first hit a tip about the thermal view. When each is on is decided by Core
-/// (<see cref="Tank.IsRunningHot"/>, <see cref="Tank.IsShieldLow"/>), which the warning sounds also ask.
+/// (<see cref="Tank.IsRunningHot"/>, <see cref="Tank.IsHullLow"/>), which the warning sounds also ask.
 /// </summary>
 public sealed class PlayerWarnings
 {
@@ -38,7 +38,7 @@ public sealed class PlayerWarnings
         }
 
         _runningHotLatched = player.IsRunningHot(_runningHotLatched);
-        _shieldLowLatched = player.IsShieldLow(_shieldLowLatched);
+        _shieldLowLatched = player.IsHullLow(_shieldLowLatched);
 
         // After the first hit, teach the thermal view once: enemy tunnels glow in it.
         if (!_thermalHintShown && player.HitFlashTicks > 0 && offerThermalView)

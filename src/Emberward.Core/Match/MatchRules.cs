@@ -74,6 +74,13 @@ public sealed record MatchRules
     /// </summary>
     public bool Emberites { get; init; }
 
+    /// <summary>
+    /// The tank's life is a regenerating shield in front of a hull (DESIGN.md §4.7, <see cref="Entities.Tanks.TankShieldSystem"/>):
+    /// damage takes the shield first, the shield refills after a short delay, and the hull is repaired only at the base.
+    /// Off, the tank has the hull alone and every hit takes it.
+    /// </summary>
+    public bool TankShield { get; init; }
+
     /// <summary>A normal match: hot and frost pockets, ore, regrowth, and the energy rules (the energy network with its gate
     /// shields, machine upgrades and the tank's reserve); the core does not end it.
     /// </summary>
@@ -85,6 +92,7 @@ public sealed record MatchRules
         EnergyNetwork = true,
         MachineUpgrades = true,
         TankReserve = true,
+        TankShield = true,
     };
 
     /// <summary>The rules as one number, the same on every machine and run (unlike <see cref="GetHashCode"/>).</summary>
@@ -105,6 +113,8 @@ public sealed record MatchRules
             hash = Fnv1a.Mix(hash, 0x4D55u);
         if (TankReserve)
             hash = Fnv1a.Mix(hash, 0x5253u);
+        if (TankShield)
+            hash = Fnv1a.Mix(hash, 0x5348u);
         // Version of the emberite rules: raised when what creatures do changes (a dying one drops its nest's ore).
         if (Emberites)
             hash = Fnv1a.Mix(hash, 0x4D50u);

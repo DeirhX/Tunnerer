@@ -46,12 +46,12 @@ public class PlayerStatusTests
         var (_, tank) = Create();
 
         SetShield(tank, 0.27f);
-        Assert.False(tank.IsShieldLow(latched: false));
-        Assert.True(tank.IsShieldLow(latched: true));
+        Assert.False(tank.IsHullLow(latched: false));
+        Assert.True(tank.IsHullLow(latched: true));
         SetShield(tank, 0.20f);
-        Assert.True(tank.IsShieldLow(latched: false));
+        Assert.True(tank.IsHullLow(latched: false));
         SetShield(tank, 0.35f);
-        Assert.False(tank.IsShieldLow(latched: true));
+        Assert.False(tank.IsHullLow(latched: true));
     }
 
     [Theory]
@@ -65,8 +65,8 @@ public class PlayerStatusTests
     {
         var (_, tank) = Create();
         SetShield(tank, fraction);
-        Assert.Equal(fraction, tank.ShieldFraction, 3);
-        Assert.Equal(expected, tank.ShieldLevel);
+        Assert.Equal(fraction, tank.HullFraction, 3);
+        Assert.Equal(expected, tank.HullLevel);
     }
 
     [Fact]

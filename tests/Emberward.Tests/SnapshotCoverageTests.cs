@@ -31,6 +31,7 @@ public class SnapshotCoverageTests
         "Entities.Emberites.EmberiteSwarm._queue: scratch: a field build fills the queue before it reads it",
         "Entities.Emberites.EmberiteSwarm._sectors: scratch: rebuilt from the creatures out at the start of each step",
         "Entities.Tanks.TankReserveSystem._near: scratch: filled and read within one question",
+        "Entities.Tanks.Tank._shield: fixed for the match: the world's shield system, handed over at construction; the world saves it once",
         "Match.MatchRules: fixed for the match: the world is built with the same rules",
         "Network.LinkMap._linksByTile: rebuilt on load from the link list (OnSnapshotLoaded); looked up by key only",
         "Regrowth.RegrowthBlockerIndex._lookup: scratch: filled and read within Update",

@@ -4,6 +4,7 @@ using Emberward.Core.Types;
 using Emberward.Core.Terrain;
 using Emberward.Core.Config;
 using Emberward.Core.Entities;
+using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Resources;
 using Emberward.Core.Collision;
 using Emberward.Core.Rendering;
@@ -109,7 +110,7 @@ public class ProjectileList
                 {
                     if (tank.Color == p.OwnerColor) return false;
                     if (tank.TakeDamage(p.Damage, DamageCause.EnemyFire, p.Speed))
-                        self._events?.Record(new StepEvent(StepEventKind.TankHit, tank.Position, tank.Color));
+                        TankDamageEvents.Record(self._events, tank, ipos, hullEvent: true);
                     if (bursts)
                         self.RecordImpact(ipos, p, ImpactTarget.Tank);
                     return true;

@@ -70,6 +70,10 @@ Entities/
   Machines/MachineUpgrades.cs   MachineUpgradePath, refusals, MachineUpgradeLevel / Offer and what each path and level is worth
   Machines/MachineUpgradeSystem.cs   (only when MatchRules.MachineUpgrades is on) Per-machine upgrades bought next to the
                              machine from the base store (DESIGN.md §4.9); World.MachineUpgradeOfferFor / MachineUpgradeOf answer
+  Tanks/TankShieldSystem.cs   (only when MatchRules.TankShield is on) The tank's shield in front of its hull (DESIGN.md
+                             §4.7): damage takes it first (Absorb), it refills after a delay (Advance); the state is kept
+                             per tank colour here, not on Tank. World.TankShieldOf answers. TankDamageEvents records a hit as
+                             TankShieldHit / TankShieldBroken / TankHit step events.
   Tanks/TankReserveSystem.cs, TankReserve.cs   (only when MatchRules.TankReserve is on) The tank's reserve (DESIGN.md
                              §4.9): the recall key burns carried pyrite to lower the off-network floor, the stages of
                              running out and their effects, a generator holding the clock; World.ReserveOf answers

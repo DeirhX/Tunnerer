@@ -372,13 +372,13 @@ public static partial class Tweaks
         public const float OffNetworkHeatPerSecond = 1.0f;
         public const float NetworkCoolingPerSecond = 6.0f;
 
-        // Player status (Tank.IsRunningHot, IsShieldLow, ShieldLevel, ...). Warnings latch: on past the first
+        // Player status (Tank.IsRunningHot, IsHullLow, HullLevel, ...). Warnings latch: on past the first
         // threshold, off again only past the gentler second one, so they do not flicker around it.
         public const float RunningHotOnFraction = 0.80f;    // of HeatSafeMax
         public const float RunningHotOffFraction = 0.70f;
-        public const float ShieldLowOnFraction = 0.25f;     // of the shield's capacity
-        public const float ShieldLowOffFraction = 0.30f;
-        public const float ShieldWarnFraction = 0.5f;       // ShieldLevel: Ok above this, Bad at or below ShieldLowOnFraction
+        public const float HullLowOnFraction = 0.25f;     // of the shield's capacity
+        public const float HullLowOffFraction = 0.30f;
+        public const float HullWarnFraction = 0.5f;       // HullLevel: Ok above this, Bad at or below HullLowOnFraction
         public const float OffNetworkUrgentSeconds = 20f;   // off network, this close to overheating is urgent
         // Heat above 0 a docked tank must still shed before it counts as cooled down (Tank.IsCoolingDown).
         public const float FullyCooledMargin = 1f;

@@ -25,6 +25,7 @@ public class SimulationFingerprintTests
     private const ulong ExpectedRelayHarvesterNetwork = 0x7490621AAE202E62UL;
     private const ulong ExpectedEnemyMachinesShotToPieces = 0x496D990B0BEE9465UL;
     private const ulong ExpectedBotVsBot = 0xC55F71089B2C5365UL;
+    private const ulong ExpectedShieldedBotVsBot = 0x7444175AF46D1AA7UL;
 
     /// <summary>
     /// A recorded run: the world as set up, the bots in it (null for a slot the script drives), how many frames it
@@ -84,6 +85,11 @@ public class SimulationFingerprintTests
         TestHelpers.CreateSeededWorld(), [new BotTankAI(seed: 11), new BotTankAI(seed: 22)], 1200,
         (_, _) => TestSimulation.Idle, () => TestHelpers.CreateSeededWorld());
 
+    /// <summary>Two bots under the tank shield rule: shields absorb and refill, so the hits and the hulls differ from <see cref="BotVsBot"/>.</summary>
+    internal static Scenario ShieldedBotVsBot() => new(
+        TestHelpers.CreateSeededWorld(tankShield: true), [new BotTankAI(seed: 11), new BotTankAI(seed: 22)], 1200,
+        (_, _) => TestSimulation.Idle, () => TestHelpers.CreateSeededWorld(tankShield: true));
+
     /// <summary>
     /// The player shoots down the tunnel into an enemy relay and harvester: hits, wrecks, scorch, wreck shrapnel and
     /// the network rebuilding all feed the hash.
@@ -137,6 +143,15 @@ public class SimulationFingerprintTests
         run.Play(0, run.Frames);
 
         AssertFingerprint(ExpectedBotVsBot, run.World);
+    }
+
+    [Fact]
+    public void ShieldedBotVsBot_MatchesRecordedFingerprint()
+    {
+        var run = ShieldedBotVsBot();
+        run.Play(0, run.Frames);
+
+        AssertFingerprint(ExpectedShieldedBotVsBot, run.World);
     }
 
     [Fact]

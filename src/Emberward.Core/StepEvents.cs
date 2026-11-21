@@ -23,7 +23,7 @@ public enum StepEventKind
     /// <summary>A shrapnel fragment struck something hard or burnt out inside the map.</summary>
     ShrapnelSpent,
 
-    /// <summary>Enemy fire took armor off a tank (not blocked by its respawn shield). <see cref="StepEvent.Color"/> is the tank.</summary>
+    /// <summary>Enemy fire took armor off a tank's hull (not blocked by its respawn shield, nor, with the tank shield rule, by its shield). <see cref="StepEvent.Color"/> is the tank.</summary>
     TankHit,
 
     /// <summary>A tank was destroyed. <see cref="StepEvent.Position"/> is where it died.</summary>
@@ -168,6 +168,15 @@ public enum StepEventKind
     /// <see cref="StepEvent.Count"/> the creatures it has left (0: the nest is cleared).
     /// </summary>
     EmberiteStarved,
+
+    /// <summary>
+    /// A tank's shield took a hit (<see cref="Config.Tweaks.TankShield"/>). <see cref="StepEvent.Position"/> is where it
+    /// landed, <see cref="StepEvent.Color"/> the tank, <see cref="StepEvent.Count"/> the damage the shield took.
+    /// </summary>
+    TankShieldHit,
+
+    /// <summary>A hit emptied a tank's shield. Same fields as <see cref="TankShieldHit"/>.</summary>
+    TankShieldBroken,
 }
 
 /// <summary>What a <see cref="StepEventKind.BulletImpact"/> struck.</summary>

@@ -112,6 +112,8 @@ public static class WorldStateHash
         hash = world.UpgradeSystem?.MixState(hash) ?? hash;
         // The tanks' reserves; a world without them hashes as it always did.
         hash = world.ReserveSystem?.MixState(hash) ?? hash;
+        // The tanks' shields; a world without them hashes as it always did.
+        hash = world.TankShieldSystem?.MixState(hash) ?? hash;
         // The emberites; a world without them hashes as it always did.
         hash = world.Emberites?.MixState(hash) ?? hash;
         // The energy network's islands and capacitors; a world without one hashes as it always did.

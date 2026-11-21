@@ -13,9 +13,10 @@ public class TankList
     public IReadOnlyList<Tank> Tanks => _tanks;
     public int Count => _tanks.Count;
 
-    public Tank AddTank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null)
+    public Tank AddTank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null,
+        TankShieldSystem? shield = null)
     {
-        var tank = new Tank(color, tankBase, rngSeed, settings);
+        var tank = new Tank(color, tankBase, rngSeed, settings, shield);
         _tanks.Add(tank);
         return tank;
     }
