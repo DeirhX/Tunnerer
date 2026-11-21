@@ -2,6 +2,7 @@ namespace Emberward.Core.Entities.Emberites;
 
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Resources;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 
@@ -69,14 +70,28 @@ public sealed partial class EmberiteSwarm
         var cell = (Position)emberite.Position;
         if (emberite.Charge > 0.0 && _terrain.IsInside(cell))
             _terrain.AddEnergyInRadiusArea(cell, Tweaks.Emberites.SpillRadius, emberite.Charge, TerrainGrid.ThermalField.Terrain);
+        if (emberite.Pyrite > 0)
+        {
+            // What finds no room goes back to its nest's store, so that no unit is lost.
+            _nests[emberite.Nest].Pyrite += emberite.Pyrite - OreDrop.Scatter(_terrain, cell, emberite.Pyrite, _isOccupied);
+            emberite.Pyrite = 0;
+            _emberites[index] = emberite;
+        }
         _events.Record(new StepEvent(StepEventKind.EmberiteKilled, cell));
     }
 
-    /// <summary>A bite: the creature's whole charge goes into the tank, whose overheat rule does the damage.</summary>
+    /// <summary>
+    /// A bite: the creature's whole charge goes into the tank (its overheat rule may do more damage), the bite itself
+    /// does <see cref="Tweaks.Emberites.BiteDamage"/>, and up to <see cref="Tweaks.Emberites.BiteStealUnits"/> of pyrite
+    /// leaves the tank's hold for the creature to carry home. The event's count is the pyrite taken.
+    /// </summary>
     private void Bite(ref Emberite emberite, Tank tank)
     {
         tank.Heat += (float)(emberite.Charge / tank.ThermalCapacity);
         emberite.Charge = 0.0;
-        _events.Record(new StepEvent(StepEventKind.EmberiteBit, tank.Position, tank.Color));
+        int stolen = tank.Hold.Pay(Tweaks.Emberites.BiteStealUnits) ? Tweaks.Emberites.BiteStealUnits : 0;
+        emberite.Pyrite += stolen;
+        tank.TakeDamage(Tweaks.Emberites.BiteDamage, DamageCause.Emberite);
+        _events.Record(new StepEvent(StepEventKind.EmberiteBit, tank.Position, tank.Color, Count: stolen));
     }
 }

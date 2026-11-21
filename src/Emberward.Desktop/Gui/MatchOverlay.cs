@@ -69,6 +69,7 @@ public static class MatchOverlay
             DamageCause.EnemyFire => "Destroyed by enemy fire",
             DamageCause.Overheat => "Destroyed by overheating",
             DamageCause.Frostbite => "Destroyed by frostbite",
+            DamageCause.Emberite => "Destroyed by emberites",
             _ => "Destroyed",
         };
 

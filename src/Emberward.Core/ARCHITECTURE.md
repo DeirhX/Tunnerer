@@ -567,7 +567,10 @@ Creatures move by the velocity they committed, then choose the next from an `Emb
 blocks, rebuilt every 8 ticks while read, saved in the snapshot because it is built from past terrain). Heat is
 conserved: a first release books the charge as injected, a bite moves it into `Tank.Heat`, a kill spills it with
 `AddEnergyInRadiusArea`, recharging takes it with `ExtractEnergyInRadiusArea`, and `World.SumSystemThermalEnergy`
-adds `EmberiteSwarm.TotalCharge`. Shots find creatures through a per-step sector index (`IndexCreatures`, called by
+adds `EmberiteSwarm.TotalCharge`. A bite also does `Tweaks.Emberites.BiteDamage` (`DamageCause.Emberite`) and moves a unit of
+pyrite from the tank's hold to the creature (`Emberite.Pyrite`); it reaches `Nest.Pyrite` when the creature gets home, is
+dropped with `OreDrop.Scatter` when it is killed, and a cleared nest frees its stored pyrite the same way, so the total of
+holds, stores, ground, nests and carriers never changes (`EmberiteBiteTests`). Shots find creatures through a per-step sector index (`IndexCreatures`, called by
 `CollisionSolver.Update`) and `CollisionSolver.TestPoint(onEmberite:)`. `World.IsOreGuarded` makes harvesters pass over the ore
 of a nest that has creatures left (`MachineContext.IsOreGuarded`, `HarvesterState.Guarded`). The bot ignores creatures.
 

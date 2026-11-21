@@ -192,7 +192,7 @@ public partial class World
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         if (Rules.Emberites)
-            _emberites = new EmberiteSwarm(_terrain, _tankList, _tankBases, _stepEvents, _simulationSettings, _simulationSeed ^ 0x4D0B5);
+            _emberites = new EmberiteSwarm(_terrain, _tankList, _tankBases, _stepEvents, _simulationSettings, _simulationSeed ^ 0x4D0B5, IsCellOccupied);
         _collisionSolver = new CollisionSolver(_terrain, _tankBases, _basePower, _emberites);
         if (Rules.TerrainRegrowth)
             _terrainRegrowth = new TerrainRegrowth(_simulationSeed);

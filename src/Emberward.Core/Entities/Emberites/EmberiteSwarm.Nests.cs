@@ -3,6 +3,7 @@ namespace Emberward.Core.Entities.Emberites;
 using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Resources;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 
@@ -58,6 +59,8 @@ public sealed partial class EmberiteSwarm
         if (nest.Alive == 0)
         {
             nest.Awake = false;
+            if (nest.Pyrite > 0)
+                nest.Pyrite -= OreDrop.Scatter(_terrain, nest.Centre, nest.Pyrite, _isOccupied);
             return;
         }
 

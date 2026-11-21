@@ -150,6 +150,8 @@ public sealed partial class EmberiteSwarm
         {
             nest.Resting++;
             nest.Stored += emberite.Charge;
+            nest.Pyrite += emberite.Pyrite;
+            emberite.Pyrite = 0;
             nest.Out--;
             emberite.Gone = true;
             emberite.Velocity = default;

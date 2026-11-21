@@ -33,6 +33,9 @@ public struct Emberite
     /// <summary>The heat it carries, in energy (what a tank's heat times its heat capacity is).</summary>
     public double Charge { get; set; }
 
+    /// <summary>The pyrite it has taken from a tank's hold and carries home (units); spilled where it dies.</summary>
+    public int Pyrite { get; set; }
+
     /// <summary>The trail block (<see cref="EmberiteTrails.BlockOf"/> plus one) it last wore, so that it wears each block once per entry; 0 when none.</summary>
     public int WornBlock { get; set; }
 
@@ -65,6 +68,9 @@ public sealed class Nest
 
     /// <summary>The charge the resting creatures hold between them.</summary>
     public double Stored { get; set; }
+
+    /// <summary>The pyrite its creatures have brought home (units); freed into the ground when the nest is cleared.</summary>
+    public int Pyrite { get; set; }
 
     /// <summary>Creatures of this nest that are out.</summary>
     public int Out { get; set; }

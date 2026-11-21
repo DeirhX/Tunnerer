@@ -570,7 +570,9 @@ Pyrite pockets and lumps at least 60 cells from every base hold a nest (a pocket
   degrees loses the scent and the creatures go home.
 - *Greed dial.* Carried pyrite already warms the tank, so each unit taken brings it closer to the hunt threshold.
 - *Waves.* A woken nest releases a creature every 4 ticks (6 a second), each carrying one bite of heat: a bite adds 2
-  degrees to the tank and the overheat rule does the damage. A spent creature goes home to drink heat out of the deposit.
+  degrees to the tank, the overheat rule does its damage, and the bite itself takes 40 of the tank's 1000 health. A bite
+  also takes one unit of pyrite from the tank's hold, if it has any; the creature carries it home to its nest's store,
+  or drops it where it is killed (a cleared nest frees what it stored). A spent creature goes home to drink heat out of the deposit.
   A tank in its base, or just respawned, is not bitten.
 - *Kills heat the ground.* A killed creature spills the charge it carries where it dies, so holding one choke point
   cooks it. One bullet or fragment kills. Creatures do not block tanks.

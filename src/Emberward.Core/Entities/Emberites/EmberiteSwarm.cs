@@ -30,6 +30,8 @@ public sealed partial class EmberiteSwarm
     private readonly TankList _tanks;
     private readonly TankBases _bases;
     private readonly StepEventLog _events;
+    [NotSaved("fixed: a hook onto the world, which knows what stands where")]
+    private readonly Func<Position, bool> _isOccupied;
     private readonly double _fullCharge;
     private readonly List<Nest> _nests = new();
     private readonly List<Emberite> _emberites = new();
@@ -47,12 +49,15 @@ public sealed partial class EmberiteSwarm
     private bool _indexed;
 
     /// <param name="seed">The simulation seed mixed with this system's constant by <see cref="World"/>.</param>
-    public EmberiteSwarm(TerrainGrid terrain, TankList tanks, TankBases bases, StepEventLog events, SimulationSettings settings, int seed)
+    /// <param name="isOccupied">Whether a live tank or a planted machine covers a cell; pyrite a killed creature drops keeps clear of them.</param>
+    public EmberiteSwarm(TerrainGrid terrain, TankList tanks, TankBases bases, StepEventLog events, SimulationSettings settings, int seed,
+        Func<Position, bool> isOccupied)
     {
         _terrain = terrain;
         _tanks = tanks;
         _bases = bases;
         _events = events;
+        _isOccupied = isOccupied;
         _fullCharge = Tweaks.Emberites.BiteDegrees * (double)settings.TankHeatCapacity;
         _rng = new FastRandom(seed);
         _sectors = new WorldSectors(terrain.Size);
@@ -123,6 +128,15 @@ public sealed partial class EmberiteSwarm
             total += nest.Stored;
         foreach (Emberite emberite in _emberites)
             total += emberite.Charge;
+        return total;
+    }
+
+    /// <summary>The pyrite the creatures out are carrying (units): stolen from a hold, not yet home.</summary>
+    public int PyriteCarried()
+    {
+        int total = 0;
+        foreach (Emberite emberite in _emberites)
+            total += emberite.Pyrite;
         return total;
     }
 
@@ -205,6 +219,8 @@ public sealed partial class EmberiteSwarm
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.NeverReleased), nest.Resting);
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.Out), nest.Awake);
             hash = Fnv1a.Mix(hash, nest.Stored);
+            if (nest.Pyrite != 0)
+                hash = Fnv1a.Mix(hash, nest.Pyrite);
         }
         hash = Fnv1a.Mix(hash, _emberites.Count);
         foreach (Emberite emberite in _emberites)
@@ -213,6 +229,8 @@ public sealed partial class EmberiteSwarm
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, emberite.Velocity.X), emberite.Velocity.Y);
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, emberite.Charge), (int)emberite.State);
             hash = Fnv1a.Mix(hash, emberite.WornBlock);
+            if (emberite.Pyrite != 0)
+                hash = Fnv1a.Mix(hash, emberite.Pyrite);
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, emberite.SightTick), emberite.Sees);
         }
         return _trails.Mix(hash);

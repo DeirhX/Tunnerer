@@ -46,6 +46,10 @@ public static partial class Tweaks
         // the whole nest, once in RechargeIntervalTicks; a killed creature spills what it carries SpillRadius around it.
         public const int ReleaseIntervalTicks = 4;
         public const float BiteDegrees = 2f;
+        // A bite also hurts directly, whatever the tank's heat: BiteDamage health (of the tank's 1000), and takes up to
+        // BiteStealUnits of pyrite from its hold, which the creature carries home to its nest's store.
+        public const int BiteDamage = 40;
+        public const int BiteStealUnits = 1;
         public const float BiteRange = 5f;
         public const int RechargeIntervalTicks = 4;
         public const double RechargeCharges = 2.0;

@@ -26,6 +26,7 @@ public class SnapshotCoverageTests
         "Config.SimulationSettings: fixed for the match: built from the match settings",
         "Entities.Machines.MachineList._buckets: rebuilt on load from the machine list (OnSnapshotLoaded); looked up by key only",
         "Entities.Machines.MachineUpgradeSystem._near: scratch: filled and read within one question",
+        "Entities.Emberites.EmberiteSwarm._isOccupied: fixed: a hook onto the world, which knows what stands where",
         "Entities.Emberites.EmberiteSwarm._indexed: scratch: whether the sector index holds anything to clear",
         "Entities.Emberites.EmberiteSwarm._queue: scratch: a field build fills the queue before it reads it",
         "Entities.Emberites.EmberiteSwarm._sectors: scratch: rebuilt from the creatures out at the start of each step",

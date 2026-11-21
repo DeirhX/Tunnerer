@@ -147,7 +147,10 @@ public enum StepEventKind
     /// <summary>A nest of emberites woke; <see cref="StepEvent.Position"/> is the nest, <see cref="StepEvent.Count"/> the creatures in it.</summary>
     NestWoke,
 
-    /// <summary>An emberite bit a tank, dumping its heat into it. <see cref="StepEvent.Color"/> is the tank.</summary>
+    /// <summary>
+    /// An emberite bit a tank, dumping its heat into it and hurting it. <see cref="StepEvent.Color"/> is the tank;
+    /// <see cref="StepEvent.Count"/> is the pyrite the bite took from its hold.
+    /// </summary>
     EmberiteBit,
 
     /// <summary>An emberite was killed at <see cref="StepEvent.Position"/>; what it carried spilled into the ground there.</summary>
