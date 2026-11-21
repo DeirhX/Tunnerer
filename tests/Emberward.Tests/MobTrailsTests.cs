@@ -100,6 +100,8 @@ public class MobTrailsTests
         for (int i = 0; i < (int)MathF.Ceiling(Tweaks.Mobs.TrailLaneThreshold / Tweaks.Mobs.TrailWearPerCrossing); i++)
             trails.Wear(block, now);
         Assert.True(trails.IsLane(block, now));
+        // Wear fades from the tick it is stored, so the lane must hold on the next tick too, not vanish at once.
+        Assert.True(trails.IsLane(block, now + 1), "a lane formed by the crossings must survive the next tick");
 
         // Wear every block along the row the creature will take, then watch it run in dirt.
         for (int x = 10; x <= 50; x++)
