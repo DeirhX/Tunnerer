@@ -25,6 +25,13 @@ public partial class GameHud
     /// <summary>Call after each simulation step, while <see cref="World.StepEvents"/> still holds that step's events.</summary>
     public void AfterStep(World world, Tank player) => _guidance.AfterStep(world, player);
 
+    /// <summary>While enemy fire lands on the player's base, a red arrow at the edge of the view points to it if it is off screen.</summary>
+    private void DrawBaseAttackPointer(Tank player)
+    {
+        if (player.Base is { } home && _guidance.IsBaseUnderAttack(_time))
+            DrawPointer(home.Position, ViewportRect, tint: HudTheme.Danger, edgeOnly: true);
+    }
+
     private void DrawGuidance()
     {
         if (ImGui.IsKeyPressed(ImGuiKey.F2, false))
@@ -115,8 +122,9 @@ public partial class GameHud
     /// Points at a world cell: a pulsing ring with a bouncing arrow when it is on screen, otherwise an arrow at the edge
     /// of the view showing which way to go and how far.
     /// </summary>
-    private void DrawPointer(Position target, (float x, float y, float w, float h) vp)
+    private void DrawPointer(Position target, (float x, float y, float w, float h) vp, uint? tint = null, bool edgeOnly = false)
     {
+        uint color = tint ?? HudTheme.Amber;
         var dl = ImGui.GetForegroundDrawList();
         var cam = Camera;
         // The camera is in device pixels; the view rectangle is in UI units.
@@ -125,14 +133,15 @@ public partial class GameHud
         float viewBottom = ViewBottom(vp);
         const float margin = 40f;
         float pulse = 0.5f + 0.5f * MathF.Sin(_time * 5f);
-        uint color = HudTheme.Amber;
 
         bool onScreen = sx >= vp.x + margin && sx <= vp.x + vp.w - margin && sy >= vp.y + margin && sy <= viewBottom - margin;
+        if (onScreen && edgeOnly)
+            return;
         if (onScreen)
         {
             float r = 26f + 6f * pulse;
-            dl.AddCircle(new Vector2(sx, sy), r, HudTheme.WithAlphaByte(HudTheme.Amber, (uint)(0x80 + 0x7F * pulse)), 48, 3f);
-            dl.AddCircle(new Vector2(sx, sy), r + 5f, HudTheme.WithAlphaByte(HudTheme.Amber, (uint)(0x30 + 0x30 * pulse)), 48, 1.5f);
+            dl.AddCircle(new Vector2(sx, sy), r, HudTheme.WithAlphaByte(color, (uint)(0x80 + 0x7F * pulse)), 48, 3f);
+            dl.AddCircle(new Vector2(sx, sy), r + 5f, HudTheme.WithAlphaByte(color, (uint)(0x30 + 0x30 * pulse)), 48, 1.5f);
             float bob = 8f * MathF.Sin(_time * 4f);
             var tip = new Vector2(sx, sy - r - 6f + bob);
             dl.AddTriangleFilled(tip, tip + new Vector2(-12f, -20f), tip + new Vector2(12f, -20f), color);
@@ -151,9 +160,9 @@ public partial class GameHud
         var at = center + dir * t;
         var side = new Vector2(-dir.Y, dir.X);
         var head = at + dir * 18f;
-        dl.AddTriangleFilled(head, at - dir * 6f + side * 14f, at - dir * 6f - side * 14f, HudTheme.WithAlphaByte(HudTheme.Amber, (uint)(0xB0 + 0x4F * pulse)));
+        dl.AddTriangleFilled(head, at - dir * 6f + side * 14f, at - dir * 6f - side * 14f, HudTheme.WithAlphaByte(color, (uint)(0xB0 + 0x4F * pulse)));
         dl.AddTriangle(head, at - dir * 6f + side * 14f, at - dir * 6f - side * 14f, HudTheme.BronzeDark, 1.5f);
         int cells = (int)MathF.Round(len * ImGuiPlatform.DeviceScale / MathF.Max(1, cam.Scale));
-        HudTheme.DrawTag(dl, at - dir * 40f, $"{cells} m", HudTheme.Amber);
+        HudTheme.DrawTag(dl, at - dir * 40f, $"{cells} m", color);
     }
 }

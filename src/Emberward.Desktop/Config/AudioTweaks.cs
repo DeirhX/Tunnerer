@@ -37,6 +37,9 @@ public static class AudioTweaks
     public const float ImpactGain = 0.60f;
     public const float DebrisGain = 0.30f;
     public const float TankHitGain = 0.70f;
+
+    /// <summary>Enemy fire on the player's own base: quieter than a hit on the tank, since it comes seven times a second.</summary>
+    public const float BaseHitGain = 0.45f;
     public const float TankDeathGain = 1.00f;
     public const float RespawnGain = 0.55f;
     public const float DockGain = 0.45f;

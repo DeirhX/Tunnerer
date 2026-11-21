@@ -2,6 +2,7 @@ namespace Emberward.Desktop.Gui.Guidance;
 
 using Emberward.Core;
 using Emberward.Core.Config;
+using Emberward.Core.Types;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Match;
 using Emberward.Core.Entities.Tanks;
@@ -36,6 +37,20 @@ public sealed class GameEventWatcher
     private bool _tappedCore;
     private int _harvestedSinceReport;
     private float _lastHarvestReport;
+    private int _baseHits;
+    private int _baseShieldPermille;
+    private bool _baseDestroyed;
+
+    /// <summary>When the player's base last took enemy fire, in HUD seconds; negative before the first hit.</summary>
+    public float LastBaseHitTime { get; private set; } = -1e9f;
+
+    /// <summary>Where the last enemy bullet struck the player's base.</summary>
+    public Position LastBaseHitAt { get; private set; }
+
+    /// <summary>How long after a hit the base counts as under attack.</summary>
+    public const float UnderAttackSeconds = 3f;
+
+    public bool IsBaseUnderAttack(float now) => now - LastBaseHitTime < UnderAttackSeconds;
 
     /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
     public const float RadarScatteredShare = 0.08f;
@@ -44,6 +59,9 @@ public sealed class GameEventWatcher
     {
         _primed = false;
         _harvestedSinceReport = 0;
+        _baseHits = 0;
+        _baseDestroyed = false;
+        LastBaseHitTime = -1e9f;
     }
 
     /// <summary>
@@ -53,8 +71,17 @@ public sealed class GameEventWatcher
     public void AfterStep(World world, Tank player)
     {
         foreach (ref readonly StepEvent e in world.StepEvents)
+        {
             if (e.Kind == StepEventKind.OreHarvested && e.Color == player.Color)
                 _harvestedSinceReport += e.Count;
+            else if (e.Kind is StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed && e.Color == player.Color)
+            {
+                _baseHits++;
+                _baseShieldPermille = e.Count;
+                LastBaseHitAt = e.Position;
+                _baseDestroyed |= e.Kind == StepEventKind.BaseDestroyed;
+            }
+        }
     }
 
     public void Update(World world, Tank player, NotificationFeed feed, float now)
@@ -80,6 +107,21 @@ public sealed class GameEventWatcher
         CoreTap? core = world.CoreTapOf(home);
         bool tappingCore = core?.TapPerSecond > 1.0;
         bool meetingGoal = core?.IsMeetingGoal == true;
+
+        if (_baseHits > 0)
+        {
+            LastBaseHitTime = now;
+            if (_baseDestroyed)
+                feed.Post(now, "base-destroyed", "Your base was destroyed",
+                    "Without a base your tank cannot respawn.", NotificationKind.Danger, cooldown: 1e9f);
+            else
+                feed.Post(now, "base-attacked", "Your base is under attack",
+                    _baseShieldPermille > 0
+                        ? $"Its shield blocks {_baseShieldPermille / 10}% of each hit and weakens as the base charge falls. Defend it, and keep it charged."
+                        : "Nothing shields it: every hit takes full armor, and it mends at a steady rate. Drive off the attacker.",
+                    NotificationKind.Danger, cooldown: 12f);
+            _baseHits = 0;
+        }
 
         if (!_primed)
         {

@@ -92,6 +92,34 @@ public class BasePowerTests
         Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BulletImpact && e.Target == ImpactTarget.Base);
     }
 
+    [Theory]
+    [InlineData(true, 0.0)]
+    [InlineData(true, 1.0)]
+    [InlineData(false, 0.0)]
+    public void BaseHitEvent_CarriesTheImpactCellAndTheShieldItMet(bool energyNetwork, double fill)
+    {
+        var world = CreateWorld(energyNetwork);
+        var target = world.TankBases.Bases[1];
+        if (energyNetwork)
+        {
+            target.DrawCharge(target.Charge);
+            target.StoreCharge(target.ChargeCapacity * fill);
+        }
+
+        FireAtWall(world, target, owner: 0);
+
+        var hit = Assert.Single(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.BaseDamaged);
+        Assert.NotEqual(target.Position, hit.Position);
+        Assert.True(target.OccupiesCell(hit.Position));
+        Assert.Equal(target.Position.Y, hit.Position.Y);
+        Assert.Equal(target.Color, hit.Color);
+        // A full store: the warm-up has run its course in the test base, so the shield is at its maximum.
+        if (!energyNetwork || fill == 0.0)
+            Assert.Equal(0, hit.Count);
+        else
+            Assert.InRange(hit.Count, 1, (int)(1000 * Tweaks.Base.MaxShieldFraction));
+    }
+
     [Fact]
     public void EnemyWallImpact_DestroysTheBaseAndEndsTheSide()
     {

@@ -1,4 +1,4 @@
-// The desktop's bottom HUD (HudStrip.cs and the gauges it draws): the TEMP, SHIELD and MATERIALS art in the
+// The desktop's bottom HUD (HudStrip.cs and the gauges it draws): the TEMP, HULL and MATERIALS art in the
 // bottom-left corner, BUILD STRUCTURES and COMMAND in the bottom-right, the middle of the view left clear. It draws
 // the desktop's own art (copied in by tools/browser/publish.py) on two canvases, at the desktop's art coordinates,
 // so every number below is the desktop's. Shown on wide screens with a mouse; phones keep the plates (hud.js).

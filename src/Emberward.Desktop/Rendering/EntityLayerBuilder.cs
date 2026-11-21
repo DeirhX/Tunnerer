@@ -34,6 +34,7 @@ public sealed class EntityLayerBuilder
     private readonly EntityInterpolator _interpolator = new();
     private readonly EntityQuads _quads = new();
     private readonly CoverageQuads _coverage = new();
+    private readonly BaseShieldQuads _baseShields = new();
     private readonly LinkQuads _links = new();
     private readonly BeamFader _beams = new();
     private readonly PreviewQuads _preview = new();
@@ -61,6 +62,7 @@ public sealed class EntityLayerBuilder
         _preview.Capture(world, localSlot);
         _coverage.Capture(world, localSlot);
         _links.Capture(world);
+        _baseShields.CaptureStep(world);
         _projectiles.Capture(world);
         _powerLabels.CaptureStep(world, localSlot);
     }
@@ -103,6 +105,7 @@ public sealed class EntityLayerBuilder
         MachineQuads.Emit(_quads, _interpolator, turnSeconds, snapHeadings, vision);
         TankQuads.Emit(_quads, _interpolator, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn, vision);
         _projectiles.Emit(_quads, vision);
+        _baseShields.Emit(_quads, vision);
         _powerLabels.Emit(_quads, vision, powerLabelCellSize);
     }
 }

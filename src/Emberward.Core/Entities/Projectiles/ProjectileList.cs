@@ -111,9 +111,11 @@ public class ProjectileList
                     if (Pixel.IsAnyBaseCell(pix) && solver.EnemyBaseAt(ipos, p.OwnerColor) is { } target)
                     {
                         int raw = p.Damage;
+                        // Read the shield before the hit: a hit that empties the store should still show the strength it met.
+                        int shieldPermille = (int)Math.Round(1000.0 * (self._basePower?.ShieldFraction(target) ?? 0.0));
                         target.TakeDamage(self._basePower?.Damage(target, raw) ?? raw);
                         self._events?.Record(new StepEvent(target.IsDestroyed ? StepEventKind.BaseDestroyed : StepEventKind.BaseDamaged,
-                            target.Position, target.Color));
+                            ipos, target.Color, Count: shieldPermille));
                         self.RecordImpact(ipos, p, ImpactTarget.Base);
                     }
                     else
