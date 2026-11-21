@@ -46,6 +46,8 @@ public sealed class SoundBank
             SoundEffect.BuildGenerator => Build(ref noise, 0.50f, 140f, 360f, 22f, 1200f),
             SoundEffect.BuildTurret => Build(ref noise, 0.42f, 210f, 540f, 34f, 1600f),
             SoundEffect.TurretFire => TurretFire(ref noise),
+            SoundEffect.BuildGatling => Build(ref noise, 0.40f, 250f, 620f, 40f, 1900f),
+            SoundEffect.GatlingFire => GatlingFire(ref noise),
             SoundEffect.Plant => Plant(ref noise),
             SoundEffect.PlantRefused => PlantRefused(),
             SoundEffect.Pickup => Pickup(),
@@ -79,6 +81,22 @@ public sealed class SoundBank
             phase += Tau * (90f + 160f * Decay(t, 0.03f)) / Rate;
             samples[i] = hiss * Decay(t, 0.05f) * 4f + report * Decay(t, 0.09f) * 3f
                 + MathF.Sin(phase) * Decay(t, 0.06f) * 0.7f;
+        }
+        return samples;
+    }
+
+    /// <summary>A gatling's round: a short dry snap, made to be heard many times a second.</summary>
+    private static float[] GatlingFire(ref Noise noise)
+    {
+        var samples = Buffer(0.07f);
+        var snap = new LowPass();
+        float phase = 0f;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)Rate;
+            float hiss = snap.Process(noise.Next(), 2400f + 6000f * Decay(t, 0.008f));
+            phase += Tau * (260f + 240f * Decay(t, 0.012f)) / Rate;
+            samples[i] = hiss * Decay(t, 0.016f) * 3.0f + MathF.Sin(phase) * Decay(t, 0.02f) * 0.45f;
         }
         return samples;
     }

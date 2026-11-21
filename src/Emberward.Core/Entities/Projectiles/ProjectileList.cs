@@ -41,6 +41,7 @@ public class ProjectileList
         var behaviors = new ProjectileBehavior[max + 1];
         behaviors[(int)ProjectileType.Bullet] = new(AdvanceBullet, Tweaks.Colors.FireHot);
         behaviors[(int)ProjectileType.Shrapnel] = new(AdvanceShrapnel, Tweaks.Colors.FireHot);
+        behaviors[(int)ProjectileType.Round] = new(AdvanceRound, Tweaks.Gatling.Color);
         return behaviors;
     }
 
@@ -73,11 +74,31 @@ public class ProjectileList
             _projectiles.RemoveAll(p => !p.IsAlive);
     }
 
-    private static void AdvanceBullet(Projectile p, CollisionSolver solver, ProjectileList self)
+    private static void AdvanceBullet(Projectile p, CollisionSolver solver, ProjectileList self) =>
+        AdvanceShot(p, solver, self, bursts: true);
+
+    /// <summary>
+    /// A gatling's round: a bullet that is spent after <see cref="Projectile.Life"/> ticks, passes through a few cells
+    /// of soil (<see cref="Projectile.Pierce"/>) and stops on what it hits without bursting, so it throws no shrapnel,
+    /// digs nothing and heats nothing (its heat was paid where it was fired).
+    /// </summary>
+    private static void AdvanceRound(Projectile p, CollisionSolver solver, ProjectileList self)
+    {
+        if (p.Life-- <= 0)
+        {
+            p.IsAlive = false;
+            return;
+        }
+        AdvanceShot(p, solver, self, bursts: false);
+    }
+
+    /// <summary>One tick of a bullet or a round. A shot that <paramref name="bursts"/> records its impact and explodes on it.</summary>
+    private static void AdvanceShot(Projectile p, CollisionSolver solver, ProjectileList self, bool bursts)
     {
         var terrain = solver.Terrain;
         int steps = Math.Max(1, (int)MathF.Ceiling(p.Speed.Length));
         var stepDir = p.Speed * (1f / steps);
+        var pierced = new Position(int.MinValue, int.MinValue);
 
         for (int s = 0; s < steps; s++)
         {
@@ -90,7 +111,8 @@ public class ProjectileList
                     if (tank.Color == p.OwnerColor) return false;
                     if (tank.TakeDamage(p.Damage, DamageCause.EnemyFire, p.Speed))
                         self._events?.Record(new StepEvent(StepEventKind.TankHit, tank.Position, tank.Color));
-                    self.RecordImpact(ipos, p, ImpactTarget.Tank);
+                    if (bursts)
+                        self.RecordImpact(ipos, p, ImpactTarget.Tank);
                     return true;
                 },
                 // Like tanks, a bullet passes through its own side's machines and stops on the enemy's.
@@ -102,11 +124,12 @@ public class ProjectileList
                         machine.Position, machine.OwnerColor, machine.Type));
                     if (wrecked)
                         self.AddExplosion(machine.Position, Tweaks.Explosion.MachineWreck, Tweaks.Explosion.MachineWreckHeatScale);
-                    self.RecordImpact(ipos, p, ImpactTarget.Machine);
+                    if (bursts)
+                        self.RecordImpact(ipos, p, ImpactTarget.Machine);
                     return true;
                 },
                 // One hit kills an emberite; the shot bursts on it as on anything else.
-                onEmberite: solver.CanHitEmberites ? KillsEmberite(solver, self, ipos, p) : null,
+                onEmberite: !solver.CanHitEmberites ? null : bursts ? KillsEmberite(solver, self, ipos, p) : KillsEmberite(solver),
                 onTerrain: pix =>
                 {
                     // A gate is open ground to its owner's shells. An enemy's stop on it while the gate shield
@@ -114,6 +137,15 @@ public class ProjectileList
                     if (Pixel.IsBaseGate(pix))
                         return self.HitsGate(solver, ipos, p);
                     if (!Pixel.IsAnyCollision(pix)) return false;
+                    // A round passes through a few cells of soil. Two samples of one tick may fall in one cell,
+                    // which counts once.
+                    if (Pixel.IsSoil(pix) && (ipos == pierced || p.Pierce > 0))
+                    {
+                        if (ipos != pierced)
+                            p.Pierce--;
+                        pierced = ipos;
+                        return false;
+                    }
                     // Walls and baffles take no damage; only a shell that reaches the core wears a base down.
                     if (Pixel.IsBaseCore(pix) && solver.EnemyBaseAt(ipos, p.OwnerColor) is { } target)
                     {
@@ -121,13 +153,19 @@ public class ProjectileList
                         target.TakeDamage(self._basePower?.CoreDamage(target, raw) ?? raw);
                         self._events?.Record(new StepEvent(target.IsDestroyed ? StepEventKind.BaseDestroyed : StepEventKind.BaseDamaged,
                             ipos, target.Color));
-                        self.RecordImpact(ipos, p, ImpactTarget.Base);
+                        if (bursts)
+                            self.RecordImpact(ipos, p, ImpactTarget.Base);
                     }
-                    else
+                    else if (bursts)
                         self.RecordImpact(ipos, p, ImpactTarget.Terrain);
                     return true;
                 });
 
+            if (hit && !bursts)
+            {
+                p.IsAlive = false;
+                return;
+            }
             if (hit)
             {
                 self.SpawnNormalExplosion(ipos);
@@ -294,7 +332,9 @@ public class ProjectileList
         {
             hash = Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, p.Life), p.OwnerColor), p.HeatScale);
             // Mixed only when it is not a tank's shell, so the digest of a world without turrets is what it always was.
-            return p.Damage != Tweaks.Weapon.BulletDamage ? Fnv1a.Mix(hash, p.Damage) : hash;
+            if (p.Damage != Tweaks.Weapon.BulletDamage)
+                hash = Fnv1a.Mix(hash, p.Damage);
+            return p.Pierce != 0 ? Fnv1a.Mix(hash, p.Pierce) : hash;
         }
     }
 }

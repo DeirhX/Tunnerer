@@ -72,7 +72,9 @@ float4 main(PSIn input) : SV_Target
         result = PowerLabel(p, input.color.rgb, input.params);
     else if (kind < kKindTurret + 0.5)
         result = Turret(p, input.params, aa);
-    else // kKindEmberite
+    else if (kind < kKindEmberite + 0.5)
         result = Emberite(p, input.params, aa);
+    else // kKindGatling
+        result = Gatling(p, input.params, aa);
     return result;
 }

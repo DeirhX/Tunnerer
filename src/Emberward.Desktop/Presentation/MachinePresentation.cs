@@ -49,8 +49,12 @@ public static class MachinePresentations
         MachineType.Turret, "turret", "TURRET", "U", BuildSlot: 3,
         "plant turret here - in your network it fires at enemy tanks in range");
 
+    public static readonly MachinePresentation Gatling = new(
+        MachineType.Gatling, "gatling", "GATLING", "T", BuildSlot: 4,
+        "plant gatling here - in your network it sprays emberites in range");
+
     /// <summary>Every machine's presentation, indexed by <see cref="MachineType"/>.</summary>
-    public static readonly IReadOnlyList<MachinePresentation> All = BuildTable(Relay, Harvester, Generator, Turret);
+    public static readonly IReadOnlyList<MachinePresentation> All = BuildTable(Relay, Harvester, Generator, Turret, Gatling);
 
     /// <summary>Every machine's presentation in build-panel row order.</summary>
     public static readonly IReadOnlyList<MachinePresentation> InSlotOrder = All.OrderBy(p => p.BuildSlot).ToArray();

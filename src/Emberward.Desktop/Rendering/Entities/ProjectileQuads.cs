@@ -82,6 +82,15 @@ public sealed class ProjectileQuads
                         trail, radius, 0f, 0f, motion);
                     break;
                 }
+                case ProjectileType.Round:
+                {
+                    // A gatling's round: a thin, long tracer.
+                    float trail = Math.Clamp(speed * 0.8f, 0.8f, 3.2f);
+                    const float radius = 0.2f, glow = 0.7f;
+                    quads.Add(px, py, dx, dy, -trail - glow, glow, -glow, glow, body, EntityShape.KindHotShot,
+                        trail, radius, 0f, 0f, motion);
+                    break;
+                }
                 default:
                     throw new InvalidOperationException($"No sprite for projectile type {projectile.Type}; add a case.");
             }

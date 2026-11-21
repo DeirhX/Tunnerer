@@ -6,7 +6,7 @@ using Emberward.Core.Types;
 /// <summary>
 /// Scripted input: "dx,dy[,shoot[,build]]:frames" segments separated by ';'. build is 1 for the primary build key
 /// (relay) and 2 for the secondary one (harvester); 3 presses nothing (it built the pylon); 4-10 press upgrade keys
-/// 1-7, 11 builds the generator and 12 the turret.
+/// 1-7, 11 builds the generator, 12 the turret and 13 the gatling.
 /// </summary>
 public sealed class ScriptedController
 {
@@ -97,6 +97,7 @@ public sealed class ScriptedController
                 BuildSecondary = segment.Build == 2,
                 BuildTertiary = segment.Build == 11,
                 BuildQuaternary = segment.Build == 12,
+                BuildQuinary = segment.Build == 13,
                 Upgrade = segment.Build is >= 4 and <= 10 ? segment.Build - 3 : 0,
             };
         }

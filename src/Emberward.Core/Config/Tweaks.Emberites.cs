@@ -54,6 +54,11 @@ public static partial class Tweaks
         public const int RechargeIntervalTicks = 4;
         public const double RechargeCharges = 2.0;
         public const int SpillRadius = 2;
+        // Every DropEveryKills-th death of a nest's creatures (counted on the creatures it has left), the creature drops
+        // one unit of its nest's deposit where it dies: a plain ore cell leaves the deposit's rim and lands as loose ore,
+        // outside the nest's guard, for a harvester or the tank to pick up. A pocket's 7 to 18 creatures give up 2 to
+        // 5 units, a lump's 32 to 60 give up 8 to 15; a deposit with no plain ore left gives none.
+        public const int DropEveryKills = 4;
 
         // ---- Movement ----------------------------------------------------------------------------------------
         // Cells a tick: open ground (the tank walks one) and burrowing through soil (the tank digs about half a cell).

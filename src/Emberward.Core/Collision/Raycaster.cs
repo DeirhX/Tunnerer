@@ -75,6 +75,33 @@ public static class Raycaster
         !TryFindBlock(terrain, from, to, shot: true, out _);
 
     /// <summary>
+    /// A shot that passes through a little soil: true when the Bresenham line from <paramref name="from"/> to
+    /// <paramref name="to"/> (both ends included) meets nothing a bullet stops on (<see cref="Pixel.IsAnyCollision"/>)
+    /// but at most <paramref name="maxSoilCells"/> cells of soil. A gatling aims along this. Integer only, so it is
+    /// deterministic.
+    /// </summary>
+    public static bool HasShotThroughSoil(ITerrainPixelReadOnly terrain, Position from, Position to, int maxSoilCells)
+    {
+        ArgumentNullException.ThrowIfNull(terrain);
+        int x0 = from.X, y0 = from.Y, x1 = to.X, y1 = to.Y;
+        int dx = Math.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        int dy = -Math.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+        int err = dx + dy;
+        int soil = 0;
+        while (true)
+        {
+            var pixel = terrain.GetPixel(new Position(x0, y0));
+            if (Pixel.IsAnyCollision(pixel) && (!Pixel.IsSoil(pixel) || ++soil > maxSoilCells))
+                return false;
+            if (x0 == x1 && y0 == y1)
+                return true;
+            int e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+    }
+
+    /// <summary>
     /// How many cells on the Bresenham line between <paramref name="from"/> and <paramref name="to"/> (both ends left
     /// out) are solid ground, dirt included (<see cref="Pixel.IsAnyCollision"/>), counting at most
     /// <paramref name="limit"/>. Sound uses it to muffle what it hears through rock and dirt.

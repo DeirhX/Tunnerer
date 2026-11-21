@@ -7,7 +7,7 @@ using Emberward.Core.Terrain;
 using Emberward.Core.Network;
 using Emberward.Core.Entities.Bases;
 
-public enum MachineType { Harvester, Relay, Generator, Turret }
+public enum MachineType { Harvester, Relay, Generator, Turret, Gatling }
 public enum MachineState { Template, Transporting, Planted }
 
 public class Machine
@@ -83,7 +83,7 @@ public class Machine
     /// </summary>
     public float SenseHeat { get; set; }
 
-    /// <summary>A turret: ticks until it looks for a target again (<see cref="TurretAction"/>).</summary>
+    /// <summary>A turret or a gatling: ticks until it looks for a target again (<see cref="TurretAction"/>).</summary>
     public int TurretCooldown { get; internal set; }
 
     /// <summary>Where a harvester was planted: it roams and mines within <c>HarvestRange</c> of this point.</summary>

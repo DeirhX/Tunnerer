@@ -16,6 +16,8 @@ public struct ControllerOutput
     public bool BuildTertiary;
     /// <summary>Fourth build key: builds a turret in energy matches.</summary>
     public bool BuildQuaternary;
+    /// <summary>Fifth build key: builds a gatling in energy matches.</summary>
+    public bool BuildQuinary;
     /// <summary>
     /// Upgrade key held: 0 for none, 1-7 for <see cref="BaseUpgrade"/> + 1, bought while docked. With
     /// <see cref="UpgradeMachine"/> it is instead the path (1 for the first) to buy for the nearest own machine.

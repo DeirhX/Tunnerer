@@ -98,15 +98,16 @@ public sealed record MatchRules
         hash = Fnv1a.Mix(hash, CoreTapWins ? 1u : 0u);
         // Version of the base rules: a base falls when its core does, behind walls and gates (the keep).
         hash = Fnv1a.Mix(hash, 9u);
-        // Version of the energy rules: raised with each machine they add (turrets) and with the gate shield.
+        // Version of the energy rules: raised with each machine they add (turrets, the gatling) and with the gate shield.
         if (EnergyNetwork)
-            hash = Fnv1a.Mix(hash, 0xE4EBu);
+            hash = Fnv1a.Mix(hash, 0xE4ECu);
         if (MachineUpgrades)
             hash = Fnv1a.Mix(hash, 0x4D55u);
         if (TankReserve)
             hash = Fnv1a.Mix(hash, 0x5253u);
+        // Version of the emberite rules: raised when what creatures do changes (a dying one drops its nest's ore).
         if (Emberites)
-            hash = Fnv1a.Mix(hash, 0x4D4Fu);
+            hash = Fnv1a.Mix(hash, 0x4D50u);
         return hash;
     }
 }

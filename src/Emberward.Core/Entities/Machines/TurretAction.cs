@@ -2,6 +2,7 @@ namespace Emberward.Core.Entities.Machines;
 
 using Emberward.Core.Collision;
 using Emberward.Core.Config;
+using Emberward.Core.Entities.Emberites;
 using Emberward.Core.Entities.Projectiles;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Network;
@@ -16,7 +17,13 @@ using Emberward.Core.Types;
 /// turret, and the hotter that ground the slower it fires.
 /// <para>
 /// Cost follows what changes: between looks it only counts down, and a look reads the few tanks of the match, casting
-/// a line of sight only to those in range. Its numbers come from its upgrade (<see cref="MachineUpgrades.TurretStatsOf"/>).
+/// a line of sight only to those in range. Its numbers come from its upgrade (<see cref="MachineUpgrades.GunStatsOf"/>).
+/// </para>
+/// <para>
+/// The gatling (DESIGN.md §6.2, <see cref="MachineBehavior.HuntsCreatures"/>) is the same machine with another gun: it
+/// looks first for the nearest emberite out of its nest (<see cref="EmberiteSwarm.TryFindTarget"/>, which reads only the
+/// creatures out, so a quiet swarm costs it nothing), aims ahead of it by the round's flight time and fires light rounds
+/// that burst on nothing. With no creature to shoot at it falls back on the turret's target, an enemy tank.
 /// </para>
 /// </summary>
 public static class TurretAction
@@ -53,17 +60,36 @@ public static class TurretAction
         if (ctx.BasePower?.IsDark(home) == true || !energy.IsOnIsland(turret) ||
             ctx.Tanks is not TankList tanks || ctx.Projectiles is not ProjectileList projectiles)
             return;
-        var stats = MachineUpgrades.TurretStatsOf(ctx.Upgrades?.LevelOf(turret) ?? default);
-        if (TargetOf(turret, stats.Range, tanks, terrain) is not Tank target)
+        bool gatling = turret.Behavior.HuntsCreatures;
+        var stats = MachineUpgrades.GunStatsOf(turret.Behavior, ctx.Upgrades?.LevelOf(turret) ?? default);
+        // What it shoots at: where the target is, how it moves, and the tank's colour (-1 for a creature).
+        PositionF at;
+        VectorF motion = default;
+        int targetColor = -1;
+        if (gatling && ctx.Emberites is { OutCount: > 0 } swarm &&
+            swarm.TryFindTarget(turret.Position, stats.Range, stats.SoilPierce, out Emberite creature))
+        {
+            at = creature.Position;
+            motion = creature.Velocity;
+        }
+        else if (TargetOf(turret, stats.Range, tanks, terrain) is Tank target)
+        {
+            at = (PositionF)target.Position;
+            targetColor = target.Color;
+        }
+        else
             return;
         energy.Settle(turret, terrain);
         if (turret.Charge < stats.ShotCharge)
             return;
 
-        Fire(turret, target, stats, projectiles);
+        if (gatling)
+            FireRound(turret, at, motion, stats, projectiles);
+        else
+            Fire(turret, at, stats, projectiles);
         energy.Spend(turret, stats.ShotCharge, terrain);
         ctx.Events?.Record(new StepEvent(StepEventKind.TurretFired, turret.Position, turret.OwnerColor, turret.Type,
-            Count: target.Color));
+            Count: targetColor));
         turret.TurretCooldown = IntervalAt(stats.IntervalTicks, temperature) - 1;
     }
 
@@ -115,21 +141,67 @@ public static class TurretAction
         // SampleAverageHeat is normalised (temperature / 255).
         heat.SampleAverageHeat(at, Tweaks.Turret.HeatSenseRadius) * 255f;
 
-    /// <summary>A bullet from the barrel toward <paramref name="target"/>; the turret turns to face it.</summary>
-    private static void Fire(Machine turret, Tank target, TurretStats stats, ProjectileList projectiles)
+    /// <summary>A bullet from the barrel toward the tank at <paramref name="target"/>; the turret turns to face it.</summary>
+    private static void Fire(Machine turret, PositionF target, TurretStats stats, ProjectileList projectiles)
     {
-        int dx = target.Position.X - turret.Position.X, dy = target.Position.Y - turret.Position.Y;
-        float length = MathF.Sqrt(dx * dx + dy * dy);
-        var direction = length > 0f ? new DirectionF(dx / length, dy / length) : new DirectionF(0f, -1f);
-        // From the barrel's tip, or from halfway to a tank closer than that: a bullet is tested from its first step on,
-        // so a muzzle past a point-blank tank would miss it.
-        float reach = MathF.Min(Tweaks.Turret.BarrelLength, length / 2f);
-        var muzzle = (Position)new PositionF(
-            turret.Position.X + direction.X * reach,
-            turret.Position.Y + direction.Y * reach);
+        Position muzzle = Aim(turret, target.X - turret.Position.X, target.Y - turret.Position.Y, out DirectionF direction);
         projectiles.Add(Projectile.CreateBullet(muzzle, direction.ToVector(Tweaks.Weapon.CannonBulletSpeed),
             turret.OwnerColor, stats.Damage));
-        if (dx != 0 || dy != 0)
-            turret.Heading = new Offset(dx, dy);
+    }
+
+    /// <summary>
+    /// A round from the barrel to where the target at <paramref name="target"/>, moving <paramref name="motion"/> cells a
+    /// tick, will be when the round gets there (<see cref="Lead"/>); the gatling turns to face that point. The round is
+    /// spent a little past the gatling's range.
+    /// </summary>
+    private static void FireRound(Machine gatling, PositionF target, VectorF motion, TurretStats stats, ProjectileList projectiles)
+    {
+        float speed = Tweaks.Gatling.RoundSpeed;
+        // The round first moves on the next tick, when shots fly before creatures run, and it starts at the barrel's
+        // tip: against a round flying from the gatling's centre from now on, the creature is that many ticks behind.
+        float behind = 1f + Tweaks.Turret.BarrelLength / speed;
+        float dx = target.X - motion.X * behind - gatling.Position.X, dy = target.Y - motion.Y * behind - gatling.Position.Y;
+        float flight = Lead(dx, dy, motion, speed);
+        Position muzzle = Aim(gatling, dx + motion.X * flight, dy + motion.Y * flight, out DirectionF direction);
+        int life = (int)MathF.Ceiling((stats.Range + Tweaks.Gatling.RoundSpareCells) / speed);
+        projectiles.Add(Projectile.CreateRound(muzzle, direction.ToVector(speed), gatling.OwnerColor, stats.Damage, life,
+            stats.SoilPierce));
+    }
+
+    /// <summary>
+    /// Turns <paramref name="turret"/> to face the point (<paramref name="dx"/>, <paramref name="dy"/>) cells from it and
+    /// returns its muzzle: the barrel's tip, or halfway to a point closer than that (a shot is tested from its first step
+    /// on, so a muzzle past a point-blank target would miss it).
+    /// </summary>
+    private static Position Aim(Machine turret, float dx, float dy, out DirectionF direction)
+    {
+        float length = MathF.Sqrt(dx * dx + dy * dy);
+        direction = length > 0f ? new DirectionF(dx / length, dy / length) : new DirectionF(0f, -1f);
+        float reach = MathF.Min(Tweaks.Turret.BarrelLength, length / 2f);
+        int headingX = (int)MathF.Round(dx), headingY = (int)MathF.Round(dy);
+        if (headingX != 0 || headingY != 0)
+            turret.Heading = new Offset(headingX, headingY);
+        return (Position)new PositionF(
+            turret.Position.X + direction.X * reach,
+            turret.Position.Y + direction.Y * reach);
+    }
+
+    /// <summary>
+    /// Ticks a shot flying <paramref name="speed"/> cells a tick takes to meet a target now (<paramref name="dx"/>,
+    /// <paramref name="dy"/>) cells away that keeps moving by <paramref name="motion"/> a tick: the first time the two
+    /// are as far from the gun. Zero (aim straight at it) for a target that stands still or one the shot cannot catch.
+    /// Only sums, products and a square root, so it is the same on every machine.
+    /// </summary>
+    public static float Lead(float dx, float dy, VectorF motion, float speed)
+    {
+        // |d + m t| = s t  =>  (m.m - s^2) t^2 + 2 (d.m) t + d.d = 0
+        float a = motion.X * motion.X + motion.Y * motion.Y - speed * speed;
+        float b = 2f * (dx * motion.X + dy * motion.Y);
+        float c = dx * dx + dy * dy;
+        if (a >= 0f || c <= 0f || (motion.X == 0f && motion.Y == 0f))
+            return 0f;
+        // The target is slower than the shot (a < 0), so the roots have opposite signs: take the positive one.
+        float root = MathF.Sqrt(b * b - 4f * a * c);
+        return (-b - root) / (2f * a);
     }
 }
