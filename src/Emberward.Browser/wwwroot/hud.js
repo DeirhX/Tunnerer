@@ -79,7 +79,7 @@ export class StatusView {
             setProperty($("network-power"), "color", store.color);
         }
         this.updateBuilds(f.builds, p);
-        setHidden($("upgrades"), !p.docked || p.dead);
+        setHidden($("upgrades"), !p.docked || p.dead || !f.guidance?.showUpgrades);
         this.updateUpgrades(f.upgrades, p);
         this.updateMachineUpgrade(f.machineUpgrade);
         this.updateHit(p);

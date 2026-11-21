@@ -74,7 +74,8 @@ public sealed record UpgradeOption(
     int Key, string Name, string Effect, string Track, int Level, int MaxLevel, int Cost, bool Maxed);
 public sealed record PlantPreview(string Status, Position Target, float Heat);
 /// <summary>What the HUD tells the player (<c>PlayerGuidance</c>, shared with the desktop). Tones are <c>HintTone</c> names.</summary>
-public sealed record GuidanceStatus(TutorialCard? Tutorial, ToastLine[] Toasts, HintLine Hint, WarningLine? Warning);
+public sealed record GuidanceStatus(
+    TutorialCard? Tutorial, ToastLine[] Toasts, HintLine Hint, WarningLine? Warning, bool ShowUpgrades);
 
 /// <summary>The tutorial's step; <c>Target</c> is the cell it points at, if any.</summary>
 public sealed record TutorialCard(

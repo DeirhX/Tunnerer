@@ -71,7 +71,11 @@ public sealed class GameEventWatcher
         }
     }
 
-    public void Update(World world, Tank player, NotificationFeed feed, float now)
+    /// <param name="introQuiet">
+    /// The tutorial has not yet explained the network, so the toasts for leaving it and for scattered radar wait: the
+    /// player is told what they mean at that step, and the clock on the HUD shows the state meanwhile.
+    /// </param>
+    public void Update(World world, Tank player, NotificationFeed feed, float now, bool introQuiet = false)
     {
         var home = player.Base;
         if (home == null)
@@ -161,11 +165,11 @@ public sealed class GameEventWatcher
             if (chargeLow && !_chargeLow)
                 feed.Post(now, "charge-low", "Base charge low",
                     "Machines stop when it runs out. Put a relay by hot rock to make more.", NotificationKind.Danger);
-            if (offNetwork && !_offNetwork)
+            if (offNetwork && !_offNetwork && !introQuiet)
                 feed.Post(now, "off-network", "Off network",
                     "Your tank heats up out here. Head back inside the pale circles, or extend the network with a relay.",
                     NotificationKind.Warning, cooldown: 90f);
-            if (radarScattered && !_radarScattered)
+            if (radarScattered && !_radarScattered && !introQuiet)
                 feed.Post(now, "radar-heat", "Radar scattered by heat",
                     "Hot ground swallows the pulse: red dots show how far it got. Cool that ground to see past it.",
                     NotificationKind.Warning, cooldown: 60f);
