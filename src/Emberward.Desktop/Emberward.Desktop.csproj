@@ -14,7 +14,8 @@
     <ProjectReference Include="..\Emberward.Protocol\Emberward.Protocol.csproj" />
     <!-- Built first so CompileSdlGpuShaders can run it; nothing from it is referenced or copied. -->
     <ProjectReference Include="..\..\tools\Emberward.ShaderCompiler\Emberward.ShaderCompiler.csproj"
-                      ReferenceOutputAssembly="false" Private="false" />
+                      ReferenceOutputAssembly="false" Private="false"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishSingleFile;IncludeNativeLibrariesForSelfExtract" />
   </ItemGroup>
 
   <ItemGroup>
