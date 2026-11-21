@@ -1,5 +1,6 @@
 namespace Emberward.Core.Entities.Mobs;
 
+using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Terrain;
@@ -66,13 +67,15 @@ public sealed partial class MobSwarm
     private void Hunt(ref Mob mob)
     {
         Nest nest = _nests[mob.Nest];
-        Tank? tank = ValidTarget(mob.Target) is { } t && TargetStillWanted(nest, mob.Target, t) ? t : null;
+        Tank? tank = ValidTarget(mob.Target) is { } t && TargetStillWanted(ref mob, nest, t) ? t : null;
         if (tank is null)
         {
             // The nest's own pick, if it has one; else home.
             if (nest.Target >= 0 && ValidTarget(nest.Target) is { } other)
             {
                 mob.Target = nest.Target;
+                mob.SightTick = 0;
+                mob.Sees = false;
                 tank = other;
             }
             else
@@ -109,9 +112,33 @@ public sealed partial class MobSwarm
         return index >= 0 && index < tanks.Count && !tanks[index].IsDead ? tanks[index] : null;
     }
 
-    /// <summary>A creature keeps its target while the tank is warm enough, or is the nest's thief.</summary>
-    private static bool TargetStillWanted(Nest nest, int index, Tank tank) =>
-        tank.Heat >= Tweaks.Mobs.LoseScentHeat || (nest.Thief == index && nest.ThiefTicks > 0);
+    /// <summary>
+    /// A creature keeps its target while the tank is the nest's thief, or warm enough and within its heat leash of the
+    /// nest, or in sight: a line clear of rock from the creature, within <see cref="Tweaks.Mobs.HuntLeashCells"/>,
+    /// looked for once in <see cref="Tweaks.Mobs.SightCheckTicks"/> ticks.
+    /// </summary>
+    private bool TargetStillWanted(ref Mob mob, Nest nest, Tank tank)
+    {
+        if (nest.Thief == mob.Target && nest.ThiefTicks > 0)
+            return true;
+        float leash = HeatLeash(tank.Heat);
+        if (leash > 0f && Position.DistanceSquared(tank.Position, nest.Centre) <= leash * leash)
+            return true;
+
+        long reach = (long)Tweaks.Mobs.HuntLeashCells * Tweaks.Mobs.HuntLeashCells;
+        var here = (Position)mob.Position;
+        if (Position.DistanceSquared(tank.Position, here) > reach)
+        {
+            mob.Sees = false;
+            return false;
+        }
+        if (mob.SightTick == 0 || _tick - mob.SightTick >= Tweaks.Mobs.SightCheckTicks)
+        {
+            mob.Sees = Raycaster.HasCreatureLine(_terrain, here, tank.Position);
+            mob.SightTick = _tick;
+        }
+        return mob.Sees;
+    }
 
     private void GoHome(ref Mob mob)
     {

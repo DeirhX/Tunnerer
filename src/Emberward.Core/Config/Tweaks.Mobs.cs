@@ -22,14 +22,19 @@ public static partial class Tweaks
 
         // ---- Sensing -----------------------------------------------------------------------------------------
         // A cool tank is not sensed. A tank at WakeHeat is sensed from WakeRange cells, one at FullHeat from FullRange,
-        // linearly between. A woken nest hunts any tank at LoseScentHeat or above within HuntLeashCells of it; a tank
-        // that cools below that is lost. A thief (the tank that dug the nest's ore) is hunted for ThiefHuntTicks whatever its heat.
+        // linearly between. A woken nest hunts a tank at LoseScentHeat or above within its heat leash (below), or one a
+        // creature sees; a tank that cools below LoseScentHeat and is out of sight is lost. Rock stops sight and waking. A thief (the tank that dug the nest's ore) is hunted for ThiefHuntTicks whatever its heat.
         public const float WakeHeat = 45f;
         public const float WakeRange = 40f;
         public const float FullHeat = 100f;
         public const float FullRange = 110f;
         public const float LoseScentHeat = 35f;
         public const int HuntLeashCells = 220;
+        // A hunt keeps a tank by heat while it is within a leash that grows from HuntLeashMinCells at LoseScentHeat to
+        // HuntLeashCells at FullHeat (a cooler tank is lost nearer), or by sight: while a creature has a line to the tank
+        // clear of rock within HuntLeashCells, whatever its heat. Creatures look again once in SightCheckTicks.
+        public const int HuntLeashMinCells = 60;
+        public const int SightCheckTicks = 6;
         public const int ThiefHuntTicks = 6 * Perf.TargetFps;
         // A dormant nest looks at the tanks once in this many ticks (nests are staggered).
         public const int WakeCheckTicks = 6;

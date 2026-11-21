@@ -159,6 +159,19 @@ public sealed partial class MobSwarm
         return Tweaks.Mobs.WakeRange + t * (Tweaks.Mobs.FullRange - Tweaks.Mobs.WakeRange);
     }
 
+    /// <summary>
+    /// How far from its nest a nest keeps hunting a tank at <paramref name="heat"/> by heat alone: nothing below
+    /// <see cref="Tweaks.Mobs.LoseScentHeat"/>, then <see cref="Tweaks.Mobs.HuntLeashMinCells"/> growing to
+    /// <see cref="Tweaks.Mobs.HuntLeashCells"/> at <see cref="Tweaks.Mobs.FullHeat"/>. A tank in sight is kept anyway.
+    /// </summary>
+    public static float HeatLeash(float heat)
+    {
+        if (heat < Tweaks.Mobs.LoseScentHeat)
+            return 0f;
+        float t = Math.Clamp((heat - Tweaks.Mobs.LoseScentHeat) / (Tweaks.Mobs.FullHeat - Tweaks.Mobs.LoseScentHeat), 0f, 1f);
+        return Tweaks.Mobs.HuntLeashMinCells + t * (Tweaks.Mobs.HuntLeashCells - Tweaks.Mobs.HuntLeashMinCells);
+    }
+
     /// <summary>What a creature finds in a cell: the ground a nest's own creatures burrow through is soil to them.</summary>
     public static MobGround Classify(TerrainPixel pixel, Position cell, Position zoneCentre, int zoneRadius)
     {
@@ -200,6 +213,7 @@ public sealed partial class MobSwarm
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.Velocity.X), mob.Velocity.Y);
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.Charge), (int)mob.State);
             hash = Fnv1a.Mix(hash, mob.WornBlock);
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.SightTick), mob.Sees);
         }
         return _trails.Mix(hash);
     }

@@ -165,6 +165,14 @@ public static class Pixel
     /// </summary>
     public static bool BlocksLink(TerrainPixel p) =>
         !IsOpenGround(p) && !IsAnyBaseCell(p);
+
+    /// <summary>
+    /// True when the pixel stops a creature's sight and senses: plain, hot and frost rock, and concrete. Dirt, open
+    /// ground, ore and base cells do not, so creatures sense through soil but not through stone (unlike
+    /// <see cref="BlocksLink"/>, which dirt blocks too). <see cref="IsRock"/> alone is plain rock only, hence the list.
+    /// </summary>
+    public static bool BlocksCreatureSight(TerrainPixel p) =>
+        p is TerrainPixel.Rock or TerrainPixel.HotRock or TerrainPixel.FrostRock or TerrainPixel.Concrete;
     public static bool IsScorched(TerrainPixel p) => _behaviors[(int)p].Scorched;
     public static bool IsConcrete(TerrainPixel p) => _behaviors[(int)p].Concrete;
     public static bool IsRock(TerrainPixel p) => _behaviors[(int)p].Rock;
