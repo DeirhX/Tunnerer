@@ -404,17 +404,22 @@ public class MobSwarmTests
     }
 
     [Fact]
-    public void ASpentCreature_GoesHome_InsteadOfWaitingOnAWarmTank()
+    public void APocketWithNothingStored_LetsNoEmptyCreatureOut()
     {
         var (world, tank) = Arena(TerrainPixel.Blank);
         var nest = world.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 0);
-        nest.Resting = 1; // a pocket that cannot recharge: its one resting creature comes out with no charge
-        tank.Position = Centre + new Offset(38, 0);
+        nest.Resting = 1; // a pocket that cannot recharge: its resting creature has no charge to come out with
+        tank.Position = Centre; // 40 cells off: hot enough to hunt, and far enough that the nest's ground stays cold
 
-        Tick(world, tank, 200, heat: 80f);
-        float range = Tweaks.Mobs.BiteRange;
-        Assert.DoesNotContain(Creatures(world), c =>
-            c.Speed == 0f && (c.X - tank.Position.X) * (c.X - tank.Position.X) + (c.Y - tank.Position.Y) * (c.Y - tank.Position.Y) <= range * range);
+        int mostOut = 0;
+        for (int i = 0; i < 60; i++)
+        {
+            nest.Stored = 0.0; // nothing stored for the resting creature to take
+            Tick(world, tank, 1, heat: 80f);
+            mostOut = Math.Max(mostOut, world.Mobs!.OutCount);
+        }
+        Assert.Equal(0, mostOut);
+        Assert.Equal(1, nest.Resting);
     }
 
     [Fact]

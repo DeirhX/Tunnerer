@@ -67,15 +67,7 @@ public sealed partial class MobSwarm
         float range = Tweaks.Mobs.BiteRange;
         if (dx * dx + dy * dy <= range * range)
         {
-            // Spent, it has nothing to bite with: it goes home to recharge rather than waiting on a warm tank.
-            if (mob.Charge <= 0.0)
-            {
-                mob.State = MobState.Returning;
-                mob.Target = -1;
-                GoHome(ref mob);
-                return;
-            }
-            if (!tank.IsDockedAtOwnBase && tank.SpawnProtectionTicks == 0)
+            if (mob.Charge > 0.0 && !tank.IsDockedAtOwnBase && tank.SpawnProtectionTicks == 0)
             {
                 Bite(ref mob, tank);
                 GoHome(ref mob);

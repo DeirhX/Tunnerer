@@ -26,6 +26,8 @@ const canvas = $("game"),
     );
 let worker = null,
     busy = false,
+    // The request in flight took a simulation step: the packet on screen is the one before it, which has just ended.
+    stepInFlight = false,
     playing = false,
     paused = false,
     state = null,
@@ -652,6 +654,7 @@ function animate(now) {
                 now,
                 alpha: Math.min(1, (now - net.stepAt) / dt),
             };
+            stepInFlight = false;
             net.command = null;
             net.requestedAt = now;
         } else {
@@ -660,6 +663,7 @@ function animate(now) {
                 state.player.outcome === "InProgress" &&
                 accumulator >= dt;
             if (step) accumulator -= dt;
+            stepInFlight = step;
             request = {
                 input: step ? input.read() : null,
                 alpha: paused ? 1 : Math.min(1, accumulator / dt),
@@ -680,9 +684,9 @@ function animate(now) {
         lastRenderTime = now;
     }
     try {
-        // A local step is taken as its request is sent, so while that request is in flight the packet on screen is
-        // the previous step, which has just ended: hold it there rather than applying the new step's alpha to it.
-        if (playing && !holding()) renderer.gpu.setAlpha(busy && !net ? 1 : stepAlpha(now));
+        // A local step is taken as its request is sent, so while a request that took one is in flight, the packet on
+        // screen is the step before it, which has just ended: hold it there rather than applying the new step's alpha.
+        if (playing && !holding()) renderer.gpu.setAlpha(busy && stepInFlight ? 1 : stepAlpha(now));
         renderer.draw(now, input.pointer);
         perf?.displayed(elapsed);
     } catch (error) {

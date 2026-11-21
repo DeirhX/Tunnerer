@@ -67,7 +67,7 @@ public sealed partial class MobSwarm
         if (!nest.Awake)
         {
             // Dormant: one distance test per tank, once in a while.
-            if (nest.Inside > 0 && (_tick + index) % Tweaks.Mobs.WakeCheckTicks == 0 && SensesAnyone(nest))
+            if (nest.Inside > 0 && CanRelease(nest) && (_tick + index) % Tweaks.Mobs.WakeCheckTicks == 0 && SensesAnyone(nest))
                 Wake(nest);
             return;
         }
@@ -75,19 +75,25 @@ public sealed partial class MobSwarm
         if ((_tick + index) % Tweaks.Mobs.WakeCheckTicks == 0)
             nest.Target = PickTarget(nest);
         bool hunting = nest.Target >= 0;
-        // Nothing to hunt and nothing out: back to sleep, and the resting recharge on.
-        if (!hunting && nest.Out == 0)
+        // Nothing to hunt, or nothing left it could let out, and nothing out: back to sleep, and the resting recharge on.
+        if (nest.Out == 0 && (!hunting || !CanRelease(nest)))
         {
             nest.Awake = false;
             return;
         }
 
-        if (hunting && nest.Inside > 0 && --nest.ReleaseTimer <= 0)
+        if (hunting && CanRelease(nest) && nest.Inside > 0 && --nest.ReleaseTimer <= 0)
         {
             Release(index, nest);
             nest.ReleaseTimer = Tweaks.Mobs.ReleaseIntervalTicks;
         }
     }
+
+    /// <summary>
+    /// A creature can come out while the nest has a fresh one left, or heat stored for its resting ones to take. A
+    /// resting creature with nothing stored would come out with no charge, go home and be let out again: a loop.
+    /// </summary>
+    private static bool CanRelease(Nest nest) => nest.NeverReleased > 0 || nest.Stored > 0.0;
 
     private bool SensesAnyone(Nest nest)
     {
