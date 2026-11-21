@@ -272,7 +272,7 @@ public sealed class SoundDirector
         }
 
         _runningHot = player.IsRunningHot(_runningHot);
-        _lowShield = player.IsShieldLow(_lowShield);
+        _lowShield = player.IsHullLow(_lowShield);
 
         (SoundEffect effect, int rank, int interval) = player.IsOverheating
             ? (SoundEffect.WarnOverheat, 3, AudioTweaks.OverheatWarningIntervalSteps)

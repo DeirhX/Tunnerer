@@ -23,7 +23,7 @@ public static class WarningBanner
         float titleSize = warning.Kind switch
         {
             WarningKind.Overheating or WarningKind.Frostbite => 30f,
-            WarningKind.ShieldLow or WarningKind.RunningHot => 26f,
+            WarningKind.HullLow or WarningKind.RunningHot => 26f,
             WarningKind.Chilled => 24f,
             _ => 20f,
         };

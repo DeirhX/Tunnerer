@@ -38,6 +38,7 @@ public partial class World
     private readonly BasePowerSystem? _basePower;
     private readonly MachineUpgradeSystem? _machineUpgrades;
     private readonly TankReserveSystem? _reserve;
+    private readonly TankShieldSystem? _tankShield;
     private readonly EmberiteSwarm? _emberites;
     // What tanks and machines see of the world each step; the same every step, so built once.
     [NotSaved("fixed for the match: closures over this world")]
@@ -189,6 +190,8 @@ public partial class World
             _machineUpgrades = new MachineUpgradeSystem(_machines, _energy, _terrain, _stepEvents, Rules);
         if (Rules.TankReserve)
             _reserve = new TankReserveSystem(_machines, _terrain, _energy);
+        if (Rules.TankShield)
+            _tankShield = new TankShieldSystem();
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
         if (Rules.Emberites)
@@ -279,7 +282,7 @@ public partial class World
             {
                 uint mixed = (uint)_simulationSeed ^ (uint)(i + 1) * 0x9e3779b9u;
                 int tankSeed = unchecked((int)mixed);
-                _tankList.AddTank(i, tankBase, tankSeed, _simulationSettings);
+                _tankList.AddTank(i, tankBase, tankSeed, _simulationSettings, _tankShield);
             }
         }
         _terrainRegrowth?.Survey(_terrain);

@@ -3,7 +3,7 @@ namespace Emberward.Desktop.Gui.Guidance;
 using Emberward.Core.Entities.Tanks;
 
 /// <summary>Which warning the banner shows; the hosts size and place it by kind.</summary>
-public enum WarningKind { Overheating, Frostbite, Chilled, ShieldLow, RunningHot, RespawnShield, ThermalViewHint }
+public enum WarningKind { Overheating, Frostbite, Chilled, HullLow, RunningHot, RespawnShield, ThermalViewHint }
 
 /// <summary>The one warning shown at the top of the view.</summary>
 /// <param name="Detail">A second line, or null.</param>
@@ -13,14 +13,14 @@ public sealed record PlayerWarning(WarningKind Kind, string Title, string? Detai
 /// <summary>
 /// Picks the one warning to show, most urgent first: overheating, frostbite, chilled, low shield, running hot, the
 /// respawn shield, and once after the first hit a tip about the thermal view. When each is on is decided by Core
-/// (<see cref="Tank.IsRunningHot"/>, <see cref="Tank.IsShieldLow"/>), which the warning sounds also ask.
+/// (<see cref="Tank.IsRunningHot"/>, <see cref="Tank.IsHullLow"/>), which the warning sounds also ask.
 /// </summary>
 public sealed class PlayerWarnings
 {
     private const float ThermalHintSeconds = 8f;
 
     private bool _runningHotLatched;
-    private bool _shieldLowLatched;
+    private bool _hullLowLatched;
     private float _thermalHintUntil = -1f;
     private bool _thermalHintShown;
 
@@ -33,12 +33,12 @@ public sealed class PlayerWarnings
         ArgumentNullException.ThrowIfNull(player);
         if (player.IsDead)
         {
-            _runningHotLatched = _shieldLowLatched = false;
+            _runningHotLatched = _hullLowLatched = false;
             return null;
         }
 
         _runningHotLatched = player.IsRunningHot(_runningHotLatched);
-        _shieldLowLatched = player.IsShieldLow(_shieldLowLatched);
+        _hullLowLatched = player.IsHullLow(_hullLowLatched);
 
         // After the first hit, teach the thermal view once: enemy tunnels glow in it.
         if (!_thermalHintShown && player.HitFlashTicks > 0 && offerThermalView)
@@ -56,8 +56,8 @@ public sealed class PlayerWarnings
         if (player.SpeedFactor < 0.999f)
             return new(WarningKind.Chilled, $"CHILLED - {(int)MathF.Round(player.SpeedFactor * 100f)}% SPEED", null,
                 HintTone.Info, Blinks: false);
-        if (_shieldLowLatched)
-            return new(WarningKind.ShieldLow, "SHIELD LOW", "Your base repairs the shield", HintTone.Bad, Blinks: true);
+        if (_hullLowLatched)
+            return new(WarningKind.HullLow, "HULL LOW", "Your base repairs the hull", HintTone.Bad, Blinks: true);
         if (_runningHotLatched)
             return new(WarningKind.RunningHot, "RUNNING HOT",
                 "Digging and firing heat the tank - return to base to cool down", HintTone.Warn, Blinks: true);

@@ -1027,10 +1027,10 @@ meter::-webkit-meter-bar {
 meter::-webkit-meter-optimum-value {
     background: var(--amber);
 }
-#shield::-webkit-meter-optimum-value {
+#hull::-webkit-meter-optimum-value {
     background: var(--hud-teal);
 }
-#shield::-moz-meter-bar {
+#hull::-moz-meter-bar {
     background: var(--hud-teal);
 }
 meter::-moz-meter-bar {

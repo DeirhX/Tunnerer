@@ -39,13 +39,26 @@ internal sealed class TankLifecycle
             HitFlashTicks--;
     }
 
+    /// <summary>What the last hit took, from the shield and from the hull; nothing when it was refused.</summary>
+    public DamageTaken LastDamageTaken { get; private set; }
+
+    /// <summary>
+    /// Takes armor off the tank. With a shield, it takes the hit first and the hull the rest. Heat and cold, losing the
+    /// base and a recall go straight to the hull: a shield stops shells, not the temperature, and never keeps a tank
+    /// alive through the last two.
+    /// </summary>
     public bool TakeDamage(int amount, DamageCause cause, VectorF hitVelocity)
     {
+        LastDamageTaken = default;
         if (amount <= 0 || _tank.IsDead)
             return false;
         if (cause == DamageCause.EnemyFire && SpawnProtectionTicks > 0)
             return false;
-        _tank.Reactor.Exhaust(new ReactorState(0, amount));
+        bool bypass = cause is DamageCause.BaseDestroyed or DamageCause.Recalled or DamageCause.Overheat or DamageCause.Frostbite;
+        var taken = _tank.Shield is { } shield && !bypass ? shield.Absorb(_tank, amount) : new DamageTaken(0, amount);
+        if (taken.Hull > 0)
+            _tank.Reactor.Exhaust(new ReactorState(0, taken.Hull));
+        LastDamageTaken = taken;
         LastDamageCause = cause;
         if (cause == DamageCause.EnemyFire)
         {

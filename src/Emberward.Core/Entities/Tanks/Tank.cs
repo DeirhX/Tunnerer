@@ -1,5 +1,6 @@
 namespace Emberward.Core.Entities.Tanks;
 
+using Emberward.Core.Snapshots;
 using Emberward.Core.Types;
 using Emberward.Core.Config;
 using Emberward.Core.Resources;
@@ -22,6 +23,12 @@ public class Tank
     private readonly TankBuildController _build;
     private readonly TankDigger _digger;
     private readonly TankLifecycle _lifecycle;
+
+    /// <summary>The world's tank shield, when the rules run one (<see cref="Match.MatchRules.TankShield"/>); it keeps this tank's shield.</summary>
+    internal TankShieldSystem? Shield => _shield;
+
+    [NotSaved("fixed for the match: the world's shield system, handed over at construction; the world saves it once")]
+    private readonly TankShieldSystem? _shield;
 
     public Position Position { get; set; }
     public int Color { get; }
@@ -121,28 +128,28 @@ public class Tank
     }
 
     /// <summary>
-    /// The low-shield warning, latched: on below <see cref="Tweaks.Tank.ShieldLowOnFraction"/> of capacity, off again
-    /// only above <see cref="Tweaks.Tank.ShieldLowOffFraction"/>. <paramref name="latched"/> is the caller's previous
+    /// The low-hull warning, latched: on below <see cref="Tweaks.Tank.HullLowOnFraction"/> of capacity, off again
+    /// only above <see cref="Tweaks.Tank.HullLowOffFraction"/>. <paramref name="latched"/> is the caller's previous
     /// answer.
     /// </summary>
-    public bool IsShieldLow(bool latched)
+    public bool IsHullLow(bool latched)
     {
-        float shield = ShieldFraction;
-        return latched ? shield < Tweaks.Tank.ShieldLowOffFraction : shield < Tweaks.Tank.ShieldLowOnFraction;
+        float shield = HullFraction;
+        return latched ? shield < Tweaks.Tank.HullLowOffFraction : shield < Tweaks.Tank.HullLowOnFraction;
     }
 
-    /// <summary>How full the shield (reactor health) is, 0 to 1.</summary>
-    public float ShieldFraction =>
+    /// <summary>How full the hull (reactor health) is, 0 to 1.</summary>
+    public float HullFraction =>
         Math.Clamp(Math.Max(0, (int)Reactor.Health) / (float)Math.Max(1, (int)Reactor.HealthCapacity), 0f, 1f);
 
-    /// <summary>The shield gauge: Ok above half, Bad at or below the low-shield threshold.</summary>
-    public StatusLevel ShieldLevel
+    /// <summary>The hull gauge: Ok above half, Bad at or below the low-hull threshold.</summary>
+    public StatusLevel HullLevel
     {
         get
         {
-            float shield = ShieldFraction;
-            return shield > Tweaks.Tank.ShieldWarnFraction ? StatusLevel.Ok
-                : shield > Tweaks.Tank.ShieldLowOnFraction ? StatusLevel.Warn
+            float shield = HullFraction;
+            return shield > Tweaks.Tank.HullWarnFraction ? StatusLevel.Ok
+                : shield > Tweaks.Tank.HullLowOnFraction ? StatusLevel.Warn
                 : StatusLevel.Bad;
         }
     }
@@ -214,8 +221,10 @@ public class Tank
     public bool IsCarryingMachine => _build.IsCarrying;
     public MachineType? CarriedMachineType => _build.CarriedType;
 
-    public Tank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null)
+    public Tank(int color, TankBase tankBase, int rngSeed = 0, SimulationSettings? settings = null,
+        TankShieldSystem? shield = null)
     {
+        _shield = shield;
         _thermals = new TankThermals(this, settings ?? SimulationSettings.FromTweaks());
         Color = color;
         Base = tankBase;
@@ -252,10 +261,13 @@ public class Tank
         if (IsDead)
         {
             ctx.Reserve?.Clear(this);
+            Shield?.Clear(this);
             _lifecycle.AdvanceDeath(in ctx, recall);
             return;
         }
 
+        // The shield refills only while the tank is on its relay network (or in its base) and its base is not dark.
+        Shield?.Advance(this, !IsOffNetwork && ctx.BasePower?.IsDark(Base!) != true);
         _thermals.AddIdleHeat(ctx.Heat.Ledger);
         AdvanceBaseInteraction(in ctx);
         _thermals.AdvanceNetworkCoverage(in ctx);
@@ -280,6 +292,9 @@ public class Tank
     /// </summary>
     public bool TakeDamage(int amount, DamageCause cause, VectorF hitVelocity = default) =>
         _lifecycle.TakeDamage(amount, cause, hitVelocity);
+
+    /// <summary>What the last <see cref="TakeDamage"/> took from the shield and from the hull; nothing when it took nothing.</summary>
+    public DamageTaken LastDamageTaken => _lifecycle.LastDamageTaken;
 
     /// <summary>Ticks left on the "could not buy that upgrade" feedback after a refused purchase.</summary>
     public int UpgradeRefusedTicks { get; private set; }
@@ -439,6 +454,7 @@ public class Tank
     {
         if (Base is not { IsDestroyed: false }) return;
         Reactor.Add(new ReactorState(0, Reactor.HealthCapacity));
+        Shield?.Clear(this);
         Position = Base.SpawnPosition;
         _thermals.ResetForSpawn(ledger);
         _lifecycle.OnSpawned();
