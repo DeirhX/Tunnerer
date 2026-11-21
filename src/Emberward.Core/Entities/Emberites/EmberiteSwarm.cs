@@ -16,12 +16,13 @@ using Emberward.Core.Types;
 /// The emberites (DESIGN.md §6.2): creatures that nest in pyrite pockets and lumps, guard the ore and hunt any tank
 /// that runs hot. Present only in worlds whose rules ask for it (<see cref="Match.MatchRules.Emberites"/>), and costing
 /// nothing while no nest is awake and none is out: a dormant nest holds counters and is looked at once in
-/// <see cref="Tweaks.Emberites.WakeCheckTicks"/> ticks, a creature in its nest has no state of its own.
+/// <see cref="Tweaks.Emberites.WakeCheckTicks"/> ticks, a creature in its nest has no state of its own. A woken nest sends
+/// them in pulses sized by the hunted tank's heat, each after a stir that warns of it.
 /// </summary>
 /// <remarks>
 /// Heat is conserved. A creature's charge is made, and booked as injected, when it first leaves its nest; a bite
 /// moves it into the tank; a kill spills it into the ground where it dies; a resting creature recharges by taking heat
-/// out of the deposit. <see cref="TotalCharge"/> is what the swarm holds, so the balance of
+/// out of the deposit, leaves again only with a full charge, and starves where the deposit has none to give. <see cref="TotalCharge"/> is what the swarm holds, so the balance of
 /// <see cref="World.SumSystemThermalEnergy"/> closes. Burrowing writes no pixels.
 /// </remarks>
 public sealed partial class EmberiteSwarm
@@ -244,6 +245,7 @@ public sealed partial class EmberiteSwarm
         foreach (Nest nest in _nests)
         {
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.ReleaseTimer), nest.Target);
+            hash = Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, (int)nest.Phase), nest.PulseLeft), nest.HungerTicks);
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.Thief), nest.ThiefTicks);
         }
         foreach (Emberite emberite in _emberites)
@@ -288,7 +290,7 @@ public sealed partial class EmberiteSwarm
         for (int i = 0; i < count; i++)
         {
             Nest nest = _nests[i];
-            destination[i] = new NestRenderState(nest.Centre, nest.Radius, nest.Inside, nest.Awake, nest.IsCleared);
+            destination[i] = new NestRenderState(nest.Centre, nest.Radius, nest.Inside, nest.Awake, nest.IsCleared, nest.Phase == NestPhase.Stirring);
         }
         return count;
     }

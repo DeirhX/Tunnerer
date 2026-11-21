@@ -78,8 +78,8 @@ Entities/
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
-  Emberites/Emberite.cs                Emberite (a creature out of its nest), Nest, EmberiteState
-  Emberites/EmberiteSwarm*.cs          The emberites (MatchRules.Emberites): nests wake, release and recharge (Nests), creatures move, bite and
+  Emberites/Emberite.cs                Emberite (a creature out of its nest), Nest, NestPhase, EmberiteState
+  Emberites/EmberiteSwarm*.cs          The emberites (MatchRules.Emberites): nests wake, pulse, recharge and starve (Nests), creatures move, bite and
                              go home (Movement), shots find and kill them (Combat), hashes and snapshots of the swarm
   Emberites/EmberiteFlowField.cs       The coarse cost-to-goal field creatures follow, one per hunted tank and per awake nest
 Network/                     The link network (not network matches: those are Desktop/Net and Emberward.Protocol)
@@ -563,6 +563,10 @@ Desktop:
 counters (creatures never released, resting, out, stored charge); only creatures out of the nest are in the swarm's
 `List<Emberite>`, so a world with nothing out does no per-creature work (`EmberiteSwarm.CreatureSteps` stays 0). A dormant nest
 looks at each tank once in six ticks; digging a nest's ore (read from `OreCollected` step events) wakes it at once.
+A woken nest lets its creatures out in pulses (`Nest.Phase`, `AdvancePulse`): a stir of `StirTicks` (`StepEventKind.NestStirred`,
+the warning), a group sized by the hunted tank's heat (`EmberiteSwarm.PulseSize`), then a lull. A resting creature leaves
+only with a full charge, and while the nest cannot fill one for `StarveTicks` its hungry creatures die one by one
+(`StepEventKind.EmberiteStarved`), so a nest with no heat clears itself and stops asking the grid for any.
 Creatures move by the velocity they committed, then choose the next from an `EmberiteFlowField` (a Dijkstra over 4-cell
 blocks, rebuilt every 8 ticks while read, saved in the snapshot because it is built from past terrain). Heat is
 conserved: a first release books the charge as injected, a bite moves it into `Tank.Heat`, a kill spills it with
