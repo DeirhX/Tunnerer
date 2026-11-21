@@ -34,6 +34,7 @@
 //                   ground), .z = animation phase (the wriggle), .w = 0. With .w = 1 the quad is a nest's
 //                   resting embers instead: .x = 1 while creatures rest in it (2 while it stirs before a wave: they
 //                   flare), .y = the reach of the embers (cells).
+//  19 gatling   — .xy = facing (cos, sin), .z = drum phase (its barrels turn with it), .w = machine flags
 //  16 power label — .xy = packed 5x7 glyph bitmap (low 20 bits, then high 15), .z = dots per cell
 //                   (0 for a solid bar), .w = opacity
 //
@@ -65,6 +66,7 @@ static const float kKindGenerator = 15.0;
 static const float kKindPowerLabel = 16.0;
 static const float kKindTurret = 17.0;
 static const float kKindEmberite = 18.0;
+static const float kKindGatling = 19.0;
 
 // Machine flags (params.w); EntityShape's MachineFlag* constants must match.
 static const float kMachineFlagStalled = 1.0;

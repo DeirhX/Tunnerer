@@ -394,6 +394,11 @@ Each step is testable without the next.
     part to take damage; DESIGN.md §4.9), and level generation puts every base against the map's border (DESIGN.md
     §6.7), so the same seed gives another map. The rules hash changed with it. The relay must be updated before
     clients of this build can join a public match.
+15. **The gatling's build key** (protocol 13). Bit 31 of encoded player input is the fifth build key again and
+    builds a gatling (DESIGN.md §6.2); it is in the input key mask. Every bit of the 32 is now taken: the next
+    input needs a wider encoding or a reused bit. The versions of the energy rules and of the emberite rules in the
+    rules hash changed with it (a dying emberite now drops a unit of its nest's ore). The relay must be updated
+    before clients of this build can join a public match.
 
 ## 11. Open questions
 

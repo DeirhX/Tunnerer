@@ -26,6 +26,7 @@ public static class EntityShape
     public const float KindPowerLabel = 16f;
     public const float KindTurret = 17f;
     public const float KindEmberite = 18f;
+    public const float KindGatling = 19f;
 
     public const float MachineFlagStalled = 1f;
     public const float MachineFlagCarried = 2f;

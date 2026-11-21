@@ -9,6 +9,7 @@ using Emberward.Core.Network;
 using Emberward.Core.Match;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Projectiles;
+using Emberward.Core.Entities.Emberites;
 
 /// <summary>What a machine's action can see and touch.</summary>
 /// <param name="IsOccupied">
@@ -31,6 +32,10 @@ using Emberward.Core.Entities.Projectiles;
 /// Whether ore at a cell belongs to a nest that still has creatures (<see cref="Match.MatchRules.Emberites"/>): a harvester
 /// passes it over, like ore sealed in rock. Null guards nothing.
 /// </param>
+/// <param name="Emberites">
+/// The creatures out of their nests (<see cref="Match.MatchRules.Emberites"/>): a gatling looks for its targets among
+/// them. Null leaves it nothing but enemy tanks to shoot at.
+/// </param>
 /// <param name="Energy">
 /// The energy network (DESIGN.md §4.9) when the match rules run it (<see cref="Match.MatchRules.EnergyNetwork"/>):
 /// machines then spend charge through it. Null leaves the base's charge store as the only one: a harvester pays for
@@ -40,7 +45,7 @@ public readonly record struct MachineContext(
     ITerrainAccess Terrain, Func<Machine, Position, bool> IsOccupied, MachineList Machines,
     Func<Machine, TankCoverage> CoverageOf, StepEventLog? Events = null, EnergyNetwork? Energy = null, BasePowerSystem? BasePower = null,
     MachineUpgradeSystem? Upgrades = null, TankList? Tanks = null, ProjectileList? Projectiles = null,
-    Func<Position, bool>? IsOreGuarded = null);
+    Func<Position, bool>? IsOreGuarded = null, EmberiteSwarm? Emberites = null);
 
 /// <summary>
 /// Who an island of the energy network feeds first when it runs short (DESIGN.md §4.9): base defence, then turrets,
@@ -58,8 +63,8 @@ public enum PowerTier { BaseDefence, Turrets, Economy }
 /// <param name="IdleDrawPerTick">Charge it spends every tick, fed or cut off; it becomes heat where the machine stands.</param>
 public readonly record struct MachineCapacitor(double Capacity, double TransferPerTick, PowerTier Tier, double IdleDrawPerTick);
 
-/// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> primary through quaternary).</summary>
-public enum BuildKey { Primary, Secondary, Tertiary, Quaternary }
+/// <summary>The tank's build keys (<see cref="Input.ControllerOutput"/> primary through quinary).</summary>
+public enum BuildKey { Primary, Secondary, Tertiary, Quaternary, Quinary }
 
 /// <summary>
 /// Defines per-type machine behavior and traits in one place: Core code asks the behavior, never the type.
@@ -103,8 +108,17 @@ public record MachineBehavior(
     /// <summary>Converts local heat to charge and can supply an island without a base.</summary>
     public bool IsGenerator { get; init; }
 
-    /// <summary>It fires at enemy tanks in its range while its island feeds it (<see cref="TurretAction"/>).</summary>
+    /// <summary>
+    /// It fires at what it finds in its range while its island feeds it (<see cref="TurretAction"/>): enemy tanks, or
+    /// with <see cref="HuntsCreatures"/> emberites first.
+    /// </summary>
     public bool IsTurret { get; init; }
+
+    /// <summary>
+    /// A turret whose shots are light rounds for emberites (the gatling): it aims at the nearest creature out of its
+    /// nest, and at an enemy tank only when it sees none.
+    /// </summary>
+    public bool HuntsCreatures { get; init; }
 
     /// <summary>It works only on the energy network, so only matches that run it can build it.</summary>
     public bool NeedsEnergyNetwork { get; init; }
@@ -203,8 +217,19 @@ public static class MachineBehaviors
         UpgradePaths = [MachineUpgradePath.Rapid, MachineUpgradePath.LongRange],
     };
 
+    public static readonly MachineBehavior Gatling = new(
+        MachineType.Gatling, TimeSpan.Zero, TurretAction.Act,
+        Tweaks.Gatling.Color, Tweaks.Gatling.OreCost, BuildKey.Quinary)
+    {
+        Capacitor = new(Tweaks.Gatling.Capacitor, Tweaks.Gatling.TransferPerTick, PowerTier.Turrets, Tweaks.Gatling.IdleDraw),
+        IsTurret = true,
+        HuntsCreatures = true,
+        NeedsEnergyNetwork = true,
+        UpgradePaths = [MachineUpgradePath.Spin, MachineUpgradePath.Scope],
+    };
+
     /// <summary>Every machine's behavior, indexed by <see cref="MachineType"/>.</summary>
-    public static readonly IReadOnlyList<MachineBehavior> All = BuildTable(Harvester, Relay, Generator, Turret);
+    public static readonly IReadOnlyList<MachineBehavior> All = BuildTable(Harvester, Relay, Generator, Turret, Gatling);
 
     public static MachineBehavior Get(MachineType type) =>
         (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));

@@ -180,7 +180,7 @@ public class BrowserSessionArtStripTests
         Assert.Equal(-1, p.OrePileFrame);
         Assert.Equal("ORE", p.OreLine);
         // Each machine in its desktop slot, as the desktop's BuildPanel draws it.
-        Assert.Equal([0, 1, 2, 3], first.Builds.Select(b => b.Slot).Order());
+        Assert.Equal([0, 1, 2, 3, 4], first.Builds.Select(b => b.Slot).Order());
         foreach (var b in first.Builds)
         {
             var machine = MachinePresentations.All.Single(m => m.Type.ToString() == b.Name);

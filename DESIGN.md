@@ -441,7 +441,11 @@ A base must not fall to a tank that drives up and shoots it. It is a keep (`Base
   input (protocol 10) and moved to the fourth build key, bit 28, when the pylon went (protocol 11). Balance is
   untuned: a turret beside a relay may still make raiding too hard; its cost, range and the link it needs are the
   levers.
-- **Build keys.** E relay, R harvester, Y generator and U turret (the last two in energy matches). T is free.
+- **Gatlings** are the defence against emberites (§6.2): T builds one for 16 ore. It is the turret with another
+  gun, so everything above about power, coverage, the turrets tier and overheating holds for it (capacitor 1,800,
+  topped up at 30 a tick), but it looks first for the nearest creature out of its nest and only then for an enemy
+  tank. Its upgrades are **Spin** and **Scope**. It took bit 31 of the encoded input, the last free one (protocol 13).
+- **Build keys.** E relay, R harvester, Y generator, U turret and T gatling (the last three in energy matches).
 
 **Build order.** Capacitors, island balance, the local generator and throughput limits are implemented behind the
 energy rule. Dark state, shield and no lives, per-machine upgrades, turrets and the tank's reserve follow behind their
@@ -581,7 +585,27 @@ Pyrite pockets and lumps at least 60 cells from every base hold a nest (a pocket
   the deposit, and leaves again only with a full charge.
   A tank in its base, or just respawned, is not bitten.
 - *Kills heat the ground.* A killed creature spills the charge it carries where it dies, so holding one choke point
-  cooks it. One bullet or fragment kills. Creatures do not block tanks.
+  cooks it. One bullet, round or fragment kills. Creatures do not block tanks.
+- *Kills pay a little.* Every fourth death of a nest's creatures (counted on the creatures it has left) drops one unit
+  of the nest's own deposit where the creature dies: a plain ore cell leaves the deposit's rim and lands as loose
+  ore, outside the nest's guard, for a harvester or the tank. A pocket's nest gives up 2 to 5 units this way and a
+  lump's 8 to 15; a deposit with no plain ore left gives none, and a unit with no room to land stays in the
+  deposit. Nothing is made: the deposit is its cells, so the world keeps no count of what a nest has left to give.
+  Loose ore is ore, so it blocks links, shots and creatures where it lies until it is collected.
+- *Gatlings answer the pulses.* The gatling (T, 16 ore, `MachineBehaviors.Gatling`, numbers in `Tweaks.Gatling`) is the
+  structure that fights creatures, so the tank does not have to. It fires a light round every 3 ticks (8 a second)
+  at the nearest creature within 20 cells, aimed ahead of it by the round's
+  flight time (rounds fly 4 cells a tick). A round kills a creature, passes through 3 cells of soil (so one
+  burrowing just inside a tunnel wall is not safe; rock, ore, concrete and base walls stop it), bursts on nothing
+  (no shrapnel, no dirt dug, no heat where it lands) and is spent a little past the gatling's range. With no
+  creature to shoot at it fires at an enemy tank in a clear line, for 4 damage a round: a fifth of a turret's
+  damage a second, a nuisance. Each round spends 15 charge, which becomes heat beside the gatling: firing without a
+  pause warms a lone one's ground by about 3 degrees a second, and it slows above 60 degrees as a turret does, so a
+  lump's siege wants a relay beside it. Its upgrades: **Spin** (interval 2, then 1 tick; each round spends x1.1,
+  then x1.2) and **Scope** (+6 cells of range and 2 more cells of soil a level). A nest sends its creatures in pulses, one every 2
+  ticks (§6.2): a plain gatling stops a small pulse before it bites and thins a big one (a full-heat pulse of 40 gets
+  bites through), Spin 1 matches the pulse's rate and stops it, and creatures that cross its field, burrow deep or come
+  from two sides are what more gatlings are for. While nothing is out it looks at nothing (it costs what a turret costs). Untuned.
 - *Tunnels are the terrain.* They run 1.5 cells a tick in open ground (the tank walks 1) and burrow through soil at
   0.35 (the tank digs about 0.5), and a coarse flow field (4-cell blocks, a window of 33 by 33 blocks around the goal,
   rebuilt every 8 ticks while read) leads them along tunnels in preference to a shorter line through dirt. Rock, concrete,
@@ -596,8 +620,9 @@ Pyrite pockets and lumps at least 60 cells from every base hold a nest (a pocket
 - *Ways out.* Cool down, kill them all, or starve them: a cleared nest frees its ore for harvesters, which pass over a
   guarded deposit's ore until then (the base panel says so).
 
-Not built: attacks on relays and other hot machines, turrets targeting creatures, bot awareness of creatures, threat
-scaling with the total heat rejected, other creature types, stolen pyrite hatching new creatures.
+Not built: attacks on relays and other hot machines (so a gatling defends the tank and the ground it works, not yet a
+network under attack), bot awareness of creatures, threat scaling with the total heat rejected, other creature types,
+stolen pyrite hatching new creatures.
 
 ### 6.3 Minerals and metals *(Decided in principle)*
 
@@ -922,6 +947,8 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 |---|---|
 | Take physical heat simulation seriously and build the loop on heat management | Decided |
 | The ore formerly called emberite is renamed pyrite; the creatures formerly called emberlings (and "mobs" in code) are now emberites | Decided |
+| Gatlings are the structure that fights emberites: fast light rounds that lead a runner and pass a little soil; the turret stays the answer to tanks (§6.2) | Decided |
+| A dying emberite now and then drops a unit of its nest's own deposit; the unit is a cell moved, so no new world data counts it (§6.2) | Decided |
 | First emberite: heat-hunting emberites nest in pyrite pockets and lumps; they burrow slower than the tank and run faster in tunnels; they bite heat into tanks, and a cleared nest frees its ore (§6.2) | Decided |
 | A nest sends its emberites in pulses after a stir that warns of each, sized by the hunted tank's heat; a creature leaves only with a full charge, and one its deposit cannot feed starves, so a cold nest clears itself (§6.2) | Decided |
 | Moving things are drawn by extrapolation in the entity vertex shader, so motion is smooth above the step rate with no added lag | Decided |

@@ -127,8 +127,9 @@ public enum StepEventKind
     MachineUpgradeRefused,
 
     /// <summary>
-    /// A turret at <see cref="StepEvent.Position"/> fired at an enemy tank; <see cref="StepEvent.Count"/> is the target's
-    /// colour. <see cref="StepEvent.Color"/> is the turret's owner.
+    /// A turret or a gatling (<see cref="StepEvent.Machine"/>) at <see cref="StepEvent.Position"/> fired;
+    /// <see cref="StepEvent.Count"/> is the colour of the enemy tank it fired at, or -1 for an emberite.
+    /// <see cref="StepEvent.Color"/> is the turret's owner.
     /// </summary>
     TurretFired,
 

@@ -24,16 +24,23 @@ public enum MachineUpgradePath
 
     /// <summary>A turret reaches further and hits harder, and fires more slowly. Shown as "Long".</summary>
     LongRange,
+
+    /// <summary>A gatling fires faster, and each round spends more charge, which heats it more.</summary>
+    Spin,
+
+    /// <summary>A gatling reaches further, and its rounds pass through more soil.</summary>
+    Scope,
 }
 
 /// <summary>
-/// How a turret fights at its upgrade level (<see cref="MachineUpgrades.TurretStatsOf"/>).
+/// How a turret or a gatling fights at its upgrade level (<see cref="MachineUpgrades.GunStatsOf"/>).
 /// </summary>
 /// <param name="Range">Cells it shoots across.</param>
 /// <param name="Damage">What each bullet takes off what it strikes.</param>
 /// <param name="IntervalTicks">Ticks between shots while it is cool.</param>
 /// <param name="ShotCharge">Charge each shot spends, which becomes heat beside it.</param>
-public readonly record struct TurretStats(int Range, int Damage, int IntervalTicks, double ShotCharge);
+/// <param name="SoilPierce">Cells of soil its shot passes through before one stops it: a gatling's rounds; 0 for a turret's bullet.</param>
+public readonly record struct TurretStats(int Range, int Damage, int IntervalTicks, double ShotCharge, int SoilPierce = 0);
 
 /// <summary>Why a machine upgrade press bought nothing.</summary>
 public enum MachineUpgradeRefusal
@@ -126,6 +133,26 @@ public static class MachineUpgrades
             Tweaks.Turret.ShotCharge * Tweaks.Turret.RapidShotChargeScale[rapid]);
     }
 
+    /// <summary>A gatling's range, damage, interval, shot charge and soil pierce with <paramref name="upgrade"/>.</summary>
+    public static TurretStats GatlingStatsOf(MachineUpgradeLevel upgrade)
+    {
+        int spin = Math.Clamp(upgrade.LevelOf(MachineUpgradePath.Spin), 0, MaxLevel);
+        int scope = Math.Clamp(upgrade.LevelOf(MachineUpgradePath.Scope), 0, MaxLevel);
+        return new TurretStats(
+            Tweaks.Gatling.Range + Tweaks.Gatling.ScopeRangePerLevel * scope,
+            Tweaks.Gatling.Damage,
+            Math.Max(1, (int)Math.Round(Tweaks.Gatling.FireIntervalTicks * Tweaks.Gatling.SpinIntervalScale[spin])),
+            Tweaks.Gatling.ShotCharge * Tweaks.Gatling.SpinShotChargeScale[spin],
+            Tweaks.Gatling.SoilPierceCells + Tweaks.Gatling.ScopePiercePerLevel * scope);
+    }
+
+    /// <summary>
+    /// How a machine with <paramref name="behavior"/> fights with <paramref name="upgrade"/>: a gatling's numbers for
+    /// one that hunts creatures (<see cref="MachineBehavior.HuntsCreatures"/>), else a turret's.
+    /// </summary>
+    public static TurretStats GunStatsOf(MachineBehavior behavior, MachineUpgradeLevel upgrade) =>
+        behavior.HuntsCreatures ? GatlingStatsOf(upgrade) : TurretStatsOf(upgrade);
+
     /// <summary>Extra cells of sight at Sensor level <paramref name="sensorLevel"/>.</summary>
     public static int SightBonus(int sensorLevel) => Tweaks.MachineUpgrades.SensorCellsPerLevel * sensorLevel;
 
@@ -142,6 +169,10 @@ public static class MachineUpgrades
             $"fires faster (x{1.0 / Tweaks.Turret.RapidIntervalScale[1]:0.0}, then x{1.0 / Tweaks.Turret.RapidIntervalScale[2]:0.0}), runs hotter")),
         MachineUpgradePath.LongRange => ("Long", string.Create(CultureInfo.InvariantCulture,
             $"+{Tweaks.Turret.LongRangePerLevel} cells of range a level, x{Tweaks.Turret.LongDamageScale[1]:0.0} then x{Tweaks.Turret.LongDamageScale[2]:0.0} damage, fires slower")),
+        MachineUpgradePath.Spin => ("Spin", string.Create(CultureInfo.InvariantCulture,
+            $"fires faster (x{1.0 / Tweaks.Gatling.SpinIntervalScale[1]:0.0}, then x{1.0 / Tweaks.Gatling.SpinIntervalScale[2]:0.0}), runs hotter")),
+        MachineUpgradePath.Scope => ("Scope", string.Create(CultureInfo.InvariantCulture,
+            $"+{Tweaks.Gatling.ScopeRangePerLevel} cells of range a level, rounds pass {Tweaks.Gatling.ScopePiercePerLevel} more cells of soil")),
         _ => (path.ToString(), ""),
     };
 }

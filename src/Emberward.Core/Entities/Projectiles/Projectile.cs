@@ -4,7 +4,14 @@ using Emberward.Core.Types;
 using Emberward.Core.Terrain;
 using Emberward.Core.Config;
 
-public enum ProjectileType { Bullet, Shrapnel }
+public enum ProjectileType
+{
+    Bullet,
+    Shrapnel,
+
+    /// <summary>A gatling's round: light, spent after a short flight, and it stops on what it hits without bursting.</summary>
+    Round,
+}
 
 public class Projectile
 {
@@ -27,6 +34,34 @@ public class Projectile
         IsAlive = true,
         OwnerColor = ownerColor,
         Damage = damage,
+    };
+
+    /// <summary>Cells of soil a round still passes through; the next one after that stops it.</summary>
+    public int Pierce { get; set; }
+
+    /// <summary>
+    /// The soil cell a round last passed through, which it already paid for: two samples of its flight may fall in one
+    /// cell, also across two ticks. <see cref="NoCell"/> until it has passed one.
+    /// </summary>
+    public Position PiercedCell { get; set; } = NoCell;
+
+    /// <summary>A cell off the map, for a round that has pierced nothing yet.</summary>
+    public static readonly Position NoCell = new(int.MinValue, int.MinValue);
+
+    /// <summary>
+    /// A gatling's round: it flies for <paramref name="life"/> ticks, passes through <paramref name="pierce"/> cells of
+    /// soil and takes <paramref name="damage"/> off a tank or a machine it strikes.
+    /// </summary>
+    public static Projectile CreateRound(Position pos, VectorF speed, int ownerColor, int damage, int life, int pierce) => new()
+    {
+        Position = (PositionF)pos,
+        Speed = speed,
+        Type = ProjectileType.Round,
+        IsAlive = true,
+        OwnerColor = ownerColor,
+        Damage = damage,
+        Life = life,
+        Pierce = pierce,
     };
 
     public static Projectile CreateShrapnel(Position pos, VectorF speed, int life, float heatScale = 1f) => new()

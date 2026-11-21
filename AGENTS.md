@@ -88,7 +88,7 @@ Adding a machine:
 2. A `MachineBehavior` in `MachineBehaviors` (`Entities/Machines/MachineBehavior.cs`), listed in `MachineBehaviors.All`:
    action, interval, colour, build cost, build key, its `Capacitor` (capacity, transfer rate, `PowerTier`, idle draw;
    DESIGN.md §4.9), and the traits Core reads instead of the type (`RunsOnCharge`, `IsLinkNode`,
-   `RequiresLinkToPlant`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, `NeedsEnergyNetwork`), and its `UpgradePaths` if it takes per-machine
+   `RequiresLinkToPlant`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, `HuntsCreatures`, `NeedsEnergyNetwork`), and its `UpgradePaths` if it takes per-machine
    upgrades (`MachineUpgrades.cs` says what each path does). `MachineBehaviorTableTests` must pass.
 3. Cost, interval, colour and capacitor numbers in `Config/Tweaks.cs`, or in a partial of its own beside it
    (`Tweaks.Turrets.cs`) while `Tweaks.cs` is near the file-length cap.
@@ -96,8 +96,8 @@ Adding a machine:
    `MachineSprite` in `MachineSprites` (what the entity emitters draw on desktop and in the browser: shader shape,
    size, gauge, sense ring, capacitor gauge, preview reach; `Rendering/Entities/MachineSprite.cs`) and its build sound in
    `StepEventSounds.BuildSound` (`Audio/StepEventSounds.cs`). `MachinePresentationTests` must pass. A new shape also needs a shader branch. Each machine
-   needs a distinct `BuildKey` with desktop, browser and codec wiring. Bit 31 of the encoded input is the only free one
-   (it was the pylon's fifth build key): a fifth build key takes it and bumps the protocol. The full recipe is in `src/Emberward.Core/ARCHITECTURE.md`.
+   needs a distinct `BuildKey` with desktop, browser and codec wiring. The gatling took bit 31 of the encoded input, the last
+   free one: a sixth build key needs a wider encoding or a reused bit, and bumps the protocol. The full recipe is in `src/Emberward.Core/ARCHITECTURE.md`.
 
 Adding a shader:
 
@@ -169,7 +169,9 @@ that tests can inject their own values.
 - **The swarm costs what is out, not what is nested.** `EmberiteSwarm` (`MatchRules.Emberites`, needs `SeedOre`) keeps a nest as
   counters and holds only the creatures out of their nests in its list. A dormant nest costs one distance test per tank
   every 6 ticks; do not add a per-creature or per-nest pass that runs while nothing is out (`EmberiteSwarmTests` checks that
-  `CreatureSteps` stays 0). Flow fields are built only while a creature reads them. Its heat is conserved (booked in the
+  `CreatureSteps` stays 0). A gatling asks it for a target (`TryFindTarget`) only while something is out, and a dying
+  creature's drop of its nest's ore (`DropHomeOre`) looks at the nest's ground once per drop: a deposit is its cells, so
+  do not add a count of what a nest has left to give. Flow fields are built only while a creature reads them. Its heat is conserved (booked in the
   ledger, counted in `World.SumSystemThermalEnergy`).
 - **Entities are drawn by extrapolation in the vertex shader.** An `EntityVertex` carries its corner in world cells and
   its motion in cells per step; `EntityVs.hlsl` draws it at `corner + motion * StepAlpha` and moves the camera the same

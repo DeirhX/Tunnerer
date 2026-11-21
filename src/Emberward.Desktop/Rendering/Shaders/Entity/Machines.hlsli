@@ -1,5 +1,5 @@
 // ============================================================================
-// Entity/Machines.hlsli — Relay, harvester, turret, generator and capacitor gauge
+// Entity/Machines.hlsli — Relay, harvester, turret, gatling, generator and capacitor gauge
 // ============================================================================
 //
 // Machine bodies. A carried machine is drawn as a see-through ghost. The shader
@@ -227,6 +227,57 @@ float4 Turret(float2 p, float4 params, float aa)
     Over(result, headColor, FillAlpha(head, aa));
     float lamp = length(p - float2(0.55, 0.0)) - 0.32;
     Over(result, lerp(float3(1.0, 0.86, 0.45), float3(1.0, 0.35, 0.20), hot), FillAlpha(lamp, aa));
+    return Ghost(result, flags);
+}
+
+// Gatling: a squat armoured mount with a brass drum and a bundle of three thin barrels along its facing (+x), which
+// turns to where it last aimed. The barrels' highlight runs across the bundle with the drum angle (params.z), so it
+// reads as spinning while the gatling works; the bundle glows orange-red while its ground is hot enough to slow its
+// fire (the stalled flag).
+float4 Gatling(float2 p, float4 params, float aa)
+{
+    float2 light = LocalLight(params.xy);
+    float flags = params.w;
+    float hot = MachineFlag(flags, kMachineFlagStalled) ? 1.0 : 0.0;
+    float4 result = float4(0.0, 0.0, 0.0, 0.0);
+
+    float mount = sdRoundBox(p, float2(-0.5, 0.0), float2(2.0, 2.2), 0.7);
+    float bundle = sdRoundBox(p, float2(1.9, 0.0), float2(1.6, 0.95), 0.2);
+    float2 sp = p + light * 0.6;
+    float shadow = min(sdRoundBox(sp, float2(-0.5, 0.0), float2(2.0, 2.2), 0.7),
+        sdRoundBox(sp, float2(1.9, 0.0), float2(1.6, 0.95), 0.2));
+    Over(result, float3(0.0, 0.0, 0.0), 0.40 * smoothstep(0.5, -0.3, shadow));
+
+    // The mount: dark plate with a lighter rim.
+    float rim = smoothstep(0.55, 0.15, abs(mount + 0.35));
+    float3 mountColor = lerp(float3(0.22, 0.23, 0.24), float3(0.40, 0.40, 0.38), rim);
+    Over(result, kOutlineColor, FillAlpha(mount - 0.14, aa));
+    Over(result, mountColor, FillAlpha(mount, aa));
+
+    // The barrel bundle: three barrels side by side, the lit one moving across them as the drum turns.
+    float lane = clamp(floor((p.y + 0.95) / 0.6334), 0.0, 2.0);
+    float gap = abs(frac((p.y + 0.95) / 0.6334) - 0.5);
+    float spin = 0.5 + 0.5 * cos(params.z * 3.0 - lane * 2.094);
+    float heat = hot * smoothstep(0.4, 3.4, p.x);
+    float3 steel = lerp(float3(0.26, 0.27, 0.29), float3(0.50, 0.52, 0.55), spin);
+    steel = lerp(steel, float3(0.10, 0.10, 0.11), smoothstep(0.36, 0.5, gap));
+    steel = lerp(steel, float3(1.0, 0.42, 0.12), heat * 0.8);
+    Over(result, kOutlineColor, FillAlpha(bundle - 0.14, aa));
+    Over(result, steel, FillAlpha(bundle, aa));
+    // A collar holds the bundle near the muzzle.
+    float collar = sdRoundBox(p, float2(2.7, 0.0), float2(0.22, 1.1), 0.1);
+    Over(result, float3(0.16, 0.16, 0.17), FillAlpha(collar, aa));
+
+    // The brass drum the barrels turn in, lit from the light.
+    float radius = length(p + float2(0.5, 0.0));
+    float drum = radius - 1.35;
+    float2 n = (p + float2(0.5, 0.0)) / max(radius, 1e-4);
+    float lit = 0.8 + 0.35 * dot(n, light) * smoothstep(0.2, 1.35, radius);
+    float3 drumColor = lerp(float3(0.84, 0.70, 0.24), float3(0.95, 0.30, 0.10), hot) * lit;
+    Over(result, kOutlineColor, FillAlpha(drum - 0.14, aa));
+    Over(result, drumColor, FillAlpha(drum, aa));
+    float hub = radius - 0.42;
+    Over(result, float3(0.18, 0.17, 0.15), FillAlpha(hub, aa));
     return Ghost(result, flags);
 }
 

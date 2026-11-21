@@ -11,7 +11,7 @@ public class ControllerOutputCodecTests
     {
         for (int x = -1; x <= 1; x++)
             for (int y = -1; y <= 1; y++)
-                for (int buttons = 0; buttons < 128; buttons++)
+                for (int buttons = 0; buttons < 256; buttons++)
                     for (int upgrade = 0; upgrade <= BaseUpgrades.Count; upgrade++)
                     {
                         var input = new ControllerOutput
@@ -24,6 +24,7 @@ public class ControllerOutputCodecTests
                             BuildQuaternary = (buttons & 16) != 0,
                             Recall = (buttons & 32) != 0,
                             UpgradeMachine = (buttons & 64) != 0,
+                            BuildQuinary = (buttons & 128) != 0,
                             Upgrade = upgrade,
                         };
 
@@ -37,13 +38,14 @@ public class ControllerOutputCodecTests
                         Assert.Equal(input.BuildQuaternary, decoded.BuildQuaternary);
                         Assert.Equal(input.Recall, decoded.Recall);
                         Assert.Equal(input.UpgradeMachine, decoded.UpgradeMachine);
+                        Assert.Equal(input.BuildQuinary, decoded.BuildQuinary);
                         Assert.Equal(input.Upgrade, decoded.Upgrade);
                         Assert.Equal(default, decoded.AimDirection);
                     }
     }
 
     [Fact]
-    public void Bit31_IsFree_EveryOtherIsTaken()
+    public void EveryBit_IsTaken_TheLastByTheFifthBuildKey()
     {
         var input = new ControllerOutput
         {
@@ -59,9 +61,24 @@ public class ControllerOutputCodecTests
             AimDirection = new DirectionF(0.6f, -0.8f),
         };
 
-        // Bit 31 is free since the pylon went (protocol 11): nothing sets it, and the key mask leaves it out.
+        // Bit 31 is the fifth build key (the gatling, protocol 13): nothing else sets it.
         Assert.Equal(0u, ControllerOutputCodec.Encode(input) >> 31);
-        Assert.Equal(0u, ControllerOutputCodec.KeyMask >> 31);
+        Assert.Equal(1u << 31, ControllerOutputCodec.Encode(new ControllerOutput { BuildQuinary = true }));
+        // With it and the highest upgrade key, every bit outside the aim angle (bits 12-27) is set.
+        uint all = ControllerOutputCodec.Encode(input with { BuildQuinary = true, Upgrade = 7 });
+        Assert.Equal(uint.MaxValue, all | 0xFFFFu << 12);
+        Assert.Equal(1u << 31, ControllerOutputCodec.KeyMask >> 31 << 31);
+    }
+
+    [Fact]
+    public void TheFifthBuildKey_IsAKeyForInputPrediction_AndRoundTripsWithAnAim()
+    {
+        var input = new ControllerOutput { BuildQuinary = true, AimDirection = new DirectionF(0.6f, -0.8f) };
+        uint bits = ControllerOutputCodec.Encode(input);
+        Assert.Equal(1u << 31, bits & ControllerOutputCodec.KeyMask & ~((1u << 12) - 1));
+        var decoded = ControllerOutputCodec.Decode(bits);
+        Assert.True(decoded.BuildQuinary);
+        Assert.Equal(bits, ControllerOutputCodec.Encode(decoded));
     }
 
     [Fact]
