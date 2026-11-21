@@ -74,7 +74,9 @@ public static partial class Tweaks
         // open ground, and the flow field counts it as open. Nothing is written to the terrain.
         public const float TrailWearPerCrossing = 1f;
         public const float TrailWearMax = 8f;
-        public const float TrailLaneThreshold = 3f;
+        // Wear fades from the tick it is stored, so a threshold of exactly 3 would lose a lane one tick after three
+        // crossings. 2.5 keeps a lane from three crossings for about ten seconds after the last one.
+        public const float TrailLaneThreshold = 2.5f;
         public const int TrailLifetimeTicks = 24 * 60;
     }
 }
