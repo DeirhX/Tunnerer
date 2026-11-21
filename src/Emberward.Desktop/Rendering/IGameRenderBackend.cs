@@ -4,12 +4,22 @@ using System;
 using Emberward.Core.Types;
 using Emberward.Desktop.Config;
 
+/// <param name="CameraPixels">The camera's top-left corner as drawn now, in whole pixels.</param>
+/// <param name="CameraMotion">How far the camera moves in one simulation step (pixels): the shader draws it at
+/// <c>CameraPixels - CameraMotion * StepAlpha + CameraMotion * alpha</c>, so a frame can be drawn again at a later alpha.</param>
+/// <param name="StepAlpha">The progress through the current step (0..1) that <see cref="CameraPixels"/> is for.</param>
 public readonly record struct RenderView(
     Size ViewSize,
     Size WorldSize,
     Position CameraPixels,
-    int PixelScale)
+    int PixelScale,
+    PositionF CameraMotion = default,
+    float StepAlpha = 0f)
 {
+    /// <summary>The camera before its motion through the step: what the shader adds <c>CameraMotion * alpha</c> to.</summary>
+    public PositionF CameraStartPixels => new(
+        CameraPixels.X - CameraMotion.X * StepAlpha, CameraPixels.Y - CameraMotion.Y * StepAlpha);
+
     /// <summary>The terrain cells the view shows any part of, clipped to the world.</summary>
     public Rect VisibleCells()
     {
@@ -19,6 +29,31 @@ public readonly record struct RenderView(
         int maxX = Math.Min(WorldSize.X, (CameraPixels.X + ViewSize.X + scale - 1) / scale);
         int maxY = Math.Min(WorldSize.Y, (CameraPixels.Y + ViewSize.Y + scale - 1) / scale);
         return new Rect(minX, minY, Math.Max(0, maxX - minX), Math.Max(0, maxY - minY));
+    }
+}
+
+/// <summary>
+/// A camera that keeps a followed point (a tank's drawn start and motion, in cells) centred, the same way on the
+/// desktop and in the browser: its position is <c>start + motion * alpha</c>, rounded to whole pixels so cells stay
+/// exact blocks.
+/// </summary>
+public static class CameraFollow
+{
+    /// <summary>
+    /// The camera for a view of <paramref name="viewSize"/> following a point that starts at <paramref name="start"/>
+    /// and moves <paramref name="motion"/> (cells) through the step, at <paramref name="alpha"/> through it.
+    /// </summary>
+    public static (Position Pixels, PositionF Motion) At(
+        PositionF start, PositionF motion, float alpha, int scale, Size viewSize, Size worldSize)
+    {
+        int minX = -viewSize.X / 2, minY = -viewSize.Y / 2;
+        int maxX = worldSize.X * scale - viewSize.X / 2, maxY = worldSize.Y * scale - viewSize.Y / 2;
+        float x0 = Math.Clamp(start.X * scale - viewSize.X / 2, minX, maxX);
+        float y0 = Math.Clamp(start.Y * scale - viewSize.Y / 2, minY, maxY);
+        float x1 = Math.Clamp((start.X + motion.X) * scale - viewSize.X / 2, minX, maxX);
+        float y1 = Math.Clamp((start.Y + motion.Y) * scale - viewSize.Y / 2, minY, maxY);
+        var pixels = new Position((int)MathF.Round(x0 + (x1 - x0) * alpha), (int)MathF.Round(y0 + (y1 - y0) * alpha));
+        return (pixels, new PositionF(x1 - x0, y1 - y0));
     }
 }
 

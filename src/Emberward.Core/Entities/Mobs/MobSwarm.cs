@@ -1,0 +1,256 @@
+namespace Emberward.Core.Entities.Mobs;
+
+using System.Runtime.InteropServices;
+using Emberward.Core.Collision;
+using Emberward.Core.Config;
+using Emberward.Core.Entities.Bases;
+using Emberward.Core.Entities.Tanks;
+using Emberward.Core.LevelGen;
+using Emberward.Core.Rendering;
+using Emberward.Core.Sensing;
+using Emberward.Core.Snapshots;
+using Emberward.Core.Terrain;
+using Emberward.Core.Types;
+
+/// <summary>
+/// The emberlings (DESIGN.md §6.2): creatures that nest in emberite pockets and lumps, guard the ore and hunt any tank
+/// that runs hot. Present only in worlds whose rules ask for it (<see cref="Match.MatchRules.Mobs"/>), and costing
+/// nothing while no nest is awake and none is out: a dormant nest holds counters and is looked at once in
+/// <see cref="Tweaks.Mobs.WakeCheckTicks"/> ticks, a creature in its nest has no state of its own.
+/// </summary>
+/// <remarks>
+/// Heat is conserved. A creature's charge is made, and booked as injected, when it first leaves its nest; a bite
+/// moves it into the tank; a kill spills it into the ground where it dies; a resting creature recharges by taking heat
+/// out of the deposit. <see cref="TotalCharge"/> is what the swarm holds, so the balance of
+/// <see cref="World.SumSystemThermalEnergy"/> closes. Burrowing writes no pixels.
+/// </remarks>
+public sealed partial class MobSwarm
+{
+    private readonly TerrainGrid _terrain;
+    private readonly TankList _tanks;
+    private readonly TankBases _bases;
+    private readonly StepEventLog _events;
+    private readonly double _fullCharge;
+    private readonly List<Nest> _nests = new();
+    private readonly List<Mob> _mobs = new();
+    private readonly List<MobFlowField> _fields = new();
+    private FastRandom _rng;
+    private int _tick;
+    private int _nextId;
+
+    [NotSaved("scratch: a field build fills the queue before it reads it")]
+    private readonly PriorityQueue<int, long> _queue = new();
+    [NotSaved("scratch: rebuilt from the creatures out at the start of each step")]
+    private readonly WorldSectors _sectors;
+    [NotSaved("scratch: whether the sector index holds anything to clear")]
+    private bool _indexed;
+
+    /// <param name="seed">The simulation seed mixed with this system's constant by <see cref="World"/>.</param>
+    public MobSwarm(TerrainGrid terrain, TankList tanks, TankBases bases, StepEventLog events, SimulationSettings settings, int seed)
+    {
+        _terrain = terrain;
+        _tanks = tanks;
+        _bases = bases;
+        _events = events;
+        _fullCharge = Tweaks.Mobs.BiteDegrees * (double)settings.TankHeatCapacity;
+        _rng = new FastRandom(seed);
+        _sectors = new WorldSectors(terrain.Size);
+    }
+
+    /// <summary>The nests, in the order they were made (the order the deposits were placed).</summary>
+    public IReadOnlyList<Nest> Nests => _nests;
+
+    /// <summary>How many creatures are out of their nests.</summary>
+    public int OutCount => _mobs.Count;
+
+    /// <summary>Creature steps taken since the match began: zero for as long as nothing is out, which is the swarm's cost rule.</summary>
+    public long CreatureSteps { get; private set; }
+
+    /// <summary>The flow fields kept now: one per hunted tank and per awake nest that something reads.</summary>
+    public IReadOnlyList<MobFlowField> Fields => _fields;
+
+    /// <summary>
+    /// Makes a nest in each pocket and lump of <paramref name="deposits"/> that is at least
+    /// <see cref="Tweaks.Mobs.MinNestDistanceFromBase"/> from every base.
+    /// </summary>
+    public void Seed(IReadOnlyList<OreDeposit> deposits)
+    {
+        foreach (OreDeposit deposit in deposits)
+        {
+            if (deposit.Kind == OreDepositKind.Speck || !FarFromBases(deposit.Center))
+                continue;
+            bool lump = deposit.Kind == OreDepositKind.Lump;
+            int minCells = lump ? Tweaks.Ore.LumpMinCells : Tweaks.Ore.PocketMinCells;
+            int maxCells = lump ? Tweaks.Ore.LumpMaxCells : Tweaks.Ore.PocketMaxCells;
+            int min = lump ? Tweaks.Mobs.LumpMinCreatures : Tweaks.Mobs.PocketMinCreatures;
+            int max = lump ? Tweaks.Mobs.LumpMaxCreatures : Tweaks.Mobs.PocketMaxCreatures;
+            float share = Math.Clamp((deposit.Cells - minCells) / (float)Math.Max(1, maxCells - minCells), 0f, 1f);
+            int radius = (int)MathF.Ceiling(MathF.Sqrt(deposit.Cells) * Tweaks.Mobs.NestRadiusPerSqrtCell) + Tweaks.Mobs.NestRadiusPadding;
+            AddNest(deposit.Center, radius, min + (int)MathF.Round(share * (max - min)));
+        }
+    }
+
+    /// <summary>Makes a nest of <paramref name="creatures"/> at <paramref name="centre"/>, whose ground reaches <paramref name="radius"/> cells.</summary>
+    public Nest AddNest(Position centre, int radius, int creatures)
+    {
+        var nest = new Nest { Centre = centre, Radius = radius, NeverReleased = creatures };
+        _nests.Add(nest);
+        return nest;
+    }
+
+    private bool FarFromBases(Position at)
+    {
+        int distance = Tweaks.Mobs.MinNestDistanceFromBase;
+        foreach (TankBase tankBase in _bases.Bases)
+            if (Position.DistanceSquared(at, tankBase.Position) < distance * distance)
+                return false;
+        return true;
+    }
+
+    /// <summary>The heat the swarm holds: what the creatures out carry and what the nests have stored.</summary>
+    public double TotalCharge()
+    {
+        double total = 0.0;
+        foreach (Nest nest in _nests)
+            total += nest.Stored;
+        foreach (Mob mob in _mobs)
+            total += mob.Charge;
+        return total;
+    }
+
+    /// <summary>Whether ground at <paramref name="cell"/> belongs to a nest that still has creatures: its ore is guarded.</summary>
+    public bool IsGuarded(Position cell)
+    {
+        foreach (Nest nest in _nests)
+            if (!nest.IsCleared && Position.DistanceSquared(cell, nest.Centre) <= nest.Radius * nest.Radius)
+                return true;
+        return false;
+    }
+
+    /// <summary>Whether any nest still has creatures.</summary>
+    public bool AnyGuarded
+    {
+        get
+        {
+            foreach (Nest nest in _nests)
+                if (!nest.IsCleared)
+                    return true;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// How far a tank at <paramref name="heat"/> is sensed from: nothing below <see cref="Tweaks.Mobs.WakeHeat"/>, then
+    /// <see cref="Tweaks.Mobs.WakeRange"/> growing to <see cref="Tweaks.Mobs.FullRange"/> at <see cref="Tweaks.Mobs.FullHeat"/>.
+    /// </summary>
+    public static float SenseRange(float heat)
+    {
+        if (heat < Tweaks.Mobs.WakeHeat)
+            return 0f;
+        float t = Math.Clamp((heat - Tweaks.Mobs.WakeHeat) / (Tweaks.Mobs.FullHeat - Tweaks.Mobs.WakeHeat), 0f, 1f);
+        return Tweaks.Mobs.WakeRange + t * (Tweaks.Mobs.FullRange - Tweaks.Mobs.WakeRange);
+    }
+
+    /// <summary>What a creature finds in a cell: the ground a nest's own creatures burrow through is soil to them.</summary>
+    public static MobGround Classify(TerrainPixel pixel, Position cell, Position zoneCentre, int zoneRadius)
+    {
+        if (Pixel.IsAnyBaseCell(pixel))
+            return MobGround.Blocked;
+        if (Pixel.IsOpenGround(pixel))
+            return MobGround.Open;
+        if (Pixel.IsSoil(pixel) || (zoneRadius > 0 && Position.DistanceSquared(cell, zoneCentre) <= zoneRadius * zoneRadius))
+            return MobGround.Soil;
+        return MobGround.Blocked;
+    }
+
+    /// <summary>One step: nests wake and sleep, release and recharge; creatures out move, bite and come home.</summary>
+    public void Advance()
+    {
+        _tick++;
+        WatchForThieves();
+        for (int i = 0; i < _nests.Count; i++)
+            AdvanceNest(i, _nests[i]);
+        if (_mobs.Count > 0)
+            AdvanceMobs();
+        AdvanceFields();
+    }
+
+    /// <summary>Mixes what <see cref="WorldStateHash.Compute"/> reads of the swarm: the nests and the creatures out.</summary>
+    internal ulong MixState(ulong hash)
+    {
+        hash = Fnv1a.Mix(hash, _nests.Count);
+        foreach (Nest nest in _nests)
+        {
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.NeverReleased), nest.Resting);
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.Out), nest.Awake);
+            hash = Fnv1a.Mix(hash, nest.Stored);
+        }
+        hash = Fnv1a.Mix(hash, _mobs.Count);
+        foreach (Mob mob in _mobs)
+        {
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.Position.X), mob.Position.Y);
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.Velocity.X), mob.Velocity.Y);
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.Charge), (int)mob.State);
+        }
+        return hash;
+    }
+
+    /// <summary>Mixes what a step reads before it shows: the generator, timers, targets, thieves and the fields.</summary>
+    internal ulong MixLatent(ulong hash)
+    {
+        hash = Fnv1a.Mix(Fnv1a.Mix(hash, _rng.State), _tick);
+        hash = Fnv1a.Mix(hash, _nextId);
+        foreach (Nest nest in _nests)
+        {
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.ReleaseTimer), nest.Target);
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, nest.Thief), nest.ThiefTicks);
+        }
+        foreach (Mob mob in _mobs)
+            hash = Fnv1a.Mix(Fnv1a.Mix(Fnv1a.Mix(hash, mob.Id), mob.Nest), mob.Target);
+        hash = Fnv1a.Mix(hash, _fields.Count);
+        foreach (MobFlowField field in _fields)
+        {
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, field.Kind), field.Id);
+            hash = Fnv1a.Mix(Fnv1a.Mix(hash, field.Age), field.Idle);
+            foreach (int cost in field.Cost)
+                hash = Fnv1a.Mix(hash, cost);
+        }
+        return hash;
+    }
+
+    /// <summary>The creatures out, as the renderer draws them. Returns how many were written.</summary>
+    public int CopyRenderStates(Span<MobRenderState> destination)
+    {
+        int count = Math.Min(destination.Length, _mobs.Count);
+        for (int i = 0; i < count; i++)
+        {
+            Mob mob = _mobs[i];
+            var cell = (Position)mob.Position;
+            bool burrowing = _terrain.IsInside(cell) && Pixel.IsSoil(_terrain.GetPixelRaw(cell));
+            destination[i] = new MobRenderState(mob.Id, mob.Position, mob.Velocity, mob.Charge > 0.0, burrowing);
+        }
+        return count;
+    }
+
+    /// <summary>Adds the occupied nests as radar targets: a nest at rest gives a life echo.</summary>
+    internal void CollectRadarTargets(List<RadarTarget> targets)
+    {
+        foreach (Nest nest in _nests)
+            if (nest.Inside > 0)
+                targets.Add(new RadarTarget(nest.Centre, Math.Max(2, nest.Radius / 2), Alive: true));
+    }
+
+    /// <summary>The nests as the renderer draws them.</summary>
+    public int CopyNestRenderStates(Span<NestRenderState> destination)
+    {
+        int count = Math.Min(destination.Length, _nests.Count);
+        for (int i = 0; i < count; i++)
+        {
+            Nest nest = _nests[i];
+            destination[i] = new NestRenderState(nest.Centre, nest.Radius, nest.Inside, nest.Awake, nest.IsCleared);
+        }
+        return count;
+    }
+
+    private Span<Mob> MobSpan => CollectionsMarshal.AsSpan(_mobs);
+}

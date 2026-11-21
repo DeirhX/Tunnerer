@@ -35,6 +35,7 @@ public sealed class GameEventWatcher
     private bool _meetingGoal;
     private bool _tappedCore;
     private int _harvestedSinceReport;
+    private bool _nestWoke;
     private float _lastHarvestReport;
 
     /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
@@ -44,6 +45,7 @@ public sealed class GameEventWatcher
     {
         _primed = false;
         _harvestedSinceReport = 0;
+        _nestWoke = false;
     }
 
     /// <summary>
@@ -53,8 +55,12 @@ public sealed class GameEventWatcher
     public void AfterStep(World world, Tank player)
     {
         foreach (ref readonly StepEvent e in world.StepEvents)
+        {
             if (e.Kind == StepEventKind.OreHarvested && e.Color == player.Color)
                 _harvestedSinceReport += e.Count;
+            else if (e.Kind == StepEventKind.NestWoke)
+                _nestWoke = true;
+        }
     }
 
     public void Update(World world, Tank player, NotificationFeed feed, float now)
@@ -175,6 +181,15 @@ public sealed class GameEventWatcher
                 _harvestedSinceReport = 0;
                 _lastHarvestReport = now;
             }
+        }
+
+        // Once per match, the first time a nest wakes.
+        if (_nestWoke)
+        {
+            feed.Post(now, "nest-woke", "A nest woke: emberlings",
+                "They hunt hot tanks and bite their heat into you. Run cool, fight in a narrow tunnel, and clear a nest to free its ore.",
+                NotificationKind.Danger, cooldown: 1e9f);
+            _nestWoke = false;
         }
 
         _poweredRelays = poweredRelays;

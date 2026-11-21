@@ -15,7 +15,7 @@ using Emberward.Desktop.Config;
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct PostParamsBlock
 {
-    public const float LayoutVersion = 6.0f;
+    public const float LayoutVersion = 7.0f;
     public const int MaxTankGlows = 8;
 
     public float TexelSizeX, TexelSizeY, PixelScale, Time;
@@ -37,7 +37,7 @@ public unsafe struct PostParamsBlock
     public float _padScorch0, ScorchTintDarken, ScorchTintStrength, _padScorch1;
     public float ScreenFxHit, ScreenFxOverheat, ScreenFxFreeze, ScreenFxActive;
     public float ScreenShakeX, ScreenShakeY, ScreenHitFromX, ScreenHitFromY;
-    public float TankGlowCount, _padTankGlow0, _padTankGlow1, _padTankGlow2;
+    public float TankGlowCount, StepAlpha, CameraMotionX, CameraMotionY;
     public fixed float TankGlow[MaxTankGlows * 4];
 
     /// <param name="time">Seconds since start, for animated effects.</param>
@@ -50,8 +50,12 @@ public unsafe struct PostParamsBlock
         cb.Time = time;
         cb.WorldSizeX = upload.View.WorldSize.X;
         cb.WorldSizeY = upload.View.WorldSize.Y;
-        cb.CameraPixelsX = upload.View.CameraPixels.X;
-        cb.CameraPixelsY = upload.View.CameraPixels.Y;
+        // The camera before its motion through the step: the shader adds the motion times StepAlpha (and rounds).
+        cb.CameraPixelsX = upload.View.CameraStartPixels.X;
+        cb.CameraPixelsY = upload.View.CameraStartPixels.Y;
+        cb.CameraMotionX = upload.View.CameraMotion.X;
+        cb.CameraMotionY = upload.View.CameraMotion.Y;
+        cb.StepAlpha = upload.View.StepAlpha;
         cb.ViewSizeX = upload.View.ViewSize.X;
         cb.ViewSizeY = upload.View.ViewSize.Y;
         cb.UseTerrainAux = BoolToFloat(upload.TerrainAux.Data != null);

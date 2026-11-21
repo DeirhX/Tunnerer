@@ -17,6 +17,7 @@ using Emberward.Core.Match;
 using Emberward.Core.Network;
 using Emberward.Core.Regrowth;
 using Emberward.Core.Entities.Bases;
+using Emberward.Core.Entities.Mobs;
 
 public partial class World
 {
@@ -37,6 +38,7 @@ public partial class World
     private readonly BasePowerSystem? _basePower;
     private readonly MachineUpgradeSystem? _machineUpgrades;
     private readonly TankReserveSystem? _reserve;
+    private readonly MobSwarm? _mobs;
     // What tanks and machines see of the world each step; the same every step, so built once.
     [NotSaved("fixed for the match: closures over this world")]
     private readonly SimulationContext _tankContext;
@@ -69,7 +71,7 @@ public partial class World
             total += tank.Heat * tank.ThermalCapacity;
         foreach (var tankBase in _tankBases.Bases)
             total += tankBase.ReactorHeatEnergy;
-        return total;
+        return total + (_mobs?.TotalCharge() ?? 0.0);
     }
     /// <summary>
     /// Charge stored in bases, capacitors and generator reserves, with what the energy network has paid out and not
@@ -189,7 +191,9 @@ public partial class World
             _reserve = new TankReserveSystem(_machines, _terrain, _energy);
         _projectiles = new ProjectileList(_simulationSeed ^ 0x5f3759df, _stepEvents, _basePower);
         _linkMap = new LinkMap(_simulationSeed ^ 0x13579BDF);
-        _collisionSolver = new CollisionSolver(_terrain, _tankBases, _basePower);
+        if (Rules.Mobs)
+            _mobs = new MobSwarm(_terrain, _tankList, _tankBases, _stepEvents, _simulationSettings, _simulationSeed ^ 0x4D0B5);
+        _collisionSolver = new CollisionSolver(_terrain, _tankBases, _basePower, _mobs);
         if (Rules.TerrainRegrowth)
             _terrainRegrowth = new TerrainRegrowth(_simulationSeed);
         _matchResult = new MatchResult(_tankList.Tanks);
@@ -212,9 +216,9 @@ public partial class World
             MachineUpgrades = _machineUpgrades,
             Reserve = _reserve,
         };
-        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades, _reserve);
+        _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades, _reserve, _mobs);
         _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, MachineCoverage, _stepEvents, _energy,
-            _basePower, _machineUpgrades, _tankList, _projectiles);
+            _basePower, _machineUpgrades, _tankList, _projectiles, _mobs is { } swarm ? swarm.IsGuarded : null);
         _systems = BuildSystems();
     }
 
@@ -260,6 +264,7 @@ public partial class World
             // Ore last, so it fills the ground the pockets left.
             if (Rules.SeedOre)
                 _oreDeposits.AddRange(LevelGen.OreDeposits.Place(_terrain, spawns, pocketSeed + 2));
+            _mobs?.Seed(_oreDeposits);
 
             // Let the heat (and cold) spread a little before play starts so the pockets and ore cores do not begin as
             // isolated dots.
@@ -343,6 +348,8 @@ public partial class World
             _tankList.Advance(in _tankContext, getInput);
             _basePower?.LatchBlackouts();
         }));
+        if (_mobs is { } swarm)
+            systems.Add(new("mobs", _ => swarm.Advance()));
         if (_energy is EnergyNetwork network)
             systems.Add(new("islands", _ => network.Refresh(_linkMap, _tankBases.Bases)));
         systems.Add(new("machines", _ => AdvanceMachines()));

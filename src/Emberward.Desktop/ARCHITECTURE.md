@@ -4,7 +4,7 @@ This document describes the current rendering model used by the desktop client, 
 density, the HUD layout, post-processing and profiling hooks. Sound has its own section at the end.
 
 The platform-independent rendering files (terrain fields and the uploader that decides what a frame repacks of
-them, the fog layer, entity emitters and interpolation, machine sprites, lighting settings and uniform layout) are
+them, the fog layer, entity emitters and motion, machine sprites, lighting settings and uniform layout) are
 compiled by `Emberward.Rendering` and used by both Desktop and Browser.
 They retain the file paths and namespaces shown here. The browser publish translates the same HLSL to GLSL ES
 with SPIRV-Cross and draws it with WebGL 2; the SDL_GPU backend, ImGui and sound device remain in Desktop.
@@ -157,9 +157,15 @@ The loop around it (polling, fixed simulation steps, composing) is described in 
 "Frame loop". Each displayed frame, `Game.RenderImGuiFrame`:
 
 1. Sizes the game view (`RenderViewState`: the whole window, in device pixels) and centres the camera on the
-   interpolated player. The camera may run up to half a view past the map's edges, so the player stays in the
+   player as the entity shader draws it (`CameraFollow`: the tank's drawn start plus its motion times the step
+   progress, rounded to whole pixels; `RenderView.CameraMotion` and `StepAlpha` carry the same to the shaders). The camera may run up to half a view past the map's edges, so the player stays in the
    middle of the screen everywhere, clear of the HUD in the bottom corners.
-2. Builds the entity layer quads at the frame's step progress (`EntityLayerBuilder.Build`). Links, ore beams
+2. Builds the entity layer quads at the frame's step progress (`EntityLayerBuilder.Build`). Each quad carries its
+   corner in world cells and its motion in cells per step (`EntityVertex`, 56 bytes); `EntityVs.hlsl` adds the motion
+   times `StepAlpha` and applies the camera, reading the same `PostParams` block as the pixel shaders through the
+   vertex stage (`EMBERWARD_POST_PARAMS_VERTEX` in `PostParams.hlsli`; the backend pushes the block as vertex uniforms
+   before `DrawEntities`). A frame with no world step (paused, or a network tick that carried none) calls
+   `EntityLayerBuilder.Hold`, which stops everything where it is drawn. Links, ore beams
    and coverage tethers go through `Rendering/Entities/BeamFader`, which gives them a life across frames: a new
    beam grows from its source over 0.9 s, and one that stops being submitted keeps its last shape and, after a
    0.12 s grace (so a one-step blip does not break it), dissolves over 0.7 s. Beams are keyed by kind and end

@@ -175,7 +175,9 @@ public static partial class BrowserApi
         }
 
         long stepped = Stopwatch.GetTimestamp();
-        session.Scene.Render(width, height, scale, (float)alpha, (float)delta, (float)time, (float)powerLabelCellSize);
+        // A clock tick that took no world step (the relay's next tick has not arrived) leaves the world where it is drawn.
+        bool hold = _net != null && due && steps == 0;
+        session.Scene.Render(width, height, scale, (float)alpha, (float)delta, (float)time, (float)powerLabelCellSize, hold);
         string? hud = null;
         if (_hudStale)
         {

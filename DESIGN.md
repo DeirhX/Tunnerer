@@ -560,6 +560,32 @@ enemy evolution in Factorio.
 Mobs are the most expensive feature here: they need pathfinding through terrain that keeps changing, spawning
 rules and combat tuning.
 
+**Built: emberlings** (`MatchRules.Mobs`, `Entities/Mobs/MobSwarm`, numbers in `Tweaks.Mobs`; starting values).
+Emberite pockets and lumps at least 60 cells from every base hold a nest (a pocket 7 to 18 creatures, a lump 32 to
+60 by size); specks hold none. Heat is the noise a tank makes and the fight makes heat:
+
+- *Scout.* A guarded deposit shows resting embers on the ore, and the radar returns a life echo from the nest.
+- *Sneak or fight.* A cool tank is not sensed. A tank at 45 degrees is sensed from 40 cells, one at 100 from 110. Digging
+  the nest's ore wakes it whatever the tank's heat, and the thief is hunted for six seconds. A tank that cools below 35
+  degrees loses the scent and the creatures go home.
+- *Greed dial.* Carried emberite already warms the tank, so each unit taken brings it closer to the hunt threshold.
+- *Waves.* A woken nest releases a creature every 4 ticks (6 a second), each carrying one bite of heat: a bite adds 2
+  degrees to the tank and the overheat rule does the damage. A spent creature goes home to drink heat out of the deposit.
+  A tank in its base, or just respawned, is not bitten.
+- *Kills heat the ground.* A killed creature spills the charge it carries where it dies, so holding one choke point
+  cooks it. One bullet or fragment kills. Creatures do not block tanks.
+- *Tunnels are the terrain.* They run 1.5 cells a tick in open ground (the tank walks 1) and burrow through soil at
+  0.35 (the tank digs about 0.5), and a coarse flow field (4-cell blocks, a window of 33 by 33 blocks around the goal,
+  rebuilt every 8 ticks while read) leads them along tunnels in preference to a shorter line through dirt. Rock, concrete,
+  ore and bases stop them, so a base is a refuge.
+- *Two kinds of fight.* A pocket is barely warm, so its creatures cannot recharge: one wave. A lump's hot core recharges
+  them until it is cooled or mined out: a siege, so a relay that pumps the lump cold starves the nest.
+- *Ways out.* Cool down, or kill them all: a cleared nest frees its ore for harvesters, which pass over a guarded
+  deposit's ore until then (the base panel says so).
+
+Not built: attacks on relays and other hot machines, turrets targeting creatures, bot awareness of creatures, threat
+scaling with the total heat rejected, other creature types.
+
 ### 6.3 Minerals and metals *(Decided in principle)*
 
 Rare minerals and metals sit in the terrain, and the player has reasons to collect and use them:
@@ -882,6 +908,8 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 | Decision | Status |
 |---|---|
 | Take physical heat simulation seriously and build the loop on heat management | Decided |
+| First mob: heat-hunting emberlings nest in emberite pockets and lumps; they burrow slower than the tank and run faster in tunnels; they bite heat into tanks, and a cleared nest frees its ore (§6.2) | Decided |
+| Moving things are drawn by extrapolation in the entity vertex shader, so motion is smooth above the step rate with no added lag | Decided |
 | Bases are the main heat sinks; heat returns by tank or by relay | Decided |
 | Add environmental hazards, mobs from nests, and dangerous terrain that must be mined out or disassembled | Decided |
 | Supporting structures make that easier | Decided |

@@ -32,10 +32,10 @@ public static class RadarQuads
             if (life <= 0f || vision.IsVisible(contact.Position))
                 continue;
 
-            float cx = quads.ScreenX(contact.Position.X);
-            float cy = quads.ScreenY(contact.Position.Y);
-            if (quads.IsOffScreen(cx, cy, HalfSize * scale))
+            if (quads.IsOffScreen(quads.ScreenX(contact.Position.X), quads.ScreenY(contact.Position.Y), HalfSize * scale))
                 continue;
+            float cx = EntityQuads.Centre(contact.Position.X);
+            float cy = EntityQuads.Centre(contact.Position.Y);
 
             float flash = Math.Max(0f, 1f - age / FlashTicks);
             // The colour's red carries the contact's strength: what was left of the ray, or for heat how hot the cell is.
@@ -56,7 +56,7 @@ public static class RadarQuads
         // Room for the line's glow beyond the front.
         float extent = radius + 3f;
         float fade = 1f - radius / radar.PulseRange;
-        quads.Add(quads.ScreenX(radar.PulseOrigin.X), quads.ScreenY(radar.PulseOrigin.Y), 1f, 0f,
+        quads.Add(EntityQuads.Centre(radar.PulseOrigin.X), EntityQuads.Centre(radar.PulseOrigin.Y), 1f, 0f,
             -extent, extent, -extent, extent, EntityShape.KindRadarPulse, radius, fade, 0f, 0f);
     }
 }

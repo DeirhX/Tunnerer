@@ -78,6 +78,10 @@ Entities/
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
+  Mobs/Mob.cs                Mob (a creature out of its nest), Nest, MobState
+  Mobs/MobSwarm*.cs          The emberlings (MatchRules.Mobs): nests wake, release and recharge (Nests), creatures move, bite and
+                             go home (Movement), shots find and kill them (Combat), hashes and snapshots of the swarm
+  Mobs/MobFlowField.cs       The coarse cost-to-goal field creatures follow, one per hunted tank and per awake nest
 Network/                     The link network (not network matches: those are Desktop/Net and Emberward.Protocol)
   LinkPoint.cs, Link.cs, LinkMap.cs   Nodes, edges, refresh, power and flow
   NetworkCoverage.cs         Coverage nodes and the coverage a tank gets at a position
@@ -122,7 +126,7 @@ LevelGen/
   OreDeposits.cs             Seeds emberite: specks, pockets and lumps with a warm core (OreDeposit, OreDepositKind)
   TerrainTestPatternGenerator.cs   Synthetic terrain for the renderer's --terrain-test mode
 Rendering/
-  RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState
+  RenderSnapshots.cs         TankRenderState, ProjectileRenderState, MachineRenderState, LinkRenderState, MobRenderState, NestRenderState
   TankSprites.cs             Tank bitmaps and colour palettes
 Resources/Reactor.cs         Reactor, ReactorState, Heat, Health: a tank's or base's heat and shield
 Resources/OreStore.cs        OreStore: a tank's hold, a base's store (ore is the only currency)
@@ -551,6 +555,21 @@ Desktop:
    swap a row with `ThermalMaterialTable.With`.
 4. Desktop shades pixels, not materials: a new pixel needs a case in `TerrainAuxBuilder` and
    `TerrainMaterialCoverage`.
+
+### The emberlings
+
+`MobSwarm` (`Entities/Mobs`) exists only when `MatchRules.Mobs` is on and is stepped as `"mobs"` after `"tanks"`.
+`Initialize` seeds a nest in each pocket and lump of `World.OreDeposits` that is far enough from every base. A nest is
+counters (creatures never released, resting, out, stored charge); only creatures out of the nest are in the swarm's
+`List<Mob>`, so a world with nothing out does no per-creature work (`MobSwarm.CreatureSteps` stays 0). A dormant nest
+looks at each tank once in six ticks; digging a nest's ore (read from `OreCollected` step events) wakes it at once.
+Creatures move by the velocity they committed, then choose the next from a `MobFlowField` (a Dijkstra over 4-cell
+blocks, rebuilt every 8 ticks while read, saved in the snapshot because it is built from past terrain). Heat is
+conserved: a first release books the charge as injected, a bite moves it into `Tank.Heat`, a kill spills it with
+`AddEnergyInRadiusArea`, recharging takes it with `ExtractEnergyInRadiusArea`, and `World.SumSystemThermalEnergy`
+adds `MobSwarm.TotalCharge`. Shots find creatures through a per-step sector index (`IndexCreatures`, called by
+`CollisionSolver.Update`) and `CollisionSolver.TestPoint(onMob:)`. `World.IsOreGuarded` makes harvesters pass over the ore
+of a nest that has creatures left (`MachineContext.IsOreGuarded`, `HarvesterState.Guarded`). The bot ignores creatures.
 
 ### Adding a collidable entity
 

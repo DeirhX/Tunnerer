@@ -8,16 +8,25 @@
 
 #include "Registers.hlsli"
 
-static const float kPostParamsLayoutVersion = 6.0;
+static const float kPostParamsLayoutVersion = 7.0;
 
-cbuffer PostParams : FRAGMENT_UNIFORMS(0)
+// The entity vertex shader reads the same block: it defines EMBERWARD_POST_PARAMS_VERTEX before including this file,
+// and the block then takes the vertex stage's uniform slot. The desktop pushes the same bytes to both stages.
+#ifdef EMBERWARD_POST_PARAMS_VERTEX
+#define POST_PARAMS_UNIFORMS VERTEX_UNIFORMS(0)
+#else
+#define POST_PARAMS_UNIFORMS FRAGMENT_UNIFORMS(0)
+#endif
+
+cbuffer PostParams : POST_PARAMS_UNIFORMS
 {
     // ---- Screen / world geometry ------------------------------------------
     float2 TexelSize;               // 1 / render-target resolution (in UV)
     float PixelScale;               // World-cell → screen-pixel scale factor
     float Time;                     // Elapsed game time (seconds), for animation
     float2 WorldSize;               // World grid dimensions (cells)
-    float2 CameraPixels;            // Camera top-left corner (screen pixels)
+    float2 CameraPixels;            // Camera top-left corner before its motion through the step (screen pixels);
+                                    //   read through CameraPixelsNow()
     float2 ViewSize;                // Render-target resolution (pixels)
 
     // ---- Feature toggles / post toggles -----------------------------------
@@ -78,5 +87,15 @@ cbuffer PostParams : FRAGMENT_UNIFORMS(0)
 
     // ---- Per-tank glow positions ------------------------------------------
     float TankGlowCount;            // Number of active entries in TankGlow[]
+    float StepAlpha;                // Progress through the current simulation step (0..1): entities are drawn at
+                                    //   position + motion * StepAlpha, and so is the camera
+    float2 CameraMotion;            // How far the camera moves in one step (screen pixels)
     float4 TankGlow[8];             // .xy = screen UV, .z = radius, .w = heat [0..1]
 };
+
+// The camera's top-left corner (screen pixels) as drawn now: its start plus its motion through the step, rounded to
+// whole pixels so terrain cells stay exact blocks. The CPU rounds the same way for the HUD, aiming and culling.
+float2 CameraPixelsNow()
+{
+    return floor(CameraPixels + CameraMotion * StepAlpha + 0.5);
+}

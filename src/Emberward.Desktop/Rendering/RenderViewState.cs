@@ -14,6 +14,8 @@ public sealed class RenderViewState
     /// <summary>Camera position of the view's top-left corner, in device pixels.</summary>
     public int CamPixelX { get; private set; }
     public int CamPixelY { get; private set; }
+    /// <summary>How far the camera moves in one simulation step (device pixels); see <see cref="RenderView.CameraMotion"/>.</summary>
+    public PositionF CamMotion { get; private set; }
     public int NativeContinuousSampleCount { get; private set; } = DesktopScreenTweaks.NativeContinuousSampleHigh;
 
     /// <summary>Device pixels per point of the window: 2 on Retina, 1 on a standard display.</summary>
@@ -65,26 +67,36 @@ public sealed class RenderViewState
     }
 
     /// <summary>Centres the view on <paramref name="center"/> (cell coordinates), or keeps it when there is none.</summary>
-    public void UpdateCamera(PositionF? center, Size terrainSize, int viewW, int viewH, int scale)
-    {
-        int worldPixelW = terrainSize.X * scale;
-        int worldPixelH = terrainSize.Y * scale;
+    public void UpdateCamera(PositionF? center, Size terrainSize, int viewW, int viewH, int scale) =>
+        UpdateCamera(center, default, 0f, terrainSize, viewW, viewH, scale);
 
+    /// <summary>
+    /// Follows a point that starts at <paramref name="center"/> and moves <paramref name="motion"/> (cells) through the
+    /// step; <paramref name="alpha"/> is how far through it the frame is.
+    /// </summary>
+    public void UpdateCamera(
+        PositionF? center, PositionF motion, float alpha, Size terrainSize, int viewW, int viewH, int scale)
+    {
         if (center is PositionF c)
         {
-            int centerPx = (int)MathF.Round(c.X * scale);
-            int centerPy = (int)MathF.Round(c.Y * scale);
-            CamPixelX = centerPx - viewW / 2;
-            CamPixelY = centerPy - viewH / 2;
+            var (pixels, cameraMotion) = CameraFollow.At(c, motion, alpha, scale, new Size(viewW, viewH), terrainSize);
+            CamPixelX = pixels.X;
+            CamPixelY = pixels.Y;
+            CamMotion = cameraMotion;
+        }
+        else
+        {
+            CamMotion = default;
         }
 
-        ClampCamera(worldPixelW, worldPixelH, viewW, viewH);
+        ClampCamera(terrainSize.X * scale, terrainSize.Y * scale, viewW, viewH);
     }
 
     public void PanCamera(int dx, int dy, Size terrainSize, int viewW, int viewH, int scale)
     {
         CamPixelX += dx;
         CamPixelY += dy;
+        CamMotion = default;
         int worldPixelW = terrainSize.X * scale;
         int worldPixelH = terrainSize.Y * scale;
         ClampCamera(worldPixelW, worldPixelH, viewW, viewH);

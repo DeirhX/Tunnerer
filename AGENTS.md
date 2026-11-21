@@ -166,6 +166,15 @@ that tests can inject their own values.
   within its reach; sources that stand still in ground that stays as it is cost nothing. Do not add a pass that
   recasts every source or sweeps the grid each tick, and change pixels during play through `SetPixel`, which is
   how vision and the renderer learn of it.
+- **The swarm costs what is out, not what is nested.** `MobSwarm` (`MatchRules.Mobs`, needs `SeedOre`) keeps a nest as
+  counters and holds only the creatures out of their nests in its list. A dormant nest costs one distance test per tank
+  every 6 ticks; do not add a per-creature or per-nest pass that runs while nothing is out (`MobSwarmTests` checks that
+  `CreatureSteps` stays 0). Flow fields are built only while a creature reads them. Its heat is conserved (booked in the
+  ledger, counted in `World.SumSystemThermalEnergy`).
+- **Entities are drawn by extrapolation in the vertex shader.** An `EntityVertex` carries its corner in world cells and
+  its motion in cells per step; `EntityVs.hlsl` draws it at `corner + motion * StepAlpha` and moves the camera the same
+  way. Give a new moving quad its motion (`EntityQuads.Add(..., motion)`), and keep `EntityVertex`, `EntityVertexAttributes`,
+  `webgl.js` (`ENTITY_ATTRIBUTE_FLOATS`) and `VSIn` in step (`EntityLayoutGuardTests`).
 - **A system that can be switched off has a flag in `MatchRules`** (`Match/MatchRules.cs`) and costs nothing while
   the flag is off: `World.BuildSystems` leaves it out of the step. Do not add a `World` constructor argument, a
   property set after construction, or a null delegate that means "off". The rules are in the hash clients compare

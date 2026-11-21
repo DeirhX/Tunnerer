@@ -28,14 +28,27 @@ public partial class Game
         int scale = _renderViewState.CellPixels;
 
         var player = LocalTank;
-        ReadOnlySpan<PositionF> drawnTankPositions = _entityLayer.InterpolateTankPositions(stepProgress);
-        _renderViewState.UpdateCamera(
-            _localSlot < drawnTankPositions.Length ? drawnTankPositions[_localSlot] : null, _terrainSize, viewSize.X, viewSize.Y, scale);
+        // A world that takes no step (paused, or waiting on the network) is drawn where it stands, not moving ahead.
+        if (WorldStandsStill)
+            _entityLayer.Hold();
+        ReadOnlySpan<PositionF> drawnTankPositions = _entityLayer.TankPositions(stepProgress);
+        // The camera follows the local tank the same way the shader draws it: from where it was last drawn, along its motion.
+        if (_localSlot < drawnTankPositions.Length)
+        {
+            var (tankStart, tankMotion) = _entityLayer.TankMotion(_localSlot);
+            _renderViewState.UpdateCamera(tankStart, tankMotion, stepProgress, _terrainSize, viewSize.X, viewSize.Y, scale);
+        }
+        else
+        {
+            _renderViewState.UpdateCamera(null, _terrainSize, viewSize.X, viewSize.Y, scale);
+        }
         var renderView = new RenderView(
             ViewSize: _renderViewState.HiResSize,
             WorldSize: _terrainSize,
             CameraPixels: new Position(_renderViewState.CamPixelX, _renderViewState.CamPixelY),
-            PixelScale: scale);
+            PixelScale: scale,
+            CameraMotion: _renderViewState.CamMotion,
+            StepAlpha: stepProgress);
         float visualTime = VisualTime;
         _entityLayer.Build(
             renderView, stepProgress, turnSeconds: WorldStandsStill ? 0f : dt, snapHeadings: !_interpolateFrames,
@@ -62,7 +75,7 @@ public partial class Game
             int tankHeatGlowCount = 0;
             DrawProfile.Measure(ref _drawProfile.ScreenTankGlowBuild, () =>
                 tankHeatGlowCount = _terrainAuxBuilder.BuildGpuTankHeatGlowData(
-                    _world.TankList.Tanks, _entityLayer.InterpolateTankPositions(stepProgress), renderView, _gpuTankHeatGlow, _vision));
+                    _world.TankList.Tanks, _entityLayer.TankPositions(stepProgress), renderView, _gpuTankHeatGlow, _vision));
 
             _drawProfile.ScreenHiResEntities += hiResWatch.Elapsed;
 

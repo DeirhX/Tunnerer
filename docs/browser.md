@@ -408,7 +408,7 @@ window and graphics dependencies out of the shared rendering assembly.
 ## Client structure and current scope
 
 - `Emberward.Rendering`: the terrain fields, material coverage, the uploader that decides what a frame repacks of
-  them, the fog layer, entity emitters, interpolation, machine sprite descriptors, shader constant layout and
+  them, the fog layer, entity emitters, entity motion (extrapolation), machine sprite descriptors, shader constant layout and
   lighting settings used by both hosts, and what the HUD tells the player (`PlayerGuidance`: the tutorial, the
   game-event toasts, the build-key hint and the warning banner), and a client's part in a network match
   (`NetSession`, `SlotStepper`, `NetMatch`). The source files retain their existing Desktop paths and namespaces;
@@ -421,12 +421,19 @@ window and graphics dependencies out of the shared rendering assembly.
   runtime behind the same messages: .NET can only start that one from the page itself, where it then runs on
   threads of its own and answers the page's calls later. `threads.js` decides which.
 - `frames.js`: the one way into .NET for both. Each display request optionally advances one fixed simulation
-  tick, then builds the shared renderer's interpolated frame; .NET hands the packet over as a view of its memory
+  tick, then builds the shared renderer's frame; .NET hands the packet over as a view of its memory
   and it is copied once, into an ordinary buffer (WebGL takes no view of memory that threads share), which the
   worker passes to the page without copying it again. HUD state is sent only with frames that follow a tick.
   The UI keeps at most one request in flight and caps catch-up. After each tick the page announces the HUD state
   as a `emberward-step` event on `window`, which is how the smoke test follows a match in either runtime.
 - `webgl.js`: uploads the shared buffers and draws the translated terrain, post-processing and entity shaders.
+  An entity vertex is 14 floats (56 bytes): its corner in world cells, the local position, the colour and kind, four
+  parameters, and its motion in cells per simulation step (`ENTITY_ATTRIBUTE_FLOATS`, `ENTITY_VERTEX_BYTES`;
+  `EntityLayoutGuardTests` compares both with the C# struct). `EntityVs` draws it at `corner + motion * StepAlpha`
+  and the camera moves the same way, so the page can draw the last packet again as it is `alpha` of the way through
+  its step on a frame that brought no new packet: `setAlpha` patches the one `StepAlpha` float of the uniform buffer
+  (`STEP_ALPHA`, checked against `PostParamsBlock` by `PostParamsLayoutGuardTests`). `main.js` computes the alpha
+  (`stepAlpha`). Quads that are rebuilt on every frame (beams, the tether and the radar) stand still on such a frame.
 - `progress.js`: the stages of a load, for the loading line, the loading bar, the console and the `emberward-load`
   event.
   Its first pass flips the render-target Y axis for WebGL's framebuffer texture convention; the final pass and

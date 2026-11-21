@@ -105,6 +105,8 @@ public class ProjectileList
                     self.RecordImpact(ipos, p, ImpactTarget.Machine);
                     return true;
                 },
+                // One hit kills an emberling; the shot bursts on it as on anything else.
+                onMob: solver.CanHitMobs ? KillsMob(solver, self, ipos, p) : null,
                 onTerrain: pix =>
                 {
                     // A gate is open ground to its owner's shells. An enemy's stop on it while the gate shield
@@ -137,6 +139,19 @@ public class ProjectileList
             }
         }
     }
+
+    private static Func<int, bool> KillsMob(CollisionSolver solver, ProjectileList self, Position at, Projectile bullet) => mob =>
+    {
+        solver.KillMob(mob);
+        self.RecordImpact(at, bullet, ImpactTarget.Terrain);
+        return true;
+    };
+
+    private static Func<int, bool> KillsMob(CollisionSolver solver) => mob =>
+    {
+        solver.KillMob(mob);
+        return true;
+    };
 
     /// <summary>
     /// Whether <paramref name="bullet"/> stops on the gate cell at <paramref name="at"/>: an enemy's does while the
@@ -181,6 +196,14 @@ public class ProjectileList
 
         if (!TryAdvanceInside(terrain, p, out var ipos))
             return;
+
+        // A fragment that meets an emberling kills it and is spent.
+        if (solver.CanHitMobs && solver.TestPoint(ipos, onMob: KillsMob(solver)))
+        {
+            p.IsAlive = false;
+            self.RecordShrapnelSpent(p);
+            return;
+        }
 
         var pix = terrain.GetPixelRaw(ipos);
         if (Pixel.IsBlockingCollision(pix))

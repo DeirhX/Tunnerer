@@ -23,6 +23,7 @@
 #include "Entity/Beams.hlsli"
 #include "Entity/Overlays.hlsli"
 #include "Entity/PowerLabel.hlsli"
+#include "Entity/Mobs.hlsli"
 
 float4 main(PSIn input) : SV_Target
 {
@@ -69,7 +70,9 @@ float4 main(PSIn input) : SV_Target
         result = Generator(p, input.params, aa);
     else if (kind < kKindPowerLabel + 0.5)
         result = PowerLabel(p, input.color.rgb, input.params);
-    else // kKindTurret
+    else if (kind < kKindTurret + 0.5)
         result = Turret(p, input.params, aa);
+    else // kKindMob
+        result = Mob(p, input.params, aa);
     return result;
 }

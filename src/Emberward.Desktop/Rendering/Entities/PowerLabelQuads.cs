@@ -54,10 +54,12 @@ internal sealed class PowerLabelQuads
         float chargeTop = flowTop - gap - GlyphHeight * dot;
         foreach (var (machine, label, opacity) in _labels)
         {
-            float x = quads.ScreenX(machine.Position.X);
-            float y = quads.ScreenY(machine.Position.Y - PowerLabels.LiftCells - 0.5f);
-            if (x < 0f || x > quads.View.ViewSize.X || y < -chargeTop * scale || y > quads.View.ViewSize.Y)
+            float screenX = quads.ScreenX(machine.Position.X);
+            float screenY = quads.ScreenY(machine.Position.Y - PowerLabels.LiftCells - 0.5f);
+            if (screenX < 0f || screenX > quads.View.ViewSize.X || screenY < -chargeTop * scale || screenY > quads.View.ViewSize.Y)
                 continue;
+            float x = EntityQuads.Centre(machine.Position.X);
+            float y = EntityQuads.Centre(machine.Position.Y - PowerLabels.LiftCells - 0.5f);
 
             float alpha = opacity * zoom;
             AddPlate(quads, x, y, -halfBar, halfBar, barHeight, HudPalette.Track, alpha);
@@ -76,7 +78,6 @@ internal sealed class PowerLabelQuads
     {
         float advance = (GlyphWidth + 1) * dot;
         float left = -(text.Length * advance - dot) * 0.5f;
-        float scale = quads.View.PixelScale;
         var rgb = Rgb(color);
         foreach (char character in text)
         {
@@ -84,7 +85,7 @@ internal sealed class PowerLabelQuads
             if (glyph != 0UL)
             {
                 // Both pieces fit exactly in floats. The quad includes one dot of room for the shadow.
-                quads.Add(x + left * scale, y + top * scale, 1f, 0f, 0f, advance, 0f, (GlyphHeight + 1) * dot,
+                quads.Add(x + left, y + top, 1f, 0f, 0f, advance, 0f, (GlyphHeight + 1) * dot,
                     rgb, EntityShape.KindPowerLabel, glyph & 0xFFFFFUL, glyph >> 20, 1f / dot, alpha);
             }
             left += advance;

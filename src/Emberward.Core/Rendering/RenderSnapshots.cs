@@ -50,3 +50,12 @@ public readonly record struct LinkRenderState(
     bool FlowsFromTo = true,
     float OreFlow = 0f,
     bool OreFlowsFromTo = true);
+
+/// <summary>A creature out of its nest, as it is drawn.</summary>
+/// <param name="Id">Stable for the creature's life; drives its wriggle.</param>
+/// <param name="IsCharged">It still carries its heat: drawn bright, and dull once spent.</param>
+/// <param name="IsBurrowing">It is in soil: drawn as a dim glow under the ground.</param>
+public readonly record struct MobRenderState(int Id, PositionF Position, VectorF Velocity, bool IsCharged, bool IsBurrowing);
+
+/// <summary>A nest, as it is drawn: <paramref name="Occupied"/> creatures are in it, resting.</summary>
+public readonly record struct NestRenderState(Position Centre, int Radius, int Occupied, bool IsAwake, bool IsCleared);

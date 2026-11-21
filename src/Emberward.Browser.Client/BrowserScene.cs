@@ -62,18 +62,25 @@ public sealed class BrowserScene
         Terrain.ObserveStep(_visualTime);
     }
 
-    public void Render(int width, int height, int scale, float alpha, float delta, float time, float powerLabelCellSize = 0f)
+    public void Render(int width, int height, int scale, float alpha, float delta, float time, float powerLabelCellSize = 0f,
+        bool hold = false)
     {
         _visualTime = time;
         width = Math.Clamp(width, 1, 3840);
         height = Math.Clamp(height, 1, 2160);
         scale = Math.Max(Math.Clamp(scale, 1, 32), Math.Max((width + 619) / 620, (height + 379) / 380));
         alpha = Math.Clamp(alpha, 0f, 1f);
-        var positions = _entities.InterpolateTankPositions(alpha);
-        PositionF center = positions.Length > _session.LocalSlot ? positions[_session.LocalSlot] : (PositionF)_session.Player.Position;
-        var camera = new Position((int)MathF.Round(center.X * scale) - width / 2,
-            (int)MathF.Round(center.Y * scale) - height / 2);
-        View = new RenderView(new Size(width, height), _session.World.Terrain.Size, camera, scale);
+        // A tick that took no world step (a network match waiting on the relay) is drawn standing still.
+        if (hold)
+            _entities.Hold();
+        var positions = _entities.TankPositions(alpha);
+        // The camera follows the local tank the way the shader draws it: from where it was last drawn, along its motion.
+        (PositionF start, PositionF motion) = positions.Length > _session.LocalSlot
+            ? _entities.TankMotion(_session.LocalSlot)
+            : ((PositionF)_session.Player.Position, default);
+        var (camera, cameraMotion) = CameraFollow.At(start, motion, alpha, scale,
+            new Size(width, height), _session.World.Terrain.Size);
+        View = new RenderView(new Size(width, height), _session.World.Terrain.Size, camera, scale, cameraMotion, alpha);
         Terrain.Prepare(View.VisibleCells(), time);
         _entities.Build(View, alpha, Math.Clamp(delta, 0f, 0.1f), snapHeadings: false, time,
             _session.Vision, _session.Radar, powerLabelCellSize);

@@ -21,7 +21,8 @@ internal static class TestHelpers
         bool seedOre = false,
         bool energyNetwork = false,
         bool machineUpgrades = false,
-        bool tankReserve = false)
+        bool tankReserve = false,
+        bool mobs = false)
     {
         var mapSize = size ?? DefaultMapSize;
         var gen = new ToastGenerator();
@@ -38,6 +39,7 @@ internal static class TestHelpers
                 EnergyNetwork = energyNetwork,
                 MachineUpgrades = machineUpgrades,
                 TankReserve = tankReserve,
+                Mobs = mobs,
             });
         world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;

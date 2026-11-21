@@ -318,7 +318,7 @@ void ApplyTerrainAuxPass(float2 uv, float terrainFactor, bool textureEnabled, bo
 
         // ---- Coordinate setup & 3x3 aux neighborhood -------------------------
         float2 screenPx = uv * ViewSize;
-        float2 worldCell = (CameraPixels + screenPx) / PixelScale;
+        float2 worldCell = (CameraPixelsNow() + screenPx) / PixelScale;
         float2 auxUv = worldCell / WorldSize;
         float2 mTexel = float2(1.0 / WorldSize.x, 1.0 / WorldSize.y);
 
