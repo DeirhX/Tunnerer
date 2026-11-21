@@ -75,8 +75,9 @@ public sealed partial class MobSwarm
         if ((_tick + index) % Tweaks.Mobs.WakeCheckTicks == 0)
             nest.Target = PickTarget(nest);
         bool hunting = nest.Target >= 0;
-        // Nothing to hunt, or nothing left it could let out, and nothing out: back to sleep, and the resting recharge on.
-        if (nest.Out == 0 && (!hunting || !CanRelease(nest)))
+        // Nothing to hunt and nothing out: back to sleep, and the resting recharge on. A nest that still hunts stays
+        // awake even with nothing left to let out, so that it keeps its target and wakes at once when heat returns.
+        if (!hunting && nest.Out == 0)
         {
             nest.Awake = false;
             return;

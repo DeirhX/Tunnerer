@@ -410,6 +410,8 @@ public class MobSwarmTests
         var nest = world.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 0);
         nest.Resting = 1; // a pocket that cannot recharge: its resting creature has no charge to come out with
         tank.Position = Centre; // 40 cells off: hot enough to hunt, and far enough that the nest's ground stays cold
+        nest.Awake = true; // a nest that woke on its last charge and still hunts the tank
+        nest.Target = 0;
 
         int mostOut = 0;
         for (int i = 0; i < 60; i++)
@@ -420,6 +422,7 @@ public class MobSwarmTests
         }
         Assert.Equal(0, mostOut);
         Assert.Equal(1, nest.Resting);
+        Assert.True(nest.Awake, "a nest that still hunts a warm tank stays awake, even with nothing to let out");
     }
 
     [Fact]
