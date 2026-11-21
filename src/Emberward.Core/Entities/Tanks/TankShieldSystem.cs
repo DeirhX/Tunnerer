@@ -66,8 +66,12 @@ public sealed class TankShieldSystem
             return;
         if (state.DelayTicks > 0)
             state.DelayTicks--;
+        state.Refilling = false;
         if (state.DelayTicks == 0 && canRefill)
+        {
             state.Missing = Math.Max(0, state.Missing - Tweaks.TankShield.RegenPerTick);
+            state.Refilling = true;
+        }
         _tanks[tank.Color] = state;
     }
 
@@ -85,7 +89,7 @@ public sealed class TankShieldSystem
         int shield = Tweaks.TankShield.Capacity - state.Missing;
         return new TankShieldView(true, shield, Tweaks.TankShield.Capacity,
             shield / (float)Tweaks.TankShield.Capacity, tank.HullFraction,
-            Regenerating: state.Missing > 0 && state.DelayTicks == 0, state.DelayTicks, FireLevelOf(tank));
+            Regenerating: state.Missing > 0 && state.Refilling, state.DelayTicks, FireLevelOf(tank));
     }
 
     /// <summary>Mixes every tank's shield, for <see cref="WorldStateHash.Compute"/>.</summary>
@@ -96,6 +100,7 @@ public sealed class TankShieldSystem
         {
             hash = Fnv1a.Mix(hash, state.Missing);
             hash = Fnv1a.Mix(hash, state.DelayTicks);
+            hash = Fnv1a.Mix(hash, state.Refilling);
         }
         return hash;
     }
@@ -113,6 +118,9 @@ public sealed class TankShieldSystem
     {
         public int Missing;
         public int DelayTicks;
+
+        // Whether the last tick refilled it (what the HUD means by regenerating: not just the delay being over).
+        public bool Refilling;
     }
 }
 

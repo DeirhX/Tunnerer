@@ -252,4 +252,22 @@ public class TankShieldTests
         Assert.Equal(0, world.TankShieldOf(tank).RegenDelayTicks);
         Assert.True(world.TankShieldOf(tank).Regenerating);
     }
+
+    [Fact]
+    public void Regenerating_IsFalseWhileTheShieldCannotRefill()
+    {
+        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, energyNetwork: true, tankShield: true);
+        var tank = world.TankList.Tanks[0];
+        for (int y = -30; y <= 30; y++)
+            for (int x = -60; x <= 60; x++)
+                world.Terrain.SetPixel(new Position(60, 100) + new Offset(x, y), Core.Terrain.TerrainPixel.Blank);
+        tank.Position = new Position(60, 100);
+        Step(world, 2);
+        tank.TakeDamage(200, DamageCause.EnemyFire);
+
+        Step(world, Tweaks.TankShield.RegenDelayTicks + 10);
+
+        Assert.True(tank.IsOffNetwork);
+        Assert.False(world.TankShieldOf(tank).Regenerating);
+    }
 }

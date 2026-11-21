@@ -25,7 +25,7 @@ public static partial class Tweaks
         // warms its surroundings more than itself. Only the base puts it out, by repairing the hull.
         public const float FireIgniteHullFraction = 0.75f;
         public const float FireTankHeatPerTickMax = 0.25f;
-        public const double FireAirEnergyPerTickMax = 12.0;
+        public const double FireAirEnergyPerTickMax = 10.0;
         public const int FireAirRadius = 3;
     }
 }
