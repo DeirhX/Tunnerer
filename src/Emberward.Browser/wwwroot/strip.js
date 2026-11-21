@@ -146,7 +146,7 @@ export class StripView {
 
     // Forgets what the last match showed: the next frame starts the gauges where they stand.
     reset() {
-        this.shown = { heat: NaN, shield: -1 };
+        this.shown = { heat: NaN, hull: -1 };
         this.lastHeat = NaN;
         this.trend = 0;
     }
@@ -207,10 +207,10 @@ export class StripView {
         this.shown.heat = Number.isNaN(this.shown.heat)
             ? heat
             : this.shown.heat + (heat - this.shown.heat) * EASE_HEAT;
-        this.shown.shield =
-            this.shown.shield < 0
-                ? p.shield
-                : this.shown.shield + (p.shield - this.shown.shield) * EASE_SHIELD;
+        this.shown.hull =
+            this.shown.hull < 0
+                ? p.hull
+                : this.shown.hull + (p.hull - this.shown.hull) * EASE_SHIELD;
         // The trend arrow: the desktop smooths the change per display frame and shows it past 0.02 a frame.
         if (!Number.isNaN(this.lastHeat) && !p.dead)
             this.trend = this.trend * 0.9 + ((p.heat - this.lastHeat) * 24) / 60 * 0.1;
@@ -509,12 +509,12 @@ export class StripView {
     drawLiquids(ctx, p, time) {
         const pulse = Math.floor(time * 4) % 2 === 0;
         const [sTop, sBottom] = extent(SHIELD_OUTLINE);
-        const sLevel = sBottom - (sBottom - sTop) * this.shown.shield;
+        const sLevel = sBottom - (sBottom - sTop) * this.shown.hull;
         if (p.hitFresh) fillBand(ctx, SHIELD_OUTLINE, sLevel, sBottom, abgr(0x90ffffff));
-        else if (p.shieldLow && p.shield > 0 && pulse)
+        else if (p.hullLow && p.hull > 0 && pulse)
             fillBand(ctx, SHIELD_OUTLINE, sLevel, sBottom, abgr(0x703030ff));
         fillBand(ctx, SHIELD_OUTLINE, sTop, sLevel, abgr(0xc8080808));
-        surface(ctx, SHIELD_OUTLINE, sLevel, p.shield > 0 ? 0xffffe0a0 : 0, time);
+        surface(ctx, SHIELD_OUTLINE, sLevel, p.hull > 0 ? 0xffffe0a0 : 0, time);
     }
 
     // BuildPanel.Draw: a slot per machine, filling toward its cost from the stock that would pay (BuildSlotView).

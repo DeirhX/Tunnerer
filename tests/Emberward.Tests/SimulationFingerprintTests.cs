@@ -25,7 +25,7 @@ public class SimulationFingerprintTests
     private const ulong ExpectedRelayHarvesterNetwork = 0x7490621AAE202E62UL;
     private const ulong ExpectedEnemyMachinesShotToPieces = 0x496D990B0BEE9465UL;
     private const ulong ExpectedBotVsBot = 0xC55F71089B2C5365UL;
-    private const ulong ExpectedShieldedBotVsBot = 0x65A581F52061C3D7UL;
+    private const ulong ExpectedShieldedBotVsBot = 0xC3659C5D25190BB7UL;
 
     /// <summary>
     /// A recorded run: the world as set up, the bots in it (null for a slot the script drives), how many frames it

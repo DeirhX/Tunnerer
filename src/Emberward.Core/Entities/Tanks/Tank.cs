@@ -272,9 +272,8 @@ public class Tank
             return;
         }
 
-        // The shield refills only while the tank is on its relay network (or in its base).
-        if (!IsOffNetwork)
-            Shield?.Advance(this);
+        // The shield refills only while the tank is on its relay network (or in its base) and its base is not dark.
+        Shield?.Advance(this, !IsOffNetwork && ctx.BasePower?.IsDark(Base!) != true);
         _thermals.AddIdleHeat(ctx.Heat.Ledger);
         AdvanceBaseInteraction(in ctx);
         _thermals.AdvanceNetworkCoverage(in ctx);

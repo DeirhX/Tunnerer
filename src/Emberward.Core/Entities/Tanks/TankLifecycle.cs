@@ -62,8 +62,7 @@ internal sealed class TankLifecycle
         LastDamageCause = cause;
         if (cause == DamageCause.EnemyFire)
         {
-            if (taken.Hull > 0)
-                HitFlashTicks = Tank.HitFlashDuration;
+            HitFlashTicks = Tank.HitFlashDuration;
             LastHitVelocity = hitVelocity;
         }
         if (_tank.IsDead)

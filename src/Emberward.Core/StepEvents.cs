@@ -23,7 +23,7 @@ public enum StepEventKind
     /// <summary>A shrapnel fragment struck something hard or burnt out inside the map.</summary>
     ShrapnelSpent,
 
-    /// <summary>Enemy fire took armor off a tank's hull (not blocked by its respawn shield, nor, with the tank shield rule, by its shield). <see cref="StepEvent.Color"/> is the tank.</summary>
+    /// <summary>Enemy fire took armor (shield or hull) off a tank's hull (not blocked by its respawn shield, nor, with the tank shield rule, by its shield). <see cref="StepEvent.Color"/> is the tank.</summary>
     TankHit,
 
     /// <summary>A tank was destroyed. <see cref="StepEvent.Position"/> is where it died.</summary>

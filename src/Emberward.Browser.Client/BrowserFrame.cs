@@ -56,11 +56,11 @@ public sealed record HeatDial(string[] Bands, float Ambient, float Safe, float M
 /// <param name="OreLine">The line beneath the hold window (<c>BuildSlotView.OreLine</c>).</param>
 public sealed record PlayerStatus(
     Position Position, Position Home, float Heat, float HeatLimit, float HeatGauge, string HeatColor,
-    float HitFlash, float HitFromX, float HitFromY, float Shield,
+    float HitFlash, float HitFromX, float HitFromY, float Hull,
     int Ore, int HoldCapacity, int Store, double Charge, double BaseHeat, double BaseArmor,
     bool Docked, bool OffNetwork, float SafeSeconds, bool Dead, double RespawnSeconds, bool CanRecall,
     string Outcome, string? Carrying, bool BaseDestroyed,
-    int Health, float Frozen, float Boil, bool Burning, bool ShieldLow, bool HitFresh, int OrePileFrame,
+    int Health, float Frozen, float Boil, bool Burning, bool HullLow, bool HitFresh, int OrePileFrame,
     bool Unloading, bool HoldFull, bool OffNetworkUrgent, string OreLine);
 
 /// <param name="KeyLabel">The key that builds it, as the desktop writes it (<c>MachinePresentation.KeyLabel</c>).</param>
