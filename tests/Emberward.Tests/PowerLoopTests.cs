@@ -45,7 +45,7 @@ public class PowerLoopTests
         double startingEfficiency = home.EngineEfficiency(30);
         double startingTemperature = home.ReactorTemperature;
 
-        home.AcceptTankHeat(home.ReactorRoomEnergy / 2);
+        home.AcceptHeat(home.ReactorRoomEnergy / 2);
 
         Assert.Equal(startingTemperature + Tweaks.Base.EngineColdSideRise / 2.0, home.ReactorTemperature);
         Assert.True(home.EngineEfficiency(30) < startingEfficiency);
@@ -57,7 +57,7 @@ public class PowerLoopTests
     {
         var t = new TerrainGrid(new Size(48, 48));
         var home = new TankBase(new Position(24, 24), 0);
-        t.SetPixel(home.Position, TerrainPixel.BaseCore);
+        t.SetPixel(home.Position, TerrainPixel.BaseFloor);
         t.AddHeat(home.Position, 255);
         double injected = t.SumTotalThermalEnergy();
 
@@ -85,7 +85,7 @@ public class PowerLoopTests
         double airEnergy = Math.Min(requested - rockEnergy, airHeat * t.SumHeatCapacityInRadiusArea(pos, 0, TerrainGrid.ThermalField.Air));
         double rockCharge = rockEnergy * home.EngineEfficiency(rockHeat);
         var afterRock = new TankBase(pos, 0);
-        afterRock.AcceptTankHeat(rockEnergy - rockCharge);
+        afterRock.AcceptHeat(rockEnergy - rockCharge);
         double expectedCharge = rockCharge + airEnergy * afterRock.EngineEfficiency(airHeat);
         double initialCharge = home.Charge;
         double initialHeat = home.ReactorHeatEnergy;
@@ -112,7 +112,7 @@ public class PowerLoopTests
         t.AddHeat(pos, 5);
         t.AddAirHeatTotalInRadiusArea(pos, 0, 100);
         var home = new TankBase(pos, 0);
-        home.AcceptTankHeat(home.ReactorRoomEnergy - 20);
+        home.AcceptHeat(home.ReactorRoomEnergy - 20);
 
         double taken = home.AbsorbHeatFrom(t, pos, 0, 100, out bool limited, out double output, out bool cold);
 
@@ -134,7 +134,7 @@ public class PowerLoopTests
         t.AddHeat(pos, 5);
         t.AddAirHeatTotalInRadiusArea(pos, 0, 400);
         var home = new TankBase(pos, 0);
-        home.AcceptTankHeat(home.ReactorRoomEnergy - 190);
+        home.AcceptHeat(home.ReactorRoomEnergy - 190);
         const double requested = 300;
 
         double taken = home.AbsorbHeatFrom(t, pos, 0, requested, out bool limited, out _, out _);

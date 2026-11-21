@@ -58,7 +58,7 @@ public class HotRockTests
                 t.SetPixelRaw(new Position(x, y), TerrainPixel.Dirt);
         t.SetPixelRaw(new Position(15, 15), TerrainPixel.Rock);
         t.SetPixelRaw(new Position(16, 15), TerrainPixel.Blank);
-        t.SetPixelRaw(new Position(14, 15), TerrainPixel.BaseCore);
+        t.SetPixelRaw(new Position(14, 15), TerrainPixel.BaseFloor);
         t.SetPixelRaw(new Position(15, 16), TerrainPixel.Concrete);
 
         int converted = t.PlaceHotRockPocket(new Position(15, 15), radius: 3);
@@ -67,7 +67,7 @@ public class HotRockTests
         Assert.Equal(TerrainPixel.HotRock, t.GetPixelRaw(new Position(15, 15))); // rock
         Assert.Equal(TerrainPixel.HotRock, t.GetPixelRaw(new Position(15, 14))); // dirt
         Assert.Equal(TerrainPixel.Blank, t.GetPixelRaw(new Position(16, 15)));
-        Assert.Equal(TerrainPixel.BaseCore, t.GetPixelRaw(new Position(14, 15)));
+        Assert.Equal(TerrainPixel.BaseFloor, t.GetPixelRaw(new Position(14, 15)));
         Assert.Equal(TerrainPixel.Concrete, t.GetPixelRaw(new Position(15, 16)));
         Assert.Equal(Hot, t.GetHeatTemperature(new Position(15, 14)), precision: 3);
     }
@@ -180,8 +180,8 @@ public class HotRockTests
     [Fact]
     public void Relay_NextToAPocket_ClearsTunnelHeat_AndEnergyBalances()
     {
-        var withRelay = RelayHeatTests.CreateScenario(seed: 4242);
-        var control = RelayHeatTests.CreateScenario(seed: 4242);
+        var withRelay = RelayHeatTests.CreateScenario();
+        var control = RelayHeatTests.CreateScenario();
 
         // A pocket in the rock beside the tunnel, level with the relay position.
         var pocketCenter = withRelay.RelayPos + new Offset(6, 0);
@@ -317,8 +317,10 @@ public class HotRockGradientTests
     public void Pockets_FormAGradient_CoreAtTheCentre_AndPocketsClusterNearIt()
     {
         // Each seed's world is independent and takes most of a second to build (the pockets warm up first), so the
-        // worlds are built side by side and their pockets summed afterwards, in seed order.
-        var worlds = new World[8];
+        // worlds are built side by side and their pockets summed afterwards, in seed order. With the bases against
+        // the border, a base on the long side keeps pockets out of the middle of the small map's narrow axis, so the
+        // mean is near the bound and takes more seeds to settle.
+        var worlds = new World[24];
         Parallel.For(0, worlds.Length, i =>
             worlds[i] = TestHelpers.CreateSeededWorld(seed: 9000 + i, hotRockPocketCount: Tweaks.World.HotRockPocketCount));
 

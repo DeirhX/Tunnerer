@@ -37,7 +37,13 @@ static const float kMaterialCodeScale = 255.0;
 static const int kMaterialCodeOre = 120;
 static const int kMaterialCodeOreCore = 121;
 static const int kMaterialCodeBaseFloor = 20;
-static const int kMaterialCodeBaseDoor = 30;
+static const int kMaterialCodeBaseCore = 25;
+// The core is a disc of cells 5 across (Tweaks.Keep.CoreSize). A core cell has at most kBaseCoreReach others of the
+// core beside it in a row, and kBaseCoreRadius is the largest circle that stays inside the core's cells.
+static const int kBaseCoreReach = 4;
+static const float kBaseCoreRadius = 2.1;
+static const int kMaterialCodeBaseDoor = 30;      // a gate, shut to the enemy by the gate shield
+static const int kMaterialCodeBaseDoorOpen = 31;  // a gate whose shield is spent
 static const int kMaterialCodeBaseWallMin = 40;   // wall code = 40 + owner colour index
 static const int kMaterialCodeBaseWallMax = 47;
 
@@ -48,8 +54,11 @@ int DecodeMaterialCode(float encoded)
 
 bool IsBaseWallCode(int code)  { return code >= kMaterialCodeBaseWallMin && code <= kMaterialCodeBaseWallMax; }
 bool IsBaseFloorCode(int code) { return code == kMaterialCodeBaseFloor; }
-bool IsBaseDoorCode(int code)  { return code == kMaterialCodeBaseDoor; }
-bool IsBaseCode(int code)      { return IsBaseWallCode(code) || IsBaseFloorCode(code) || IsBaseDoorCode(code); }
+bool IsBaseCoreCode(int code)  { return code == kMaterialCodeBaseCore; }
+bool IsBaseDoorCode(int code)  { return code == kMaterialCodeBaseDoor || code == kMaterialCodeBaseDoorOpen; }
+bool IsBaseCode(int code)      { return IsBaseWallCode(code) || IsBaseFloorCode(code) || IsBaseDoorCode(code) || IsBaseCoreCode(code); }
+// What stands up from the floor and shades it: walls and baffles. The core is round and shades its own cells.
+bool IsBaseRaisedCode(int code) { return IsBaseWallCode(code); }
 
 // ---- Natural material selection from coverageTex ---------------------------
 static const float kMaterialMaskMinWidth = 0.01;      // minimum smoothstep half-width on coverage differences

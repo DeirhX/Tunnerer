@@ -18,7 +18,7 @@ public class WorldThermalSimulationTests
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_BaseInterior_RemainsCoolUnderThermalExchange));
         var basePos = RequireBasePosition(tank);
 
-        tank.Position = basePos;
+        tank.Position = tank.Base!.SpawnPosition;
         SetTankHeat(tank, 150f);
 
         world.Terrain.AddHeatRadius(basePos, 255, 18);
@@ -38,10 +38,11 @@ public class WorldThermalSimulationTests
         var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9393);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_HeatConnectedToBase_DecaysOverTime));
         var basePos = RequireBasePosition(tank);
+        int dirY = DirYIntoMap(world.Terrain, basePos);
 
-        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: 39);
+        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: dirY * 39);
 
-        var hotPos = basePos + new Offset(0, 36);
+        var hotPos = basePos + new Offset(0, dirY * 36);
         world.Terrain.AddHeatRadius(hotPos, 255, 10);
         visual.Capture(world, "after_heat_injection");
         float startHeat = world.Terrain.SampleAverageHeat(hotPos, radius: 8) * 255f;
@@ -60,10 +61,11 @@ public class WorldThermalSimulationTests
         var (world, tank) = TestHelpers.CreateSeededWorldWithTank(seed: 9494);
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_SingleBulletHeat_ConnectedToBase_CoolsEventually));
         var basePos = RequireBasePosition(tank);
+        int dirY = DirYIntoMap(world.Terrain, basePos);
 
-        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: 49);
+        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: dirY * 49);
 
-        var impactPos = basePos + new Offset(0, 46);
+        var impactPos = basePos + new Offset(0, dirY * 46);
         world.Terrain.AddHeatRadius(impactPos, Tweaks.Explosion.BulletHeatAmount, Tweaks.Explosion.BulletHeatRadius);
         visual.Capture(world, "after_heat_injection");
         float startHeat = world.Terrain.GetHeatTemperature(impactPos);
@@ -90,7 +92,7 @@ public class WorldThermalSimulationTests
         foreach (var tank in world.TankList.Tanks)
         {
             var basePos = RequireBasePosition(tank);
-            tank.Position = basePos;
+            tank.Position = tank.Base!.SpawnPosition;
             SetTankHeat(tank, 140f);
             world.Terrain.AddHeatRadius(basePos, amount: 220, radius: 10);
         }
@@ -207,22 +209,23 @@ public class WorldThermalSimulationTests
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_SingleBulletIntoOutsideWall_HotspotEventuallyCoolsOut));
         var basePos = RequireBasePosition(tank);
 
-        tank.Position = basePos;
+        tank.Position = tank.Base!.SpawnPosition;
         SetTankHeat(tank, 0f);
         visual.Capture(world, "start");
 
-        var impactPos = basePos + new Offset(0, 48);
-        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: 46);
+        int dirY = DirYIntoMap(world.Terrain, basePos);
+        var impactPos = basePos + new Offset(0, dirY * 48);
+        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: dirY * 46);
         world.Terrain.SetPixel(impactPos, TerrainPixel.Rock);
         world.Terrain.SetPixel(impactPos + new Offset(1, 0), TerrainPixel.Rock);
         world.Terrain.SetPixel(impactPos + new Offset(-1, 0), TerrainPixel.Rock);
 
         float hotspotAtStart = world.Terrain.SampleAverageHeat(impactPos, radius: 6) * 255f;
 
-        var spawnPos = impactPos + new Offset(0, -12);
+        var spawnPos = impactPos + new Offset(0, -dirY * 12);
         world.Projectiles.Add(Emberward.Core.Entities.Projectiles.Projectile.CreateBullet(
             spawnPos,
-            new VectorF(0f, Tweaks.Weapon.CannonBulletSpeed),
+            new VectorF(0f, dirY * Tweaks.Weapon.CannonBulletSpeed),
             tank.Color));
 
         TestSimulation.AdvanceIdle(world, frames: 20, visual: visual, phase: "resolve_hit", captureEvery: 4);
@@ -250,12 +253,13 @@ public class WorldThermalSimulationTests
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_ShootWaitRevisit_HotspotShouldDissipateBeforeReturn));
         var basePos = RequireBasePosition(tank);
 
-        tank.Position = basePos;
+        tank.Position = tank.Base!.SpawnPosition;
         SetTankHeat(tank, 0f);
         visual.Capture(world, "start");
 
-        var impactPos = basePos + new Offset(0, 46);
-        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: 48);
+        int dirY = DirYIntoMap(world.Terrain, basePos);
+        var impactPos = basePos + new Offset(0, dirY * 46);
+        CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: dirY * 48);
 
         world.Terrain.SetPixel(impactPos, TerrainPixel.Rock);
         world.Terrain.SetPixel(impactPos + new Offset(1, 0), TerrainPixel.Rock);
@@ -264,13 +268,13 @@ public class WorldThermalSimulationTests
 
         var shootDown = new ControllerOutput
         {
-            AimDirection = new DirectionF(0f, 1f),
+            AimDirection = new DirectionF(0f, dirY),
             ShootPrimary = true,
         };
         var moveDown = new ControllerOutput
         {
-            MoveSpeed = new Offset(0, 1),
-            AimDirection = new DirectionF(0f, 1f),
+            MoveSpeed = new Offset(0, dirY),
+            AimDirection = new DirectionF(0f, dirY),
         };
 
         const int shootFrames = 72;
@@ -323,13 +327,13 @@ public class WorldThermalSimulationTests
         // fixed-temperature sink, so start the tank warm: the scenario under test is a hot tank
         // leaving the base, leaving a heat trail in the tunnel, and the base cooling back down.
         const float startHeat = 60f;
-        tank.Position = basePos;
+        tank.Position = tank.Base!.SpawnPosition;
         SetTankHeat(tank, startHeat);
         visual.Capture(world, "start");
 
         // Drive toward whichever map edge is farther away; a fixed direction can run into
         // solid rock for some seeds, which leaves the tank jammed inside the base door.
-        int dirY = (world.Terrain.Height - basePos.Y) >= basePos.Y ? 1 : -1;
+        int dirY = DirYIntoMap(world.Terrain, basePos);
         int firstOutsideDy = (Tweaks.Base.BaseSize / 2) + 1;
         const int tunnelHalfWidth = 4; // wider than the tank so it never has to dig
         for (int dx = -tunnelHalfWidth; dx <= tunnelHalfWidth; dx++)
@@ -362,7 +366,7 @@ public class WorldThermalSimulationTests
         Assert.True(trailHeat > 0f,
             $"Expected a hot tank to leave heat in the tunnel. trailHeat={trailHeat:0.000}, tankHeat={tank.Heat:0.00}");
 
-        tank.Position = basePos;
+        tank.Position = tank.Base!.SpawnPosition;
 
         float baseAfterDrive = world.Terrain.SampleAverageHeat(basePos, radius: 10) * 255f;
 
@@ -383,15 +387,16 @@ public class WorldThermalSimulationTests
         using var visual = TestVisualTrace.Start(nameof(WorldAdvance_DriveOutOfBase_BaseInteriorStaysCool));
         var basePos = RequireBasePosition(tank);
 
-        tank.Position = basePos;
+        tank.Position = tank.Base!.SpawnPosition;
         SetTankHeat(tank, 0f);
         CoolAreaToZero(world.Terrain, basePos, radius: 14);
         visual.Capture(world, "start");
 
+        int dirY = DirYIntoMap(world.Terrain, basePos);
         int firstOutsideDy = (Tweaks.Base.BaseSize / 2) + 1;
-        CarveVerticalLine(world.Terrain, basePos, firstOutsideDy, firstOutsideDy + 56);
+        CarveVerticalLine(world.Terrain, basePos, dirY * firstOutsideDy, dirY * (firstOutsideDy + 56));
 
-        var driveDown = TestSimulation.MoveAndAim(0, 1, 0f, 1f);
+        var driveDown = TestSimulation.MoveAndAim(0, dirY, 0f, dirY);
 
         for (int i = 0; i < 60; i++)
         {
@@ -422,9 +427,10 @@ public class WorldThermalSimulationTests
             using var visual = TestVisualTrace.Start(nameof(WorldAdvance_BaseConnectedTunnel_ExternalHeat_ConvergesToBaseTemperature));
             var basePos = RequireBasePosition(tank);
 
-            CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: 72);
+            int dirY = DirYIntoMap(world.Terrain, basePos);
+            CarveVerticalLine(world.Terrain, basePos, startDy: 0, endDyInclusive: dirY * 72);
 
-            var hotspotPos = basePos + new Offset(1, 66);
+            var hotspotPos = basePos + new Offset(1, dirY * 66);
             world.Terrain.AddHeatRadius(hotspotPos, amount: 255, radius: 12);
             visual.Capture(world, "after_heat_injection");
 
@@ -460,13 +466,14 @@ public class WorldThermalSimulationTests
             var basePos = RequireBasePosition(tank);
             int half = Tweaks.Base.BaseSize / 2;
 
+            int dirY = DirYIntoMap(world.Terrain, basePos);
             int firstOutsideDy = half + 1;
-            CarveVerticalLine(world.Terrain, basePos, firstOutsideDy, firstOutsideDy + 56);
+            CarveVerticalLine(world.Terrain, basePos, dirY * firstOutsideDy, dirY * (firstOutsideDy + 56));
 
-            var doorPos = basePos + new Offset(0, half);
+            var doorPos = basePos + new Offset(0, dirY * half);
             Assert.Equal(ThermalMaterial.Base, Pixel.GetThermalMaterial(world.Terrain.GetPixelRaw(doorPos)));
 
-            var hotspotPos = basePos + new Offset(1, firstOutsideDy + 34);
+            var hotspotPos = basePos + new Offset(1, dirY * (firstOutsideDy + 34));
             world.Terrain.AddHeatRadius(hotspotPos, amount: 255, radius: 10);
             visual.Capture(world, "after_heat_injection");
 
@@ -474,8 +481,8 @@ public class WorldThermalSimulationTests
             double SumTunnelEnergy()
             {
                 double sum = 0.0;
-                int y0 = basePos.Y + firstOutsideDy;
-                int y1 = basePos.Y + firstOutsideDy + 56;
+                int y0 = basePos.Y + Math.Min(dirY * firstOutsideDy, dirY * (firstOutsideDy + 56));
+                int y1 = basePos.Y + Math.Max(dirY * firstOutsideDy, dirY * (firstOutsideDy + 56));
                 for (int y = y0; y <= y1; y++)
                 {
                     for (int x = basePos.X - 1; x <= basePos.X + 1; x++)

@@ -132,7 +132,7 @@ public class StepEventTests
         Assert.Contains(Step(s.World), e => e.Kind == StepEventKind.Undocked && e.Color == s.Tank.Color);
         Assert.DoesNotContain(Step(s.World), e => e.Kind == StepEventKind.Undocked);
 
-        s.Tank.Position = s.Base.Position;
+        s.Tank.Position = s.Base.SpawnPosition;
         Assert.Contains(Step(s.World), e => e.Kind == StepEventKind.Docked && e.Color == s.Tank.Color);
     }
 

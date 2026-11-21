@@ -140,7 +140,7 @@ public class SimulationTableGuardTests
         string[] reviewed =
         {
             "LevelGenDirt", "LevelGenRock", "LevelGenMark", "Blank", "Dirt", "DirtGrow", "Rock", "Decal",
-            "BaseMin", "BaseMax", "BaseBarrier", "BaseCore", "HotRock", "FrostRock", "Concrete",
+            "BaseMin", "BaseMax", "BaseBarrier", "BaseFloor", "BaseCore", "BaseGateOpen", "HotRock", "FrostRock", "Concrete",
             "Emberite", "EmberiteCore",
         };
         string[] actual = Enum.GetNames<TerrainPixel>();

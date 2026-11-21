@@ -440,10 +440,12 @@ route (`LinkMap.CarryHeat`), which the renderer draws as flow. `LinkMap.PreviewL
 
 ## Level generation and the bot
 
-`ToastGenerator.Generate(size, seed, mode)` scatters `Tweaks.LevelGen.TreeSize` points, picks spawns
-(`SelectSpawns`), joins the points with a minimum spanning tree (Kruskal) drawn as dirt lines, then either expands
-and smooths single-threaded (`Deterministic`) or dilates, adds noise, smooths in parallel and carves spawn
-connectivity (`Optimized`, used by `--fast`).
+`ToastGenerator.Generate(size, seed, mode)` places the bases against the border (`EdgeSpawns.Place`, DESIGN.md
+§6.7), scatters `Tweaks.LevelGen.TreeSize` points, joins the points and the spawns with a minimum spanning tree
+(Kruskal) drawn as dirt lines, then either expands and smooths single-threaded (`Deterministic`) or dilates, adds
+noise and smooths in parallel (`Optimized`, used by `--fast`). Last, it makes the ground round every base alike
+(`EdgeSpawns.PrepareGround`) and carves a tunnel to any base the caves cut off. `World` asks `BaseLayout.FrontOf`
+which gate of a base faces into the map, and its tank spawns inside that one.
 
 `BotTankAI` is a mode machine (`TwitchMode`: leave base, roam and fight, return, recharge). `BotNavigator` picks
 moves, `BotGunner` decides fire, and `BotProfileCycle` rotates the `BotBehaviorProfile` play styles. All three

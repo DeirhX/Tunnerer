@@ -84,7 +84,8 @@ internal sealed class SideSensing(TerrainGrid terrain, MachineList machines, Tan
                     _radarTargets.Add(new RadarTarget(other.Position, Tweaks.Radar.TankHalfSize, Alive: true));
             radar.Advance(terrain, terrain, tank.Position, tank.Color, _radarTargets,
                 tank.Base is { } home ? RadarReach.Scaled(home.Upgrades.RadarRangeScale, home.Upgrades.RadarHeatBudgetScale)
-                    : RadarReach.Base);
+                    : RadarReach.Base,
+                tank.Base?.Position);
         }
     }
 

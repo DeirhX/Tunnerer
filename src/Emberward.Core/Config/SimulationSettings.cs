@@ -77,7 +77,6 @@ public readonly record struct SimulationSettings
     public int TankDigRadius { get; init; }
     public float TankHeatBaseCoolBonus { get; init; }
     public int BaseHomeCooldownHeat { get; init; }
-    public int BaseForeignCooldownHeat { get; init; }
 
     public static SimulationSettings FromTweaks() => new()
     {
@@ -128,6 +127,5 @@ public readonly record struct SimulationSettings
         TankDigRadius = Tweaks.Tank.DigRadius,
         TankHeatBaseCoolBonus = Tweaks.Tank.HeatBaseCoolBonus,
         BaseHomeCooldownHeat = Tweaks.Base.HomeCooldownHeat,
-        BaseForeignCooldownHeat = Tweaks.Base.ForeignCooldownHeat,
     };
 }

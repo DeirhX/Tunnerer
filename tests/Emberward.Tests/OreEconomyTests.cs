@@ -76,7 +76,7 @@ public class OreEconomyTests
     {
         int ore = Tweaks.Ore.TankHold;
         var docked = RelayHeatTests.CreateScenario();
-        docked.Tank.Position = docked.Base.Position;
+        docked.Tank.Position = docked.Base.SpawnPosition;
         docked.Tank.Hold.Ore = ore;
         var networked = TankAtRelay(ore);
 

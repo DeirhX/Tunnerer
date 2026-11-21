@@ -1,4 +1,5 @@
 using Emberward.Core.Config;
+using Emberward.Core.Resources;
 using Emberward.Core.Input;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
@@ -258,7 +259,7 @@ public class TankHeatBehaviorTests
         using var visual = TestVisualTrace.Start(nameof(TankHeat_AtOwnBase_DoesNotHeatFillBaseInterior));
         var basePos = RequireBasePosition(tank);
 
-        tank.Position = basePos;
+        tank.Position = tank.Base!.SpawnPosition;
         SetTankHeat(tank, 140f);
 
         CoolAreaToZero(world.Terrain, basePos, radius: 24);
@@ -297,29 +298,36 @@ public class TankHeatBehaviorTests
     }
 
     [Fact]
-    public void TankHeat_AtForeignBase_CoolsButLessThanOwnBase()
+    public void TankHeat_AtForeignBase_GetsNoServiceFromIt()
     {
         var (worldOwn, tankOwn) = TestHelpers.CreateSeededWorldWithTank(seed: 9292);
         var (worldForeign, tankForeign) = TestHelpers.CreateSeededWorldWithTank(seed: 9292);
 
         var ownBasePos = RequireBasePosition(tankOwn);
-        var foreignBasePos = worldForeign.TankBases.Bases[1].Position;
+        var foreignBase = worldForeign.TankBases.Bases[1];
+        var foreignBasePos = foreignBase.Position;
 
         SetTankHeat(tankOwn, 60f);
         SetTankHeat(tankForeign, 60f);
-        tankOwn.Position = ownBasePos;
-        tankForeign.Position = foreignBasePos;
+        tankOwn.Position = tankOwn.Base!.SpawnPosition;
+        tankForeign.Position = foreignBase.SpawnPosition;
+        tankForeign.Reactor.Exhaust(new ReactorState(0, 100));
+        int hurt = tankForeign.Reactor.Health;
 
         CoolAreaToZero(worldOwn.Terrain, ownBasePos, radius: 20);
         CoolAreaToZero(worldForeign.Terrain, foreignBasePos, radius: 20);
+        double foreignReservoir = foreignBase.ReactorHeatEnergy;
 
         AdvanceTank(tankOwn, worldOwn, frames: 8);
         AdvanceTank(tankForeign, worldForeign, frames: 8);
 
-        Assert.True(tankOwn.Heat < 60f && tankForeign.Heat < 60f,
-            $"Expected both bases to cool tanks. own={tankOwn.Heat:0.00}, foreign={tankForeign.Heat:0.00}");
+        // A raider in another side's courtyard is not repaired or cooled by that base: it only loses heat to the
+        // cold floor it stands on, as it would anywhere.
         Assert.True(tankOwn.Heat < tankForeign.Heat,
-            $"Expected own base to cool more than foreign base. own={tankOwn.Heat:0.00}, foreign={tankForeign.Heat:0.00}");
+            $"Expected only the own base to cool its tank. own={tankOwn.Heat:0.00}, foreign={tankForeign.Heat:0.00}");
+        Assert.Equal(hurt, (int)tankForeign.Reactor.Health);
+        Assert.Equal(foreignReservoir, foreignBase.ReactorHeatEnergy);
+        Assert.False(tankForeign.IsDockedAtOwnBase);
     }
 
     [Fact]

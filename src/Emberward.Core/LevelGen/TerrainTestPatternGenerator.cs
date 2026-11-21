@@ -67,7 +67,7 @@ public static class TerrainTestPatternGenerator
         FillRect(grid, margin, y, baseW, 1, TerrainPixel.BaseBarrier);
         FillRect(grid, margin, y + stripH - 1, baseW, 1, TerrainPixel.BaseBarrier);
         if (stripH > 4)
-            FillRect(grid, margin + baseW / 2 - 2, y + stripH / 2 - 1, 4, 2, TerrainPixel.BaseCore);
+            FillRect(grid, margin + baseW / 2 - 2, y + stripH / 2 - 1, 4, 2, TerrainPixel.BaseFloor);
         y += stripH;
 
         return y;

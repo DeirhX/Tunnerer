@@ -27,7 +27,7 @@ public class BotTankAI
     private const int OutsideBaseMargin = 5;
     private const int OutsideBase = Tweaks.Base.BaseSize / 2 + OutsideBaseMargin;
 
-    /// <summary>Distances from the base centre, out through a door, at which the bot feels how hot the ground is.</summary>
+    /// <summary>Distances from the base centre, out through a gate, at which the bot feels how hot the ground is.</summary>
     private static readonly int[] ExitHeatCheckDistances = { Tweaks.Base.BaseSize / 2 + 4, OutsideBase + 6 };
 
     private const int ExitStuckThresholdFrames = 10;
@@ -229,9 +229,9 @@ public class BotTankAI
     }
 
     /// <summary>
-    /// The door to leave by (-1 up, 1 down): the one whose way out is clearer, a coin flip when they are alike. Open
-    /// ground and dirt count the same, so the door it dug out last time is not always the one it takes. Scorching
-    /// ground outside a door (where it torched through rock, or died) counts like rock.
+    /// The gate to leave by (-1 up, 1 down): the one whose way out is clearer, a coin flip when they are alike. Open
+    /// ground and dirt count the same, so the gate it dug out last time is not always the one it takes. Scorching
+    /// ground outside a gate (where it torched through rock, or died) counts like rock.
     /// </summary>
     private int PickExit(Tank tank, World world)
     {
@@ -243,12 +243,12 @@ public class BotTankAI
         return up == down ? coin : up < down ? -1 : 1;
     }
 
-    /// <summary>The worst the hull meets driving from the base centre out through a door: 0 for nothing or dirt.</summary>
+    /// <summary>The worst the hull meets driving from the courtyard out through a gate: 0 for nothing or dirt.</summary>
     private static int WayOutRank(Position basePos, int exitY, World world)
     {
         var worst = StepObstacle.None;
         int dir = TankSpriteShape.DirectionOf(new Offset(0, exitY));
-        for (int step = 1; step <= OutsideBase + 1; step++)
+        for (int step = BaseLayout.Lane; step <= OutsideBase + 1; step++)
         {
             var met = CollisionSolver.TestTankTerrain(world.Terrain, basePos + new Offset(0, exitY * step), dir);
             if (met > worst)
@@ -263,7 +263,7 @@ public class BotTankAI
         return worst <= StepObstacle.Dirt ? 0 : (int)worst;
     }
 
-    /// <summary>Drives out of the base through the door in direction <paramref name="exitY"/>; stuck, it tries the other door.</summary>
+    /// <summary>Drives out of the base through the gate in direction <paramref name="exitY"/>; stuck, it tries the other gate.</summary>
     private ControllerOutput DoExit(Tank tank, World world, int exitY, int relX, int relY)
     {
         if (relY * exitY > OutsideBase)
@@ -273,8 +273,7 @@ public class BotTankAI
             return default;
         }
 
-        // The door is as wide as the tank: it lines up with the door before driving at it.
-        var move = relX != 0 && IsInsideOwnBase(tank) ? new Offset(-Math.Sign(relX), 0) : new Offset(0, exitY);
+        var move = IsInsideOwnBase(tank) ? CourtyardMove(exitY, relX, relY) : new Offset(0, exitY);
         if (IsStuck(tank, world, move, ExitStuckThresholdFrames, torchRock: MayTorchRock(tank)))
         {
             SetMode(exitY < 0 ? TwitchMode.ExitBaseDown : TwitchMode.ExitBaseUp);
@@ -282,6 +281,18 @@ public class BotTankAI
         }
 
         return MoveOutput(tank, move, world);
+    }
+
+    /// <summary>
+    /// The step that takes a tank in its own courtyard out through the gate in direction <paramref name="exitY"/>.
+    /// The core and its baffles fill the middle, so from another side it drives out to a side lane, along it, and
+    /// then to the middle of the gate.
+    /// </summary>
+    private static Offset CourtyardMove(int exitY, int relX, int relY)
+    {
+        if (relY * exitY >= BaseLayout.Lane)
+            return relX != 0 ? new Offset(-Math.Sign(relX), 0) : new Offset(0, exitY);
+        return Math.Abs(relX) >= BaseLayout.Lane ? new Offset(0, exitY) : new Offset(relX < 0 ? -1 : 1, 0);
     }
 
     private ControllerOutput DoTwitch(Tank tank, Tank? enemy, World world)
@@ -296,16 +307,22 @@ public class BotTankAI
             return default;
         }
 
-        if (!_gunner.EnemyInSight && enemy?.Base is { IsDestroyed: false } enemyBase &&
-            FindBaseWall(tank, enemyBase, world) is Position wall)
+        // Out of the enemy's sight and near its base, the bot works on the base (BotSiege): it shoots what a shot
+        // wears down, a shut gate or the core, and otherwise heads for the place the next shot is fired from.
+        Position? siegePoint = null;
+        if (!_gunner.EnemyInSight && enemy?.Base is { IsDestroyed: false } enemyBase)
         {
-            _timeToChange = 0;
-            return new ControllerOutput { ShootPrimary = true, AimDirection = BotGunner.AimTowardsOffset(wall - tank.Position) };
+            if (BotSiege.FindTarget(tank, enemyBase, world) is Position weak)
+            {
+                _timeToChange = 0;
+                return new ControllerOutput { ShootPrimary = true, AimDirection = BotGunner.AimTowardsOffset(weak - tank.Position) };
+            }
+            siegePoint = BotSiege.Waypoint(tank, enemyBase, world);
         }
 
         bool hasTarget = enemy != null && !enemy.IsDead;
         bool hasLos = _gunner.EnemyInSight;
-        var targetPos = hasTarget ? enemy!.Position : (Position?)null;
+        var targetPos = siegePoint ?? (hasTarget ? enemy!.Position : (Position?)null);
         if (hasLos)
             _navigator.ResetProgress(); // Circling an enemy in sight is fighting, not going nowhere.
 
@@ -364,7 +381,7 @@ public class BotTankAI
 
     /// <summary>
     /// Heads home: back along the trail it left on the way out, then, where the trail has run out, straight for the
-    /// point outside the nearer door.
+    /// point outside the nearer gate.
     /// </summary>
     private ControllerOutput DoReturn(Tank tank, World world, int relX, int relY)
     {
@@ -440,57 +457,11 @@ public class BotTankAI
             return default;
         }
 
-        int sx = relX != 0 ? (relX < 0 ? 1 : -1) : 0;
-        int sy = relY != 0 ? (relY < 0 ? 1 : -1) : 0;
-        return new ControllerOutput { MoveSpeed = new Offset(sx, sy) };
-    }
-
-    /// <summary>
-    /// The base wall a straight shot from the tank hits first, or null. The centre is aimed at first; a line through
-    /// it on a north-south approach runs through both doors and meets no wall, so then the walls round the edge are
-    /// aimed at (a wall beside a door is in reach from outside the door).
-    /// </summary>
-    private static Position? FindBaseWall(Tank tank, TankBase home, World world)
-    {
-        var from = tank.Position;
-        int range = Tweaks.Weapon.BotBaseAttackRange;
-        if (Position.DistanceSquared(from, home.Position) > range * range)
-            return null;
-        if (FirstBaseHit(from, home.Position, home, world) is Position centre)
-            return centre;
-        int half = Tweaks.Base.BaseSize / 2;
-        for (int i = -half; i <= half; i++)
-        {
-            if (FirstBaseHit(from, home.Position + new Offset(i, -half), home, world) is Position top) return top;
-            if (FirstBaseHit(from, home.Position + new Offset(i, half), home, world) is Position bottom) return bottom;
-            if (FirstBaseHit(from, home.Position + new Offset(-half, i), home, world) is Position left) return left;
-            if (FirstBaseHit(from, home.Position + new Offset(half, i), home, world) is Position right) return right;
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// What a shot from <paramref name="from"/> aimed at <paramref name="aim"/> hits first, if that is one of the
-    /// base's cells: it walks the cells a bullet fired that way crosses, which passes open ground, open doors and the
-    /// core, and stops at the first cell that collides (a bullet does the same and goes on past the aim).
-    /// </summary>
-    private static Position? FirstBaseHit(Position from, Position aim, TankBase home, World world)
-    {
-        // A base's far wall is within its width of the centre, so this walk reaches it from anywhere in range.
-        int reach = Tweaks.Weapon.BotBaseAttackRange + Tweaks.Base.BaseSize;
-        var step = BotGunner.AimTowardsOffset(aim - from).ToVector(1f);
-        foreach (var pos in Raycaster.CastRay((PositionF)from, step, reach))
-        {
-            if (pos == from)
-                continue;
-            if (!world.Terrain.IsInside(pos))
-                return null;
-            var pixel = world.Terrain.GetPixelRaw(pos);
-            if (!Pixel.IsAnyCollision(pixel))
-                continue;
-            return Pixel.IsAnyBaseCell(pixel) && home.OccupiesCell(pos) ? pos : null;
-        }
-        return null;
+        // It waits in the courtyard on the side it came in by, in the lane round the keep: the middle is the core.
+        bool alongY = Math.Abs(relY) >= Math.Abs(relX);
+        int dockX = alongY ? 0 : Math.Sign(relX) * BaseLayout.Lane;
+        int dockY = alongY ? (relY < 0 ? -1 : 1) * BaseLayout.Lane : 0;
+        return new ControllerOutput { MoveSpeed = new Offset(Math.Sign(dockX - relX), Math.Sign(dockY - relY)) };
     }
 
     /// <summary>Room left before the tank overheats, as a share of a fully cooled tank's room.</summary>

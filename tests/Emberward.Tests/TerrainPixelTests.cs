@@ -17,7 +17,7 @@ public class TerrainPixelTests
     [InlineData(TerrainPixel.BaseMin, (byte)'0')]
     [InlineData(TerrainPixel.BaseMax, (byte)'7')]
     [InlineData(TerrainPixel.BaseBarrier, (byte)'8')]
-    [InlineData(TerrainPixel.BaseCore, (byte)'9')]
+    [InlineData(TerrainPixel.BaseFloor, (byte)'9')]
     [InlineData(TerrainPixel.Concrete, (byte)'C')]
     [InlineData(TerrainPixel.Emberite, (byte)'o')]
     [InlineData(TerrainPixel.EmberiteCore, (byte)'O')]
@@ -75,7 +75,7 @@ public class TerrainPixelTests
             TerrainPixel.Blank, TerrainPixel.Dirt,
             TerrainPixel.DirtGrow, TerrainPixel.Rock, TerrainPixel.Decal,
             TerrainPixel.Concrete, TerrainPixel.Emberite, TerrainPixel.EmberiteCore,
-            TerrainPixel.BaseMin, TerrainPixel.BaseBarrier, TerrainPixel.BaseCore
+            TerrainPixel.BaseMin, TerrainPixel.BaseBarrier, TerrainPixel.BaseFloor
         ];
 
         foreach (var pix in knownPixels)

@@ -180,7 +180,7 @@ public class CollisionTests
         solver.Update(tankList, machines);
 
         Tank? hitTank = null;
-        bool hit = solver.TestPoint(new Position(100, 100),
+        bool hit = solver.TestPoint(tankBases.GetSpawn(0)!.SpawnPosition,
             onTank: tank => { hitTank = tank; return true; });
 
         Assert.True(hit);
@@ -259,18 +259,18 @@ public class CollisionTests
     {
         var t = new TerrainGrid(new Size(200, 200));
         for (int i = 0; i < t.Size.Area; i++) t[i] = TerrainPixel.Blank;
-        t.SetPixelRaw(new Position(100, 100), TerrainPixel.Rock);
         var solver = new CollisionSolver(t);
 
         var tankBases = new TankBases();
         tankBases.AddBase(new Position(100, 100), 0);
         var tankList = new TankList();
-        tankList.AddTank(0, tankBases.GetSpawn(0)!);
+        var tank = tankList.AddTank(0, tankBases.GetSpawn(0)!);
+        t.SetPixelRaw(tank.Position, TerrainPixel.Rock);
         var machines = new MachineList();
         solver.Update(tankList, machines);
 
         string hitType = "";
-        solver.TestPoint(new Position(100, 100),
+        solver.TestPoint(tank.Position,
             onTank: _ => { hitType = "tank"; return true; },
             onTerrain: _ => { hitType = "terrain"; return true; });
 
@@ -456,7 +456,7 @@ public class CollisionTests
         solver.Update(tankList, machines);
 
         Tank? hitTank = null;
-        solver.TestPoint(new Position(300, 300),
+        solver.TestPoint(tankBases.GetSpawn(1)!.SpawnPosition,
             onTank: tank => { hitTank = tank; return true; });
 
         Assert.NotNull(hitTank);
@@ -476,14 +476,15 @@ public class CollisionTests
         var tank = tankList.AddTank(0, tankBases.GetSpawn(0)!);
         var machines = new MachineList();
 
+        var spawn = tank.Position;
         solver.Update(tankList, machines);
-        bool hitAtOld = solver.TestPoint(new Position(50, 50), onTank: _ => true);
+        bool hitAtOld = solver.TestPoint(spawn, onTank: _ => true);
         Assert.True(hitAtOld);
 
         tank.Position = new Position(350, 350);
         solver.Update(tankList, machines);
 
-        bool hitAtOldAfterMove = solver.TestPoint(new Position(50, 50), onTank: _ => true);
+        bool hitAtOldAfterMove = solver.TestPoint(spawn, onTank: _ => true);
         bool hitAtNew = solver.TestPoint(new Position(350, 350), onTank: _ => true);
         Assert.False(hitAtOldAfterMove);
         Assert.True(hitAtNew);
