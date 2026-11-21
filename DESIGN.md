@@ -191,10 +191,15 @@ The tank lives in a band around 0. Both ends hurt, and the world has places at b
 - **Above 100 the tank burns.** Overheating takes hull damage per degree over the limit, every tick.
 - **Shield and hull** *(Prototype, `MatchRules.TankShield`, on in a standard match)*. The tank's life is two layers.
   Damage takes the **shield** first (400 points) and the overflow goes to the **hull** (1000). The shield refills
-  72 points a second, starting 4 seconds after the last hit it took, (the wait runs wherever the tank is), and only
-  while the tank is on its relay network (or in its base) and the base is not dark; the hull never regenerates, and a base repairs it only while the tank is docked. Overheating and
-  frostbite go straight to the hull, as do losing the base and a recall. Without the rule the tank has the hull alone. Fire on a damaged hull and the shield's
-  hit feedback follow in later steps.
+  72 points a second, starting 4 seconds after the last hit it took (the wait runs wherever the tank is), and only
+  while the tank is on its relay network (or in its base) and the base is not dark; the hull never regenerates, and a
+  base repairs it only while the tank is docked. Overheating and frostbite go straight to the hull, as do losing the
+  base and a recall. Without the rule the tank has the hull alone.
+  **A damaged hull burns**: below 75% hull the tank is on fire, and the fire grows to full size at an empty hull. At full
+  size it adds 6 degrees a second to the tank (what a full-strength link takes away) and puts twice as much energy again into the air around it, so a
+  burning tank warms its surroundings more than itself (the energy is booked as injected in the ledger). The fire
+  does no damage of its own; it hurts through the heat (overheating, being seen by emberites). Only the base puts it
+  out, by repairing the hull (a dark base repairs nothing, so a fire there stays, held down by the base's cooling). The shield's hit feedback follows in a later step.
 - **Below 0 the tank is chilled.** It slows down, linearly to about a third of its speed at -40, and below -25 it
   takes frostbite damage per degree, the same way overheating does. Negative temperatures are unusual, never a
   reserve to stock up on.

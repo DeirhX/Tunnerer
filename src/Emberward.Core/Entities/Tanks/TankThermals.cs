@@ -169,8 +169,14 @@ internal sealed class TankThermals
         int radius = _settings.TankDigRadius;
         var contact = heat.SampleTankContact(position, radius);
         float cargoHeat = _tank.OreHeld * _settings.TankHeatPerOrePerTick;
+        // A burning hull (TankShieldSystem.FireLevelOf) heats the tank and, more, the air around it. External sources.
+        float fire = _tank.FireLevel;
+        float fireHeat = fire > 0f ? fire * _settings.TankFireHeatPerTickMax : 0f;
+        float currentHeat = _tank.Heat + cargoHeat;
+        if (fireHeat > 0f)
+            currentHeat += fireHeat;
         var step = _heatEngine.Advance(
-            currentHeat: _tank.Heat + cargoHeat,
+            currentHeat: currentHeat,
             frameDugPixels: _frameDugPixels,
             frameShotFired: _frameShotFired,
             contact: contact);
@@ -182,6 +188,14 @@ internal sealed class TankThermals
 
         // Carried pyrite and tank actions are external heat sources.
         heat.Ledger.RecordInjected((cargoHeat + step.ActionHeat) * ThermalCapacity);
+        if (fire > 0f)
+        {
+            heat.Ledger.RecordInjected(fireHeat * (double)ThermalCapacity);
+            // The air takes all of it (0 only if the area is off the map); book what was applied.
+            double applied = heat.AddEnergyInRadiusArea(position, _settings.TankFireAirRadius,
+                fire * _settings.TankFireAirEnergyPerTickMax, TerrainGrid.ThermalField.Air);
+            heat.Ledger.RecordInjected(applied);
+        }
 
         if (step.OverheatDamage > 0)
         {
