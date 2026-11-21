@@ -109,7 +109,8 @@ public sealed partial class EmberiteSwarm
             emberite.Pyrite = 0;
             _emberites[index] = emberite;
         }
-        // Counted on the creatures the nest has left, which only deaths lower: no counter of its own is kept.
+        // Counted on the creatures the nest has left, which only deaths and starvation lower (a starved creature
+        // that lands on a multiple skips that drop, which only makes ore scarcer): no counter of its own is kept.
         if (nest.Alive % Tweaks.Emberites.DropEveryKills == 0)
             DropHomeOre(nest, cell);
         _events.Record(new StepEvent(StepEventKind.EmberiteKilled, cell));

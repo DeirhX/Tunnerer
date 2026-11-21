@@ -314,6 +314,24 @@ public class GatlingTests
         Assert.Equal(reaches, Raycaster.HasShotThroughSoil(s.World.Terrain, from, target, Tweaks.Gatling.SoilPierceCells));
     }
 
+    [Theory]
+    [InlineData(TerrainPixel.Pyrite)]
+    [InlineData(TerrainPixel.PyriteCore)]
+    [InlineData(TerrainPixel.Rock)]
+    public void TheAimCheck_ReachesACreatureStandingInItsNestsOre(TerrainPixel ground)
+    {
+        // A creature moves through its own nest's ground whatever it is made of, and a round hits it before the ground.
+        var s = Scenario();
+        var from = Outside(s, 8);
+        var target = from + new Offset(0, s.DirY * 16);
+        s.World.Terrain.SetPixel(target, ground);
+        Assert.True(Raycaster.HasShotThroughSoil(s.World.Terrain, from, target, Tweaks.Gatling.SoilPierceCells));
+
+        // The same ground in the way is a wall.
+        s.World.Terrain.SetPixel(from + new Offset(0, s.DirY * 8), ground);
+        Assert.False(Raycaster.HasShotThroughSoil(s.World.Terrain, from, target, Tweaks.Gatling.SoilPierceCells));
+    }
+
     [Fact]
     public void ARoundSpendsOnePierceForACell_AlsoWhenTwoOfItsSamplesInOneCellFallInTwoTicks()
     {

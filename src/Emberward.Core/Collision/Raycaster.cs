@@ -78,8 +78,8 @@ public static class Raycaster
     /// A shot that passes through a little soil: true when the Bresenham line from <paramref name="from"/> to
     /// <paramref name="to"/> (both ends included) meets nothing a bullet stops on (<see cref="Pixel.IsAnyCollision"/>)
     /// but at most <paramref name="maxSoilCells"/> cells of soil. The last cell is the target's, which a round hits
-    /// where it stands instead of passing through, so soil there is free. A gatling aims along this. Integer only, so
-    /// it is deterministic.
+    /// where it stands instead of passing through, so whatever that cell holds is free (a creature in its nest's ground
+    /// stands in soil, ore or rock alike). A gatling aims along this. Integer only, so it is deterministic.
     /// </summary>
     public static bool HasShotThroughSoil(ITerrainPixelReadOnly terrain, Position from, Position to, int maxSoilCells)
     {
@@ -93,7 +93,7 @@ public static class Raycaster
         {
             var pixel = terrain.GetPixel(new Position(x0, y0));
             bool last = x0 == x1 && y0 == y1;
-            if (Pixel.IsAnyCollision(pixel) && (!Pixel.IsSoil(pixel) || (!last && ++soil > maxSoilCells)))
+            if (!last && Pixel.IsAnyCollision(pixel) && (!Pixel.IsSoil(pixel) || ++soil > maxSoilCells))
                 return false;
             if (last)
                 return true;
