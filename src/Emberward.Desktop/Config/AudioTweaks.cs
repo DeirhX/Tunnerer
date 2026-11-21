@@ -74,6 +74,7 @@ public static class AudioTweaks
     public const float RefusedGain = 0.45f;
     public const float PickupGain = 0.40f;
     public const float NestWakeGain = 0.38f;
+    public const float NestStirGain = 0.26f;
     public const float EmberiteBiteGain = 0.45f;
     public const float EmberiteKilledGain = 0.30f;
     // A unit of ore unloaded into the network: a quieter pickup, about four a second.

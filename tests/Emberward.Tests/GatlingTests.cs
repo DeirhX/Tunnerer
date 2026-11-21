@@ -60,8 +60,11 @@ public class GatlingTests
     /// <summary>What <see cref="Fight"/> counted.</summary>
     private sealed record Tally(int Fired, int Killed, int Bites, List<StepEvent> Events);
 
-    /// <summary>Steps <paramref name="ticks"/> times with the tank held hot enough to be hunted, and counts what happened.</summary>
-    private static Tally Fight(RelayHeatTests.Scenario s, int ticks, float heat = 80f)
+    /// <summary>
+    /// Steps <paramref name="ticks"/> times with the tank held hot (by default hot enough that a woken nest sends every
+    /// creature that is ready), and counts what happened. A nest stirs for a second before its first group goes.
+    /// </summary>
+    private static Tally Fight(RelayHeatTests.Scenario s, int ticks, float heat = Tweaks.Emberites.FullHeat)
     {
         var events = new List<StepEvent>();
         for (int t = 0; t < ticks; t++)
@@ -141,7 +144,7 @@ public class GatlingTests
         var (s, gatling) = Post();
         var nest = s.World.Emberites!.AddNest(Outside(s, 8 + 30), radius: 2, creatures: 6);
 
-        Tally tally = Fight(s, 4 * Tweaks.Perf.TargetFps);
+        Tally tally = Fight(s, 10 * Tweaks.Perf.TargetFps);
 
         Assert.True(s.World.MachinePowerOf(gatling)!.Value.IsFed, "the base's coverage links the gatling to its island");
         Assert.All(tally.Events.Where(e => e.Kind == StepEventKind.TurretFired), e =>
@@ -160,20 +163,29 @@ public class GatlingTests
     }
 
     [Fact]
-    public void ALoneGatling_HoldsAWaveThatComesStraightAtIt()
+    public void ALoneGatling_TakesAtLeastAThirdOffTheBitesOfASmallWave()
     {
-        // A woken nest lets a creature out every 4 ticks, the rate a gatling fires at: while every round lands, one
-        // gatling on the creatures' way stops the whole wave of a lump.
-        Assert.Equal(Tweaks.Emberites.ReleaseIntervalTicks, Tweaks.Gatling.FireIntervalTicks);
-        var (s, _) = Post();
-        var nest = s.World.Emberites!.AddNest(Outside(s, 8 + 30), radius: 2, creatures: 40);
+        // A hot tank makes a nest send every creature that is ready, one every PulseSpacingTicks, and a gatling fires at
+        // twice that spacing: it cannot stop a pulse alone. A big one (40 creatures) outruns it, so the nest here is a
+        // small one; every round that lands is a creature that does not bite.
+        Assert.Equal(Tweaks.Emberites.PulseSpacingTicks * 2, Tweaks.Gatling.FireIntervalTicks);
+        Tally Wave(bool gatling)
+        {
+            var s = Scenario();
+            if (gatling)
+                Plant(s, MachineType.Gatling, Outside(s, 8));
+            s.Tank.Position = Outside(s, 4);
+            s.World.Emberites!.AddNest(Outside(s, 8 + 30), radius: 2, creatures: 12);
+            return Fight(s, 14 * Tweaks.Perf.TargetFps);
+        }
 
-        Tally tally = Fight(s, 12 * Tweaks.Perf.TargetFps);
+        Tally defended = Wave(gatling: true), bare = Wave(gatling: false);
 
-        Assert.Equal(40, tally.Killed);
-        Assert.True(nest.IsCleared);
-        Assert.Equal(0, tally.Bites);
-        Assert.True(tally.Fired <= 44, $"nearly every round should land on creatures running straight in, fired {tally.Fired}");
+        Assert.Equal(0, bare.Fired);
+        Assert.True(bare.Bites >= 10, $"a full-heat pulse should reach the tank: {bare.Bites} bites");
+        Assert.True(defended.Bites * 3 <= bare.Bites * 2,
+            $"the gatling should stop at least a third of the bites: {defended.Bites} against {bare.Bites}");
+        Assert.True(defended.Fired >= 6, $"it should shoot a good part of the wave down: {defended.Fired} rounds");
     }
 
     [Fact]
@@ -200,7 +212,7 @@ public class GatlingTests
         s.Tank.Position = Outside(s, 20, across: -28);
         s.World.Emberites!.AddNest(Outside(s, 20, across: 28), radius: 2, creatures: 12);
 
-        Tally tally = Fight(s, 5 * Tweaks.Perf.TargetFps);
+        Tally tally = Fight(s, 14 * Tweaks.Perf.TargetFps);
 
         Assert.True(tally.Killed >= 10, $"killed {tally.Killed} of 12 with {tally.Fired} rounds");
         Assert.True(tally.Killed * 2 >= tally.Fired, $"at least every other round should land: {tally.Killed} kills, {tally.Fired} rounds");
@@ -346,7 +358,7 @@ public class GatlingTests
 
         // Six cells of dirt lie between the creature and the open yard when it comes out: too deep.
         Tally deep = Fight(s, 1);
-        for (int t = 0; t < 12 && swarm.OutCount == 0; t++)
+        for (int t = 0; t < 5 * Tweaks.Perf.TargetFps && swarm.OutCount == 0; t++)
             deep = Fight(s, 1);
         Assert.Equal(1, swarm.OutCount);
         Assert.False(swarm.TryFindTarget(gatling.Position, Tweaks.Gatling.Range, Tweaks.Gatling.SoilPierceCells, out _));
@@ -380,9 +392,9 @@ public class GatlingTests
         double Total() => s.World.SumSystemThermalEnergy() + s.World.SumSystemCharge();
         double maxResidual = 0.0;
         int fired = 0;
-        for (int t = 0; t < 6 * Tweaks.Perf.TargetFps; t++)
+        for (int t = 0; t < 10 * Tweaks.Perf.TargetFps; t++)
         {
-            s.Tank.Heat = 80f;
+            s.Tank.Heat = Tweaks.Emberites.FullHeat;
             double start = Total();
             double startExternal = ledger.Injected - ledger.TotalSunk;
             s.World.Advance(_ => default);
@@ -392,7 +404,7 @@ public class GatlingTests
         }
         float after = TurretAction.SenseTemperature(s.World.Terrain, gatling.Position);
 
-        Assert.True(fired >= 25, $"it should have kept firing, fired {fired}");
+        Assert.True(fired >= 15, $"it should have kept firing, fired {fired}");
         Assert.True(charge > 0.0 && after > before + 2f, $"its rounds should warm its ground: {before:0.0} -> {after:0.0}");
         Assert.True(maxResidual < 1.0, $"heat and charge must add up. residual={maxResidual:0.0000}");
     }

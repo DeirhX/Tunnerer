@@ -4,7 +4,7 @@
 //
 // An emberite is a small wriggling body along its travel direction (+x): bright ember while it carries its heat,
 // dull once spent, a dim glow under the ground while it burrows. A nest's embers are a few pulsing dots on the
-// deposit, drawn while creatures rest in it. See Layout.hlsli for the params.
+// deposit, drawn while creatures rest in it; they flare and flicker fast while the nest stirs before a wave. See Layout.hlsli for the params.
 // ============================================================================
 
 #ifndef EMBERWARD_ENTITY_EMBERITES_HLSLI
@@ -39,6 +39,7 @@ float4 Emberite(float2 p, float4 params, float aa)
     {
         float reach = max(params.y, 0.5);
         float resting = saturate(params.x);
+        float stir = saturate(params.x - 1.0);
         float3 sum = float3(0.0, 0.0, 0.0);
         for (int i = 0; i < 5; i++)
         {
@@ -46,10 +47,13 @@ float4 Emberite(float2 p, float4 params, float aa)
             float angle = fi * 2.399 + 0.6;
             float2 at = float2(cos(angle), sin(angle)) * reach * (0.18 + 0.15 * fi);
             float2 d = p - at;
-            float pulse = 0.55 + 0.45 * sin(phase * 2.3 + fi * 1.7);
-            sum += float3(1.0, 0.52, 0.18) * exp(-dot(d, d) * 5.0) * pulse;
+            float pulse = 0.55 + 0.45 * sin(phase * lerp(2.3, 19.0, stir) + fi * 1.7);
+            sum += float3(1.0, 0.52, 0.18) * exp(-dot(d, d) * lerp(5.0, 1.6, stir)) * pulse;
         }
-        result = float4(sum * resting * 0.9, 0.0);
+        // Stirring: the embers swell, and a hot glow rises over the whole deposit.
+        float swell = exp(-dot(p, p) / (reach * reach) * 2.2) * (0.6 + 0.4 * sin(phase * 19.0));
+        sum += float3(1.0, 0.78, 0.40) * swell * stir * 0.7;
+        result = float4(sum * resting * lerp(0.9, 1.5, stir), 0.0);
     }
     return result;
 }

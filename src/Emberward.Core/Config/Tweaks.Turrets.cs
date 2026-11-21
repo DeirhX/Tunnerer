@@ -64,9 +64,9 @@ public static partial class Tweaks
         public const int OreCost = 16;
         public static readonly Color Color = new(0xe8, 0xcc, 0x4a);
 
-        // It fires at the nearest creature within Range cells once in FireIntervalTicks while cool: 6 a second, the
-        // rate a woken nest lets creatures out (Emberites.ReleaseIntervalTicks), so one gatling just holds one nest's
-        // stream if every round lands, and two hold it with room to spare.
+        // It fires at the nearest creature within Range cells once in FireIntervalTicks while cool: 6 a second,
+        // half the rate a woken nest's pulse lets creatures out (Emberites.PulseSpacingTicks), so one gatling stops a small
+        // pulse and thins a big one, and more gatlings or Spin make up the rest. Untuned.
         public const int Range = 20;
         public const int FireIntervalTicks = 4;
 

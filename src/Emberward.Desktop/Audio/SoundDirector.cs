@@ -130,6 +130,7 @@ public sealed class SoundDirector
                     }
                     break;
                 case StepEventKind.NestWoke:
+                case StepEventKind.NestStirred:
                     // An alarm only for a side whose sight or radar covers the nest; the event names no one.
                     if (NestAlert.Covers(world, player, e.Position) && StepEventSounds.CueFor(e.Kind, e.Machine) is { } wake)
                         PlayCue(wake, e.Position, index, ref impacts);

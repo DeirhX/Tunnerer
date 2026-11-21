@@ -40,19 +40,34 @@ public static partial class Tweaks
         public const int WakeCheckTicks = 6;
 
         // ---- Release and heat --------------------------------------------------------------------------------
-        // A woken nest releases a creature every ReleaseIntervalTicks (6 a second). Each carries one bite of heat: a bite
-        // adds BiteDegrees to the tank (the overheat rule does the damage), a bite lands within BiteRange cells of the
-        // tank's centre. A resting creature recharges from the deposit's heat, up to RechargeShare of a charge a tick for
-        // the whole nest, once in RechargeIntervalTicks; a killed creature spills what it carries SpillRadius around it.
-        public const int ReleaseIntervalTicks = 4;
+        // A woken nest sends its creatures in pulses. It stirs for StirTicks (the warning: its embers flare), lets a
+        // group out one every PulseSpacingTicks, then is quiet for LullTicks before it stirs again. The group's size
+        // follows the hunted tank's heat when the stir ends: PulseMinCreatures at WakeHeat or cooler, every creature
+        // ready to leave at FullHeat, linearly between. So a cool thief meets a few and a hot tank the whole nest.
+        public const int StirTicks = Perf.TargetFps;
+        public const int PulseSpacingTicks = 2;
+        public const int LullTicks = 4 * Perf.TargetFps;
+        public const int PulseMinCreatures = 3;
+        // A nest that finds no tank to hunt waits this long for one (a tank at the edge of its reach comes and goes)
+        // before it drops a stir or a group it has begun, or goes back to sleep with none out.
+        public const int TargetGraceTicks = Perf.TargetFps;
+        // Each creature carries one bite of heat: a bite adds BiteDegrees to the tank (the overheat rule does the
+        // damage), a bite lands within BiteRange cells of the tank's centre.
         public const float BiteDegrees = 2f;
         // A bite also hurts directly, whatever the tank's heat: BiteDamage health (of the tank's 1000), and takes
         // BiteStealUnits of pyrite from its hold, all or nothing, which the creature carries home to its nest's store.
         public const int BiteDamage = 40;
         public const int BiteStealUnits = 1;
         public const float BiteRange = 5f;
+        // Resting creatures recharge from the deposit's heat, up to RechargeCharges charges for the whole nest once in
+        // RechargeIntervalTicks, and one leaves again only with a full charge. A nest with a creature short of one
+        // that fills none for StarveTicks loses a hungry creature, and another every StarveStepTicks until heat comes
+        // back: a deposit pumped cold, or a pocket that was never warm, clears itself of the creatures that have bitten.
+        // A killed creature spills what it carries SpillRadius around it.
         public const int RechargeIntervalTicks = 4;
         public const double RechargeCharges = 2.0;
+        public const int StarveTicks = 20 * Perf.TargetFps;
+        public const int StarveStepTicks = Perf.TargetFps;
         public const int SpillRadius = 2;
         // Every DropEveryKills-th death of a nest's creatures (counted on the creatures it has left), the creature drops
         // one unit of its nest's deposit where it dies: a plain ore cell leaves the deposit's rim and lands as loose ore,
