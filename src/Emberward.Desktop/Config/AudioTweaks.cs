@@ -20,8 +20,35 @@ public static class AudioTweaks
     /// </summary>
     public const float InaudibleGain = 0.06f;
 
-    /// <summary>Horizontal distance (cells) at which an effect is panned fully to one side.</summary>
-    public const float FullPanDistance = 130f;
+    /// <summary>
+    /// Pan follows the direction to an effect; nearer than this (cells) it narrows towards the centre, so something
+    /// right beside the tank does not jump between the speakers.
+    /// </summary>
+    public const float FullPanDistance = 28f;
+
+    /// <summary>
+    /// Cells of solid ground between an effect and the player's tank that muffle it about two thirds of the way
+    /// (<see cref="Audio.SoundSpace.Muffle"/>).
+    /// </summary>
+    public const float MuffleCells = 14f;
+
+    /// <summary>Most of an effect's loudness that ground in the way takes off.</summary>
+    public const float MuffledGainCut = 0.6f;
+
+    /// <summary>Low-pass cutoff (Hz) of a fully muffled effect: only its rumble comes through.</summary>
+    public const float MuffledCutoffHz = 380f;
+
+    /// <summary>Cells of ground the muffling ray counts at most; beyond it nothing changes.</summary>
+    public const int MuffleRayLimit = 64;
+
+    /// <summary>Pitch change per cell a tank comes closer in a step (an approaching tank sounds a little higher).</summary>
+    public const float ApproachPitchPerCell = 0.05f;
+
+    /// <summary>Largest pitch change from coming closer or going away.</summary>
+    public const float MaxApproachPitch = 0.07f;
+
+    /// <summary>Share of a step's distance change taken into the smoothed approach speed (moves come in fits).</summary>
+    public const float ApproachSmoothing = 0.2f;
 
     /// <summary>How far a fully panned effect leans (1 would silence the other speaker).</summary>
     public const float MaxPan = 0.75f;
@@ -52,6 +79,8 @@ public static class AudioTweaks
     public const float DigGain = 0.34f;
     public const float TorchGain = 0.30f;
     public const float RechargeGain = 0.14f;
+    // Another tank's treads clattering while it moves: what tells you where an enemy is going.
+    public const float TreadGain = 0.55f;
 
     // Shortest gap between two plays of a repeating effect, in simulation steps (24 per second).
     public const int ImpactsPerStep = 2;
