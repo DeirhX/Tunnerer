@@ -145,11 +145,15 @@ public class EmberiteDropTests
         // dropped unit would find no open cell, and the deposit must not lose one for nothing.
         var (world, tank, nest) = Arena(creatures: 4, oreRadius: NestRadius + Tweaks.Ore.DeathDropRadius + 3);
         int before = Cells(world, _ => true).Count;
+        List<Position> deposit = Deposit(world);
 
+        // All four deaths happen, the fourth the one that would drop; the total alone cannot tell a move from no drop
+        // (a moved unit is still a cell of ore), so the nest's own cells must be the same ones too.
         for (int death = 1; death <= 4; death++)
             KillOne(world, tank, clearOfNest: 0);
 
         Assert.True(nest.IsCleared);
+        Assert.Equal(deposit, Deposit(world));
         Assert.Equal(before, Cells(world, _ => true).Count);
     }
 }

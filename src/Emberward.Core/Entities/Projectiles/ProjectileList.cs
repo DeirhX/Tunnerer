@@ -98,7 +98,6 @@ public class ProjectileList
         var terrain = solver.Terrain;
         int steps = Math.Max(1, (int)MathF.Ceiling(p.Speed.Length));
         var stepDir = p.Speed * (1f / steps);
-        var pierced = new Position(int.MinValue, int.MinValue);
 
         for (int s = 0; s < steps; s++)
         {
@@ -137,13 +136,13 @@ public class ProjectileList
                     if (Pixel.IsBaseGate(pix))
                         return self.HitsGate(solver, ipos, p, bursts);
                     if (!Pixel.IsAnyCollision(pix)) return false;
-                    // A round passes through a few cells of soil. Two samples of one tick may fall in one cell,
-                    // which counts once.
-                    if (Pixel.IsSoil(pix) && (ipos == pierced || p.Pierce > 0))
+                    // A round passes through a few cells of soil. Two samples of its flight may fall in one cell, in
+                    // one tick or across two, which counts once.
+                    if (Pixel.IsSoil(pix) && (ipos == p.PiercedCell || p.Pierce > 0))
                     {
-                        if (ipos != pierced)
+                        if (ipos != p.PiercedCell)
                             p.Pierce--;
-                        pierced = ipos;
+                        p.PiercedCell = ipos;
                         return false;
                     }
                     // Walls and baffles take no damage; only a shell that reaches the core wears a base down.
@@ -336,7 +335,9 @@ public class ProjectileList
             // Mixed only when it is not a tank's shell, so the digest of a world without turrets is what it always was.
             if (p.Damage != Tweaks.Weapon.BulletDamage)
                 hash = Fnv1a.Mix(hash, p.Damage);
-            return p.Pierce != 0 ? Fnv1a.Mix(hash, p.Pierce) : hash;
+            if (p.Pierce != 0)
+                hash = Fnv1a.Mix(hash, p.Pierce);
+            return p.PiercedCell != Projectile.NoCell ? Fnv1a.Mix(Fnv1a.Mix(hash, p.PiercedCell.X), p.PiercedCell.Y) : hash;
         }
     }
 }

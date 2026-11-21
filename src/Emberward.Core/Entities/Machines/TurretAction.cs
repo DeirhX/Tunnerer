@@ -158,8 +158,11 @@ public static class TurretAction
     {
         float speed = Tweaks.Gatling.RoundSpeed;
         // The round first moves on the next tick, when shots fly before creatures run, and it starts at the barrel's
-        // tip: against a round flying from the gatling's centre from now on, the creature is that many ticks behind.
-        float behind = 1f + Tweaks.Turret.BarrelLength / speed;
+        // tip (halfway to a target nearer than the barrel is long, as Aim places it): against a round flying from the
+        // gatling's centre from now on, the creature is that many ticks behind.
+        float ahead = target.X - gatling.Position.X, up = target.Y - gatling.Position.Y;
+        float reach = MathF.Min(Tweaks.Turret.BarrelLength, MathF.Sqrt(ahead * ahead + up * up) / 2f);
+        float behind = 1f + reach / speed;
         float dx = target.X - motion.X * behind - gatling.Position.X, dy = target.Y - motion.Y * behind - gatling.Position.Y;
         float flight = Lead(dx, dy, motion, speed);
         Position muzzle = Aim(gatling, dx + motion.X * flight, dy + motion.Y * flight, out DirectionF direction);

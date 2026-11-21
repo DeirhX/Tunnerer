@@ -276,6 +276,46 @@ public class GatlingTests
             Assert.Equal(wall, s.World.Terrain.GetPixelRaw(from + new Offset(0, s.DirY * (6 + i))));
     }
 
+    [Theory]
+    [InlineData(3, true)]
+    [InlineData(4, false)]
+    public void TheAimCheck_DoesNotChargeASoilCellForTheTargetItself(int wallThickness, bool reaches)
+    {
+        // A creature burrowing in soil is hit where it stands: its own cell is not one the round has to pass through.
+        var s = Scenario();
+        var from = Outside(s, 8);
+        var target = from + new Offset(0, s.DirY * 16);
+        for (int i = 0; i < wallThickness; i++)
+            s.World.Terrain.SetPixel(from + new Offset(0, s.DirY * (6 + i)), TerrainPixel.Dirt);
+        s.World.Terrain.SetPixel(target, TerrainPixel.Dirt);
+
+        Assert.Equal(reaches, Raycaster.HasShotThroughSoil(s.World.Terrain, from, target, Tweaks.Gatling.SoilPierceCells));
+    }
+
+    [Fact]
+    public void ARoundSpendsOnePierceForACell_AlsoWhenTwoOfItsSamplesInOneCellFallInTwoTicks()
+    {
+        var s = Scenario();
+        var from = Outside(s, 8);
+        for (int dy = -45; dy <= 45; dy++)
+            for (int dx = -45; dx <= 45; dx++)
+                s.World.Terrain.SetPixel(from + new Offset(dx, dy), TerrainPixel.Dirt);
+        // Diagonally, four samples of 0.7075 cells a tick: the last of one tick and the first of the next share a cell.
+        float step = Tweaks.Gatling.RoundSpeed / 1.4142135f;
+        var round = Projectile.CreateRound(from, new VectorF(step, s.DirY * step), s.Tank.Color, Tweaks.Gatling.Damage,
+            life: 20, pierce: 40);
+        s.World.Projectiles.Add(round);
+
+        for (int t = 1; t <= 8; t++)
+        {
+            s.World.Advance(_ => default);
+            Assert.True(round.IsAlive);
+            // Every cell on its diagonal, the cell it started in included, cost one.
+            int cells = (int)MathF.Abs(round.Position.X - from.X) + 1;
+            Assert.Equal(cells, 40 - round.Pierce);
+        }
+    }
+
     [Fact]
     public void ARoundThatHitsNothing_IsSpentPastItsRange()
     {

@@ -40,6 +40,15 @@ public class Projectile
     public int Pierce { get; set; }
 
     /// <summary>
+    /// The soil cell a round last passed through, which it already paid for: two samples of its flight may fall in one
+    /// cell, also across two ticks. <see cref="NoCell"/> until it has passed one.
+    /// </summary>
+    public Position PiercedCell { get; set; } = NoCell;
+
+    /// <summary>A cell off the map, for a round that has pierced nothing yet.</summary>
+    public static readonly Position NoCell = new(int.MinValue, int.MinValue);
+
+    /// <summary>
     /// A gatling's round: it flies for <paramref name="life"/> ticks, passes through <paramref name="pierce"/> cells of
     /// soil and takes <paramref name="damage"/> off a tank or a machine it strikes.
     /// </summary>
