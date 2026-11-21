@@ -32,26 +32,29 @@ public sealed class PreviewQuads
     /// The carried machine's preview, anchored on the (interpolated) <paramref name="player"/> tank: the reach area,
     /// and a translucent energy stream to the network point it would link to (red past whatever blocks the line).
     /// </summary>
-    public void Emit(EntityQuads quads, PositionF player)
+    public void Emit(EntityQuads quads, PositionF player, PositionF start, PositionF motion)
     {
         if (!_preview.Active)
             return;
         float phase = quads.Phase;
-        float cx = quads.ScreenX(player.X);
-        float cy = quads.ScreenY(player.Y);
+        // The area and the sense ring ride the tank's motion; the beam is rebuilt each frame from the drawn tank.
+        float cx = EntityQuads.Centre(start.X);
+        float cy = EntityQuads.Centre(start.Y);
+        float bx0 = EntityQuads.Centre(player.X);
+        float by0 = EntityQuads.Centre(player.Y);
 
         MachineSprite sprite = MachineSprites.Get(_preview.Type);
         if (sprite.SenseRadius is float r)
         {
             quads.Add(cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f,
-                EntityShape.KindSenseRing, _preview.SenseHeat, r, phase, 0f);
+                EntityShape.KindSenseRing, _preview.SenseHeat, r, phase, 0f, motion);
         }
         if (sprite.Reach is not MachineReach area)
             return;
 
         float reach = area.Radius;
         quads.Add(cx, cy, 1f, 0f, -reach - 6f, reach + 6f, -reach - 6f, reach + 6f, area.Color, EntityShape.KindReachArea,
-            reach, area.Circle ? 1f : 0f, phase, 0f);
+            reach, area.Circle ? 1f : 0f, phase, 0f, motion);
 
         var link = _preview.Link;
         if (link.Status is LinkPreviewStatus.NoNetwork)
@@ -74,7 +77,7 @@ public sealed class PreviewQuads
         }
         // Too far: only a short fading feeler toward the network, not a full line across the map.
         float drawn = link.Status == LinkPreviewStatus.TooFar ? MathF.Min(length, 24f) : length;
-        quads.Add(cx, cy, dx / length, dy / length, -1.5f, drawn + 1.5f, -3f, 3f,
+        quads.Add(bx0, by0, dx / length, dy / length, -1.5f, drawn + 1.5f, -3f, 3f,
             EntityShape.KindPreviewBeam, drawn, status, phase, blockedAt);
     }
 }

@@ -11,16 +11,19 @@ using Emberward.Desktop.Rendering.Entities;
 [StructLayout(LayoutKind.Sequential)]
 public struct EntityVertex
 {
-    public float ClipX, ClipY;
+    /// <summary>The quad corner in world cells, where its entity is at the start of the simulation step.</summary>
+    public float CellX, CellY;
     public float LocalX, LocalY;
     public float R, G, B, Kind;
     public float P0, P1, P2, P3;
+    /// <summary>How far the corner moves in one simulation step (cells); the shader adds it times the step's progress.</summary>
+    public float MotionX, MotionY;
 }
 
 /// <summary>
 /// Turns simulation snapshots into the entity layer's quads: radar blips, network coverage, links, the placement preview,
-/// machines, tanks, projectiles and charge labels, in that order (later ones draw on top). <see cref="EntityInterpolator"/> places
-/// tanks and machines between the last two simulation steps; each family's emitter in <c>Rendering/Entities</c>
+/// machines, tanks, projectiles and charge labels, in that order (later ones draw on top). <see cref="EntityMotion"/> says where
+/// tanks and machines start and how they move through a simulation step (the vertex shader does the rest); each family's emitter in <c>Rendering/Entities</c>
 /// writes its quads. The layer reads simulation state solely for drawing.
 /// </summary>
 public sealed class EntityLayerBuilder
@@ -31,7 +34,7 @@ public sealed class EntityLayerBuilder
     /// <summary>A protected (just respawned) tank blinks on and off at this period.</summary>
     private const int ProtectedBlinkMilliseconds = 120;
 
-    private readonly EntityInterpolator _interpolator = new();
+    private readonly EntityMotion _motion = new();
     private readonly EntityQuads _quads = new();
     private readonly CoverageQuads _coverage = new();
     private readonly LinkQuads _links = new();
@@ -45,18 +48,18 @@ public sealed class EntityLayerBuilder
     public EntityVertex[] Vertices => _quads.Vertices;
     public int VertexCount => _quads.VertexCount;
 
-    /// <summary>Records the world after a simulation step; the previous record becomes the interpolation start.</summary>
+    /// <summary>Records the world after a simulation step; each moving thing starts from where it was last drawn.</summary>
     public void CaptureStep(World world, int localSlot)
     {
         if (_tankScratch.Length < world.TankList.Count)
             _tankScratch = new TankRenderState[world.TankList.Count];
         int tankCount = world.TankList.CopyRenderStates(_tankScratch);
-        _interpolator.CaptureTanks(_tankScratch.AsSpan(0, tankCount));
+        _motion.CaptureTanks(_tankScratch.AsSpan(0, tankCount));
 
         if (_machineScratch.Length < world.Machines.Count)
             _machineScratch = new MachineRenderState[Math.Max(world.Machines.Count, 16)];
         int machineCount = world.Machines.CopyRenderStates(_machineScratch, world.Settings.GeneratorMaxChargePerTick);
-        _interpolator.CaptureMachines(_machineScratch.AsSpan(0, machineCount));
+        _motion.CaptureMachines(_machineScratch.AsSpan(0, machineCount));
 
         _preview.Capture(world, localSlot);
         _coverage.Capture(world, localSlot);
@@ -66,10 +69,23 @@ public sealed class EntityLayerBuilder
     }
 
     /// <summary>
-    /// Tank positions (cell coordinates) between the previous step (<paramref name="alpha"/> 0) and the latest
-    /// (<paramref name="alpha"/> 1), indexed like the world's tank list.
+    /// Tank positions (cell coordinates) as drawn at <paramref name="alpha"/> of the current step, indexed like the
+    /// world's tank list.
     /// </summary>
-    public ReadOnlySpan<PositionF> InterpolateTankPositions(float alpha) => _interpolator.InterpolateTankPositions(alpha);
+    public ReadOnlySpan<PositionF> TankPositions(float alpha) => _motion.TankPositions(alpha);
+
+    /// <summary>Where tank <paramref name="slot"/> is drawn from and how it moves through the step (cells per step).</summary>
+    public (PositionF Start, PositionF Motion) TankMotion(int slot) => _motion.TankMotion(slot);
+
+    /// <summary>
+    /// Stops everything drawn where it is now: the world takes no step (a pause, or a network tick that carried none),
+    /// so nothing should keep moving ahead of it. The next step starts again from there.
+    /// </summary>
+    public void Hold()
+    {
+        _motion.Hold();
+        _projectiles.Hold();
+    }
 
     /// <summary>
     /// Builds the quads for one displayed frame. <paramref name="turnSeconds"/> is the game time since the last
@@ -86,7 +102,8 @@ public sealed class EntityLayerBuilder
     {
         _quads.Begin(view, visualSeconds % AnimationPhaseWrapSeconds, alpha);
         bool protectedBlinkOn = (long)(visualSeconds * 1000f) / ProtectedBlinkMilliseconds % 2 == 0;
-        ReadOnlySpan<PositionF> tankPositions = _interpolator.InterpolateTankPositions(alpha);
+        _motion.SetAlpha(alpha);
+        ReadOnlySpan<PositionF> tankPositions = _motion.TankPositions(alpha);
 
         if (radar != null && vision != null)
             RadarQuads.Emit(_quads, radar, vision);
@@ -99,9 +116,12 @@ public sealed class EntityLayerBuilder
         _links.Submit(_beams, vision);
         _beams.Emit(_quads);
         if (tankPositions.Length > 0)
-            _preview.Emit(_quads, tankPositions[0]);
-        MachineQuads.Emit(_quads, _interpolator, turnSeconds, snapHeadings, vision);
-        TankQuads.Emit(_quads, _interpolator, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn, vision);
+        {
+            var (start, drift) = _motion.TankMotion(0);
+            _preview.Emit(_quads, tankPositions[0], start, drift);
+        }
+        MachineQuads.Emit(_quads, _motion, turnSeconds, snapHeadings, vision);
+        TankQuads.Emit(_quads, _motion, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn, vision);
         _projectiles.Emit(_quads, vision);
         _powerLabels.Emit(_quads, vision, powerLabelCellSize);
     }

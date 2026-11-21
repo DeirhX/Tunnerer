@@ -513,6 +513,8 @@ async function launch(request) {
         if (data.sounds) audio.load(data.sounds);
         // The HUD's state comes only with frames that follow a simulation step.
         renderer.accept(data.state, data.packet);
+        // The packet was made a round trip ago: draw it at the progress through the step the page has reached now.
+        renderer.gpu.setAlpha(stepAlpha(performance.now()));
         perf?.frame(
             data.timing,
             renderer.gpu.uploadedBytes,
@@ -600,6 +602,14 @@ function updateHud(f) {
     perf?.hud(performance.now() - began, stripMs);
 }
 
+// How far through the current simulation step the page is: tanks, machines, shots and the camera are drawn at that
+// point, by the vertex shader, on every displayed frame (a frame that brought no new packet draws the last one again).
+function stepAlpha(now) {
+    const dt = 1000 / (state?.tickRate || 24);
+    if (net) return Math.min(1, Math.max(0, (now - net.stepAt) / dt));
+    return paused ? 1 : Math.min(1, accumulator / dt);
+}
+
 function animate(now) {
     const dt = 1000 / (state?.tickRate || 24);
     const elapsed = Math.max(0, now - lastTime);
@@ -673,6 +683,7 @@ function animate(now) {
         lastRenderTime = now;
     }
     try {
+        if (playing && !holding()) renderer.gpu.setAlpha(stepAlpha(now));
         renderer.draw(now, input.pointer);
         perf?.displayed(elapsed);
     } catch (error) {

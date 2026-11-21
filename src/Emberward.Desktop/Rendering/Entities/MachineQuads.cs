@@ -12,11 +12,11 @@ using Emberward.Core.Types;
 public static class MachineQuads
 {
     public static void Emit(
-        EntityQuads quads, EntityInterpolator interpolator, float turnSeconds, bool snapHeadings, VisionMap? vision)
+        EntityQuads quads, EntityMotion motion, float turnSeconds, bool snapHeadings, VisionMap? vision)
     {
         float scale = quads.View.PixelScale;
         float phase = quads.Phase;
-        ReadOnlySpan<MachineRenderState> machines = interpolator.Machines;
+        ReadOnlySpan<MachineRenderState> machines = motion.Machines;
 
         for (int i = 0; i < machines.Length; i++)
         {
@@ -24,12 +24,12 @@ public static class MachineQuads
             if (!machine.IsAlive || !Sight.Sees(vision, machine.Position))
                 continue;
 
-            PositionF at = interpolator.MachinePosition(i, quads.Alpha);
-            float x = at.X, y = at.Y;
-            float cx = quads.ScreenX(x);
-            float cy = quads.ScreenY(y);
-            if (quads.IsOffScreen(cx, cy, 6f * scale))
+            var (start, drift) = motion.MachineMotion(i);
+            if (quads.IsOffScreen(quads.ScreenX(start.X + drift.X * quads.Alpha),
+                    quads.ScreenY(start.Y + drift.Y * quads.Alpha), 6f * scale))
                 continue;
+            float cx = EntityQuads.Centre(start.X);
+            float cy = EntityQuads.Centre(start.Y);
 
             MachineSprite sprite = MachineSprites.Get(machine.Type);
             bool carried = machine.State != MachineState.Planted;
@@ -41,30 +41,30 @@ public static class MachineQuads
             {
                 // The ground the machine senses, coloured by how close it is to stalling.
                 quads.Add(cx, cy, 1f, 0f, -r - 0.6f, r + 0.6f, -r - 0.6f, r + 0.6f,
-                    EntityShape.KindSenseRing, machine.SenseHeat, r, phase, flags);
+                    EntityShape.KindSenseRing, machine.SenseHeat, r, phase, flags, drift);
             }
 
             float l = sprite.HalfLength, w = sprite.HalfWidth;
             if (sprite.FacesHeading)
             {
-                float heading = interpolator.UpdateMachineHeading(i, machine.Heading, turnSeconds, snapHeadings);
+                float heading = motion.UpdateMachineHeading(i, machine.Heading, turnSeconds, snapHeadings);
                 float hx = MathF.Cos(heading), hy = MathF.Sin(heading);
                 // The drum turns while it works, not while stalled or carried.
                 float drum = machine.IsStalled || carried ? 0f : phase * 2.2f;
-                quads.Add(cx, cy, hx, hy, -l, l, -w, w, sprite.Kind, hx, hy, drum, flags);
+                quads.Add(cx, cy, hx, hy, -l, l, -w, w, sprite.Kind, hx, hy, drum, flags, drift);
             }
             else
             {
                 float powered = machine.IsPowered ? 1f : 0f;
                 float gauge = sprite.Gauge?.Invoke(machine) ?? 0f;
-                quads.Add(cx, cy, 1f, 0f, -l, l, -w, w, sprite.Kind, powered, gauge, phase, flags);
+                quads.Add(cx, cy, 1f, 0f, -l, l, -w, w, sprite.Kind, powered, gauge, phase, flags, drift);
             }
 
             if (!carried && sprite.ShowsBattery && machine.HasCapacitor)
             {
                 // Capacitor gauge above the machine, upright whichever way it faces.
-                quads.Add(cx, cy - 4.6f * scale, 1f, 0f, -2.4f, 2.4f, -0.9f, 0.9f,
-                    EntityShape.KindBattery, machine.Charge, 0f, 0f, 0f);
+                quads.Add(cx, cy - 4.6f, 1f, 0f, -2.4f, 2.4f, -0.9f, 0.9f,
+                    EntityShape.KindBattery, machine.Charge, 0f, 0f, 0f, drift);
             }
         }
     }

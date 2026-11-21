@@ -28,10 +28,11 @@ public class EntityLayoutGuardTests
         // Attribute location -> the first field of EntityVertex it reads, and how many floats it spans.
         (string Field, int Floats)[] expected =
         [
-            (nameof(EntityVertex.ClipX), 2),
+            (nameof(EntityVertex.CellX), 2),
             (nameof(EntityVertex.LocalX), 2),
             (nameof(EntityVertex.R), 4),
             (nameof(EntityVertex.P0), 4),
+            (nameof(EntityVertex.MotionX), 2),
         ];
 
         var attributes = SdlGpuBackend.EntityVertexAttributes;
@@ -51,6 +52,23 @@ public class EntityLayoutGuardTests
 
         Assert.Equal(Marshal.SizeOf<EntityVertex>(), end);
         Assert.Equal(Unsafe.SizeOf<EntityVertex>(), end);
+    }
+
+    /// <summary>The browser describes the entity vertex again in webgl.js (attribute sizes and stride); nothing else checks it.</summary>
+    [Fact]
+    public void WebGlRenderer_DescribesTheEntityVertex()
+    {
+        string webgl = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Emberward.Browser", "wwwroot", "webgl.js"));
+        var list = Regex.Match(webgl, @"const ENTITY_ATTRIBUTE_FLOATS = \[(?<floats>[\d, ]+)\];");
+        var stride = Regex.Match(webgl, @"const ENTITY_VERTEX_BYTES = (?<bytes>\d+);");
+        Assert.True(list.Success && stride.Success, "webgl.js no longer declares ENTITY_ATTRIBUTE_FLOATS and ENTITY_VERTEX_BYTES");
+        int[] floats = list.Groups["floats"].Value.Split(',', StringSplitOptions.TrimEntries).Select(f => int.Parse(f, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        var attributes = SdlGpuBackend.EntityVertexAttributes;
+        Assert.Equal(attributes.Select(a => FormatSize(a.Format) / sizeof(float)), floats);
+        Assert.Equal(Marshal.SizeOf<EntityVertex>(), int.Parse(stride.Groups["bytes"].Value, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(Marshal.SizeOf<EntityVertex>(), floats.Sum() * sizeof(float));
+        Assert.Contains("gl.vertexAttribPointer(index, count, gl.FLOAT, false, ENTITY_VERTEX_BYTES, offset)", webgl, StringComparison.Ordinal);
+        Assert.Contains("vertices.byteLength / ENTITY_VERTEX_BYTES", webgl, StringComparison.Ordinal);
     }
 
     [Fact]
