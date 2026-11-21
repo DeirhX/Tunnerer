@@ -42,6 +42,8 @@
 //                   color.rgb = team colour
 //  22 tank shield — .x = shield fill (0..1), .y = pulse age (0 just hit, 1 gone), .zw = where the shot landed, in cells from
 //                   the tank's centre ((0, 0) = no spot); color.rgb = team colour. Drawn only while a hit is fresh.
+//  23 tank fire   — .x = fire level (0..1), .y = seconds into a 4 s animation cycle, .z = how far the smoke leans (cells per cell
+//                   of rise), .w unused; color.rgb = team colour. Drawn only while the hull burns.
 //  16 power label — .xy = packed 5x7 glyph bitmap (low 20 bits, then high 15), .z = dots per cell
 //                   (0 for a solid bar), .w = opacity
 //
@@ -77,6 +79,7 @@ static const float kKindGatling = 19.0;
 static const float kKindBaseShield = 20.0;
 static const float kKindShieldHit = 21.0;
 static const float kKindTankShield = 22.0;
+static const float kKindTankFire = 23.0;
 
 // Machine flags (params.w); EntityShape's MachineFlag* constants must match.
 static const float kMachineFlagStalled = 1.0;

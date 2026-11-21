@@ -25,6 +25,7 @@
 #include "Entity/PowerLabel.hlsli"
 #include "Entity/BaseShield.hlsli"
 #include "Entity/TankShield.hlsli"
+#include "Entity/TankFire.hlsli"
 #include "Entity/Emberites.hlsli"
 
 float4 main(PSIn input) : SV_Target
@@ -82,7 +83,9 @@ float4 main(PSIn input) : SV_Target
         result = BaseShield(p, input.color.rgb, input.params, aa);
     else if (kind < kKindShieldHit + 0.5)
         result = ShieldHit(p, input.color.rgb, input.params, aa);
-    else // kKindTankShield
+    else if (kind < kKindTankShield + 0.5)
         result = TankShield(p, input.color.rgb, input.params, aa);
+    else // kKindTankFire
+        result = TankFire(p, input.color.rgb, input.params, aa);
     return result;
 }
