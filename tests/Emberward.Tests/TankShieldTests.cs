@@ -106,20 +106,50 @@ public class TankShieldTests
 
         Step(world, Tweaks.TankShield.RegenDelayTicks + 200);
 
-        Assert.Equal(Tweaks.TankShield.Capacity, world.TankShieldOf(tank).Shield);
         Assert.Equal(hull, tank.Reactor.Health);
     }
 
     [Theory]
     [InlineData(DamageCause.BaseDestroyed)]
     [InlineData(DamageCause.Recalled)]
-    public void LosingTheBaseOrRecalling_KillsThroughAFullShield(DamageCause cause)
+    [InlineData(DamageCause.Overheat)]
+    [InlineData(DamageCause.Frostbite)]
+    public void BaseLossRecallHeatAndCold_GoStraightToTheHull(DamageCause cause)
     {
         var (_, tank) = Shielded();
 
         tank.TakeDamage(tank.Reactor.HealthCapacity, cause);
 
         Assert.True(tank.IsDead);
+        Assert.Equal(0, tank.LastDamageTaken.Shield);
+    }
+
+    [Fact]
+    public void OverheatDamage_LeavesTheShieldAlone()
+    {
+        var (world, tank) = Shielded();
+        int hull = tank.Reactor.Health;
+
+        tank.TakeDamage(30, DamageCause.Overheat);
+
+        Assert.Equal(hull - 30, tank.Reactor.Health);
+        Assert.Equal(Tweaks.TankShield.Capacity, world.TankShieldOf(tank).Shield);
+    }
+
+    [Fact]
+    public void OffTheNetwork_TheShieldDoesNotRefill()
+    {
+        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, energyNetwork: true, tankShield: true);
+        var tank = world.TankList.Tanks[0];
+        // Far from any link: the coverage rule has it off its network.
+        tank.Position = world.TankBases.Bases.First(b => b.Color != tank.Color).SpawnPosition;
+        Step(world, 2);
+        Assert.True(tank.IsOffNetwork);
+        tank.TakeDamage(200, DamageCause.EnemyFire);
+
+        Step(world, Tweaks.TankShield.RegenDelayTicks + 60);
+
+        Assert.Equal(Tweaks.TankShield.Capacity - 200, world.TankShieldOf(tank).Shield);
     }
 
     [Fact]

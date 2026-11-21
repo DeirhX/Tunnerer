@@ -191,9 +191,9 @@ The tank lives in a band around 0. Both ends hurt, and the world has places at b
 - **Above 100 the tank burns.** Overheating takes shield damage per degree over the limit, every tick.
 - **Shield and hull** *(Prototype, `MatchRules.TankShield`, on in a standard match)*. The tank's life is two layers.
   Damage takes the **shield** first (400 points) and the overflow goes to the **hull** (1000). The shield refills
-  72 points a second, starting 4 seconds after the last hit it took; the hull never regenerates, and a base repairs it
-  only while the tank is docked. Overheating and frostbite take the shield first as well; losing the base or a recall
-  kills straight through it. Without the rule the tank has the hull alone. Fire on a damaged hull and the shield's
+  72 points a second, starting 4 seconds after the last hit it took, and only while the tank is on its relay network
+  (or in its base); the hull never regenerates, and a base repairs it only while the tank is docked. Overheating and
+  frostbite go straight to the hull, as do losing the base and a recall. Without the rule the tank has the hull alone. Fire on a damaged hull and the shield's
   hit feedback follow in later steps.
 - **Below 0 the tank is chilled.** It slows down, linearly to about a third of its speed at -40, and below -25 it
   takes frostbite damage per degree, the same way overheating does. Negative temperatures are unusual, never a

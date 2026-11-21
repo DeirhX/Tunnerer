@@ -266,7 +266,9 @@ public class Tank
             return;
         }
 
-        Shield?.Advance(this);
+        // The shield refills only while the tank is on its relay network (or in its base).
+        if (!IsOffNetwork)
+            Shield?.Advance(this);
         _thermals.AddIdleHeat(ctx.Heat.Ledger);
         AdvanceBaseInteraction(in ctx);
         _thermals.AdvanceNetworkCoverage(in ctx);
