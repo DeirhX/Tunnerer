@@ -20,7 +20,7 @@ The game moves away from its origin as a one-on-one tank duel. A single AI oppon
 
 1. **Heat is simulated honestly.** Energy is conserved and every source and sink is accounted for. Mechanics are
    built on the simulation, never around it.
-2. **One system, not four.** Hazards, mobs, minerals and structures all act through heat. A feature that does not
+2. **One system, not four.** Hazards, emberites, minerals and structures all act through heat. A feature that does not
    touch heat needs a strong reason to exist.
 3. **Autonomy is the goal.** A place is finished when it runs without the player.
 4. **Every solution creates the next problem.** New ground changes what kind of problem heat is, and new load
@@ -52,7 +52,7 @@ The session loop in detail:
 ### 4.1 Rules
 
 - **Every body is finite.** *(Decided; implemented.)* Every cell has a heat capacity and an energy. Hot rock,
-  frost rock and emberite start with a stock of heat or cold, which spreads through grounded materials and tends
+  frost rock and pyrite start with a stock of heat or cold, which spreads through grounded materials and tends
   toward ambient. The base starts at ambient and can store heat. The radiator and the outside loss in §4.3
   provide the ongoing routes for rejecting heat.
 - **Everything useful makes heat.** Digging, shooting, harvesting, pumping and, later, refining all inject heat.
@@ -147,7 +147,7 @@ never tracks two resources at once.
 *Direction (Proposed, §4.9):* the loop above stays, with relays as the only node (done: the pylon and the harvester
 battery are gone); every machine gets a capacitor, a priority tier and an idle draw, so a cut-off machine drains; local
 generators add producers beyond the base; and an empty store makes the base *dark* (no shield, slow respawn), which
-the tank can restart by carrying emberite home. The tank still has no charge meter.
+the tank can restart by carrying pyrite home. The tank still has no charge meter.
 
 ### 4.6 Network coverage: the leash *(Prototype)*
 
@@ -174,7 +174,7 @@ off the network. There is no new meter: the TEMP gauge is the only thing to watc
   at 4 units a second, and the base store pays for what the tank builds there (§6.4). An unlinked node accepts
   nothing.
 - **Direction (Proposed, §4.9).** The relay becomes the only node, with pumping and coverage one circle. The off-network
-  clock is the tank's reserve: burning a carried unit of emberite extends it and takes its warmth out of the tank,
+  clock is the tank's reserve: burning a carried unit of pyrite extends it and takes its warmth out of the tank,
   and running out is staged (warning, degraded, stranded, then heat death), not a cliff. Relays and generators push
   the safe zone out; far lumps pay for the risk. The reserve is built behind its own rule (§4.9, Death and exploring).
 - **What the player sees.** Each node draws a faint field with a soft rim, brighter while the tank is off network, so
@@ -252,7 +252,7 @@ turrets and the tank's reserve.
 |---|---|---|
 | Heat | the tank's budget, and the ground's | the tank's band around 0 (§4.7); the base through its heat store and radiator |
 | Charge | the network's budget | machines, the base shield, respawn speed, turrets |
-| Emberite (ore) | what is spent and burned | machines and upgrades (§6.4); fuel for charge and for the tank's reserve |
+| Pyrite (ore) | what is spent and burned | machines and upgrades (§6.4); fuel for charge and for the tank's reserve |
 
 They cross only here, so the ledger stays simple: heat to charge in engines and generators (with a loss); charge to
 heat in every machine action, idle draw and throughput loss; ore to charge when burned (a booked source); tank
@@ -328,7 +328,7 @@ coverage on purpose (§4.8 Sensors).
 surroundings (efficiency capped near 0.35, under the base engine's 0.5), has a hard output cap, and dumps its waste
 heat into the ground around it, so output falls as the ground warms and generators packed together choke each other.
 The tank's torch and shots create heat from outside the system, so the cap and the gradient rule keep that from
-being free power. Emberite fuel (fed from the tank's hold) comes after the heat numbers are tuned. A forward
+being free power. Pyrite fuel (fed from the tank's hold) comes after the heat numbers are tuned. A forward
 radiator (later, expensive) could serve as a generator's cold sink and restart the hop falloff.
 
 *Built with the energy rule:* Y builds the generator for 18 ore. Plant it near hot ground. Its intake is outside
@@ -383,14 +383,14 @@ A base must not fall to a tank that drives up and shoots it. It is a keep (`Base
 
 - **Death is cheap.** Unlimited respawns; the cost is the cargo, which stays on the ground (within 6 cells) to be
   fetched. A starved base respawns more slowly. A stranded player may give up and respawn at once.
-- **The reserve is the off-network clock (§4.6), not a second meter.** Burning a carried unit of emberite buys reserve
+- **The reserve is the off-network clock (§4.6), not a second meter.** Burning a carried unit of pyrite buys reserve
   time and takes its warmth (0.1 degrees a second a unit) out of the tank, so a big load is range and risk together.
 - **Running out is a state, not a cliff:** warning, then degraded (slower dig, shorter vision, weaker shots), then
   stranded (crawl and dig only), then heat death as today. Each has a counter. Relays and generators push the safe
   zone out, and far lumps pay for the risk (§6.3).
 - *Built behind a match rule (`MatchRules.TankReserve`, off by default; local matches turn it on with the energy rule,
   `--energy-network` or `?energy`).* The burn rides on the recall key (X, bit 29), so it needs no input of its own:
-  off the network with emberite aboard, X burns a unit (one on the press, then 4 a second while held) instead of
+  off the network with pyrite aboard, X burns a unit (one on the press, then 4 a second while held) instead of
   recalling, and lowers the floor by 5 degrees (5 s at the base rate; a 40-unit hold is 200 s). The tank's heat is
   not touched: the unit stops warming it, and with the floor lower it sheds into the ground as usual, so the burn
   makes and destroys no heat and books nothing. A burn waits until the floor has climbed a unit's worth, so holding
@@ -424,7 +424,7 @@ A base must not fall to a tank that drives up and shoots it. It is a keep (`Base
   size and needs the energy rule. The panel closes on F, out of reach, or after a purchase. The relay and the turret
   have paths (the turret's below); the input is bit 30 with the upgrade key (protocol 9).
 - **Turrets** need power, make heat when firing, and fire only at enemy tanks in range and line of sight, with a
-  stable tie-break. Mobs (§6.2) hunt heat, which makes the pumping relays what a defence is built around.
+  stable tie-break. Emberites (§6.2) hunt heat, which makes the pumping relays what a defence is built around.
   *Built with the energy rule:* U builds a turret for 24 ore. It is no link node (it does not extend the network,
   cool tanks or keep tunnels open): like a harvester it joins the island whose coverage it stands in, its base's or
   a local generator's, and it fires only while it is on an island, its base is not dark and its capacitor (2,400,
@@ -473,7 +473,7 @@ The simulation uses finite bodies (§4.1). These are the remaining design questi
    and the ledger also accounts for the heat exchanged with ambient during prewarming.
 9. **Sectors freeze.** Preserve the stored heat in the frozen sector's snapshot (§7.3). Sector persistence is still proposed.
 10. **Visuals and the radar.** Glow, frost tint and the radar's heat thresholds (`Radar.HeatThreshold`) already follow
-    temperature. Plain emberite has its own ore return when it is below the heat threshold.
+    temperature. Plain pyrite has its own ore return when it is below the heat threshold.
 11. **The base interior.** The base's ordinary cells retain and exchange heat. Area cooling transfers it to the
     reservoir, and the radiator accounts for what leaves the simulation.
 
@@ -548,27 +548,27 @@ structures make that easier.
 - **Gas pockets** that ignite above a temperature.
 - **Unstable rock** that collapses unless propped.
 
-### 6.2 Mobs and nests *(Decided in principle; behaviour Proposed)*
+### 6.2 Emberites and nests *(Decided in principle; behaviour Proposed)*
 
-Mobs crawl out of nests. They are **heat-seeking**: warm tunnels and working relays attract them, and nests wake
-as the ground around them warms. Sloppy heat management therefore causes the mob problem, and relays become
+Emberites crawl out of nests. They are **heat-seeking**: warm tunnels and working relays attract them, and nests wake
+as the ground around them warms. Sloppy heat management therefore causes the emberite problem, and relays become
 something to defend.
 
 Across the whole game, the total heat the player rejects raises the threat level, in the way pollution drives
 enemy evolution in Factorio.
 
-Mobs are the most expensive feature here: they need pathfinding through terrain that keeps changing, spawning
+Emberites are the most expensive feature here: they need pathfinding through terrain that keeps changing, spawning
 rules and combat tuning.
 
-**Built: emberlings** (`MatchRules.Mobs`, `Entities/Mobs/MobSwarm`, numbers in `Tweaks.Mobs`; starting values).
-Emberite pockets and lumps at least 60 cells from every base hold a nest (a pocket 7 to 18 creatures, a lump 32 to
+**Built: emberites** (`MatchRules.Emberites`, `Entities/Emberites/EmberiteSwarm`, numbers in `Tweaks.Emberites`; starting values).
+Pyrite pockets and lumps at least 60 cells from every base hold a nest (a pocket 7 to 18 creatures, a lump 32 to
 60 by size); specks hold none. Heat is the noise a tank makes and the fight makes heat:
 
 - *Scout.* A guarded deposit shows resting embers on the ore, and the radar returns a life echo from the nest.
 - *Sneak or fight.* A cool tank is not sensed. A tank at 45 degrees is sensed from 40 cells, one at 100 from 110. Digging
   the nest's ore wakes it whatever the tank's heat, and the thief is hunted for six seconds. A tank that cools below 35
   degrees loses the scent and the creatures go home.
-- *Greed dial.* Carried emberite already warms the tank, so each unit taken brings it closer to the hunt threshold.
+- *Greed dial.* Carried pyrite already warms the tank, so each unit taken brings it closer to the hunt threshold.
 - *Waves.* A woken nest releases a creature every 4 ticks (6 a second), each carrying one bite of heat: a bite adds 2
   degrees to the tank and the overheat rule does the damage. A spent creature goes home to drink heat out of the deposit.
   A tank in its base, or just respawned, is not bitten.
@@ -594,7 +594,7 @@ Rare minerals and metals sit in the terrain, and the player has reasons to colle
 - The best deposits are in the hottest ground.
 - Each sector's minerals unlock the technology for the next, so sectors cannot be skipped.
 
-**Emberite (Prototype).** The first mineral is an exotic ore, emberite, the only thing machines and upgrades are
+**Pyrite (Prototype).** The first mineral is an exotic ore, pyrite, the only thing machines and upgrades are
 made of (§6.4); dirt is worth nothing. Every ore cell glows and gives heat: plain ore starts at 9
 degrees (a speck is a faint warm freckle, a pocket a warm patch), and the core of a lump, about a tenth of its cells,
 starts at 600 degrees and holds about six times the heat per degree of stone, so each core cell is seeded with
@@ -630,11 +630,11 @@ The tank's ordinary dig clears plain ore, slower than dirt; a core cell needs th
 1 unit and a core cell 3, into a small hold of 40 units. A full hold leaves ore in the ground (a core cell is taken only
 if all 3 units fit), so mining never destroys ore. Docking at the own base banks the hold into the base's ore store
 quickly (10 units a tick); inside the own network's coverage it unloads there too, slower (§6.4). The hold grows
-with the cargo hold upgrade (§4.8). In the hold, each unit of emberite warms the tank by 0.1 degrees per second
+with the cargo hold upgrade (§4.8). In the hold, each unit of pyrite warms the tank by 0.1 degrees per second
 before cooling. A full starting hold adds 4 degrees per second, and each unit unloaded or spent reduces that rate.
 When the tank dies its hold spills back into the ground as plain ore in the nearest open or dirt cells around the wreck,
 never under another tank or a machine (ore blocks links, so it would cut a relay); what does not fit within a few cells
-is lost. Torching rock no longer yields anything. The MATERIALS panel shows a pile of Emberite growing inside the
+is lost. Torching rock no longer yields anything. The MATERIALS panel shows a pile of Pyrite growing inside the
 hold and the exact ore count against capacity. Beneath the hold window it shows the base's ore store or, while the
 hold empties, a blinking UNLOADING with down arrows. The base panel also shows the store.
 
@@ -686,16 +686,16 @@ The player sees only what their side sees, so that learning the shape of the wor
   something of yours stands there. The edge of sight is a gradient, never a hard line.
 - **Radar** *(Prototype)*. Every 4 seconds the tank sends a pulse: a faint ring that runs outward from where the
   tank stood, taking about 3 seconds to reach its full range of 150 cells, well past sight. Dirt and open ground let
-  it through; rock, hot and frost rock, emberite, another side's base walls, machines and tanks reflect it and stop it.
+  it through; rock, hot and frost rock, pyrite, another side's base walls, machines and tanks reflect it and stop it.
   Each return is a single blip at the first cell that reflected, flaring the moment the ring reaches it (near
   things first) and fading over 10 seconds: green for rock, amber for metal, a small gold diamond with a pale heart
-  for emberite, and a white-violet dot in a ring for something alive (today: the enemy tank; mobs later). What lies behind a reflector is in its
+  for pyrite, and a white-violet dot in a ring for something alive (today: the enemy tank; emberites later). What lies behind a reflector is in its
   shadow, so the outline of a thing is only learned by pinging it from several sides, and successive pulses hit
   slightly different points, so a shape fills in while you wait. When a later pulse passes an old blip it checks it
   again: a blip of an enemy that has driven off, or of ground that has changed, goes out; one hidden in a new
   shadow stays until it fades. A tunnel or cave behind dirt gives a weak blue return and lets the pulse on. The
   Different things show from different distances: a large rock formation from the pulse's full 150 cells, a thin
-  wall only from about 60, machines from 75, a tank from 60, a cave from 50, emberite from 40 for a
+  wall only from about 60, machines from 75, a tank from 60, a cave from 50, pyrite from 40 for a
   speck up to 110 for a deep deposit (counting only cool plain ore behind the face), and hot ground from 50 to 120 by
   how hot it is. The radar upgrade (§4.8) lengthens all of these and speeds the ring up to match, so a longer radar
   still pings every 4 seconds. A lump never shows as ore from afar: its warm core and the ground it heats return heat,
@@ -712,7 +712,7 @@ The player sees only what their side sees, so that learning the shape of the wor
   fainter, and anything too hot to read, hot rock included, returns only its heat. Once relays have cooled the
   ground the next pulse clears the dots. This is the radar's tie to heat (pillar 2). Still open: whether pinging should cost heat,
   and whether the tank's own heat should weaken its radar.
-- **It is information, not physics.** Vision never changes the simulation: heat, machines and mobs run the same
+- **It is information, not physics.** Vision never changes the simulation: heat, machines and emberites run the same
   seen or unseen. Whether unseen ground may be simulated more cheaply is a separate question (below).
 
 **Larger maps.** Sectors are meant to grow well beyond today's largest map (1500 by 750), so the cost of a step
@@ -788,7 +788,7 @@ A frozen sector's snapshot holds its temperatures and energy stores until the si
 ### 7.4 Sector twists *(Proposed)*
 
 Each sector breaks one assumption. Examples: no stone to conduct through, a magma flow crossing the map, a base
-that cannot vent, mobs that eat relays, a rival tank.
+that cannot vent, emberites that eat relays, a rival tank.
 
 ## 8. Progression
 
@@ -810,7 +810,7 @@ player is trying to tap. Every tunnel, relay and upgrade is a step toward it.
 ### 8.3 What keeps earlier builds relevant
 
 - The shared radiator: every new outpost loads the same exit.
-- Heat-seeking mobs: a bigger, warmer network is a bigger target.
+- Heat-seeking emberites: a bigger, warmer network is a bigger target.
 - Quotas that step up and force a rebuild of the trunk line.
 
 ### 8.4 Persistence *(Proposed)*
@@ -847,7 +847,7 @@ On `master` (2026-11-17) the game has:
 - A base with a finite reservoir and a radiator, and base and tank upgrades bought from its ore store (§4.8).
 - Relays that pump heat from a radius into the base when linked by direct line of sight through open tunnel.
 - The power loop (§4.5): the base engine turns relay heat into charge, which harvesters spend as they work.
-- Emberite ore as the only currency (§6.3, §6.4): specks, pockets and warm-cored lumps; a small tank hold that
+- Pyrite ore as the only currency (§6.3, §6.4): specks, pockets and warm-cored lumps; a small tank hold that
   unloads at the base or through the network; machines paid for in ore.
 - Harvesters that crawl to the plain ore near where they were planted and mine it into the base store through the
   network, paying their work in the base's charge; a relay keeps them cool, and a lump's core is left to the tank's torch.
@@ -890,11 +890,11 @@ harvesters' spent charge ends up as heat in the ground (§4.5), but relays make 
 
 Each step should be playable without the next.
 
-1. Minerals with mineral build costs (one is in: emberite pays for everything); conductor and insulator materials.
+1. Minerals with mineral build costs (one is in: pyrite pays for everything); conductor and insulator materials.
 2. Quenchable hot rock.
 3. Cargo (in: the tank's ore hold) and a placement interface.
 4. Steady-state detection and a sector quota.
-5. One mob type and one nest; turrets.
+5. One emberite type and one nest; turrets.
 6. World map, sector save, freeze and resume.
 7. Heat pumps, structure failure by temperature, generators.
 
@@ -908,10 +908,11 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 | Decision | Status |
 |---|---|
 | Take physical heat simulation seriously and build the loop on heat management | Decided |
-| First mob: heat-hunting emberlings nest in emberite pockets and lumps; they burrow slower than the tank and run faster in tunnels; they bite heat into tanks, and a cleared nest frees its ore (§6.2) | Decided |
+| The ore formerly called emberite is renamed pyrite; the creatures formerly called emberlings (and "mobs" in code) are now emberites | Decided |
+| First emberite: heat-hunting emberites nest in pyrite pockets and lumps; they burrow slower than the tank and run faster in tunnels; they bite heat into tanks, and a cleared nest frees its ore (§6.2) | Decided |
 | Moving things are drawn by extrapolation in the entity vertex shader, so motion is smooth above the step rate with no added lag | Decided |
 | Bases are the main heat sinks; heat returns by tank or by relay | Decided |
-| Add environmental hazards, mobs from nests, and dangerous terrain that must be mined out or disassembled | Decided |
+| Add environmental hazards, emberites from nests, and dangerous terrain that must be mined out or disassembled | Decided |
 | Supporting structures make that easier | Decided |
 | Rare minerals and metals with a reason to collect and use them | Decided |
 | Minerals act as thermal conductors and insulators | Decided |
@@ -925,9 +926,9 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 | Power is converted relay heat; machines run on charge drawn through the network | Prototype |
 | The tank's range is set by network coverage and its heat; no second meter on the tank | Prototype |
 | The sector goal is tapping the core; the ore store buys base and tank upgrades | Prototype |
-| Emberite ore is the only currency; the network is where the hold unloads and the store pays | Prototype |
+| Pyrite ore is the only currency; the network is where the hold unloads and the store pays | Prototype |
 | The camera keeps the tank centred; the bottom HUD sits in the corners, leaving the middle clear | Decided |
-| Heat-seeking mobs; threat scales with heat rejected | Proposed |
+| Heat-seeking emberites; threat scales with heat rejected | Proposed |
 | Quenchable hot rock as the first hazard | Proposed |
 | Alerts are caused by the player's actions; headroom buys time | Proposed |
 | No skill tree across saves | Proposed |
@@ -936,9 +937,9 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 | Radar: pulses from the tank leave blips where they reflect, well beyond sight | Prototype |
 | Hot ground absorbs the radar pulse; the cells it got through show as red dots by heat | Prototype |
 | Maps grow well beyond 1500 by 750; a step's cost must follow activity, not map area | Decided |
-| The radar finds emberite (a speck from near, a deep deposit from further); a lump shows only as heat | Prototype |
+| The radar finds pyrite (a speck from near, a deep deposit from further); a lump shows only as heat | Prototype |
 | Harvesters leave lump cores to the tank's torch; a hot core (600 degrees at the start, dangerous to a tank, and finite) keeps harvesters off its lump while its heat lasts | Prototype |
-| Gold, a pickup left from the original game, is retired: emberite is the only resource on the map | Decided |
+| Gold, a pickup left from the original game, is retired: pyrite is the only resource on the map | Decided |
 | Heat limits the tank, charge runs base and machines, ore is what is spent and burned (§4.9) | Proposed |
 | The relay is the only network node; the pylon and the harvester battery are dropped (§4.9) | Prototype |
 | Every machine has a capacitor, a rate, a priority tier and an idle draw; cut-off machines drain (§4.9) | Proposed |
@@ -951,7 +952,7 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 | Relay throughput limits are upgradeable and lose heat; a hot relay throttles (§4.9) | Proposed |
 | Machines are upgraded individually, next to the machine; turrets are a powered machine (§4.9) | Prototype |
 | Turrets are player-only for now: bots build no machines; turrets shoot bot tanks like any enemy (§4.9) | Prototype |
-| The off-network clock is the tank's reserve: X burns carried emberite to buy it back, and running out is staged (§4.9) | Prototype |
+| The off-network clock is the tank's reserve: X burns carried pyrite to buy it back, and running out is staged (§4.9) | Prototype |
 | Sensors upgrade: relays and generators see 10 cells past coverage, and 8 more per level (the base 8 more per level) | Prototype |
 | Every heat body is finite: no pinned temperatures or permanent sources; the outside is a loss, not a cell | Decided |
 | Stored heat is the match's supply; what keeps it up over a long match is open (§4.10) | Proposed |
@@ -965,7 +966,7 @@ upgrades, throughput, turrets, removing the pylon and the tank's reserve are in)
 - How is the output drop under alert calculated?
 - What exactly is at the core?
 - Is there multiplayer, and if so is it cooperative or competitive?
-- Should the bot (and later mobs) be limited to what it could see, or stay all-knowing?
+- Should the bot (and later emberites) be limited to what it could see, or stay all-knowing?
 - Should an intact lump core hold its ore against a relay planted beside it, so harvesters truly wait for the tank?
 - What makes a step cheap on a very large map: bookkeeping that follows activity, or coarser simulation of ground
   nobody sees?

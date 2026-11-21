@@ -1,18 +1,18 @@
 // ============================================================================
-// Entity/Mobs.hlsli — Emberlings and a nest's resting embers
+// Entity/Emberites.hlsli — Emberites and a nest's resting embers
 // ============================================================================
 //
-// An emberling is a small wriggling body along its travel direction (+x): bright ember while it carries its heat,
+// An emberite is a small wriggling body along its travel direction (+x): bright ember while it carries its heat,
 // dull once spent, a dim glow under the ground while it burrows. A nest's embers are a few pulsing dots on the
 // deposit, drawn while creatures rest in it. See Layout.hlsli for the params.
 // ============================================================================
 
-#ifndef EMBERWARD_ENTITY_MOBS_HLSLI
-#define EMBERWARD_ENTITY_MOBS_HLSLI
+#ifndef EMBERWARD_ENTITY_EMBERITES_HLSLI
+#define EMBERWARD_ENTITY_EMBERITES_HLSLI
 
 #include "Common.hlsli"
 
-float4 Mob(float2 p, float4 params, float aa)
+float4 Emberite(float2 p, float4 params, float aa)
 {
     float4 result = float4(0.0, 0.0, 0.0, 0.0);
     float phase = params.z;
@@ -54,4 +54,4 @@ float4 Mob(float2 p, float4 params, float aa)
     return result;
 }
 
-#endif // EMBERWARD_ENTITY_MOBS_HLSLI
+#endif // EMBERWARD_ENTITY_EMBERITES_HLSLI

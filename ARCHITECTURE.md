@@ -87,7 +87,7 @@ progress*, the fraction of a step elapsed since the last one. Every moving thing
 (alpha is the step progress), and the entity vertex shader does the sum: a quad's vertices carry where it starts and
 how far it moves in a step. `Rendering/Entities/EntityMotion` supplies both for tanks (the start is where the tank
 was last drawn, so it never jumps; the end is a prediction one step ahead, `1.25 * now + 0.5 * before - 0.75 * before
-that`, which is exact in steady motion) and machines (they slide to their new cell); shots and emberlings go on
+that`, which is exact in steady motion) and machines (they slide to their new cell); shots and emberites go on
 along their velocity. The camera is extrapolated the same way (`CameraFollow`, `PostParams.StepAlpha` and
 `CameraMotion`, `CameraPixelsNow()` in the shaders), so motion is smooth at the display rate, with no added lag,
 while the terrain only changes on steps. The cost is that an abrupt stop overshoots by up to a cell and eases back
@@ -193,7 +193,7 @@ updates it after each step on the match's time (`BrowserSession.HudSeconds`) and
 - `GameHud.Guidance` draws the card (top left, F2 hides it), the toasts under it and the pointer (a ring on screen,
   an edge arrow with the distance off screen). `GameHud.Goal` draws the sector goal lines, the upgrade list while
   docked (base track on keys 1-4, tank track on 5-6) and the sector-complete banner. The build panel asks
-  `Tank.QuoteBuild` for each machine's ore cost and payer. The MATERIALS panel shows Emberite piling up inside
+  `Tank.QuoteBuild` for each machine's ore cost and payer. The MATERIALS panel shows Pyrite piling up inside
   the hold, the exact count and capacity, and the base store or UNLOADING (`Tank.IsUnloadingOre`).
 
 Every overlay (tutorial card, toasts, status and upgrade panels, warning banners, pause and controls menus, tags) is
@@ -220,7 +220,7 @@ step's sounds into the frame, and the page plays them with the bank's samples (`
 
 - **Core**: terrain and pixels, collision, level generation, tank movement, heat and the temperature band, relays,
   the power loop, network coverage, hot and frost rock, the sector goal and base upgrades, the thermal ledger and whole-world thermal behaviour, determinism, replays and
-  recorded fingerprints, match outcome, network status, placement preview, fog of war and radar (`VisionMapTests`, `RadarTests`), emberite ore (deposits, mining,
+  recorded fingerprints, match outcome, network status, placement preview, fog of war and radar (`VisionMapTests`, `RadarTests`), pyrite ore (deposits, mining,
   the economy, the radar's echo) and the bot.
 - **Desktop logic that needs no window**: HUD decisions (`HudLogicTests`: hints, heat scale, the HUD's scale,
   gap and covered area), the tutorial and

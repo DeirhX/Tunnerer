@@ -4,7 +4,7 @@ using Emberward.Core.Config;
 
 /// <summary>
 /// How far a tank off its network has run down its reserve, the off-network clock (DESIGN.md §4.9). The stages follow
-/// one another as the clock runs down, and a burn of carried emberite or a return to the network brings it back up.
+/// one another as the clock runs down, and a burn of carried pyrite or a return to the network brings it back up.
 /// </summary>
 public enum TankReserveStage
 {
@@ -55,7 +55,7 @@ public readonly record struct TankReserveEffects(
 /// <param name="SecondsLeft">Seconds on the off-network clock (<see cref="Tank.OffNetworkSecondsToOverheat"/>).</param>
 /// <param name="SecondsToNextStage">The stage's counter: seconds until the next stage at the present rate (0 at heat death).</param>
 /// <param name="SecondsInStage">How long the tank has been in this stage.</param>
-/// <param name="CanBurn">The recall key burns a unit of emberite now, instead of recalling.</param>
+/// <param name="CanBurn">The recall key burns a unit of pyrite now, instead of recalling.</param>
 /// <param name="SecondsPerBurn">Seconds of reserve one burned unit buys at the present rate.</param>
 /// <param name="ClockHeld">A generator nearby holds the clock: it does not run down while the tank stays.</param>
 public readonly record struct TankReserveView(

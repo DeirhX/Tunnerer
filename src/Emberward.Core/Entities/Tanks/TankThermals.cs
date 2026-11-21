@@ -153,7 +153,7 @@ internal sealed class TankThermals
     }
 
     /// <summary>
-    /// A burn of carried emberite (<see cref="TankReserveSystem"/>): the off-network floor falls by
+    /// A burn of carried pyrite (<see cref="TankReserveSystem"/>): the off-network floor falls by
     /// <paramref name="degrees"/>, never below zero. The tank's heat is left alone; above the lower floor it sheds into
     /// the ground as usual, so no heat is made or destroyed here.
     /// </summary>
@@ -180,7 +180,7 @@ internal sealed class TankThermals
         float nextHeat = step.NextHeat;
         heat.ApplyTankExchange(position, radius, contact, step.EnergyToTerrain, step.EnergyToAir);
 
-        // Carried emberite and tank actions are external heat sources.
+        // Carried pyrite and tank actions are external heat sources.
         heat.Ledger.RecordInjected((cargoHeat + step.ActionHeat) * ThermalCapacity);
 
         if (step.OverheatDamage > 0)

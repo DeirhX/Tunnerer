@@ -78,7 +78,7 @@ public sealed class BrowserSession
         if (heatWorkers <= 1)
             settings = settings with { ThermalParallelTileThreshold = int.MaxValue };
         // A network match is a race, as on the desktop: the first base to tap the core wins.
-        World = MatchSetup.Build(MapSize, seed, MatchRules.Standard with { CoreTapWins = true, Mobs = true }, players, genMode,
+        World = MatchSetup.Build(MapSize, seed, MatchRules.Standard with { CoreTapWins = true, Emberites = true }, players, genMode,
             settings: settings);
         LocalSlot = localSlot;
         if (localBot)

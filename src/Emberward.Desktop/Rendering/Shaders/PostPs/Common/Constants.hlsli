@@ -30,7 +30,7 @@ float2 TexelOffsetY()
 // only ever read them with Load (nearest cell) and compare exactly; never
 // interpolate. Natural materials (dirt/stone/concrete) are not told apart
 // here but by coverageTex; their code (100) just means "natural solid".
-// Emberite ore (plain and core) has its own codes so it can be drawn from the
+// Pyrite ore (plain and core) has its own codes so it can be drawn from the
 // exact cells.
 // Must match TerrainAuxBuilder.
 static const float kMaterialCodeScale = 255.0;
@@ -64,7 +64,7 @@ bool IsBaseRaisedCode(int code) { return IsBaseWallCode(code); }
 static const float kMaterialMaskMinWidth = 0.01;      // minimum smoothstep half-width on coverage differences
 static const float kMaterialMaskFwidthScale = 0.75;   // anti-aliasing width relative to screen-space change
 
-// ---- Emberite ore ------------------------------------------------------------
+// ---- Pyrite ore ------------------------------------------------------------
 static const float kOreFalloff = 1.1;                 // blob width around each ore cell centre (deposits are solid
                                                       // blobs)
 static const float kOreIso = 0.55;                    // field value at the edge of a deposit

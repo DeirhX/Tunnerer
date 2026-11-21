@@ -76,7 +76,7 @@ public sealed class SessionOverlay
         "Digging and firing heat your tank. Past the limit the heat burns your shield.",
         "Park in your base to cool down and repair.",
         "A relay planted in sight of your base network pumps nearby heat back to the base.",
-        "Emberite (gold crystal) is the only currency. Mine it into your hold and bring it home: docked, or inside your network, it goes into the base store, which pays for what you build there.",
+        "Pyrite (gold crystal) is the only currency. Mine it into your hold and bring it home: docked, or inside your network, it goes into the base store, which pays for what you build there.",
         "Stay inside your network's pale circles: outside them the tank heats up. Relays widen the network.",
         "Harvesters mine ore for you inside your network; relays keep them cool and your base's charge runs them.",
         "Enemy fire damages base walls. Destroy the enemy base to take its side out of the match.",

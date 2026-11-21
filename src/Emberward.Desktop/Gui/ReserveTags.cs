@@ -43,7 +43,7 @@ public static class ReserveTags
     /// warning it is a quiet hint (<see cref="BurnIsUrgent"/>).
     /// </summary>
     public static string? BurnPrompt(in TankReserveView view) =>
-        view.CanBurn ? "Burn emberite  +" + Seconds(view.SecondsPerBurn) + " each" : null;
+        view.CanBurn ? "Burn pyrite  +" + Seconds(view.SecondsPerBurn) + " each" : null;
 
     /// <summary>Whether the burn prompt calls for attention: from the warning on. Before it, a hint is enough.</summary>
     public static bool BurnIsUrgent(in TankReserveView view) => view.Stage >= TankReserveStage.Warning;

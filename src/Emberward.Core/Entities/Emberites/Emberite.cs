@@ -1,9 +1,9 @@
-namespace Emberward.Core.Entities.Mobs;
+namespace Emberward.Core.Entities.Emberites;
 
 using Emberward.Core.Types;
 
 /// <summary>What a creature out of its nest is doing.</summary>
-public enum MobState : byte
+public enum EmberiteState : byte
 {
     /// <summary>Going for a tank, to bite it.</summary>
     Hunting,
@@ -16,24 +16,24 @@ public enum MobState : byte
 /// A creature out of its nest. It moves by its committed <see cref="Velocity"/> and then chooses the next one, so a
 /// renderer that draws it at <c>position + velocity * alpha</c> is exact unless something blocks it.
 /// </summary>
-public struct Mob
+public struct Emberite
 {
     public int Id { get; set; }
     public PositionF Position { get; set; }
     public VectorF Velocity { get; set; }
 
-    /// <summary>The nest it came from, an index into <see cref="MobSwarm.Nests"/>.</summary>
+    /// <summary>The nest it came from, an index into <see cref="EmberiteSwarm.Nests"/>.</summary>
     public int Nest { get; set; }
 
     /// <summary>The tank it hunts, an index into the world's tank list; -1 when none.</summary>
     public int Target { get; set; }
 
-    public MobState State { get; set; }
+    public EmberiteState State { get; set; }
 
     /// <summary>The heat it carries, in energy (what a tank's heat times its heat capacity is).</summary>
     public double Charge { get; set; }
 
-    /// <summary>The trail block (<see cref="MobTrails.BlockOf"/> plus one) it last wore, so that it wears each block once per entry; 0 when none.</summary>
+    /// <summary>The trail block (<see cref="EmberiteTrails.BlockOf"/> plus one) it last wore, so that it wears each block once per entry; 0 when none.</summary>
     public int WornBlock { get; set; }
 
     /// <summary>The tick a creature last looked for a clear line to its target; 0 when it has not.</summary>
@@ -47,8 +47,8 @@ public struct Mob
 }
 
 /// <summary>
-/// A nest in an emberite deposit. A nest holds creatures it never released (<see cref="NeverReleased"/>) and ones
-/// resting (<see cref="Resting"/>, with their stored charge); the rest are out, in <see cref="MobSwarm"/>'s list.
+/// A nest in an pyrite deposit. A nest holds creatures it never released (<see cref="NeverReleased"/>) and ones
+/// resting (<see cref="Resting"/>, with their stored charge); the rest are out, in <see cref="EmberiteSwarm"/>'s list.
 /// </summary>
 public sealed class Nest
 {

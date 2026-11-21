@@ -166,7 +166,7 @@ public sealed class GameEventWatcher
                     NotificationKind.Warning, cooldown: 60f);
             // Once each per match: the first ore in the hold, and the first time the hold fills.
             if (holdingOre && !_holdingOre)
-                feed.Post(now, "ore-collected", "Emberite collected",
+                feed.Post(now, "ore-collected", "Pyrite collected",
                     "Ore rides in your hold (MATERIALS). Dock, or stay inside your network, to bank it; if you die, it spills where you fall.",
                     NotificationKind.Good, cooldown: 1e9f);
             if (oreHoldFull && !_oreHoldFull)
@@ -187,19 +187,19 @@ public sealed class GameEventWatcher
         }
 
         // A nest the player's side can see or read on its radar woke: no tank or side is named. The first time says what
-        // emberlings are; after that, a short alert for each nest, not repeated for the same one for a while.
+        // emberites are; after that, a short alert for each nest, not repeated for the same one for a while.
         foreach (Position nest in _nestsWoke)
         {
             if (!_nestExplained)
             {
                 _nestExplained = true;
-                feed.Post(now, "nest-woke", "A nest woke: emberlings",
+                feed.Post(now, "nest-woke", "A nest woke: emberites",
                     "They hunt hot tanks and bite their heat into you. Run cool, fight in a narrow tunnel, and clear a nest to free its ore.",
                     NotificationKind.Danger, cooldown: 1e9f);
             }
             else
             {
-                feed.Post(now, $"nest-woke-{nest.X}-{nest.Y}", "A nest woke nearby", "Emberlings are out. Cool down or find cover.",
+                feed.Post(now, $"nest-woke-{nest.X}-{nest.Y}", "A nest woke nearby", "Emberites are out. Cool down or find cover.",
                     NotificationKind.Danger, cooldown: 20f);
             }
         }

@@ -111,7 +111,7 @@ float4 LinkBeam(float2 p, float4 params, float aa)
     return result;
 }
 
-// An ore beam: emberite unloaded into the network on its way home. Faceted gold crystals tumble along a faint gold
+// An ore beam: pyrite unloaded into the network on its way home. Faceted gold crystals tumble along a faint gold
 // thread toward +x (the base), with a pale glint, one every few cells. It shares links with the heat beams, so
 // it is drawn as discrete crystals rather than a line.
 float4 OreBeam(float2 p, float4 params, float aa)

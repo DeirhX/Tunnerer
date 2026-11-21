@@ -106,7 +106,7 @@ Core decides what is seen; the renderer only shows it.
 - **Radar blips.** `Game` also asks for the player's `Radar` (`World.TrackRadar`). `RadarQuads` draws one small
   quad per contact (`KindRadarBlip`, `RadarBlip` in `Shaders/Entity/Overlays.hlsli`), first in the entity layer so
   everything else is on top: green for rock and walls, amber for metal, dim blue-green for a cave,
-  a white-violet dot in a ring for something alive, and for emberite a small diamond, gold-rimmed with a pale
+  a white-violet dot in a ring for something alive, and for pyrite a small diamond, gold-rimmed with a pale
   heart (the only blip that is not round). `Layout.hlsli` lists the echo numbers in `RadarEcho`'s order and
   `EntityLayoutGuardTests.RadarEchoes_MatchTheBlipShader` checks it and the branches of `RadarBlip`. A blip flares
   for a few ticks when the beam finds it, which is what shows the sweep, then fades over the contact's life. A blip

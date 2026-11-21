@@ -1,11 +1,11 @@
-namespace Emberward.Core.Entities.Mobs;
+namespace Emberward.Core.Entities.Emberites;
 
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 
-public sealed partial class MobSwarm
+public sealed partial class EmberiteSwarm
 {
     /// <summary>
     /// Files the creatures out by sector, for shots to find them (<see cref="Collision.CollisionSolver.Update"/> calls it
@@ -18,11 +18,11 @@ public sealed partial class MobSwarm
             _sectors.Clear();
             _indexed = false;
         }
-        for (int i = 0; i < _mobs.Count; i++)
+        for (int i = 0; i < _emberites.Count; i++)
         {
-            if (_mobs[i].Gone)
+            if (_emberites[i].Gone)
                 continue;
-            _sectors.AddEntity(_sectors.SectorIdForPosition((Position)_mobs[i].Position), i);
+            _sectors.AddEntity(_sectors.SectorIdForPosition((Position)_emberites[i].Position), i);
             _indexed = true;
         }
     }
@@ -31,22 +31,22 @@ public sealed partial class MobSwarm
     public bool HasCreatures => _indexed;
 
     /// <summary>
-    /// Whether a creature is within <see cref="Tweaks.Mobs.HitRadius"/> of cell <paramref name="at"/>; the first one
+    /// Whether a creature is within <see cref="Tweaks.Emberites.HitRadius"/> of cell <paramref name="at"/>; the first one
     /// <paramref name="onHit"/> accepts (it is given the creature's index and returns true to stop) ends the search.
     /// </summary>
     public bool TestPoint(Position at, Func<int, bool> onHit)
     {
         if (!_indexed)
             return false;
-        float radius = Tweaks.Mobs.HitRadius;
+        float radius = Tweaks.Emberites.HitRadius;
         return _sectors.ForEachNearbyEntity(at, index =>
         {
-            if (index >= _mobs.Count)
+            if (index >= _emberites.Count)
                 return false;
-            Mob mob = _mobs[index];
-            if (mob.Gone)
+            Emberite emberite = _emberites[index];
+            if (emberite.Gone)
                 return false;
-            float dx = mob.Position.X - at.X, dy = mob.Position.Y - at.Y;
+            float dx = emberite.Position.X - at.X, dy = emberite.Position.Y - at.Y;
             return dx * dx + dy * dy <= radius * radius && onHit(index);
         });
     }
@@ -58,25 +58,25 @@ public sealed partial class MobSwarm
     /// </summary>
     public void Kill(int index)
     {
-        if (index < 0 || index >= _mobs.Count)
+        if (index < 0 || index >= _emberites.Count)
             return;
-        Mob mob = _mobs[index];
-        if (mob.Gone)
+        Emberite emberite = _emberites[index];
+        if (emberite.Gone)
             return;
-        mob.Gone = true;
-        _mobs[index] = mob;
-        _nests[mob.Nest].Out--;
-        var cell = (Position)mob.Position;
-        if (mob.Charge > 0.0 && _terrain.IsInside(cell))
-            _terrain.AddEnergyInRadiusArea(cell, Tweaks.Mobs.SpillRadius, mob.Charge, TerrainGrid.ThermalField.Terrain);
-        _events.Record(new StepEvent(StepEventKind.MobKilled, cell));
+        emberite.Gone = true;
+        _emberites[index] = emberite;
+        _nests[emberite.Nest].Out--;
+        var cell = (Position)emberite.Position;
+        if (emberite.Charge > 0.0 && _terrain.IsInside(cell))
+            _terrain.AddEnergyInRadiusArea(cell, Tweaks.Emberites.SpillRadius, emberite.Charge, TerrainGrid.ThermalField.Terrain);
+        _events.Record(new StepEvent(StepEventKind.EmberiteKilled, cell));
     }
 
     /// <summary>A bite: the creature's whole charge goes into the tank, whose overheat rule does the damage.</summary>
-    private void Bite(ref Mob mob, Tank tank)
+    private void Bite(ref Emberite emberite, Tank tank)
     {
-        tank.Heat += (float)(mob.Charge / tank.ThermalCapacity);
-        mob.Charge = 0.0;
-        _events.Record(new StepEvent(StepEventKind.MobBit, tank.Position, tank.Color));
+        tank.Heat += (float)(emberite.Charge / tank.ThermalCapacity);
+        emberite.Charge = 0.0;
+        _events.Record(new StepEvent(StepEventKind.EmberiteBit, tank.Position, tank.Color));
     }
 }

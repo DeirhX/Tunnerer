@@ -18,7 +18,7 @@ Open work, written so an agent can pick up one item without the conversation tha
   A base is a keep (impervious walls, four gates held by a gate shield that recharges from charge, a round core that
   is the only part to take damage), and every base backs onto the map's border (`DESIGN.md` §6.7). Where an item
   below describes the shield as a share of each hit blocked, or a rule as off by default, this replaces it.
-- **Merged from PR #72:** finite emberite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
+- **Merged from PR #72:** finite pyrite and the associated design notes (§4.1, §4.3, §4.4, §4.7, §4.10, §6.3, §11).
 - **Items 1 to 8 are implemented** (item 3 in PR #78, item 4 on `codex/tranche-4-machine-upgrades`, stacked on it, with
   items 5, 6 and 8 merged into it; item 7 on `codex/tranche-7-remove-pylon`, against item 4's branch). Item 9 is
   deferred.
@@ -92,7 +92,7 @@ connected output in the base row.
 
 The fourth build key uses input bit 28 and advances the relay protocol to 7. Deploy that relay version before
 network clients use this build. The opt-in rules fingerprint changed. Standard matches keep their recorded
-simulation fingerprints. Heat stock, layout and sustained output still need playtesting. Emberite fuel remains
+simulation fingerprints. Heat stock, layout and sustained output still need playtesting. Pyrite fuel remains
 a later item.
 
 ## 3. Dark base, shield, no lives
@@ -250,7 +250,7 @@ constants in `Config/Tweaks.Reserve.cs`.
 `DESIGN.md` §4.9 (Death and exploring) has the rules and numbers. What the next items need to know:
 
 - **The burn is the recall key (X, bit 29); no input bit was added.** There is no hold-dump input in the code. Off the
-  network with emberite aboard and the floor at least a unit's worth up, X burns (`TankReserveSystem.CanBurn`) and
+  network with pyrite aboard and the floor at least a unit's worth up, X burns (`TankReserveSystem.CanBurn`) and
   does not recall; recall still works once the hold is empty. `World.RecallOffered` is what the HUD asks.
 - **The burn lowers `TankThermals.OffNetworkFloor` and nothing else.** The tank sheds down to the lower floor through
   the ground, so no energy is made or destroyed and the ledger is untouched (`Burns_LeaveTheLedgerBalanced`).
@@ -277,7 +277,7 @@ constants in `Config/Tweaks.Reserve.cs`.
 
 ## 9. Smaller follow-ups
 
-- **Emberite fuel for generators** (after item 2's numbers are tuned): fed from the tank's hold, like the dark restart.
+- **Pyrite fuel for generators** (after item 2's numbers are tuned): fed from the tank's hold, like the dark restart.
 - **Optional burn while healthy** (ore to charge for a store that is low but not dark): decide with item 3.
 - **Forward radiator** (later, expensive): a second place to vent heat that restarts the hop falloff; it could be a
   generator's cold sink.

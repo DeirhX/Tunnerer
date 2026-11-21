@@ -67,10 +67,10 @@ public static partial class Tweaks
             (ThermalMaterial.ConstantEnergy, new(HeatCapacity: 2.0f, Conductivity: 1.8f, AirExchange: 0.55f, Loss: 0.0003f)),
             (ThermalMaterial.HotRock, new(HeatCapacity: 128f, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.00005f)),
             (ThermalMaterial.FrostRock, new(HeatCapacity: 16f, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
-            // The core of an emberite lump is an energy-dense store: it conducts like stone but holds Ore.CoreHeatCapacity
+            // The core of an pyrite lump is an energy-dense store: it conducts like stone but holds Ore.CoreHeatCapacity
             // of heat per degree where stone holds 2.6, so seeded hot (Ore.CoreStartTemperature) it keeps a lot of energy
             // and cools slowly. Nothing is pinned: it is finite, and it cools into the ground and the air like any rock.
-            (ThermalMaterial.EmberiteCore, new(HeatCapacity: Ore.CoreHeatCapacity, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
+            (ThermalMaterial.PyriteCore, new(HeatCapacity: Ore.CoreHeatCapacity, Conductivity: 0.6f, AirExchange: 0.22f, Loss: 0.0003f)),
         ]);
 
         // Air-field coupling knobs for conservative air/terrain exchange.
@@ -144,7 +144,7 @@ public static partial class Tweaks
     }
 
     /// <summary>
-    /// Emberite ore (DESIGN.md §6.3): deposits seeded at generation (LevelGen.OreDeposits) and mined by the tank.
+    /// Pyrite ore (DESIGN.md §6.3): deposits seeded at generation (LevelGen.OreDeposits) and mined by the tank.
     /// Deposit counts scale with map area (one per <c>*EveryCells</c> cells), so the 1500x750 map gets about 2,500
     /// units: about 15% in specks, 35% in pockets and 50% in lumps. Starting values; tune in play.
     /// </summary>
@@ -440,7 +440,7 @@ public static partial class Tweaks
         public const float SignatureFullHeat = 100f;
         // The weak return of a tunnel or cave behind dirt.
         public const int CavityRange = 50;
-        // Emberite ore: a speck returns only from OreRangeMin, growing to OreRangeMax for a deposit FormationDepth
+        // Pyrite ore: a speck returns only from OreRangeMin, growing to OreRangeMax for a deposit FormationDepth
         // cells deep along the ray. Only cool plain ore counts toward the depth, so a lump's warm heart adds nothing:
         // a lump shows as heat (below) and what it holds is learned by going there.
         public const int OreRangeMin = 40;

@@ -3,10 +3,10 @@ namespace Emberward.Core.Config;
 public static partial class Tweaks
 {
     /// <summary>
-    /// Emberlings, the creatures that nest in emberite pockets and lumps (DESIGN.md §6.2, <c>MobSwarm</c>). Starting
+    /// Emberites, the creatures that nest in pyrite pockets and lumps (DESIGN.md §6.2, <c>EmberiteSwarm</c>). Starting
     /// values; tune in play.
     /// </summary>
-    public static class Mobs
+    public static class Emberites
     {
         // ---- Nests -------------------------------------------------------------------------------------------
         // One nest per pocket and lump at least this far (cells) from every base. A nest holds creatures by deposit

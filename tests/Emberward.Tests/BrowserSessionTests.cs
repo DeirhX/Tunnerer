@@ -242,7 +242,7 @@ public class BrowserSessionGuidanceTests
         session.Player.Position = home.Position + new Offset(0, Tweaks.Base.BaseSize / 2 + 8);
         session.Advance(default);
         var outside = BrowserFrameBuilder.Capture(session, includeEvents: false);
-        Assert.Equal("Mine emberite", outside.Guidance.Tutorial?.Title);
+        Assert.Equal("Mine pyrite", outside.Guidance.Tutorial?.Title);
         Assert.Contains("\"guidance\":{\"tutorial\":", JsonSerializer.Serialize(outside, BrowserJsonContext.Default.BrowserFrame),
             StringComparison.Ordinal);
     }

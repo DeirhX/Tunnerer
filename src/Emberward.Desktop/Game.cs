@@ -340,7 +340,7 @@ public partial class Game : IDisposable
             heatIcon: Load("heat_icon.png"),
             shieldIcon: Load("shield_icon.png"),
             panelFrame: Load("panel_frame.png"),
-            orePile: Load("hold_emberite.png"),
+            orePile: Load("hold_pyrite.png"),
             buildPanel: Load("build_panel.png"));
     }
 

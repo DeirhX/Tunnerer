@@ -29,7 +29,7 @@ public static class OreDrop
             var pos = center + offset;
             if (!CanHold(terrain, pos) || isOccupied?.Invoke(pos) == true)
                 continue;
-            terrain.SetPixel(pos, TerrainPixel.Emberite);
+            terrain.SetPixel(pos, TerrainPixel.Pyrite);
             placed++;
         }
         return placed;

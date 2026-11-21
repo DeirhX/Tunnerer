@@ -23,7 +23,7 @@ internal static class TestHelpers
         bool energyNetwork = false,
         bool machineUpgrades = false,
         bool tankReserve = false,
-        bool mobs = false,
+        bool emberites = false,
         SimulationSettings? simulationSettings = null)
     {
         var mapSize = size ?? DefaultMapSize;
@@ -42,7 +42,7 @@ internal static class TestHelpers
                 EnergyNetwork = energyNetwork,
                 MachineUpgrades = machineUpgrades,
                 TankReserve = tankReserve,
-                Mobs = mobs,
+                Emberites = emberites,
             });
         world.Initialize(terrain, spawns, decorationSeed: seed + 1);
         return world;

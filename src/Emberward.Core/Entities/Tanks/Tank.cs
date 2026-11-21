@@ -81,7 +81,7 @@ public class Tank
     /// </summary>
     public float OffNetworkFloor => _thermals.OffNetworkFloor;
 
-    /// <summary>A burn of carried emberite lowers the off-network floor (<see cref="TankReserveSystem"/>).</summary>
+    /// <summary>A burn of carried pyrite lowers the off-network floor (<see cref="TankReserveSystem"/>).</summary>
     internal void LowerOffNetworkFloor(float degrees) => _thermals.LowerOffNetworkFloor(degrees);
 
     /// <summary>Seconds until the rising off-network heat floor reaches the safe maximum (zero once it has).</summary>
@@ -150,10 +150,10 @@ public class Tank
     /// <summary>How full the tank's ore hold is, 0 to 1.</summary>
     public float HoldFill => Math.Clamp(Hold.Ore / (float)Math.Max(1, Hold.Capacity), 0f, 1f);
 
-    /// <summary>Emberite in the tank's hold, in units (DESIGN.md §6.3).</summary>
+    /// <summary>Pyrite in the tank's hold, in units (DESIGN.md §6.3).</summary>
     public int OreHeld => Hold.Ore;
 
-    /// <summary>How much emberite the hold takes (<see cref="Tweaks.Ore.TankHold"/> plus the base's cargo hold upgrades).</summary>
+    /// <summary>How much pyrite the hold takes (<see cref="Tweaks.Ore.TankHold"/> plus the base's cargo hold upgrades).</summary>
     public int OreHoldCapacity => Hold.Capacity;
 
     /// <summary>True when the hold has no room for another unit: the tank's dig leaves ore in the ground.</summary>
@@ -244,7 +244,7 @@ public class Tank
         if (Base?.IsDestroyed == true)
             TakeDamage(Reactor.HealthCapacity, DamageCause.BaseDestroyed);
 
-        // Under the reserve rule the recall key burns carried emberite while there is any (TankReserveSystem).
+        // Under the reserve rule the recall key burns carried pyrite while there is any (TankReserveSystem).
         bool recall = input.Recall && CanRecall && !(ctx.Reserve != null && TankReserveSystem.CanBurn(this));
         if (recall)
             TakeDamage(Reactor.HealthCapacity, DamageCause.Recalled);

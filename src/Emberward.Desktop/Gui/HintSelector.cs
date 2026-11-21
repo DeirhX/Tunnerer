@@ -107,7 +107,7 @@ public static class HintSelector
         if (s.HeatStoreFull)
             return ("Base heat store full - relays and docking cool less", HintTone.Warn);
         if (s.NotEnoughOre)
-            return ("Not enough ore - mine emberite, or bring your hold into your network", HintTone.Bad);
+            return ("Not enough ore - mine pyrite, or bring your hold into your network", HintTone.Bad);
         if (ore >= relayCost)
         {
             string hint = s.RelayFromBaseStore

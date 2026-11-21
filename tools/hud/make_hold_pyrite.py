@@ -1,7 +1,7 @@
-"""Draws the MATERIALS hold's Emberite pile, the sprite sheet the HUD shows on desktop and in the browser.
+"""Draws the MATERIALS hold's Pyrite pile, the sprite sheet the HUD shows on desktop and in the browser.
 
-    python tools/hud/make_hold_emberite.py            writes src/Emberward.Desktop/resources/hud/hold_emberite.png
-    python tools/hud/make_hold_emberite.py out.png    writes it elsewhere (to compare before replacing)
+    python tools/hud/make_hold_pyrite.py            writes src/Emberward.Desktop/resources/hud/hold_pyrite.png
+    python tools/hud/make_hold_pyrite.py out.png    writes it elsewhere (to compare before replacing)
 
 Needs Pillow and NumPy. The output is the same on every run (seeded).
 
@@ -24,7 +24,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "src/Emberward.Desktop/resources/hud/hold_emberite.png"
+OUT = ROOT / "src/Emberward.Desktop/resources/hud/hold_pyrite.png"
 
 COLS, ROWS = 8, 5
 FRAMES = COLS * ROWS

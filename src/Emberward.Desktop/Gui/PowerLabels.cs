@@ -130,7 +130,7 @@ public static class PowerLabels
         string gates = power.GatesShut
             ? $"Gate shield {power.ShieldFill:P0}"
             : $"GATES OPEN · shield {power.ShieldFill:P0}, shuts at {Tweaks.Keep.ShieldRestoreFill:P0}";
-        string shield = power.IsDark ? "BASE DARK · dock with emberite · " + gates : gates;
+        string shield = power.IsDark ? "BASE DARK · dock with pyrite · " + gates : gates;
         StatusLevel shieldLevel = !power.GatesShut ? StatusLevel.Bad
             : power.ShieldFill < LowShieldShare ? StatusLevel.Warn
             : StatusLevel.Ok;

@@ -4,7 +4,7 @@ using Emberward.Core.Terrain;
 
 /// <summary>
 /// Per-cell Gaussian-blurred material coverage for the GPU "material coverage" texture.
-/// Channels: R = stone (Rock, HotRock, FrostRock, and emberite, which is drawn from its exact cells
+/// Channels: R = stone (Rock, HotRock, FrostRock, and pyrite, which is drawn from its exact cells
 /// over the rock they sit in),
 /// G = concrete, B = dirt (Dirt, DirtGrow). A is written by <see cref="TerrainAuxBuilder"/>: the regrow stamp of
 /// <see cref="TerrainGrowthFade"/>.
@@ -51,8 +51,8 @@ public static class TerrainMaterialCoverage
         table[(int)TerrainPixel.HotRock] = 0;
         table[(int)TerrainPixel.FrostRock] = 0;
         table[(int)TerrainPixel.Concrete] = 1;
-        table[(int)TerrainPixel.Emberite] = 0;
-        table[(int)TerrainPixel.EmberiteCore] = 0;
+        table[(int)TerrainPixel.Pyrite] = 0;
+        table[(int)TerrainPixel.PyriteCore] = 0;
         table[(int)TerrainPixel.Dirt] = 2;
         table[(int)TerrainPixel.DirtGrow] = 2;
         return table;
