@@ -40,7 +40,28 @@ public sealed partial class MobSwarm
             return;
         }
         mob.Position = next;
+        WearTrail(ref mob, next);
     }
+
+    /// <summary>A creature that has moved into a soil block wears its trail, once for each time it enters the block.</summary>
+    private void WearTrail(ref Mob mob, PositionF at)
+    {
+        var cell = (Position)at;
+        int block = _trails.BlockOf(cell);
+        if (block < 0 || Classify(_terrain.GetPixelRaw(cell), cell, _nests[mob.Nest].Centre, _nests[mob.Nest].Radius) != MobGround.Soil)
+        {
+            mob.WornBlock = 0;
+            return;
+        }
+        if (mob.WornBlock != block + 1)
+        {
+            mob.WornBlock = block + 1;
+            _trails.Wear(block, _tick);
+        }
+    }
+
+    /// <summary>Whether the soil at <paramref name="cell"/> is a lane, worn so that creatures run through it as through open ground.</summary>
+    private bool IsLane(Position cell, int tick) => _trails.IsLane(_trails.BlockOf(cell), tick);
 
     private void Hunt(ref Mob mob)
     {
@@ -174,10 +195,17 @@ public sealed partial class MobSwarm
     private float SpeedAlong(PositionF at, float ux, float uy, Nest nest)
     {
         float open = Tweaks.Mobs.OpenSpeed, soil = Tweaks.Mobs.SoilSpeed;
-        if (GroundAt(new PositionF(at.X + ux * open * 0.5f, at.Y + uy * open * 0.5f), nest) == MobGround.Open &&
-            GroundAt(new PositionF(at.X + ux * open, at.Y + uy * open), nest) == MobGround.Open)
+        if (RunsAt(new PositionF(at.X + ux * open * 0.5f, at.Y + uy * open * 0.5f), nest) &&
+            RunsAt(new PositionF(at.X + ux * open, at.Y + uy * open), nest))
             return open;
         return GroundAt(new PositionF(at.X + ux * soil, at.Y + uy * soil), nest) != MobGround.Blocked ? soil : 0f;
+    }
+
+    /// <summary>Whether a creature of <paramref name="nest"/> can run at <paramref name="at"/>: open ground, or a lane worn into soil.</summary>
+    private bool RunsAt(PositionF at, Nest nest)
+    {
+        MobGround ground = GroundAt(at, nest);
+        return ground == MobGround.Open || (ground == MobGround.Soil && IsLane((Position)at, _tick));
     }
 
     /// <summary>The ground a creature of <paramref name="nest"/> finds at <paramref name="at"/>.</summary>
@@ -208,9 +236,9 @@ public sealed partial class MobSwarm
         if (field.NeedsBuild(goal))
         {
             if (kind == 1)
-                field.Build(_terrain, goal, _queue, nest.Centre, nest.Radius);
+                field.Build(_terrain, goal, _queue, _trails, _tick, nest.Centre, nest.Radius);
             else
-                field.Build(_terrain, goal, _queue);
+                field.Build(_terrain, goal, _queue, _trails, _tick);
         }
         return field;
     }

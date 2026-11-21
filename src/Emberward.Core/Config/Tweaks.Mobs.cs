@@ -62,5 +62,14 @@ public static partial class Tweaks
         // A block's cost to cross, in 1/12 ticks: open ground at OpenSpeed, soil at SoilSpeed.
         public const int OpenBlockCost = 32;
         public const int SoilBlockCost = 137;
+
+        // ---- Trails ------------------------------------------------------------------------------------------
+        // A creature entering a block of soil wears it by TrailWearPerCrossing (up to TrailWearMax); the wear fades to
+        // nothing over TrailLifetimeTicks. A block worn to TrailLaneThreshold is a lane: they run through it as through
+        // open ground, and the flow field counts it as open. Nothing is written to the terrain.
+        public const float TrailWearPerCrossing = 1f;
+        public const float TrailWearMax = 8f;
+        public const float TrailLaneThreshold = 3f;
+        public const int TrailLifetimeTicks = 24 * 60;
     }
 }

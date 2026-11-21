@@ -55,7 +55,7 @@ public sealed class MobFlowField
     /// Builds the field around <paramref name="goal"/> by Dijkstra over the window's blocks. A nest's ground
     /// (<paramref name="zoneCentre"/>, <paramref name="zoneRadius"/>) counts as soil, which its creatures burrow freely.
     /// </summary>
-    internal void Build(TerrainGrid terrain, Position goal, PriorityQueue<int, long> queue, Position zoneCentre = default, int zoneRadius = 0)
+    internal void Build(TerrainGrid terrain, Position goal, PriorityQueue<int, long> queue, MobTrails trails, int tick, Position zoneCentre = default, int zoneRadius = 0)
     {
         GoalBlock = new Position(goal.X / Block, goal.Y / Block);
         OriginX = GoalBlock.X - Window / 2;
@@ -82,7 +82,7 @@ public sealed class MobFlowField
                     int nx = bx + dx, ny = by + dy;
                     if ((dx == 0 && dy == 0) || nx < 0 || ny < 0 || nx >= Window || ny >= Window)
                         continue;
-                    int step = BlockCost(terrain, OriginX + nx, OriginY + ny, zoneCentre, zoneRadius);
+                    int step = BlockCost(terrain, OriginX + nx, OriginY + ny, zoneCentre, zoneRadius, trails.IsLane(OriginX + nx, OriginY + ny, tick));
                     if (step < 0)
                         continue;
                     if (dx != 0 && dy != 0)
@@ -141,9 +141,9 @@ public sealed class MobFlowField
 
     /// <summary>
     /// What crossing block (<paramref name="bx"/>, <paramref name="by"/>) costs, or -1 when it cannot be crossed (more
-    /// than a quarter of its cells are rock, ore or base, or it is off the map).
+    /// than a quarter of its cells are rock, ore or base, or it is off the map). A <paramref name="lane"/>'s soil costs as open ground.
     /// </summary>
-    private static int BlockCost(TerrainGrid terrain, int bx, int by, Position zoneCentre, int zoneRadius)
+    private static int BlockCost(TerrainGrid terrain, int bx, int by, Position zoneCentre, int zoneRadius, bool lane)
     {
         int open = 0, soil = 0, blocked = 0;
         for (int y = by * Block; y < by * Block + Block; y++)
@@ -161,6 +161,12 @@ public sealed class MobFlowField
             }
         if (blocked > Block * Block / 4)
             return -1;
+        if (lane)
+        {
+            // A lane is worn soil: creatures run through it as through open ground.
+            open += soil;
+            soil = 0;
+        }
         int passable = open + soil;
         return (open * Tweaks.Mobs.OpenBlockCost + soil * Tweaks.Mobs.SoilBlockCost) / passable;
     }

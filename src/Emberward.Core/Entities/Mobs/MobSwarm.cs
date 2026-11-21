@@ -34,6 +34,7 @@ public sealed partial class MobSwarm
     private readonly List<Nest> _nests = new();
     private readonly List<Mob> _mobs = new();
     private readonly List<MobFlowField> _fields = new();
+    private readonly MobTrails _trails;
     private FastRandom _rng;
     private int _tick;
     private int _nextId;
@@ -55,6 +56,7 @@ public sealed partial class MobSwarm
         _fullCharge = Tweaks.Mobs.BiteDegrees * (double)settings.TankHeatCapacity;
         _rng = new FastRandom(seed);
         _sectors = new WorldSectors(terrain.Size);
+        _trails = new MobTrails(terrain.Size);
     }
 
     /// <summary>The nests, in the order they were made (the order the deposits were placed).</summary>
@@ -65,6 +67,12 @@ public sealed partial class MobSwarm
 
     /// <summary>Creature steps taken since the match began: zero for as long as nothing is out, which is the swarm's cost rule.</summary>
     public long CreatureSteps { get; private set; }
+
+    /// <summary>The trails creatures have worn in soil.</summary>
+    public MobTrails Trails => _trails;
+
+    /// <summary>The swarm's tick: what <see cref="MobTrails"/> reads its fading by.</summary>
+    public int Tick => _tick;
 
     /// <summary>The flow fields kept now: one per hunted tank and per awake nest that something reads.</summary>
     public IReadOnlyList<MobFlowField> Fields => _fields;
@@ -191,8 +199,9 @@ public sealed partial class MobSwarm
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.Position.X), mob.Position.Y);
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.Velocity.X), mob.Velocity.Y);
             hash = Fnv1a.Mix(Fnv1a.Mix(hash, mob.Charge), (int)mob.State);
+            hash = Fnv1a.Mix(hash, mob.WornBlock);
         }
-        return hash;
+        return _trails.Mix(hash);
     }
 
     /// <summary>Mixes what a step reads before it shows: the generator, timers, targets, thieves and the fields.</summary>
