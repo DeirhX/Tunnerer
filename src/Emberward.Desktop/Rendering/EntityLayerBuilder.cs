@@ -22,7 +22,7 @@ public struct EntityVertex
 
 /// <summary>
 /// Turns simulation snapshots into the entity layer's quads: radar blips, network coverage, links, the placement preview,
-/// machines, tanks, projectiles and charge labels, in that order (later ones draw on top). <see cref="EntityMotion"/> says where
+/// machines, tanks, projectiles, emberlings and charge labels, in that order (later ones draw on top). <see cref="EntityMotion"/> says where
 /// tanks and machines start and how they move through a simulation step (the vertex shader does the rest); each family's emitter in <c>Rendering/Entities</c>
 /// writes its quads. The layer reads simulation state solely for drawing.
 /// </summary>
@@ -41,6 +41,7 @@ public sealed class EntityLayerBuilder
     private readonly BeamFader _beams = new();
     private readonly PreviewQuads _preview = new();
     private readonly ProjectileQuads _projectiles = new();
+    private readonly MobQuads _mobs = new();
     private readonly PowerLabelQuads _powerLabels = new();
     private TankRenderState[] _tankScratch = [];
     private MachineRenderState[] _machineScratch = [];
@@ -65,6 +66,7 @@ public sealed class EntityLayerBuilder
         _coverage.Capture(world, localSlot);
         _links.Capture(world);
         _projectiles.Capture(world);
+        _mobs.Capture(world);
         _powerLabels.CaptureStep(world, localSlot);
     }
 
@@ -85,6 +87,7 @@ public sealed class EntityLayerBuilder
     {
         _motion.Hold();
         _projectiles.Hold();
+        _mobs.Hold();
     }
 
     /// <summary>
@@ -123,6 +126,7 @@ public sealed class EntityLayerBuilder
         MachineQuads.Emit(_quads, _motion, turnSeconds, snapHeadings, vision);
         TankQuads.Emit(_quads, _motion, tankPositions, turnSeconds, snapHeadings, protectedBlinkOn, vision);
         _projectiles.Emit(_quads, vision);
+        _mobs.Emit(_quads, vision);
         _powerLabels.Emit(_quads, vision, powerLabelCellSize);
     }
 }

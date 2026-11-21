@@ -60,6 +60,10 @@ public static class StepEventSounds
             new(SoundEffect.PlantRefused, AudioTweaks.RefusedGain, CueHeard.Player),
         StepEventKind.OreUnloaded or StepEventKind.ReserveBurned => new(SoundEffect.Pickup, AudioTweaks.UnloadGain, CueHeard.Player),
         StepEventKind.Docked => new(SoundEffect.Dock, AudioTweaks.DockGain, CueHeard.Player),
+        // Emberlings: a nest waking is an alarm for whoever is near enough to hear it; a bite is a hit on a tank; a kill is a small burst.
+        StepEventKind.NestWoke => new(SoundEffect.WarnOverheat, AudioTweaks.NestWakeGain, CueHeard.Anywhere),
+        StepEventKind.MobBit => new(SoundEffect.TankHit, AudioTweaks.MobBiteGain, CueHeard.TrackedTank, CueVoice.Burst),
+        StepEventKind.MobKilled => new(SoundEffect.Impact, AudioTweaks.MobKilledGain, CueHeard.Anywhere, CueVoice.Burst),
         _ => null,
     };
 
