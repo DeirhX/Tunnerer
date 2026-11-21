@@ -310,7 +310,7 @@ public class BotTankAI
         // Out of the enemy's sight and near its base, the bot works on the base (BotSiege): it shoots what a shot
         // wears down, a shut gate or the core, and otherwise heads for the place the next shot is fired from.
         Position? siegePoint = null;
-        if (!_gunner.EnemyInSight && enemy?.Base is { IsDestroyed: false } enemyBase)
+        if (_gunner.BaseSiegeAllowed && !_gunner.EnemyInSight && enemy?.Base is { IsDestroyed: false } enemyBase)
         {
             if (BotSiege.FindTarget(tank, enemyBase, world) is Position weak)
             {

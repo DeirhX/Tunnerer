@@ -161,6 +161,13 @@ public class BotBehaviorTests
         Assert.Equal(TwitchMode.Twitch, ai.Mode);
         Assert.Equal(gateShield, world.AreGatesShut(enemyBase));
 
+        // The bot leaves the base alone during the opening: its armour and gate shield stay whole while the grace runs.
+        double shieldBefore = gateShield ? world.BasePowerOf(enemyBase)!.Value.ShieldFill : 1.0;
+        for (int tick = 0; tick < Tweaks.Weapon.BotBaseSiegeGraceSeconds * Tweaks.Perf.TargetFps; tick++)
+            world.Advance(i => i == 1 ? ai.GetInput(bot, enemy, world) : default);
+        Assert.Equal(1.0, enemyBase.ArmorFill);
+        Assert.Equal(shieldBefore, gateShield ? world.BasePowerOf(enemyBase)!.Value.ShieldFill : 1.0);
+
         double armourBefore = enemyBase.ArmorFill;
         bool shot = false, wentIn = false;
         int ticks = (gateShield ? 5 : 30) * Tweaks.Perf.TargetFps;
