@@ -23,6 +23,7 @@
 #include "Entity/Beams.hlsli"
 #include "Entity/Overlays.hlsli"
 #include "Entity/PowerLabel.hlsli"
+#include "Entity/BaseShield.hlsli"
 #include "Entity/Emberites.hlsli"
 
 float4 main(PSIn input) : SV_Target
@@ -74,7 +75,11 @@ float4 main(PSIn input) : SV_Target
         result = Turret(p, input.params, aa);
     else if (kind < kKindEmberite + 0.5)
         result = Emberite(p, input.params, aa);
-    else // kKindGatling
+    else if (kind < kKindGatling + 0.5)
         result = Gatling(p, input.params, aa);
+    else if (kind < kKindBaseShield + 0.5)
+        result = BaseShield(p, input.color.rgb, input.params, aa);
+    else // kKindShieldHit
+        result = ShieldHit(p, input.color.rgb, input.params, aa);
     return result;
 }

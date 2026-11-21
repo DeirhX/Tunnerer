@@ -40,6 +40,21 @@ public sealed class GameEventWatcher
     private readonly List<Position> _nestsWoke = new();
     private readonly List<Position> _nestsStarved = new();
     private float _lastHarvestReport;
+    private int _baseHits;
+    private bool _baseShieldBroken;
+    private bool _baseCoreHit;
+    private bool _baseDestroyed;
+
+    /// <summary>When the player's base last took enemy fire, in HUD seconds; negative before the first hit.</summary>
+    public float LastBaseHitTime { get; private set; } = -1e9f;
+
+    /// <summary>Where the last enemy bullet struck the player's base.</summary>
+    public Position LastBaseHitAt { get; private set; }
+
+    /// <summary>How long after a hit the base counts as under attack.</summary>
+    public const float UnderAttackSeconds = 3f;
+
+    public bool IsBaseUnderAttack(float now) => now - LastBaseHitTime < UnderAttackSeconds;
 
     /// <summary>The player is told the radar is being scattered once heat takes this share of a pulse's rays.</summary>
     public const float RadarScatteredShare = 0.08f;
@@ -48,6 +63,11 @@ public sealed class GameEventWatcher
     {
         _primed = false;
         _harvestedSinceReport = 0;
+        _baseHits = 0;
+        _baseDestroyed = false;
+        _baseShieldBroken = false;
+        _baseCoreHit = false;
+        LastBaseHitTime = -1e9f;
         _nestExplained = false;
         _nestsWoke.Clear();
         _nestsStarved.Clear();
@@ -63,6 +83,15 @@ public sealed class GameEventWatcher
         {
             if (e.Kind == StepEventKind.OreHarvested && e.Color == player.Color)
                 _harvestedSinceReport += e.Count;
+            else if (e.Color == player.Color && e.Kind is StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed or StepEventKind.BaseShieldHit
+                or StepEventKind.BaseShieldBroken)
+            {
+                _baseHits++;
+                _baseShieldBroken |= e.Kind == StepEventKind.BaseShieldBroken;
+                _baseCoreHit |= e.Kind is StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed;
+                LastBaseHitAt = e.Position;
+                _baseDestroyed |= e.Kind == StepEventKind.BaseDestroyed;
+            }
             else if (e.Kind == StepEventKind.NestWoke && NestAlert.Covers(world, player, e.Position))
                 _nestsWoke.Add(e.Position);
             // The last creature of a nest starved (a count of 0): told to whoever has the nest in sight.
@@ -98,6 +127,26 @@ public sealed class GameEventWatcher
         CoreTap? core = world.CoreTapOf(home);
         bool tappingCore = core?.TapPerSecond > 1.0;
         bool meetingGoal = core?.IsMeetingGoal == true;
+
+        if (_baseHits > 0)
+        {
+            LastBaseHitTime = now;
+            if (_baseDestroyed)
+                feed.Post(now, "base-destroyed", "Your base was destroyed",
+                    "Without a base your tank cannot respawn.", NotificationKind.Danger, cooldown: 1e9f);
+            else
+                // The gates-open warning has its own key, so it is not held back by the shield-taking one.
+                feed.Post(now, _baseShieldBroken ? "base-gates-open" : "base-attacked", "Your base is under attack",
+                    _baseShieldBroken
+                        ? "Its gate shield is spent and the gates stand open. Drive off the attacker and keep the base charged."
+                        : _baseCoreHit
+                            ? "Shells are reaching its core. Drive off the attacker."
+                            : "Its gate shield is taking the hits and drains as it does. Defend it, and keep it charged.",
+                    NotificationKind.Danger, cooldown: 12f);
+            _baseHits = 0;
+            _baseShieldBroken = false;
+            _baseCoreHit = false;
+        }
 
         if (!_primed)
         {

@@ -21,6 +21,10 @@ public class StepEventSoundsTests
     [InlineData(StepEventKind.TankHit, SoundEffect.TankHit)]
     [InlineData(StepEventKind.TankDied, SoundEffect.TankDeath)]
     [InlineData(StepEventKind.TankRespawned, SoundEffect.Respawn)]
+    [InlineData(StepEventKind.BaseDamaged, SoundEffect.TankHit)]
+    [InlineData(StepEventKind.BaseDestroyed, SoundEffect.TankDeath)]
+    [InlineData(StepEventKind.BaseShieldHit, SoundEffect.TankHit)]
+    [InlineData(StepEventKind.BaseShieldBroken, SoundEffect.TankHit)]
     [InlineData(StepEventKind.MachinePlanted, SoundEffect.Plant)]
     [InlineData(StepEventKind.PlantRefused, SoundEffect.PlantRefused)]
     [InlineData(StepEventKind.Docked, SoundEffect.Dock)]
@@ -28,6 +32,16 @@ public class StepEventSoundsTests
     [InlineData(StepEventKind.OreCollected, SoundEffect.Pickup)]
     public void PlayerEvents_PlayTheirEffect(StepEventKind kind, SoundEffect expected) =>
         Assert.Equal(expected, Cue(kind));
+
+    [Theory]
+    [InlineData(StepEventKind.BaseDamaged)]
+    [InlineData(StepEventKind.BaseDestroyed)]
+    public void BaseEvents_AreHeardOnlyForThePlayersOwnBase(StepEventKind kind)
+    {
+        Assert.True(Hears(kind, tracked: true, isPlayer: true));
+        Assert.False(Hears(kind, tracked: true, isPlayer: false));
+        Assert.False(Hears(kind, tracked: false, isPlayer: false));
+    }
 
     [Fact]
     public void BuildingPlaysTheMachinesOwnSound()

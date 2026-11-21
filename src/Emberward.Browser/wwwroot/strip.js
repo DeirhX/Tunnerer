@@ -1,4 +1,4 @@
-// The desktop's bottom HUD (HudStrip.cs and the gauges it draws): the TEMP, SHIELD and MATERIALS art in the
+// The desktop's bottom HUD (HudStrip.cs and the gauges it draws): the TEMP, HULL and MATERIALS art in the
 // bottom-left corner, BUILD STRUCTURES and COMMAND in the bottom-right, the middle of the view left clear. It draws
 // the desktop's own art (copied in by tools/browser/publish.py) on two canvases, at the desktop's art coordinates,
 // so every number below is the desktop's. Shown on wide screens with a mouse; phones keep the plates (hud.js).
@@ -296,7 +296,7 @@ export class StripView {
         ])
             left.drawImage(image, px, 0, w, STRIP_H);
         stripText(left, "TEMP", TEMP.x, TEMP.title, 19, abgr(0xff78c8ff), abgr(0x181880ff));
-        stripText(left, "SHIELD", SHIELD.x, SHIELD.title, 20, abgr(0xfff8e890), abgr(0x20ffa030));
+        stripText(left, "HULL", SHIELD.x, SHIELD.title, 20, abgr(0xfff8e890), abgr(0x20ffa030));
         stripText(left, "MATERIALS", MATERIALS.x, MATERIALS.title, 21, abgr(0xff68e0ff), abgr(0x282090ff));
         // Dark glass behind the liquid (hides the energy bolt baked into the art), and the dial's dim track.
         left.fillStyle = abgr(0xff0a0c0e);

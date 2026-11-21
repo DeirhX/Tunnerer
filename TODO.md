@@ -315,3 +315,36 @@ clients, or if the HUD turns out to be mostly read-only gauges.
 
 **First step.** Count HUD code per platform, split into read-only and interactive, to see how much a shared renderer
 would actually replace.
+
+## Base under attack: what is left
+
+The first slice is in: `BaseDamaged` / `BaseDestroyed` carry the struck cell and the shield (permille) the hit met;
+`BaseShieldQuads` and `Entity/BaseShield.hlsli` draw the shell, hit flashes and armor/shield bars; the player hears and is
+told when their base is hit (`StepEventSounds`, `GameEventWatcher`, an off-screen arrow in `GameHud.Guidance.cs`); the
+tank's SHIELD gauge is now HULL. None of it changes simulation results. Not yet looked at on a screen: check the shell, flashes
+and bars by eye (`--energy-network`) before building on them.
+
+Do these in order; each is a separate change.
+
+1. **Check it by eye, and tune.** Shell strength-to-opacity, the weak-shield flicker, bar placement above the wall, flash
+   size. Check Metal, D3D12 and the browser (WebGL). `kBaseHalf` in `BaseShield.hlsli` repeats `Tweaks.Base.BaseSize / 2`; send it
+   as a vertex parameter or add a guard if `BaseSize` ever changes.
+2. **Browser parity.** The shell, flashes and bars share the entity layer, but the browser has no "base under attack" toast,
+   off-screen arrow or base-hit sound yet (`guidance.js`, `hud.js`, the browser's own sound path). Rename check: "Shield" in the
+   browser's HUD text.
+3. **Distortion ripple.** A refraction ripple in `PostPs` driven by the recent impacts: `ShieldImpactCount` and
+   `ShieldImpact[8]` in `PostParamsBlock` and `PostParams.hlsli`, layout version 7 on both (`PostParamsLayoutGuardTests`).
+   Gate the loop on a count of 0 and return once, at the end of the function (FXC rule, `docs/browser.md`). Measure PostPs link
+   time in a Windows browser first: it already takes about 8.8 s.
+4. **Decide whether the energy rules belong in the default match.** The shield and the dark state exist only under
+   `MatchRules.EnergyNetwork`, so most players see no shell. Turning it on in `Standard` changes the fingerprints and the
+   rules hash (see "Rules for every item").
+5. **Rules that make progress readable** (each changes fingerprints; name them in the commit message, add the state to the snapshot):
+   a pause in armor regrowth after a hit (about 3 s; today armor regrows 240/s with no pause), and blocked damage costing
+   charge, released as heat at the impact through the heat writers (`ThermalLedgerTests` must balance).
+6. **Destruction sequence.** A large `Explosion` at the base centre on the killing hit, the shell shattering, the wall stripe
+   going grey (`BaseMaterial` reading a per-base "destroyed" flag), a screen shake.
+7. **Base shape.** Keep the 35x35 square for now. A chamfered (octagon) square would read less boxy and hug the shell; it
+   changes level generation, `BaseMaterial`, docking and the fingerprints. Do not make the shield a separate collision boundary.
+8. **Enemy base readout.** Show the enemy's shield and dark state when in sight, so the attacker can tell whether fire is working
+   (the bars show armor and shield only after a hit or damage today).

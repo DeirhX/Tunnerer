@@ -9,7 +9,7 @@ using Emberward.Core.Match;
 using static Emberward.Desktop.Gui.HudLayout;
 
 /// <summary>
-/// The art panels along the bottom of the screen: TEMP, SHIELD and MATERIALS in the bottom-left corner, BUILD
+/// The art panels along the bottom of the screen: TEMP, HULL and MATERIALS in the bottom-left corner, BUILD
 /// STRUCTURES in the bottom-right (<see cref="HudLayout"/>), with their readouts and bars. The middle of the view is
 /// left clear. The art carries no text: titles and numbers are drawn with the UI font, so they stay sharp at any
 /// resolution.
@@ -154,7 +154,7 @@ public sealed class HudStrip
     private void DrawPanelLabels(ImDrawListPtr dl)
     {
         DrawStripText(dl, "TEMP", TempPlate.CenterX, TempPlate.TitleY, 19f, 0xFF78C8FFu, glow: 0x181880FFu);
-        DrawStripText(dl, "SHIELD", ShieldPlate.CenterX, ShieldPlate.TitleY, 20f, 0xFFF8E890u, glow: 0x20FFA030u);
+        DrawStripText(dl, "HULL", ShieldPlate.CenterX, ShieldPlate.TitleY, 20f, 0xFFF8E890u, glow: 0x20FFA030u);
         DrawStripText(dl, "MATERIALS", MaterialsPlate.CenterX, MaterialsPlate.TitleY, 21f, 0xFF68E0FFu, glow: 0x282090FFu);
         DrawStripText(dl, "BUILD STRUCTURES", BuildX + 162f, 23.5f, 17f, 0xFFB0E4F8u, glow: 0x181880FFu);
         DrawStripText(dl, "COMMAND", BuildX + 171f, 191.5f, 21f, 0xFF98E8FFu, glow: 0x202080FFu);

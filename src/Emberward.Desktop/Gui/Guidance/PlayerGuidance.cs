@@ -34,6 +34,9 @@ public sealed class PlayerGuidance
     /// <summary>The toasts showing now, oldest first.</summary>
     public IReadOnlyList<Notification> Notifications => _feed.Active;
 
+    /// <summary>Whether the player's base took enemy fire in the last few seconds, as of HUD time <paramref name="now"/>.</summary>
+    public bool IsBaseUnderAttack(float now) => _events.IsBaseUnderAttack(now);
+
     /// <summary>What the build keys will do now, or why a carried machine will not plant; empty when dead.</summary>
     public (string Text, HintTone Tone) Hint { get; private set; } = (string.Empty, HintTone.Dim);
 

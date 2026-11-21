@@ -53,6 +53,11 @@ public static class StepEventSounds
         StepEventKind.BulletImpact => new(SoundEffect.Impact, AudioTweaks.ImpactGain, CueHeard.Anywhere, CueVoice.Burst),
         StepEventKind.OreCollected => new(SoundEffect.Pickup, AudioTweaks.PickupGain, CueHeard.Anywhere, CueVoice.PickupStreak),
         StepEventKind.TankHit => new(SoundEffect.TankHit, AudioTweaks.TankHitGain, CueHeard.TrackedTank),
+        StepEventKind.BaseDamaged => new(SoundEffect.TankHit, AudioTweaks.BaseHitGain, CueHeard.Player, CueVoice.Burst),
+        // A gate hit sounds like a core hit for now: the same cue, so the player hears the base being shot at.
+        StepEventKind.BaseShieldHit or StepEventKind.BaseShieldBroken =>
+            new(SoundEffect.TankHit, AudioTweaks.BaseHitGain, CueHeard.Player, CueVoice.Burst),
+        StepEventKind.BaseDestroyed => new(SoundEffect.TankDeath, AudioTweaks.TankDeathGain, CueHeard.Player),
         StepEventKind.TankDied => new(SoundEffect.TankDeath, AudioTweaks.TankDeathGain, CueHeard.TrackedTank),
         StepEventKind.TankRespawned => new(SoundEffect.Respawn, AudioTweaks.RespawnGain, CueHeard.TrackedTank),
         StepEventKind.MachineBuilt => new(BuildSound(machine), AudioTweaks.BuildGain, CueHeard.TrackedTank),

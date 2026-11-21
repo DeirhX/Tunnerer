@@ -89,6 +89,7 @@ public partial class GameHud
         _network.Draw(ViewportRect, player, world, _guidance.Hint);
         WarningBanner.Draw(ViewportRect, _guidance.Warning, _time);
         DrawGuidance();
+        DrawBaseAttackPointer(player);
         DrawUpgradePanel(player);
         DrawMachineUpgrade(player, world);
         DrawSectorComplete(player, world);
