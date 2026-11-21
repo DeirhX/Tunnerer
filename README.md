@@ -62,12 +62,13 @@ full suite.
 | R | Build a harvester (30 ore); press again to plant it |
 | Y | Build a local generator (18 ore); plant it next to hot ground |
 | U | Build a turret (24 ore); plant it in your network's coverage, where it fires at enemy tanks within 24 cells |
+| T | Build a gatling (16 ore); plant it in your network's coverage, where it sprays emberites within 20 cells |
 | 1-7 | Docked at your base: buy an upgrade (1-5 base track, 6-7 tank track) |
 | M | Mute / unmute the sound |
 | - / = | Volume down / up |
 | F9 | Thermal view |
 | G | Charge labels over machines: charge / capacity and flow in and out a second (on by default) |
-| F, then 1-3 | Beside one of your relays or turrets: open its upgrade panel, then buy Tap, Sensor or Conduit (relay) or Rapid or Long (turret) from the base ore store; F again closes it |
+| F, then 1-3 | Beside one of your relays, turrets or gatlings: open its upgrade panel, then buy Tap, Sensor or Conduit (relay), Rapid or Long (turret) or Spin or Scope (gatling) from the base ore store; F again closes it |
 | X | Off the network: burn a unit of pyrite from the hold for 5 s more reserve (hold to burn 4 a second). Once the reserve has run out and the hold is empty: give up and respawn |
 | Esc / P | Pause menu (resume, controls, sound on/off, volume slider, quit) |
 | F1 | Controls screen |

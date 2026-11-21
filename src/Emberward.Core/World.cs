@@ -218,7 +218,7 @@ public partial class World
         };
         _sensing = new SideSensing(_terrain, _machines, _tankList, _basePower, _machineUpgrades, _reserve, _emberites);
         _machineContext = new MachineContext(_terrain, IsMachineSpotOccupied, _machines, MachineCoverage, _stepEvents, _energy,
-            _basePower, _machineUpgrades, _tankList, _projectiles, _emberites is { } swarm ? swarm.IsGuarded : null);
+            _basePower, _machineUpgrades, _tankList, _projectiles, _emberites is { } swarm ? swarm.IsGuarded : null, _emberites);
         _systems = BuildSystems();
     }
 

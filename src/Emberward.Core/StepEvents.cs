@@ -127,8 +127,9 @@ public enum StepEventKind
     MachineUpgradeRefused,
 
     /// <summary>
-    /// A turret at <see cref="StepEvent.Position"/> fired at an enemy tank; <see cref="StepEvent.Count"/> is the target's
-    /// colour. <see cref="StepEvent.Color"/> is the turret's owner.
+    /// A turret or a gatling (<see cref="StepEvent.Machine"/>) at <see cref="StepEvent.Position"/> fired;
+    /// <see cref="StepEvent.Count"/> is the colour of the enemy tank it fired at, or -1 for an emberite.
+    /// <see cref="StepEvent.Color"/> is the turret's owner.
     /// </summary>
     TurretFired,
 
@@ -155,6 +156,18 @@ public enum StepEventKind
 
     /// <summary>An emberite was killed at <see cref="StepEvent.Position"/>; what it carried spilled into the ground there.</summary>
     EmberiteKilled,
+
+    /// <summary>
+    /// A woken nest stirred: a pulse of creatures follows in <see cref="Config.Tweaks.Emberites.StirTicks"/>.
+    /// <see cref="StepEvent.Position"/> is the nest, <see cref="StepEvent.Count"/> the creatures ready to leave it.
+    /// </summary>
+    NestStirred,
+
+    /// <summary>
+    /// A resting emberite starved for want of heat in its nest. <see cref="StepEvent.Position"/> is the nest,
+    /// <see cref="StepEvent.Count"/> the creatures it has left (0: the nest is cleared).
+    /// </summary>
+    EmberiteStarved,
 }
 
 /// <summary>What a <see cref="StepEventKind.BulletImpact"/> struck.</summary>

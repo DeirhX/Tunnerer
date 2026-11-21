@@ -24,6 +24,7 @@ public class MachineBehaviorTableTests
         Assert.Equal(MachineType.Harvester, MachineBehaviors.ForKey(BuildKey.Secondary).Type);
         Assert.Equal(MachineType.Generator, MachineBehaviors.ForKey(BuildKey.Tertiary).Type);
         Assert.Equal(MachineType.Turret, MachineBehaviors.ForKey(BuildKey.Quaternary).Type);
+        Assert.Equal(MachineType.Gatling, MachineBehaviors.ForKey(BuildKey.Quinary).Type);
     }
 
     [Fact]
@@ -46,19 +47,26 @@ public class MachineBehaviorTableTests
         Assert.Single(MachineBehaviors.All, b => b.IsHeatPump);
         Assert.True(MachineBehaviors.Relay.IsHeatPump);
 
-        // A turret is no link node: it joins its island through coverage, as a harvester does, and only on the network.
-        var turret = Assert.Single(MachineBehaviors.All, b => b.IsTurret);
-        Assert.False(turret.IsLinkNode);
-        Assert.False(turret.RequiresLinkToPlant);
-        Assert.Equal(PowerTier.Turrets, turret.Capacitor.Tier);
-        Assert.Equal([MachineType.Generator, MachineType.Turret],
+        // A turret and a gatling are no link nodes: they join their island through coverage, as a harvester does, and
+        // only on the network. The gatling is the one whose rounds are for creatures.
+        Assert.Equal([MachineType.Turret, MachineType.Gatling],
+            MachineBehaviors.All.Where(b => b.IsTurret).Select(b => b.Type).ToArray());
+        Assert.All(MachineBehaviors.All.Where(b => b.IsTurret), turret =>
+        {
+            Assert.False(turret.IsLinkNode);
+            Assert.False(turret.RequiresLinkToPlant);
+            Assert.Equal(PowerTier.Turrets, turret.Capacitor.Tier);
+        });
+        Assert.Same(MachineBehaviors.Gatling, Assert.Single(MachineBehaviors.All, b => b.HuntsCreatures));
+        Assert.Equal([MachineType.Generator, MachineType.Turret, MachineType.Gatling],
             MachineBehaviors.All.Where(b => b.NeedsEnergyNetwork).Select(b => b.Type).ToArray());
 
-        // The relay and the turret take per-machine upgrades, on the keys 1-3 in this order.
+        // The relay, the turret and the gatling take per-machine upgrades, on the keys 1-3 in this order.
         Assert.Equal([MachineUpgradePath.Tap, MachineUpgradePath.Sensor, MachineUpgradePath.Conduit],
             MachineBehaviors.Relay.UpgradePaths.ToArray());
         Assert.Equal([MachineUpgradePath.Rapid, MachineUpgradePath.LongRange], MachineBehaviors.Turret.UpgradePaths.ToArray());
-        Assert.Equal([MachineType.Relay, MachineType.Turret],
+        Assert.Equal([MachineUpgradePath.Spin, MachineUpgradePath.Scope], MachineBehaviors.Gatling.UpgradePaths.ToArray());
+        Assert.Equal([MachineType.Relay, MachineType.Turret, MachineType.Gatling],
             MachineBehaviors.All.Where(b => !b.UpgradePaths.IsEmpty).Select(b => b.Type).ToArray());
     }
 

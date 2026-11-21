@@ -28,6 +28,7 @@ public class StepEventSoundsTests
     [InlineData(StepEventKind.MachinePlanted, SoundEffect.Plant)]
     [InlineData(StepEventKind.PlantRefused, SoundEffect.PlantRefused)]
     [InlineData(StepEventKind.Docked, SoundEffect.Dock)]
+    [InlineData(StepEventKind.NestStirred, SoundEffect.WarnEnergy)]
     [InlineData(StepEventKind.OreCollected, SoundEffect.Pickup)]
     public void PlayerEvents_PlayTheirEffect(StepEventKind kind, SoundEffect expected) =>
         Assert.Equal(expected, Cue(kind));

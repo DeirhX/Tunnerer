@@ -5,7 +5,7 @@
 // The shell follows the base's shield: bright and steady when it is strong, thin and flickering red when weak, absent
 // when the base is dark (only sparks run along its wall). Bars above the base show armor and shield while it is hurt.
 // Hit flashes are small quads at the cell a bullet struck: a ring that spreads and fades, cool when the shield took the
-// hit, hot when it was weak. Params are documented in Layout.hlsli (kinds 19 and 20).
+// hit, hot when it was weak. Params are documented in Layout.hlsli (kinds 20 and 21).
 // ============================================================================
 
 #ifndef EMBERWARD_ENTITY_BASESHIELD_HLSLI

@@ -78,8 +78,8 @@ Entities/
   Projectiles/Projectile.cs  ProjectileType, Projectile and its factories
   Projectiles/ProjectileList.cs   ProjectileBehavior table, advance, explosions; owns the projectile RNG
   Projectiles/ExplosionDesc.cs    ExplosionFactory (shrapnel fans)
-  Emberites/Emberite.cs                Emberite (a creature out of its nest), Nest, EmberiteState
-  Emberites/EmberiteSwarm*.cs          The emberites (MatchRules.Emberites): nests wake, release and recharge (Nests), creatures move, bite and
+  Emberites/Emberite.cs                Emberite (a creature out of its nest), Nest, NestPhase, EmberiteState
+  Emberites/EmberiteSwarm*.cs          The emberites (MatchRules.Emberites): nests wake, pulse, recharge and starve (Nests), creatures move, bite and
                              go home (Movement), shots find and kill them (Combat), hashes and snapshots of the swarm
   Emberites/EmberiteFlowField.cs       The coarse cost-to-goal field creatures follow, one per hunted tank and per awake nest
 Network/                     The link network (not network matches: those are Desktop/Net and Emberward.Protocol)
@@ -102,7 +102,7 @@ Collision/
   Raycaster.cs               Bresenham lines; HasOpenLine (the one line-of-sight test)
 Input/
   Controller.cs              ControllerOutput
-  ControllerOutputCodec.cs   ControllerOutput as 31 bits (network, input logs); quantises the aim
+  ControllerOutputCodec.cs   ControllerOutput as 32 bits (network, input logs); quantises the aim
 Bots/                        The computer player: produces a ControllerOutput like a person would
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles
@@ -204,6 +204,11 @@ is a new entry, in the place its order needs; the profile picks up its label. Th
    (`MachineContext.Tanks`, few, in spawn order; a raycast only for those in range) with a bullet carrying its
    damage (`MachineContext.Projectiles`, `Projectile.Damage`). The shot's charge is spent through
    `EnergyNetwork.Spend`, which puts it as heat beside the turret, and is recorded as `StepEventKind.TurretFired`.
+   A gatling (`MachineBehavior.HuntsCreatures`) runs the same action with another gun: while creatures are out it
+   asks `EmberiteSwarm.TryFindTarget` (`MachineContext.Emberites`) for the nearest one a round reaches
+   (`Raycaster.HasShotThroughSoil`), aims ahead of it (`TurretAction.Lead`) and fires a `ProjectileType.Round`, which
+   is spent after its `Life`, passes `Pierce` cells of soil and stops without bursting; with no creature it falls
+   back on the turret's target. Its numbers are `MachineUpgrades.GatlingStatsOf`.
 7. **power** (only when `MatchRules.EnergyNetwork` is on): `EnergyNetwork.Advance` (DESIGN.md §4.9). Every planted
    machine has a capacitor (`MachineBehavior.Capacitor`, its level in `Machine.Charge`). Harvesters can charge from
    a local island they can see within node coverage. Ore delivery still requires the base's network. A generator
@@ -496,12 +501,13 @@ Core:
    `BuildTable(...)` call that fills `MachineBehaviors.All`: its type, action interval, action, colour, ore cost
    and `BuildKey`, its `Capacitor` (capacity, transfer rate, `PowerTier`, idle draw; DESIGN.md §4.9), plus the traits
    Core reads instead of the type: `RunsOnCharge` (its action pays in charge and stops when it cannot), `IsLinkNode`,
-   `RequiresLinkToPlant`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, and `NeedsEnergyNetwork` (only
+   `RequiresLinkToPlant`, `IsMiner`, `IsHeatPump`, `IsGenerator`, `IsTurret`, `HuntsCreatures`, and `NeedsEnergyNetwork` (only
    energy matches can build it), and its `UpgradePaths`. The action is a static method taking `(Machine,
    MachineContext)`, in `MachineBehaviors` or, when it is long, a class of its own (`TurretAction`).
 3. Constants (interval, capacitor) in `Tweaks.Machine`, its ore cost in `Tweaks.Ore`, colour in `Tweaks.Colors`.
 4. Each `BuildKey` builds exactly one machine. Add a value in `BuildKey`, a field in `ControllerOutput`, edge
-   detection in `TankBuildController.Advance` and a key bit in `ControllerOutputCodec` and its key mask.
+   detection in `TankBuildController.Advance` and a key bit in `ControllerOutputCodec` and its key mask. The five
+   keys there are take every bit of the encoded input: a sixth needs a wider encoding, and a new protocol version.
 5. `NetworkStatus.Collect` counts harvesters and relays by type; extend it if the HUD should report the new one.
 6. Update `MachineBehaviorTableTests` (it names each machine's key and traits).
 
@@ -528,7 +534,8 @@ Desktop:
 2. An entry in `ProjectileList.BuildBehaviors`: an advance method `(Projectile, CollisionSolver, ProjectileList)`
    and a draw colour. Use `CollisionSolver.TestPoint` to hit tanks, machines or terrain (bullets skip their own side's tanks and machines), `ProjectileList`'s RNG for chance,
    and the heat API (`AddHeat`, `AddHeatRadius`) for heat, so the ledger stays balanced.
-3. Something has to spawn it: today only `TankTurret` (bullets) and `ExplosionFactory` (shrapnel) do.
+3. Something has to spawn it: today `TankTurret` and `TurretAction` (bullets, and a gatling's rounds) and
+   `ExplosionFactory` (shrapnel) do.
 4. Desktop: `Rendering/Entities/ProjectileQuads.cs` draws bullets and shrapnel as hot shots and throws for any
    other type; add a case for a new projectile. Record what presentation should hear about in `World.StepEvents` (bullets record `BulletImpact`, shrapnel `ShrapnelSpent`).
 
@@ -563,6 +570,10 @@ Desktop:
 counters (creatures never released, resting, out, stored charge); only creatures out of the nest are in the swarm's
 `List<Emberite>`, so a world with nothing out does no per-creature work (`EmberiteSwarm.CreatureSteps` stays 0). A dormant nest
 looks at each tank once in six ticks; digging a nest's ore (read from `OreCollected` step events) wakes it at once.
+A woken nest lets its creatures out in pulses (`Nest.Phase`, `AdvancePulse`): a stir of `StirTicks` (`StepEventKind.NestStirred`,
+the warning), a group sized by the hunted tank's heat (`EmberiteSwarm.PulseSize`), then a lull. A resting creature leaves
+only with a full charge, and while the nest cannot fill one for `StarveTicks` its hungry creatures die one by one
+(`StepEventKind.EmberiteStarved`), so a nest with no heat clears itself and stops asking the grid for any.
 Creatures move by the velocity they committed, then choose the next from an `EmberiteFlowField` (a Dijkstra over 4-cell
 blocks, rebuilt every 8 ticks while read, saved in the snapshot because it is built from past terrain). Heat is
 conserved: a first release books the charge as injected, a bite moves it into `Tank.Heat`, a kill spills it with
@@ -570,9 +581,14 @@ conserved: a first release books the charge as injected, a bite moves it into `T
 adds `EmberiteSwarm.TotalCharge`. A bite also does `Tweaks.Emberites.BiteDamage` (`DamageCause.Emberite`) and moves a unit of
 pyrite from the tank's hold to the creature (`Emberite.Pyrite`); it reaches `Nest.Pyrite` when the creature gets home, is
 dropped with `OreDrop.Scatter` when it is killed, and a cleared nest frees its stored pyrite the same way, so the total of
-holds, stores, ground, nests and carriers never changes (`EmberiteBiteTests`). Shots find creatures through a per-step sector index (`IndexCreatures`, called by
+holds, stores, ground, nests and carriers never changes (`EmberiteBiteTests`). Every `Tweaks.Emberites.DropEveryKills`-th
+death of a nest (read off `Nest.Alive`, so no counter is kept) also moves one plain ore cell from the rim of the nest's
+ground to where the creature died (`DropHomeOre`: one look at the nest's ground per drop, two `SetPixel` calls, nothing
+if either end has no cell for it; `EmberiteDropTests`). Shots find creatures through a per-step sector index (`IndexCreatures`, called by
 `CollisionSolver.Update`) and `CollisionSolver.TestPoint(onEmberite:)`. `World.IsOreGuarded` makes harvesters pass over the ore
 of a nest that has creatures left (`MachineContext.IsOreGuarded`, `HarvesterState.Guarded`). The bot ignores creatures.
+Gatlings find creatures with `TryFindTarget`, a walk over the creatures out that casts a line only to those in range
+and nearer than the best so far; it is asked only while `OutCount` is above zero (`GatlingTests`).
 
 ### Adding a collidable entity
 

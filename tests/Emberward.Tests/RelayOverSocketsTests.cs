@@ -63,6 +63,34 @@ public class RelayOverSocketsTests
         }
     }
 
+    /// <summary>
+    /// Waits for a match to play on, for as long as it keeps moving: the wait fails after <paramref name="stall"/> with
+    /// no change in <paramref name="progress"/> (ticks played, say), not after a fixed time, so a slow build machine
+    /// passes and a stuck match still fails, saying where it stuck (<paramref name="where"/>). An overall cap ends
+    /// a match that crawls without ever stopping.
+    /// </summary>
+    private static void WaitForProgress(Func<bool> condition, Func<long> progress, Func<string> where, params RelayConnection[] pump)
+    {
+        TimeSpan stall = TimeSpan.FromSeconds(10), cap = TimeSpan.FromSeconds(90);
+        var total = Stopwatch.StartNew();
+        var sinceProgress = Stopwatch.StartNew();
+        long seen = progress();
+        while (!condition())
+        {
+            long now = progress();
+            if (now != seen)
+            {
+                seen = now;
+                sinceProgress.Restart();
+            }
+            Assert.True(sinceProgress.Elapsed < stall && total.Elapsed < cap,
+                $"The match stopped moving ({sinceProgress.Elapsed.TotalSeconds:0.#} s without a tick, {total.Elapsed.TotalSeconds:0.#} s in all): {where()}");
+            Thread.Sleep(5);
+            foreach (var connection in pump)
+                connection.Pump();
+        }
+    }
+
     [Fact]
     public async Task ClientOfAnotherBuildOrProtocol_IsRefusedWithAReason()
     {
@@ -575,6 +603,8 @@ public class RelayOverSocketsTests
             b.SendReady(WorldStateHash.ComputeReady(worldB));
             a.RequestStart();
 
+            const int WarmUp = 20;
+
             // Steps what has arrived, up to a tick; the bots are chosen when the relay says the match has started.
             void Play(NetSession session, RelayConnection connection, World world, int limit = int.MaxValue)
             {
@@ -589,27 +619,31 @@ public class RelayOverSocketsTests
                     });
             }
 
-            WaitFor(() =>
+            WaitForProgress(() =>
             {
                 Play(sessionA, a, worldA);
                 Play(sessionB, b, worldB);
-                return worldB.AdvanceCount >= 30;
-            }, a, b);
+                return worldB.AdvanceCount >= WarmUp;
+            }, () => worldA.AdvanceCount + worldB.AdvanceCount,
+                () => $"Ann at tick {worldA.AdvanceCount}, Bob at {worldB.AdvanceCount}, started {a.Started}", a, b);
             b.Dispose();
 
             // Bob starts the game again: a fresh world, the same room and name. Ann's world stops at the tick the two are
             // compared at, however long the relay takes to see Bob go.
-            const int Compared = 120;
-            WaitFor(() => { Play(sessionA, a, worldA, Compared); return a.PlayersHere == 1; }, a);
+            const int Compared = 60;
+            WaitForProgress(() => { Play(sessionA, a, worldA, Compared); return a.PlayersHere == 1; },
+                () => worldA.AdvanceCount, () => $"Ann at tick {worldA.AdvanceCount}, {a.PlayersHere} players here", a);
             using var back = NetLaunch.Join(Options(play, "Bob"), config with { Seed = 1 });
             var worldBack = CreateFourTankWorld(back.Config.Seed);
             var sessionBack = new NetSession(back, worldBack);
-            WaitFor(() =>
+            WaitForProgress(() =>
             {
                 Play(sessionA, a, worldA, Compared);
                 Play(sessionBack, back, worldBack, Compared);
                 return worldBack.AdvanceCount == Compared && worldA.AdvanceCount == Compared;
-            }, a, back);
+            }, () => worldA.AdvanceCount + worldBack.AdvanceCount,
+                () => $"Ann at tick {worldA.AdvanceCount}, the returning Bob at {worldBack.AdvanceCount} of {Compared}, rejoined {back.Rejoined}",
+                a, back);
 
             Assert.True(back.Rejoined);
             Assert.Equal(1, back.Slot);

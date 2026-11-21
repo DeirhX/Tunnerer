@@ -15,6 +15,7 @@ internal sealed class BotGunner
 {
     // Counted in ticks so the simulation stays deterministic.
     private const int OpeningGraceFrames = 30 * Tweaks.Perf.TargetFps;
+    private const int BaseSiegeGraceFrames = Tweaks.Weapon.BotBaseSiegeGraceSeconds * Tweaks.Perf.TargetFps;
     private const int ReactionFrames = 12;
     private const double AimSpreadRadians = 0.10;
     // Aimed fire comes in bursts with pauses between them, so a human has time to react or escape.
@@ -61,6 +62,9 @@ internal sealed class BotGunner
 
     /// <summary>True while the bot has a clear line of sight to a live enemy (as of <see cref="UpdateLineOfSight"/>).</summary>
     public bool EnemyInSight => _losStreak > 0;
+
+    /// <summary>False during the opening: the bot does not shoot at the enemy's base until the siege grace is over.</summary>
+    public bool BaseSiegeAllowed => _frame >= BaseSiegeGraceFrames;
 
     /// <summary>
     /// Decides whether to fire at the enemy this plan and where to aim. With the enemy in sight and aimed fire allowed

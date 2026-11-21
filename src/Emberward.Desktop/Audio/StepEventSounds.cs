@@ -47,7 +47,9 @@ public static class StepEventSounds
     public static StepEventCue? CueFor(StepEventKind kind, MachineType machine) => kind switch
     {
         StepEventKind.ShotFired => new(SoundEffect.Fire, AudioTweaks.FireGain, CueHeard.Anywhere, CueVoice.ShotCycle),
-        StepEventKind.TurretFired => new(SoundEffect.TurretFire, AudioTweaks.TurretFireGain, CueHeard.Anywhere, CueVoice.Burst),
+        StepEventKind.TurretFired => MachineBehaviors.Get(machine).HuntsCreatures
+            ? new(SoundEffect.GatlingFire, AudioTweaks.GatlingFireGain, CueHeard.Anywhere, CueVoice.Burst)
+            : new(SoundEffect.TurretFire, AudioTweaks.TurretFireGain, CueHeard.Anywhere, CueVoice.Burst),
         StepEventKind.BulletImpact => new(SoundEffect.Impact, AudioTweaks.ImpactGain, CueHeard.Anywhere, CueVoice.Burst),
         StepEventKind.OreCollected => new(SoundEffect.Pickup, AudioTweaks.PickupGain, CueHeard.Anywhere, CueVoice.PickupStreak),
         StepEventKind.TankHit => new(SoundEffect.TankHit, AudioTweaks.TankHitGain, CueHeard.TrackedTank),
@@ -65,8 +67,10 @@ public static class StepEventSounds
             new(SoundEffect.PlantRefused, AudioTweaks.RefusedGain, CueHeard.Player),
         StepEventKind.OreUnloaded or StepEventKind.ReserveBurned => new(SoundEffect.Pickup, AudioTweaks.UnloadGain, CueHeard.Player),
         StepEventKind.Docked => new(SoundEffect.Dock, AudioTweaks.DockGain, CueHeard.Player),
-        // Emberites: a nest waking is an alarm for whoever is near enough to hear it; a bite is a hit on a tank; a kill is a small burst.
+        // Emberites: a nest waking is an alarm for whoever is near enough to hear it, and its stir before each wave a
+        // quieter one; a bite is a hit on a tank; a kill is a small burst.
         StepEventKind.NestWoke => new(SoundEffect.WarnOverheat, AudioTweaks.NestWakeGain, CueHeard.Anywhere),
+        StepEventKind.NestStirred => new(SoundEffect.WarnEnergy, AudioTweaks.NestStirGain, CueHeard.Anywhere),
         StepEventKind.EmberiteBit => new(SoundEffect.TankHit, AudioTweaks.EmberiteBiteGain, CueHeard.TrackedTank, CueVoice.Burst),
         StepEventKind.EmberiteKilled => new(SoundEffect.Impact, AudioTweaks.EmberiteKilledGain, CueHeard.Anywhere, CueVoice.Burst),
         _ => null,
@@ -91,7 +95,8 @@ public static class StepEventSounds
         (MachineType.Relay, SoundEffect.BuildRelay),
         (MachineType.Harvester, SoundEffect.BuildHarvester),
         (MachineType.Generator, SoundEffect.BuildGenerator),
-        (MachineType.Turret, SoundEffect.BuildTurret));
+        (MachineType.Turret, SoundEffect.BuildTurret),
+        (MachineType.Gatling, SoundEffect.BuildGatling));
 
     private static SoundEffect[] BuildSoundTable(params (MachineType Type, SoundEffect Sound)[] entries)
     {

@@ -134,6 +134,14 @@ public sealed class TutorialDirector
                     : null,
                 Target: static (w, p) => Owned(w, p, MachineType.Relay).Select(m => (Position?)m.Position).FirstOrDefault()),
 
+            new("Hold a nest off with a gatling",
+                $"Emberites nest in pyrite and hunt a tank that runs hot. Press {Key(MachineType.Gatling)} to build a gatling ({Cost(MachineType.Gatling)} ore) and plant it inside your network's coverage, on the way the creatures come. It sprays the ones within {Tweaks.Gatling.Range} cells, even just inside a tunnel wall, and now and then a dead one drops a unit of its nest's ore. Firing heats its ground and a hot gatling slows: keep a relay nearby. F beside it offers Spin or Scope.",
+                static (_, w, p) => !w.Rules.EnergyNetwork || !w.Rules.Emberites || OwnsAny(w, p, MachineType.Gatling),
+                Progress: static (_, p) => p.Base is { } b
+                    ? Ratio("Base ore store", b.Store.Ore, Cost(MachineType.Gatling))
+                    : null,
+                Target: static (w, p) => Owned(w, p, MachineType.Relay).Select(m => (Position?)m.Position).FirstOrDefault()),
+
             new("Cool off at the frost",
                 "Blue rock is frost. Beside it a hot tank cools fast, a good stop on a long dig. Stay too long and the cold slows you down, then cracks your shield.",
                 static (t, _, _) => t._nearFrost,

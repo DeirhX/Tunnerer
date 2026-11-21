@@ -63,10 +63,15 @@ public static class MachineSprites
         FacesHeading: true, SenseRadius: Tweaks.Turret.HeatSenseRadius + 1.5f,
         Reach: new MachineReach(Tweaks.Turret.Range, Tweaks.Turret.Color, Circle: true));
 
+    // A gatling turns to where it last aimed, as a turret does, and shares its heat ring.
+    public static MachineSprite Gatling { get; } = new(EntityShape.KindGatling, HalfLength: 3.6f, HalfWidth: 3.6f,
+        FacesHeading: true, SenseRadius: Tweaks.Turret.HeatSenseRadius + 1.5f,
+        Reach: new MachineReach(Tweaks.Gatling.Range, Tweaks.Gatling.Color, Circle: true));
+
     /// <summary>Every machine's sprite, indexed by <see cref="MachineType"/>.</summary>
     public static IReadOnlyList<MachineSprite> All { get; } = BuildTable(
         (MachineType.Relay, Relay), (MachineType.Harvester, Harvester), (MachineType.Generator, Generator),
-        (MachineType.Turret, Turret));
+        (MachineType.Turret, Turret), (MachineType.Gatling, Gatling));
 
     public static MachineSprite Get(MachineType type) =>
         (uint)type < (uint)All.Count ? All[(int)type] : throw new ArgumentOutOfRangeException(nameof(type));

@@ -75,6 +75,8 @@ float4 main(PSIn input) : SV_Target
         result = Turret(p, input.params, aa);
     else if (kind < kKindEmberite + 0.5)
         result = Emberite(p, input.params, aa);
+    else if (kind < kKindGatling + 0.5)
+        result = Gatling(p, input.params, aa);
     else if (kind < kKindBaseShield + 0.5)
         result = BaseShield(p, input.color.rgb, input.params, aa);
     else // kKindShieldHit

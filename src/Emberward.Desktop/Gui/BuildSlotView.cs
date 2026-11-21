@@ -82,14 +82,13 @@ public sealed record BuildSlotView(
         return player.IsOreHoldFull ? frames - 1 : Math.Clamp((int)MathF.Round(player.HoldFill * frames), 1, frames - 1) - 1;
     }
 
-    /// <summary>The line beneath the hold window: the hold emptying into the base, else the base store.</summary>
+    /// <summary>
+    /// The line beneath the hold window: the hold emptying into the base, else a plain label. The base's ore store is
+    /// not here: it only changes at the base and at its machines, and shows on the upgrade panels there.
+    /// </summary>
     public static string OreLine(Tank player)
     {
         ArgumentNullException.ThrowIfNull(player);
-        return player.IsUnloadingOre
-            ? "UNLOADING"
-            : player.Base is { } home
-                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"BASE ORE {home.Store.Ore}")
-                : "ORE";
+        return player.IsUnloadingOre ? "UNLOADING" : "ORE";
     }
 }

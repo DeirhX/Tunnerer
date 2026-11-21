@@ -61,6 +61,8 @@ public static class AudioTweaks
     public const float FireGain = 0.60f;
     // A turret's shot, heard wherever it is: quieter than the tank's own cannon.
     public const float TurretFireGain = 0.40f;
+    // A gatling's round: many a second, so each is quiet.
+    public const float GatlingFireGain = 0.22f;
     public const float ImpactGain = 0.60f;
     public const float DebrisGain = 0.30f;
     public const float TankHitGain = 0.70f;
@@ -75,6 +77,7 @@ public static class AudioTweaks
     public const float RefusedGain = 0.45f;
     public const float PickupGain = 0.40f;
     public const float NestWakeGain = 0.38f;
+    public const float NestStirGain = 0.26f;
     public const float EmberiteBiteGain = 0.45f;
     public const float EmberiteKilledGain = 0.30f;
     // A unit of ore unloaded into the network: a quieter pickup, about four a second.

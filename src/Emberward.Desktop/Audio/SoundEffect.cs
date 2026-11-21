@@ -26,4 +26,6 @@ public enum SoundEffect
     BuildTurret,
     TurretFire,
     TreadLoop,
+    BuildGatling,
+    GatlingFire,
 }

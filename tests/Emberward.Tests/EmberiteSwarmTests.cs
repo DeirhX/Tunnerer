@@ -22,6 +22,9 @@ public class EmberiteSwarmTests
     // Clear of both bases of the 320 x 200 test map, which stand at (130, 21) and (185, 178).
     private static readonly Position Centre = new(60, 100);
 
+    // A woken nest stirs this long before its first creature leaves.
+    private const int Stir = Tweaks.Emberites.StirTicks;
+
     /// <summary>A world with the swarm on and no ore, and a square of <paramref name="ground"/> around the map's centre.</summary>
     private static (World World, Tank Tank) Arena(TerrainPixel ground, int halfWidth = 60, int halfHeight = 30)
     {
@@ -137,13 +140,14 @@ public class EmberiteSwarmTests
         var (open, openTank) = Arena(TerrainPixel.Blank);
         open.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 3);
         openTank.Position = Centre;
-        Tick(open, openTank, 14, heat: 80f);
+        Tick(open, openTank, Stir + 14, heat: 80f);
         Assert.Contains(Creatures(open), c => Math.Abs(c.Speed - Tweaks.Emberites.OpenSpeed) < 0.01f);
 
         var (dirt, dirtTank) = Arena(TerrainPixel.Dirt);
-        dirt.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 3);
+        // One creature: a group wears the blocks it crosses into a lane within a few ticks, and runs it.
+        dirt.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 1);
         dirtTank.Position = Centre;
-        Tick(dirt, dirtTank, 30, heat: 80f);
+        Tick(dirt, dirtTank, Stir + 30, heat: 80f);
         var burrowing = Creatures(dirt);
         Assert.NotEmpty(burrowing);
         Assert.All(burrowing, c => Assert.True(c.Speed <= Tweaks.Emberites.SoilSpeed + 0.01f, $"speed {c.Speed}"));
@@ -187,7 +191,7 @@ public class EmberiteSwarmTests
         world.Emberites!.AddNest(start, radius: 3, creatures: 1);
         tank.Position = goal;
 
-        Tick(world, tank, 8, heat: 80f);
+        Tick(world, tank, Stir + 8, heat: 80f);
 
         var field = Assert.Single(world.Emberites.Fields, f => f.Kind == 0);
         Assert.True(field.TryDirection(start.X + 6, start.Y, out float dx, out float dy));
@@ -234,7 +238,7 @@ public class EmberiteSwarmTests
         var (world, tank) = Arena(TerrainPixel.Blank);
         var nest = world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 1);
         tank.Position = Centre;
-        Tick(world, tank, 8, heat: 80f);
+        Tick(world, tank, Stir + 8, heat: 80f);
         var creature = Assert.Single(Creatures(world));
 
         var bullet = Projectile.CreateBullet(new Position(0, 0), new VectorF(1f, 0f), ownerColor: tank.Color);
@@ -253,7 +257,7 @@ public class EmberiteSwarmTests
         var (world, tank) = Arena(TerrainPixel.Blank);
         var nest = world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 1);
         tank.Position = Centre;
-        Tick(world, tank, 8, heat: 80f);
+        Tick(world, tank, Stir + 8, heat: 80f);
         var creature = Assert.Single(Creatures(world));
 
         var fragment = Projectile.CreateShrapnel(new Position(0, 0), new VectorF(1f, 0f), life: 10);
@@ -271,7 +275,7 @@ public class EmberiteSwarmTests
         var (world, tank) = Arena(TerrainPixel.Blank);
         world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 1);
         tank.Position = Centre;
-        Tick(world, tank, 8, heat: 80f);
+        Tick(world, tank, Stir + 8, heat: 80f);
         var creature = Assert.Single(Creatures(world));
         double carried = world.Emberites.TotalCharge();
         Assert.True(carried > 0.0);
@@ -334,7 +338,7 @@ public class EmberiteSwarmTests
         var (world, tank) = Arena(TerrainPixel.Blank);
         var nest = world.Emberites!.AddNest(Centre + new Offset(50, 0), radius: 4, creatures: 3);
         tank.Position = Centre + new Offset(-30, 0);
-        Tick(world, tank, 30, heat: 80f);
+        Tick(world, tank, Stir + 30, heat: 80f);
         Assert.True(nest.Out > 0);
 
         // The tank, still far from the nest, cools below the scent: they come home and the nest sleeps.
