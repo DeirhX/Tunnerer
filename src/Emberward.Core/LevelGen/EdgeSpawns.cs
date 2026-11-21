@@ -15,7 +15,8 @@ using Emberward.Core.Types;
 /// bases are far away and roughly across the map, but where exactly cannot be read off one's own place. A draw is
 /// kept when its bases are far enough apart and balanced (<see cref="Tweaks.Spawns.MinCentreDistanceRatio"/>,
 /// <see cref="Tweaks.Spawns.MinNeighbourDistanceRatio"/>); after <see cref="Tweaks.Spawns.LayoutAttempts"/> draws
-/// the most balanced one is kept, and a last draw without jitter (even spacing) always places them.
+/// the most balanced one is kept, and a last draw without jitter (even spacing) places them. No two bases overlap: a
+/// map too small for that throws an <see cref="ArgumentException"/>.
 /// </para>
 /// </summary>
 public static class EdgeSpawns
@@ -50,10 +51,10 @@ public static class EdgeSpawns
         {
             // The last draw has no jitter: evenly spaced bases are always at least the minimum apart.
             var layout = Draw(loop, rng, order, attempt < Tweaks.Spawns.LayoutAttempts ? jitter : 0);
-            if (ClosestPairSq(layout) < minDistanceSq)
+            if (!Separated(layout) || ClosestPairSq(layout) < minDistanceSq)
             {
                 if (attempt == Tweaks.Spawns.LayoutAttempts && best == null)
-                    return layout;
+                    return Separated(layout) ? layout : throw ImpossibleLayout(size, playerCount);
                 continue;
             }
             double balance = Balance(layout, size);
@@ -109,6 +110,23 @@ public static class EdgeSpawns
         }
         return layout;
     }
+
+    /// <summary>
+    /// Whether no two bases overlap: their centres are at least a base's width apart on one axis (the footprints are
+    /// squares of <see cref="Tweaks.Base.BaseSize"/>). On a small map the distance rule above can fall to nothing, so
+    /// this is what keeps the walls of two bases apart.
+    /// </summary>
+    private static bool Separated(Position[] layout)
+    {
+        for (int i = 0; i < layout.Length; i++)
+            for (int j = i + 1; j < layout.Length; j++)
+                if (Math.Max(Math.Abs(layout[i].X - layout[j].X), Math.Abs(layout[i].Y - layout[j].Y)) < Tweaks.Base.BaseSize)
+                    return false;
+        return true;
+    }
+
+    private static ArgumentException ImpossibleLayout(Size size, int playerCount) =>
+        new($"A {size.X}x{size.Y} map has no room for {playerCount} bases of {Tweaks.Base.BaseSize} cells that do not overlap.");
 
     private static long ClosestPairSq(Position[] layout)
     {

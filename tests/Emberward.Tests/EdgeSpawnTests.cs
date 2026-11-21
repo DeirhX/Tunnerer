@@ -75,6 +75,53 @@ public class EdgeSpawnTests
         }
     }
 
+    [Theory]
+    [InlineData(100, 100, 2)]
+    [InlineData(100, 100, 3)]
+    [InlineData(100, 100, 4)]
+    [InlineData(112, 112, 3)]
+    [InlineData(150, 150, 4)]
+    public void OnSmallMaps_NoTwoBasesOverlap(int width, int height, int players)
+    {
+        var size = new Size(width, height);
+        for (int seed = 0; seed < Seeds; seed++)
+        {
+            Position[] spawns;
+            try
+            {
+                spawns = Place(size, players, seed);
+            }
+            catch (ArgumentException)
+            {
+                continue;
+            }
+            for (int i = 0; i < spawns.Length; i++)
+                for (int j = i + 1; j < spawns.Length; j++)
+                    Assert.True(
+                        Math.Max(Math.Abs(spawns[i].X - spawns[j].X), Math.Abs(spawns[i].Y - spawns[j].Y)) >= Tweaks.Base.BaseSize,
+                        $"{width}x{height}, {players} players, seed {seed}: bases {spawns[i]} and {spawns[j]} overlap");
+        }
+    }
+
+    [Fact]
+    public void TwoBases_OnA100x100Map_AreOnOppositeSides()
+    {
+        for (int seed = 0; seed < 20; seed++)
+        {
+            var spawns = Place(new Size(100, 100), 2, seed);
+            Assert.True(Math.Max(Math.Abs(spawns[0].X - spawns[1].X), Math.Abs(spawns[0].Y - spawns[1].Y)) >= Tweaks.Base.BaseSize);
+        }
+    }
+
+    [Fact]
+    public void AMapWithNoRoomForTheBases_Throws()
+    {
+        // A map this small has four places on its loop; neighbours are under one base's width apart, so only two
+        // bases on opposite sides fit (and not even those below 35 cells across the loop).
+        Assert.Throws<ArgumentException>(() => Place(new Size(60, 60), 2, 1));
+        Assert.Throws<ArgumentException>(() => Place(new Size(100, 100), 3, 1));
+    }
+
     [Fact]
     public void TwoBases_AreAboutAsFarFromTheCentre_AndAcrossTheMap()
     {
