@@ -483,6 +483,9 @@ public static partial class Tweaks
     {
         public const int CannonBulletSpeed = 3;
         public const int BotBaseAttackRange = 48;
+        // The bot leaves the player's base alone for this long, so the opening (and the tutorial) can be played: a
+        // base takes about thirteen shots to fall, and a bot that arrived in ten seconds used to end the match there.
+        public const int BotBaseSiegeGraceSeconds = 240;
         public const int BulletDamage = 160;
     }
 

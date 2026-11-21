@@ -60,7 +60,7 @@ export class StatusView {
             $("position"),
             `X ${p.position.x} / Y ${p.position.y} · WORLD ${f.seed}`,
         );
-        setText($("ore"), `${p.ore}/${p.holdCapacity} ORE · BASE ${p.store}`);
+        setText($("ore"), `${p.ore}/${p.holdCapacity} ORE`);
         const pile = $("ore-pile");
         setHidden(pile, p.orePileFrame < 0);
         if (p.orePileFrame >= 0) {
