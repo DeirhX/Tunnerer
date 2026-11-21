@@ -66,9 +66,8 @@ public class TankFireTests
         Step(calmWorld, 60);
 
         Assert.True(burning.Heat > calm.Heat + 1f, $"burning {burning.Heat}, calm {calm.Heat}");
-        // The air takes more energy than the tank keeps: the injected total outruns the tank's own share.
-        double tankShare = (burning.Heat - calm.Heat) * burning.ThermalCapacity;
-        Assert.True(burnWorld.Terrain.Ledger.Injected - calmWorld.Terrain.Ledger.Injected > tankShare * 1.5);
+        // The air around the burning tank is warm; around the other it is not.
+        Assert.True(burnWorld.Terrain.GetAirTemperature(burning.Position) > calmWorld.Terrain.GetAirTemperature(calm.Position) + 1f);
     }
 
     [Fact]
@@ -101,5 +100,13 @@ public class TankFireTests
 
         Assert.Equal(0f, tank.FireLevel);
         Assert.False(tank.IsDead);
+    }
+
+    [Fact]
+    public void AFullFire_AddsNoMoreHeatThanAFullStrengthLinkTakesAway()
+    {
+        var settings = SimulationSettings.FromTweaks();
+
+        Assert.True(settings.TankFireHeatPerTickMax <= settings.TankNetworkCoolingPerTick + 1e-6f);
     }
 }

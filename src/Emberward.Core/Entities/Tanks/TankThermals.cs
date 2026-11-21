@@ -191,7 +191,7 @@ internal sealed class TankThermals
         if (fire > 0f)
         {
             heat.Ledger.RecordInjected(fireHeat * (double)ThermalCapacity);
-            // The air takes what the cells there can hold; book what it took.
+            // The air takes all of it (0 only if the area is off the map); book what was applied.
             double applied = heat.AddEnergyInRadiusArea(position, _settings.TankFireAirRadius,
                 fire * _settings.TankFireAirEnergyPerTickMax, TerrainGrid.ThermalField.Air);
             heat.Ledger.RecordInjected(applied);
