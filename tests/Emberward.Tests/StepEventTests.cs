@@ -242,7 +242,7 @@ public class StepEventTests
     public void DiggingOre_RecordsOreCollected()
     {
         var s = InOpenPocket();
-        Fill(s.World.Terrain, s.RelayPos, 12, TerrainPixel.Emberite, fromDx: 5);
+        Fill(s.World.Terrain, s.RelayPos, 12, TerrainPixel.Pyrite, fromDx: 5);
         var right = new ControllerOutput { MoveSpeed = new Offset(1, 0) };
 
         var collected = StepUntil(s.World, e => e.Kind == StepEventKind.OreCollected, tank0: right)

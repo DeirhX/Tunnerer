@@ -68,7 +68,7 @@ public class SimulationFingerprintTests
         for (int dy = -2; dy <= 2; dy++)
             for (int dx = 3; dx <= 5; dx++)
                 s.World.Terrain.SetPixel(s.Base.Position + new Offset(dx, s.DirY * (Tweaks.Base.BaseSize / 2 + 18 + dy)),
-                    Emberward.Core.Terrain.TerrainPixel.Emberite);
+                    Emberward.Core.Terrain.TerrainPixel.Pyrite);
         Plant(s, MachineType.Harvester, Tweaks.Base.BaseSize / 2 + 18);
         return new(s.World, [null, null], 400,
             (frame, i) => i != 0 ? TestSimulation.Idle : new ControllerOutput

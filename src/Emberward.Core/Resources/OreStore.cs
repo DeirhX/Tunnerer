@@ -1,7 +1,7 @@
 namespace Emberward.Core.Resources;
 
 /// <summary>
-/// A store of emberite ore (DESIGN.md §6.3), the only currency: a tank's hold or a base's store. In units: a plain ore
+/// A store of pyrite ore (DESIGN.md §6.3), the only currency: a tank's hold or a base's store. In units: a plain ore
 /// cell is one, a core cell three. Ore is only ever moved between stores, paid for something or spilled into the
 /// ground, so every unit is accounted for.
 /// </summary>

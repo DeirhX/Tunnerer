@@ -12,7 +12,7 @@ namespace Emberward.Tests;
 
 /// <summary>
 /// The tank's reserve (DESIGN.md §4.9, <see cref="TankReserveSystem"/>): the off-network clock, which the recall key
-/// buys back by burning carried emberite. The stages of running out are in <see cref="TankReserveStageTests"/>.
+/// buys back by burning carried pyrite. The stages of running out are in <see cref="TankReserveStageTests"/>.
 /// </summary>
 public class TankReserveTests
 {

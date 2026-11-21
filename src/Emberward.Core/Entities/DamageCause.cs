@@ -9,4 +9,5 @@ public enum DamageCause
     Frostbite,
     BaseDestroyed,
     Recalled,
+    Emberite,
 }

@@ -1,4 +1,4 @@
-namespace Emberward.Core.Entities.Mobs;
+namespace Emberward.Core.Entities.Emberites;
 
 using Emberward.Core.Collision;
 using Emberward.Core.Config;
@@ -6,57 +6,57 @@ using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 
-public sealed partial class MobSwarm
+public sealed partial class EmberiteSwarm
 {
     // Unit vector of a 45 degree turn (cos 45 = sin 45), so that turning needs no trigonometry.
     private const float Diagonal = 0.70710678f;
 
-    private void AdvanceMobs()
+    private void AdvanceEmberites()
     {
         // Creatures killed or home last step leave the list first, so that nothing below meets a dead one.
-        _mobs.RemoveAll(static m => m.Gone);
-        var span = MobSpan;
+        _emberites.RemoveAll(static m => m.Gone);
+        var span = EmberiteSpan;
         for (int i = 0; i < span.Length; i++)
         {
-            ref Mob mob = ref span[i];
+            ref Emberite emberite = ref span[i];
             CreatureSteps++;
-            Move(ref mob);
-            if (mob.State == MobState.Hunting)
-                Hunt(ref mob);
+            Move(ref emberite);
+            if (emberite.State == EmberiteState.Hunting)
+                Hunt(ref emberite);
             else
-                GoHome(ref mob);
+                GoHome(ref emberite);
         }
-        _mobs.RemoveAll(static m => m.Gone);
+        _emberites.RemoveAll(static m => m.Gone);
     }
 
     /// <summary>Moves a creature by the velocity it committed last step; ground that has closed in the meantime stops it.</summary>
-    private void Move(ref Mob mob)
+    private void Move(ref Emberite emberite)
     {
-        if (mob.Velocity.X == 0f && mob.Velocity.Y == 0f)
+        if (emberite.Velocity.X == 0f && emberite.Velocity.Y == 0f)
             return;
-        var next = new PositionF(mob.Position.X + mob.Velocity.X, mob.Position.Y + mob.Velocity.Y);
-        if (GroundAt(next, _nests[mob.Nest]) == MobGround.Blocked)
+        var next = new PositionF(emberite.Position.X + emberite.Velocity.X, emberite.Position.Y + emberite.Velocity.Y);
+        if (GroundAt(next, _nests[emberite.Nest]) == EmberiteGround.Blocked)
         {
-            mob.Velocity = default;
+            emberite.Velocity = default;
             return;
         }
-        mob.Position = next;
-        WearTrail(ref mob, next);
+        emberite.Position = next;
+        WearTrail(ref emberite, next);
     }
 
     /// <summary>A creature that has moved into a soil block wears its trail, once for each time it enters the block.</summary>
-    private void WearTrail(ref Mob mob, PositionF at)
+    private void WearTrail(ref Emberite emberite, PositionF at)
     {
         var cell = (Position)at;
         int block = _trails.BlockOf(cell);
-        if (block < 0 || Classify(_terrain.GetPixelRaw(cell), cell, _nests[mob.Nest].Centre, _nests[mob.Nest].Radius) != MobGround.Soil)
+        if (block < 0 || Classify(_terrain.GetPixelRaw(cell), cell, _nests[emberite.Nest].Centre, _nests[emberite.Nest].Radius) != EmberiteGround.Soil)
         {
-            mob.WornBlock = 0;
+            emberite.WornBlock = 0;
             return;
         }
-        if (mob.WornBlock != block + 1)
+        if (emberite.WornBlock != block + 1)
         {
-            mob.WornBlock = block + 1;
+            emberite.WornBlock = block + 1;
             _trails.Wear(block, _tick);
         }
     }
@@ -64,46 +64,46 @@ public sealed partial class MobSwarm
     /// <summary>Whether the soil at <paramref name="cell"/> is a lane, worn so that creatures run through it as through open ground.</summary>
     private bool IsLane(Position cell, int tick) => _trails.IsLane(_trails.BlockOf(cell), tick);
 
-    private void Hunt(ref Mob mob)
+    private void Hunt(ref Emberite emberite)
     {
-        Nest nest = _nests[mob.Nest];
-        Tank? tank = ValidTarget(mob.Target) is { } t && TargetStillWanted(ref mob, nest, t) ? t : null;
+        Nest nest = _nests[emberite.Nest];
+        Tank? tank = ValidTarget(emberite.Target) is { } t && TargetStillWanted(ref emberite, nest, t) ? t : null;
         if (tank is null)
         {
             // The nest's own pick, if it has one; else home.
             if (nest.Target >= 0 && ValidTarget(nest.Target) is { } other)
             {
-                mob.Target = nest.Target;
-                mob.SightTick = 0;
-                mob.Sees = false;
+                emberite.Target = nest.Target;
+                emberite.SightTick = 0;
+                emberite.Sees = false;
                 tank = other;
             }
             else
             {
-                mob.State = MobState.Returning;
-                mob.Target = -1;
-                GoHome(ref mob);
+                emberite.State = EmberiteState.Returning;
+                emberite.Target = -1;
+                GoHome(ref emberite);
                 return;
             }
         }
 
-        float dx = tank.Position.X - mob.Position.X, dy = tank.Position.Y - mob.Position.Y;
-        float range = Tweaks.Mobs.BiteRange;
+        float dx = tank.Position.X - emberite.Position.X, dy = tank.Position.Y - emberite.Position.Y;
+        float range = Tweaks.Emberites.BiteRange;
         if (dx * dx + dy * dy <= range * range)
         {
-            if (mob.Charge > 0.0 && !tank.IsDockedAtOwnBase && tank.SpawnProtectionTicks == 0)
+            if (emberite.Charge > 0.0 && !tank.IsDockedAtOwnBase && tank.SpawnProtectionTicks == 0)
             {
-                Bite(ref mob, tank);
-                GoHome(ref mob);
+                Bite(ref emberite, tank);
+                GoHome(ref emberite);
             }
             else
             {
                 // Waiting at the tank (a base shields it, or it has just respawned): hold still.
-                mob.Velocity = default;
+                emberite.Velocity = default;
             }
             return;
         }
-        Steer(ref mob, 0, mob.Target, tank.Position, nest);
+        Steer(ref emberite, 0, emberite.Target, tank.Position, nest);
     }
 
     private Tank? ValidTarget(int index)
@@ -114,73 +114,75 @@ public sealed partial class MobSwarm
 
     /// <summary>
     /// A creature keeps its target while the tank is the nest's thief, or warm enough and within its heat leash of the
-    /// nest, or in sight: a line clear of rock from the creature, within <see cref="Tweaks.Mobs.HuntLeashCells"/>,
-    /// looked for once in <see cref="Tweaks.Mobs.SightCheckTicks"/> ticks.
+    /// nest, or in sight: a line clear of rock from the creature, within <see cref="Tweaks.Emberites.HuntLeashCells"/>,
+    /// looked for once in <see cref="Tweaks.Emberites.SightCheckTicks"/> ticks.
     /// </summary>
-    private bool TargetStillWanted(ref Mob mob, Nest nest, Tank tank)
+    private bool TargetStillWanted(ref Emberite emberite, Nest nest, Tank tank)
     {
-        if (nest.Thief == mob.Target && nest.ThiefTicks > 0)
+        if (nest.Thief == emberite.Target && nest.ThiefTicks > 0)
             return true;
         float leash = HeatLeash(tank.Heat);
         if (leash > 0f && Position.DistanceSquared(tank.Position, nest.Centre) <= leash * leash)
             return true;
 
-        long reach = (long)Tweaks.Mobs.HuntLeashCells * Tweaks.Mobs.HuntLeashCells;
-        var here = (Position)mob.Position;
+        long reach = (long)Tweaks.Emberites.HuntLeashCells * Tweaks.Emberites.HuntLeashCells;
+        var here = (Position)emberite.Position;
         if (Position.DistanceSquared(tank.Position, here) > reach)
         {
-            mob.Sees = false;
+            emberite.Sees = false;
             return false;
         }
-        if (mob.SightTick == 0 || _tick - mob.SightTick >= Tweaks.Mobs.SightCheckTicks)
+        if (emberite.SightTick == 0 || _tick - emberite.SightTick >= Tweaks.Emberites.SightCheckTicks)
         {
-            mob.Sees = Raycaster.HasCreatureLine(_terrain, here, tank.Position);
-            mob.SightTick = _tick;
+            emberite.Sees = Raycaster.HasCreatureLine(_terrain, here, tank.Position);
+            emberite.SightTick = _tick;
         }
-        return mob.Sees;
+        return emberite.Sees;
     }
 
-    private void GoHome(ref Mob mob)
+    private void GoHome(ref Emberite emberite)
     {
-        mob.State = MobState.Returning;
-        Nest nest = _nests[mob.Nest];
-        float dx = nest.Centre.X - mob.Position.X, dy = nest.Centre.Y - mob.Position.Y;
+        emberite.State = EmberiteState.Returning;
+        Nest nest = _nests[emberite.Nest];
+        float dx = nest.Centre.X - emberite.Position.X, dy = nest.Centre.Y - emberite.Position.Y;
         float arrive = nest.Radius * 0.5f + 1f;
         if (dx * dx + dy * dy <= arrive * arrive)
         {
             nest.Resting++;
-            nest.Stored += mob.Charge;
+            nest.Stored += emberite.Charge;
+            nest.Pyrite += emberite.Pyrite;
+            emberite.Pyrite = 0;
             nest.Out--;
-            mob.Gone = true;
-            mob.Velocity = default;
+            emberite.Gone = true;
+            emberite.Velocity = default;
             return;
         }
-        Steer(ref mob, 1, mob.Nest, nest.Centre, nest);
+        Steer(ref emberite, 1, emberite.Nest, nest.Centre, nest);
     }
 
     /// <summary>
     /// Chooses the velocity for the next step: toward the goal by the flow field where the creature is inside its
     /// window, straight otherwise, at the speed of the ground it would land on, turning aside from what blocks it.
     /// </summary>
-    private void Steer(ref Mob mob, int fieldKind, int fieldId, Position goal, Nest nest)
+    private void Steer(ref Emberite emberite, int fieldKind, int fieldId, Position goal, Nest nest)
     {
         float dirX, dirY;
-        MobFlowField field = FieldFor(fieldKind, fieldId, goal, nest);
+        EmberiteFlowField field = FieldFor(fieldKind, fieldId, goal, nest);
         field.Used = true;
-        if (!field.TryDirection(mob.Position.X, mob.Position.Y, out dirX, out dirY))
+        if (!field.TryDirection(emberite.Position.X, emberite.Position.Y, out dirX, out dirY))
         {
-            dirX = goal.X - mob.Position.X;
-            dirY = goal.Y - mob.Position.Y;
+            dirX = goal.X - emberite.Position.X;
+            dirY = goal.Y - emberite.Position.Y;
             float length = MathF.Sqrt(dirX * dirX + dirY * dirY);
             if (length < 1e-4f)
             {
-                mob.Velocity = default;
+                emberite.Velocity = default;
                 return;
             }
             dirX /= length;
             dirY /= length;
         }
-        Commit(ref mob, dirX, dirY, nest);
+        Commit(ref emberite, dirX, dirY, nest);
     }
 
     /// <summary>
@@ -188,9 +190,9 @@ public sealed partial class MobSwarm
     /// alternating by creature, so a crowd does not all slide the same way) that it can move along, at the speed its
     /// landing cell allows.
     /// </summary>
-    private void Commit(ref Mob mob, float dirX, float dirY, Nest nest)
+    private void Commit(ref Emberite emberite, float dirX, float dirY, Nest nest)
     {
-        float turn = (mob.Id & 1) == 0 ? 1f : -1f;
+        float turn = (emberite.Id & 1) == 0 ? 1f : -1f;
         for (int attempt = 0; attempt < 5; attempt++)
         {
             float ux = dirX, uy = dirY;
@@ -201,14 +203,14 @@ public sealed partial class MobSwarm
                 case 3: (ux, uy) = (-dirY * turn, dirX * turn); break;
                 case 4: (ux, uy) = (dirY * turn, -dirX * turn); break;
             }
-            float speed = SpeedAlong(mob.Position, ux, uy, nest);
+            float speed = SpeedAlong(emberite.Position, ux, uy, nest);
             if (speed > 0f)
             {
-                mob.Velocity = new VectorF(ux * speed, uy * speed);
+                emberite.Velocity = new VectorF(ux * speed, uy * speed);
                 return;
             }
         }
-        mob.Velocity = default;
+        emberite.Velocity = default;
     }
 
     private static (float X, float Y) Rotate(float x, float y, float side) =>
@@ -221,35 +223,35 @@ public sealed partial class MobSwarm
     /// </summary>
     private float SpeedAlong(PositionF at, float ux, float uy, Nest nest)
     {
-        float open = Tweaks.Mobs.OpenSpeed, soil = Tweaks.Mobs.SoilSpeed;
+        float open = Tweaks.Emberites.OpenSpeed, soil = Tweaks.Emberites.SoilSpeed;
         if (RunsAt(new PositionF(at.X + ux * open * 0.5f, at.Y + uy * open * 0.5f), nest) &&
             RunsAt(new PositionF(at.X + ux * open, at.Y + uy * open), nest))
             return open;
-        return GroundAt(new PositionF(at.X + ux * soil, at.Y + uy * soil), nest) != MobGround.Blocked ? soil : 0f;
+        return GroundAt(new PositionF(at.X + ux * soil, at.Y + uy * soil), nest) != EmberiteGround.Blocked ? soil : 0f;
     }
 
     /// <summary>Whether a creature of <paramref name="nest"/> can run at <paramref name="at"/>: open ground, or a lane worn into soil.</summary>
     private bool RunsAt(PositionF at, Nest nest)
     {
-        MobGround ground = GroundAt(at, nest);
-        return ground == MobGround.Open || (ground == MobGround.Soil && IsLane((Position)at, _tick));
+        EmberiteGround ground = GroundAt(at, nest);
+        return ground == EmberiteGround.Open || (ground == EmberiteGround.Soil && IsLane((Position)at, _tick));
     }
 
     /// <summary>The ground a creature of <paramref name="nest"/> finds at <paramref name="at"/>.</summary>
-    private MobGround GroundAt(PositionF at, Nest nest)
+    private EmberiteGround GroundAt(PositionF at, Nest nest)
     {
         var cell = (Position)at;
         if (at.X < 0f || at.Y < 0f || !_terrain.IsInside(cell))
-            return MobGround.Blocked;
+            return EmberiteGround.Blocked;
         return Classify(_terrain.GetPixelRaw(cell), cell, nest.Centre, nest.Radius);
     }
 
     // ---- Fields ----------------------------------------------------------------------------------------------
 
-    private MobFlowField FieldFor(int kind, int id, Position goal, Nest nest)
+    private EmberiteFlowField FieldFor(int kind, int id, Position goal, Nest nest)
     {
-        MobFlowField? field = null;
-        foreach (MobFlowField existing in _fields)
+        EmberiteFlowField? field = null;
+        foreach (EmberiteFlowField existing in _fields)
             if (existing.Kind == kind && existing.Id == id)
             {
                 field = existing;
@@ -257,7 +259,7 @@ public sealed partial class MobSwarm
             }
         if (field is null)
         {
-            field = new MobFlowField { Kind = kind, Id = id };
+            field = new EmberiteFlowField { Kind = kind, Id = id };
             _fields.Add(field);
         }
         if (field.NeedsBuild(goal))
@@ -275,14 +277,14 @@ public sealed partial class MobSwarm
     {
         for (int i = _fields.Count - 1; i >= 0; i--)
         {
-            MobFlowField field = _fields[i];
+            EmberiteFlowField field = _fields[i];
             field.Tick();
             if (field.Used)
             {
                 field.Idle = 0;
                 field.Used = false;
             }
-            else if (++field.Idle >= Tweaks.Mobs.FieldRefreshTicks)
+            else if (++field.Idle >= Tweaks.Emberites.FieldRefreshTicks)
             {
                 _fields.RemoveAt(i);
             }

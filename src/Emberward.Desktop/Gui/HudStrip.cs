@@ -20,8 +20,8 @@ public sealed class HudStrip
     private const uint ReadoutColor = 0xFFAAFACDu;
     private const float ReadoutSize = 22f;
 
-    // The ore line, drawn on the narrow plate beneath the hold window (art pixels): the pale gold of the Emberite in
-    // the hold (tools/hud/make_hold_emberite.py), deep orange once the hold is full, bright green while it unloads.
+    // The ore line, drawn on the narrow plate beneath the hold window (art pixels): the pale gold of the Pyrite in
+    // the hold (tools/hud/make_hold_pyrite.py), deep orange once the hold is full, bright green while it unloads.
     private const float OreLineX = MaterialsX + 122f, OreLineY = 133f, OreLineSize = 15f;
     private const uint OreLineColor = 0xFF78E6FFu, OreLineFullColor = 0xFF2880FFu, OreLineUnloadColor = 0xFF60FF90u;
     private const uint OreLineGlow = 0x2840B0FFu;
@@ -29,7 +29,7 @@ public sealed class HudStrip
     /// <summary>
     /// A panel's plates, measured on the art (art pixels): the centre both lines share, the title plate's centre, and
     /// the readout plate's inner edges. The readout is centred in its plate. The levels themselves show in the art
-    /// above (the heat orb, the shield and the pile of Emberite), so the plates carry no bars.
+    /// above (the heat orb, the shield and the pile of Pyrite), so the plates carry no bars.
     /// </summary>
     private readonly record struct Plate(float CenterX, float TitleY, float ReadoutLeft, float ReadoutTop, float ReadoutRight, float ReadoutBottom)
     {
@@ -102,7 +102,7 @@ public sealed class HudStrip
         DrawReadout(dl, ShieldPlate, health.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         // MATERIALS: the ore in the tank's hold against what it takes, the currency structures are built from. The
-        // pile is a sheet of 8 x 5 frames drawn by tools/hud/make_hold_emberite.py; each stone carries its own corona.
+        // pile is a sheet of 8 x 5 frames drawn by tools/hud/make_hold_pyrite.py; each stone carries its own corona.
         int pileFrame = BuildSlotView.OrePileFrame(player);
         if (pileFrame >= 0)
         {

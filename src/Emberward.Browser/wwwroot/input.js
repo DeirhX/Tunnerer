@@ -168,7 +168,7 @@ export class GameInput {
             aimX: this.pointer ? this.pointer.x - (this.aimOffset || 0) : 0,
             aimY: this.pointer ? this.pointer.y - (this.aimOffset || 0) : 0,
             build: action.build || 0,
-            // X is held, as on desktop: held off the network it burns emberite at the repeat rate. Its press (and the
+            // X is held, as on desktop: held off the network it burns pyrite at the repeat rate. Its press (and the
             // HUD button's tap) is queued as well, so a tap is never lost between ticks.
             recall: !!action.recall || !!held("KeyX"),
             upgrade: action.upgrade || 0,

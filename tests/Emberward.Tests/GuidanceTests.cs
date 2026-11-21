@@ -32,7 +32,7 @@ public class GuidanceTests
 
         s.Tank.Position = OutsideTheDoor(s);
         var next = tutorial.Update(s.World, s.Tank, 1f);
-        Assert.Equal("Mine emberite", next!.Value.Title);
+        Assert.Equal("Mine pyrite", next!.Value.Title);
         Assert.Contains("/ " + Tweaks.Ore.RelayCost, next.Value.Progress);
     }
 

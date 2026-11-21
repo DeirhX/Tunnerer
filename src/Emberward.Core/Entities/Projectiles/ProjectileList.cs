@@ -105,8 +105,8 @@ public class ProjectileList
                     self.RecordImpact(ipos, p, ImpactTarget.Machine);
                     return true;
                 },
-                // One hit kills an emberling; the shot bursts on it as on anything else.
-                onMob: solver.CanHitMobs ? KillsMob(solver, self, ipos, p) : null,
+                // One hit kills an emberite; the shot bursts on it as on anything else.
+                onEmberite: solver.CanHitEmberites ? KillsEmberite(solver, self, ipos, p) : null,
                 onTerrain: pix =>
                 {
                     // A gate is open ground to its owner's shells. An enemy's stop on it while the gate shield
@@ -140,16 +140,16 @@ public class ProjectileList
         }
     }
 
-    private static Func<int, bool> KillsMob(CollisionSolver solver, ProjectileList self, Position at, Projectile bullet) => mob =>
+    private static Func<int, bool> KillsEmberite(CollisionSolver solver, ProjectileList self, Position at, Projectile bullet) => emberite =>
     {
-        solver.KillMob(mob);
+        solver.KillEmberite(emberite);
         self.RecordImpact(at, bullet, ImpactTarget.Terrain);
         return true;
     };
 
-    private static Func<int, bool> KillsMob(CollisionSolver solver) => mob =>
+    private static Func<int, bool> KillsEmberite(CollisionSolver solver) => emberite =>
     {
-        solver.KillMob(mob);
+        solver.KillEmberite(emberite);
         return true;
     };
 
@@ -197,8 +197,8 @@ public class ProjectileList
         if (!TryAdvanceInside(terrain, p, out var ipos))
             return;
 
-        // A fragment that meets an emberling kills it and is spent.
-        if (solver.CanHitMobs && solver.TestPoint(ipos, onMob: KillsMob(solver)))
+        // A fragment that meets an emberite kills it and is spent.
+        if (solver.CanHitEmberites && solver.TestPoint(ipos, onEmberite: KillsEmberite(solver)))
         {
             p.IsAlive = false;
             self.RecordShrapnelSpent(p);

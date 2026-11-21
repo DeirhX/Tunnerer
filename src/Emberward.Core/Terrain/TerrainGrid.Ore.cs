@@ -89,9 +89,9 @@ public partial class TerrainGrid
             return false;
 
         if (core)
-            SeedHeatedPixel(pos, TerrainPixel.EmberiteCore, Config.Tweaks.Ore.CoreStartTemperature);
+            SeedHeatedPixel(pos, TerrainPixel.PyriteCore, Config.Tweaks.Ore.CoreStartTemperature);
         else
-            SeedHeatedPixel(pos, TerrainPixel.Emberite, Config.Tweaks.Ore.PlainStartTemperature);
+            SeedHeatedPixel(pos, TerrainPixel.Pyrite, Config.Tweaks.Ore.PlainStartTemperature);
         return true;
     }
 }

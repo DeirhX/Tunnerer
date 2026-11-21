@@ -1,12 +1,13 @@
-namespace Emberward.Core.Entities.Mobs;
+namespace Emberward.Core.Entities.Emberites;
 
 using Emberward.Core.Collision;
 using Emberward.Core.Config;
 using Emberward.Core.Entities.Tanks;
+using Emberward.Core.Resources;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
 
-public sealed partial class MobSwarm
+public sealed partial class EmberiteSwarm
 {
     /// <summary>
     /// Digging a nest's ore wakes it whatever the tank's heat, and the thief is hunted for a while. Reads only the
@@ -26,7 +27,7 @@ public sealed partial class MobSwarm
                 if (nest.IsCleared || Position.DistanceSquared(e.Position, nest.Centre) > nest.Radius * nest.Radius)
                     continue;
                 nest.Thief = tank;
-                nest.ThiefTicks = Tweaks.Mobs.ThiefHuntTicks;
+                nest.ThiefTicks = Tweaks.Emberites.ThiefHuntTicks;
                 Wake(nest);
             }
         }
@@ -58,22 +59,25 @@ public sealed partial class MobSwarm
         if (nest.Alive == 0)
         {
             nest.Awake = false;
+            // Stored pyrite that found no room is tried again on the nest's check cadence, not every tick.
+            if (nest.Pyrite > 0 && (_tick + index) % Tweaks.Emberites.WakeCheckTicks == 0)
+                nest.Pyrite -= OreDrop.Scatter(_terrain, nest.Centre, nest.Pyrite, _isOccupied);
             return;
         }
 
         // Resting creatures drink heat whether the nest is awake or asleep.
-        if (nest.Resting > 0 && (_tick + index) % Tweaks.Mobs.RechargeIntervalTicks == 0)
+        if (nest.Resting > 0 && (_tick + index) % Tweaks.Emberites.RechargeIntervalTicks == 0)
             Recharge(nest);
 
         if (!nest.Awake)
         {
             // Dormant: one distance test per tank, once in a while.
-            if (nest.Inside > 0 && CanRelease(nest) && (_tick + index) % Tweaks.Mobs.WakeCheckTicks == 0 && SensesAnyone(nest))
+            if (nest.Inside > 0 && CanRelease(nest) && (_tick + index) % Tweaks.Emberites.WakeCheckTicks == 0 && SensesAnyone(nest))
                 Wake(nest);
             return;
         }
 
-        if ((_tick + index) % Tweaks.Mobs.WakeCheckTicks == 0)
+        if ((_tick + index) % Tweaks.Emberites.WakeCheckTicks == 0)
             nest.Target = PickTarget(nest, index);
         bool hunting = nest.Target >= 0;
         // Nothing to hunt and nothing out: back to sleep, and the resting recharge on. A nest that still hunts stays
@@ -87,7 +91,7 @@ public sealed partial class MobSwarm
         if (hunting && CanRelease(nest) && nest.Inside > 0 && --nest.ReleaseTimer <= 0)
         {
             Release(index, nest);
-            nest.ReleaseTimer = Tweaks.Mobs.ReleaseIntervalTicks;
+            nest.ReleaseTimer = Tweaks.Emberites.ReleaseIntervalTicks;
         }
     }
 
@@ -145,11 +149,11 @@ public sealed partial class MobSwarm
     /// <summary>Whether a creature of nest <paramref name="nest"/> has lately had a clear line to the tank <paramref name="tank"/>.</summary>
     private bool SeenByCreature(int nest, int tank)
     {
-        var span = MobSpan;
+        var span = EmberiteSpan;
         for (int i = 0; i < span.Length; i++)
         {
-            ref readonly Mob mob = ref span[i];
-            if (mob.Nest == nest && mob.Target == tank && mob.Sees && !mob.Gone && _tick - mob.SightTick <= Tweaks.Mobs.SightCheckTicks)
+            ref readonly Emberite emberite = ref span[i];
+            if (emberite.Nest == nest && emberite.Target == tank && emberite.Sees && !emberite.Gone && _tick - emberite.SightTick <= Tweaks.Emberites.SightCheckTicks)
                 return true;
         }
         return false;
@@ -173,13 +177,13 @@ public sealed partial class MobSwarm
         }
         nest.Out++;
         float angle = _rng.NextSingle() - 0.5f;
-        _mobs.Add(new Mob
+        _emberites.Add(new Emberite
         {
             Id = _nextId++,
             Position = new PositionF(nest.Centre.X + angle * nest.Radius, nest.Centre.Y + (_rng.NextSingle() - 0.5f) * nest.Radius),
             Nest = index,
             Target = nest.Target,
-            State = MobState.Hunting,
+            State = EmberiteState.Hunting,
             Charge = charge,
         });
     }
@@ -190,7 +194,7 @@ public sealed partial class MobSwarm
         double want = nest.Resting * _fullCharge - nest.Stored;
         if (want <= 0.0)
             return;
-        double limit = Tweaks.Mobs.RechargeCharges * _fullCharge;
+        double limit = Tweaks.Emberites.RechargeCharges * _fullCharge;
         nest.Stored += _terrain.ExtractEnergyInRadiusArea(nest.Centre, nest.Radius, Math.Min(want, limit), TerrainGrid.ThermalField.Terrain);
     }
 }

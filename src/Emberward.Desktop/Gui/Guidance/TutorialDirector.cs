@@ -59,8 +59,8 @@ public sealed class TutorialDirector
                 static (t, _, _) => t._hasLeftBase,
                 Target: static (_, p) => p.Base is { } b ? b.Position + new Offset(b.Front.X * (Tweaks.Base.BaseSize / 2), b.Front.Y * (Tweaks.Base.BaseSize / 2)) : null),
 
-            new("Mine emberite",
-                "The gold crystal is emberite ore, what everything is paid with. Drive into it to mine it into your hold (MATERIALS). The hold is small: bring it home.",
+            new("Mine pyrite",
+                "The gold crystal is pyrite ore, what everything is paid with. Drive into it to mine it into your hold (MATERIALS). The hold is small: bring it home.",
                 static (_, w, p) => p.OreHeld >= Cost(MachineType.Relay) || OwnsAny(w, p, MachineType.Relay),
                 Progress: static (_, p) => Ratio("Ore", p.OreHeld, Cost(MachineType.Relay))),
 
@@ -87,7 +87,7 @@ public sealed class TutorialDirector
                 Target: static (w, p) => Nearest(w.HotRockPockets, p.Base?.Position ?? p.Position)),
 
             new("Build a harvester",
-                $"Harvesters mine emberite into your base store on their own, while they stand inside your network. Press {Key(MachineType.Harvester)} to build one ({Cost(MachineType.Harvester)} ore) and plant it near ore, inside your network.",
+                $"Harvesters mine pyrite into your base store on their own, while they stand inside your network. Press {Key(MachineType.Harvester)} to build one ({Cost(MachineType.Harvester)} ore) and plant it near ore, inside your network.",
                 static (_, w, p) => OwnsAny(w, p, MachineType.Harvester),
                 Progress: static (w, p) => p.IsCarryingMachine && p.CarriedMachineType == MachineType.Harvester
                     ? ($"Carrying it: drive near ore, inside your network, and press {Key(MachineType.Harvester)}", 1f)

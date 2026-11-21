@@ -9,7 +9,7 @@ using static Emberward.Tests.TankHeatTestHelpers;
 namespace Emberward.Tests;
 
 /// <summary>
-/// DESIGN.md §4.6: off the network a tank must be able to heat itself up with no emberite, by shooting and torching
+/// DESIGN.md §4.6: off the network a tank must be able to heat itself up with no pyrite, by shooting and torching
 /// too much. The floor rises on its own; action heat comes on top of it.
 /// </summary>
 public class OffNetworkActionHeatTests

@@ -14,7 +14,7 @@ using Emberward.Core.Types;
 /// reserve is the off-network clock of §4.6, not a second meter: the heat floor that rises while the tank is outside
 /// its network. This system adds three things to it.
 /// <list type="bullet">
-/// <item>A burn. Off the network with emberite in the hold, the recall key burns a unit (on the first tick held, then
+/// <item>A burn. Off the network with pyrite in the hold, the recall key burns a unit (on the first tick held, then
 /// every <see cref="Tweaks.Reserve.BurnRepeatTicks"/>) instead of recalling: the floor falls by
 /// <see cref="Tweaks.Reserve.FloorDropPerOre"/> degrees and the unit stops warming the tank. No heat is made or
 /// destroyed: the floor only limits how far the tank can cool, and what holds it there is booked where it always was
@@ -48,7 +48,7 @@ public sealed class TankReserveSystem
 
     /// <summary>
     /// Whether the recall key burns for <paramref name="tank"/> instead of recalling: alive, off its network, with
-    /// emberite in the hold and a floor high enough that a unit buys back its whole worth (so a held key wastes none
+    /// pyrite in the hold and a floor high enough that a unit buys back its whole worth (so a held key wastes none
     /// of the hold just outside the network).
     /// </summary>
     public static bool CanBurn(Tank tank) =>

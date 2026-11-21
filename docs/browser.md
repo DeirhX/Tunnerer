@@ -164,7 +164,7 @@ carries the desktop's charge label (charge over capacity, flow in and
 out a second, fed or starved colour), the materials plate adds the base store's production, draw and net and the
 gate shield, and G hides
 or shows the labels. The off-network clock is the tank's reserve: the stage's tag sits beside OFF NETWORK, and
-from the warning on X (or the button over the HUD) burns a unit of emberite from the hold.
+from the warning on X (or the button over the HUD) burns a unit of pyrite from the hold.
 The on-screen controls support touch devices; tap the game to aim and fire, or hold FIRE while driving.
 Escape opens the pause menu. Switching away from the page pauses the local match.
 
@@ -458,7 +458,7 @@ window and graphics dependencies out of the shared rendering assembly.
   the desktop's art strip in the bottom corners on two canvases, TEMP, SHIELD and MATERIALS on the left and BUILD
   STRUCTURES and COMMAND on the right, at the desktop's art coordinates and scale. It ports `HudStrip`,
   `HeatGauge`, `LiquidGauges` and `BuildPanel`: the heat orb with its dial, needle and trend arrow, the shield
-  crystal, the cargo hold filling with pieces of Emberite, the OFF NETWORK tag, the build slots and the COMMAND button (a click
+  crystal, the cargo hold filling with pieces of Pyrite, the OFF NETWORK tag, the build slots and the COMMAND button (a click
   on a slot builds, on COMMAND opens the upgrades). What the slots say comes from the shared `BuildSlotView`, which
   the desktop's `BuildPanel` draws too, and the orb's frozen and boiling states from `HeatScale`. The desktop
   draws the orb's liquid with a shader (`HeatOrbPs`); the canvas draws ice, bubbles and a burning glow instead.

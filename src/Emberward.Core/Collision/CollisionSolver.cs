@@ -6,7 +6,7 @@ using Emberward.Core.Entities;
 using Emberward.Core.Entities.Machines;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Entities.Bases;
-using Emberward.Core.Entities.Mobs;
+using Emberward.Core.Entities.Emberites;
 using Emberward.Core.Network;
 
 /// <summary>
@@ -39,7 +39,7 @@ public class CollisionSolver
     private readonly TerrainGrid _terrain;
     private readonly WorldSectors _tankSectors;
     private readonly TankBases? _bases;
-    private readonly MobSwarm? _mobs;
+    private readonly EmberiteSwarm? _emberites;
     private readonly BasePowerSystem? _basePower;
     private TankList? _tanks;
     private MachineList? _machines;
@@ -55,13 +55,13 @@ public class CollisionSolver
             ? tankBase : null;
 
     /// <param name="basePower">The gate shields (DESIGN.md §4.9); null when the rules run none, and gates stop nothing.</param>
-    /// <param name="mobs">The creatures shots can hit (<see cref="Emberward.Core.Match.MatchRules.Mobs"/>); null where the world has none.</param>
-    public CollisionSolver(TerrainGrid terrain, TankBases? bases = null, BasePowerSystem? basePower = null, MobSwarm? mobs = null)
+    /// <param name="emberites">The creatures shots can hit (<see cref="Emberward.Core.Match.MatchRules.Emberites"/>); null where the world has none.</param>
+    public CollisionSolver(TerrainGrid terrain, TankBases? bases = null, BasePowerSystem? basePower = null, EmberiteSwarm? emberites = null)
     {
         _terrain = terrain;
         _bases = bases;
         _basePower = basePower;
-        _mobs = mobs;
+        _emberites = emberites;
         _tankSectors = new WorldSectors(terrain.Size);
     }
 
@@ -74,7 +74,7 @@ public class CollisionSolver
         _tanks = tanks;
         _machines = machines;
 
-        _mobs?.IndexCreatures();
+        _emberites?.IndexCreatures();
         _tankSectors.Clear();
         for (int i = 0; i < tanks.Tanks.Count; i++)
         {
@@ -94,9 +94,9 @@ public class CollisionSolver
         Func<Tank, bool>? onTank = null,
         Func<Machine, bool>? onMachine = null,
         Func<TerrainPixel, bool>? onTerrain = null,
-        Func<int, bool>? onMob = null)
+        Func<int, bool>? onEmberite = null)
     {
-        if (onMob != null && _mobs != null && _mobs.TestPoint(pos, onMob))
+        if (onEmberite != null && _emberites != null && _emberites.TestPoint(pos, onEmberite))
             return true;
 
         if (onTank != null && _tanks != null)
@@ -143,10 +143,10 @@ public class CollisionSolver
     }
 
     /// <summary>Whether any creature is out to be hit: shots ask before they build a callback for one.</summary>
-    public bool CanHitMobs => _mobs?.HasCreatures == true;
+    public bool CanHitEmberites => _emberites?.HasCreatures == true;
 
-    /// <summary>Kills creature <paramref name="index"/>, an index <c>TestPoint</c>'s <c>onMob</c> was given.</summary>
-    public void KillMob(int index) => _mobs?.Kill(index);
+    /// <summary>Kills creature <paramref name="index"/>, an index <c>TestPoint</c>'s <c>onEmberite</c> was given.</summary>
+    public void KillEmberite(int index) => _emberites?.Kill(index);
 
     /// <summary>
     /// The worst ground under the hull of a tank at <paramref name="pos"/> facing sprite direction

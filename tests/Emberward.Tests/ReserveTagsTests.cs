@@ -35,11 +35,11 @@ public class ReserveTagsTests
     {
         // X never burns unannounced: the prompt is there as soon as a burn is, a quiet hint until the warning.
         var early = View(TankReserveStage.None, canBurn: true);
-        Assert.Equal("Burn emberite  +5s each", ReserveTags.BurnPrompt(early));
+        Assert.Equal("Burn pyrite  +5s each", ReserveTags.BurnPrompt(early));
         Assert.False(ReserveTags.BurnIsUrgent(early));
         Assert.Null(ReserveTags.BurnPrompt(View(TankReserveStage.Degraded, canBurn: false)));
         var warning = View(TankReserveStage.Warning, canBurn: true);
-        Assert.Equal("Burn emberite  +5s each", ReserveTags.BurnPrompt(warning));
+        Assert.Equal("Burn pyrite  +5s each", ReserveTags.BurnPrompt(warning));
         Assert.True(ReserveTags.BurnIsUrgent(warning));
     }
 }

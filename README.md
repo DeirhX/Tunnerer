@@ -68,7 +68,7 @@ full suite.
 | F9 | Thermal view |
 | G | Charge labels over machines: charge / capacity and flow in and out a second (on by default) |
 | F, then 1-3 | Beside one of your relays or turrets: open its upgrade panel, then buy Tap, Sensor or Conduit (relay) or Rapid or Long (turret) from the base ore store; F again closes it |
-| X | Off the network: burn a unit of emberite from the hold for 5 s more reserve (hold to burn 4 a second). Once the reserve has run out and the hold is empty: give up and respawn |
+| X | Off the network: burn a unit of pyrite from the hold for 5 s more reserve (hold to burn 4 a second). Once the reserve has run out and the hold is empty: give up and respawn |
 | Esc / P | Pause menu (resume, controls, sound on/off, volume slider, quit) |
 | F1 | Controls screen |
 | F10 | Screenshot (`screenshots/` next to the executable) |

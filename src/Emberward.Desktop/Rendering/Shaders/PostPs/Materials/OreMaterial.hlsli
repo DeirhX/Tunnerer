@@ -1,8 +1,8 @@
 // ============================================================================
-// Materials/OreMaterial.hlsli — Emberite ore deposits
+// Materials/OreMaterial.hlsli — Pyrite ore deposits
 // ============================================================================
 //
-// Draws emberite from the ore field (see OreField in TerrainAuxPass): x is the
+// Draws pyrite from the ore field (see OreField in TerrainAuxPass): x is the
 // field of every ore cell (kOreIso is the deposit's edge), y the field of the
 // core cells of a lump, z the ore's temperature (the glow dims as it cools).
 //

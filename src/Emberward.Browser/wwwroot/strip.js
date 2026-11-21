@@ -72,7 +72,7 @@ const ART = {
     heat: "hud/heat_icon.png",
     shield: "hud/shield_icon.png",
     materials: "hud/panel_frame.png",
-    orePile: "hud/hold_emberite.png",
+    orePile: "hud/hold_pyrite.png",
     build: "hud/build_panel.png",
 };
 

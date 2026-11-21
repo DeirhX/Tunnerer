@@ -3,10 +3,10 @@ namespace Emberward.Core.Config;
 public static partial class Tweaks
 {
     /// <summary>
-    /// Emberlings, the creatures that nest in emberite pockets and lumps (DESIGN.md §6.2, <c>MobSwarm</c>). Starting
+    /// Emberites, the creatures that nest in pyrite pockets and lumps (DESIGN.md §6.2, <c>EmberiteSwarm</c>). Starting
     /// values; tune in play.
     /// </summary>
-    public static class Mobs
+    public static class Emberites
     {
         // ---- Nests -------------------------------------------------------------------------------------------
         // One nest per pocket and lump at least this far (cells) from every base. A nest holds creatures by deposit
@@ -46,6 +46,10 @@ public static partial class Tweaks
         // the whole nest, once in RechargeIntervalTicks; a killed creature spills what it carries SpillRadius around it.
         public const int ReleaseIntervalTicks = 4;
         public const float BiteDegrees = 2f;
+        // A bite also hurts directly, whatever the tank's heat: BiteDamage health (of the tank's 1000), and takes
+        // BiteStealUnits of pyrite from its hold, all or nothing, which the creature carries home to its nest's store.
+        public const int BiteDamage = 40;
+        public const int BiteStealUnits = 1;
         public const float BiteRange = 5f;
         public const int RechargeIntervalTicks = 4;
         public const double RechargeCharges = 2.0;

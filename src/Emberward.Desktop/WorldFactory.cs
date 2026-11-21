@@ -49,7 +49,7 @@ public static class WorldFactory
             ? BuildTerrainTest(options.TerrainSizeOverride ?? TerrainTestPatternGenerator.DefaultSize)
             : BuildMatch(options.TerrainSizeOverride ?? DesktopScreenTweaks.RenderSurfaceSize,
                 options.GenMode, seed, parallel, options.Players,
-                MatchRules.Standard with { CoreTapWins = options.CoreTapWins, Mobs = true });
+                MatchRules.Standard with { CoreTapWins = options.CoreTapWins, Emberites = true });
         return new BuiltWorld(world, parallel, seed);
     }
 

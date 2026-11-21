@@ -38,7 +38,7 @@ public sealed record MatchRules
         init => field = value >= 0 ? value : throw new ArgumentOutOfRangeException(nameof(FrostRockPockets), value, "Cannot be negative.");
     }
 
-    /// <summary>Level setup seeds emberite deposits (<see cref="LevelGen.OreDeposits"/>).</summary>
+    /// <summary>Level setup seeds pyrite deposits (<see cref="LevelGen.OreDeposits"/>).</summary>
     public bool SeedOre { get; init; }
 
     /// <summary>
@@ -62,17 +62,17 @@ public sealed record MatchRules
 
     /// <summary>
     /// The off-network clock is the tank's reserve (DESIGN.md §4.9, <see cref="Entities.Tanks.TankReserveSystem"/>):
-    /// the recall key burns carried emberite to buy it back, and running out goes through warning, degraded and
+    /// the recall key burns carried pyrite to buy it back, and running out goes through warning, degraded and
     /// stranded before heat death. Off, the clock runs out straight into overheating.
     /// </summary>
     public bool TankReserve { get; init; }
 
     /// <summary>
-    /// Emberlings nest in emberite pockets and lumps, guard the ore and hunt tanks that run hot (DESIGN.md §6.2,
-    /// <see cref="Entities.Mobs.MobSwarm"/>). Needs <see cref="SeedOre"/>: without deposits there are no nests. Off, the
+    /// Emberites nest in pyrite pockets and lumps, guard the ore and hunt tanks that run hot (DESIGN.md §6.2,
+    /// <see cref="Entities.Emberites.EmberiteSwarm"/>). Needs <see cref="SeedOre"/>: without deposits there are no nests. Off, the
     /// world has no swarm and no harvester refuses ore.
     /// </summary>
-    public bool Mobs { get; init; }
+    public bool Emberites { get; init; }
 
     /// <summary>A normal match: hot and frost pockets, ore, regrowth, and the energy rules (the energy network with its gate
     /// shields, machine upgrades and the tank's reserve); the core does not end it.
@@ -105,7 +105,7 @@ public sealed record MatchRules
             hash = Fnv1a.Mix(hash, 0x4D55u);
         if (TankReserve)
             hash = Fnv1a.Mix(hash, 0x5253u);
-        if (Mobs)
+        if (Emberites)
             hash = Fnv1a.Mix(hash, 0x4D4Fu);
         return hash;
     }

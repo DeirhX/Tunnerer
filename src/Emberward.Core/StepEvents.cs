@@ -43,7 +43,7 @@ public enum StepEventKind
 
 
     /// <summary>
-    /// A tank dug a cell of emberite into its hold: <see cref="StepEvent.Count"/> units (a core cell is worth more).
+    /// A tank dug a cell of pyrite into its hold: <see cref="StepEvent.Count"/> units (a core cell is worth more).
     /// </summary>
     OreCollected,
 
@@ -133,7 +133,7 @@ public enum StepEventKind
     TurretFired,
 
     /// <summary>
-    /// A tank off its network burned <see cref="StepEvent.Count"/> units of emberite from its hold to buy back its
+    /// A tank off its network burned <see cref="StepEvent.Count"/> units of pyrite from its hold to buy back its
     /// reserve (<see cref="Entities.Tanks.TankReserveSystem"/>). <see cref="StepEvent.Color"/> is the tank.
     /// </summary>
     ReserveBurned,
@@ -144,14 +144,17 @@ public enum StepEventKind
     /// </summary>
     ReserveStageChanged,
 
-    /// <summary>A nest of emberlings woke; <see cref="StepEvent.Position"/> is the nest, <see cref="StepEvent.Count"/> the creatures in it.</summary>
+    /// <summary>A nest of emberites woke; <see cref="StepEvent.Position"/> is the nest, <see cref="StepEvent.Count"/> the creatures in it.</summary>
     NestWoke,
 
-    /// <summary>An emberling bit a tank, dumping its heat into it. <see cref="StepEvent.Color"/> is the tank.</summary>
-    MobBit,
+    /// <summary>
+    /// An emberite bit a tank, dumping its heat into it and hurting it. <see cref="StepEvent.Color"/> is the tank;
+    /// <see cref="StepEvent.Count"/> is the pyrite the bite took from its hold.
+    /// </summary>
+    EmberiteBit,
 
-    /// <summary>An emberling was killed at <see cref="StepEvent.Position"/>; what it carried spilled into the ground there.</summary>
-    MobKilled,
+    /// <summary>An emberite was killed at <see cref="StepEvent.Position"/>; what it carried spilled into the ground there.</summary>
+    EmberiteKilled,
 }
 
 /// <summary>What a <see cref="StepEventKind.BulletImpact"/> struck.</summary>

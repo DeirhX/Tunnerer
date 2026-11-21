@@ -7,7 +7,7 @@ using Emberward.Core.Entities.Tanks;
 namespace Emberward.Tests;
 
 /// <summary>
-/// Harvesters mine emberite into their base's store while they stand in its network (DESIGN.md §6.4), and working
+/// Harvesters mine pyrite into their base's store while they stand in its network (DESIGN.md §6.4), and working
 /// machines give off heat: a harvester that works dumps energy into the ground beside it.
 /// </summary>
 public class HarvesterHeatTests
@@ -24,7 +24,7 @@ public class HarvesterHeatTests
         for (int d = 0; d < length; d++)
             for (int x = 3; x < 3 + depth; x++)
                 s.World.Terrain.SetPixel(s.RelayPos + new Offset(x, s.DirY * (along + d - length / 2)),
-                    core ? TerrainPixel.EmberiteCore : TerrainPixel.Emberite);
+                    core ? TerrainPixel.PyriteCore : TerrainPixel.Pyrite);
     }
 
     private static int OreAround(RelayHeatTests.Scenario s, int range)

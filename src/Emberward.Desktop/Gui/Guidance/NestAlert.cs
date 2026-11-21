@@ -36,7 +36,7 @@ public static class NestAlert
 
     private static int NestRadius(World world, Position centre)
     {
-        if (world.Mobs is { } swarm)
+        if (world.Emberites is { } swarm)
             foreach (var nest in swarm.Nests)
                 if (nest.Centre == centre)
                     return nest.Radius;

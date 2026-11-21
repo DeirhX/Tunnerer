@@ -23,7 +23,7 @@
 #include "Entity/Beams.hlsli"
 #include "Entity/Overlays.hlsli"
 #include "Entity/PowerLabel.hlsli"
-#include "Entity/Mobs.hlsli"
+#include "Entity/Emberites.hlsli"
 
 float4 main(PSIn input) : SV_Target
 {
@@ -72,7 +72,7 @@ float4 main(PSIn input) : SV_Target
         result = PowerLabel(p, input.color.rgb, input.params);
     else if (kind < kKindTurret + 0.5)
         result = Turret(p, input.params, aa);
-    else // kKindMob
-        result = Mob(p, input.params, aa);
+    else // kKindEmberite
+        result = Emberite(p, input.params, aa);
     return result;
 }

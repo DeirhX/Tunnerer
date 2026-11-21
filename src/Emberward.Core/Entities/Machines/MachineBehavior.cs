@@ -28,7 +28,7 @@ using Emberward.Core.Entities.Projectiles;
 /// its pump rate. Null leaves every machine at its base numbers.
 /// </param>
 /// <param name="IsOreGuarded">
-/// Whether ore at a cell belongs to a nest that still has creatures (<see cref="Match.MatchRules.Mobs"/>): a harvester
+/// Whether ore at a cell belongs to a nest that still has creatures (<see cref="Match.MatchRules.Emberites"/>): a harvester
 /// passes it over, like ore sealed in rock. Null guards nothing.
 /// </param>
 /// <param name="Energy">

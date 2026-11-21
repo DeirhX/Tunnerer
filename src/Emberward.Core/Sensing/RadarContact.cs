@@ -25,7 +25,7 @@ public enum RadarEcho : byte
     Life,
 
     /// <summary>
-    /// Emberite ore cool enough to read. Stops the ray. A speck returns only from near, a deep deposit from further
+    /// Pyrite ore cool enough to read. Stops the ray. A speck returns only from near, a deep deposit from further
     /// (<see cref="RadarReach.OreRangeMin"/>, <see cref="RadarReach.OreRangeMax"/>); a lump's warm core and the ground
     /// it heats return <see cref="Heat"/> instead.
     /// </summary>

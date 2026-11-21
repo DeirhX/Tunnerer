@@ -247,7 +247,7 @@ float3 NaturalMaterialMasks(float3 coverage)
     return total > 1e-4 ? m / total : float3(0.0, 0.0, 0.0);
 }
 
-// Emberite deposits are drawn from their exact cells: x = the field of
+// Pyrite deposits are drawn from their exact cells: x = the field of
 // all ore cells (its kOreIso isoline is the deposit's edge), y = the field of the
 // core cells alone (where the lump glows warm), z = the temperature (degrees) of the ore round
 // here, weighted like x, so the glow dims as the ore cools.

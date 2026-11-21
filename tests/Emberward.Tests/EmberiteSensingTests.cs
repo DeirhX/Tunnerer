@@ -1,7 +1,7 @@
 using Emberward.Core;
 using Emberward.Core.Collision;
 using Emberward.Core.Config;
-using Emberward.Core.Entities.Mobs;
+using Emberward.Core.Entities.Emberites;
 using Emberward.Core.Entities.Tanks;
 using Emberward.Core.Sensing;
 using Emberward.Core.Terrain;
@@ -11,18 +11,18 @@ using Emberward.Desktop.Gui.Guidance;
 namespace Emberward.Tests;
 
 /// <summary>
-/// What emberlings and the radar sense: rock stops a creature's sight and soil does not, a cool tank in sight stays
+/// What emberites and the radar sense: rock stops a creature's sight and soil does not, a cool tank in sight stays
 /// hunted and one behind rock is lost, the heat leash shortens as a tank cools, a cool tank gives no radar echo, and
 /// the local side hears of a nest waking only when it sees or reads the nest.
 /// </summary>
-public class MobSensingTests
+public class EmberiteSensingTests
 {
     // Clear of both bases of the 320 x 200 test map, which stand at (130, 21) and (185, 178).
     private static readonly Position Centre = new(60, 100);
 
     private static (World World, Tank Tank) Arena(TerrainPixel ground)
     {
-        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, mobs: true);
+        var world = TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, emberites: true);
         for (int y = -30; y <= 30; y++)
             for (int x = -60; x <= 60; x++)
                 world.Terrain.SetPixel(Centre + new Offset(x, y), ground);
@@ -54,14 +54,14 @@ public class MobSensingTests
     {
         var (rock, rockTank) = Arena(TerrainPixel.Blank);
         Wall(rock, TerrainPixel.Rock);
-        var rockNest = rock.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 6);
+        var rockNest = rock.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 6);
         rockTank.Position = Centre;
         Tick(rock, rockTank, 90, heat: 90f);
         Assert.False(rockNest.Awake);
 
         var (dirt, dirtTank) = Arena(TerrainPixel.Blank);
         Wall(dirt, TerrainPixel.Dirt);
-        var dirtNest = dirt.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 6);
+        var dirtNest = dirt.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 6);
         dirtTank.Position = Centre;
         Tick(dirt, dirtTank, 90, heat: 90f);
         Assert.True(dirtNest.Awake);
@@ -74,7 +74,7 @@ public class MobSensingTests
     [InlineData(TerrainPixel.Concrete, false)]
     [InlineData(TerrainPixel.Dirt, true)]
     [InlineData(TerrainPixel.DirtGrow, true)]
-    [InlineData(TerrainPixel.Emberite, true)]
+    [InlineData(TerrainPixel.Pyrite, true)]
     [InlineData(TerrainPixel.Blank, true)]
     public void OnlyStoneBlocksACreaturesLine(TerrainPixel pixel, bool clear)
     {
@@ -88,21 +88,21 @@ public class MobSensingTests
     public void ACoolTankInSight_StaysHunted()
     {
         var (world, tank) = Arena(TerrainPixel.Blank);
-        world.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
+        world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
         tank.Position = Centre;
         Tick(world, tank, 20, heat: 80f);
-        Assert.True(world.Mobs.OutCount > 0);
+        Assert.True(world.Emberites.OutCount > 0);
 
         // Cooler than the heat leash allows at any range: only sight keeps it.
         var events = Tick(world, tank, 120, heat: 20f);
-        Assert.Contains(events, e => e.Kind == StepEventKind.MobBit);
+        Assert.Contains(events, e => e.Kind == StepEventKind.EmberiteBit);
     }
 
     [Fact]
     public void ACoolTankBehindRock_IsLost()
     {
         var (world, tank) = Arena(TerrainPixel.Blank);
-        var nest = world.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
+        var nest = world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
         tank.Position = Centre;
         Tick(world, tank, 8, heat: 80f);
         Wall(world, TerrainPixel.Rock);
@@ -110,27 +110,27 @@ public class MobSensingTests
         Tick(world, tank, 400, heat: 20f);
         var late = Tick(world, tank, 100, heat: 20f);
 
-        Assert.DoesNotContain(late, e => e.Kind == StepEventKind.MobBit);
+        Assert.DoesNotContain(late, e => e.Kind == StepEventKind.EmberiteBit);
         Assert.False(nest.Awake);
-        Assert.Equal(0, world.Mobs.OutCount);
+        Assert.Equal(0, world.Emberites.OutCount);
     }
 
     [Fact]
     public void TheHeatLeash_ShrinksAsTheTankCools()
     {
-        Assert.Equal(0f, MobSwarm.HeatLeash(Tweaks.Mobs.LoseScentHeat - 0.1f));
-        Assert.Equal(Tweaks.Mobs.HuntLeashMinCells, MobSwarm.HeatLeash(Tweaks.Mobs.LoseScentHeat));
-        Assert.Equal(Tweaks.Mobs.HuntLeashCells, MobSwarm.HeatLeash(Tweaks.Mobs.FullHeat));
-        Assert.True(MobSwarm.HeatLeash(80f) > MobSwarm.HeatLeash(60f));
-        Assert.True(MobSwarm.HeatLeash(60f) > MobSwarm.HeatLeash(40f));
+        Assert.Equal(0f, EmberiteSwarm.HeatLeash(Tweaks.Emberites.LoseScentHeat - 0.1f));
+        Assert.Equal(Tweaks.Emberites.HuntLeashMinCells, EmberiteSwarm.HeatLeash(Tweaks.Emberites.LoseScentHeat));
+        Assert.Equal(Tweaks.Emberites.HuntLeashCells, EmberiteSwarm.HeatLeash(Tweaks.Emberites.FullHeat));
+        Assert.True(EmberiteSwarm.HeatLeash(80f) > EmberiteSwarm.HeatLeash(60f));
+        Assert.True(EmberiteSwarm.HeatLeash(60f) > EmberiteSwarm.HeatLeash(40f));
 
         // Behind rock, only the heat leash can keep the nest on a tank: 80 cells off is inside it at 48 degrees, 100 is not.
-        float leash = MobSwarm.HeatLeash(48f);
+        float leash = EmberiteSwarm.HeatLeash(48f);
         Assert.InRange(leash, 80f, 100f);
         foreach (var (x, kept) in new[] { (20, true), (0, false) })
         {
             var (world, tank) = Arena(TerrainPixel.Blank);
-            var nest = world.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
+            var nest = world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
             tank.Position = Centre;
             Tick(world, tank, 8, heat: 80f);
             Wall(world, TerrainPixel.Rock);
@@ -183,8 +183,8 @@ public class MobSensingTests
         var near = Centre + new Offset(30, 0);
         var mid = Centre + new Offset(55, 0);
         var far = Centre + new Offset(58, 20);
-        world.Mobs!.AddNest(near, radius: 4, creatures: 3);
-        world.Mobs.AddNest(mid, radius: 12, creatures: 3); // wide enough for the radar's rays to find
+        world.Emberites!.AddNest(near, radius: 4, creatures: 3);
+        world.Emberites.AddNest(mid, radius: 12, creatures: 3); // wide enough for the radar's rays to find
         world.TrackVision(player);
         Tick(world, player, 3, heat: 20f);
 
@@ -204,15 +204,15 @@ public class MobSensingTests
     public void ACreatureThatHasLookedForSight_RoundTripsThroughASnapshot()
     {
         var (world, tank) = Arena(TerrainPixel.Blank);
-        world.Mobs!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
+        world.Emberites!.AddNest(Centre + new Offset(40, 0), radius: 4, creatures: 12);
         tank.Position = Centre;
         Tick(world, tank, 20, heat: 80f);
         // Cool: creatures now keep the tank by sight, so each has looked (SightTick, Sees) when the snapshot is taken.
         Tick(world, tank, 12, heat: 20f);
-        Assert.True(world.Mobs.OutCount > 0);
+        Assert.True(world.Emberites.OutCount > 0);
 
         SnapshotRoundTrip.AssertPlaysOnAlike(world, [null, null],
-            () => TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, mobs: true), ticks: 60,
+            () => TestHelpers.CreateSeededWorld(enableTerrainRegrowth: false, emberites: true), ticks: 60,
             (_, _) => default, firstFrame: 32, before: (w, _) => w.TankList.Tanks[0].Heat = 20f);
     }
 }

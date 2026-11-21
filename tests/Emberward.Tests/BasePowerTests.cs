@@ -68,7 +68,7 @@ public class BasePowerTests
         world.Machines.Add(harvester);
         world.PlantMachine(harvester, home);
         Position ore = harvester.Position + new Offset(3, 0);
-        world.Terrain.SetPixel(ore, TerrainPixel.Emberite);
+        world.Terrain.SetPixel(ore, TerrainPixel.Pyrite);
         home.TakeDamage(100);
         tank.TakeDamage(100, DamageCause.Overheat);
         home.DrawCharge(home.Charge);
@@ -83,7 +83,7 @@ public class BasePowerTests
         TestSimulation.AdvanceIdle(world, frames: 20);
         Assert.True(world.IsBaseDark(home));
         Assert.Equal(Tweaks.Base.RestartCharge - 1.0, home.Charge);
-        Assert.Equal(TerrainPixel.Emberite, world.Terrain.GetPixelRaw(ore));
+        Assert.Equal(TerrainPixel.Pyrite, world.Terrain.GetPixelRaw(ore));
         Assert.Equal(Tweaks.Base.InitialHealth - 100, (int)home.Reactor.Health);
 
         home.StoreCharge(1);

@@ -31,7 +31,7 @@ public class BrowserTerrainTests
         byte[][] hidden = Snapshot(renderer);
         Assert.Equal(TerrainGrid.HeatToByte(0), hidden[BrowserTerrain.Aux][0]);
 
-        terrain.SetPixel(new Position(16, 16), TerrainPixel.Emberite);
+        terrain.SetPixel(new Position(16, 16), TerrainPixel.Pyrite);
         terrain.AddHeat(new Position(16, 16), 255);
         vision.Update(terrain, [], [new Position(16, 16)]);
         StepAndDraw(renderer, view, 1);
@@ -46,7 +46,7 @@ public class BrowserTerrainTests
     {
         var terrain = new TerrainGrid(new Size(32, 32));
         var cell = new Position(16, 16);
-        terrain.SetPixel(cell, TerrainPixel.Emberite);
+        terrain.SetPixel(cell, TerrainPixel.Pyrite);
         var vision = new VisionMap(terrain);
         vision.Update(terrain, [new VisionSource(cell, 4, 4)], []);
         vision.Update(terrain, [], []);

@@ -86,7 +86,7 @@ float4 NetworkCoverage(float2 p, float3 tint, float4 params, float aa)
 // life. Green for rock and walls, amber for metal (machines), a dim blue-green for the weak return of a
 // cave: a small dot with a soft glow, dimmer the more heat the ray crossed (data.r). Hot ground the ray went through,
 // or a thing too hot to read, is a red dot instead, more opaque the hotter the cell (data.r). Something
-// alive (another tank) is a white-violet dot in a ring. Emberite ore is a small crystal: a gold diamond with a
+// alive (another tank) is a white-violet dot in a ring. Pyrite ore is a small crystal: a gold diamond with a
 // pale heart, the one blip that is not round.
 float4 RadarBlip(float2 p, float3 data, float4 params, float aa)
 {

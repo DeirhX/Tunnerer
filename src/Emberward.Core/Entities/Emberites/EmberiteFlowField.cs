@@ -1,4 +1,4 @@
-namespace Emberward.Core.Entities.Mobs;
+namespace Emberward.Core.Entities.Emberites;
 
 using Emberward.Core.Config;
 using Emberward.Core.Snapshots;
@@ -9,14 +9,14 @@ using Emberward.Core.Types;
 /// A coarse cost-to-goal field over a window of blocks around a goal (a hunted tank, or a nest to go home to): where
 /// each block costs what crossing it takes at the creatures' speeds (open ground fast, soil slow, rock and bases
 /// never), so a creature that steps to the cheapest neighbour prefers a tunnel to a shorter line through dirt.
-/// Rebuilt every <see cref="Tweaks.Mobs.FieldRefreshTicks"/> while something reads it. It is built from terrain as it
+/// Rebuilt every <see cref="Tweaks.Emberites.FieldRefreshTicks"/> while something reads it. It is built from terrain as it
 /// was, so it is part of a snapshot.
 /// </summary>
-public sealed class MobFlowField
+public sealed class EmberiteFlowField
 {
     private const int Unreachable = int.MaxValue;
-    private const int Window = Tweaks.Mobs.FieldWindowBlocks;
-    private const int Block = Tweaks.Mobs.FieldBlockCells;
+    private const int Window = Tweaks.Emberites.FieldWindowBlocks;
+    private const int Block = Tweaks.Emberites.FieldBlockCells;
 
     /// <summary>What the field leads to: 0 a tank (<see cref="Id"/> its index), 1 a nest (its index).</summary>
     public int Kind { get; init; }
@@ -49,13 +49,13 @@ public sealed class MobFlowField
 
     /// <summary>Whether the field is out of date for a goal now at <paramref name="goal"/>.</summary>
     public bool NeedsBuild(Position goal) =>
-        !IsBuilt || Age >= Tweaks.Mobs.FieldRefreshTicks || GoalBlock != new Position(goal.X / Block, goal.Y / Block);
+        !IsBuilt || Age >= Tweaks.Emberites.FieldRefreshTicks || GoalBlock != new Position(goal.X / Block, goal.Y / Block);
 
     /// <summary>
     /// Builds the field around <paramref name="goal"/> by Dijkstra over the window's blocks. A nest's ground
     /// (<paramref name="zoneCentre"/>, <paramref name="zoneRadius"/>) counts as soil, which its creatures burrow freely.
     /// </summary>
-    internal void Build(TerrainGrid terrain, Position goal, PriorityQueue<int, long> queue, MobTrails trails, int tick, Position zoneCentre = default, int zoneRadius = 0)
+    internal void Build(TerrainGrid terrain, Position goal, PriorityQueue<int, long> queue, EmberiteTrails trails, int tick, Position zoneCentre = default, int zoneRadius = 0)
     {
         GoalBlock = new Position(goal.X / Block, goal.Y / Block);
         OriginX = GoalBlock.X - Window / 2;
@@ -152,10 +152,10 @@ public sealed class MobFlowField
                 var cell = new Position(x, y);
                 if (!terrain.IsInside(cell))
                     return -1;
-                switch (MobSwarm.Classify(terrain.GetPixelRaw(cell), cell, zoneCentre, zoneRadius))
+                switch (EmberiteSwarm.Classify(terrain.GetPixelRaw(cell), cell, zoneCentre, zoneRadius))
                 {
-                    case MobGround.Open: open++; break;
-                    case MobGround.Soil: soil++; break;
+                    case EmberiteGround.Open: open++; break;
+                    case EmberiteGround.Soil: soil++; break;
                     default: blocked++; break;
                 }
             }
@@ -168,12 +168,12 @@ public sealed class MobFlowField
             soil = 0;
         }
         int passable = open + soil;
-        return (open * Tweaks.Mobs.OpenBlockCost + soil * Tweaks.Mobs.SoilBlockCost) / passable;
+        return (open * Tweaks.Emberites.OpenBlockCost + soil * Tweaks.Emberites.SoilBlockCost) / passable;
     }
 }
 
 /// <summary>What a creature finds in a cell.</summary>
-public enum MobGround : byte
+public enum EmberiteGround : byte
 {
     /// <summary>Open ground: a tunnel, scorch. They run through it.</summary>
     Open,
