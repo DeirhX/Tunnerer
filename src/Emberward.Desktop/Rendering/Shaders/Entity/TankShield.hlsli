@@ -22,6 +22,9 @@ float4 TankShield(float2 p, float3 team, float4 params, float aa)
     float fill = params.x;
     float age = saturate(params.y);
     float2 hit = params.zw;
+    // The impact cell is on the hull, a few cells inside the bubble: show the patch on the bubble where the shot came in.
+    float hitLength = length(hit);
+    hit = hit * (hitLength > 0.01 ? (kTankShieldRadius - 1.2) / hitLength : 1.0);
     float fade = 1.0 - age;
     float r = length(p);
 

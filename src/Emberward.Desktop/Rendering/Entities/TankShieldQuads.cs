@@ -33,7 +33,11 @@ public sealed class TankShieldQuads
     public void CaptureStep(World world)
     {
         _step++;
-        _pulses.RemoveAll(p => _step - p.Step >= PulseSteps + 1);
+        for (int i = _pulses.Count - 1; i >= 0; i--)
+        {
+            if (_step - _pulses[i].Step >= PulseSteps + 1)
+                _pulses.RemoveAt(i);
+        }
         foreach (ref readonly StepEvent e in world.StepEvents)
         {
             if (e.Kind is not (StepEventKind.TankShieldHit or StepEventKind.TankShieldBroken))

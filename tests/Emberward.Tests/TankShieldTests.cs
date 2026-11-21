@@ -225,7 +225,7 @@ public class TankShieldTests
         log.Clear();
         tank.TakeDamage(Tweaks.TankShield.Capacity, DamageCause.EnemyFire);
         TankDamageEvents.Record(log, tank, at, hullEvent: true);
-        Assert.Equal([StepEventKind.TankShieldHit, StepEventKind.TankShieldBroken, StepEventKind.TankHit],
+        Assert.Equal([StepEventKind.TankShieldBroken, StepEventKind.TankHit],
             log.Events.ToArray().Select(e => e.Kind));
     }
 

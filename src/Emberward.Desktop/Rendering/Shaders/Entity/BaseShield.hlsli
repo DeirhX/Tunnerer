@@ -64,7 +64,7 @@ float4 BaseShield(float2 p, float3 team, float4 params, float aa)
     // Additive: a hit lights the whole shell for a moment.
     result.rgb += shellColor * (shellAlpha + live * glow * 0.45 * rim);
     // A gate hit lights the veins of the whole shell for a moment, not only its rim.
-    float veinBand = step(d, 0.0) * saturate(1.0 + (d + 7.0) * 0.5);
+    float veinBand = step(d, 0.0) * saturate(1.0 + (d + 2.5) * 0.8);
     result.rgb += tint * live * glow * veinBand * VeinLines(p * 0.3, 0.09) * 1.4;
 
     // A dark base has no shell: sparks crawl along its wall instead.
