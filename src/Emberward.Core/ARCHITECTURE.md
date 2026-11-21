@@ -102,7 +102,7 @@ Collision/
   Raycaster.cs               Bresenham lines; HasOpenLine (the one line-of-sight test)
 Input/
   Controller.cs              ControllerOutput
-  ControllerOutputCodec.cs   ControllerOutput as 31 bits (network, input logs); quantises the aim
+  ControllerOutputCodec.cs   ControllerOutput as 32 bits (network, input logs); quantises the aim
 Bots/                        The computer player: produces a ControllerOutput like a person would
   BotTankAI.cs               The bot's mode machine (TwitchMode)
   BotNavigator.cs, BotGunner.cs, BotBehaviorProfile.cs   Bot movement, fire decisions, play styles

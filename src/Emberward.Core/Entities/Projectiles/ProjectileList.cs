@@ -135,7 +135,7 @@ public class ProjectileList
                     // A gate is open ground to its owner's shells. An enemy's stop on it while the gate shield
                     // holds, and wear the shield down.
                     if (Pixel.IsBaseGate(pix))
-                        return self.HitsGate(solver, ipos, p);
+                        return self.HitsGate(solver, ipos, p, bursts);
                     if (!Pixel.IsAnyCollision(pix)) return false;
                     // A round passes through a few cells of soil. Two samples of one tick may fall in one cell,
                     // which counts once.
@@ -193,9 +193,10 @@ public class ProjectileList
 
     /// <summary>
     /// Whether <paramref name="bullet"/> stops on the gate cell at <paramref name="at"/>: an enemy's does while the
-    /// gate shield holds, and the shield takes its damage (<see cref="BasePowerSystem.AbsorbGateHit"/>).
+    /// gate shield holds, and the shield takes its damage (<see cref="BasePowerSystem.AbsorbGateHit"/>). A shot that does
+    /// not burst (a round) makes no impact sound.
     /// </summary>
-    private bool HitsGate(CollisionSolver solver, Position at, Projectile bullet)
+    private bool HitsGate(CollisionSolver solver, Position at, Projectile bullet, bool bursts)
     {
         if (_basePower == null || solver.EnemyBaseAt(at, bullet.OwnerColor) is not { } target)
             return false;
@@ -204,7 +205,8 @@ public class ProjectileList
             return false;
         _events?.Record(new StepEvent(hit == GateHit.Broken ? StepEventKind.BaseShieldBroken : StepEventKind.BaseShieldHit,
             at, target.Color));
-        RecordImpact(at, bullet, ImpactTarget.Base);
+        if (bursts)
+            RecordImpact(at, bullet, ImpactTarget.Base);
         return true;
     }
 
