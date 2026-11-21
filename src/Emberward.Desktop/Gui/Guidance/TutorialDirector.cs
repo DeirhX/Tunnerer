@@ -32,9 +32,22 @@ public sealed class TutorialDirector
         string? EnergyBody = null,
         float? EnergyReadSeconds = null);
 
+    /// <summary>Title of the step that explains the network circles: the first that may mention being off it.</summary>
+    public const string NetworkStepTitle = "Stay on your network";
+
+    /// <summary>Title of the step that opens the base upgrades.</summary>
+    public const string UpgradeStepTitle = "Upgrade";
+
+    /// <summary>
+    /// Seconds a step stays up once the player has done it, so a fast player still sees what each step says. A step
+    /// that is already done when it comes up is skipped at once: nothing is held back from a player who is ahead.
+    /// </summary>
+    private const float MinStepSeconds = 4f;
+
     private readonly Step[] _steps;
     private int _index;
     private float _shownSince = float.NaN;
+    private bool _doneOnArrival;
 
     // Things the tutorial has seen happen, for steps about experiences rather than state.
     private bool _hasLeftBase;
@@ -46,6 +59,9 @@ public sealed class TutorialDirector
     private bool _unloadedHaul;
 
     public bool IsComplete => _index >= _steps.Length;
+
+    /// <summary>True once the tutorial has come to the step titled <paramref name="title"/>, or is over.</summary>
+    public bool HasReached(string title) => _index >= Array.FindIndex(_steps, s => s.Title == title);
 
     /// <summary>Seconds the current step has been shown.</summary>
     private float ShownFor(float now) => float.IsNaN(_shownSince) ? 0f : now - _shownSince;
@@ -75,7 +91,7 @@ public sealed class TutorialDirector
                 Progress: static (w, p) => p.IsCarryingMachine ? ($"Carrying it: find a spot with a green line, then press {Key(MachineType.Relay)}", 1f)
                     : Ratio("Ore you can spend", p.QuoteBuild(MachineType.Relay).Stock, Cost(MachineType.Relay))),
 
-            new("Stay on your network",
+            new(NetworkStepTitle,
                 "The pale circles are your network. Inside them the links pull heat out of your tank and your hold unloads into the base. Outside, the OFF NETWORK clock runs: get back before it reaches 0, or plant another relay to reach further.",
                 static (t, _, _) => t._cameBackCovered,
                 ReadSeconds: 14f),
@@ -109,7 +125,7 @@ public sealed class TutorialDirector
                 EnergyReadSeconds: 0f,
                 EnergyBody: $"Harvesters draw charge through the network. Press {Key(MachineType.Generator)} to build a generator ({Cost(MachineType.Generator)} ore) and plant it beside hot ground. A generator can power nearby machines through their links even when cut off from the base."),
 
-            new("Upgrade",
+            new(UpgradeStepTitle,
                 "Dock and press 1-7 to spend the base ore store: radiator, network reach, engine, insulation and sensors for the base, a bigger cargo hold and a longer radar for your tank.",
                 static (_, _, p) => p.Base is { } b && Enumerable.Range(0, BaseUpgrades.Count).Any(i => b.Upgrades.Level((BaseUpgrade)i) > 0),
                 Progress: static (_, p) => p.Base is { } b
@@ -157,11 +173,16 @@ public sealed class TutorialDirector
         Observe(world, player);
         while (_index < _steps.Length)
         {
-            if (float.IsNaN(_shownSince))
-                _shownSince = now;
             var step = _steps[_index];
+            bool stateDone = step.IsDone(this, world, player);
+            if (float.IsNaN(_shownSince))
+            {
+                _shownSince = now;
+                _doneOnArrival = stateDone;
+            }
             float read = world.Rules.EnergyNetwork ? step.EnergyReadSeconds ?? step.ReadSeconds : step.ReadSeconds;
-            bool done = step.IsDone(this, world, player) || (read > 0f && ShownFor(now) >= read);
+            bool done = (stateDone && (_doneOnArrival || ShownFor(now) >= MinStepSeconds)) ||
+                        (read > 0f && ShownFor(now) >= read);
             if (!done)
                 break;
             _index++;

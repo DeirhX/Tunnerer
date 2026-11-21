@@ -25,6 +25,12 @@ public sealed class PlayerGuidance
     /// <summary>The tutorial step to show, or null while the tank is dead and once the tutorial is over.</summary>
     public TutorialPrompt? Tutorial { get; private set; }
 
+    /// <summary>
+    /// Whether the base upgrade panel may open when the tank docks: not until the tutorial has come to upgrades (or
+    /// is over), so the first minutes are not crowded with seven options the player cannot yet use.
+    /// </summary>
+    public bool ShowUpgradePanel => _tutorial.HasReached(TutorialDirector.UpgradeStepTitle);
+
     /// <summary>The toasts showing now, oldest first.</summary>
     public IReadOnlyList<Notification> Notifications => _feed.Active;
 
@@ -50,7 +56,8 @@ public sealed class PlayerGuidance
             _feed.Clear();
         }
 
-        _events.Update(world, player, _feed, now);
+        _events.Update(world, player, _feed, now,
+            introQuiet: !_tutorial.HasReached(TutorialDirector.NetworkStepTitle));
         _feed.Update(now);
         Tutorial = player.IsDead ? null : _tutorial.Update(world, player, now);
         if (Tutorial == null && _tutorial.IsComplete && float.IsNaN(_tutorialDoneAt))

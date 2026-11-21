@@ -33,7 +33,7 @@ public partial class GameHud
     private void DrawUpgradePanel(Tank player)
     {
         _upgradePanelTop = float.PositiveInfinity;
-        if (!player.IsDockedAtOwnBase || player.Base is not { } home)
+        if (!_guidance.ShowUpgradePanel || !player.IsDockedAtOwnBase || player.Base is not { } home)
             return;
 
         var vp = ViewportRect;

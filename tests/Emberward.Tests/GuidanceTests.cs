@@ -31,7 +31,9 @@ public class GuidanceTests
         Assert.NotNull(first.Value.Target);
 
         s.Tank.Position = OutsideTheDoor(s);
-        var next = tutorial.Update(s.World, s.Tank, 1f);
+        // Done at once, but the step stays up for a few seconds so it can be read.
+        Assert.Equal("Leave the base", tutorial.Update(s.World, s.Tank, 1f)!.Value.Title);
+        var next = tutorial.Update(s.World, s.Tank, 5f);
         Assert.Equal("Mine pyrite", next!.Value.Title);
         Assert.Contains("/ " + Tweaks.Ore.RelayCost, next.Value.Progress);
     }
@@ -62,6 +64,39 @@ public class GuidanceTests
         Assert.Equal("Stay on your network", tutorial.Update(s.World, s.Tank, 0f)!.Value.Title);
         Assert.Equal("Stay on your network", tutorial.Update(s.World, s.Tank, 5f)!.Value.Title);
         Assert.NotEqual("Stay on your network", tutorial.Update(s.World, s.Tank, 30f)!.Value.Title);
+    }
+
+    [Fact]
+    public void Tutorial_HoldsUpgradesBack_UntilItReachesThem()
+    {
+        var s = RelayHeatTests.CreateScenario();
+        var guidance = new PlayerGuidance();
+        guidance.Update(s.World, s.Tank, 0f, offerThermalView: false);
+        Assert.False(guidance.ShowUpgradePanel);
+
+        var tutorial = new TutorialDirector();
+        Assert.False(tutorial.HasReached(TutorialDirector.NetworkStepTitle));
+        tutorial.Skip();
+        Assert.True(tutorial.HasReached(TutorialDirector.NetworkStepTitle));
+        Assert.True(tutorial.HasReached(TutorialDirector.UpgradeStepTitle));
+    }
+
+    [Fact]
+    public void Events_LeavingTheNetworkIsNotToasted_UntilTheTutorialHasExplainedIt()
+    {
+        foreach (bool introQuiet in new[] { true, false })
+        {
+            var s = RelayHeatTests.CreateScenario();
+            var feed = new NotificationFeed();
+            var events = new GameEventWatcher();
+            events.Update(s.World, s.Tank, feed, 0f, introQuiet);
+            s.Tank.Position = s.Base.Position + new Offset(0, s.DirY * 80);
+            Advance(s, 2);
+            Assert.True(s.Tank.IsOffNetwork);
+            events.Update(s.World, s.Tank, feed, 1f, introQuiet);
+
+            Assert.Equal(!introQuiet, feed.Active.Any(n => n.Key == "off-network"));
+        }
     }
 
     [Fact]

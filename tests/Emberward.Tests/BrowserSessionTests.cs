@@ -241,8 +241,13 @@ public class BrowserSessionGuidanceTests
         // Out of the base, the tutorial moves on after the next step, as the desktop's does.
         session.Player.Position = home.Position + new Offset(0, Tweaks.Base.BaseSize / 2 + 8);
         session.Advance(default);
+        // The finished step stays up a few seconds so it can be read.
+        Assert.Equal("Leave the base", BrowserFrameBuilder.Capture(session, includeEvents: false).Guidance.Tutorial?.Title);
+        for (int tick = 0; tick < 5 * Tweaks.Perf.TargetFps; tick++)
+            session.Advance(default);
         var outside = BrowserFrameBuilder.Capture(session, includeEvents: false);
         Assert.Equal("Mine pyrite", outside.Guidance.Tutorial?.Title);
+        Assert.False(outside.Guidance.ShowUpgrades);
         Assert.Contains("\"guidance\":{\"tutorial\":", JsonSerializer.Serialize(outside, BrowserJsonContext.Default.BrowserFrame),
             StringComparison.Ordinal);
     }

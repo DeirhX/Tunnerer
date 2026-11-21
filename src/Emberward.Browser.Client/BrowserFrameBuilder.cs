@@ -139,7 +139,7 @@ public static class BrowserFrameBuilder
         WarningLine? warning = guidance.Warning is { } w
             ? new WarningLine(w.Kind.ToString(), w.Title, w.Detail, w.Tone.ToString(), w.Blinks)
             : null;
-        return new GuidanceStatus(tutorial, toasts, new HintLine(hint, tone.ToString()), warning);
+        return new GuidanceStatus(tutorial, toasts, new HintLine(hint, tone.ToString()), warning, guidance.ShowUpgradePanel);
     }
 
     /// <summary>A toast's colour, in the tones the hint and the warnings use.</summary>
