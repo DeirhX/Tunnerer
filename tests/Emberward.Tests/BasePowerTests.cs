@@ -14,6 +14,8 @@ using Emberward.Core.Resources;
 using Emberward.Core.Snapshots;
 using Emberward.Core.Terrain;
 using Emberward.Core.Types;
+using Emberward.Desktop.Gui.Guidance;
+using Emberward.Desktop.Rendering.Entities;
 
 public class BasePowerTests
 {
@@ -372,5 +374,38 @@ public class BasePowerTests
         Assert.Equal(tank.Base!.SpawnPosition, tank.Position);
         Assert.Equal(0, tank.OreHeld);
         Assert.Contains(world.StepEvents.ToArray(), e => e.Kind == StepEventKind.TankRespawned);
+    }
+
+    [Fact]
+    public void ACoreHit_DoesNotFlashTheShield_ButAGateHitDoes()
+    {
+        var gate = CreateWorld();
+        var gateQuads = new BaseShieldQuads();
+        FireAtWestSide(gate, gate.TankBases.Bases[1], owner: 0);
+        gateQuads.CaptureStep(gate);
+        Assert.Equal(1, gateQuads.ImpactCount);
+
+        var core = CreateWorld();
+        var coreQuads = new BaseShieldQuads();
+        int ticks = FireAtCore(core, core.TankBases.Bases[1], owner: 0);
+        Assert.True(ticks > 0, "the diagonal shell must reach the core");
+        coreQuads.CaptureStep(core);
+        Assert.Equal(0, coreQuads.ImpactCount);
+    }
+
+    [Fact]
+    public void ABrokenGate_WarnsItsOwnSide_UnderItsOwnKey()
+    {
+        var world = CreateWorld();
+        var target = world.TankBases.Bases[1];
+        var player = world.TankList.Tanks.Single(tank => tank.Color == target.Color);
+        var feed = new NotificationFeed();
+        var watcher = new GameEventWatcher();
+
+        BreakShield(world, target, owner: 0);
+        watcher.AfterStep(world, player);
+        watcher.Update(world, player, feed, 1f);
+
+        Assert.Contains(feed.Active, n => n.Key == "base-gates-open");
     }
 }

@@ -34,7 +34,6 @@ public sealed class BaseShieldQuads
         public Position Cell;
         public int Color;
         public float Strength;
-        public bool Destroyed;
         public long Step;
     }
 
@@ -81,17 +80,21 @@ public sealed class BaseShieldQuads
             if (e.Kind is not (StepEventKind.BaseDamaged or StepEventKind.BaseDestroyed
                 or StepEventKind.BaseShieldHit or StepEventKind.BaseShieldBroken))
                 continue;
-            _impacts[_impactNext] = new Impact
+            // Only a gate hit is something the shield stopped, so only a gate hit flashes the shield. A core hit still
+            // counts as the base being hit (for its bar and its warning), but it does not flash the shield.
+            if (e.Kind is StepEventKind.BaseShieldHit or StepEventKind.BaseShieldBroken)
             {
-                Cell = e.Position,
-                Color = e.Color,
-                // The gate shield as it stands after the hit (0 for a spent shield or a fallen base).
-                Strength = StrengthOf(e.Color),
-                Destroyed = e.Kind == StepEventKind.BaseDestroyed,
-                Step = _step,
-            };
-            _impactNext = (_impactNext + 1) % MaxImpacts;
-            _impactCount = Math.Min(MaxImpacts, _impactCount + 1);
+                _impacts[_impactNext] = new Impact
+                {
+                    Cell = e.Position,
+                    Color = e.Color,
+                    // The gate shield as it stands after the hit (0 for a spent shield).
+                    Strength = StrengthOf(e.Color),
+                    Step = _step,
+                };
+                _impactNext = (_impactNext + 1) % MaxImpacts;
+                _impactCount = Math.Min(MaxImpacts, _impactCount + 1);
+            }
             _lastHit[e.Color] = _step;
             for (int i = 0; i < _bases.Count; i++)
             {
@@ -114,6 +117,9 @@ public sealed class BaseShieldQuads
         }
         return 0f;
     }
+
+    /// <summary>How many gate-hit flashes the shell is showing (the impacts a step captured, up to <c>MaxImpacts</c>).</summary>
+    public int ImpactCount => _impactCount;
 
     public void Emit(EntityQuads quads, VisionMap? vision)
     {
@@ -152,7 +158,7 @@ public sealed class BaseShieldQuads
             if (quads.IsOffScreen(cx, cy, (radius + 2f) * scale))
                 continue;
             quads.Add(cx, cy, 1f, 0f, -radius, radius, -radius, radius, TeamColour(hit.Color), EntityShape.KindShieldHit,
-                age / ImpactSteps, hit.Strength, hit.Destroyed ? 1f : 0f, 0f);
+                age / ImpactSteps, hit.Strength, 0f, 0f);
         }
     }
 

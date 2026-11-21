@@ -126,7 +126,8 @@ public sealed class GameEventWatcher
                 feed.Post(now, "base-destroyed", "Your base was destroyed",
                     "Without a base your tank cannot respawn.", NotificationKind.Danger, cooldown: 1e9f);
             else
-                feed.Post(now, "base-attacked", "Your base is under attack",
+                // The gates-open warning has its own key, so it is not held back by the shield-taking one.
+                feed.Post(now, _baseShieldBroken ? "base-gates-open" : "base-attacked", "Your base is under attack",
                     _baseShieldBroken
                         ? "Its gate shield is spent and the gates stand open. Drive off the attacker and keep the base charged."
                         : _baseCoreHit

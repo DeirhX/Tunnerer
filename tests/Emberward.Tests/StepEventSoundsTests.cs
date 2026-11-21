@@ -23,6 +23,8 @@ public class StepEventSoundsTests
     [InlineData(StepEventKind.TankRespawned, SoundEffect.Respawn)]
     [InlineData(StepEventKind.BaseDamaged, SoundEffect.TankHit)]
     [InlineData(StepEventKind.BaseDestroyed, SoundEffect.TankDeath)]
+    [InlineData(StepEventKind.BaseShieldHit, SoundEffect.TankHit)]
+    [InlineData(StepEventKind.BaseShieldBroken, SoundEffect.TankHit)]
     [InlineData(StepEventKind.MachinePlanted, SoundEffect.Plant)]
     [InlineData(StepEventKind.PlantRefused, SoundEffect.PlantRefused)]
     [InlineData(StepEventKind.Docked, SoundEffect.Dock)]

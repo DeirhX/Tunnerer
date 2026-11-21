@@ -5,7 +5,7 @@
 // The shell follows the base's shield: bright and steady when it is strong, thin and flickering red when weak, absent
 // when the base is dark (only sparks run along its wall). Bars above the base show armor and shield while it is hurt.
 // Hit flashes are small quads at the cell a bullet struck: a ring that spreads and fades, cool when the shield took the
-// hit, hot when it was weak. Params are documented in Layout.hlsli (kinds 18 and 19).
+// hit, hot when it was weak. Params are documented in Layout.hlsli (kinds 19 and 20).
 // ============================================================================
 
 #ifndef EMBERWARD_ENTITY_BASESHIELD_HLSLI
@@ -88,7 +88,8 @@ float4 ShieldHit(float2 p, float3 team, float4 params, float aa)
     float r = length(p);
     float radius = lerp(1.2, 7.5, 1.0 - fade * fade);
     float width = 0.7 + age * 1.1;
-    float ring = exp(-pow((r - radius) / width, 2.0)) * fade;
+    float ringOffset = (r - radius) / width;
+    float ring = exp(-ringOffset * ringOffset) * fade;
     float core = exp(-r * r * 0.6) * fade * fade;
     float3 color = lerp(kShieldHot, lerp(kShieldCool, team, 0.25), strength);
     color = lerp(color, float3(1.0, 0.9, 0.7), destroyed);
