@@ -28,23 +28,31 @@ public class OffNetworkActionHeatTests
     }
 
     [Fact]
-    public void OffNetwork_ShootingAndTorching_HeatTheTankAboveTheIdleFloor_AndTheLedgerBalances()
+    public void OffNetwork_ShootingAndTorching_HeatsTheTank_AndTheLedgerBalances()
     {
-        var idle = RunOffNetwork(shootAndTorch: false, out _, out _);
-        var busy = RunOffNetwork(shootAndTorch: true, out int shots, out int dug);
+        // The same run twice: once as the game plays it, and once with shot and dig heat set to zero. Both torch the same
+        // cells into the same ground, so the difference in the tank's heat is the action heat it kept.
+        var withHeat = RunOffNetwork(SimulationSettings.FromTweaks(), out int shots, out int dug);
+        var withoutHeat = RunOffNetwork(
+            SimulationSettings.FromTweaks() with { TankHeatShootPerShot = 0f, TankHeatDigPerPixel = 0f }, out _, out _);
 
         Assert.True(shots >= 5 && dug >= 20, $"the run must shoot and torch. shots={shots} dug={dug}");
         float actionHeat = shots * Tweaks.Tank.HeatShootPerShot + dug * Tweaks.Tank.HeatDigPerPixel;
-        // The tank sheds a little into the ground meanwhile, so allow for that; the heat must still be there.
-        Assert.True(busy.Heat - idle.Heat > 0.6f * actionHeat,
-            $"action heat must show on a tank with no ore. rise={busy.Heat - idle.Heat:0.000} action={actionHeat:0.000}");
-        Assert.True(busy.IsOffNetwork);
-        Assert.True(busy.Heat - busy.OffNetworkFloor > 0.5f * actionHeat, "heat above the floor is not clamped away");
+        float kept = withHeat.Heat - withoutHeat.Heat;
+        // Most of the action heat leaves again within the run: the tank conducts heat into the air and the ground
+        // the whole time. A quarter stays (measured about 0.27 when this was written), and a zero action heat would
+        // keep none, so this bound is what tells the two runs apart.
+        Assert.True(kept > 0.15f * actionHeat,
+            $"action heat must reach the tank. kept={kept:0.000} action={actionHeat:0.000}");
+        Assert.True(kept < 1.1f * actionHeat,
+            $"the tank must not gain more than its action heat. kept={kept:0.000} action={actionHeat:0.000}");
+        Assert.True(withHeat.IsOffNetwork);
+        Assert.Equal(0, withHeat.OreHeld);
     }
 
-    private static Emberward.Core.Entities.Tanks.Tank RunOffNetwork(bool shootAndTorch, out int shots, out int dug)
+    private static Emberward.Core.Entities.Tanks.Tank RunOffNetwork(SimulationSettings settings, out int shots, out int dug)
     {
-        var s = RelayHeatTests.CreateScenario();
+        var s = RelayHeatTests.CreateScenario(simulationSettings: settings);
         var world = s.World;
         var tank = s.Tank;
         int dirY = s.DirY;
@@ -58,9 +66,7 @@ public class OffNetworkActionHeatTests
 
         var ledger = world.Terrain.Ledger;
         double open = world.SumSystemThermalEnergy() - ledger.Injected + ledger.TotalSunk;
-        var input = shootAndTorch
-            ? new ControllerOutput { MoveSpeed = new Offset(0, dirY), ShootPrimary = true, AimDirection = new DirectionF(0, dirY) }
-            : default;
+        var input = new ControllerOutput { MoveSpeed = new Offset(0, dirY), ShootPrimary = true, AimDirection = new DirectionF(0, dirY) };
         shots = 0;
         dug = 0;
         for (int i = 0; i < 90; i++)

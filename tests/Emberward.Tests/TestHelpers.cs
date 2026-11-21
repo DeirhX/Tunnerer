@@ -1,6 +1,7 @@
 namespace Emberward.Tests;
 
 using Emberward.Core;
+using Emberward.Core.Config;
 using Emberward.Core.LevelGen;
 using Emberward.Core.Match;
 using Emberward.Core.Terrain;
@@ -22,7 +23,8 @@ internal static class TestHelpers
         bool energyNetwork = false,
         bool machineUpgrades = false,
         bool tankReserve = false,
-        bool mobs = false)
+        bool mobs = false,
+        SimulationSettings? simulationSettings = null)
     {
         var mapSize = size ?? DefaultMapSize;
         var gen = new ToastGenerator();
@@ -30,6 +32,7 @@ internal static class TestHelpers
         var world = new World(
             mapSize,
             simulationSeed: seed,
+            simulationSettings: simulationSettings,
             rules: new MatchRules
             {
                 TerrainRegrowth = enableTerrainRegrowth,

@@ -25,10 +25,11 @@ public class RelayHeatTests
     /// position is 30 cells beyond the door, well inside the live link range.
     /// </summary>
     internal static Scenario CreateScenario(int seed = 4244, bool blockLineOfSight = false, bool energyNetwork = false,
-        bool machineUpgrades = false, bool tankReserve = false, bool mobs = false)
+        bool machineUpgrades = false, bool tankReserve = false, bool mobs = false,
+        SimulationSettings? simulationSettings = null)
     {
         var world = TestHelpers.CreateSeededWorld(seed: seed, enableTerrainRegrowth: false, energyNetwork: energyNetwork,
-            machineUpgrades: machineUpgrades, tankReserve: tankReserve, mobs: mobs);
+            machineUpgrades: machineUpgrades, tankReserve: tankReserve, mobs: mobs, simulationSettings: simulationSettings);
         var tank = world.TankList.Tanks[0];
         var tankBase = tank.Base!;
         var basePos = tankBase.Position;
